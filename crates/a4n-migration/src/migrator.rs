@@ -1,0 +1,68 @@
+//! 数据库 schema 初始化器。
+//!
+//! 新库通过 PostgreSQL baseline 建表；已部署数据库通过后续幂等迁移补齐新增表。
+
+use sea_orm_migration::prelude::*;
+
+pub struct Migrator;
+
+#[async_trait::async_trait]
+impl MigratorTrait for Migrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        vec![
+            Box::new(crate::migrations::postgres_baseline::Migration),
+            Box::new(crate::migrations::user_default_ai_config::Migration),
+            Box::new(crate::migrations::invite_codes::Migration),
+            Box::new(crate::migrations::generation_runs::Migration),
+            Box::new(crate::migrations::llm_context_tracking::Migration),
+            Box::new(crate::migrations::llm_call_trace_join_fields::Migration),
+            Box::new(crate::migrations::llm_call_trace_status_fields::Migration),
+            Box::new(crate::migrations::llm_request_options::Migration),
+            Box::new(crate::migrations::llm_model_capabilities::Migration),
+            Box::new(crate::migrations::object_profile_usage_fields::Migration),
+            Box::new(crate::migrations::chapter_video_prompt_language_identity::Migration),
+            Box::new(crate::migrations::shared_video_segment_plan::Migration),
+            Box::new(crate::migrations::project_collaboration::Migration),
+            Box::new(crate::migrations::workflow_runs::Migration),
+            Box::new(crate::migrations::generation_run_checkpoint_fields::Migration),
+            Box::new(crate::migrations::workflow_checkpoint_fingerprint_repair::Migration),
+            Box::new(crate::migrations::media_provider_options::Migration),
+            Box::new(crate::migrations::video_canvas_workflow::Migration),
+            Box::new(crate::migrations::canvas_assemble_edge_role::Migration),
+            Box::new(crate::migrations::canvas_assemble_clip_order::Migration),
+            Box::new(crate::migrations::freeform_generation_context::Migration),
+            Box::new(crate::migrations::freeform_canonical_media::Migration),
+            Box::new(crate::migrations::media_asset_snapshot_context::Migration),
+            Box::new(crate::migrations::media_provenance_snapshot_context::Migration),
+            Box::new(crate::migrations::galgame_script_tables::Migration),
+            Box::new(crate::migrations::galgame_script_integrity_contract::Migration),
+            Box::new(crate::migrations::galgame_generation_spec_contract::Migration),
+            Box::new(crate::migrations::galgame_media_binding_contract::Migration),
+            Box::new(crate::migrations::media_asset_generation_ref_contract::Migration),
+            Box::new(crate::migrations::galgame_target_reverse_integrity_contract::Migration),
+        ]
+    }
+}
+
+pub async fn run_migrations(db: &sea_orm::DatabaseConnection) -> Result<(), sea_orm::DbErr> {
+    Migrator::up(db, None).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Migrator;
+    use sea_orm_migration::prelude::MigratorTrait;
+
+    #[test]
+    fn migrations_keep_user_default_ai_config_history_marker() {
+        let names: Vec<_> = Migrator::migrations()
+            .into_iter()
+            .map(|migration| migration.name().to_string())
+            .collect();
+
+        assert!(
+            names.iter().any(|name| name == "user_default_ai_config"),
+            "deployed databases may already record user_default_ai_config"
+        );
+    }
+}

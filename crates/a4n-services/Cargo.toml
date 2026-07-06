@@ -1,0 +1,54 @@
+[package]
+name = "a4n-services"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+a4n-engine = { path = "../a4n-engine" }
+
+# 异步运行时
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# 序列化
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# HTTP
+reqwest = { workspace = true }
+
+# ORM
+sea-orm = { workspace = true }
+
+# 错误处理
+anyhow = { workspace = true }
+
+# 并发工具
+dashmap = { workspace = true }
+tokio-util = { workspace = true }
+
+# 文本处理
+regex = { workspace = true }
+
+# 密码学
+argon2 = { workspace = true }
+sha2 = { workspace = true }
+jsonwebtoken = { workspace = true }
+
+# 时间
+chrono = { workspace = true }
+
+# 日志
+tracing = { workspace = true }
+
+# 其他
+uuid = { workspace = true }
+zip = { workspace = true, features = ["deflate"] }
+base64 = { workspace = true }
+
+[dev-dependencies]
+a4n-migration = { path = "../a4n-migration" }
+sea-orm = { workspace = true }
+tokio = { workspace = true }

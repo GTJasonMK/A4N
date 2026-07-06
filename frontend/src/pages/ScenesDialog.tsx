@@ -1,0 +1,477 @@
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Modal } from "../components/ui/Modal";
+import { BookButton } from "../components/ui/BookButton";
+import { useToast } from "../components/feedback/Toast";
+import { confirmDialog } from "../components/feedback/ConfirmDialog";
+import { RequestPreviewModal } from "../components/feedback/RequestPreviewModal";
+import { extractErrorMessage } from "../api";
+import {
+  deleteChapterScene,
+  generateChapterScene,
+  listChapterScenes,
+  previewChapterSceneRequest,
+  reorderChapterScenes,
+  updateChapterScene,
+  type ChapterScene,
+} from "../api/chapter";
+import type { ModelRequestPreview } from "../api/requestPreview";
+import { createProgressTaskId, useProgressTask } from "../hooks/useProgressTask";
+import { isCancelledOperation } from "../utils/cancellation";
+import { nonEmptyText } from "../utils/text";
+import { SceneGenerationPanel } from "./scenes-dialog/SceneGenerationPanel";
+import { SceneList } from "./scenes-dialog/SceneList";
+import {
+  createSceneEditForm,
+  DEFAULT_SCENE_GENERATION_PROMPT,
+  getNextSceneNumber,
+  sortScenes,
+  type SceneEditForm,
+} from "./scenes-dialog/scenesDialogUtils";
+
+interface ScenesDialogProps {
+  open: boolean;
+  onClose: () => void;
+  chapterId: number | null;
+  chapterNumber: number | null;
+}
+
+export const ScenesDialog: React.FC<ScenesDialogProps> = ({
+  open,
+  onClose,
+  chapterId,
+  chapterNumber,
+}) => {
+  const { addToast } = useToast();
+  const [scenes, setScenes] = useState<ChapterScene[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<SceneEditForm>({});
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
+  const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
+  const [requestPreviewData, setRequestPreviewData] =
+    useState<ModelRequestPreview | null>(null);
+  const { runProgressTask } = useProgressTask();
+  const [genPrompt, setGenPrompt] = useState(DEFAULT_SCENE_GENERATION_PROMPT);
+  const [actingKeys, setActingKeys] = useState<Set<string>>(() => new Set());
+  const scopeKey = open && chapterId != null ? String(chapterId) : null;
+  const chapterKey = chapterId != null ? String(chapterId) : null;
+  const activeScopeRef = useRef<string | null>(scopeKey);
+  const activeChapterIdRef = useRef<number | null>(chapterId);
+  const mountedRef = useRef(true);
+  const loadSeqRef = useRef(0);
+  const previewSeqRef = useRef(0);
+  const saveSeqRef = useRef(0);
+  const generateSeqRef = useRef(0);
+  const previewingRef = useRef(false);
+  const savingRef = useRef(false);
+  const generatingRef = useRef(false);
+  const actingKeysRef = useRef<Set<string>>(new Set());
+  const loadInFlightScopeRef = useRef<string | null>(null);
+
+  activeChapterIdRef.current = chapterId;
+
+  const isCurrentScope = (requestScope: string | null) =>
+    mountedRef.current && activeScopeRef.current === requestScope;
+
+  const isCurrentMutation = (
+    requestChapterId: number,
+    seqRef: React.MutableRefObject<number>,
+    requestSeq: number,
+  ) =>
+    mountedRef.current &&
+    activeChapterIdRef.current === requestChapterId &&
+    seqRef.current === requestSeq;
+
+  const isCurrentChapter = (requestChapterId: number) =>
+    mountedRef.current && activeChapterIdRef.current === requestChapterId;
+
+  const startAction = (key: string) => {
+    if (actingKeysRef.current.has(key)) return false;
+    const next = new Set(actingKeysRef.current);
+    next.add(key);
+    actingKeysRef.current = next;
+    setActingKeys(new Set(next));
+    return true;
+  };
+
+  const finishAction = (key: string) => {
+    const next = new Set(actingKeysRef.current);
+    next.delete(key);
+    actingKeysRef.current = next;
+    setActingKeys(new Set(next));
+  };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      loadSeqRef.current += 1;
+      previewSeqRef.current += 1;
+      saveSeqRef.current += 1;
+      generateSeqRef.current += 1;
+      previewingRef.current = false;
+      savingRef.current = false;
+      generatingRef.current = false;
+      actingKeysRef.current = new Set();
+      loadInFlightScopeRef.current = null;
+    };
+  }, []);
+
+  const load = useCallback(async (options?: { force?: boolean }) => {
+    if (chapterId == null) return;
+    const requestScope = String(chapterId);
+    if (!options?.force && loadInFlightScopeRef.current === requestScope) return;
+    loadInFlightScopeRef.current = requestScope;
+    const requestSeq = loadSeqRef.current + 1;
+    loadSeqRef.current = requestSeq;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const data = await listChapterScenes(chapterId);
+      if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
+      setScenes(data);
+      setLoadError(null);
+    } catch (err) {
+      if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
+      const message = extractErrorMessage(err, "加载场景失败");
+      setScenes([]);
+      setExpanded(new Set());
+      setEditingId(null);
+      setEditForm({});
+      setLoadError(message);
+      addToast(message, "error");
+    } finally {
+      if (loadSeqRef.current === requestSeq && isCurrentScope(requestScope)) {
+        setLoading(false);
+      }
+      if (loadInFlightScopeRef.current === requestScope) {
+        loadInFlightScopeRef.current = null;
+      }
+    }
+  }, [addToast, chapterId]);
+
+  useLayoutEffect(() => {
+    activeScopeRef.current = scopeKey;
+    loadSeqRef.current += 1;
+    previewSeqRef.current += 1;
+    setScenes([]);
+    setExpanded(new Set());
+    setEditingId(null);
+    setEditForm({});
+    setLoading(false);
+    setLoadError(null);
+    loadInFlightScopeRef.current = null;
+    setRequestPreviewOpen(false);
+    setRequestPreviewLoading(false);
+    setRequestPreviewData(null);
+    previewingRef.current = false;
+  }, [scopeKey]);
+
+  useLayoutEffect(() => {
+    saveSeqRef.current += 1;
+    generateSeqRef.current += 1;
+    savingRef.current = false;
+    generatingRef.current = false;
+    actingKeysRef.current = new Set();
+    setSaving(false);
+    setGenerating(false);
+    setActingKeys(new Set());
+  }, [chapterKey]);
+
+  useEffect(() => {
+    if (scopeKey != null) {
+      void load();
+    }
+  }, [scopeKey, load]);
+
+  useEffect(() => {
+    const ids = new Set(scenes.map((scene) => scene.id));
+    setExpanded((prev) => new Set([...prev].filter((id) => ids.has(id))));
+    setEditingId((current) => {
+      if (current == null || ids.has(current)) return current;
+      setEditForm({});
+      return null;
+    });
+  }, [scenes]);
+
+  const toggleExpand = (id: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const startEdit = (s: ChapterScene) => {
+    setEditingId(s.id);
+    setEditForm(createSceneEditForm(s));
+    setExpanded((prev) => new Set(prev).add(s.id));
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm({});
+  };
+
+  const handleSave = async () => {
+    if (editingId == null || chapterId == null) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
+    const requestScope = scopeKey;
+    const requestChapterId = chapterId;
+    const requestSeq = saveSeqRef.current + 1;
+    saveSeqRef.current = requestSeq;
+    setSaving(true);
+    try {
+      await updateChapterScene({
+        scene_id: editingId,
+        title: editForm.title ?? null,
+        content: editForm.content ?? null,
+        summary: editForm.summary ?? null,
+        scene_type: editForm.scene_type ?? null,
+        location: editForm.location ?? null,
+        timeline_position: editForm.timeline_position ?? null,
+      });
+      if (!isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) return;
+      addToast("场景已保存", "success");
+      if (isCurrentScope(requestScope)) {
+        setEditingId(null);
+        setEditForm({});
+        await load({ force: true });
+      }
+    } catch (err) {
+      if (!isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) return;
+      addToast(extractErrorMessage(err, "保存失败"), "error");
+    } finally {
+      if (isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) setSaving(false);
+      if (saveSeqRef.current === requestSeq) {
+        savingRef.current = false;
+      }
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (chapterId == null) return;
+    if (generatingRef.current) return;
+    generatingRef.current = true;
+    const requestScope = scopeKey;
+    const requestChapterId = chapterId;
+    const requestSeq = generateSeqRef.current + 1;
+    generateSeqRef.current = requestSeq;
+    const nextNumber = getNextSceneNumber(scenes);
+    const taskId = createProgressTaskId("chapter-scene", chapterId);
+    setGenerating(true);
+    try {
+      const s = await runProgressTask(
+        {
+          title: `生成场景 #${nextNumber}`,
+          startMessage: "正在准备场景生成",
+          successMessage: "场景已生成",
+          errorMessage: "生成场景失败",
+          taskId,
+          total: 4,
+          cancelLabel: "停止生成",
+          runningHint: "场景生成停止后，已经保存的场景会保留",
+        },
+        () =>
+          generateChapterScene(
+            {
+              chapter_id: requestChapterId,
+              scene_number: nextNumber,
+              scene_prompt: genPrompt,
+            },
+            taskId,
+          ),
+      );
+      if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
+      addToast(`已生成场景 #${s.scene_number}`, "success");
+      if (isCurrentScope(requestScope)) await load({ force: true });
+    } catch (err) {
+      if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
+      const message = extractErrorMessage(err, "生成场景失败");
+      addToast(message, isCancelledOperation(message) ? "info" : "error");
+      if (isCurrentScope(requestScope)) await load({ force: true });
+    } finally {
+      if (isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) setGenerating(false);
+      if (generateSeqRef.current === requestSeq) {
+        generatingRef.current = false;
+      }
+    }
+  };
+
+  const handlePreviewGenerateRequest = async () => {
+    if (chapterId == null) return;
+    if (previewingRef.current) return;
+    previewingRef.current = true;
+    const requestScope = scopeKey;
+    const requestSeq = previewSeqRef.current + 1;
+    previewSeqRef.current = requestSeq;
+    const nextNumber = getNextSceneNumber(scenes);
+    setRequestPreviewOpen(true);
+    setRequestPreviewLoading(true);
+    setRequestPreviewData(null);
+    try {
+      const preview = await previewChapterSceneRequest({
+        chapter_id: chapterId,
+        scene_number: nextNumber,
+        scene_prompt: genPrompt,
+      });
+      if (previewSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
+      setRequestPreviewData(preview);
+    } catch (err) {
+      if (previewSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
+      addToast(extractErrorMessage(err, "预览场景生成请求失败"), "error");
+      setRequestPreviewOpen(false);
+    } finally {
+      if (previewSeqRef.current === requestSeq && isCurrentScope(requestScope)) {
+        setRequestPreviewLoading(false);
+      }
+      if (previewSeqRef.current === requestSeq) {
+        previewingRef.current = false;
+      }
+    }
+  };
+
+  const handleDelete = async (s: ChapterScene) => {
+    if (chapterId == null) return;
+    const requestScope = scopeKey;
+    const requestChapterId = chapterId;
+    const actionKey = `del-${s.id}`;
+    if (!startAction(actionKey)) return;
+    const title = nonEmptyText(s.title);
+    const ok = await confirmDialog({
+      title: "删除场景",
+      message: title
+        ? `删除场景 #${s.scene_number} 「${title}」？不可撤销。`
+        : `删除场景 #${s.scene_number}？不可撤销。`,
+      confirmText: "删除",
+      dialogType: "danger",
+    });
+    if (!ok) {
+      finishAction(actionKey);
+      return;
+    }
+    if (!isCurrentChapter(requestChapterId)) {
+      finishAction(actionKey);
+      return;
+    }
+    try {
+      await deleteChapterScene(s.id);
+      if (!isCurrentChapter(requestChapterId)) return;
+      addToast("场景已删除", "success");
+      if (isCurrentScope(requestScope)) await load({ force: true });
+    } catch (err) {
+      if (!isCurrentChapter(requestChapterId)) return;
+      addToast(extractErrorMessage(err, "删除失败"), "error");
+    } finally {
+      if (isCurrentChapter(requestChapterId)) {
+        finishAction(actionKey);
+      }
+    }
+  };
+
+  const handleMove = async (s: ChapterScene, dir: -1 | 1) => {
+    if (chapterId == null) return;
+    const requestScope = scopeKey;
+    const requestChapterId = chapterId;
+    const sorted = sortScenes(scenes);
+    const idx = sorted.findIndex((x) => x.id === s.id);
+    if (idx < 0) return;
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[swapIdx];
+    const actionKey = `move-${s.id}`;
+    if (!isCurrentChapter(requestChapterId)) return;
+    if (!startAction(actionKey)) return;
+    try {
+      await reorderChapterScenes({
+        order: [
+          [a.id, b.scene_number],
+          [b.id, a.scene_number],
+        ],
+      });
+      if (!isCurrentChapter(requestChapterId)) return;
+      if (isCurrentScope(requestScope)) await load({ force: true });
+    } catch (err) {
+      if (!isCurrentChapter(requestChapterId)) return;
+      addToast(extractErrorMessage(err, "排序失败"), "error");
+    } finally {
+      if (isCurrentChapter(requestChapterId)) {
+        finishAction(actionKey);
+      }
+    }
+  };
+
+  const sortedScenes = useMemo(() => sortScenes(scenes), [scenes]);
+  const nextSceneNumber = useMemo(() => getNextSceneNumber(scenes), [scenes]);
+
+  return (
+    <>
+      <Modal
+        isOpen={open}
+        onClose={onClose}
+        title={`场景管理${chapterNumber != null ? ` · 第 ${chapterNumber} 章` : ""}`}
+        maxWidthClassName="max-w-3xl"
+        footer={
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-book-text-muted">
+              共 {scenes.length} 个场景
+            </span>
+            <BookButton variant="secondary" onClick={onClose}>
+              关闭
+            </BookButton>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3 max-h-[65vh]">
+          <SceneGenerationPanel
+            nextSceneNumber={nextSceneNumber}
+            prompt={genPrompt}
+            generating={generating}
+            previewing={requestPreviewLoading}
+            onPromptChange={setGenPrompt}
+            onPreviewRequest={() => void handlePreviewGenerateRequest()}
+            onGenerate={() => void handleGenerate()}
+          />
+
+          <SceneList
+            loading={loading}
+            loadError={loadError}
+            scenes={sortedScenes}
+            expanded={expanded}
+            editingId={editingId}
+            editForm={editForm}
+            saving={saving}
+            actingKeys={actingKeys}
+            onToggleExpand={toggleExpand}
+            onStartEdit={startEdit}
+            onCancelEdit={cancelEdit}
+            onEditFormChange={(patch) => setEditForm((prev) => ({ ...prev, ...patch }))}
+            onSave={() => void handleSave()}
+            onMove={(scene, direction) => void handleMove(scene, direction)}
+            onDelete={(scene) => void handleDelete(scene)}
+          />
+        </div>
+      </Modal>
+
+      <RequestPreviewModal
+        open={requestPreviewOpen}
+        loading={requestPreviewLoading}
+        data={requestPreviewData}
+        fallbackTitle="场景生成请求预览"
+        onClose={() => {
+          previewSeqRef.current += 1;
+          previewingRef.current = false;
+          setRequestPreviewOpen(false);
+          setRequestPreviewLoading(false);
+        }}
+      />
+    </>
+  );
+};

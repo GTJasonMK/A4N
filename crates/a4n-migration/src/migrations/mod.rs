@@ -1,0 +1,32 @@
+//! PostgreSQL baseline schema.
+
+pub mod canvas_assemble_clip_order;
+pub mod canvas_assemble_edge_role;
+pub mod chapter_video_prompt_language_identity;
+pub mod freeform_canonical_media;
+pub mod freeform_generation_context;
+pub mod galgame_generation_spec_contract;
+pub mod galgame_media_binding_contract;
+pub mod galgame_script_integrity_contract;
+pub mod galgame_script_tables;
+pub mod galgame_target_reverse_integrity_contract;
+pub mod generation_run_checkpoint_fields;
+pub mod generation_runs;
+pub mod invite_codes;
+pub mod llm_call_trace_join_fields;
+pub mod llm_call_trace_status_fields;
+pub mod llm_context_tracking;
+pub mod llm_model_capabilities;
+pub mod llm_request_options;
+pub mod media_asset_generation_ref_contract;
+pub mod media_asset_snapshot_context;
+pub mod media_provenance_snapshot_context;
+pub mod media_provider_options;
+pub mod object_profile_usage_fields;
+pub mod postgres_baseline;
+pub mod project_collaboration;
+pub mod shared_video_segment_plan;
+pub mod user_default_ai_config;
+pub mod video_canvas_workflow;
+pub mod workflow_checkpoint_fingerprint_repair;
+pub mod workflow_runs;

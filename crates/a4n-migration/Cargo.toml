@@ -1,0 +1,14 @@
+[package]
+name = "a4n-migration"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+
+sea-orm = { workspace = true }
+sea-orm-migration = { version = "1" }
+serde_json = { workspace = true }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }

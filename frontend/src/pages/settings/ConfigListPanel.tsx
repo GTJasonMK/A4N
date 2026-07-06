@@ -1,0 +1,504 @@
+import { useEffect, useRef, useState } from "react";
+import { extractErrorMessage } from "../../api";
+import type { ModelRequestPreview } from "../../api/requestPreview";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
+import { useToast } from "../../components/feedback/Toast";
+import { ConfigEditorPanel } from "./config-list/ConfigEditorPanel";
+import { ConfigListSidebar } from "./config-list/ConfigListSidebar";
+import { ConfigListToolbar } from "./config-list/ConfigListToolbar";
+import { FormField } from "./config-list/FormField";
+import type { ConfigListPanelProps, ConfigTestResult } from "./config-list/types";
+
+export type { ConfigItem } from "./config-list/types";
+export { FormField };
+
+/**
+ * 通用配置列表面板
+ *
+ * 左侧负责配置选择，右侧负责当前项编辑；业务读写由调用方注入。
+ */
+export function ConfigListPanel<C>({
+  title,
+  items,
+  loading,
+  onRefresh,
+  onCreate,
+  onUpdate,
+  onDelete,
+  onActivate,
+  onTest,
+  onPreviewTest,
+  formatItem,
+  renderEditor,
+  defaultForm,
+  validate,
+  activeLabel = "当前默认",
+  activateText = "设为默认",
+  activateSuccessMessage = "已设为默认",
+  activateErrorMessage = "设置默认失败",
+  activeDeleteTitle = "默认配置不可删除",
+}: ConfigListPanelProps<C>) {
+  const addToast = useToast((state) => state.addToast);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState<C>(defaultForm);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [activating, setActivating] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [testing, setTesting] = useState<number | null>(null);
+  const [testResults, setTestResults] = useState<Record<number, ConfigTestResult>>({});
+  const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
+  const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
+  const [requestPreviewData, setRequestPreviewData] =
+    useState<ModelRequestPreview | null>(null);
+
+  const selectedItem = items.find((item) => item.id === selectedId) ?? null;
+  const mountedRef = useRef(true);
+  const itemsRef = useRef(items);
+  const selectedIdRef = useRef(selectedId);
+  const creatingRef = useRef(creating);
+  const dirtyRef = useRef(dirty);
+  const editVersionRef = useRef(0);
+  const saveSeqRef = useRef(0);
+  const refreshSeqRef = useRef(0);
+  const activateSeqRef = useRef(0);
+  const deleteSeqRef = useRef(0);
+  const testSeqRef = useRef(0);
+  const previewSeqRef = useRef(0);
+  const savingRef = useRef(false);
+  const refreshingRef = useRef(false);
+  const draftTransitionRef = useRef(false);
+  const activatingRef = useRef<number | null>(null);
+  const deletingRef = useRef<number | null>(null);
+  const testingRef = useRef<number | null>(null);
+  const previewLoadingRef = useRef(false);
+
+  itemsRef.current = items;
+  selectedIdRef.current = selectedId;
+  creatingRef.current = creating;
+  dirtyRef.current = dirty;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      saveSeqRef.current += 1;
+      refreshSeqRef.current += 1;
+      activateSeqRef.current += 1;
+      deleteSeqRef.current += 1;
+      testSeqRef.current += 1;
+      previewSeqRef.current += 1;
+      savingRef.current = false;
+      refreshingRef.current = false;
+      draftTransitionRef.current = false;
+      activatingRef.current = null;
+      deletingRef.current = null;
+      testingRef.current = null;
+      previewLoadingRef.current = false;
+    };
+  }, []);
+
+  const hasItem = (id: number) => itemsRef.current.some((item) => item.id === id);
+  const isSelectedItem = (id: number) => selectedIdRef.current === id && hasItem(id);
+  const editorScope = () => (creatingRef.current ? "create" : `item:${selectedIdRef.current ?? "none"}`);
+  const markDirty = () => {
+    editVersionRef.current += 1;
+    dirtyRef.current = true;
+    setDirty(true);
+  };
+  const markClean = () => {
+    dirtyRef.current = false;
+    setDirty(false);
+  };
+
+  useEffect(() => {
+    if (creating || dirty || !selectedItem) return;
+    setForm(selectedItem.config);
+    markClean();
+  }, [creating, dirty, selectedItem]);
+
+  useEffect(() => {
+    if (selectedId != null && !items.some((item) => item.id === selectedId)) {
+      previewSeqRef.current += 1;
+      setSelectedId(null);
+      setCreating(false);
+      setForm(defaultForm);
+      markClean();
+    }
+  }, [defaultForm, items, selectedId]);
+
+  const confirmDiscardDraft = async (actionText: string): Promise<boolean> => {
+    if (!dirtyRef.current) return true;
+    return confirmDialog({
+      title: "未保存修改",
+      message: `当前 ${title} 表单有未保存修改，${actionText}会放弃当前草稿。是否继续？`,
+      confirmText: "放弃草稿",
+      dialogType: "warning",
+    });
+  };
+
+  const resetFormToSavedState = () => {
+    if (!creating && selectedItem) {
+      setForm(selectedItem.config);
+    } else {
+      setForm(defaultForm);
+    }
+    markClean();
+  };
+
+  const handleStartCreate = async () => {
+    if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
+    draftTransitionRef.current = true;
+    try {
+      if (!(await confirmDiscardDraft(`新增${title}`))) return;
+      if (!mountedRef.current) return;
+      setSelectedId(null);
+      setCreating(true);
+      setForm(defaultForm);
+      markClean();
+    } finally {
+      draftTransitionRef.current = false;
+    }
+  };
+
+  const handleSelect = async (id: number) => {
+    if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
+    if (!creating && id === selectedId) return;
+    draftTransitionRef.current = true;
+    try {
+      if (!(await confirmDiscardDraft(`切换${title}`))) return;
+      if (!mountedRef.current || !hasItem(id)) return;
+      setSelectedId(id);
+      setCreating(false);
+      markClean();
+    } finally {
+      draftTransitionRef.current = false;
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
+    const requestSeq = refreshSeqRef.current + 1;
+    refreshSeqRef.current = requestSeq;
+    refreshingRef.current = true;
+    draftTransitionRef.current = true;
+    try {
+      if (!(await confirmDiscardDraft("刷新列表"))) return;
+      if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
+      if (dirtyRef.current) {
+        resetFormToSavedState();
+      }
+      await onRefresh();
+    } finally {
+      if (refreshSeqRef.current === requestSeq) {
+        refreshingRef.current = false;
+        draftTransitionRef.current = false;
+      }
+    }
+  };
+
+  const handleSave = async () => {
+    if (
+      savingRef.current ||
+      activatingRef.current != null ||
+      deletingRef.current != null ||
+      testingRef.current != null ||
+      previewLoadingRef.current
+    ) {
+      return;
+    }
+    const error = validate?.(form);
+    if (error) {
+      addToast(error, "error");
+      return;
+    }
+
+    const requestSeq = saveSeqRef.current + 1;
+    saveSeqRef.current = requestSeq;
+    const requestCreating = creating;
+    const requestSelectedItem = selectedItem;
+    const requestScope = editorScope();
+    const requestForm = form;
+    const requestEditVersion = editVersionRef.current;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      if (requestCreating) {
+        await onCreate(requestForm);
+        if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
+        if (editorScope() === requestScope && editVersionRef.current === requestEditVersion) {
+          addToast(`${title} 已创建`, "success");
+          setCreating(false);
+          markClean();
+        } else if (editorScope() === requestScope) {
+          addToast(`${title} 已创建，保存期间的后续修改仍保留为未保存草稿`, "success");
+        }
+      } else if (requestSelectedItem) {
+        await onUpdate(requestSelectedItem.id, requestForm);
+        if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
+        setTestResults((prev) => {
+          const next = { ...prev };
+          delete next[requestSelectedItem.id];
+          return next;
+        });
+        if (editorScope() === requestScope && editVersionRef.current === requestEditVersion) {
+          addToast(`${title} 已更新`, "success");
+          markClean();
+        } else if (editorScope() === requestScope) {
+          addToast(`${title} 已更新，保存期间的后续修改仍保留为未保存草稿`, "success");
+        }
+      }
+      await onRefresh();
+    } catch (err) {
+      if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
+      addToast(extractErrorMessage(err, "保存失败"), "error");
+    } finally {
+      if (saveSeqRef.current === requestSeq) savingRef.current = false;
+      if (mountedRef.current && saveSeqRef.current === requestSeq) setSaving(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
+    draftTransitionRef.current = true;
+    try {
+      if (!(await confirmDiscardDraft("取消编辑"))) return;
+      if (!mountedRef.current) return;
+      setCreating(false);
+      setSelectedId(null);
+      setForm(defaultForm);
+      markClean();
+    } finally {
+      draftTransitionRef.current = false;
+    }
+  };
+
+  const handleActivate = async (id: number) => {
+    if (savingRef.current || activatingRef.current != null || deletingRef.current != null) return;
+    if (!hasItem(id)) return;
+    const requestSeq = activateSeqRef.current + 1;
+    activateSeqRef.current = requestSeq;
+    activatingRef.current = id;
+    setActivating(id);
+    try {
+      await onActivate(id);
+      if (!mountedRef.current || activateSeqRef.current !== requestSeq || !hasItem(id)) return;
+      addToast(activateSuccessMessage, "success");
+      await onRefresh();
+    } catch (err) {
+      if (!mountedRef.current || activateSeqRef.current !== requestSeq) return;
+      addToast(extractErrorMessage(err, activateErrorMessage), "error");
+    } finally {
+      if (activateSeqRef.current === requestSeq) activatingRef.current = null;
+      if (mountedRef.current && activateSeqRef.current === requestSeq) setActivating(null);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (savingRef.current || activatingRef.current != null || deletingRef.current != null) return;
+    if (!hasItem(id)) return;
+    const item = itemsRef.current.find((row) => row.id === id);
+    if (item?.deleteDisabled) {
+      addToast(item.deleteDisabledReason ?? "该配置不可删除", "error");
+      return;
+    }
+    deletingRef.current = id;
+    const ok = await confirmDialog({
+      title: `删除${title}`,
+      message: `确定删除该 ${title}？此操作不可撤销。`,
+      confirmText: "删除",
+      dialogType: "danger",
+    });
+    if (!ok) {
+      if (deletingRef.current === id) deletingRef.current = null;
+      return;
+    }
+    if (!mountedRef.current || !hasItem(id)) {
+      if (deletingRef.current === id) deletingRef.current = null;
+      return;
+    }
+
+    const requestSeq = deleteSeqRef.current + 1;
+    deleteSeqRef.current = requestSeq;
+    setDeleting(id);
+    try {
+      await onDelete(id);
+      if (!mountedRef.current || deleteSeqRef.current !== requestSeq) return;
+      addToast("已删除", "success");
+      if (selectedIdRef.current === id) setSelectedId(null);
+      setTestResults((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      await onRefresh();
+    } catch (err) {
+      if (!mountedRef.current || deleteSeqRef.current !== requestSeq) return;
+      addToast(extractErrorMessage(err, "删除失败"), "error");
+    } finally {
+      if (deleteSeqRef.current === requestSeq) deletingRef.current = null;
+      if (mountedRef.current && deleteSeqRef.current === requestSeq) setDeleting(null);
+    }
+  };
+
+  const handleTest = async (id: number) => {
+    if (!onTest) return;
+    if (savingRef.current || testingRef.current != null || previewLoadingRef.current) return;
+    if (!isSelectedItem(id)) return;
+    if (selectedItem?.readonly) {
+      addToast(selectedItem.readonlyReason ?? "只读配置不能在这里测试", "error");
+      return;
+    }
+    if (dirtyRef.current) {
+      addToast("当前表单有未保存修改，请先保存后再测试配置", "error");
+      return;
+    }
+    const requestSeq = testSeqRef.current + 1;
+    testSeqRef.current = requestSeq;
+    testingRef.current = id;
+    setTesting(id);
+    try {
+      await onTest(id);
+      if (!mountedRef.current || testSeqRef.current !== requestSeq || !isSelectedItem(id)) return;
+      setTestResults((prev) => ({
+        ...prev,
+        [id]: {
+          status: "success",
+          message: "连接测试通过",
+          testedAt: new Date().toISOString(),
+        },
+      }));
+      addToast("连接测试通过", "success");
+    } catch (err) {
+      if (!mountedRef.current || testSeqRef.current !== requestSeq || !isSelectedItem(id)) return;
+      const message = extractErrorMessage(err, "连接测试失败");
+      setTestResults((prev) => ({
+        ...prev,
+        [id]: {
+          status: "error",
+          message,
+          testedAt: new Date().toISOString(),
+        },
+      }));
+      addToast(message, "error");
+    } finally {
+      if (testSeqRef.current === requestSeq) testingRef.current = null;
+      if (mountedRef.current && testSeqRef.current === requestSeq) setTesting(null);
+    }
+  };
+
+  const handlePreviewTest = async (id: number) => {
+    if (!onPreviewTest) return;
+    if (savingRef.current || testingRef.current != null || previewLoadingRef.current) return;
+    if (!isSelectedItem(id)) return;
+    if (selectedItem?.readonly) {
+      addToast(selectedItem.readonlyReason ?? "只读配置不能在这里预览测试请求", "error");
+      return;
+    }
+    if (dirtyRef.current) {
+      addToast("当前表单有未保存修改，请先保存后再预览测试请求", "error");
+      return;
+    }
+    const requestSeq = previewSeqRef.current + 1;
+    previewSeqRef.current = requestSeq;
+    previewLoadingRef.current = true;
+    setRequestPreviewOpen(true);
+    setRequestPreviewLoading(true);
+    setRequestPreviewData(null);
+    try {
+      const preview = await onPreviewTest(id);
+      if (
+        !mountedRef.current ||
+        previewSeqRef.current !== requestSeq ||
+        !isSelectedItem(id)
+      ) {
+        return;
+      }
+      setRequestPreviewData(preview);
+    } catch (err) {
+      if (
+        !mountedRef.current ||
+        previewSeqRef.current !== requestSeq ||
+        !isSelectedItem(id)
+      ) {
+        return;
+      }
+      addToast(extractErrorMessage(err, "预览测试请求失败"), "error");
+      setRequestPreviewOpen(false);
+    } finally {
+      if (previewSeqRef.current === requestSeq) previewLoadingRef.current = false;
+      if (mountedRef.current && previewSeqRef.current === requestSeq) {
+        setRequestPreviewLoading(false);
+      }
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col gap-3">
+      <ConfigListToolbar
+        title={title}
+        itemCount={items.length}
+        loading={loading}
+        onCreate={() => void handleStartCreate()}
+        onRefresh={handleRefresh}
+      />
+
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[280px_1fr] md:grid-rows-1">
+        <ConfigListSidebar
+          title={title}
+          items={items}
+          loading={loading}
+          selectedId={selectedId}
+          creating={creating}
+          formatItem={formatItem}
+          testResults={testResults}
+          activeLabel={activeLabel}
+          onSelect={(id) => void handleSelect(id)}
+        />
+
+        <ConfigEditorPanel
+          title={title}
+          creating={creating}
+          selectedItem={selectedItem}
+          form={form}
+          saving={saving}
+          activating={activating}
+          deleting={deleting}
+          testing={testing}
+          previewing={requestPreviewLoading}
+          testResult={selectedItem ? testResults[selectedItem.id] ?? null : null}
+          canTest={Boolean(onTest)}
+          canPreviewTest={Boolean(onPreviewTest)}
+          activateText={activateText}
+          activeDeleteTitle={activeDeleteTitle}
+          renderEditor={renderEditor}
+          onFormChange={(nextForm) => {
+            setForm(nextForm);
+            markDirty();
+          }}
+          onCancel={handleCancel}
+          onSave={handleSave}
+          onActivate={handleActivate}
+          onDelete={handleDelete}
+          onPreviewTest={handlePreviewTest}
+          onTest={handleTest}
+        />
+      </div>
+      <RequestPreviewModal
+        open={requestPreviewOpen}
+        loading={requestPreviewLoading}
+        data={requestPreviewData}
+        fallbackTitle={`${title}测试请求预览`}
+        onClose={() => {
+          previewSeqRef.current += 1;
+          previewLoadingRef.current = false;
+          setRequestPreviewOpen(false);
+          setRequestPreviewLoading(false);
+          setRequestPreviewData(null);
+        }}
+      />
+    </div>
+  );
+}

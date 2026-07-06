@@ -1,0 +1,1134 @@
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  BadgeCheck,
+  Box,
+  Clipboard,
+  ImagePlus,
+  Loader2,
+  MapPinned,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Star,
+  Upload,
+} from "lucide-react";
+import { extractErrorMessage } from "../../../api";
+import {
+  deleteImage,
+  scoreImage,
+  toggleImageFavorite,
+  updateImage,
+  type GeneratedImage,
+  type UpdateImageInput,
+} from "../../../api/image";
+import {
+  listProfileMaterials,
+  setProfilePrimaryMaterial,
+  uploadProfileMaterialImage,
+  type ProfileMaterialGroup,
+  type ProfileMaterialKind,
+  type ProfileMaterialState,
+} from "../../../api/profileMaterials";
+import {
+  generateObjectProfileImage,
+  generateObjectProfileImagePrompt,
+} from "../../../api/objectProfiles";
+import { copyTextToClipboard } from "../../../utils/clipboard";
+import {
+  generateSceneProfileImage,
+  generateSceneProfileImagePrompt,
+} from "../../../api/sceneProfiles";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
+import { createProgressTaskId, type RunProgressTask } from "../../../hooks/useProgressTask";
+import { toMediaSrc } from "../../../utils/mediaSrc";
+import {
+  isSupportedImageMime,
+  readFileAsBase64,
+  supportedImageAccept,
+} from "../../../utils/imageUpload";
+import { ImageActionDialog } from "../images/ImageActionDialog";
+import {
+  IMAGE_STYLE_TEMPLATES,
+  renderVisualStyleTemplate,
+} from "../styleTemplates";
+
+type MaterialKindFilter = "all" | ProfileMaterialKind;
+type MaterialFilter = "all" | ProfileMaterialState | "favorite";
+type MaterialSort = "missing_first" | "stale_first" | "newest" | "importance";
+type LoadMaterialsOptions = { force?: boolean };
+
+const CUSTOM_STYLE_VALUE = "custom";
+const DEFAULT_STYLE_TEMPLATE_ID = IMAGE_STYLE_TEMPLATES[0]?.id ?? CUSTOM_STYLE_VALUE;
+const STYLE_TEMPLATE_VERSION = "1";
+const MAX_UPLOAD_IMAGE_BYTES = 20 * 1024 * 1024;
+
+const KIND_OPTIONS: Array<{ value: MaterialKindFilter; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "scene", label: "场景" },
+  { value: "object", label: "物品" },
+];
+
+const FILTER_OPTIONS: Array<{ value: MaterialFilter; label: string }> = [
+  { value: "all", label: "全部状态" },
+  { value: "missing", label: "缺失" },
+  { value: "stale", label: "已过期" },
+  { value: "unknown", label: "旧素材" },
+  { value: "ready", label: "可用" },
+  { value: "favorite", label: "收藏" },
+];
+
+const SORT_OPTIONS: Array<{ value: MaterialSort; label: string }> = [
+  { value: "missing_first", label: "缺失优先" },
+  { value: "stale_first", label: "过期优先" },
+  { value: "newest", label: "最新素材" },
+  { value: "importance", label: "重要性" },
+];
+
+const MATERIAL_STATE_LABELS: Record<ProfileMaterialState, string> = {
+  missing: "缺失",
+  ready: "可用",
+  stale: "已过期",
+  unknown: "旧素材",
+};
+
+const MATERIAL_KIND_LABELS: Record<ProfileMaterialKind, string> = {
+  scene: "场景",
+  object: "物品",
+};
+
+const IMPORTANCE_LABELS: Record<string, string> = {
+  primary: "主要",
+  secondary: "次要",
+  background: "背景",
+  high: "高",
+  medium: "中",
+  low: "低",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  location: "地点",
+  interior: "室内",
+  exterior: "室外",
+  region: "区域",
+  world: "世界",
+  organization: "组织空间",
+  weapon: "武器",
+  prop: "道具",
+  token: "信物",
+  document: "文书",
+  vehicle: "载具",
+  artifact: "器物",
+  consumable: "消耗品",
+  other: "其他",
+};
+
+const chapterRangeText = (first: number, last: number): string => {
+  if (first === last) return `第 ${first} 章`;
+  return `第 ${first}-${last} 章`;
+};
+
+const groupKey = (group: ProfileMaterialGroup): string => `${group.kind}:${group.profile.id}`;
+
+interface VideoMaterialWorkspaceProps {
+  projectId: number;
+  onToast: (message: string, type: "success" | "error" | "info") => void;
+  runProgressTask: RunProgressTask;
+  onRefreshVideoData: () => Promise<void> | void;
+}
+
+export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
+  projectId,
+  onToast,
+  runProgressTask,
+  onRefreshVideoData,
+}) => {
+  const [groups, setGroups] = useState<ProfileMaterialGroup[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [kindFilter, setKindFilter] = useState<MaterialKindFilter>("all");
+  const [stateFilter, setStateFilter] = useState<MaterialFilter>("all");
+  const [sort, setSort] = useState<MaterialSort>("missing_first");
+  const [query, setQuery] = useState("");
+  const [selectedStyleTemplateId, setSelectedStyleTemplateId] =
+    useState(DEFAULT_STYLE_TEMPLATE_ID);
+  const [customStyle, setCustomStyle] = useState("");
+  const [imageDetails, setImageDetails] = useState<GeneratedImage | null>(null);
+  const [imageBusyId, setImageBusyId] = useState<number | null>(null);
+  const [imageScoringId, setImageScoringId] = useState<number | null>(null);
+  const [imageScoreInput, setImageScoreInput] = useState("0.8");
+  const [uploadTarget, setUploadTarget] = useState<ProfileMaterialGroup | null>(null);
+  const [uploadSetPrimary, setUploadSetPrimary] = useState(true);
+  const loadSeqRef = useRef(0);
+  const loadInFlightRef = useRef<{ key: string; seq: number; promise: Promise<void> } | null>(
+    null,
+  );
+  const actionBusyRef = useRef(false);
+  const activeProjectRef = useRef(projectId);
+  const loadRequestKey = `${projectId}:${kindFilter}:${query.trim()}:${stateFilter}:${sort}`;
+  const activeLoadKeyRef = useRef(loadRequestKey);
+
+  const selectedStyleTemplate = useMemo(
+    () =>
+      IMAGE_STYLE_TEMPLATES.find((template) => template.id === selectedStyleTemplateId) ??
+      null,
+    [selectedStyleTemplateId],
+  );
+  const materialStyle = selectedStyleTemplate
+    ? renderVisualStyleTemplate(selectedStyleTemplate)
+    : customStyle;
+
+  useLayoutEffect(() => {
+    activeProjectRef.current = projectId;
+    setGroups([]);
+    setImageDetails(null);
+    setUploadTarget(null);
+    setBusyKey(null);
+    setBatchBusy(false);
+    setLoading(false);
+    loadInFlightRef.current = null;
+    actionBusyRef.current = false;
+  }, [projectId]);
+
+  useLayoutEffect(() => {
+    activeLoadKeyRef.current = loadRequestKey;
+    loadSeqRef.current += 1;
+    loadInFlightRef.current = null;
+  }, [loadRequestKey]);
+
+  useEffect(
+    () => () => {
+      loadInFlightRef.current = null;
+      actionBusyRef.current = false;
+    },
+    [],
+  );
+
+  const isCurrentProject = (requestProjectId: number) =>
+    activeProjectRef.current === requestProjectId;
+
+  const beginAction = () => {
+    if (actionBusyRef.current) return false;
+    actionBusyRef.current = true;
+    return true;
+  };
+
+  const finishAction = (requestProjectId: number) => {
+    if (isCurrentProject(requestProjectId)) {
+      actionBusyRef.current = false;
+    }
+  };
+
+  const loadMaterials = useCallback(async (options: LoadMaterialsOptions = {}) => {
+    const requestSeq = loadSeqRef.current + 1;
+    const requestKey = loadRequestKey;
+    const currentLoad = loadInFlightRef.current;
+    if (!options.force && currentLoad?.key === requestKey) {
+      return currentLoad.promise;
+    }
+    loadSeqRef.current = requestSeq;
+    setLoading(true);
+    const promise = (async () => {
+      try {
+        const result = await listProfileMaterials({
+          project_id: projectId,
+          kind: kindFilter,
+          query: query.trim() || null,
+          filter: stateFilter,
+          sort,
+          image_limit_per_profile: 12,
+        });
+        if (loadSeqRef.current !== requestSeq || activeLoadKeyRef.current !== requestKey) return;
+        setGroups(result);
+      } catch (err) {
+        if (loadSeqRef.current !== requestSeq || activeLoadKeyRef.current !== requestKey) return;
+        onToast(extractErrorMessage(err, "加载素材管理数据失败"), "error");
+      } finally {
+        if (loadSeqRef.current === requestSeq && activeLoadKeyRef.current === requestKey) {
+          setLoading(false);
+        }
+        if (
+          loadInFlightRef.current?.key === requestKey &&
+          loadInFlightRef.current.seq === requestSeq
+        ) {
+          loadInFlightRef.current = null;
+        }
+      }
+    })();
+    loadInFlightRef.current = { key: requestKey, seq: requestSeq, promise };
+    return promise;
+  }, [kindFilter, loadRequestKey, onToast, projectId, query, sort, stateFilter]);
+
+  useEffect(() => {
+    void loadMaterials();
+  }, [loadMaterials]);
+
+  const currentImageById = useMemo(() => {
+    const map = new Map<number, GeneratedImage>();
+    for (const group of groups) {
+      if (group.primary_image) {
+        map.set(group.primary_image.image.id, group.primary_image.image);
+      }
+      for (const item of group.images) map.set(item.image.id, item.image);
+    }
+    return map;
+  }, [groups]);
+
+  useEffect(() => {
+    setImageDetails((current) =>
+      current ? currentImageById.get(current.id) ?? null : null,
+    );
+    setUploadTarget((current) => {
+      if (!current) return null;
+      const currentKey = groupKey(current);
+      return groups.find((group) => groupKey(group) === currentKey) ?? null;
+    });
+  }, [currentImageById, groups]);
+
+  const stats = useMemo(() => {
+    let sceneCount = 0;
+    let objectCount = 0;
+    let imageCount = 0;
+    let missingCount = 0;
+    let staleCount = 0;
+    for (const group of groups) {
+      if (group.kind === "scene") sceneCount += 1;
+      if (group.kind === "object") objectCount += 1;
+      imageCount += group.image_count;
+      if (group.material_state === "missing") missingCount += 1;
+      if (group.material_state === "stale") staleCount += 1;
+    }
+    return { sceneCount, objectCount, imageCount, missingCount, staleCount };
+  }, [groups]);
+
+  const applyStyleTemplate = (templateId: string) => {
+    setSelectedStyleTemplateId(
+      templateId === CUSTOM_STYLE_VALUE ||
+        IMAGE_STYLE_TEMPLATES.some((item) => item.id === templateId)
+        ? templateId
+        : CUSTOM_STYLE_VALUE,
+    );
+  };
+
+  const generationStylePayload = () => ({
+    style: materialStyle.trim() || null,
+    style_template_id: selectedStyleTemplate?.id ?? null,
+    style_template_name: selectedStyleTemplate?.name ?? null,
+    style_template_version: selectedStyleTemplate ? STYLE_TEMPLATE_VERSION : null,
+    custom_style: selectedStyleTemplate ? null : customStyle.trim() || null,
+  });
+
+  const refreshAfterMaterialChange = async () => {
+    await Promise.all([loadMaterials({ force: true }), Promise.resolve(onRefreshVideoData())]);
+  };
+
+  const generateMaterialCore = async (
+    group: ProfileMaterialGroup,
+    requestProjectId: number,
+    options: { refresh?: boolean } = {},
+  ) => {
+    const key = groupKey(group);
+    const taskId = createProgressTaskId(`${group.kind}-video-material`, projectId);
+    setBusyKey(key);
+    try {
+      await runProgressTask(
+        {
+          title: `${group.profile.name} 素材图生成`,
+          startMessage: "正在准备素材图生成",
+          successMessage: "素材图生成完成",
+          errorMessage: "素材图生成失败",
+          total: 3,
+          taskId,
+        },
+        async () => {
+          const stylePayload = generationStylePayload();
+          if (group.kind === "scene") {
+            return generateSceneProfileImage(
+              {
+                scene_profile_id: group.profile.id,
+                chapter_id: null,
+                config_id: null,
+                ...stylePayload,
+              },
+              taskId,
+            );
+          }
+          return generateObjectProfileImage(
+            {
+              object_profile_id: group.profile.id,
+              chapter_id: null,
+              config_id: null,
+              ...stylePayload,
+            },
+            taskId,
+          );
+        },
+      );
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(`已生成 ${group.profile.name} 的项目级素材图`, "success");
+      if (options.refresh !== false) {
+        await refreshAfterMaterialChange();
+      }
+    } catch (err) {
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(extractErrorMessage(err, "素材图生成失败"), "error");
+    } finally {
+      if (isCurrentProject(requestProjectId)) setBusyKey(null);
+    }
+  };
+
+  const generateMaterial = async (
+    group: ProfileMaterialGroup,
+    options: { refresh?: boolean } = {},
+  ) => {
+    const requestProjectId = projectId;
+    if (!beginAction()) return;
+    try {
+      await generateMaterialCore(group, requestProjectId, options);
+    } finally {
+      finishAction(requestProjectId);
+    }
+  };
+
+  const buildMaterialPrompt = async (
+    group: ProfileMaterialGroup,
+    stylePayload: ReturnType<typeof generationStylePayload> = generationStylePayload(),
+  ): Promise<string> => {
+    if (group.kind === "scene") {
+      const output = await generateSceneProfileImagePrompt({
+        scene_profile_id: group.profile.id,
+        chapter_id: null,
+        config_id: null,
+        ...stylePayload,
+      });
+      return output.prompt;
+    }
+    const output = await generateObjectProfileImagePrompt({
+      object_profile_id: group.profile.id,
+      chapter_id: null,
+      config_id: null,
+      ...stylePayload,
+    });
+    return output.prompt;
+  };
+
+  const copyMaterialPrompt = async (group: ProfileMaterialGroup) => {
+    const requestProjectId = projectId;
+    if (!beginAction()) return;
+    const key = groupKey(group);
+    setBusyKey(key);
+    try {
+      const prompt = await buildMaterialPrompt(group);
+      if (!isCurrentProject(requestProjectId)) return;
+      await copyTextToClipboard(prompt);
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(`已复制 ${group.profile.name} 的图片提示词`, "success");
+    } catch (err) {
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(extractErrorMessage(err, "复制提示词失败"), "error");
+    } finally {
+      if (isCurrentProject(requestProjectId)) setBusyKey(null);
+      finishAction(requestProjectId);
+    }
+  };
+
+  const openUploadDialog = (group: ProfileMaterialGroup) => {
+    setUploadTarget(group);
+    setUploadSetPrimary(true);
+  };
+
+  const uploadMaterialFile = async (file: File) => {
+    if (!uploadTarget) return;
+    const requestProjectId = projectId;
+    if (!beginAction()) return;
+    const group = uploadTarget;
+    const key = groupKey(group);
+    const stylePayload = generationStylePayload();
+    try {
+      if (!isSupportedImageMime(file.type)) {
+        onToast("只支持 PNG/JPEG/WebP 图片", "error");
+        return;
+      }
+      if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+        onToast(`上传图片不能超过 ${MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024}MB`, "error");
+        return;
+      }
+      setBusyKey(key);
+      const [prompt, dataBase64] = await Promise.all([
+        buildMaterialPrompt(group, stylePayload),
+        readFileAsBase64(file),
+      ]);
+      if (!isCurrentProject(requestProjectId)) return;
+      await uploadProfileMaterialImage({
+        project_id: projectId,
+        profile_kind: group.kind,
+        profile_id: group.profile.id,
+        file_name: file.name,
+        mime_type: file.type,
+        data_base64: dataBase64,
+        set_primary: uploadSetPrimary,
+        prompt_snapshot: prompt,
+        style_template_id: stylePayload.style_template_id,
+        style_template_name: stylePayload.style_template_name,
+        style_template_version: stylePayload.style_template_version,
+        custom_style: stylePayload.custom_style,
+      });
+      if (!isCurrentProject(requestProjectId)) return;
+      setUploadTarget(null);
+      await refreshAfterMaterialChange();
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(uploadSetPrimary ? "已上传并设为主素材" : "已上传素材图", "success");
+    } catch (err) {
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(extractErrorMessage(err, "上传素材图失败"), "error");
+    } finally {
+      if (isCurrentProject(requestProjectId)) setBusyKey(null);
+      finishAction(requestProjectId);
+    }
+  };
+
+  const batchGenerate = async (mode: "missing" | "stale") => {
+    const requestProjectId = projectId;
+    const targets = groups.filter((group) => group.material_state === mode);
+    if (targets.length === 0) {
+      onToast(mode === "missing" ? "当前没有缺失素材" : "当前没有过期素材", "info");
+      return;
+    }
+    if (!beginAction()) return;
+    setBatchBusy(true);
+    try {
+      for (const group of targets) {
+        if (!isCurrentProject(requestProjectId)) return;
+        await generateMaterialCore(group, requestProjectId, { refresh: false });
+      }
+      if (!isCurrentProject(requestProjectId)) return;
+      await refreshAfterMaterialChange();
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(`批量生成完成：${targets.length} 个档案`, "success");
+    } finally {
+      if (isCurrentProject(requestProjectId)) setBatchBusy(false);
+      finishAction(requestProjectId);
+    }
+  };
+
+  const openImageDetails = (image: GeneratedImage) => {
+    setImageScoreInput(image.ai_score == null ? "0.8" : String(image.ai_score));
+    setImageDetails(image);
+  };
+
+  const closeImageDetails = () => {
+    if (imageBusyId == null && imageScoringId == null) setImageDetails(null);
+  };
+
+  const toggleFavorite = async (image: GeneratedImage) => {
+    const requestProjectId = projectId;
+    if (!beginAction()) return;
+    setImageBusyId(image.id);
+    try {
+      const updated = await toggleImageFavorite(image.id);
+      if (!isCurrentProject(requestProjectId)) return;
+      setImageDetails((current) => (current?.id === updated.id ? updated : current));
+      await loadMaterials({ force: true });
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(updated.is_favorite ? "已收藏" : "已取消收藏", "success");
+    } catch (err) {
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(extractErrorMessage(err, "切换素材收藏失败"), "error");
+    } finally {
+      if (isCurrentProject(requestProjectId)) setImageBusyId(null);
+      finishAction(requestProjectId);
+    }
+  };
+
+  const saveImageScore = async (image: GeneratedImage) => {
+    const requestProjectId = projectId;
+    const score = Number(imageScoreInput);
+    if (!Number.isFinite(score)) {
+      onToast("评分必须是数字", "error");
+      return;
+    }
+    if (!beginAction()) return;
+    setImageScoringId(image.id);
+    try {
+      const updated = await scoreImage(image.id, score);
+      if (!isCurrentProject(requestProjectId)) return;
+      setImageDetails((current) => (current?.id === updated.id ? updated : current));
+      await loadMaterials({ force: true });
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(`已打分 ${score}`, "success");
+    } catch (err) {
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(extractErrorMessage(err, "打分失败"), "error");
+    } finally {
+      if (isCurrentProject(requestProjectId)) setImageScoringId(null);
+      finishAction(requestProjectId);
+    }
+  };
+
+  const updateImageRecord = async (image: GeneratedImage, input: UpdateImageInput) => {
+    const requestProjectId = projectId;
+    if (!beginAction()) return;
+    setImageBusyId(image.id);
+    try {
+      const updated = await updateImage(image.id, input);
+      if (!isCurrentProject(requestProjectId)) return;
+      setImageDetails((current) => (current?.id === updated.id ? updated : current));
+      await loadMaterials({ force: true });
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast("图片记录已更新", "success");
+    } catch (err) {
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(extractErrorMessage(err, "更新图片记录失败"), "error");
+      throw err;
+    } finally {
+      if (isCurrentProject(requestProjectId)) setImageBusyId(null);
+      finishAction(requestProjectId);
+    }
+  };
+
+  const removeImage = async (image: GeneratedImage) => {
+    const requestProjectId = projectId;
+    if (!beginAction()) return;
+    try {
+      const ok = await confirmDialog({
+        title: "删除素材图",
+        message: `删除素材图 #${image.id}？相关视频参考图会同步解除关联。`,
+        confirmText: "删除",
+        dialogType: "danger",
+      });
+      if (!ok) return;
+      if (!isCurrentProject(requestProjectId)) return;
+      setImageBusyId(image.id);
+      await deleteImage(image.id);
+      if (!isCurrentProject(requestProjectId)) return;
+      setImageDetails(null);
+      await refreshAfterMaterialChange();
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast("已删除素材图", "success");
+    } catch (err) {
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(extractErrorMessage(err, "删除素材图失败"), "error");
+    } finally {
+      if (isCurrentProject(requestProjectId)) setImageBusyId(null);
+      finishAction(requestProjectId);
+    }
+  };
+
+  const setPrimary = async (group: ProfileMaterialGroup, imageId: number | null) => {
+    const requestProjectId = projectId;
+    if (!beginAction()) return;
+    setBusyKey(groupKey(group));
+    try {
+      await setProfilePrimaryMaterial({
+        project_id: projectId,
+        profile_kind: group.kind,
+        profile_id: group.profile.id,
+        image_id: imageId,
+      });
+      if (!isCurrentProject(requestProjectId)) return;
+      await refreshAfterMaterialChange();
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(imageId == null ? "已取消主素材" : "已设为主素材", "success");
+    } catch (err) {
+      if (!isCurrentProject(requestProjectId)) return;
+      onToast(extractErrorMessage(err, "设置主素材失败"), "error");
+    } finally {
+      if (isCurrentProject(requestProjectId)) setBusyKey(null);
+      finishAction(requestProjectId);
+    }
+  };
+
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="shrink-0 rounded border border-book-border/50 bg-book-bg-paper/45 px-3 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="inline-flex min-w-0 shrink-0 items-center gap-2">
+            <ImagePlus size={16} className="text-book-primary" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-book-text-main">项目级素材管理</div>
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                <span className="pyqt-pill !text-[10px]">场景 {stats.sceneCount}</span>
+                <span className="pyqt-pill !text-[10px]">物品 {stats.objectCount}</span>
+                <span className="pyqt-pill !text-[10px]">素材图 {stats.imageCount}</span>
+                <span className="pyqt-pill !text-[10px]">缺失 {stats.missingCount}</span>
+                <span className="pyqt-pill !text-[10px]">过期 {stats.staleCount}</span>
+              </div>
+            </div>
+          </div>
+          <ToolbarSelect
+            label="类型"
+            value={kindFilter}
+            options={KIND_OPTIONS}
+            disabled={loading || busyKey != null || batchBusy}
+            onChange={(value) => setKindFilter(value as MaterialKindFilter)}
+          />
+          <ToolbarSelect
+            label="状态"
+            value={stateFilter}
+            options={FILTER_OPTIONS}
+            disabled={loading || busyKey != null || batchBusy}
+            onChange={(value) => setStateFilter(value as MaterialFilter)}
+          />
+          <ToolbarSelect
+            label="排序"
+            value={sort}
+            options={SORT_OPTIONS}
+            disabled={loading || busyKey != null || batchBusy}
+            onChange={(value) => setSort(value as MaterialSort)}
+          />
+          <label className="flex min-h-[30px] min-w-[180px] flex-1 items-center gap-1.5 rounded border border-book-border/60 bg-book-bg-paper/70 px-2 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper sm:max-w-xs">
+            <Search size={12} className="shrink-0 text-book-text-muted" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              disabled={loading || busyKey != null || batchBusy}
+              className="min-w-0 flex-1 bg-transparent text-book-text-main outline-none placeholder:text-book-text-muted"
+              placeholder="搜索档案"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void loadMaterials()}
+            disabled={loading || busyKey != null || batchBusy}
+            className="pyqt-btn-secondary inline-flex min-h-[28px] items-center gap-1.5 px-2.5 text-xs"
+            title="刷新素材管理数据"
+          >
+            {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            刷新
+          </button>
+        </div>
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+          <ToolbarSelect
+            label="模板"
+            value={selectedStyleTemplate?.id ?? CUSTOM_STYLE_VALUE}
+            options={[
+              ...IMAGE_STYLE_TEMPLATES.map((template) => ({
+                value: template.id,
+                label: template.name,
+              })),
+              { value: CUSTOM_STYLE_VALUE, label: "自定义/后端默认" },
+            ]}
+            disabled={busyKey != null || batchBusy}
+            onChange={applyStyleTemplate}
+            wide
+          />
+          <label className="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded border border-book-border/60 bg-book-bg-paper/70 px-2 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper sm:min-h-[30px] sm:min-w-[260px] sm:max-w-xl">
+            <span className="shrink-0 text-book-text-muted">补充</span>
+            <input
+              value={selectedStyleTemplate ? "" : customStyle}
+              onChange={(event) => setCustomStyle(event.target.value)}
+              disabled={busyKey != null || batchBusy || selectedStyleTemplate != null}
+              className="min-w-0 flex-1 bg-transparent text-book-text-main outline-none placeholder:text-book-text-muted"
+              placeholder={
+                selectedStyleTemplate
+                  ? selectedStyleTemplate.summary
+                  : "输入自定义风格；清空则使用后端默认"
+              }
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void batchGenerate("missing")}
+            disabled={loading || busyKey != null || batchBusy}
+            className="pyqt-btn-secondary inline-flex min-h-[28px] items-center gap-1.5 px-2.5 text-xs"
+            title="为当前筛选结果中的缺失档案生成素材图"
+          >
+            {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            补齐缺失
+          </button>
+          <button
+            type="button"
+            onClick={() => void batchGenerate("stale")}
+            disabled={loading || busyKey != null || batchBusy}
+            className="pyqt-btn-secondary inline-flex min-h-[28px] items-center gap-1.5 px-2.5 text-xs"
+            title="为当前筛选结果中的过期档案重新生成素材图"
+          >
+            <RefreshCw size={13} />
+            重生成过期
+          </button>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
+        {groups.length === 0 ? (
+          <div className="flex h-full min-h-[180px] items-center justify-center rounded border border-dashed border-book-border/50 bg-book-bg-paper/30 text-xs text-book-text-muted">
+            {loading ? "正在加载素材..." : "当前筛选条件下没有素材档案。"}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
+            {groups.map((group) => (
+              <MaterialCard
+                key={groupKey(group)}
+                group={group}
+                busy={busyKey === groupKey(group)}
+                disabled={busyKey != null || batchBusy}
+                onCopyPrompt={() => void copyMaterialPrompt(group)}
+                onUpload={() => openUploadDialog(group)}
+                onGenerate={() => void generateMaterial(group)}
+                onOpenImage={openImageDetails}
+                onSetPrimary={(imageId) => void setPrimary(group, imageId)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ImageActionDialog
+        image={imageDetails}
+        busyId={imageBusyId}
+        scoringId={imageScoringId}
+        scoreInput={imageScoreInput}
+        onClose={closeImageDetails}
+        onToggleFavorite={(image) => void toggleFavorite(image)}
+        onUpdate={(image, input) => updateImageRecord(image, input)}
+        onScoreInputChange={setImageScoreInput}
+        onScore={(image) => void saveImageScore(image)}
+        onDelete={(image) => void removeImage(image)}
+      />
+      <ProfileMaterialUploadDialog
+        group={uploadTarget}
+        busy={uploadTarget != null && busyKey === groupKey(uploadTarget)}
+        setPrimary={uploadSetPrimary}
+        onSetPrimaryChange={setUploadSetPrimary}
+        onClose={() => {
+          if (busyKey == null) setUploadTarget(null);
+        }}
+        onCopyPrompt={() => {
+          if (uploadTarget) void copyMaterialPrompt(uploadTarget);
+        }}
+        onUpload={(file) => void uploadMaterialFile(file)}
+      />
+    </div>
+  );
+};
+
+function MaterialCard({
+  group,
+  busy,
+  disabled,
+  onCopyPrompt,
+  onUpload,
+  onGenerate,
+  onOpenImage,
+  onSetPrimary,
+}: {
+  group: ProfileMaterialGroup;
+  busy: boolean;
+  disabled: boolean;
+  onCopyPrompt: () => void;
+  onUpload: () => void;
+  onGenerate: () => void;
+  onOpenImage: (image: GeneratedImage) => void;
+  onSetPrimary: (imageId: number | null) => void;
+}) {
+  const icon = group.kind === "scene" ? <MapPinned size={14} /> : <Box size={14} />;
+  const hero = group.primary_image ?? group.images[0] ?? null;
+  const heroSrc = hero ? toMediaSrc(hero.image.file_path) : null;
+  const candidateImages = hero
+    ? group.images.filter((item) => item.image.id !== hero.image.id)
+    : group.images;
+  return (
+    <article
+      className="flex min-h-[300px] min-w-0 flex-col rounded border border-book-border/50 bg-book-bg-paper/45 p-3"
+      data-state={group.material_state}
+    >
+      <div className="mb-2 flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="inline-flex max-w-full items-center gap-1.5 text-sm font-semibold text-book-text-main">
+            <span className="shrink-0 text-book-primary">{icon}</span>
+            <span className="truncate">{group.profile.name}</span>
+          </div>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+            <span className="pyqt-pill !text-[10px]">{MATERIAL_KIND_LABELS[group.kind]}</span>
+            <span className="pyqt-pill !text-[10px]">
+              {CATEGORY_LABELS[group.profile.category] ?? group.profile.category}
+            </span>
+            <span className="pyqt-pill !text-[10px]">
+              {IMPORTANCE_LABELS[group.profile.importance] ?? group.profile.importance}
+            </span>
+            <span className="pyqt-pill !text-[10px]">
+              {chapterRangeText(group.profile.first_seen_chapter, group.profile.last_seen_chapter)}
+            </span>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="rounded border border-book-border/50 bg-book-bg-tertiary px-2 py-1 text-[10px] text-book-text-sub">
+            {MATERIAL_STATE_LABELS[group.material_state]}
+          </span>
+          <span className="font-mono text-[10px] text-book-text-muted">图 {group.image_count}</span>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        disabled={!hero}
+        onClick={() => hero && onOpenImage(hero.image)}
+        className="relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-sm border border-book-border/45 bg-book-bg-tertiary text-xs text-book-text-muted disabled:cursor-default"
+        title={hero ? `打开素材图 #${hero.image.id}` : "暂无素材图"}
+      >
+        {heroSrc ? (
+          <img
+            src={heroSrc}
+            alt={`${group.profile.name} 主素材`}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          "暂无素材图"
+        )}
+        {hero ? (
+          <div className="absolute left-1.5 top-1.5 flex gap-1">
+            {hero.is_primary ? (
+              <span className="inline-flex items-center gap-0.5 rounded bg-book-bg-paper/90 px-1.5 py-0.5 text-[10px] text-book-primary">
+                <BadgeCheck size={10} />
+                主素材
+              </span>
+            ) : null}
+            {hero.image.is_favorite ? (
+              <span className="inline-flex items-center gap-0.5 rounded bg-book-bg-paper/90 px-1.5 py-0.5 text-[10px] text-book-primary">
+                <Star size={10} fill="currentColor" />
+                收藏
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </button>
+
+      <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-book-text-sub">
+        {group.profile.primary_text || "暂无视觉描述。"}
+      </p>
+      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
+        {group.profile.secondary_text || "未记录补充信息。"}
+      </p>
+
+      <div className="mt-2 grid grid-cols-6 gap-1.5">
+        {candidateImages.length > 0 ? (
+          candidateImages.slice(0, 12).map((item) => {
+            const src = toMediaSrc(item.image.file_path);
+            return (
+              <div key={item.image.id} className="group/thumb relative min-w-0">
+                <button
+                  type="button"
+                  onClick={() => onOpenImage(item.image)}
+                  className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-sm border bg-book-bg-tertiary text-[10px] text-book-text-muted ${
+                    item.is_primary
+                      ? "border-book-primary/80"
+                      : "border-book-border/45"
+                  }`}
+                  title={`素材图 #${item.image.id}`}
+                >
+                  {src ? (
+                    <img
+                      src={src}
+                      alt={`${group.profile.name} 素材图 ${item.image.id}`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    "无图"
+                  )}
+                  {item.staleness === "stale" ? (
+                    <span className="absolute right-0.5 top-0.5 rounded bg-warning/90 px-1 text-[9px] text-white">
+                      旧
+                    </span>
+                  ) : null}
+                  {item.is_primary ? (
+                    <BadgeCheck
+                      size={12}
+                      className="absolute bottom-0.5 left-0.5 text-book-primary"
+                      fill="currentColor"
+                    />
+                  ) : null}
+                </button>
+                {!item.is_primary ? (
+                  <button
+                    type="button"
+                    onClick={() => onSetPrimary(item.image.id)}
+                    disabled={disabled}
+                    className="absolute bottom-0.5 right-0.5 hidden rounded bg-book-bg-paper/95 px-1 py-0.5 text-[9px] text-book-text-main shadow group-hover/thumb:block disabled:opacity-60"
+                    title="设为主素材"
+                  >
+                    设主
+                  </button>
+                ) : null}
+              </div>
+            );
+          })
+        ) : hero ? (
+          <div className="col-span-6 flex h-10 items-center justify-center rounded-sm border border-dashed border-book-border/50 bg-book-bg-paper/30 text-[11px] text-book-text-muted">
+            暂无其他候选素材
+          </div>
+        ) : (
+          <div className="col-span-6 flex h-14 items-center justify-center rounded-sm border border-dashed border-book-border/50 bg-book-bg-paper/30 text-[11px] text-book-text-muted">
+            缺失素材图
+          </div>
+        )}
+      </div>
+
+      <div className="mt-auto grid grid-cols-1 gap-1.5 pt-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={onCopyPrompt}
+          disabled={disabled}
+          className="pyqt-btn-secondary inline-flex min-h-[30px] items-center justify-center gap-1.5 px-2 text-xs"
+          title="复制当前档案素材图提示词"
+        >
+          <Clipboard size={13} />
+          复制提示词
+        </button>
+        <button
+          type="button"
+          onClick={onUpload}
+          disabled={disabled}
+          className="pyqt-btn-secondary inline-flex min-h-[30px] items-center justify-center gap-1.5 px-2 text-xs"
+          title="上传本地图片作为项目级可复用素材图"
+        >
+          <Upload size={13} />
+          上传素材图
+        </button>
+        <button
+          type="button"
+          onClick={() => onSetPrimary(null)}
+          disabled={disabled || group.primary_image_id == null}
+          className="pyqt-btn-secondary inline-flex min-h-[30px] items-center justify-center gap-1.5 px-2 text-xs"
+          title="取消当前档案主素材"
+        >
+          取消主素材
+        </button>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={disabled}
+          className="pyqt-btn-primary inline-flex min-h-[30px] items-center justify-center gap-1.5 px-2 text-xs"
+          title="生成项目级可复用素材图"
+        >
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+          {group.image_count > 0 ? "重新生成" : "生成素材图"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function ToolbarSelect({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+  wide = false,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  wide?: boolean;
+}) {
+  return (
+    <label
+      className={`flex min-h-9 min-w-0 items-center gap-2 rounded border border-book-border/60 bg-book-bg-paper/70 px-2 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper sm:min-h-[30px] ${
+        wide ? "flex-1 sm:min-w-[210px]" : "sm:min-w-[130px]"
+      }`}
+    >
+      <span className="shrink-0 text-book-text-muted">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        className="pyqt-input a4n-compact-select h-7 !min-h-7 min-w-0 flex-1 !border-transparent !bg-transparent !pl-1 text-xs text-book-text-main"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ProfileMaterialUploadDialog({
+  group,
+  busy,
+  setPrimary,
+  onSetPrimaryChange,
+  onClose,
+  onCopyPrompt,
+  onUpload,
+}: {
+  group: ProfileMaterialGroup | null;
+  busy: boolean;
+  setPrimary: boolean;
+  onSetPrimaryChange: (value: boolean) => void;
+  onClose: () => void;
+  onCopyPrompt: () => void;
+  onUpload: (file: File) => void;
+}) {
+  if (!group) return null;
+  return (
+    <div className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="dialog-panel w-full max-w-md p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-book-text-main">上传素材图</div>
+            <div className="mt-1 truncate text-xs text-book-text-muted">
+              {MATERIAL_KIND_LABELS[group.kind]} · {group.profile.name}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="pyqt-btn-secondary min-h-[28px] px-2 text-xs"
+          >
+            关闭
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <label className="flex items-center gap-2 text-xs text-book-text-main">
+            <input
+              type="checkbox"
+              checked={setPrimary}
+              disabled={busy}
+              onChange={(event) => onSetPrimaryChange(event.target.checked)}
+            />
+            上传后设为主素材
+          </label>
+
+          <div className="rounded border border-dashed border-book-border/70 bg-book-bg-tertiary/45 p-3">
+            <input
+              type="file"
+              accept={supportedImageAccept()}
+              disabled={busy}
+              className="w-full text-xs text-book-text-sub file:mr-3 file:rounded file:border-0 file:bg-book-primary file:px-3 file:py-1.5 file:text-xs file:text-white disabled:opacity-60"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                event.currentTarget.value = "";
+                if (file) onUpload(file);
+              }}
+            />
+            <div className="mt-2 text-[11px] text-book-text-muted">PNG/JPEG/WebP，≤20MB</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCopyPrompt}
+            disabled={busy}
+            className="pyqt-btn-secondary inline-flex min-h-[30px] items-center gap-1.5 px-3 text-xs"
+          >
+            <Clipboard size={13} />
+            复制当前提示词
+          </button>
+          {busy ? (
+            <span className="inline-flex min-h-[30px] items-center gap-1.5 px-2 text-xs text-book-text-muted">
+              <Loader2 size={13} className="animate-spin" />
+              上传中
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}

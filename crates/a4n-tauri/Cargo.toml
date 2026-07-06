@@ -1,0 +1,48 @@
+[package]
+name = "a4n-tauri"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+a4n-engine = { path = "../a4n-engine" }
+a4n-services = { path = "../a4n-services" }
+a4n-migration = { path = "../a4n-migration" }
+a4n-runtime = { path = "../a4n-runtime" }
+
+# Tauri
+tauri = { workspace = true }
+
+# 异步
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+anyhow = { workspace = true }
+
+# 序列化
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+base64 = { workspace = true }
+tera = { workspace = true }
+
+# 数据库
+sea-orm = { workspace = true }
+
+# 时间处理
+chrono = { workspace = true }
+
+# 配置解析
+toml = "0.9"
+
+# 日志
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "registry"] }
+tracing-appender = "0.2"
+
+# 并发工具
+parking_lot = { workspace = true }
+tokio-util = { workspace = true }
+
+[build-dependencies]
+tauri-build = { workspace = true }

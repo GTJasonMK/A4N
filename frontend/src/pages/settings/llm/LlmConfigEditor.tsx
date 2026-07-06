@@ -1,0 +1,219 @@
+import React from "react";
+import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
+import { detectLlmConfigModels, detectServerLlmConfigModels } from "../../../api/config";
+import { FormField } from "../ConfigListPanel";
+import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
+import { LLM_PROVIDERS } from "./llmConfigUtils";
+import type { LlmForm } from "./types";
+
+interface LlmConfigEditorProps {
+  form: LlmForm;
+  setForm: (form: LlmForm) => void;
+  configId?: number | null;
+  serverScope?: boolean;
+  readonly?: boolean;
+  templateLocked?: boolean;
+}
+
+export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
+  form,
+  setForm,
+  configId = null,
+  serverScope = false,
+  readonly = false,
+  templateLocked = false,
+}) => {
+  const apiKeyInputDisabled = form.clear_api_key;
+  const structureDisabled = readonly || templateLocked;
+  const detectModels = serverScope ? detectServerLlmConfigModels : detectLlmConfigModels;
+
+  return (
+    <>
+      <FormField label="配置名称" required>
+        <BookInput
+          value={form.name}
+          onChange={(event) => setForm({ ...form, name: event.target.value })}
+          placeholder="例如：日常 / 创作主力 / 审稿"
+          disabled={structureDisabled}
+        />
+      </FormField>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FormField label="Provider">
+          <select
+            value={form.provider}
+            onChange={(event) => setForm({ ...form, provider: event.target.value })}
+            className="pyqt-input w-full"
+            disabled={structureDisabled}
+          >
+            {LLM_PROVIDERS.map((provider) => (
+              <option key={provider.value} value={provider.value}>
+                {provider.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="模型" required>
+          <ModelDiscoveryField
+            value={form.model}
+            onChange={(model) => setForm({ ...form, model })}
+            placeholder="例如：deepseek-v4-flash / gpt-4o-mini / claude-3-5-sonnet"
+            disabled={readonly}
+            inputDisabled={structureDisabled}
+            discoveryKey={[
+              form.provider,
+              form.api_base_url.trim(),
+              serverScope ? "server" : "local",
+              configId ?? "new",
+              form.clear_api_key ? "cleared-key" : form.api_key.trim() ? "form-key" : "saved-key",
+            ].join("|")}
+            detectModels={() =>
+              detectModels({
+                provider: form.provider,
+                base_url: form.api_base_url,
+                api_key_encrypted: form.clear_api_key
+                  ? null
+                  : form.api_key.trim() || undefined,
+                config_id: configId,
+                use_saved_api_key: Boolean(
+                  !readonly &&
+                    configId != null &&
+                    configId > 0 &&
+                    form.has_api_key &&
+                    !form.clear_api_key &&
+                    !form.api_key.trim(),
+                ),
+              })
+            }
+          />
+        </FormField>
+      </div>
+
+      <FormField label="API Base URL" required>
+        <BookInput
+          value={form.api_base_url}
+          onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
+          placeholder="https://api.deepseek.com/v1"
+          disabled={structureDisabled}
+        />
+      </FormField>
+
+      <FormField
+        label="API Key"
+        hint={
+          templateLocked
+            ? "只保存为你的个人密钥；系统默认模板不会共享管理员 API Key"
+            : "存储于本地数据库，不会上传到任何外部服务"
+        }
+      >
+        <BookInput
+          type="password"
+          value={form.api_key}
+          onChange={(event) =>
+            setForm({ ...form, api_key: event.target.value, clear_api_key: false })
+          }
+          placeholder="sk-..."
+          autoComplete="off"
+          disabled={apiKeyInputDisabled || readonly}
+        />
+        {form.has_api_key ? (
+          <label className="mt-2 flex items-center gap-2 text-xs text-book-text-muted">
+            <input
+              type="checkbox"
+              checked={form.clear_api_key}
+              disabled={readonly}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  api_key: event.target.checked ? "" : form.api_key,
+                  clear_api_key: event.target.checked,
+                })
+              }
+            />
+            清空已保存 API Key
+          </label>
+        ) : null}
+      </FormField>
+
+      <FormField
+        label="并发上限"
+        hint="该配置同时允许的最大 LLM 请求数；超过则进入任务队列等待"
+      >
+        <BookInput
+          type="number"
+          min={1}
+          max={32}
+          step={1}
+          value={String(form.max_concurrent)}
+          onChange={(event) =>
+            setForm({ ...form, max_concurrent: Number(event.target.value) })
+          }
+          disabled={structureDisabled}
+        />
+      </FormField>
+
+      <FormField label="超时时间（秒）" hint="单次 LLM 请求等待响应的最长秒数；视频、漫画等长结构化任务建议不少于 300 秒">
+        <BookInput
+          type="number"
+          min={1}
+          max={1800}
+          step={1}
+          value={String(form.timeout_secs)}
+          onChange={(event) => setForm({ ...form, timeout_secs: Number(event.target.value) })}
+          disabled={structureDisabled}
+        />
+      </FormField>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FormField
+          label="模型上下文窗口"
+          hint="模型一次请求可容纳的输入与输出总 token 数；DeepSeek 主力模型通常按 128000 配置"
+        >
+          <BookInput
+            type="number"
+            min={1024}
+            max={1048576}
+            step={1024}
+            value={String(form.max_context_tokens)}
+            onChange={(event) =>
+              setForm({ ...form, max_context_tokens: Number(event.target.value) })
+            }
+            disabled={structureDisabled}
+          />
+        </FormField>
+        <FormField
+          label="模型能力：最大输出"
+          hint="模型单次可生成的硬上限；场景请求输出预算必须小于或等于这个值"
+        >
+          <BookInput
+            type="number"
+            min={1}
+            max={262144}
+            step={256}
+            value={String(form.max_output_tokens)}
+            onChange={(event) =>
+              setForm({ ...form, max_output_tokens: Number(event.target.value) })
+            }
+            disabled={structureDisabled}
+          />
+        </FormField>
+      </div>
+
+      <FormField
+        label="高级请求参数 JSON"
+        hint="仅填写 provider 扩展字段；model、messages、stream、max_tokens 等系统字段会被拒绝"
+      >
+        <BookTextarea
+          rows={6}
+          value={form.request_options_text}
+          onChange={(event) =>
+            setForm({ ...form, request_options_text: event.target.value })
+          }
+          placeholder={'例如：{\n  "reasoning_effort": "low"\n}'}
+          spellCheck={false}
+          disabled={structureDisabled}
+        />
+      </FormField>
+    </>
+  );
+};

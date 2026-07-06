@@ -1,0 +1,28 @@
+[package]
+name = "a4n-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# 异步运行时
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# 序列化
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# ORM
+sea-orm = { workspace = true }
+
+# 错误处理
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# 时间处理
+chrono = { workspace = true }
+
+# 工具
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+tokio-util = { workspace = true }

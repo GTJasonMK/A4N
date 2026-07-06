@@ -1,0 +1,130 @@
+---
+name: chapter_video_builder_rules
+title: 章节视频 Builder 约束规则
+category: video
+description: 视频提示词 builder 注入到 JSON payload 的可编辑业务规则集合
+tags: [video, builder, rules]
+dependencies:
+  - chapter_video_shot_analysis
+  - chapter_video_segment_plan
+  - chapter_video_frame_prompts
+  - chapter_video_first_frame_prompts
+  - chapter_video_prompt
+  - chapter_video_prompt_review
+  - chapter_video_first_frame_video_prompt
+  - chapter_video_first_frame_video_prompt_review
+  - chapter_video_storyboard_prompts
+  - chapter_video_storyboard_video_prompt
+  - chapter_video_storyboard_video_prompt_review
+  - chapter_video_chat_prompt
+  - chapter_video_chat_prompt_review
+---
+
+{
+  "time_budget_rule": "按用户本轮选择的 duration_secs 评估每个片段的电影节奏容量，但不要机械套用固定事件数量。4-5 秒通常更适合一个清晰动作、反应、停顿或空间建立；8-10 秒可表现一条连续动作链、短对白与可见反应，或发现后的停顿余韵；更长时长可承载更完整的小场景，但仍应保持可读的连续时空和镜头目标。如果当前镜头在所选时长内容量过满，应拆成更多相邻片段或降低单段事件密度，不得改用其他时长；不要为了省调用把明显读不清的多地点、多目标、多轮对白或多次转折压成剧情摘要。",
+  "action_load_rule": "最终视频动作提示应描述当前片段 duration_secs 内自然完成且能被观众读懂的动作；API 模式落实到 visual_prompt 的 [镜头分镜] 和 motion_prompt，Chat 模式落实到 chat_prompt 的 [镜头分镜]。请像导演一样判断动作密度是否合适：如果追逐、争执、调查、移动、多轮对话、发现后的反应或结尾余韵会让当前视频过满，就主动放慢、拆细或收束为更清晰的连续表演；如果场景本身需要快速爆发，可以保留必要速度，但不要提前写入不属于当前片段的后续剧情。",
+  "cinematic_pacing_rule": "片段不只是承载事件，而要让角色压力通过建立、等待、迟疑、反应和余韵被看见。请根据当前场景判断是否需要给关键物件/空间建立、说话前后停顿、听者反应、发现后的沉默、动作转场或结尾尾态更多时间。提示词内容倾向少而准：少写剧情解释，多写当前表演中的姿态、视线、手指、呼吸、道具位置、光线变化和停顿；但不要用固定数量规则限制必要的连续动作。",
+  "temporal_beat_rule_api": "visual_prompt 的 [镜头分镜] 必须按“镜头 1 / 镜头 2 / 镜头 3”组织，而不是 0-3 秒、3-6 秒这类时间表。每个镜头都要写清运镜或镜头切换方式、景别/机位、主体动作与表情、位置或空间变化，以及必要的对白、口型、环境声或静默。current_segment.duration_secs 只用于判断节奏容量和镜头数量，短片段通常 2-3 个镜头，长片段可 3-4 个镜头；不要在最终文案里机械写精确时间码。最后一个镜头必须稳定到本段结尾状态；如 input_frames.end_frame 已提供，则收束到该目标画面。不要输出 temporal_beats，后端会从片段规划补齐结构化时间审计字段。",
+  "temporal_beat_rule_chat": "chat_prompt 的 [镜头分镜] 必须按“镜头 1 / 镜头 2 / 镜头 3”组织，而不是 0-3 秒、3-6 秒这类时间表。每个镜头都要写清运镜或镜头切换方式、景别/机位、主体动作与表情、位置或空间变化，以及必要的对白、口型、环境声或静默。current_segment.duration_secs 只用于判断节奏容量和镜头数量，短片段通常 2-3 个镜头，长片段可 3-4 个镜头；不要在最终文案里机械写精确时间码。最后一个镜头必须稳定到本段结尾状态；如 input_frames.end_frame 已提供，则收束到该目标画面。不要输出 chat_video，后端会从片段规划补齐结构化审计字段。",
+  "final_prompt_section_rule": "最终自然语言主提示词必须是本段可直接复制给外部视频模型的完整提示词，不是视觉字段摘要、导演分解或内部审计说明；API 模式落实到 visual_prompt，Chat 模式落实到 chat_prompt，并且都必须遵守 constraints.prompt_output_language_instruction，按 constraints.prompt_required_sections 的顺序使用对应语言章节。API 模式的 provider 请求会主要发送 visual_prompt，并把 motion_prompt 作为动作与运镜补充；系统会从片段规划补齐结构化导演字段，模型不要输出这些字段。API 模式的 motion_prompt 不再重复时间轴，只使用 prompt_output_language.motion_prompt_sections 对应章节，不得写镜头分镜章节，也不得写 [连续性要求]/[Continuity Requirements]；连续性和尾态只写在 visual_prompt 的连续性与结尾状态章节。可复制自然语言提示词不得写 JSON、字段名、键值对、代码块、内部工作流、模式名、素材库流程或审计说明。",
+  "frame_image_prompt_section_rule": "frame_prompt 是会直接发给图片模型的文本，必须把生成单张图需要的信息列清楚。必须遵守 constraints.prompt_output_language_instruction，按 constraints.frame_prompt_required_sections 的顺序使用对应语言小节；小节内容只能描述要生成的单张画面和参考图用途，不得写 JSON、字段名、素材上传流程或多格参考板。",
+  "frame_boundary_continuity_rule": "每个原始片段都有独立首帧和独立尾帧：片段 k 的首帧是第 2k-1 帧，尾帧是第 2k 帧。尾帧必须从同一片段首帧状态自然发展，只改变片段内动作在 duration_secs 内可以合理造成的状态。必须保持人物身份、服装、空间锚点、左右/前后关系、主要道具、镜头轴线、光源方向和情绪递进连续；如果尾帧跳脱过大，优先收敛到更接近首帧且能表达结尾情绪的状态。相邻片段之间不共享边界帧，过渡由后续独立 transition 视频单元处理。",
+  "style_preservation_rule": "如果 style 包含“风格模板”或“风格关键词”，最终给图片/视频模型的提示词必须保留其中的中文风格名和关键英文风格名，并体现对应光影、色彩、构图、镜头、材质、氛围、细节、运动表现和避免项；不得只写“电影感”“动漫风格”“统一风格”等泛化词。",
+  "single_frame_style_preservation_rule": "frame_prompt 的风格/构图/光线小节必须直接使用 style_template_verbatim 的风格模板原文作为风格基准；该小节标题由 constraints.frame_prompt_required_sections 按目标语言决定，不要硬写固定语言标题，不要自行精简、概括或改写成泛化风格词。",
+  "reference_display_label_rule": "素材摘要只用于理解可保持一致的人物、场景、道具或风格，不提供可写入正文的内部图片 ID。自然语言正文必须按后端提供的 constraints.reference_slots 顺序写“参考图 1”“参考图 2”，数字前必须保留空格，不得使用紧贴数字的参考图/图片编号写法，也不得使用候选序号、候选素材标签、字段名或内部编号。frame_prompt、visual_prompt、motion_prompt、chat_prompt 和 negative_prompt 的自然语言正文禁止出现图片 ID、参考图 ID、素材摘要字段名、manual_library_asset_* 或任何原始图片数字 ID。实际存在的起点/终点边界帧如果已被后端绑定为参考图，必须称为对应的“参考图 N 为起点边界帧/终点边界帧”，不要写“输入首帧”“输入尾帧”或 provider 图片槽位。Chat 模式可按外部上传顺序写“第 1 张图片”“第 2 张图片”。",
+  "safe_visual_rewrite_rule": "如果原文包含自我伤害意图、尖锐物危险动作、血腥动态细节、肢体破坏或类似极端暴力情节，镜头分析、片段规划和最终提示词必须保留剧情功能但改写为可生成、可拍摄的视觉替代表达：迟疑、避开危险动作、危险物停在安全距离外或落在地面远处、角色挣扎起身、非血腥痕迹、冷色压迫氛围、表情反应或环境线索。不得把极端暴力执行瞬间或血腥动态细节写入 visible_actions、action_beats、scene_summary、emotion_action_goals、video_intent.hook、visual_priority、visual_prompt、motion_prompt、chat_prompt 或 negative_prompt；最终自然语言正文不要逐字列出禁用画面，直接写替代表达本身，或泛称“血腥动态细节”。",
+  "directors_idea_rule": "按导演想法处理每个镜头或片段：先从原文判断角色此刻想要什么、被什么阻碍、关系或隐藏信息承受什么压力，再把这条潜台词压力落实为可见表演、站位距离、视线、遮挡、镜头距离、机位高低、光线、环境声、道具和节奏。不要新增 director_idea、subtext、pressure 等结构化字段，也不要在最终给外部模型的自然语言里写内部分析词；最终只写可被画面和动作执行的结果。",
+  "single_primary_camera_movement_rule": "每个视频片段只能选择一个主要运镜意图，例如固定观察、缓慢推进、轻微后退、横移跟随、轻微摇摄或手持贴近；可以有自然微调，但不要在同一片段堆叠推、拉、摇、移、升降、环绕等多个主要运镜。运镜必须服务人物压力、空间关系或观众理解。",
+  "performance_camera_unity_rule": "演员表演、调度和镜头必须指向同一解释：表情、手势、身体方向、人物距离、前景遮挡、景别、主观/客观机位、光线和声音都要服务本段核心压力。禁止先写炫技运镜再倒贴情绪，禁止只用“电影感、压迫感、唯美”等泛词替代表演和构图决策。",
+  "segment_performance_plan_rule": "片段规划必须输出 current_segment.performance_plan，把每段动作写成可拍摄脚本：movement_path 写起点、方向、终点和空间锚点；body_performance 写重心、肩颈、步幅、呼吸、转身幅度或坐起/站起/后退；gaze_and_hands 写视线落点、手部动作和道具状态；pause_or_reaction 写发现、听见、关系变化后的半拍或余韵；camera_relationship 写景别、机位、跟随/固定/推进/后退及其服务的表演重点；time_blocks 必须连续覆盖 0 秒到 duration_secs，第一段 start_sec 必须为 0，后一段 start_sec 必须等于前一段 end_sec，最后一段 end_sec 必须等于 constraints.selected_duration_secs，不得超过或短于该时长；action_script 每个对象必须同时给出 character、body、movement、hands、gaze、timing 六个非空字符串。hands 没有明显动作时也要写手部可见静止状态或未接触道具状态，例如手自然垂在身侧、手未接触道具、双手保持稳定；禁止空字符串、null 或省略字段。该字段用于最终 prompt 选择性压缩，不要写成长篇最终提示词，也不要复述风格模板。",
+  "final_prompt_performance_plan_rule": "最终自然语言提示词必须读取 current_segment.performance_plan，但只能选择性吸收最关键的 2-4 个微动作细节，落实到 visual_prompt/chat_prompt 的镜头分镜和 motion_prompt 的运镜表演补充。遇到走、转身、坐起、靠近、离开、拿起、放下、回头、停住等动作时，必须写清方向、起点/终点、身体重心或姿态变化、手部/道具状态、视线落点和停顿。不要整段复制 performance_plan JSON，不要输出字段名，不要为了补细节超过 constraints.prompt_density_rule 或 provider 字节限制。",
+  "relational_reaction_rule": "对白、催促、回答、告别、打断、求助或隐瞒都是关系动作。只要被说话对象在场，镜头分析、片段规划和最终提示词都必须让听者/被影响者以反应、站位、视线、手部停顿、回头、沉默注视或身体动作进入画面；不得只拍说话人嘴动后直接进入下一事件。例：主角对妈妈说“要迟到了”时，至少要拍到妈妈在厨房、门口或餐桌旁的回头、停手、担心目光、催促手势或短暂停顿。只有原文明示听者不在场时，才可用电话、门外声、空椅子或未被回应的停顿表达关系缺口。",
+  "micro_continuity_bridge_rule": "相邻事件、片段和提示词之间必须有微连续动作桥：人物如何从上一姿态进入下一动作，手中物如何移动，门/桌/窗/车辆等空间锚点如何保持，光源方向是否连续，对方视线或未完成动作如何承接。最终提示词的镜头分镜必须写清“上一可见状态 -> 动作桥 -> 反应/转折 -> 稳定尾态”，不能写成“事件 A 发生、随后事件 B、最终事件 C”的剧情清单。",
+  "segment_directing_rule": "必须读取 current_segment.video_intent、current_segment.emotional_arc 和 current_segment.performance_plan：hook/audience_effect/rhythm/visual_priority 决定视觉重点、氛围和节奏；emotional_arc.start/turn/end/function 必须转成可见动作、表情、停顿、视线、手部或听者反应；performance_plan 提供走位方向、身体变化、手部/视线、停顿和镜头关系。设计时先确认本段角色目标、阻力和隐藏压力，再用表演、站位、镜头和光影共同表达；最终提示词只呈现可见结果，不写内部分析字段。",
+  "material_coverage_rule": "必须读取 current_segment.material_coverage：它只表示当前片段需要稳定一致的对象和素材缺口，不是参考图绑定结果。缺失或弱覆盖对象要转成文字约束和风险说明；是否使用具体参考图由当前生成阶段的 reference_asset_summaries 和 constraints.reference_slots 决定，不要从片段规划中编造或继承不存在的图片编号。结构化参考绑定由后端补齐，模型不要输出 reference_binding。",
+  "prompt_review_rule": "审校时必须先确认最终自然语言主提示词已经是可直接复制给外部视频模型的六段式完整提示词，而不是内部审计说明、画面字段摘要或导演分解；API 模式检查 visual_prompt，Chat 模式检查 chat_prompt。请像导演一样判断初稿是否太像剧情摘要、是否推进过快、是否把下一片段事件提前塞入当前片段；如果判断过密，就压缩重复背景、重复风格、重复参考图解释和长剧情摘要，把篇幅转给细节表演和空间连续性。如果判断当前动作爆发或连续表演需要较快节奏，可以保留必要推进。极端暴力、血腥、露骨伤害表达要在不改变剧情功能的前提下改成更可拍的人物反应、非血腥痕迹或氛围描述。",
+  "sound_design_rule": "视频提示词可加入轻量声音/氛围提示，例如环境声、动作声、对白语气、停顿和静默；声音只作为氛围辅助，不写成 provider 参数或启用音频生成的流程说明。禁止背景音乐、配乐、BGM 或歌曲；如果自然语言提示词包含限制与避免项，必须明确写“不要配背景音乐”。",
+  "final_prompt_density_rule": "最终自然语言主提示词必须遵守 constraints.prompt_density_rule，并包含 constraints.prompt_required_sections 指定的所有章节；镜头分镜章节必须使用镜头编号组织，并根据当前场景判断是否需要建立镜头、动作桥、反应镜头或结尾余韵。提示词倾向低剧情推进密度：[片段内容以及前因后果]/[Segment Context] 只写服务当前片段的必要承接和导演重点，不复述整段章节，也不补当前片段之外的新信息；但如果当前片段确实需要连续动作链，可保留必要剧情推进。API 模式的 motion_prompt 只做运镜、动作和表演补充，不能重复 visual_prompt 的镜头分镜或连续性尾态，不能引入 visual_prompt 没有的新剧情、新道具、新场景或更血腥的动作细节。如果原文有对白，最终提示词必须包含说话人、短台词或说话意图、语气、可见说话动作和听者反应；听者反应必须具体到表情、视线、停顿、手部或身体动作，不能写“有所反应”等占位表达；短台词必须保留原文语言和原文写法，不要把中文对白翻成英文；negative_prompt 只写本镜头特有避免项，没有特有项可留空，不要重复通用负面词。",
+  "image_prompt_semantics_rule": "不要在 visual_prompt、motion_prompt 或 chat_prompt 中写图片上传流程、素材图参数位置、应用内部输入帧方式或多模态调用方式；API/首帧/首尾帧模式只有实际存在边界帧或参考图时，才用自然语言说明“参考图 1/参考图 2”各自约束的人物、场景、道具、风格或边界帧目标，素材参考图不要写成“第1张图片”。Chat 模式可按外部上传顺序说明“第1张图片”“第2张图片”各自用途。没有任何输入图时不要编造图片说明。结构化图片绑定由后端补齐，模型不要输出图片绑定字段。",
+  "input_frame_rule": "input_frames 只包含本段实际可用的起点/终点边界画面。最终自然语言主提示词按 constraints.input_frame_usage 写：开头只描述明确指定的起点边界帧或上一段尾态，结尾只描述本段动作形成的稳定尾态或明确指定的终点边界帧目标；主体定义与素材绑定章节只列实际存在的边界帧参考图和素材参考图。边界帧描述只是画面约束，不要写应用内部流程、字段名、上传方式或资源可用性说明。",
+  "negative_prompt_rule": "negative_prompt 只写本片段特有的避免项；不要重复通用画质、人体结构、身份一致性、空间关系、光影连续性、水印等通用负面词。没有特有项时写空字符串；如写限制与避免项，必须明确包含“不要配背景音乐”。",
+  "natural_language_no_internal_fields_rule": "最终自然语言提示词只能写给外部视频模型看的画面、动作、风格、连续性和限制；不要写 JSON 字段名、内部溯源字段、workflow_mode、内部审计、应用状态、素材库流程、provider 参数或模型调用流程。",
+  "review_revision_rule": "发现冲突时必须先修订最终自然语言主提示词、动作/时间轴字段和结构化导演字段，再输出最终 JSON；不要解释修订过程。",
+  "duration_rule_api_draft": "current_segment.duration_secs 是用户本轮选择并由片段规划固化的真实视频时长，只用于判断镜头数量、动作容量和节奏密度；visual_prompt 的 [镜头分镜] 必须按镜头编号设计，不要把 duration_secs 改写成精确秒表。motion_prompt 只做运镜和表演补充。不得改用其他候选时长，也不得把超出所选时长容量的后续剧情塞进当前片段。",
+  "duration_rule_api_review": "current_segment.duration_secs 是用户本轮选择并由片段规划固化的真实视频时长，只用于审校镜头数量、动作容量和节奏密度是否合理；visual_prompt 的 [镜头分镜] 必须按镜头编号组织，不应机械写成精确秒表。motion_prompt 只做运镜、动作和表演补充，不重复镜头分镜、连续性尾态或限制避免项。不得改用其他候选时长，也不得把超出所选时长容量的后续剧情塞进当前片段。",
+  "duration_rule_chat_draft": "current_segment.duration_secs 是用户本轮选择并由片段规划固化的真实视频时长，只用于判断镜头数量、动作容量和节奏密度；chat_prompt 的 [镜头分镜] 必须按镜头编号设计，不要把 duration_secs 改写成精确秒表。不得改用其他候选时长，也不得把超出所选时长容量的后续剧情塞进当前片段。",
+  "duration_rule_chat_review": "current_segment.duration_secs 是用户本轮选择并由片段规划固化的真实视频时长，只用于审校镜头数量、动作容量和节奏密度是否合理；chat_prompt 的 [镜头分镜] 必须按镜头编号组织，不应机械写成精确秒表。不得改用其他候选时长，也不得把超出所选时长容量的后续剧情塞进当前片段。",
+  "shot_number_rule_draft": "只输出 1 条 shot；不要输出 shot_number，当前片段编号由 current_segment.segment_number 唯一确定，后端会补齐；不得输出其他片段",
+  "shot_number_rule_review": "只返回 1 条 shot；待修订初稿位于 previous_steps.{draft_prompt_field}，只修订该初稿对应的当前片段。不要输出 shot_number，当前片段编号由 current_segment.segment_number 唯一确定，后端会补齐",
+  "dialogue_rule_api_draft": "每条视频提示词都必须输出 dialogue_cues；有对白时抽取推动剧情或情绪变化的短台词，每条只能包含 speaker、line、delivery、visible_action、listener_reaction、timing，不要输出任何内部溯源字段或额外字段；line 优先保留短台词，长对白要压缩成关键一句或说话意图；line 必须保留原文语言和原文写法，不要把中文对白翻成英文；listener_reaction 必须具体写听者表情、视线、停顿、手部或身体动作；无对白时返回空数组；不要编造原文没有的台词，不要整段复制原文对白，不要要求字幕",
+  "dialogue_rule_api_review": "必须检查 dialogue_cues 是否完整提取原文关键对白；每条只能包含 speaker、line、delivery、visible_action、listener_reaction、timing，不要输出任何内部溯源字段或额外字段；line 优先保留短台词，长对白要压缩成关键一句或说话意图；line 必须保留原文语言和原文写法，不要把中文对白翻成英文；listener_reaction 必须具体写听者表情、视线、停顿、手部或身体动作，不能写占位表达；无对白时返回空数组；不要编造台词，不要整段复制原文对白，不要要求字幕",
+  "dialogue_rule_chat_draft": "原文有对白时提取推动剧情或情绪变化的关键短台词或说话意图；短台词必须保留原文语言和原文写法，不要把中文对白翻成英文；放到 chat_prompt 对应镜头的可见表演里，写清说话人、听者/被影响者、相对位置、口型、语气、手势和具体听者反应；不要要求字幕，不要复制长段对白，不要编造原文没有的台词。",
+  "dialogue_rule_chat_review": "检查原文对白提取是否完整：保留关键短台词或说话意图，短台词必须保留原文语言和原文写法，不要把中文对白翻成英文；写成 chat_prompt 对应镜头的可见表演和具体听者反应，听者在场时必须入镜或有可见反应；不要求字幕，不编造对白。",
+  "boundary_continuity_rule_draft": "可以读取 previous_completed_shot.end_state 作为上一段文字状态；如果 input_frames.start_frame 存在，当前片段起点必须以该起点边界帧为准；如果 input_frames.end_frame 存在，终点必须以该终点边界帧为准；不存在的边界帧不要在最终自然语言提示词中编造。不要假设未来片段内容。",
+  "boundary_continuity_rule_review": "检查 previous_completed_shot.end_state 与 input_frames.start_frame 的连续性；如果 input_frames.start_frame 存在，当前片段起点必须以该起点边界帧为准；如果 input_frames.end_frame 存在，终点必须以该终点边界帧为准；不存在的边界帧不要在最终自然语言提示词中编造。不要引入未来片段内容。",
+  "first_frame_serial_continuity_rule_draft": "这是串行生成：不得假设未来片段；按 constraints.input_frame_usage 决定开头和结尾来源。首段通常从明确起始画面推进，后续段通常从 previous_completed_shot 承接；结尾写本段动作自然形成的可续接尾态。不要引用真实生成视频尾帧图片，也不要要求多模态输入。",
+  "first_frame_serial_continuity_rule_review": "必须检查提示词是否按 constraints.input_frame_usage 正确承接：开头来自明确起始画面、previous_completed_shot 或当前片段规划；结尾是本段动作形成的稳定可续接尾态或明确结尾目标画面。不要引用真实生成视频尾帧图片，也不要要求多模态输入。",
+  "chat_prompt_scope_rule": "chat_prompt 是最终给外部视频模型复制的完整自然语言提示词，不是 API provider 请求，不写 JSON、字段名、内部工作流、应用状态、素材库流程或解析说明。",
+  "chat_input_image_rule_draft": "主体定义与素材绑定章节只按外部上传顺序说明本段实际建议使用的图片用途和必须保持的视觉信息；图片列表为空时，直接描述本段文字起点、上一段尾态或当前片段开场画面。不要输出 reference_image_ids，后端会补齐。",
+  "chat_director_rule": "镜头分镜是提示词中心，必须体现导演思维、运镜、转场、景别、站位、可见表演、对白提取、动作容量、观察停顿、反应留白和结尾稳定状态。每个镜头都要服务角色目标受阻、关系变化或隐藏信息显露，不做装饰性镜头运动，也不要用过密事件替代电影节奏。",
+  "chat_continuity_rule_draft": "必须说明前因后果、上一段结尾如何承接、本段结尾给下一段留下什么状态；不要提应用内部工作流模式、采集流程或 provider 参数。",
+  "chat_review_scope_rule": "只修订给外部 Chat 视频模型复制的最终自然语言提示词；必须删除 JSON、字段名、应用内部流程、工作流模式说明、provider 参数和解析说明。",
+  "chat_input_image_rule_review": "检查每张参考图是否在主体定义与素材绑定章节中按上传顺序说明用途和必须保持的视觉信息；图片列表为空时，必须改成描述本段文字起点、上一段尾态或当前片段开场画面。不要输出 reference_image_ids，后端会补齐。",
+  "chat_continuity_rule_review": "检查前因后果、上一段承接和结尾交接是否足够；不得出现内部工作流模式、上传图片参数位置等模型不需要知道的信息。",
+  "shot_analysis_source_span_rule": "只需要在 action_beats[].source_span_ids 中选择 chapter.source_spans[].id，必须覆盖对应动作、对白、情绪或转折来源，不得自造 ID；不要输出 cinematic_shots[].source_span_ids、key_source_span_ids 或 source_span_range，后端会推导。",
+  "shot_analysis_source_span_range_rule": "不要输出 cinematic_shots[].source_span_range；后端会从 action_beats[].source_span_ids 推导镜头来源范围。",
+  "shot_analysis_segment_semantics_rule": "一个最终 segment 才是表现单元和一次视频生成 API 调用；action_beats 只是时间分析依据，不是新的生成单位，也不要输出 segment_breakdown。",
+  "shot_analysis_duration_rule": "selected_duration_secs 是用户本轮选择的固定视频片段时长；本步骤不要输出 recommended_segment_count 或 segment_breakdown，后端和后续分段规划会根据 action_beats[].natural_seconds 与 selected_duration_secs 决定最终 segment 数量，所有最终 segment 都使用该选择时长。",
+  "shot_analysis_beat_granularity_rule": "action_beat 应优先保持可观察、可拍摄、易读懂：通常聚焦一个可见动作、表情/视线反应、短对白表演、镜头运动或状态变化。人物物理动作、发现/视线落点、表情反应、对白口型、听者反应、镜头推进/转场可根据观众可读性拆开；如果它们属于同一连续表演动作且不会让观众读不清，可以保留为一个 beat 中的姿态细节。",
+  "shot_analysis_beat_split_rule": "如果 visible_action 需要用“并、然后、随后、接着、再、同时、一边...一边...、从...到...”连接多个动作，请像导演一样判断它是否已经过密；若会让关键发现、反应、对白或状态变化读不清，通常应拆成多个连续 action_beats。例如“角色从黑暗中坐起，手撑地，注意到地面异样，表情从迷茫转为坚定”可拆成“角色睁开眼”“角色用手撑地坐起”“角色低头注意到地面异样”“角色抬眼收紧表情”。动作结果可附在主动作后，但不要把会改变剧情理解的第二个新动作藏进同一个 beat。",
+  "shot_analysis_beat_timing_rule": "每个 action_beat 必须给出 natural_seconds；耗时要按该单个可见动作自然完成且被观众读懂所需时间估算，不要为了贴合固定片段时长强行凑数。普通小动作多为 0.5-2.5 秒；发现、迟疑、听者反应、关系停顿、空间建立、结尾余韵可为 1.5-4 秒。超过 3 秒时请确认它只是一个连续动作、连续运镜、观察停顿或情绪余韵，没有夹带新的发现、反应、对白或状态变化；如果夹带了会影响理解的新变化，优先拆分。",
+  "shot_analysis_action_beat_field_rule": "action_beats[] 只输出 natural_seconds、required、visible_action、source_span_ids。required 必须是布尔值 true 或 false，表示该节拍是否必须被后续片段覆盖；不要输出 beat_id、beat_type、must_show，不要在 beat 内重复写 start_state/end_state，也不要额外输出 description、notes、reason 等说明字段。后端会根据数组顺序推导 beat_id，并根据 visible_action 推断动作类型。",
+  "segment_plan_source_span_rule": "不要输出 segments[].source_span_ids；后端会根据 analysis_shot_id 和 covered_beat_ids 从镜头分析动作节拍来源中推导。不要输出自由原文证据，不要自造来源 ID；有对白的片段必须覆盖包含对白或说话意图的 beat。",
+  "segment_plan_shot_analysis_rule": "segments 必须严格按 cinematic_shots 顺序落地：每个 cinematic_shot 生成 1 个或多个连续 segment；每个 segment 就是一个表现单元和一次视频生成 API 调用；不得把两个 cinematic_shots 合并成一个 segment，不得把一个 segment 再拆成更小业务单位。",
+  "segment_plan_beat_mapping_rule": "每个 segment 必须输出 covered_beat_ids，表示该片段承接并表现的 action_beats[].beat_id；所有 required=true 的 beat 必须且只能被覆盖一次，required=false 的 beat 可覆盖或省略。",
+  "segment_plan_shot_mapping_rule": "每个 segment 必须输出 analysis_shot_id 和 covered_beat_ids。不要输出 segment_number、segment_index_in_shot、shot_segment_count；后端会按数组顺序和 analysis_shot_id 分组推导。",
+  "segment_plan_duration_selection_rule": "每个 segment.duration_secs 必须等于 constraints.selected_duration_secs，这是用户本轮选择的固定视频时长，不得选择其他时长。必须按该时长安排内容容量：让观众看清起始状态、动作桥、关键动作/对白、反应或转折、稳定尾态。若当前镜头在所选时长内容量过满，应拆成更多相邻 segment 或收束单段事件密度，不得通过改长时长来容纳内容，也不得为了省调用把不相邻动作或不同镜头合并成一个长 segment。",
+  "single_frame_rule": "只输出 frames 数组中的 1 条；不要输出 frame_number、segment_numbers、duration_secs、aspect_ratio 或 reference_image_ids，这些字段由 current_frame、片段规划、上一帧实际图片和用户选择决定，后端会补齐；不得输出其他边界帧，不要使用模板示例时长或自行估算时长。",
+  "single_frame_previous_frame_rule": "如果 current_frame.previous_frame 不为空，必须先读取 previous_frame 的 scene_summary、blocking_state、lighting_state 和 frame_prompt；当前帧必须写成从上一帧自然发展后的稳定状态，不能重新设计无关画面。frame_prompt 的一致性与避免项小节必须逐项写清从上一帧继承和允许变化的状态。如果 current_frame.previous_frame_image 不为空，说明后端会把上一帧实际成图绑定为第一张参考图，frame_prompt 的参考图约束小节必须称它为“参考图 1”。其他素材按 constraints.reference_slots 后续槽位依次称为“参考图 2”“参考图 3”。不要输出 reference_image_ids，不要写内部记录编号，也不要把候选素材编号当成参考图编号。",
+  "single_frame_segment_directing_rule": "必须读取 current_frame.current_segment，并参考 previous_segment/next_segment 理解时间关系。current_frame.role 为 segment_start 时只设计当前片段自己的起点；为 segment_end 时只设计当前片段自己的终点。不要生成共享边界帧，不要把下一片段动作提前并入当前片段尾帧。",
+  "single_frame_prompt_density_rule": "frame_prompt 和 negative_prompt 必须遵守 constraints.prompt_density_rule，并包含人物身份/外观、静态姿态、场景固定参照物、道具位置、构图景别、光源方向、色彩氛围、风格和一致性约束",
+  "initial_frame_rule": "只生成 1 条初始首帧提示词；frames 数量必须为 1；不要输出 frame_number、segment_numbers、duration_secs、aspect_ratio 或 reference_image_ids，后端会按第 1 个片段和用户选择补齐；严禁为第 2 段及以后生成首帧提示词",
+  "initial_frame_scope_rule": "本步骤只描述第 1 段视频开头需要使用的一张静态图像；不要生成尾帧，不要描述内部流程",
+  "initial_frame_segment_directing_rule": "初始首帧必须服务第 1 个片段的 video_intent 和 emotional_arc：画面要能开启该片段钩子、观众感受、节奏和起始情绪。首帧的姿态、视线、空间距离、遮挡、光源和道具摆放要暗示角色此刻的目标、阻力或隐藏压力，而不是只做漂亮建立镜头。",
+  "initial_frame_prompt_density_rule": "frame_prompt 和 negative_prompt 必须遵守 constraints.prompt_density_rule，并包含人物身份/外观、首帧静态姿态、场景固定参照物、道具位置、构图景别、光源方向、色彩氛围、风格和一致性约束",
+  "initial_frame_image_input_semantics_rule": "参考图只能作为人物、场景、道具或风格约束；frame_prompt 必须描述要生成的单张首帧画面，不要写成素材拼贴、参考板或多格排版",
+  "task_instruction_chapter_video_prompt": "基于视频片段规划、当前片段和边界关键帧，输出当前片段的视频生成提示词 JSON",
+  "user_instruction_chapter_video_prompt": "请根据以下 JSON 输入生成视频提示词",
+  "task_instruction_chapter_video_prompt_review": "检查并修订视频提示词中的站位、走位、光影、情绪动作、镜头语法和参考图连续性",
+  "user_instruction_chapter_video_prompt_review": "请根据以下 JSON 输入审校并修订视频提示词",
+  "task_instruction_chapter_video_first_frame_video_prompt": "基于视频片段规划和起始画面约束，输出视频生成提示词 JSON",
+  "user_instruction_chapter_video_first_frame_video_prompt": "请根据以下 JSON 输入生成首帧串联视频提示词",
+  "task_instruction_chapter_video_first_frame_video_prompt_review": "检查并修订视频提示词中的起始画面、结尾画面状态、光影和参考图连续性",
+  "user_instruction_chapter_video_first_frame_video_prompt_review": "请根据以下 JSON 输入审校并修订首帧串联视频提示词",
+  "task_instruction_chapter_video_chat_prompt": "为用户在外部大模型 Chat 页面手动上传参考图并生成视频，按目标提示词语言输出当前片段的可复制视频提示词 JSON",
+  "user_instruction_chapter_video_chat_prompt": "请根据以下 JSON 输入生成 Chat 视频提示词",
+  "task_instruction_chapter_video_chat_prompt_review": "审校并修订外部 Chat 视频模型可复制提示词，确保图片用途、镜头分镜、对白提取和连续性可执行",
+  "user_instruction_chapter_video_chat_prompt_review": "请根据以下 JSON 输入审校并修订 Chat 视频提示词",
+  "task_instruction_chapter_video_beat_extraction": "从当前正文窗口抽取可视频化动作节拍，只输出动作、自然耗时、必要性和来源 span",
+  "user_instruction_chapter_video_beat_extraction": "请根据以下 JSON 输入抽取当前正文窗口的视频动作节拍",
+  "task_instruction_chapter_video_shot_analysis": "根据已抽取动作节拍进行全局导演镜头分组，只输出镜头调度与连续性交接，由系统补齐动作节拍和派生字段",
+  "user_instruction_chapter_video_shot_analysis": "请根据以下 JSON 输入进行章节视频镜头分组",
+  "task_instruction_chapter_video_segment_plan": "根据当前单个导演镜头的动作节拍、自然耗时和候选片段时长，生成该镜头下的逐段视频片段规划",
+  "user_instruction_chapter_video_segment_plan": "请根据以下 JSON 输入规划当前导演镜头的视频片段",
+  "task_instruction_chapter_video_frame_prompts": "根据视频片段规划和已完成边界帧，只生成当前目标边界帧 1 条提示词",
+  "user_instruction_chapter_video_frame_prompts": "请根据以下 JSON 输入生成当前单个视频边界关键帧提示词",
+  "task_instruction_chapter_video_first_frame_prompts": "根据视频片段规划只生成第一个视频需要使用的初始首帧提示词；不生成每段首帧，不生成尾帧",
+  "user_instruction_chapter_video_first_frame_prompts": "请根据以下 JSON 输入生成视频初始首帧提示词",
+  "storyboard_frame_rule": "分镜板是当前视频单元的多格导演参考图，不是首帧或尾帧。每条 storyboard_prompt 仍只生成 1 张图片资产，但这张图片内部必须包含 2 到 6 个画格，用连续画格表达当前视频单元的起始状态、动作推进、关系反应和结尾状态。content 单元表达原片段核心动作、人物关系、空间调度和光影情绪；transition 单元只表达前一片段尾态到后一片段首态之间的桥接瞬间，不新增关键剧情。允许清晰画格边界和分镜板版式，但不要生成文字编号、字幕、水印、乱码标注、素材展示墙或无关拼贴。",
+  "storyboard_panel_count_rule": "分镜板格数由内容决定，不按固定模板或固定秒数硬切。每一格必须对应一个观众需要看清的可见状态变化；没有新状态变化就不要增加格子。简单动作或静态情绪变化通常 2 格；一个清晰动作过程通常 3 格；动作加对白、听者反应或关系转折通常 3 到 4 格；复杂调度、移动、发现、反应和转场最多 5 到 6 格；transition 单元通常 2 到 3 格。画格必须按从左到右、从上到下的阅读顺序组织，并保持同一角色身份、服装、场景、道具、镜头轴线、光源方向和风格连续。",
+  "storyboard_segment_directing_rule": "必须读取 current_storyboard_frame.video_unit 以及相关源片段的 video_intent、emotional_arc、performance_plan 和 material_coverage。content 单元优先把起始状态、核心动作、关系压力、听者反应和结尾尾态拆成可读画格；transition 单元优先把前一片段尾态、桥接动作和后一片段起点拆成可读画格。frame_prompt 必须逐格描述分镜板内容，并明确第 1 格、第 2 格等画格顺序。",
+  "storyboard_video_usage_rule": "storyboard_frame 是当前视频单元多格分镜板，后续 provider 会把它作为第 1 张 reference image，而不是 first_frame 或 last_frame。最终视频提示词只能利用分镜板理解动作顺序、人物站位、表演变化、构图意图、空间连续性、道具位置、光影方向和风格；最终视频必须是单一连续画面，不得生成多格画面、边框、分屏、拼贴、画中画、漫画排版、文字编号或截图墙。",
+  "storyboard_video_continuity_rule_draft": "分镜模式不提供首尾帧边界。必须读取 current_segment、metadata.video_unit 和 storyboard_frame.storyboard_panels：content 单元写当前片段内部动作，transition 单元只写前一片段尾态到后一片段首态的可见桥接，不新增关键剧情，不重复前后内容片段主动作。不要把 storyboard_frame 写成上传流程、图片槽位、首帧或尾帧；只在主体定义与素材绑定中说明“参考图 1 为当前视频单元多格分镜板，仅用于理解动作顺序、站位、空间连续性和光影，不得复制多格版式”。",
+  "storyboard_video_continuity_rule_review": "检查初稿是否错误地把分镜板当成视频首帧、尾帧、输入首帧、结尾帧、上传图片槽位或最终画面排版；如有，改成“参考图 1 为当前视频单元多格分镜板，仅用于理解动作顺序、站位、空间连续性和光影，不得复制多格版式”。transition 单元必须只做桥接，不新增关键剧情，不重复前后内容片段主动作；没有边界帧时不要编造输入首帧、输入尾帧或图片槽位。",
+  "task_instruction_chapter_video_storyboard_prompts": "根据当前视频单元只生成 1 条多格分镜板提示词；分镜板作为该视频单元视频生成的参考图，不是首帧或尾帧",
+  "user_instruction_chapter_video_storyboard_prompts": "请根据以下 JSON 输入生成当前单个视频单元分镜提示词",
+  "task_instruction_chapter_video_storyboard_video_prompt": "基于视频单元规划和当前单元多格分镜板，输出分镜模式视频生成提示词 JSON",
+  "user_instruction_chapter_video_storyboard_video_prompt": "请根据以下 JSON 输入生成分镜视频提示词",
+  "task_instruction_chapter_video_storyboard_video_prompt_review": "检查并修订分镜模式视频提示词中的多格分镜板使用、动作连续性、镜头语法和参考图约束",
+  "user_instruction_chapter_video_storyboard_video_prompt_review": "请根据以下 JSON 输入审校并修订分镜视频提示词"
+}

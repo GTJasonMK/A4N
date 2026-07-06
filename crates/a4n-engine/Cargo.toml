@@ -1,0 +1,71 @@
+[package]
+name = "a4n-engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+
+# 异步运行时
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# 序列化
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+# 模板引擎
+tera = { workspace = true }
+
+# HTTP
+reqwest = { workspace = true }
+
+# Base64（图像 b64_json 响应解码）
+base64 = { workspace = true }
+
+# 图片参考图压缩
+image = { workspace = true }
+
+# SHA-256（本地确定性嵌入）
+sha2 = { workspace = true }
+
+# 错误处理
+anyhow = { workspace = true }
+
+# 并发工具
+dashmap = { workspace = true }
+tokio-util = { workspace = true }
+
+# 正则
+regex = { workspace = true }
+
+# 文本差异
+similar = { workspace = true }
+
+# 日志
+tracing = { workspace = true }
+
+# 其他
+uuid = { workspace = true }
+chrono = { workspace = true }
+parking_lot = { workspace = true }
+
+# 全文搜索（BM25 + 倒排索引）
+tantivy = "0.22"
+
+# Git 版本管理（提示词历史）
+git2 = { version = "0.19", default-features = false }
+
+# 向量数据库（ANN 加速）
+lancedb = "0.29"
+arrow-array = "58"
+arrow-schema = "58"
+
+# 本地嵌入模型（ONNX + HuggingFace Hub 缓存）
+fastembed = { version = "5.14.0", default-features = false, features = ["hf-hub-native-tls", "ort-download-binaries-native-tls"] }
+hf-hub = { version = "0.5", default-features = false, features = ["ureq", "native-tls"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

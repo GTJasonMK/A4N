@@ -1,0 +1,219 @@
+use a4n_services::video::{
+    PromptOutputLanguage, validate_direct_prompt_text, video_motion_prompt_has_temporal_storyboard,
+    video_prompt_missing_required_section_for_language, video_prompt_stale_section_for_language,
+    video_prompt_upload_status_term,
+};
+
+pub(crate) const MIN_PROVIDER_VISUAL_PROMPT_CHARS: usize = 100;
+pub(crate) const MIN_PROVIDER_MOTION_PROMPT_CHARS: usize = 60;
+pub(crate) const MIN_FRAME_PROMPT_CHARS: usize = 80;
+
+const INTERNAL_VIDEO_PROMPT_TERMS: &[&str] = &[
+    "首帧串联",
+    "串联规则",
+    "自动采集",
+    "系统采集",
+    "供系统",
+    "上一段视频",
+    "上一段尾帧",
+    "下一段首帧",
+    "provider",
+    "供应商请求",
+    "image 字段",
+    "first_frame_image_url",
+    "generated_image #",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ProviderPromptTextViolation {
+    Empty,
+    TooShort {
+        min_chars: usize,
+        actual_chars: usize,
+    },
+    DictionaryLike,
+    PreviewPlaceholder,
+    InternalWorkflowTerm(&'static str),
+    UploadStatusTerm(&'static str),
+    StaleSection(&'static str),
+    DuplicateMotionTimeline,
+    MissingRequiredSection(&'static str),
+    DirectPrompt(String),
+}
+
+pub(crate) fn validate_provider_model_text<'a>(
+    value: &'a str,
+    field: &str,
+    prompt_id: i64,
+    prompt_output_language: PromptOutputLanguage,
+    min_chars: usize,
+    allow_preview_placeholders: bool,
+) -> Result<&'a str, String> {
+    let text = value.trim();
+    if let Some(violation) = provider_prompt_text_violation(
+        text,
+        field,
+        prompt_output_language,
+        min_chars,
+        allow_preview_placeholders,
+    ) {
+        return Err(provider_prompt_text_error(prompt_id, field, violation));
+    }
+    Ok(text)
+}
+
+pub(crate) fn provider_prompt_text_violation(
+    text: &str,
+    field: &str,
+    prompt_output_language: PromptOutputLanguage,
+    min_chars: usize,
+    allow_preview_placeholders: bool,
+) -> Option<ProviderPromptTextViolation> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Some(ProviderPromptTextViolation::Empty);
+    }
+    let char_count = text.chars().count();
+    if contains_dictionary_like_prompt_text(text) {
+        return Some(ProviderPromptTextViolation::DictionaryLike);
+    }
+    if text.contains("请求预览占位") && !allow_preview_placeholders {
+        return Some(ProviderPromptTextViolation::PreviewPlaceholder);
+    }
+    if let Some(term) = internal_video_workflow_term(text) {
+        return Some(ProviderPromptTextViolation::InternalWorkflowTerm(term));
+    }
+    if let Some(term) = video_prompt_upload_status_term(text) {
+        return Some(ProviderPromptTextViolation::UploadStatusTerm(term));
+    }
+    if let Some(section) = video_prompt_stale_section_for_language(field, text) {
+        return Some(ProviderPromptTextViolation::StaleSection(section));
+    }
+    if field == "motion_prompt" && video_motion_prompt_has_temporal_storyboard(text) {
+        return Some(ProviderPromptTextViolation::DuplicateMotionTimeline);
+    }
+    if char_count < min_chars {
+        return Some(ProviderPromptTextViolation::TooShort {
+            min_chars,
+            actual_chars: char_count,
+        });
+    }
+    if let Some(section) =
+        video_prompt_missing_required_section_for_language(field, text, prompt_output_language)
+    {
+        return Some(ProviderPromptTextViolation::MissingRequiredSection(section));
+    }
+    if let Err(err) = validate_direct_prompt_text(text, field) {
+        return Some(ProviderPromptTextViolation::DirectPrompt(err.to_string()));
+    }
+    None
+}
+
+pub(crate) fn provider_prompt_text_error(
+    prompt_id: i64,
+    field: &str,
+    violation: ProviderPromptTextViolation,
+) -> String {
+    match violation {
+        ProviderPromptTextViolation::Empty => format!("视频提示词 #{} 缺少 {}", prompt_id, field),
+        ProviderPromptTextViolation::TooShort {
+            min_chars,
+            actual_chars,
+        } => format!(
+            "视频提示词 #{} 的 {} 过短，至少需要 {} 个字符，当前 {} 个字符；请重新生成或补全视频提示词",
+            prompt_id, field, min_chars, actual_chars
+        ),
+        ProviderPromptTextViolation::DictionaryLike => format!(
+            "视频提示词 #{} 的 {} 包含 JSON/字典结构片段，请重新生成或改写为自然语言提示词后再生成视频",
+            prompt_id, field
+        ),
+        ProviderPromptTextViolation::PreviewPlaceholder => format!(
+            "视频提示词 #{} 的 {} 包含请求预览占位文本，请保存完整提示词后再生成视频",
+            prompt_id, field
+        ),
+        ProviderPromptTextViolation::InternalWorkflowTerm(term) => format!(
+            "视频提示词 #{} 的 {} 包含视频生成内部流程说明“{}”，请重新生成或改写为只描述画面和动作的自然语言提示词后再生成视频",
+            prompt_id, field, term
+        ),
+        ProviderPromptTextViolation::UploadStatusTerm(term) => format!(
+            "视频提示词 #{} 的 {} 包含上传状态说明“{}”，请优化或重新生成为只描述实际起点、输入帧画面或上一段尾态的自然语言提示词后再生成视频",
+            prompt_id, field, term
+        ),
+        ProviderPromptTextViolation::StaleSection(section) => format!(
+            "视频提示词 #{} 的 {} 使用旧版视频提示词章节 {}，请重新生成或优化为当前格式后再生成视频",
+            prompt_id, field, section
+        ),
+        ProviderPromptTextViolation::DuplicateMotionTimeline => format!(
+            "视频提示词 #{} 的 motion_prompt 不应重复镜头分镜；请把镜头分镜、连续性和尾态只保留在 visual_prompt 中，motion_prompt 只写运镜、动作和表演补充",
+            prompt_id
+        ),
+        ProviderPromptTextViolation::MissingRequiredSection(section) => format!(
+            "视频提示词 #{} 的 {} 缺少必需章节 {}，请重新生成或补全视频提示词",
+            prompt_id, field, section
+        ),
+        ProviderPromptTextViolation::DirectPrompt(message) => message,
+    }
+}
+
+fn contains_dictionary_like_prompt_text(text: &str) -> bool {
+    text.contains('{')
+        || text.contains('}')
+        || text.contains("[{")
+        || text.contains("}]")
+        || text.contains("\":")
+        || text.contains("':")
+}
+
+fn internal_video_workflow_term(text: &str) -> Option<&'static str> {
+    let normalized = text.to_ascii_lowercase();
+    INTERNAL_VIDEO_PROMPT_TERMS
+        .iter()
+        .copied()
+        .find(|term| normalized.contains(term))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hard_prompt_text_violations_take_priority_over_length() {
+        let dictionary_violation = provider_prompt_text_violation(
+            r#"{"visual_prompt":"test"}"#,
+            "visual_prompt",
+            PromptOutputLanguage::ZhCn,
+            MIN_PROVIDER_VISUAL_PROMPT_CHARS,
+            false,
+        );
+        assert_eq!(
+            dictionary_violation,
+            Some(ProviderPromptTextViolation::DictionaryLike)
+        );
+
+        let upload_status_violation = provider_prompt_text_violation(
+            "没有输入首帧",
+            "visual_prompt",
+            PromptOutputLanguage::ZhCn,
+            MIN_PROVIDER_VISUAL_PROMPT_CHARS,
+            false,
+        );
+        assert_eq!(
+            upload_status_violation,
+            Some(ProviderPromptTextViolation::UploadStatusTerm(
+                "没有输入首帧"
+            ))
+        );
+
+        let short_natural_violation = provider_prompt_text_violation(
+            "镜头缓慢推进",
+            "visual_prompt",
+            PromptOutputLanguage::ZhCn,
+            MIN_PROVIDER_VISUAL_PROMPT_CHARS,
+            false,
+        );
+        assert!(matches!(
+            short_natural_violation,
+            Some(ProviderPromptTextViolation::TooShort { .. })
+        ));
+    }
+}

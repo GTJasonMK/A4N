@@ -1,0 +1,232 @@
+import React, { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
+import { getPortalRoot } from './portalRoot';
+
+type ModalTone = 'default' | 'info' | 'success' | 'warning' | 'danger';
+
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  subtitle?: React.ReactNode;
+  icon?: React.ReactNode;
+  tone?: ModalTone;
+  footer?: React.ReactNode;
+  headerExtra?: React.ReactNode;
+  maxWidthClassName?: string;
+  className?: string;
+  bodyClassName?: string;
+  zIndexClassName?: string;
+  closeOnBackdrop?: boolean;
+  closeOnEscape?: boolean;
+  showCloseButton?: boolean;
+}
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+const getFocusableElements = (container: HTMLElement | null): HTMLElement[] => {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((item) => {
+    if (item.hasAttribute('disabled')) return false;
+    if (item.getAttribute('aria-hidden') === 'true') return false;
+    return item.getClientRects().length > 0;
+  });
+};
+
+const focusFirstElement = (container: HTMLElement | null) => {
+  const focusable = getFocusableElements(container);
+  const target = focusable[0] ?? container;
+  target?.focus();
+};
+
+export const Modal: React.FC<ModalProps> = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  subtitle,
+  icon,
+  tone = 'default',
+  footer,
+  headerExtra,
+  maxWidthClassName = 'max-w-lg',
+  className = '',
+  bodyClassName = 'min-h-0 flex-1 overflow-y-auto custom-scrollbar px-5 py-5 sm:px-7 sm:py-6',
+  zIndexClassName = 'z-50',
+  closeOnBackdrop = true,
+  closeOnEscape = true,
+  showCloseButton = true,
+}) => {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') return undefined;
+
+    previousActiveElementRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const raf = window.requestAnimationFrame(() => {
+      focusFirstElement(dialogRef.current);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      document.body.style.overflow = previousOverflow;
+      const previousActiveElement = previousActiveElementRef.current;
+      if (previousActiveElement) {
+        window.requestAnimationFrame(() => previousActiveElement.focus());
+      }
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (!closeOnEscape) return;
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const focusable = getFocusableElements(dialogRef.current);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [closeOnEscape, isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const portalContainer = getPortalRoot();
+
+  const toneClasses = {
+    default: {
+      accent: 'bg-book-primary',
+      icon: 'border-book-primary/35 bg-book-primary/10 text-book-primary',
+    },
+    info: {
+      accent: 'bg-info',
+      icon: 'border-info/40 bg-info-bg text-info',
+    },
+    success: {
+      accent: 'bg-success',
+      icon: 'border-success/40 bg-success-bg text-success',
+    },
+    warning: {
+      accent: 'bg-warning',
+      icon: 'border-warning/40 bg-warning-bg text-warning',
+    },
+    danger: {
+      accent: 'bg-error',
+      icon: 'border-error/40 bg-error-bg text-error',
+    },
+  } satisfies Record<ModalTone, { accent: string; icon: string }>;
+
+  const toneClass = toneClasses[tone];
+
+  return createPortal(
+    <div
+      className={`fixed inset-0 ${zIndexClassName} flex items-end justify-center p-0 sm:items-center sm:p-4`}
+    >
+      <div
+        className="dialog-backdrop absolute inset-0"
+        onClick={closeOnBackdrop ? onClose : undefined}
+      />
+
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={`dialog-panel relative z-10 flex max-h-[calc(100dvh-0.75rem)] w-full flex-col overflow-hidden rounded-b-none sm:max-h-[90vh] sm:rounded-sm ${maxWidthClassName} ${className}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={`h-1 shrink-0 ${toneClass.accent}`} />
+
+        <div className="flex items-start justify-between gap-3 border-b border-book-border bg-book-bg-tertiary px-3 py-2.5 shrink-0">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            {icon ? (
+              <span
+                className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border ${toneClass.icon}`}
+                aria-hidden="true"
+              >
+                {icon}
+              </span>
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <h3 id={titleId} className="font-serif text-sm font-semibold text-book-text-main truncate">
+                {title}
+              </h3>
+              {subtitle ? (
+                <div className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+                  {subtitle}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          {headerExtra ? <div className="shrink-0">{headerExtra}</div> : null}
+          {showCloseButton ? (
+            <button
+              onClick={onClose}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm text-book-text-muted hover:text-book-text-main hover:bg-book-bg-tertiary focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:h-7 sm:w-7"
+              aria-label="关闭弹窗"
+              title="关闭 (Esc)"
+            >
+              <X size={14} />
+            </button>
+          ) : null}
+        </div>
+
+        <div data-modal-body="1" className={`min-h-0 flex-1 overflow-y-auto custom-scrollbar ${bodyClassName}`}>
+          {children}
+        </div>
+
+        {footer ? (
+          <div className="shrink-0 border-t border-book-border bg-book-bg-tertiary px-3 py-2">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+              {footer}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>,
+    portalContainer,
+  );
+};

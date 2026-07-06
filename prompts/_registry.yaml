@@ -1,0 +1,1044 @@
+# Prompt 注册表 — 提示词中央元数据
+#
+# 字段说明：
+#   prompts.<name>.path         相对此目录的文件路径
+#   prompts.<name>.title        显示名
+#   prompts.<name>.category     分类 key（必须在 categories: 中定义）
+#   prompts.<name>.tags         标签列表（必须显式声明）
+#   prompts.<name>.version      初始版本号（必须显式声明）
+#   prompts.<name>.used_by      谁调用此提示词（service 函数名，用于反向追溯）
+#   prompts.<name>.dependencies 依赖的其他提示词名（用于依赖图/级联 reset）
+#   prompts.<name>.description  使用场景描述
+
+version: "1.0"
+last_updated: "2026-05-22"
+
+# ============================================================================
+# Prompts
+# ============================================================================
+prompts:
+  # ============= 01 构思 =============
+  inspiration:
+    path: "novel/01_inspiration/inspiration.md"
+    title: "灵感对话"
+    category: "inspiration"
+    tags: ["inspiration", "dialogue", "creative"]
+    version: "1.0"
+    used_by:
+      - "InspirationService.converse"
+      - "InspirationService.converse_stream"
+    dependencies: []
+    description: "AI 扮演\"文思\"角色，与作者多轮对话把模糊灵感锻造成完整小说概念蓝图"
+
+  inspiration_project_context_guard:
+    path: "novel/01_inspiration/project_context_guard.md"
+    title: "灵感对话项目上下文约束"
+    category: "inspiration"
+    tags: ["inspiration", "context", "guard"]
+    version: "1.0"
+    used_by:
+      - "InspirationService.build_inspiration_messages"
+    dependencies:
+      - "inspiration"
+    description: "灵感对话追加项目上下文，要求回答优先尊重已有项目事实并忽略数据库技术字段"
+
+  # ============= 02 蓝图 =============
+  blueprint:
+    path: "novel/02_blueprint/blueprint.md"
+    title: "蓝图生成"
+    category: "blueprint"
+    tags: ["blueprint", "worldbuilding", "character"]
+    version: "1.0"
+    used_by:
+      - "BlueprintPipeline.execute"
+    dependencies:
+      - "inspiration"
+    description: "根据灵感对话记录生成完整故事蓝图（世界观/角色/剧情/主题）"
+
+  blueprint_stage_system:
+    path: "novel/02_blueprint/blueprint_stage_system.md"
+    title: "蓝图分阶段生成 System 约束"
+    category: "blueprint"
+    tags: ["blueprint", "staged-generation", "system"]
+    version: "1.0"
+    used_by:
+      - "BlueprintService.generate"
+      - "BlueprintService.preview_generate_requests"
+    dependencies:
+      - "blueprint"
+    description: "在完整蓝图提示词上叠加当前分阶段生成约束，确保模型只完成一个蓝图子阶段"
+
+  blueprint_stage_user:
+    path: "novel/02_blueprint/blueprint_stage_user.md"
+    title: "蓝图分阶段生成 User 请求"
+    category: "blueprint"
+    tags: ["blueprint", "staged-generation", "user-request"]
+    version: "1.0"
+    used_by:
+      - "BlueprintService.generate"
+      - "BlueprintService.preview_generate_requests"
+    dependencies:
+      - "blueprint_stage_system"
+    description: "将蓝图阶段输入、上游阶段上下文和当前输出 schema 渲染为严格 JSON 用户请求"
+
+  blueprint_optimization:
+    path: "novel/02_blueprint/blueprint_optimization.md"
+    title: "蓝图优化（A4N 自研）"
+    category: "blueprint"
+    tags: ["blueprint", "optimization"]
+    version: "1.0"
+    used_by:
+      - "BlueprintService.refine"
+    dependencies:
+      - "blueprint"
+    description: "对现有蓝图按 focus 方向迭代优化，保持主线连贯"
+
+  blueprint_optimization_user:
+    path: "novel/02_blueprint/blueprint_optimization_user.md"
+    title: "蓝图优化 User 请求"
+    category: "blueprint"
+    tags: ["blueprint", "optimization", "user-request"]
+    version: "1.0"
+    used_by:
+      - "BlueprintService.refine"
+      - "BlueprintService.preview_refine_request"
+    dependencies:
+      - "blueprint_optimization"
+    description: "将当前蓝图上下文和用户优化重点整理为严格 JSON 优化请求"
+
+  reverse_blueprint:
+    path: "novel/02_blueprint/reverse_blueprint.md"
+    title: "蓝图反推"
+    category: "blueprint"
+    tags: ["导入分析", "蓝图"]
+    version: "1.0"
+    used_by:
+      - "ImportService.reverse_engineer_blueprint"
+    dependencies: []
+    description: "从已有小说内容反推生成蓝图结构（用于导入分析）"
+
+  # ============= 03 大纲 =============
+  outline:
+    path: "novel/03_outline/outline.md"
+    title: "章节大纲生成"
+    category: "outline"
+    tags: ["outline", "planning", "chapter"]
+    version: "1.0"
+    used_by:
+      - "OutlineService.generate_chapter_outlines"
+      - "OutlineService.generate_chapter_outlines_by_count"
+      - "OutlineService.regenerate_chapter_outline"
+      - "OutlineService.apply_beat_mapping"
+    dependencies:
+      - "part_outline_single"
+    description: "基于分部大纲生成详细的章节级大纲"
+
+  part_outline_single:
+    path: "novel/03_outline/part_outline_single.md"
+    title: "分部大纲生成（串行）"
+    category: "outline"
+    tags: ["outline", "long-form", "serial"]
+    version: "1.0"
+    used_by:
+      - "OutlineService.generate_parts"
+      - "OutlineService.continue_part_outline"
+      - "OutlineService.regenerate_part_outline"
+      - "OutlineService.regenerate_last_part"
+    dependencies:
+      - "blueprint"
+    description: "逐个生成分部大纲，支持上下文传递"
+
+  reverse_outline:
+    path: "novel/03_outline/reverse_outline.md"
+    title: "大纲反推"
+    category: "outline"
+    tags: ["导入分析", "大纲"]
+    version: "1.0"
+    used_by:
+      - "ImportService.reverse_engineer_outline"
+    dependencies: []
+    description: "从已有章节内容反推生成大纲（用于导入分析）"
+
+  reverse_part_outline:
+    path: "novel/03_outline/reverse_part_outline.md"
+    title: "分部大纲反推"
+    category: "outline"
+    tags: ["导入分析", "大纲", "长篇"]
+    version: "1.0"
+    used_by:
+      - "ImportService.reverse_engineer_part_outline"
+    dependencies: []
+    description: "从已有内容反推生成分部大纲结构"
+
+  # ============= 04 写作 =============
+  writing:
+    path: "novel/04_writing/writing.md"
+    title: "章节正文生成"
+    category: "writing"
+    tags: ["writing", "chapter", "generation"]
+    version: "1.0"
+    used_by:
+      - "ChapterService.generate_stream"
+    dependencies:
+      - "outline"
+    description: "基于章节大纲生成具体的章节正文（场景级流水线）"
+
+  chapter_scene_generation:
+    path: "novel/04_writing/chapter_scene_generation.md"
+    title: "章节场景生成"
+    category: "writing"
+    tags: ["writing", "chapter", "scene"]
+    version: "1.0"
+    used_by:
+      - "chapter::scene::generate_chapter_scene"
+      - "chapter::scene::preview_chapter_scene_generation_request"
+    dependencies:
+      - "writing"
+      - "outline"
+    description: "根据章节摘要、上下文和场景引导生成单个章节场景正文"
+
+  # ============= 05 分析 =============
+  character_analysis:
+    path: "novel/05_analysis/character_analysis.md"
+    title: "角色分析（A4N 自研）"
+    category: "analysis"
+    tags: ["character", "analysis"]
+    version: "1.0"
+    used_by:
+      - "CharacterService.analyze"
+    dependencies: []
+    description: "从已有内容反推角色的核心特征、动机与弧光"
+
+  chapter_fact_extraction:
+    path: "novel/05_analysis/chapter_fact_extraction.md"
+    title: "章节事实抽取"
+    category: "analysis"
+    tags: ["analysis", "extraction", "facts"]
+    version: "1.0"
+    used_by:
+      - "ChapterAnalysisService.analyze_and_store"
+      - "ChapterAnalysisService.build_analysis_requests"
+    dependencies:
+      - "writing"
+    description: "章节结构化分析第一阶段：抽取角色、地点、物品、关键事件和伏笔候选"
+
+  chapter_summary_synthesis:
+    path: "novel/05_analysis/chapter_summary_synthesis.md"
+    title: "章节摘要综合"
+    category: "analysis"
+    tags: ["analysis", "summary", "synthesis"]
+    version: "1.0"
+    used_by:
+      - "ChapterAnalysisService.analyze_and_store"
+      - "ChapterAnalysisService.build_analysis_requests"
+    dependencies:
+      - "chapter_fact_extraction"
+    description: "章节结构化分析第二阶段：基于事实候选生成摘要、标签、基调和时间标记"
+
+  chapter_character_state:
+    path: "novel/05_analysis/chapter_character_state.md"
+    title: "章节角色状态"
+    category: "analysis"
+    tags: ["analysis", "character", "state"]
+    version: "1.0"
+    used_by:
+      - "ChapterAnalysisService.analyze_and_store"
+      - "ChapterAnalysisService.build_analysis_requests"
+    dependencies:
+      - "chapter_fact_extraction"
+    description: "章节结构化分析第三阶段：生成角色章节结束状态快照"
+
+  chapter_foreshadowing_events:
+    path: "novel/05_analysis/chapter_foreshadowing_events.md"
+    title: "章节伏笔与关键事件"
+    category: "analysis"
+    tags: ["analysis", "foreshadowing", "events"]
+    version: "1.0"
+    used_by:
+      - "ChapterAnalysisService.analyze_and_store"
+      - "ChapterAnalysisService.build_analysis_requests"
+    dependencies:
+      - "chapter_fact_extraction"
+    description: "章节结构化分析第四阶段：筛选最终关键事件和伏笔追踪结构"
+
+  object_discovery:
+    path: "novel/05_analysis/object_discovery.md"
+    title: "物体档案发现"
+    category: "analysis"
+    tags: ["asset", "object", "discovery"]
+    version: "1.0"
+    used_by:
+      - "ObjectProfileDiscovery.discover_object_profiles_for_chapters"
+    dependencies:
+      - "chapter_fact_extraction"
+      - "chapter_summary_synthesis"
+      - "chapter_character_state"
+      - "chapter_foreshadowing_events"
+    description: "从章节正文和章节分析中识别可复用的关键物体档案"
+
+  scene_profile_candidates:
+    path: "novel/05_analysis/scene_profile_candidates.md"
+    title: "场景档案候选"
+    category: "analysis"
+    tags: ["scene", "location", "discovery"]
+    version: "1.0"
+    used_by:
+      - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    dependencies:
+      - "chapter_fact_extraction"
+      - "chapter_summary_synthesis"
+      - "chapter_character_state"
+      - "chapter_foreshadowing_events"
+      - "object_discovery"
+      - "character_discovery"
+    description: "场景同步第一阶段：识别或匹配可复用场景档案"
+
+  scene_occurrence_extraction:
+    path: "novel/05_analysis/scene_occurrence_extraction.md"
+    title: "场景出场抽取"
+    category: "analysis"
+    tags: ["scene", "occurrence", "extraction"]
+    version: "1.0"
+    used_by:
+      - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    dependencies:
+      - "scene_profile_candidates"
+    description: "场景同步第二阶段：基于场景档案候选抽取当前章节场景出场"
+
+  scene_transition_extraction:
+    path: "novel/05_analysis/scene_transition_extraction.md"
+    title: "场景转场抽取"
+    category: "analysis"
+    tags: ["scene", "transition", "extraction"]
+    version: "1.0"
+    used_by:
+      - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    dependencies:
+      - "scene_profile_candidates"
+      - "scene_occurrence_extraction"
+    description: "场景同步第三阶段：基于场景与出场链抽取转场"
+
+  scene_entity_state_extraction:
+    path: "novel/05_analysis/scene_entity_state_extraction.md"
+    title: "场景实体状态抽取"
+    category: "analysis"
+    tags: ["scene", "entity-state", "extraction"]
+    version: "1.0"
+    used_by:
+      - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    dependencies:
+      - "scene_profile_candidates"
+      - "scene_occurrence_extraction"
+    description: "场景同步第四阶段：抽取角色、物体或事件在场景内的状态变化"
+
+  content_optimization:
+    path: "novel/05_analysis/content_optimization.md"
+    title: "内容优化（Agent Loop）"
+    category: "analysis"
+    tags: ["optimization", "agent", "editing"]
+    version: "1.0"
+    used_by:
+      - "OptimizeService.create_analysis_session"
+      - "OptimizeService.prepare_analysis_session"
+    dependencies: []
+    description: "显式内容优化 Agent Loop：逐步读取上下文、调用工具并最终输出 issues JSON"
+
+  content_optimization_chat:
+    path: "novel/05_analysis/content_optimization_chat.md"
+    title: "内容优化对话（Agent Loop）"
+    category: "analysis"
+    tags: ["optimization", "chat", "agent", "editing"]
+    version: "1.0"
+    used_by:
+      - "OptimizeService.send_user_message"
+    dependencies:
+      - "content_optimization"
+    description: "内容优化会话中的显式 Agent Loop 对话，可按需读取上下文或调用工具"
+
+  content_optimization_patch:
+    path: "novel/05_analysis/content_optimization_patch.md"
+    title: "内容优化局部补丁（Agent）"
+    category: "analysis"
+    tags: ["optimization", "patch", "agent", "editing"]
+    version: "1.0"
+    used_by:
+      - "OptimizeService.propose_patches"
+    dependencies:
+      - "content_optimization"
+    description: "基于内容优化 issues 生成可审阅的局部文章补丁"
+
+  # ============= 06 漫画 =============
+  manga_event_beats:
+    path: "novel/06_manga/manga_event_beats.md"
+    title: "漫画事件卡片抽取"
+    category: "manga"
+    tags: ["manga", "extraction", "events"]
+    version: "1.0"
+    used_by:
+      - "MangaService.generate_panels"
+      - "MangaService.preview_generate_panels_requests"
+    dependencies: []
+    description: "漫画流水线第 1 步：从章节正文抽取事件卡片，只输出事件顺序、参与者、重要性和来源"
+
+  manga_character_binding:
+    path: "novel/06_manga/manga_character_binding.md"
+    title: "漫画角色绑定"
+    category: "manga"
+    tags: ["manga", "character", "binding"]
+    version: "1.0"
+    used_by:
+      - "MangaService.generate_panels"
+      - "MangaService.preview_generate_panels_requests"
+    dependencies:
+      - "manga_event_beats"
+    description: "漫画流水线第 2 步：基于事件卡片、正文和角色立绘绑定本章出场角色身份与外观"
+
+  manga_speech_selection:
+    path: "novel/06_manga/manga_speech_selection.md"
+    title: "漫画对白旁白选择"
+    category: "manga"
+    tags: ["manga", "speech", "dialogue", "narration"]
+    version: "1.0"
+    used_by:
+      - "MangaService.generate_panels"
+      - "MangaService.preview_generate_panels_requests"
+    dependencies:
+      - "manga_character_binding"
+    description: "漫画流水线第 3 步：基于事件窗口和角色绑定选择关键对白、想法与旁白"
+
+  manga_visual_anchor_extraction:
+    path: "novel/06_manga/manga_visual_anchor_extraction.md"
+    title: "漫画视觉锚点抽取"
+    category: "manga"
+    tags: ["manga", "scene", "visual-anchor"]
+    version: "1.0"
+    used_by:
+      - "MangaService.generate_panels"
+      - "MangaService.preview_generate_panels_requests"
+    dependencies:
+      - "manga_event_beats"
+    description: "漫画流水线第 4 步：基于事件窗口抽取场景边界、地点氛围和视觉锚点"
+
+  manga_item_extraction:
+    path: "novel/06_manga/manga_item_extraction.md"
+    title: "漫画关键物品抽取"
+    category: "manga"
+    tags: ["manga", "item", "extraction"]
+    version: "1.0"
+    used_by:
+      - "MangaService.generate_panels"
+      - "MangaService.preview_generate_panels_requests"
+    dependencies:
+      - "manga_speech_selection"
+      - "manga_visual_anchor_extraction"
+    description: "漫画流水线第 5 步：从对白旁白和视觉锚点中抽取需要稳定绘制的关键物品"
+
+  manga_chapter_comic_synthesis:
+    path: "novel/06_manga/manga_chapter_comic_synthesis.md"
+    title: "漫画章节综合"
+    category: "manga"
+    tags: ["manga", "synthesis", "planning"]
+    version: "1.0"
+    used_by:
+      - "MangaService.generate_panels"
+      - "MangaService.preview_generate_panels_requests"
+    dependencies:
+      - "manga_event_beats"
+      - "manga_speech_selection"
+      - "manga_visual_anchor_extraction"
+      - "manga_item_extraction"
+    description: "漫画流水线第 6 步：综合事件、对白、视觉锚点和物品，输出分页需要的摘要、情绪轨迹和页数建议"
+
+  manga_page_planning:
+    path: "novel/06_manga/manga_page_planning.md"
+    title: "漫画分页规划"
+    category: "manga"
+    tags: ["manga", "planning", "layout"]
+    version: "1.0"
+    used_by:
+      - "MangaService.generate_panels"
+      - "MangaService.preview_generate_panels_requests"
+    dependencies:
+      - "manga_chapter_comic_synthesis"
+    description: "漫画流水线第 7 步：决定每页的事件分配、节奏、角色和页内画格数量"
+
+  manga_page_drawing_prompt:
+    path: "novel/06_manga/manga_page_drawing_prompt.md"
+    title: "整页漫画绘图 Prompt"
+    category: "manga"
+    tags: ["manga", "drawing", "page", "prompt"]
+    version: "1.1.0"
+    used_by:
+      - "MangaService.generate_panels"
+      - "MangaService.preview_generate_panels_requests"
+    dependencies:
+      - "manga_page_planning"
+    description: "漫画流水线第 8 步：把单页分页规划和页内上下文编排为可生成完整漫画页的最终 prompt"
+
+  manga_prompt_optimization:
+    path: "novel/06_manga/manga_prompt_optimization.md"
+    title: "漫画整页提示词优化"
+    category: "manga"
+    tags: ["manga", "prompt", "optimization"]
+    version: "1.0"
+    used_by:
+      - "manga_records::optimize_manga_prompt"
+    dependencies:
+      - "manga_page_drawing_prompt"
+    description: "按用户要求优化已有漫画整页绘图提示词，保留剧情、角色、构图、参考图和风格约束"
+
+  manga_prompt_optimization_user:
+    path: "novel/06_manga/manga_prompt_optimization_user.md"
+    title: "漫画整页提示词优化 User 请求"
+    category: "manga"
+    tags: ["manga", "prompt", "optimization", "user-request"]
+    version: "1.0"
+    used_by:
+      - "manga_records::optimize_manga_prompt"
+    dependencies:
+      - "manga_prompt_optimization"
+    description: "将用户优化要求和当前漫画整页提示词上下文整理为严格 JSON 优化请求"
+
+  # ============= 07 主角 =============
+  character_portrait_generation:
+    path: "novel/07_protagonist/character_portrait_generation.md"
+    title: "角色肖像生成（A4N 自研）"
+    category: "protagonist"
+    tags: ["protagonist", "portrait", "image-generation"]
+    version: "1.0"
+    used_by:
+      - "PortraitService.generate"
+    dependencies: []
+    description: "基于角色档案生成肖像图（SD/DALL·E 调用的 prompt）"
+
+  character_portrait_generation_user:
+    path: "novel/07_protagonist/character_portrait_generation_user.md"
+    title: "角色肖像生成 User 请求"
+    category: "protagonist"
+    tags: ["protagonist", "portrait", "image-generation", "user-request"]
+    version: "1.0"
+    used_by:
+      - "PortraitService.generate"
+    dependencies:
+      - "character_portrait_generation"
+    description: "将角色档案、项目上下文和三视图拆解约束整理为角色肖像提示词生成请求"
+
+  character_discovery:
+    path: "novel/07_protagonist/character_discovery.md"
+    title: "角色档案发现"
+    category: "protagonist"
+    tags: ["protagonist", "character", "discovery"]
+    version: "1.0"
+    used_by:
+      - "character_ai::discover_character_profiles"
+    dependencies: []
+    description: "从章节内容中识别出现角色，并为缺失角色生成初始档案"
+
+  character_sync_evidence_events:
+    path: "novel/07_protagonist/character_sync_evidence_events.md"
+    title: "角色同步证据事件抽取"
+    category: "protagonist"
+    tags: ["protagonist", "sync", "staged", "evidence"]
+    version: "1.0"
+    used_by:
+      - "character_ai::sync_character_from_chapters"
+      - "character_ai::preview_sync_character_from_chapters_request"
+    dependencies: []
+    description: "从同步章节中抽取指定角色相关的证据事件，不生成档案变更"
+
+  character_sync_attribute_changes:
+    path: "novel/07_protagonist/character_sync_attribute_changes.md"
+    title: "角色同步属性变化判断"
+    category: "protagonist"
+    tags: ["protagonist", "sync", "staged", "attributes"]
+    version: "1.0"
+    used_by:
+      - "character_ai::sync_character_from_chapters"
+      - "character_ai::preview_sync_character_from_chapters_request"
+    dependencies:
+      - "character_sync_evidence_events"
+    description: "基于证据事件判断角色属性新增或修改，由系统推导旧值和最终状态"
+
+  character_sync_chapter_states:
+    path: "novel/07_protagonist/character_sync_chapter_states.md"
+    title: "角色同步章节状态生成"
+    category: "protagonist"
+    tags: ["protagonist", "sync", "staged", "state"]
+    version: "1.0"
+    used_by:
+      - "character_ai::sync_character_from_chapters"
+      - "character_ai::preview_sync_character_from_chapters_request"
+    dependencies:
+      - "character_sync_evidence_events"
+      - "character_sync_attribute_changes"
+    description: "为同步范围内每章生成角色章节结束状态"
+
+  character_sync_behavior_records:
+    path: "novel/07_protagonist/character_sync_behavior_records.md"
+    title: "角色同步关键行为记录"
+    category: "protagonist"
+    tags: ["protagonist", "sync", "staged", "behavior"]
+    version: "1.0"
+    used_by:
+      - "character_ai::sync_character_from_chapters"
+      - "character_ai::preview_sync_character_from_chapters_request"
+    dependencies:
+      - "character_sync_evidence_events"
+    description: "基于证据事件抽取角色关键行为记录，不输出隐性分类结果"
+
+  character_sync_deletion_candidates:
+    path: "novel/07_protagonist/character_sync_deletion_candidates.md"
+    title: "角色同步删除候选判断"
+    category: "protagonist"
+    tags: ["protagonist", "sync", "staged", "deletion"]
+    version: "1.0"
+    used_by:
+      - "character_ai::sync_character_from_chapters"
+      - "character_ai::preview_sync_character_from_chapters_request"
+    dependencies:
+      - "character_sync_evidence_events"
+      - "character_sync_attribute_changes"
+    description: "判断已有角色属性是否出现明确失效或删除保护候选"
+
+  implicit_classification:
+    path: "novel/07_protagonist/implicit_classification.md"
+    title: "隐性属性行为分类"
+    category: "protagonist"
+    tags: ["protagonist", "implicit", "classification"]
+    version: "1.0"
+    used_by:
+      - "character_ai::sync_character_from_chapters"
+    dependencies: []
+    description: "根据角色行为判断是否符合已有隐性属性，并给出新隐性属性建议"
+
+  implicit_update:
+    path: "novel/07_protagonist/implicit_update.md"
+    title: "隐性属性复审更新"
+    category: "protagonist"
+    tags: ["protagonist", "implicit", "update"]
+    version: "1.0"
+    used_by:
+      - "character::check_implicit_update"
+      - "character_ai::sync_character_from_chapters"
+    dependencies:
+      - "implicit_classification"
+    description: "当隐性属性累计不符合证据达到阈值时，决策保持、修改或删除"
+
+  character_conflict_check:
+    path: "novel/07_protagonist/character_conflict_check.md"
+    title: "角色一致性冲突检查"
+    category: "protagonist"
+    tags: ["protagonist", "consistency", "conflict"]
+    version: "1.0"
+    used_by:
+      - "character_ai::check_character_conflict"
+      - "character_ai::preview_character_conflict_request"
+    dependencies:
+      - "character_sync_evidence_events"
+      - "character_sync_attribute_changes"
+      - "character_sync_chapter_states"
+      - "character_sync_behavior_records"
+      - "character_sync_deletion_candidates"
+      - "chapter_fact_extraction"
+      - "chapter_summary_synthesis"
+      - "chapter_character_state"
+      - "chapter_foreshadowing_events"
+    description: "检查角色档案、状态时间线、属性事件与章节上下文是否存在事实或状态矛盾"
+
+  # ============= 08 视频 =============
+  chapter_video_user_request:
+    path: "novel/08_video/chapter_video_user_request.md"
+    title: "章节视频 Builder User 请求外壳"
+    category: "video"
+    tags: ["video", "builder", "user-request"]
+    version: "1.0"
+    used_by:
+      - "video::prompt_context::builders"
+    dependencies: []
+    description: "将视频 builder 组装出的 JSON payload 渲染为严格 JSON 用户请求"
+
+  chapter_video_builder_rules:
+    path: "novel/08_video/chapter_video_builder_rules.md"
+    title: "章节视频 Builder 约束规则"
+    category: "video"
+    tags: ["video", "builder", "rules"]
+    version: "1.0"
+    used_by:
+      - "video::prompt_context::builders"
+    dependencies:
+      - "chapter_video_shot_analysis"
+      - "chapter_video_beat_extraction"
+      - "chapter_video_segment_plan"
+      - "chapter_video_frame_prompts"
+      - "chapter_video_first_frame_prompts"
+      - "chapter_video_prompt"
+      - "chapter_video_prompt_review"
+      - "chapter_video_first_frame_video_prompt"
+      - "chapter_video_first_frame_video_prompt_review"
+      - "chapter_video_chat_prompt"
+      - "chapter_video_chat_prompt_review"
+    description: "视频提示词 builder 注入到 JSON payload 的可编辑业务规则集合"
+
+  chapter_video_shot_analysis:
+    path: "novel/08_video/chapter_video_shot_analysis.md"
+    title: "章节视频镜头语言分析"
+    category: "video"
+    tags: ["video", "shot", "analysis", "planning"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_shot_analysis"
+      - "VideoService.generate_chapter_frame_prompts"
+      - "VideoService.generate_chapter_chat_video_prompts"
+    dependencies:
+      - "chapter_video_beat_extraction"
+    description: "根据已抽取动作节拍进行全局导演镜头分组，由系统补齐镜头级来源、耗时、片段数量和风险字段"
+
+  chapter_video_beat_extraction:
+    path: "novel/08_video/chapter_video_beat_extraction.md"
+    title: "章节视频动作节拍抽取"
+    category: "video"
+    tags: ["video", "beat", "extraction", "planning"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_shot_analysis"
+      - "VideoService.generate_chapter_frame_prompts"
+      - "VideoService.generate_chapter_chat_video_prompts"
+    dependencies: []
+    description: "按 source span 小窗口抽取可视频化动作、反应、对白和状态变化，只让模型输出不可由系统推导的 beat 字段"
+
+  chapter_video_segment_plan:
+    path: "novel/08_video/chapter_video_segment_plan.md"
+    title: "章节视频片段规划"
+    category: "video"
+    tags: ["video", "segment", "planning"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_frame_prompts"
+    dependencies:
+      - "chapter_video_shot_analysis"
+    description: "按单个导演镜头生成片段规划，系统再合并为全章连续 segment 列表"
+
+  chapter_video_frame_prompts:
+    path: "novel/08_video/chapter_video_frame_prompts.md"
+    title: "章节视频首尾帧 Prompt"
+    category: "video"
+    tags: ["video", "frame", "prompt"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_frame_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+    description: "为每个视频片段生成首帧和尾帧图像描述提示词"
+
+  chapter_video_first_frame_prompts:
+    path: "novel/08_video/chapter_video_first_frame_prompts.md"
+    title: "章节视频首帧 Prompt"
+    category: "video"
+    tags: ["video", "first-frame", "prompt"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_first_frame_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+    description: "为首帧串联模式生成每个视频片段的首帧图像描述提示词"
+
+  chapter_video_storyboard_prompts:
+    path: "novel/08_video/chapter_video_storyboard_prompts.md"
+    title: "章节视频分镜图 Prompt"
+    category: "video"
+    tags: ["video", "storyboard", "prompt"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_storyboard_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+    description: "为分镜模式生成每个视频片段的一张分镜图描述提示词"
+
+  chapter_video_prompt:
+    path: "novel/08_video/chapter_video_prompt.md"
+    title: "章节视频生成 Prompt"
+    category: "video"
+    tags: ["video", "prompt"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_frame_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+      - "chapter_video_frame_prompts"
+    description: "将视频片段规划与边界关键帧编排为视频生成模型可直接使用的提示词"
+
+  chapter_video_prompt_review:
+    path: "novel/08_video/chapter_video_prompt_review.md"
+    title: "章节视频生成 Prompt 自检修订"
+    category: "video"
+    tags: ["video", "prompt", "continuity", "review"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_frame_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+      - "chapter_video_frame_prompts"
+      - "chapter_video_prompt"
+    description: "检查并修订视频提示词中的站位、走位、光影、情绪动作和镜头连续性"
+
+  chapter_video_first_frame_video_prompt:
+    path: "novel/08_video/chapter_video_first_frame_video_prompt.md"
+    title: "章节首帧串联视频 Prompt"
+    category: "video"
+    tags: ["video", "prompt", "first-frame"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_first_frame_video_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+      - "chapter_video_first_frame_prompts"
+    description: "将视频片段规划与每段首帧编排为首帧串联模式的视频生成提示词"
+
+  chapter_video_first_frame_video_prompt_review:
+    path: "novel/08_video/chapter_video_first_frame_video_prompt_review.md"
+    title: "章节首帧串联视频 Prompt 自检修订"
+    category: "video"
+    tags: ["video", "prompt", "first-frame", "continuity", "review"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_first_frame_video_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+      - "chapter_video_first_frame_prompts"
+      - "chapter_video_first_frame_video_prompt"
+    description: "检查并修订首帧串联视频提示词中的起始帧继承、结尾采集目标和连续性"
+
+  chapter_video_storyboard_video_prompt:
+    path: "novel/08_video/chapter_video_storyboard_video_prompt.md"
+    title: "章节分镜视频 Prompt"
+    category: "video"
+    tags: ["video", "prompt", "storyboard"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_storyboard_video_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+      - "chapter_video_storyboard_prompts"
+    description: "将视频片段规划与片段分镜图编排为分镜模式的视频生成提示词"
+
+  chapter_video_storyboard_video_prompt_review:
+    path: "novel/08_video/chapter_video_storyboard_video_prompt_review.md"
+    title: "章节分镜视频 Prompt 自检修订"
+    category: "video"
+    tags: ["video", "prompt", "storyboard", "continuity", "review"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_storyboard_video_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+      - "chapter_video_storyboard_prompts"
+      - "chapter_video_storyboard_video_prompt"
+    description: "检查并修订分镜模式视频提示词中的分镜图使用、动作连续性和参考图约束"
+
+  chapter_video_provider_prompt:
+    path: "novel/08_video/chapter_video_provider_prompt.md"
+    title: "章节视频 Provider 请求 Prompt"
+    category: "video"
+    tags: ["video", "provider", "prompt"]
+    version: "1.0"
+    used_by:
+      - "video_generation::build_chapter_video_provider_request"
+    dependencies:
+      - "chapter_video_prompt"
+      - "chapter_video_frame_prompts"
+      - "chapter_video_storyboard_video_prompt"
+      - "chapter_video_storyboard_prompts"
+    description: "将结构化视频提示词、输入图片绑定和首尾帧状态渲染为实际提交给视频生成 provider 的最终文本"
+
+  chapter_video_first_frame_provider_prompt:
+    path: "novel/08_video/chapter_video_first_frame_provider_prompt.md"
+    title: "章节首帧串联 Provider 请求 Prompt"
+    category: "video"
+    tags: ["video", "provider", "prompt", "first-frame"]
+    version: "1.0"
+    used_by:
+      - "video_generation::build_chapter_video_provider_request"
+    dependencies:
+      - "chapter_video_first_frame_video_prompt"
+      - "chapter_video_first_frame_prompts"
+    description: "将首帧串联模式的视频提示词和起步输入图约束渲染为实际提交给视频生成 provider 的最终文本"
+
+  chapter_video_prompt_optimization:
+    path: "novel/08_video/chapter_video_prompt_optimization.md"
+    title: "视频提示词优化"
+    category: "video"
+    tags: ["video", "prompt", "optimization"]
+    version: "1.0"
+    used_by:
+      - "video_prompts::optimize_chapter_video_prompt"
+    dependencies:
+      - "chapter_video_prompt"
+      - "chapter_video_first_frame_video_prompt"
+      - "chapter_video_chat_prompt"
+    description: "按用户要求优化已有视频文字资产，保留剧情事实、人物身份、空间关系、参考素材约束、时长和工作流意图"
+
+  chapter_video_prompt_optimization_user:
+    path: "novel/08_video/chapter_video_prompt_optimization_user.md"
+    title: "视频提示词优化 User 请求"
+    category: "video"
+    tags: ["video", "prompt", "optimization", "user-request"]
+    version: "1.0"
+    used_by:
+      - "video_prompts::optimize_chapter_video_prompt"
+    dependencies:
+      - "chapter_video_prompt_optimization"
+    description: "将用户优化要求和当前视频提示词上下文整理为严格 JSON 优化请求"
+
+  chapter_video_chat_prompt:
+    path: "novel/08_video/chapter_video_chat_prompt.md"
+    title: "章节 Chat 视频 Prompt"
+    category: "video"
+    tags: ["video", "prompt", "chat"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_chat_video_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+    description: "生成可复制到外部 Chat 视频模型的单段视频提示词"
+
+  chapter_video_chat_prompt_review:
+    path: "novel/08_video/chapter_video_chat_prompt_review.md"
+    title: "章节 Chat 视频 Prompt 自检修订"
+    category: "video"
+    tags: ["video", "prompt", "chat", "review"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_chapter_chat_video_prompts"
+    dependencies:
+      - "chapter_video_segment_plan"
+      - "chapter_video_chat_prompt"
+    description: "审校可复制到外部 Chat 视频模型的单段视频提示词"
+
+  # ============= 09 Galgame =============
+  galgame_scene_segmentation:
+    path: "novel/09_galgame/scene_segmentation.md"
+    title: "Galgame 场景切分"
+    category: "galgame"
+    tags: ["galgame", "scene", "segmentation"]
+    version: "1.0"
+    used_by:
+      - "GalgamePipelineRunner.run"
+    dependencies: []
+    description: "将快照章节正文切分为视觉小说场清单，保留地点、时间、在场角色和来源 span"
+
+  galgame_script_adaptation:
+    path: "novel/09_galgame/script_adaptation.md"
+    title: "Galgame 剧本行改编"
+    category: "galgame"
+    tags: ["galgame", "script", "adaptation"]
+    version: "1.0"
+    used_by:
+      - "GalgamePipelineRunner.run"
+      - "GalgameService.build_source_sync_scene_regeneration"
+    dependencies:
+      - "galgame_scene_segmentation"
+    description: "将场景原文改编为视觉小说对白、旁白、独白和演出提示行草稿"
+
+  galgame_character_staging:
+    path: "novel/09_galgame/character_staging.md"
+    title: "Galgame 角色演出标注"
+    category: "galgame"
+    tags: ["galgame", "character", "staging"]
+    version: "1.0"
+    used_by:
+      - "GalgamePipelineRunner.run"
+      - "GalgameService.build_source_sync_scene_regeneration"
+    dependencies:
+      - "galgame_script_adaptation"
+    description: "将剧本行说话人绑定到冻结人物档案，并标注表情、姿势和站位"
+
+  galgame_visual_planning:
+    path: "novel/09_galgame/visual_planning.md"
+    title: "Galgame 视觉资产规划"
+    category: "galgame"
+    tags: ["galgame", "visual", "planning"]
+    version: "1.0"
+    used_by:
+      - "GalgamePipelineRunner.run"
+      - "GalgameService.build_source_sync_scene_regeneration"
+    dependencies:
+      - "galgame_character_staging"
+    description: "根据场景和剧本行规划背景需求与事件 CG 候选"
+
+  galgame_branch_design:
+    path: "novel/09_galgame/branch_design.md"
+    title: "Galgame 分支设计"
+    category: "galgame"
+    tags: ["galgame", "branch", "choice"]
+    version: "1.0"
+    used_by:
+      - "GalgamePipelineRunner.run"
+      - "GalgameService.build_source_sync_scene_regeneration"
+    dependencies:
+      - "galgame_visual_planning"
+    description: "为 Galgame 设计珍珠串结构选择支和回收点，供 M4 分支能力使用"
+
+  galgame_background_image_prompt:
+    path: "novel/09_galgame/background_image_prompt.md"
+    title: "Galgame 背景图提示词"
+    category: "galgame"
+    tags: ["galgame", "background", "image-prompt"]
+    version: "1.0"
+    used_by:
+      - "galgame_records::run_galgame_visual_spec_generation"
+    dependencies:
+      - "galgame_visual_planning"
+    description: "将背景规划和项目美术约束渲染为图像生成提示词"
+
+  galgame_event_cg_prompt:
+    path: "novel/09_galgame/event_cg_prompt.md"
+    title: "Galgame 事件 CG 提示词"
+    category: "galgame"
+    tags: ["galgame", "cg", "image-prompt"]
+    version: "1.0"
+    used_by:
+      - "galgame_records::run_galgame_visual_spec_generation"
+    dependencies:
+      - "galgame_visual_planning"
+    description: "将事件 CG 规划、角色和场景约束渲染为图像生成提示词"
+
+# ============================================================================
+# Categories
+# ============================================================================
+categories:
+  inspiration:
+    label: "构思"
+    order: 1
+    description: "故事构思和灵感对话阶段"
+  blueprint:
+    label: "蓝图"
+    order: 2
+    description: "世界观、角色、剧情框架设计"
+  outline:
+    label: "大纲"
+    order: 3
+    description: "分部大纲和章节大纲生成"
+  writing:
+    label: "写作"
+    order: 4
+    description: "章节正文生成与场景级流水线"
+  analysis:
+    label: "分析"
+    order: 5
+    description: "章节分析和优化"
+  manga:
+    label: "漫画"
+    order: 6
+    description: "漫画分镜生成流水线"
+  protagonist:
+    label: "主角"
+    order: 7
+    description: "主角档案与肖像管理"
+  video:
+    label: "视频"
+    order: 8
+    description: "章节视频化提示词与视频生成流水线"
+  galgame:
+    label: "Galgame"
+    order: 9
+    description: "Galgame 剧本改编、视觉资产规划与 WebGAL 导出"

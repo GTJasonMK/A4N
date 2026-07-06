@@ -1,0 +1,1355 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+/* ============================================================================
+   设计令牌（CSS 变量）
+   ============================================================================ */
+
+:root {
+  /* ==================== 主色 — 赭石（亮色）==================== */
+  --color-primary: 139 69 19;          /* #8B4513 */
+  --color-primary-light: 160 82 45;    /* #A0522D */
+  --color-primary-dark: 107 52 16;     /* #6B3410 */
+  --color-primary-pale: 253 245 237;   /* #FDF5ED — hover/focus tint */
+
+  /* ==================== 强调色 — 陶土（亮色，与主色同系）==================== */
+  --color-accent: 160 82 45;           /* #A0522D */
+  --color-accent-light: 184 101 61;    /* #B8653D */
+  --color-accent-dark: 139 69 19;      /* #8B4513 — 与主色相同 */
+  --color-accent-pale: 250 245 240;    /* #FAF5F0 */
+
+  /* ==================== 文字 ==================== */
+  --color-text-primary: 44 24 16;      /* #2C1810 */
+  --color-text-secondary: 93 64 55;    /* #5D4037 */
+  --color-text-tertiary: 109 101 96;   /* #6D6560 */
+  --color-text-placeholder: 141 133 128; /* #8D8580 */
+  --color-text-disabled: 176 168 160;  /* #B0A8A0 */
+
+  /* ==================== 背景 ==================== */
+  --color-bg-primary: 249 245 240;     /* #F9F5F0 */
+  --color-bg-secondary: 255 251 240;   /* #FFFBF0 */
+  --color-bg-tertiary: 240 235 229;    /* #F0EBE5 */
+  --color-bg-card-hover: 245 240 234;  /* #F5F0EA */
+  --color-bg-muted: 240 235 229;       /* #F0EBE5 */
+  --color-bg-accent: 230 220 205;      /* #E6DCCD — 沙色强调背景 */
+
+  /* ==================== 边框 ==================== */
+  --color-border: 215 204 200;         /* #D7CCC8 */
+  --color-border-light: 232 228 223;   /* #E8E4DF */
+  --color-border-dark: 196 192 188;    /* #C4C0BC */
+
+  /* ==================== 状态色（带背景 tint）====================
+     原始通道值用 --status-* 命名，避免与 @theme 暴露的 --color-* 同名自指；
+     语义 Tailwind 类（text-success/bg-error-bg/border-warning…）在 @theme 中映射。
+     前景状态色亮暗共用（暖土色系两模式皆适配），仅 -bg tint 在 .dark 反转。 */
+  --status-success: 74 159 110;        /* #4A9F6E 翠绿 */
+  --status-success-bg: 240 249 244;    /* #F0F9F4 */
+  --status-error: 168 84 72;           /* #A85448 烧焦赭 */
+  --status-error-bg: 253 243 242;      /* #FDF3F2 */
+  --status-warning: 212 146 58;        /* #D4923A 暖琥珀 */
+  --status-warning-bg: 253 248 240;    /* #FDF8F0 */
+  --status-info: 74 141 179;           /* #4A8DB3 青石蓝 */
+  --status-info-bg: 240 246 250;       /* #F0F6FA */
+
+  /* ==================== 按钮文字 ==================== */
+  --color-button-text: 255 251 240;       /* #FFFBF0 — 在赭石按钮上 */
+  --color-button-text-secondary: 44 24 16; /* #2C1810 — 在浅色按钮上 */
+
+  /* ==================== 圆角 ==================== */
+  --pyqt-radius-xs: 2px;
+  --pyqt-radius-sm: 4px;
+  --pyqt-radius-md: 6px;
+  --pyqt-radius-lg: 8px;
+  --pyqt-radius-xl: 16px;
+
+  /* ==================== 8px 网格间距 ==================== */
+  --pyqt-spacing-xs: 8px;
+  --pyqt-spacing-sm: 16px;
+  --pyqt-spacing-md: 24px;
+  --pyqt-spacing-lg: 32px;
+
+  /* ==================== 阴影（克制，桌面风格）==================== */
+  --shadow-card: 0 2px 6px -2px rgba(139, 69, 19, 0.08);
+}
+
+.dark {
+  /* ==================== 主色 — 琥珀（暗色）==================== */
+  --color-primary: 232 155 108;        /* #E89B6C */
+  --color-primary-light: 240 176 136;  /* #F0B088 */
+  --color-primary-dark: 212 132 90;    /* #D4845A */
+  --color-primary-pale: 42 37 32;      /* #2A2520 — dark tint */
+
+  /* ==================== 强调色 — 暖陶土（暗色）==================== */
+  --color-accent: 212 132 90;          /* #D4845A */
+  --color-accent-light: 232 155 108;   /* #E89B6C */
+  --color-accent-dark: 184 110 72;     /* #B86E48 */
+  --color-accent-pale: 45 33 24;       /* #2D2118 */
+
+  /* ==================== 文字（暗色：古董羊皮纸）==================== */
+  --color-text-primary: 232 223 212;   /* #E8DFD4 */
+  --color-text-secondary: 196 179 162; /* #C4B3A2 褪色墨水，高对比 */
+  --color-text-tertiary: 172 154 136;  /* #AC9A88 小字号辅助文本 */
+  --color-text-placeholder: 137 121 105; /* #897969 */
+  --color-text-disabled: 104 91 78;    /* #685B4E */
+
+  /* ==================== 背景（暗色：木质）==================== */
+  --color-bg-primary: 28 23 20;        /* #1C1714 深桃花心木 */
+  --color-bg-secondary: 37 30 25;      /* #251E19 古老橡木 */
+  --color-bg-tertiary: 61 51 43;       /* #3D332B 磨损皮革 */
+  --color-bg-card-hover: 45 37 32;     /* #2D2520 */
+  --color-bg-muted: 61 51 43;          /* #3D332B */
+  --color-bg-accent: 50 43 36;         /* 暗色沙色强调 */
+
+  /* ==================== 边框（暗色：木纹）==================== */
+  --color-border: 74 63 53;            /* #4A3F35 */
+  --color-border-light: 61 51 43;      /* #3D332B */
+  --color-border-dark: 90 77 64;       /* #5A4D40 */
+
+  /* ==================== 状态色 BG 反转为深色 ==================== */
+  --status-success-bg: 26 47 34;       /* #1A2F22 */
+  --status-error-bg: 45 31 28;         /* #2D1F1C */
+  --status-warning-bg: 45 37 24;       /* #2D2518 */
+  --status-info-bg: 26 37 48;          /* #1A2530 */
+
+  /* ==================== 按钮文字反转 ==================== */
+  --color-button-text: 28 23 20;       /* #1C1714 — 暗色背景上的琥珀按钮 */
+  --color-button-text-secondary: 232 223 212; /* #E8DFD4 */
+
+  /* ==================== 阴影（暗色更弱）==================== */
+  --shadow-card: 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* ============================================================================
+   TailwindCSS 4 @theme — 将设计令牌映射为 Tailwind 类
+   注意：@theme 中的值在构建时静态解析，必须硬编码亮色模式值
+   暗色模式通过 .dark 类 + CSS 变量覆写
+   ============================================================================ */
+
+@theme {
+  /* Tailwind v4 静态 token：直接映射到 CSS 变量（亮暗自动响应 .dark）
+     使用 rgb(from var --color-x) 让 alpha 修饰符（如 bg-book-primary/30）也工作 */
+  --color-book-primary: rgb(var(--color-primary));
+  --color-book-primary-light: rgb(var(--color-primary-light));
+  --color-book-primary-dark: rgb(var(--color-primary-dark));
+  --color-book-accent: rgb(var(--color-accent));
+  --color-book-accent-light: rgb(var(--color-accent-light));
+  --color-book-bg: rgb(var(--color-bg-primary));
+  --color-book-bg-paper: rgb(var(--color-bg-secondary));
+  --color-book-bg-tertiary: rgb(var(--color-bg-tertiary));
+  --color-book-text-main: rgb(var(--color-text-primary));
+  --color-book-text-sub: rgb(var(--color-text-secondary));
+  --color-book-text-muted: rgb(var(--color-text-tertiary));
+  --color-book-border: rgb(var(--color-border));
+  /* 语义状态色 → Tailwind 类：text-success / bg-error-bg / border-warning/40 等。
+     rgb(var()) 形式同时支持 alpha 修饰符与 .dark 自动响应。 */
+  --color-success: rgb(var(--status-success));
+  --color-success-bg: rgb(var(--status-success-bg));
+  --color-error: rgb(var(--status-error));
+  --color-error-bg: rgb(var(--status-error-bg));
+  --color-warning: rgb(var(--status-warning));
+  --color-warning-bg: rgb(var(--status-warning-bg));
+  --color-info: rgb(var(--status-info));
+  --color-info-bg: rgb(var(--status-info-bg));
+  --font-serif: 'Noto Serif SC', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ============================================================================
+   基础样式
+   ============================================================================ */
+
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
+body {
+  @apply font-sans transition-colors duration-150 antialiased;
+  margin: 0;
+  color: rgb(var(--color-text-primary));
+  background-color: rgb(var(--color-bg-primary));
+  background-attachment: fixed;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 桌面端使用纯色窗口背景，不绘制网格纹理 */
+
+::selection {
+  background: rgb(var(--color-primary) / 0.22);
+  color: rgb(var(--color-text-primary));
+}
+
+/* 主题切换瞬时过渡：仅在切换瞬间临时为所有元素加 200ms 色彩过渡，
+   避免常驻 transition 干扰交互动效。由 App.tsx 控制 .theme-switching 类。 */
+html.theme-switching,
+html.theme-switching * {
+  transition:
+    background-color 200ms ease-out,
+    color 200ms ease-out,
+    border-color 200ms ease-out,
+    box-shadow 200ms ease-out !important;
+}
+
+/* ============================================================================
+   基础层
+   ============================================================================ */
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color-scheme: inherit;
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: rgb(var(--color-primary));
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(var(--color-text-tertiary));
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: rgb(var(--color-primary));
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-text-fill-color: rgb(var(--color-text-primary));
+    -webkit-box-shadow: 0 0 0 1000px rgb(var(--color-bg-secondary)) inset;
+    caret-color: rgb(var(--color-primary));
+    transition: background-color 9999s ease-in-out 0s;
+  }
+
+  input[type='file']::file-selector-button {
+    margin-right: 0.5rem;
+    border-radius: var(--pyqt-radius-sm);
+    border: 1px solid rgb(var(--color-border));
+    background: rgb(var(--color-bg-secondary));
+    color: rgb(var(--color-text-primary));
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    transition: border-color 150ms ease-out, color 150ms ease-out, background 150ms ease-out;
+  }
+
+  input[type='file']:hover::file-selector-button {
+    border-color: rgb(var(--color-primary) / 0.6);
+    color: rgb(var(--color-primary));
+    background: rgb(var(--color-bg-tertiary));
+  }
+}
+
+/* ============================================================================
+   组件层
+   ============================================================================ */
+
+@layer components {
+  /* ============================================================================
+     A4N 基础控件 —— 保持桌面端方正气质
+     圆角 4-8px，1px 实边框，min-height 40/48px，渐变填充（primary）
+     ============================================================================ */
+
+  /* 主按钮：实色，无渐变 */
+  .pyqt-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 32px;
+    padding: 6px 18px;
+    border: 1px solid rgb(var(--color-primary-dark));
+    border-radius: var(--pyqt-radius-sm);
+    background: rgb(var(--color-primary));
+    color: rgb(var(--color-button-text));
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 1px 1px rgb(139 69 19 / 0.08);
+    transition: background 120ms ease-out, border-color 120ms ease-out, box-shadow 120ms ease-out;
+  }
+  .pyqt-btn-primary:hover:not(:disabled) {
+    background: rgb(var(--color-primary-light));
+    box-shadow: 0 2px 5px rgb(139 69 19 / 0.12);
+  }
+  .pyqt-btn-primary:active:not(:disabled) {
+    background: rgb(var(--color-primary-dark));
+    box-shadow: none;
+  }
+  .pyqt-btn-primary:disabled {
+    background: rgb(var(--color-bg-tertiary));
+    color: rgb(var(--color-text-tertiary));
+    border-color: rgb(var(--color-border));
+    cursor: not-allowed;
+  }
+  .pyqt-btn-primary:focus-visible {
+    outline: 2px solid rgb(var(--color-primary) / 0.38);
+    outline-offset: 2px;
+  }
+
+  /* 次按钮：边框 + 实底（不再渐变） */
+  .pyqt-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 32px;
+    padding: 6px 14px;
+    border: 1px solid rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-sm);
+    background: rgb(var(--color-bg-secondary));
+    color: rgb(var(--color-text-primary));
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 120ms ease-out, background 120ms ease-out, color 120ms ease-out;
+  }
+  .pyqt-btn-secondary:hover:not(:disabled) {
+    border-color: rgb(var(--color-primary) / 0.55);
+    color: rgb(var(--color-primary));
+    background: rgb(var(--color-primary-pale) / 0.72);
+  }
+  .pyqt-btn-secondary:active:not(:disabled) {
+    background: rgb(var(--color-bg-tertiary));
+  }
+  .pyqt-btn-secondary:disabled {
+    background: rgb(var(--color-bg-tertiary));
+    color: rgb(var(--color-text-tertiary));
+    cursor: not-allowed;
+    border-color: rgb(var(--color-border) / 0.5);
+  }
+  .pyqt-btn-secondary:focus-visible {
+    outline: 2px solid rgb(var(--color-primary) / 0.32);
+    outline-offset: 2px;
+  }
+
+  /* 图标按钮：32×32 方形（不再 40×40） */
+  .pyqt-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-sm);
+    background: rgb(var(--color-bg-secondary));
+    color: rgb(var(--color-text-secondary));
+    cursor: pointer;
+    transition: border-color 120ms ease-out, color 120ms ease-out, background 120ms ease-out;
+  }
+  .pyqt-btn-icon:hover:not(:disabled) {
+    border-color: rgb(var(--color-primary) / 0.55);
+    color: rgb(var(--color-primary));
+    background: rgb(var(--color-primary-pale) / 0.72);
+  }
+  .pyqt-btn-icon:disabled {
+    color: rgb(var(--color-text-tertiary));
+    cursor: not-allowed;
+  }
+
+  /* 卡片：1px 边框 + 微圆角（4px），不再 8px，无阴影 */
+  .pyqt-card {
+    background: rgb(var(--color-bg-secondary));
+    border: 1px solid rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-sm);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* 输入框：4px 圆角 + 1px 边框 */
+  .pyqt-input {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    background: rgb(var(--color-bg-secondary));
+    border: 1px solid rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-sm);
+    padding: 5px 8px;
+    color: rgb(var(--color-text-primary));
+    font-size: 12px;
+    transition: border-color 120ms ease-out;
+    caret-color: rgb(var(--color-primary));
+  }
+  .pyqt-input::placeholder {
+    color: rgb(var(--color-text-tertiary));
+  }
+  .pyqt-input:hover:not(:disabled) {
+    border-color: rgb(var(--color-primary) / 0.45);
+  }
+  .pyqt-input:focus {
+    outline: none;
+    border-color: rgb(var(--color-primary));
+    box-shadow: 0 0 0 2px rgb(var(--color-primary) / 0.18);
+  }
+  .pyqt-input:disabled {
+    background: rgb(var(--color-bg-tertiary));
+    color: rgb(var(--color-text-tertiary));
+    cursor: not-allowed;
+  }
+
+  select.pyqt-input {
+    --a4n-select-chevron: rgb(var(--color-text-tertiary));
+    appearance: none;
+    -webkit-appearance: none;
+    min-height: 2rem;
+    padding-right: 2.15rem;
+    background-color: rgb(var(--color-bg-secondary));
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--a4n-select-chevron) 50%),
+      linear-gradient(135deg, var(--a4n-select-chevron) 50%, transparent 50%),
+      linear-gradient(
+        to bottom,
+        rgb(var(--color-border) / 0.58),
+        rgb(var(--color-border) / 0.58)
+      );
+    background-position:
+      calc(100% - 15px) 50%,
+      calc(100% - 10px) 50%,
+      calc(100% - 2rem) 50%;
+    background-repeat: no-repeat;
+    background-size:
+      5px 5px,
+      5px 5px,
+      1px 1.25rem;
+    cursor: pointer;
+  }
+  select.pyqt-input:hover:not(:disabled) {
+    --a4n-select-chevron: rgb(var(--color-primary));
+    background-color: rgb(var(--color-bg-card-hover));
+  }
+  select.pyqt-input:focus {
+    --a4n-select-chevron: rgb(var(--color-primary));
+    background-color: rgb(var(--color-bg-secondary));
+  }
+  select.pyqt-input:disabled {
+    --a4n-select-chevron: rgb(var(--color-text-disabled));
+    cursor: not-allowed;
+    opacity: 0.72;
+  }
+  select.pyqt-input option {
+    background: rgb(var(--color-bg-secondary));
+    color: rgb(var(--color-text-primary));
+  }
+  select.pyqt-input option:disabled {
+    color: rgb(var(--color-text-disabled));
+  }
+  select.pyqt-input::-ms-expand {
+    display: none;
+  }
+
+  select.a4n-compact-select {
+    height: 2rem;
+    min-height: 2rem;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: 0.75rem;
+    padding-right: 2.15rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* 标签胶囊：方正状态 pill */
+  .pyqt-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 1px 6px;
+    border: 1px solid rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-sm);
+    background: rgb(var(--color-bg-tertiary) / 0.72);
+    color: rgb(var(--color-text-secondary));
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* Tab 按钮：底部 2px 高亮线，激活时不填充背景 */
+  .pyqt-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 6px 14px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: rgb(var(--color-text-secondary));
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 120ms ease-out, border-color 120ms ease-out, background 120ms ease-out;
+  }
+  .pyqt-tab:hover {
+    color: rgb(var(--color-primary));
+    background: rgb(var(--color-primary-pale) / 0.62);
+  }
+  .pyqt-tab[data-active='1'] {
+    color: rgb(var(--color-primary));
+    border-bottom-color: rgb(var(--color-primary));
+    background: transparent;
+  }
+  .pyqt-tab:focus-visible {
+    outline: 2px solid rgb(var(--color-primary) / 0.28);
+    outline-offset: -2px;
+  }
+}
+
+@layer components {
+  /* ---- 桌面端输入控件（替代 web 玻璃态） ---- */
+  .book-control {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    border: 1px solid rgb(var(--color-border));
+    background: rgb(var(--color-bg-secondary));
+    color: rgb(var(--color-text-primary));
+    caret-color: rgb(var(--color-primary));
+    transition: border-color 150ms ease-out;
+  }
+
+  .book-control:hover {
+    border-color: rgb(var(--color-primary) / 0.6);
+  }
+
+  .book-control:focus {
+    outline: none;
+    border-color: rgb(var(--color-primary));
+    box-shadow: 0 0 0 1px rgb(var(--color-primary));
+  }
+
+  .book-control:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+  }
+
+  /* ---- 弹窗遮罩：QDialog 模态背景，半透明黑 ---- */
+  .dialog-backdrop {
+    background: rgb(0 0 0 / 0.42);
+  }
+
+  /* ---- 弹窗面板：方正、单色、4px 圆角 ---- */
+  .dialog-panel {
+    border-radius: var(--pyqt-radius-sm);
+    border: 1px solid rgb(var(--color-border));
+    background: rgb(var(--color-bg-secondary));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  /* ---- 分割线：单色 1px，去渐变 ---- */
+  .story-divider {
+    height: 1px;
+    background: rgb(var(--color-border));
+  }
+
+  .a4n-page-header {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-inline: 0.75rem;
+    border-bottom: 1px solid rgb(var(--color-border));
+    background: rgb(var(--color-bg-secondary));
+  }
+
+  .a4n-page-surface {
+    background: rgb(var(--color-bg-secondary));
+    border: 1px solid rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-sm);
+    box-shadow: var(--shadow-card);
+  }
+
+  .a4n-interactive-row {
+    background: rgb(var(--color-bg-secondary));
+    border: 1px solid rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-sm);
+    transition:
+      background 120ms ease-out,
+      border-color 120ms ease-out,
+      box-shadow 120ms ease-out;
+  }
+
+  .a4n-interactive-row:hover {
+    background: rgb(var(--color-bg-card-hover));
+    border-color: rgb(var(--color-primary) / 0.55);
+    box-shadow: 0 8px 22px -18px rgb(139 69 19 / 0.35);
+  }
+
+  .a4n-interactive-row:focus-visible {
+    outline: 2px solid rgb(var(--color-primary) / 0.32);
+    outline-offset: 2px;
+  }
+
+  .a4n-stat-tile {
+    background: rgb(var(--color-bg-secondary));
+    border: 1px solid rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-sm);
+    padding: 0.5rem 0.75rem;
+  }
+
+  .a4n-sidebar-item {
+    width: 100%;
+    border-radius: var(--pyqt-radius-sm);
+    padding: 0.5rem;
+    text-align: left;
+    transition: background 120ms ease-out, color 120ms ease-out;
+  }
+
+  .a4n-sidebar-item:hover {
+    background: rgb(var(--color-primary-pale) / 0.72);
+    color: rgb(var(--color-primary));
+  }
+
+  .a4n-sidebar-item[data-active='1'] {
+    background: rgb(var(--color-primary) / 0.12);
+    color: rgb(var(--color-primary));
+    font-weight: 600;
+  }
+}
+
+/* ============================================================================
+   动画关键帧
+   ============================================================================ */
+
+@keyframes toastEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes inspirationOptionEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes inspirationOptionPulse {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes progressStreamLineEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 85%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes progressStreamLineExit {
+  from {
+    opacity: 0.82;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -85%, 0);
+  }
+}
+
+.toast-enter {
+  animation: toastEnter 0.16s ease-out both;
+}
+
+.page-enter {
+  animation: pageEnter 0.18s ease-out forwards;
+}
+
+.inspiration-option-card {
+  animation: inspirationOptionEnter 0.18s ease-out both;
+}
+
+.inspiration-option-card-skeleton {
+  animation:
+    inspirationOptionEnter 0.18s ease-out both,
+    inspirationOptionPulse 1.2s ease-in-out 0.18s infinite;
+}
+
+.a4n-progress-stream-line {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1rem;
+}
+
+.a4n-progress-stream-line-enter {
+  animation: progressStreamLineEnter 0.24s ease-out both;
+}
+
+.a4n-progress-stream-line-exit {
+  animation: progressStreamLineExit 0.26s ease-in both;
+}
+
+/* ============================================================================
+   自定义滚动条
+   ============================================================================ */
+
+/* 滚动条：方角、明确边界，hover 才出现颜色 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgb(var(--color-bg-tertiary) / 0.72);
+  border-left: 1px solid rgb(var(--color-border));
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-border-dark) / 0.72);
+  border: 2px solid rgb(var(--color-bg-tertiary));
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-primary) / 0.58);
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-border)) rgb(var(--color-bg-tertiary));
+}
+
+/* 范围滑块：方形轨道，较小的方角 thumb */
+.book-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    rgb(var(--color-primary)) 0%,
+    rgb(var(--color-primary)) var(--range-percent, 50%),
+    rgb(var(--color-border)) var(--range-percent, 50%),
+    rgb(var(--color-border)) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.book-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary));
+  border: 1px solid rgb(var(--color-primary));
+  cursor: pointer;
+  transition: background 120ms ease-out;
+}
+
+.book-range::-webkit-slider-thumb:hover {
+  background: rgb(var(--color-primary) / 0.18);
+}
+
+.book-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary));
+  border: 1px solid rgb(var(--color-primary));
+  cursor: pointer;
+}
+
+/* ============================================================================
+   性能优化
+   ============================================================================ */
+
+.page-shell {
+  isolation: isolate;
+}
+
+.perf-scroll-region {
+  contain: layout paint style;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.perf-scroll-stack > * {
+  content-visibility: auto;
+  contain: layout paint style;
+  contain-intrinsic-size: 220px;
+}
+
+.perf-card {
+  contain: layout paint style;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* ============================================================================
+   工具类
+   ============================================================================ */
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.mask-gradient-right {
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
+
+.mask-gradient-bottom {
+  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+}
+
+/* ---- 语义内容宽度：统一各页内容最大宽度并居中，取代散落的 max-w-* ----
+   prose 阅读型（概览/正文）/ main 列表表单型 / wide 画廊多栏型 */
+.content-prose,
+.content-main,
+.content-wide {
+  width: 100%;
+  margin-inline: auto;
+}
+.content-prose { max-width: 48rem; }
+.content-main { max-width: 64rem; }
+.content-wide { max-width: 80rem; }
+
+@media (max-width: 767px) {
+  html,
+  body,
+  #root {
+    overflow-x: hidden;
+  }
+
+  body {
+    background-attachment: scroll;
+  }
+
+  .a4n-page-header {
+    padding-inline: 0.5rem;
+  }
+
+  .pyqt-btn-primary,
+  .pyqt-btn-secondary {
+    min-height: 36px !important;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .pyqt-btn-icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  input.pyqt-input,
+  select.pyqt-input {
+    min-height: 40px;
+  }
+
+  .pyqt-tab {
+    min-height: 38px;
+    padding-inline: 0.75rem;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+}
+
+/* ---- 可横向滚动的 tab 栏：tab 过多时不再溢出/被挤压，改为横滑 ----
+   子项不收缩、整体隐藏滚动条；配合 .pyqt-tab 使用 */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar {
+  display: none;
+}
+.tab-bar > * {
+  flex: 0 0 auto;
+}
+
+/* ============================================================================
+   视频画布工作台
+   ============================================================================ */
+
+.a4n-studio-flow {
+  padding-bottom: 2.25rem;
+}
+
+.a4n-studio-sidebar-resize-handle {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  touch-action: none;
+  user-select: none;
+  cursor: col-resize;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--color-border) / 0.36);
+  outline: none;
+  transition: background-color 120ms ease;
+}
+
+.a4n-studio-sidebar-resize-handle:hover,
+.a4n-studio-sidebar-resize-handle:focus-visible,
+.a4n-studio-sidebar-resize-handle[data-resizing='1'] {
+  background: rgb(var(--color-primary) / 0.18);
+}
+
+.a4n-studio-sidebar-resize-line {
+  pointer-events: none;
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: rgb(var(--color-border));
+}
+
+.a4n-studio-sidebar-resize-handle:hover .a4n-studio-sidebar-resize-line,
+.a4n-studio-sidebar-resize-handle:focus-visible .a4n-studio-sidebar-resize-line,
+.a4n-studio-sidebar-resize-handle[data-resizing='1'] .a4n-studio-sidebar-resize-line {
+  background: rgb(var(--color-primary) / 0.62);
+}
+
+.a4n-studio-sidebar-resize-grip {
+  pointer-events: none;
+  position: relative;
+  display: flex;
+  width: 24px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary));
+  color: rgb(var(--color-text-tertiary));
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.14);
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.a4n-studio-sidebar-resize-handle:hover .a4n-studio-sidebar-resize-grip,
+.a4n-studio-sidebar-resize-handle:focus-visible .a4n-studio-sidebar-resize-grip,
+.a4n-studio-sidebar-resize-handle[data-resizing='1'] .a4n-studio-sidebar-resize-grip {
+  border-color: rgb(var(--color-primary) / 0.52);
+  color: rgb(var(--color-primary));
+}
+
+.a4n-studio-flow .react-flow__pane {
+  cursor: grab;
+}
+
+.a4n-studio-flow .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.a4n-studio-flow .react-flow__node {
+  font-family: inherit;
+}
+
+.a4n-studio-edge .react-flow__edge-path {
+  stroke: rgb(var(--color-primary) / 0.7);
+  stroke-width: 1.6;
+}
+
+.a4n-studio-flow .react-flow__edge.selected .react-flow__edge-path {
+  stroke: rgb(var(--color-primary));
+  stroke-width: 2.4;
+}
+
+.a4n-studio-run-scope-edge .react-flow__edge-path {
+  stroke: rgb(var(--color-accent));
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgb(var(--color-accent) / 0.35));
+}
+
+.a4n-studio-workflow-active-edge .react-flow__edge-path {
+  stroke: rgb(var(--status-info));
+  stroke-width: 3;
+  filter: drop-shadow(0 0 7px rgb(var(--status-info) / 0.45));
+}
+
+.a4n-studio-workflow-active-edge .react-flow__edge-textbg {
+  fill: rgb(var(--status-info) / 0.18);
+  stroke: rgb(var(--status-info) / 0.5);
+}
+
+.a4n-studio-run-scope-edge.a4n-studio-workflow-active-edge .react-flow__edge-path {
+  stroke: rgb(var(--status-info));
+  stroke-width: 3.4;
+  filter:
+    drop-shadow(0 0 7px rgb(var(--status-info) / 0.5))
+    drop-shadow(0 0 3px rgb(var(--color-accent) / 0.35));
+}
+
+.react-flow__node.a4n-studio-run-scope-node .a4n-studio-node {
+  box-shadow:
+    0 0 0 2px rgb(var(--color-accent) / 0.32),
+    0 12px 28px rgb(0 0 0 / 0.2);
+}
+
+.react-flow__node.a4n-studio-run-scope-target .a4n-studio-node {
+  border-color: rgb(var(--color-accent));
+  box-shadow:
+    0 0 0 3px rgb(var(--color-accent) / 0.34),
+    0 14px 32px rgb(0 0 0 / 0.24);
+}
+
+.react-flow__node.a4n-studio-workflow-node-running .a4n-studio-node,
+.a4n-studio-node.a4n-studio-node-run-running {
+  border-color: rgb(var(--status-info));
+  box-shadow:
+    0 0 0 3px rgb(var(--status-info) / 0.34),
+    0 0 18px rgb(var(--status-info) / 0.32),
+    0 14px 32px rgb(0 0 0 / 0.24);
+  animation: a4n-studio-workflow-running-pulse 1.4s ease-in-out infinite;
+}
+
+.react-flow__node.a4n-studio-workflow-node-completed .a4n-studio-node,
+.a4n-studio-node.a4n-studio-node-run-completed {
+  border-color: rgb(var(--status-success));
+  box-shadow:
+    0 0 0 2px rgb(var(--status-success) / 0.32),
+    0 12px 28px rgb(0 0 0 / 0.2);
+}
+
+.react-flow__node.a4n-studio-workflow-node-failed .a4n-studio-node,
+.a4n-studio-node.a4n-studio-node-run-failed {
+  border-color: rgb(var(--status-error));
+  box-shadow:
+    0 0 0 3px rgb(var(--status-error) / 0.32),
+    0 12px 28px rgb(0 0 0 / 0.22);
+}
+
+.a4n-studio-node.a4n-studio-node-run-running::before,
+.a4n-studio-node.a4n-studio-node-run-completed::before,
+.a4n-studio-node.a4n-studio-node-run-failed::before {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  left: -1px;
+  height: 3px;
+  border-radius: var(--pyqt-radius-md) var(--pyqt-radius-md) 0 0;
+  content: "";
+}
+
+.a4n-studio-node.a4n-studio-node-run-running::before {
+  background: rgb(var(--status-info));
+  box-shadow: 0 0 10px rgb(var(--status-info) / 0.5);
+}
+
+.a4n-studio-node.a4n-studio-node-run-completed::before {
+  background: rgb(var(--status-success));
+}
+
+.a4n-studio-node.a4n-studio-node-run-failed::before {
+  background: rgb(var(--status-error));
+}
+
+.a4n-studio-run-pill {
+  display: inline-flex;
+  max-width: 96px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--color-border));
+  padding: 1px 5px;
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+}
+
+.a4n-studio-run-pill-running {
+  border-color: rgb(var(--status-info) / 0.45);
+  background: rgb(var(--status-info) / 0.12);
+  color: rgb(var(--status-info));
+}
+
+.a4n-studio-run-pill-completed {
+  border-color: rgb(var(--status-success) / 0.42);
+  background: rgb(var(--status-success) / 0.1);
+  color: rgb(var(--status-success));
+}
+
+.a4n-studio-run-pill-failed {
+  border-color: rgb(var(--status-error) / 0.42);
+  background: rgb(var(--status-error) / 0.1);
+  color: rgb(var(--status-error));
+}
+
+@keyframes a4n-studio-workflow-running-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgb(var(--status-info) / 0.26),
+      0 0 14px rgb(var(--status-info) / 0.24),
+      0 14px 32px rgb(0 0 0 / 0.22);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgb(var(--status-info) / 0.46),
+      0 0 24px rgb(var(--status-info) / 0.42),
+      0 16px 36px rgb(0 0 0 / 0.26);
+  }
+}
+
+.a4n-studio-flow .react-flow__edge-textbg {
+  fill: rgb(var(--color-bg-secondary) / 0.96);
+  stroke: rgb(var(--color-border));
+  stroke-width: 1;
+}
+
+.a4n-studio-flow .react-flow__edge-text {
+  fill: rgb(var(--color-text-secondary));
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.a4n-studio-controls {
+  bottom: 2.75rem;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary) / 0.94);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
+}
+
+.a4n-studio-controls button {
+  width: 30px;
+  height: 30px;
+  border-bottom: 1px solid rgb(var(--color-border));
+  background: transparent;
+  color: rgb(var(--color-text-secondary));
+  fill: rgb(var(--color-text-secondary));
+}
+
+.a4n-studio-controls button:hover {
+  background: rgb(var(--color-primary) / 0.12);
+  color: rgb(var(--color-primary));
+  fill: rgb(var(--color-primary));
+}
+
+.a4n-studio-minimap {
+  bottom: 2.75rem;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary) / 0.94);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
+}
+
+.a4n-studio-node {
+  position: relative;
+  width: 218px;
+  min-height: 132px;
+  box-sizing: border-box;
+  border: 1px solid rgb(var(--color-border));
+  border-left-width: 4px;
+  border-radius: var(--pyqt-radius-md);
+  background: rgb(var(--color-bg-secondary));
+  padding: 0;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
+  color: rgb(var(--color-text-primary));
+}
+
+.a4n-studio-node-selected {
+  border-color: rgb(var(--color-primary));
+  box-shadow:
+    0 0 0 2px rgb(var(--color-primary) / 0.28),
+    0 14px 30px rgb(0 0 0 / 0.22);
+}
+
+.a4n-studio-node-warning,
+.a4n-studio-node-problem {
+  box-shadow:
+    0 0 0 1px rgb(var(--status-warning) / 0.45),
+    0 12px 26px rgb(0 0 0 / 0.18);
+}
+
+.a4n-studio-node-icon {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-primary) / 0.12);
+  color: rgb(var(--color-primary));
+}
+
+.a4n-studio-node-text { border-left-color: rgb(96 165 250); }
+.a4n-studio-node-prompt { border-left-color: rgb(var(--color-primary)); }
+.a4n-studio-node-action { border-left-color: rgb(var(--status-info)); }
+.a4n-studio-node-media { border-left-color: rgb(var(--status-success)); }
+.a4n-studio-node-video { border-left-color: rgb(168 85 247); }
+.a4n-studio-node-audio { border-left-color: rgb(236 72 153); }
+.a4n-studio-node-profile { border-left-color: rgb(20 184 166); }
+.a4n-studio-node-config { border-left-color: rgb(var(--status-warning)); }
+.a4n-studio-node-generate { border-left-color: rgb(var(--color-accent)); }
+.a4n-studio-node-assemble { border-left-color: rgb(245 158 11); }
+.a4n-studio-node-review { border-left-color: rgb(var(--status-success)); }
+.a4n-studio-node-artifact { border-left-color: rgb(100 116 139); }
+.a4n-studio-node-generic { border-left-color: rgb(var(--color-border-dark)); }
+
+.a4n-studio-handle,
+.a4n-studio-flow .a4n-studio-port {
+  z-index: 12;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgb(var(--color-bg-secondary));
+  border-radius: 999px;
+  background: rgb(var(--color-primary)) !important;
+  box-shadow:
+    0 0 0 1px rgb(var(--color-primary) / 0.45),
+    0 2px 6px rgb(0 0 0 / 0.24);
+  opacity: 1;
+  transition:
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+
+.a4n-studio-handle.react-flow__handle-left,
+.a4n-studio-flow .a4n-studio-port.react-flow__handle-left {
+  left: -8px;
+}
+
+.a4n-studio-handle.react-flow__handle-right,
+.a4n-studio-flow .a4n-studio-port.react-flow__handle-right {
+  right: -8px;
+}
+
+.a4n-studio-flow .a4n-studio-port-input {
+  background: rgb(var(--color-text-tertiary)) !important;
+}
+
+.a4n-studio-flow .a4n-studio-port-output {
+  background: rgb(var(--color-primary)) !important;
+}
+
+.a4n-studio-flow .a4n-studio-port:hover {
+  box-shadow:
+    0 0 0 3px rgb(var(--color-primary) / 0.18),
+    0 4px 10px rgb(0 0 0 / 0.28);
+}
+
+.a4n-studio-state,
+.a4n-studio-state-pill {
+  display: inline-flex;
+  min-width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--pyqt-radius-xs);
+  border: 1px solid currentColor;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.a4n-studio-state-muted {
+  color: rgb(var(--color-text-tertiary));
+  background: rgb(var(--color-bg-tertiary));
+}
+
+.a4n-studio-state-success {
+  color: rgb(var(--status-success));
+  background: rgb(var(--status-success-bg));
+}
+
+.a4n-studio-state-info {
+  color: rgb(var(--status-info));
+  background: rgb(var(--status-info-bg));
+}
+
+.a4n-studio-state-error {
+  color: rgb(var(--status-error));
+  background: rgb(var(--status-error-bg));
+}
+
+/* ============================================================================
+   无障碍：尊重用户动画偏好
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,85 @@
+import { apiInvoke } from "../index";
+import { readCurrentUserId } from "../authStorage";
+import type {
+  ProfileChapterState,
+  ProfileSyncConflict,
+  RollbackToChapterResult,
+  Snapshot,
+  SnapshotDelta,
+  SnapshotReference,
+} from "./types";
+import { type ApiId as Id, idNum } from "../shared";
+
+const currentUserId = (): number => {
+  const id = readCurrentUserId();
+  if (id == null) throw new Error("未登录，无法访问角色快照");
+  return id;
+};
+
+export async function listSnapshots(
+  profileId: Id,
+  filters: {
+    start_chapter?: number | null;
+    end_chapter?: number | null;
+  } = {},
+): Promise<SnapshotReference[]> {
+  return apiInvoke<SnapshotReference[]>("list_snapshots", {
+    userId: currentUserId(),
+    input: {
+      profile_id: idNum(profileId),
+      start_chapter: filters.start_chapter ?? null,
+      end_chapter: filters.end_chapter ?? null,
+    },
+  });
+}
+
+export async function getProfileStateAtChapter(
+  profileId: Id,
+  chapterNumber: number,
+): Promise<ProfileChapterState> {
+  return apiInvoke<ProfileChapterState>("get_profile_state_at_chapter", {
+    userId: currentUserId(),
+    input: { profile_id: idNum(profileId), chapter_number: chapterNumber },
+  });
+}
+
+export async function getSnapshot(contentHash: string): Promise<Snapshot> {
+  return apiInvoke<Snapshot>("get_snapshot", {
+    userId: currentUserId(),
+    input: { content_hash: contentHash },
+  });
+}
+
+export async function diffProfileChapters(
+  profileId: Id,
+  fromChapter: number,
+  toChapter: number,
+): Promise<SnapshotDelta> {
+  return apiInvoke<SnapshotDelta>("diff_profile_chapters", {
+    userId: currentUserId(),
+    input: {
+      profile_id: idNum(profileId),
+      from_chapter: fromChapter,
+      to_chapter: toChapter,
+    },
+  });
+}
+
+export async function checkProfileSyncConflict(
+  profileId: Id,
+): Promise<ProfileSyncConflict> {
+  return apiInvoke<ProfileSyncConflict>("check_profile_sync_conflict", {
+    userId: currentUserId(),
+    input: { profile_id: idNum(profileId) },
+  });
+}
+
+export async function rollbackToChapter(
+  profileId: Id,
+  chapterNumber: number,
+): Promise<RollbackToChapterResult> {
+  return apiInvoke<RollbackToChapterResult>("rollback_to_chapter", {
+    userId: currentUserId(),
+    input: { profile_id: idNum(profileId), chapter_number: chapterNumber },
+  });
+}
