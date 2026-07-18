@@ -1,11 +1,11 @@
 //! 灵感对话命令。
 //!
 //! Tauri 层只负责 command 签名和窗口事件；灵感对话业务逻辑
-//! 统一在 `a4n_runtime::actions::inspiration_records`。
+//! 统一在 `a4n_runtime::host_api::inspiration_records`。
 
 use crate::commands::request_preview::ModelRequestPreview;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::inspiration_records as inspiration_actions;
+use a4n_runtime::host_api::inspiration_records as inspiration_actions;
 use inspiration_actions::{
     ConverseInput, ConverseStreamInput, MessageSummary, PreviewInspirationRequestInput,
 };

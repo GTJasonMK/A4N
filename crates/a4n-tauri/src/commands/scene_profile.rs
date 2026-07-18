@@ -4,8 +4,8 @@ pub(crate) mod discovery;
 pub(crate) mod image_generation;
 
 use a4n_runtime::AppState;
-use a4n_runtime::actions::dependency_conflict::DownstreamConflictStrategy;
-use a4n_runtime::actions::scene_profile_records as scene_profile_records_actions;
+use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
+use a4n_runtime::host_api::scene_profile_records as scene_profile_records_actions;
 use scene_profile_records_actions::{
     ListSceneProfilesInput, SceneProfileInput, SceneProfileSummary,
 };

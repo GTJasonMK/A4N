@@ -5,35 +5,41 @@ import type { WorldObject } from "./worldTabUtils";
 
 interface WorldReadPanelProps {
   hasBlueprint: boolean;
+  hasWorldContent: boolean;
   normalizedWorld: unknown;
   worldObject: WorldObject | null;
 }
 
 export const WorldReadPanel: React.FC<WorldReadPanelProps> = ({
   hasBlueprint,
+  hasWorldContent,
   normalizedWorld,
   worldObject,
 }) => {
   if (!hasBlueprint) {
-    return <EmptyHint text="尚未生成蓝图，世界观也尚未确定。" />;
+    return (
+      <div className="a4n-flat-surface p-3">
+        <EmptyHint text="尚未生成蓝图。蓝图建立后，世界观会显示在这里。" />
+      </div>
+    );
   }
 
-  if (worldObject) {
+  if (worldObject && hasWorldContent) {
     return <WorldSummaryView obj={worldObject} />;
   }
 
   if (hasTextWorldValue(normalizedWorld)) {
     return (
-      <div className="a4n-page-surface p-4">
+      <section className="a4n-flat-surface p-4 sm:p-5">
         <TextBlock value={normalizedWorld} />
-      </div>
+      </section>
     );
   }
 
   return (
-    <p className="text-sm text-book-text-muted">
-      蓝图中未发现世界观字段（world_setting）。点击「编辑」可手动填写。
-    </p>
+    <div className="a4n-flat-surface p-3">
+      <EmptyHint text="尚未建立世界观，可以先写下核心规则、关键地点或主要阵营。" />
+    </div>
   );
 };
 

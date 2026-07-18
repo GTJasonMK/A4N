@@ -343,6 +343,66 @@ prompts:
     dependencies: []
     description: "显式内容优化 Agent Loop：逐步读取上下文、调用工具并最终输出 issues JSON"
 
+  structured_json_field_repair:
+    path: "novel/05_analysis/structured_json_field_repair.md"
+    title: "结构化 JSON 字段补丁"
+    category: "analysis"
+    tags: ["system", "json", "schema", "repair", "patch"]
+    version: "1.0"
+    used_by:
+      - "OrchestratorContext.parse_validate_or_repair_structured_output"
+    dependencies: []
+    description: "依据 Rust DTO 派生的 JSON Schema 诊断，只返回被授权字段路径的最小补丁"
+
+  chapter_screenplay_skeleton:
+    path: "novel/05_analysis/chapter_screenplay_skeleton.md"
+    title: "章节叙事骨架"
+    category: "analysis"
+    tags: ["analysis", "screenplay", "skeleton", "editing"]
+    version: "1.0"
+    used_by:
+      - "OrchestratorContext.regenerate_chapter_shooting_script_with_progress"
+    dependencies:
+      - "chapter_fact_extraction"
+      - "chapter_summary_synthesis"
+    description: "规划全章导演命题、叙事单元身份、时间线和跨场景穿插拓扑"
+
+  chapter_screenplay_layout_unit:
+    path: "novel/05_analysis/chapter_screenplay_layout_unit.md"
+    title: "叙事单元布局细化"
+    category: "analysis"
+    tags: ["analysis", "screenplay", "layout", "unit"]
+    version: "1.0"
+    used_by:
+      - "OrchestratorContext.regenerate_chapter_shooting_script_with_progress"
+    dependencies:
+      - "chapter_screenplay_skeleton"
+    description: "在固定全章骨架下逐单元细化场记、戏剧状态和转场合同"
+
+  chapter_screenplay_unit_adaptation:
+    path: "novel/05_analysis/chapter_screenplay_unit_adaptation.md"
+    title: "叙事单元剧本改编"
+    category: "analysis"
+    tags: ["analysis", "screenplay", "adaptation", "design-unit"]
+    version: "1.0"
+    used_by:
+      - "OrchestratorContext.regenerate_chapter_shooting_script_with_progress"
+    dependencies:
+      - "chapter_screenplay_layout_unit"
+    description: "为一个已校验叙事单元独立提取可观察、可表演事实"
+
+  chapter_shooting_design_unit:
+    path: "novel/05_analysis/chapter_shooting_design_unit.md"
+    title: "拍摄设计单元"
+    category: "analysis"
+    tags: ["analysis", "directing", "shot", "blocking"]
+    version: "1.0"
+    used_by:
+      - "OrchestratorContext.regenerate_chapter_shooting_script_with_progress"
+    dependencies:
+      - "chapter_screenplay_unit_adaptation"
+    description: "针对一个已校验叙事单元生成可独立缓存的 ShootingSceneV1，最终合同由后端确定性装配"
+
   content_optimization_chat:
     path: "novel/05_analysis/content_optimization_chat.md"
     title: "内容优化对话（Agent Loop）"
@@ -368,18 +428,6 @@ prompts:
     description: "基于内容优化 issues 生成可审阅的局部文章补丁"
 
   # ============= 06 漫画 =============
-  manga_event_beats:
-    path: "novel/06_manga/manga_event_beats.md"
-    title: "漫画事件卡片抽取"
-    category: "manga"
-    tags: ["manga", "extraction", "events"]
-    version: "1.0"
-    used_by:
-      - "MangaService.generate_panels"
-      - "MangaService.preview_generate_panels_requests"
-    dependencies: []
-    description: "漫画流水线第 1 步：从章节正文抽取事件卡片，只输出事件顺序、参与者、重要性和来源"
-
   manga_character_binding:
     path: "novel/06_manga/manga_character_binding.md"
     title: "漫画角色绑定"
@@ -390,8 +438,8 @@ prompts:
       - "MangaService.generate_panels"
       - "MangaService.preview_generate_panels_requests"
     dependencies:
-      - "manga_event_beats"
-    description: "漫画流水线第 2 步：基于事件卡片、正文和角色立绘绑定本章出场角色身份与外观"
+      - "chapter_shooting_design_unit"
+    description: "漫画流水线第 1 步：基于共享导演事件投影、正文和角色立绘绑定本章出场角色身份与外观"
 
   manga_speech_selection:
     path: "novel/06_manga/manga_speech_selection.md"
@@ -404,7 +452,7 @@ prompts:
       - "MangaService.preview_generate_panels_requests"
     dependencies:
       - "manga_character_binding"
-    description: "漫画流水线第 3 步：基于事件窗口和角色绑定选择关键对白、想法与旁白"
+    description: "漫画流水线第 2 步：基于导演事件窗口和角色绑定选择关键对白、想法与旁白"
 
   manga_visual_anchor_extraction:
     path: "novel/06_manga/manga_visual_anchor_extraction.md"
@@ -416,8 +464,8 @@ prompts:
       - "MangaService.generate_panels"
       - "MangaService.preview_generate_panels_requests"
     dependencies:
-      - "manga_event_beats"
-    description: "漫画流水线第 4 步：基于事件窗口抽取场景边界、地点氛围和视觉锚点"
+      - "chapter_shooting_design_unit"
+    description: "漫画流水线第 3 步：基于导演事件窗口抽取场景边界、地点氛围和视觉锚点"
 
   manga_item_extraction:
     path: "novel/06_manga/manga_item_extraction.md"
@@ -431,7 +479,7 @@ prompts:
     dependencies:
       - "manga_speech_selection"
       - "manga_visual_anchor_extraction"
-    description: "漫画流水线第 5 步：从对白旁白和视觉锚点中抽取需要稳定绘制的关键物品"
+    description: "漫画流水线第 4 步：从对白旁白和视觉锚点中抽取需要稳定绘制的关键物品"
 
   manga_chapter_comic_synthesis:
     path: "novel/06_manga/manga_chapter_comic_synthesis.md"
@@ -443,37 +491,37 @@ prompts:
       - "MangaService.generate_panels"
       - "MangaService.preview_generate_panels_requests"
     dependencies:
-      - "manga_event_beats"
+      - "chapter_shooting_design_unit"
       - "manga_speech_selection"
       - "manga_visual_anchor_extraction"
       - "manga_item_extraction"
-    description: "漫画流水线第 6 步：综合事件、对白、视觉锚点和物品，输出分页需要的摘要、情绪轨迹和页数建议"
+    description: "漫画流水线第 5 步：综合导演事件、对白、视觉锚点和物品，输出分页需要的摘要、情绪轨迹和页数建议"
 
   manga_page_planning:
     path: "novel/06_manga/manga_page_planning.md"
-    title: "漫画分页规划"
+    title: "漫画页面与画格计划 v2"
     category: "manga"
-    tags: ["manga", "planning", "layout"]
-    version: "1.0"
+    tags: ["manga", "planning", "panel", "text-layer", "directing"]
+    version: "2.0"
     used_by:
       - "MangaService.generate_panels"
       - "MangaService.preview_generate_panels_requests"
     dependencies:
       - "manga_chapter_comic_synthesis"
-    description: "漫画流水线第 7 步：决定每页的事件分配、节奏、角色和页内画格数量"
+    description: "漫画流水线第 6 步：从共享导演计划生成严格 PagePlan、PanelPlan、气泡与文字层合同"
 
   manga_page_drawing_prompt:
     path: "novel/06_manga/manga_page_drawing_prompt.md"
-    title: "整页漫画绘图 Prompt"
+    title: "整页漫画绘图 Prompt v2"
     category: "manga"
     tags: ["manga", "drawing", "page", "prompt"]
-    version: "1.1.0"
+    version: "2.0.0"
     used_by:
       - "MangaService.generate_panels"
       - "MangaService.preview_generate_panels_requests"
     dependencies:
       - "manga_page_planning"
-    description: "漫画流水线第 8 步：把单页分页规划和页内上下文编排为可生成完整漫画页的最终 prompt"
+    description: "漫画流水线第 7 步：把已验证 PagePlan/PanelPlan 无损编排为完整漫画页最终 prompt"
 
   manga_prompt_optimization:
     path: "novel/06_manga/manga_prompt_optimization.md"
@@ -666,45 +714,17 @@ prompts:
     used_by:
       - "video::prompt_context::builders"
     dependencies:
-      - "chapter_video_shot_analysis"
-      - "chapter_video_beat_extraction"
+      - "chapter_shooting_design_unit"
       - "chapter_video_segment_plan"
       - "chapter_video_frame_prompts"
       - "chapter_video_first_frame_prompts"
+      - "chapter_video_storyboard_prompts"
       - "chapter_video_prompt"
-      - "chapter_video_prompt_review"
       - "chapter_video_first_frame_video_prompt"
-      - "chapter_video_first_frame_video_prompt_review"
+      - "chapter_video_storyboard_video_prompt"
       - "chapter_video_chat_prompt"
-      - "chapter_video_chat_prompt_review"
+      - "chapter_video_prompt_targeted_repair"
     description: "视频提示词 builder 注入到 JSON payload 的可编辑业务规则集合"
-
-  chapter_video_shot_analysis:
-    path: "novel/08_video/chapter_video_shot_analysis.md"
-    title: "章节视频镜头语言分析"
-    category: "video"
-    tags: ["video", "shot", "analysis", "planning"]
-    version: "1.0"
-    used_by:
-      - "VideoService.generate_chapter_shot_analysis"
-      - "VideoService.generate_chapter_frame_prompts"
-      - "VideoService.generate_chapter_chat_video_prompts"
-    dependencies:
-      - "chapter_video_beat_extraction"
-    description: "根据已抽取动作节拍进行全局导演镜头分组，由系统补齐镜头级来源、耗时、片段数量和风险字段"
-
-  chapter_video_beat_extraction:
-    path: "novel/08_video/chapter_video_beat_extraction.md"
-    title: "章节视频动作节拍抽取"
-    category: "video"
-    tags: ["video", "beat", "extraction", "planning"]
-    version: "1.0"
-    used_by:
-      - "VideoService.generate_chapter_shot_analysis"
-      - "VideoService.generate_chapter_frame_prompts"
-      - "VideoService.generate_chapter_chat_video_prompts"
-    dependencies: []
-    description: "按 source span 小窗口抽取可视频化动作、反应、对白和状态变化，只让模型输出不可由系统推导的 beat 字段"
 
   chapter_video_segment_plan:
     path: "novel/08_video/chapter_video_segment_plan.md"
@@ -715,7 +735,7 @@ prompts:
     used_by:
       - "VideoService.generate_chapter_frame_prompts"
     dependencies:
-      - "chapter_video_shot_analysis"
+      - "chapter_shooting_design_unit"
     description: "按单个导演镜头生成片段规划，系统再合并为全章连续 segment 列表"
 
   chapter_video_frame_prompts:
@@ -728,7 +748,7 @@ prompts:
       - "VideoService.generate_chapter_frame_prompts"
     dependencies:
       - "chapter_video_segment_plan"
-    description: "为每个视频片段生成首帧和尾帧图像描述提示词"
+    description: "为视频执行单元链生成 U+1 个共享边界帧提示词"
 
   chapter_video_first_frame_prompts:
     path: "novel/08_video/chapter_video_first_frame_prompts.md"
@@ -740,7 +760,7 @@ prompts:
       - "VideoService.generate_chapter_first_frame_prompts"
     dependencies:
       - "chapter_video_segment_plan"
-    description: "为首帧串联模式生成每个视频片段的首帧图像描述提示词"
+    description: "为首帧串联模式生成整条执行链唯一的初始首帧提示词"
 
   chapter_video_storyboard_prompts:
     path: "novel/08_video/chapter_video_storyboard_prompts.md"
@@ -752,7 +772,7 @@ prompts:
       - "VideoService.generate_chapter_storyboard_prompts"
     dependencies:
       - "chapter_video_segment_plan"
-    description: "为分镜模式生成每个视频片段的一张分镜图描述提示词"
+    description: "为每个内容单元或显式动作桥生成一张多格分镜板提示词"
 
   chapter_video_prompt:
     path: "novel/08_video/chapter_video_prompt.md"
@@ -767,20 +787,6 @@ prompts:
       - "chapter_video_frame_prompts"
     description: "将视频片段规划与边界关键帧编排为视频生成模型可直接使用的提示词"
 
-  chapter_video_prompt_review:
-    path: "novel/08_video/chapter_video_prompt_review.md"
-    title: "章节视频生成 Prompt 自检修订"
-    category: "video"
-    tags: ["video", "prompt", "continuity", "review"]
-    version: "1.0"
-    used_by:
-      - "VideoService.generate_chapter_frame_prompts"
-    dependencies:
-      - "chapter_video_segment_plan"
-      - "chapter_video_frame_prompts"
-      - "chapter_video_prompt"
-    description: "检查并修订视频提示词中的站位、走位、光影、情绪动作和镜头连续性"
-
   chapter_video_first_frame_video_prompt:
     path: "novel/08_video/chapter_video_first_frame_video_prompt.md"
     title: "章节首帧串联视频 Prompt"
@@ -794,20 +800,6 @@ prompts:
       - "chapter_video_first_frame_prompts"
     description: "将视频片段规划与每段首帧编排为首帧串联模式的视频生成提示词"
 
-  chapter_video_first_frame_video_prompt_review:
-    path: "novel/08_video/chapter_video_first_frame_video_prompt_review.md"
-    title: "章节首帧串联视频 Prompt 自检修订"
-    category: "video"
-    tags: ["video", "prompt", "first-frame", "continuity", "review"]
-    version: "1.0"
-    used_by:
-      - "VideoService.generate_chapter_first_frame_video_prompts"
-    dependencies:
-      - "chapter_video_segment_plan"
-      - "chapter_video_first_frame_prompts"
-      - "chapter_video_first_frame_video_prompt"
-    description: "检查并修订首帧串联视频提示词中的起始帧继承、结尾采集目标和连续性"
-
   chapter_video_storyboard_video_prompt:
     path: "novel/08_video/chapter_video_storyboard_video_prompt.md"
     title: "章节分镜视频 Prompt"
@@ -820,20 +812,6 @@ prompts:
       - "chapter_video_segment_plan"
       - "chapter_video_storyboard_prompts"
     description: "将视频片段规划与片段分镜图编排为分镜模式的视频生成提示词"
-
-  chapter_video_storyboard_video_prompt_review:
-    path: "novel/08_video/chapter_video_storyboard_video_prompt_review.md"
-    title: "章节分镜视频 Prompt 自检修订"
-    category: "video"
-    tags: ["video", "prompt", "storyboard", "continuity", "review"]
-    version: "1.0"
-    used_by:
-      - "VideoService.generate_chapter_storyboard_video_prompts"
-    dependencies:
-      - "chapter_video_segment_plan"
-      - "chapter_video_storyboard_prompts"
-      - "chapter_video_storyboard_video_prompt"
-    description: "检查并修订分镜模式视频提示词中的分镜图使用、动作连续性和参考图约束"
 
   chapter_video_provider_prompt:
     path: "novel/08_video/chapter_video_provider_prompt.md"
@@ -901,50 +879,44 @@ prompts:
       - "chapter_video_segment_plan"
     description: "生成可复制到外部 Chat 视频模型的单段视频提示词"
 
-  chapter_video_chat_prompt_review:
-    path: "novel/08_video/chapter_video_chat_prompt_review.md"
-    title: "章节 Chat 视频 Prompt 自检修订"
+  chapter_video_prompt_targeted_repair:
+    path: "novel/08_video/chapter_video_prompt_targeted_repair.md"
+    title: "视频提示词失败字段局部修复"
     category: "video"
-    tags: ["video", "prompt", "chat", "review"]
+    tags: ["video", "prompt", "repair", "targeted"]
     version: "1.0"
     used_by:
-      - "VideoService.generate_chapter_chat_video_prompts"
+      - "video::prompt_generation::unit_execution"
     dependencies:
+      - "chapter_video_builder_rules"
       - "chapter_video_segment_plan"
+      - "chapter_video_prompt"
+      - "chapter_video_first_frame_video_prompt"
+      - "chapter_video_storyboard_video_prompt"
       - "chapter_video_chat_prompt"
-    description: "审校可复制到外部 Chat 视频模型的单段视频提示词"
+    description: "主生成未通过校验时，只返回并回填失败字段；禁止完整对象重写"
 
   # ============= 09 Galgame =============
-  galgame_scene_segmentation:
-    path: "novel/09_galgame/scene_segmentation.md"
-    title: "Galgame 场景切分"
-    category: "galgame"
-    tags: ["galgame", "scene", "segmentation"]
-    version: "1.0"
-    used_by:
-      - "GalgamePipelineRunner.run"
-    dependencies: []
-    description: "将快照章节正文切分为视觉小说场清单，保留地点、时间、在场角色和来源 span"
-
   galgame_script_adaptation:
     path: "novel/09_galgame/script_adaptation.md"
     title: "Galgame 剧本行改编"
     category: "galgame"
     tags: ["galgame", "script", "adaptation"]
-    version: "1.0"
+    version: "2.0"
     used_by:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
-      - "galgame_scene_segmentation"
-    description: "将场景原文改编为视觉小说对白、旁白、独白和演出提示行草稿"
+      - "chapter_shooting_design_unit"
+      - "galgame_branch_design"
+    description: "将共享导演计划投影的场景和节拍改编为视觉小说对白、旁白、独白和演出提示行草稿"
 
   galgame_character_staging:
     path: "novel/09_galgame/character_staging.md"
     title: "Galgame 角色演出标注"
     category: "galgame"
     tags: ["galgame", "character", "staging"]
-    version: "1.0"
+    version: "2.0"
     used_by:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
@@ -970,13 +942,13 @@ prompts:
     title: "Galgame 分支设计"
     category: "galgame"
     tags: ["galgame", "branch", "choice"]
-    version: "1.0"
+    version: "2.0"
     used_by:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
-      - "galgame_visual_planning"
-    description: "为 Galgame 设计珍珠串结构选择支和回收点，供 M4 分支能力使用"
+      - "chapter_shooting_design_unit"
+    description: "基于共享导演节拍设计珍珠串结构选择支和回收点，并为后续剧本改编提供支线演出合同"
 
   galgame_background_image_prompt:
     path: "novel/09_galgame/background_image_prompt.md"

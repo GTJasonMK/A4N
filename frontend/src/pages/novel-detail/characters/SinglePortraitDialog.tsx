@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, Images, Loader2, Upload } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Check, Eye, Images, Loader2, Upload } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import { listImagesByProject, type GeneratedImage, uploadImage } from "../../../api/image";
@@ -9,12 +9,14 @@ import { RequestPreviewModal } from "../../../components/feedback/RequestPreview
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { createProgressTaskId, useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { nonEmptyText } from "../../../utils/text";
 import { StyleTemplatePicker } from "../StyleTemplatePicker";
+import { imageTypeLabel } from "../images/imageTabUtils";
 import { DEFAULT_IMAGE_STYLE, IMAGE_STYLE_TEMPLATES } from "../styleTemplates";
 import { firstProfileName } from "./characterUtils";
 import {
@@ -126,11 +128,6 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
         : firstProfileName(profiles),
     );
   }, [profiles]);
-
-  const selectedReferenceImages = useMemo(() => {
-    const selected = new Set(selectedReferenceImageIds);
-    return referenceImages.filter((image) => selected.has(image.id));
-  }, [referenceImages, selectedReferenceImageIds]);
 
   const toggleReferenceImage = (imageId: number) => {
     setSelectedReferenceImageIds((current) => {
@@ -302,9 +299,51 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
     }
   };
 
+  const canSubmit = Boolean(name.trim());
+
   return (
     <>
-      <Modal isOpen onClose={onClose} title="单角色生成人物三视图拆解" maxWidthClassName="max-w-3xl">
+      <Modal
+        isOpen
+        onClose={onClose}
+        title="生成角色三视图"
+        subtitle="为单个角色生成正面、侧面与背面视觉拆解"
+        icon={<Images size={15} />}
+        maxWidthClassName="max-w-3xl"
+        closeOnBackdrop={!busy}
+        closeOnEscape={!busy}
+        showCloseButton={!busy}
+        footer={
+          <div className="flex w-full items-center gap-2">
+            <Dropdown
+              items={[
+                {
+                  label: "查看模型请求",
+                  icon: <Eye size={12} />,
+                  onClick: handlePreview,
+                  disabled: busy || requestPreviewLoading || !canSubmit,
+                },
+              ]}
+            />
+            <span className="min-w-0 flex-1" />
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={handleSubmit}
+              disabled={busy || !canSubmit}
+              className="min-w-0 flex-1 !text-xs sm:flex-none"
+            >
+              {busy ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> 生成中…
+                </span>
+              ) : (
+                "生成三视图"
+              )}
+            </BookButton>
+          </div>
+        }
+      >
         <div className="space-y-3 text-sm">
           <div>
             <label className="mb-1 block text-xs text-book-text-muted">角色名</label>
@@ -336,70 +375,60 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           </div>
           <div>
             <label className="mb-1 block text-xs text-book-text-muted">
-              表情列表（逗号分隔，可空）
+              表情变化（可选）
             </label>
             <BookInput
               value={expressionsInput}
               onChange={(event) => setExpressionsInput(event.target.value)}
-              placeholder="如：微笑, 严肃, 惊讶"
+              placeholder="如：微笑、严肃、惊讶"
             />
           </div>
-          <div className="space-y-2 rounded border border-book-border/50 bg-book-bg-paper/35 p-2">
-            <div className="flex min-w-0 items-center justify-between gap-2">
-              <label className="inline-flex items-center gap-1.5 text-xs text-book-text-muted">
-                <Images size={13} />
-                参考图
+          <section className="border-t border-book-border/45 pt-4">
+            <header className="mb-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-book-text-main">参考图</h3>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+                  {selectedReferenceImageIds.length > 0
+                    ? `已选 ${selectedReferenceImageIds.length} 张，最多 ${MAX_REFERENCE_IMAGES} 张`
+                    : `可选最多 ${MAX_REFERENCE_IMAGES} 张，用于保持角色外观一致`}
+                </p>
+              </div>
+              <label
+                className={[
+                  "pyqt-btn-secondary inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 px-2.5 text-xs",
+                  busy || uploadingReference ? "pointer-events-none opacity-60" : "",
+                ].join(" ")}
+              >
+                {uploadingReference ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Upload size={12} />
+                )}
+                {uploadingReference ? "上传中…" : "上传参考图"}
+                <input
+                  type="file"
+                  accept={supportedImageAccept()}
+                  className="hidden"
+                  disabled={busy || uploadingReference}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0] ?? null;
+                    event.currentTarget.value = "";
+                    if (file) void handleUploadReferenceImage(file);
+                  }}
+                />
               </label>
-              <div className="flex shrink-0 items-center gap-2">
-                <label
-                  className={[
-                    "pyqt-btn-secondary inline-flex min-h-[24px] cursor-pointer items-center gap-1.5 px-2 text-[10px]",
-                    busy || uploadingReference ? "pointer-events-none opacity-60" : "",
-                  ].join(" ")}
-                >
-                  {uploadingReference ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Upload size={12} />
-                  )}
-                  上传
-                  <input
-                    type="file"
-                    accept={supportedImageAccept()}
-                    className="hidden"
-                    disabled={busy || uploadingReference}
-                    onChange={(event) => {
-                      const file = event.currentTarget.files?.[0] ?? null;
-                      event.currentTarget.value = "";
-                      if (file) void handleUploadReferenceImage(file);
-                    }}
-                  />
-                </label>
-                <span className="font-mono text-[10px] text-book-text-muted">
-                  {selectedReferenceImageIds.length}/{MAX_REFERENCE_IMAGES}
-                </span>
-              </div>
-            </div>
-            {selectedReferenceImages.length > 0 && (
-              <div className="flex flex-wrap gap-1 text-[10px] text-book-text-muted">
-                {selectedReferenceImages.map((image, index) => (
-                  <span key={image.id} className="pyqt-pill !text-[10px]">
-                    参考图 {index + 1} · #{image.id}
-                  </span>
-                ))}
-              </div>
-            )}
+            </header>
             {referenceLoading ? (
-              <div className="flex min-h-[72px] items-center justify-center text-xs text-book-text-muted">
+              <div className="flex min-h-[96px] items-center justify-center text-xs text-book-text-muted">
                 <Loader2 size={14} className="mr-1.5 animate-spin" />
                 正在加载项目图片…
               </div>
             ) : referenceImages.length === 0 ? (
-              <div className="rounded border border-book-border/40 bg-book-bg-paper/45 px-2 py-2 text-xs text-book-text-muted">
+              <div className="rounded-[12px] border border-dashed border-book-border/55 bg-book-bg-paper/35 px-3 py-3 text-xs leading-relaxed text-book-text-muted">
                 当前项目暂无可用图片。可先在图片页导入或生成参考图。
               </div>
             ) : (
-              <div className="grid max-h-64 grid-cols-3 gap-2 overflow-y-auto pr-1 custom-scrollbar sm:grid-cols-4 md:grid-cols-5">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-5">
                 {referenceImages.map((image) => {
                   const selected = selectedReferenceImageIds.includes(image.id);
                   const src = toMediaSrc(image.file_path);
@@ -410,13 +439,14 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                       onClick={() => toggleReferenceImage(image.id)}
                       disabled={busy || uploadingReference}
                       data-active={selected ? "1" : undefined}
+                      aria-pressed={selected}
                       className={[
-                        "group min-w-0 overflow-hidden rounded border bg-book-bg-paper/55 text-left transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary disabled:opacity-60",
+                        "group min-w-0 overflow-hidden rounded-[12px] border bg-book-bg-paper/45 text-left transition-[border-color,background-color,box-shadow,transform] duration-150 ease-out active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary/40 disabled:opacity-60",
                         selected
-                          ? "border-book-primary ring-1 ring-book-primary/40"
-                          : "border-book-border/50 hover:border-book-primary/60",
+                          ? "border-book-primary/75 bg-book-primary/5 shadow-[0_0_0_1px_rgb(var(--color-primary)/0.18)]"
+                          : "border-book-border/50 hover:border-book-primary/45 hover:bg-book-bg-paper/75",
                       ].join(" ")}
-                      title={`选择参考图 #${image.id}`}
+                      title={selected ? "取消选择参考图" : "选择参考图"}
                     >
                       <span className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-book-bg-tertiary text-[10px] text-book-text-muted">
                         {src ? (
@@ -424,44 +454,21 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                         ) : (
                           "无图"
                         )}
-                        <span className="absolute left-1 top-1 rounded bg-book-bg-paper/90 px-1 font-mono text-[9px] text-book-text-main">
-                          #{image.id}
-                        </span>
                         {selected && (
-                          <span className="absolute right-1 top-1 rounded bg-book-primary px-1 text-[9px] text-white">
-                            已选
+                          <span className="absolute right-1.5 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/65 bg-book-primary text-white shadow-sm">
+                            <Check size={11} strokeWidth={2.5} />
                           </span>
                         )}
                       </span>
-                      <span className="block truncate px-1.5 py-1 text-[10px] text-book-text-muted">
-                        {image.image_type || "image"}
+                      <span className={`block truncate px-2 py-1.5 text-[10px] ${selected ? "text-book-primary" : "text-book-text-muted"}`}>
+                        {imageTypeLabel(image.image_type)}
                       </span>
                     </button>
                   );
                 })}
               </div>
             )}
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <BookButton variant="secondary" onClick={onClose} disabled={busy}>
-              取消
-            </BookButton>
-            <BookButton variant="secondary" onClick={handlePreview} disabled={busy}>
-              <span className="inline-flex items-center gap-1.5">
-                <Eye size={12} />
-                预览请求
-              </span>
-            </BookButton>
-            <BookButton variant="primary" onClick={handleSubmit} disabled={busy}>
-              {busy ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" /> 生成中…
-                </span>
-              ) : (
-                "生成"
-              )}
-            </BookButton>
-          </div>
+          </section>
         </div>
       </Modal>
       <RequestPreviewModal

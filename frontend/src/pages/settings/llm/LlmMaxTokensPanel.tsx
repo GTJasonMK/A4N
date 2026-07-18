@@ -5,10 +5,10 @@ import {
   Loader2,
   RefreshCw,
   Save,
-  SlidersHorizontal,
 } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { useToast } from "../../../components/feedback/Toast";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../../api";
@@ -40,8 +40,10 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const mountedRef = useRef(true);
   const dirtyRef = useRef(false);
+  const cleanFormRef = useRef<LlmMaxTokensConfig | null>(null);
   const editVersionRef = useRef(0);
   const loadSeqRef = useRef(0);
   const saveSeqRef = useRef(0);
@@ -61,11 +63,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
 
   const markClean = () => {
     dirtyRef.current = false;
-  };
-
-  const markDirty = () => {
-    editVersionRef.current += 1;
-    dirtyRef.current = true;
+    setDirty(false);
   };
 
   const load = useCallback(async (discardDraft = false) => {
@@ -86,6 +84,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
         return;
       }
       setForm(nextForm);
+      cleanFormRef.current = nextForm;
       markClean();
     } catch (err) {
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
@@ -127,6 +126,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
   const handleSave = async () => {
     if (savingRef.current || loadingRef.current) return;
     if (!form) return;
+    if (!dirtyRef.current) return;
     const err = validateMaxTokensConfig(form, modelMaxOutputTokens);
     if (err) {
       addToast(err, "error");
@@ -146,6 +146,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
         return;
       }
       setForm(savedForm);
+      cleanFormRef.current = savedForm;
       markClean();
       addToast("场景输出预算已保存", "success");
     } catch (saveErr) {
@@ -157,47 +158,68 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
     }
   };
 
+  const validationError = form
+    ? validateMaxTokensConfig(form, modelMaxOutputTokens)
+    : null;
+
   return (
-    <section className="pyqt-card flex-none p-3">
-      <div className={`flex flex-wrap items-center justify-between gap-3 ${expanded ? "mb-3" : ""}`}>
+    <section aria-label="场景输出预算" className="a4n-flat-surface flex-none overflow-hidden">
+      <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 max-sm:flex-wrap">
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="min-w-0 flex flex-1 items-center gap-2 text-left"
+          aria-expanded={expanded}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left max-sm:basis-full"
         >
-          {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-          <SlidersHorizontal size={14} className="text-book-primary" />
-          <span className="min-w-0">
-            <span className="block text-sm font-serif text-book-text-main">
-              场景请求输出预算
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-semibold text-book-text-main">
+              场景输出预算
             </span>
             <span className="block truncate text-[11px] text-book-text-muted">
               {maxTokensSummary(form, loading, modelMaxOutputTokens)}
             </span>
           </span>
         </button>
-        {expanded && (
-          <div className="inline-flex items-center gap-2">
-            <BookButton variant="secondary" size="sm" onClick={handleRefresh} disabled={loading || saving}>
-              {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-              刷新
-            </BookButton>
-            <BookButton variant="primary" size="sm" onClick={handleSave} disabled={!form || saving}>
-              {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-              保存
+        {expanded ? (
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <Dropdown
+              items={[
+                {
+                  label: "重新载入配置",
+                  icon: <RefreshCw size={13} />,
+                  disabled: loading || saving,
+                  onClick: () => void handleRefresh(),
+                },
+              ]}
+            />
+            <BookButton
+              size="sm"
+              onClick={handleSave}
+              disabled={!form || !dirty || validationError != null || saving || loading}
+            >
+              {saving ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 size={13} className="animate-spin" /> 保存中…
+                </span>
+              ) : (
+                <>
+                  <Save size={13} /> 保存
+                </>
+              )}
             </BookButton>
           </div>
-        )}
+        ) : null}
       </div>
 
       {!expanded ? null : !form ? (
-        <div className="py-6 text-center text-xs text-book-text-muted">
+        <div className="border-t border-book-border/35 px-3 py-6 text-center text-xs text-book-text-muted">
           {loading ? "正在加载场景输出预算" : "暂无场景输出预算配置"}
         </div>
       ) : (
-        <div className="max-h-[38vh] space-y-4 overflow-y-auto pr-1 custom-scrollbar">
-          <div className="rounded border border-book-border bg-book-bg-soft px-3 py-2 text-xs text-book-text-muted">
-            每个场景的请求 max_tokens 必须小于或等于默认模型最大输出
+        <div className="space-y-4 border-t border-book-border/35 p-3">
+          <div className="text-[11px] leading-relaxed text-book-text-muted">
+            每个场景的输出上限不能超过默认模型的最大输出
             {modelMaxOutputTokens ? ` ${modelMaxOutputTokens}` : ""}。
           </div>
           {TOKEN_GROUPS.map((group) => (
@@ -221,13 +243,18 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
                       value={String(form[field.key])}
                       onChange={(event) => {
                         const nextValue = Number(event.target.value);
-                        markDirty();
+                        editVersionRef.current += 1;
                         setForm((current) => {
                           if (!current) return current;
-                          return {
+                          const nextForm = {
                             ...current,
                             [field.key]: nextValue,
                           };
+                          const nextDirty =
+                            JSON.stringify(nextForm) !== JSON.stringify(cleanFormRef.current);
+                          dirtyRef.current = nextDirty;
+                          setDirty(nextDirty);
+                          return nextForm;
                         });
                       }}
                     />
@@ -236,6 +263,11 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
               </div>
             </div>
           ))}
+          {dirty && validationError ? (
+            <div role="status" className="text-[11px] leading-relaxed text-warning">
+              {validationError}
+            </div>
+          ) : null}
         </div>
       )}
     </section>

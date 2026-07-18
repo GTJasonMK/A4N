@@ -1,8 +1,15 @@
 import type { CharacterProfile } from "../../../api/character";
 import type { GeneratedImage } from "../../../api/image";
-import type { MangaPanel, PipelineStatus } from "../../../api/manga";
+import type {
+  MangaBoundReferenceAsset,
+  MangaPanel,
+  MangaReferenceAssetKind,
+  MangaReferenceBinding,
+  PipelineStatus,
+} from "../../../api/manga";
 import type { Portrait } from "../../../api/portrait";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { imageTypeLabel } from "../images/imageTabUtils";
 import {
   extractMangaPanelSource,
   isMangaPanelSourceStale,
@@ -19,21 +26,12 @@ export type MangaPagePrompt = {
   pageNumber: number;
   prompt: MangaPanel;
   promptCount: number;
-  source: MangaPanelSource | null;
+  source: MangaPanelSource;
   sourceStale: boolean;
   characterNames: string[];
   dialogueText: string | null;
   layoutItems: LayoutSummaryItem[];
   referenceBindings: ReferenceBindingSlot[];
-};
-
-type ReferenceAssetKind = "character_portrait" | "generated_image";
-
-type BoundReferenceAsset = {
-  asset_kind: ReferenceAssetKind;
-  asset_id: number;
-  image_path: string;
-  label: string;
 };
 
 type ReferenceBindingSlot = {
@@ -43,14 +41,14 @@ type ReferenceBindingSlot = {
   targetName: string | null;
   purpose: string | null;
   required: boolean;
-  assetKind: ReferenceAssetKind;
+  assetKind: MangaReferenceAssetKind;
   status: string;
-  boundAsset: BoundReferenceAsset | null;
+  boundAsset: MangaBoundReferenceAsset | null;
 };
 
 type ReferenceCandidate = {
   key: string;
-  assetKind: ReferenceAssetKind;
+  assetKind: MangaReferenceAssetKind;
   assetId: number;
   label: string;
   subLabel: string;
@@ -63,263 +61,110 @@ export const sumPipelinePrompts = (status: PipelineStatus | null | undefined): n
   return status.pending + status.generating + status.completed + status.failed + status.cancelled;
 };
 
-const asReferenceAssetKind = (value: unknown): ReferenceAssetKind | null => {
-  return value === "character_portrait" || value === "generated_image" ? value : null;
-};
-
 const numberValue = (value: unknown): number | null => {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 };
 
-const parseRecord = (value: unknown): Record<string, unknown> | null => {
-  if (typeof value !== "string") return null;
-  try {
-    return asRecord(JSON.parse(value));
-  } catch {
-    return null;
-  }
-};
-
-const compactText = (value: unknown): string | null => {
-  if (typeof value === "string") {
-    const text = value.trim();
-    return text || null;
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    const parts = value.map(compactText).filter((item): item is string => Boolean(item));
-    return parts.length > 0 ? parts.join(" / ") : null;
-  }
-  const record = asRecord(value);
-  if (record) {
-    for (const key of ["summary", "description", "name", "value", "text"]) {
-      const text = compactText(record[key]);
-      if (text) return text;
-    }
-    try {
-      return JSON.stringify(record);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-};
-
-const extractRawRecord = (panel: MangaPanel): Record<string, unknown> | null => {
-  const root = asRecord(panel.layout);
-  if (!root) return null;
-  return asRecord(root.raw) ?? parseRecord(root.raw);
-};
-
-const extractLayoutRecord = (panel: MangaPanel): Record<string, unknown> | null => {
-  const root = asRecord(panel.layout);
-  if (!root) return null;
-
-  const directLayout = asRecord(root.layout) ?? parseRecord(root.layout);
-  if (directLayout) return directLayout;
-
-  const pagePlan = asRecord(root.page_plan) ?? parseRecord(root.page_plan);
-  if (pagePlan) return pagePlan;
-
-  const raw = extractRawRecord(panel);
-  if (!raw) return null;
-  return asRecord(raw.layout) ?? parseRecord(raw.layout);
-};
-
-const asCharacterNames = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => {
-        if (typeof item === "string") return item.trim();
-        const record = asRecord(item);
-        return compactText(record?.name ?? record?.character ?? record?.["角色"]);
-      })
-      .filter((item): item is string => Boolean(item));
-  }
-  const record = asRecord(value);
-  if (record) {
-    return Object.keys(record)
-      .map((key) => key.trim())
-      .filter(Boolean);
-  }
-  return [];
-};
-
-const getPanelCharacters = (panel: MangaPanel): string[] => {
-  const direct = asCharacterNames(panel.characters_in_frame);
-  if (direct.length > 0) return direct;
-  const root = asRecord(panel.layout);
-  const pagePlan = asRecord(root?.page_plan) ?? parseRecord(root?.page_plan);
-  const planCharacters = asCharacterNames(pagePlan?.key_characters);
-  if (planCharacters.length > 0) return planCharacters;
-  return asCharacterNames(extractRawRecord(panel)?.characters_in_frame);
-};
-
-const getPanelDialogue = (panel: MangaPanel): string | null => {
-  return compactText(panel.dialogue_text) ?? compactText(extractRawRecord(panel)?.dialogue_text);
-};
-
-const extractReferenceBindingItems = (panel: MangaPanel): unknown[] => {
-  const root = asRecord(panel.layout);
-  const direct = root?.reference_bindings;
-  if (Array.isArray(direct)) return direct;
-  const raw = extractRawRecord(panel);
-  const rawBindings = raw?.reference_bindings;
-  return Array.isArray(rawBindings) ? rawBindings : [];
-};
-
-const parseBoundAsset = (value: unknown): BoundReferenceAsset | null => {
-  const record = asRecord(value);
-  if (!record) return null;
-  const assetKind = asReferenceAssetKind(record.asset_kind);
-  const assetId =
-    numberValue(record.asset_id) ??
-    numberValue(record.portrait_id) ??
-    numberValue(record.image_id);
-  const imagePath = compactText(record.image_path);
-  if (!assetKind || assetId == null || !imagePath) return null;
-  return {
-    asset_kind: assetKind,
-    asset_id: assetId,
-    image_path: imagePath,
-    label: compactText(record.label) ?? compactText(record.character_name) ?? `${assetKind} #${assetId}`,
-  };
-};
-
-const parseReferenceBindings = (
-  panel: MangaPanel,
-  characterNames: string[],
-): ReferenceBindingSlot[] => {
-  const slots: ReferenceBindingSlot[] = [];
-  const seen = new Set<string>();
-  for (const item of extractReferenceBindingItems(panel)) {
-    const record = asRecord(item);
-    if (!record) continue;
-    const targetName =
-      compactText(record.target_name) ??
-      compactText(record.character_name) ??
-      compactText(record.character) ??
-      null;
-    const label =
-      compactText(record.label) ??
-      targetName ??
-      compactText(record.slot_id) ??
-      "参考图";
-    const targetType = compactText(record.target_type) ?? "visual";
-    const slotId = compactText(record.slot_id) ?? `${targetType}:${label}`;
-    if (seen.has(slotId)) continue;
-    seen.add(slotId);
-    const assetKind =
-      asReferenceAssetKind(record.asset_kind) ??
-      (targetType === "character" ? "character_portrait" : "generated_image");
-    const boundAsset = parseBoundAsset(record.bound_asset);
-    slots.push({
-      slotId,
-      label,
-      targetType,
-      targetName,
-      purpose: compactText(record.purpose),
-      required: typeof record.required === "boolean" ? record.required : true,
-      assetKind,
-      status: compactText(record.status) ?? (boundAsset ? "bound" : "missing"),
-      boundAsset,
-    });
-  }
-
-  for (const name of characterNames) {
-    const slotId = `character:${name}`;
-    if (seen.has(slotId)) continue;
-    slots.push({
-      slotId,
-      label: `${name}主立绘`,
-      targetType: "character",
-      targetName: name,
-      purpose: "保持角色外观一致",
-      required: true,
-      assetKind: "character_portrait",
-      status: "missing",
-      boundAsset: null,
-    });
-  }
-  return slots;
-};
-
-const buildLayoutItems = (panel: MangaPanel): LayoutSummaryItem[] => {
-  const layout = extractLayoutRecord(panel);
-  if (!layout) return [];
-
-  const fields: Array<[string, string]> = [
-    ["suggested_panel_count", "建议画格"],
-    ["panel_count", "版面块数"],
-    ["reading_order", "阅读动线"],
-    ["dominant_panel", "主视觉"],
-    ["composition_strategy", "构图策略"],
-    ["shot_rhythm", "镜头节奏"],
-    ["focal_path", "视线引导"],
-    ["tension_devices", "张力手段"],
-    ["text_layout", "文字排布"],
-    ["pacing", "页面节奏"],
-    ["role", "页面功能"],
-    ["page_importance", "重要度"],
-    ["notes", "规划备注"],
-  ];
-
-  return fields
-    .map(([key, label]) => {
-      const value = compactText(layout[key]);
-      return value ? { key, label, value } : null;
-    })
-    .filter((item): item is LayoutSummaryItem => item != null);
-};
-
-const pickPagePrompt = (items: MangaPanel[]): MangaPanel => {
-  return (
-    items.find((item) => item.prompt_type === "page_generation") ??
-    items.find((item) => item.panel_number === 0) ??
-    items[0]
+const pageCharacterNames = (panel: MangaPanel): string[] => {
+  return [...new Set(panel.page_plan.panels.flatMap((item) => item.participants))].sort((a, b) =>
+    a.localeCompare(b, "zh-Hans-CN"),
   );
 };
+
+const referenceBinding = (binding: MangaReferenceBinding): ReferenceBindingSlot => ({
+  slotId: binding.slot_id,
+  label: binding.label,
+  targetType: binding.target_type,
+  targetName: binding.target_name,
+  purpose: binding.purpose,
+  required: binding.required,
+  assetKind: binding.asset_kind,
+  status: binding.status,
+  boundAsset: binding.bound_asset,
+});
+
+const PAGE_ROLE_LABELS: Record<string, string> = {
+  opening: "开场",
+  setup: "铺垫",
+  rising: "推进",
+  climax: "高潮",
+  falling: "回落",
+  resolution: "收束",
+  transition: "转场",
+};
+
+const PAGE_PACING_LABELS: Record<string, string> = {
+  slow: "舒缓",
+  medium: "适中",
+  fast: "紧凑",
+  explosive: "爆发",
+};
+
+const PAGE_IMPORTANCE_LABELS: Record<string, string> = {
+  critical: "核心",
+  high: "重要",
+  normal: "常规",
+  low: "辅助",
+};
+
+const READING_FLOW_LABELS: Record<string, string> = {
+  top_to_bottom_left_to_right: "从上到下、从左到右",
+  z_path: "Z 形",
+  s_path: "S 形",
+  diagonal: "对角线",
+};
+
+const buildLayoutItems = (panel: MangaPanel): LayoutSummaryItem[] => [
+  {
+    key: "role",
+    label: "页面功能",
+    value: PAGE_ROLE_LABELS[panel.page_plan.role] ?? "其他",
+  },
+  {
+    key: "pacing",
+    label: "页面节奏",
+    value: PAGE_PACING_LABELS[panel.page_plan.pacing] ?? "其他",
+  },
+  {
+    key: "importance",
+    label: "重要度",
+    value: PAGE_IMPORTANCE_LABELS[panel.page_plan.importance] ?? "未标注",
+  },
+  {
+    key: "reading_flow",
+    label: "阅读动线",
+    value: READING_FLOW_LABELS[panel.page_plan.reading_flow] ?? "常规",
+  },
+  { key: "page_goal", label: "页面目标", value: panel.page_plan.page_goal },
+  { key: "visual_thesis", label: "视觉命题", value: panel.page_plan.visual_thesis },
+  { key: "entry_state", label: "进入状态", value: panel.page_plan.entry_state },
+  { key: "exit_state", label: "离开状态", value: panel.page_plan.exit_state },
+  {
+    key: "dominant_panel_number",
+    label: "主视觉格",
+    value: String(panel.page_plan.dominant_panel_number),
+  },
+  { key: "panel_count", label: "画格数", value: String(panel.page_plan.panels.length) },
+];
 
 export const buildPagePrompts = (
   panels: MangaPanel[],
   currentContentHash: string | null,
 ): MangaPagePrompt[] => {
-  const byPage = new Map<number, MangaPanel[]>();
-  for (const panel of panels) {
-    const pageNumber = Number.isFinite(panel.page_number) ? panel.page_number : 0;
-    if (pageNumber <= 0) continue;
-    const items = byPage.get(pageNumber) ?? [];
-    items.push(panel);
-    byPage.set(pageNumber, items);
-  }
-
-  return [...byPage.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([pageNumber, items]) => {
-      const sortedItems = [...items].sort((a, b) => {
-        if (a.prompt_type === "page_generation" && b.prompt_type !== "page_generation") {
-          return -1;
-        }
-        if (b.prompt_type === "page_generation" && a.prompt_type !== "page_generation") {
-          return 1;
-        }
-        return a.panel_number - b.panel_number;
-      });
-      const prompt = pickPagePrompt(sortedItems);
-      const source = extractMangaPanelSource(prompt.layout);
-      const characterNames = getPanelCharacters(prompt);
+  return [...panels]
+    .sort((a, b) => a.page_number - b.page_number)
+    .map((prompt) => {
+      const source = extractMangaPanelSource(prompt);
       return {
-        pageNumber,
+        pageNumber: prompt.page_number,
         prompt,
-        promptCount: sortedItems.length,
+        promptCount: 1 + prompt.page_plan.panels.length,
         source,
         sourceStale: isMangaPanelSourceStale(source, currentContentHash),
-        characterNames,
-        dialogueText: getPanelDialogue(prompt),
+        characterNames: pageCharacterNames(prompt),
+        dialogueText: prompt.dialogue_text,
         layoutItems: buildLayoutItems(prompt),
-        referenceBindings: parseReferenceBindings(prompt, characterNames),
+        referenceBindings: prompt.reference_bindings.map(referenceBinding),
       };
     });
 };
@@ -354,10 +199,10 @@ export const buildReferenceCandidates = (
         .join(" ");
       return {
         key: `character_portrait:${portrait.id}`,
-        assetKind: "character_portrait" as ReferenceAssetKind,
+        assetKind: "character_portrait" as MangaReferenceAssetKind,
         assetId: portrait.id,
         label: name,
-        subLabel: `立绘 #${portrait.id}${portrait.is_primary ? " · 主图" : ""}`,
+        subLabel: `${portrait.portrait_type || "角色立绘"}${portrait.is_primary ? " · 主图" : ""}`,
         imagePath: portrait.image_path,
         rank: candidateMatchRank(slot, text, portrait.is_primary ? 10 : 0),
       };
@@ -374,9 +219,9 @@ export const buildReferenceCandidates = (
       ].join(" ");
       return {
         key: `generated_image:${image.id}`,
-        assetKind: "generated_image" as ReferenceAssetKind,
+        assetKind: "generated_image" as MangaReferenceAssetKind,
         assetId: image.id,
-        label: `${image.image_type} #${image.id}`,
+        label: imageTypeLabel(image.image_type),
         subLabel: image.is_favorite ? "项目图片 · 收藏" : "项目图片",
         imagePath: image.file_path,
         rank: candidateMatchRank(slot, text, image.is_favorite ? 8 : 0),

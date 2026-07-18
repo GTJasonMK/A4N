@@ -51,9 +51,9 @@ import {
 import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import {
   hasSystemDefaultLlmApiKey,
+  usesLocalRuntimeSettings,
   usesSystemDefaultLlmConfig,
 } from "../../api/localRuntimeSettings";
-import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
 import { explainMangaPipelineAiConfigError } from "./manga/mangaPipelineErrors";
 
 interface MangaTabProps {
@@ -183,6 +183,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const selectedChapterIdRef = useRef<number | null>(fixedChapter?.id ?? null);
 
   const isSingleMode = hasFixedChapterContext;
+  const showChapterNavigation = !isSingleMode && chapters.length > 1;
   const characterAssetProjectId = assetProjectId ?? projectId;
   const imageSourceProjectIds = useMemo(
     () => (imageProjectIds?.length ? imageProjectIds : [projectId]),
@@ -530,12 +531,24 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       if (!isProjectCurrent(requestProjectId) || chapterLoadSeqRef.current !== requestSeq) return;
       const map: Record<number, PipelineStatus | null> = {};
       for (const [id, status] of entries) map[id] = status;
+      const previousChapterId = selectedChapterIdRef.current;
+      const nextSelectedChapter =
+        rows.find((row) => row.id === previousChapterId) ?? (rows.length === 1 ? rows[0] : null);
       setChapters(rows);
       setStatuses(map);
-      setSelectedChapter((current) => {
-        if (!current) return null;
-        return rows.find((row) => row.id === current.id) ?? null;
-      });
+      selectedChapterIdRef.current = nextSelectedChapter?.id ?? null;
+      setSelectedChapter(nextSelectedChapter);
+      if (nextSelectedChapter && nextSelectedChapter.id !== previousChapterId) {
+        resetRequestPreview();
+        setPanels([]);
+        setCurrentContentHash(null);
+        void loadPanels(nextSelectedChapter.id, requestProjectId).catch((err) =>
+          addToast(extractErrorMessage(err, "加载整页提示词失败"), "error"),
+        );
+      } else if (!nextSelectedChapter) {
+        setPanels([]);
+        setCurrentContentHash(null);
+      }
     } catch (err) {
       if (isProjectCurrent(requestProjectId) && chapterLoadSeqRef.current === requestSeq) {
         addToast(extractErrorMessage(err, "加载章节失败"), "error");
@@ -1010,16 +1023,31 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     );
   }
 
+  if (!isSingleMode && chapters.length === 0) {
+    return (
+      <div className="content-main">
+        <MangaChapterList
+          chapters={chapters}
+          statuses={statuses}
+          selectedChapter={selectedChapter}
+          onSelect={handleSelect}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={
         isSingleMode
           ? "h-full"
-          : "content-wide grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4"
+          : showChapterNavigation
+            ? "content-wide grid grid-cols-1 gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-4"
+            : "content-wide lg:h-full lg:min-h-0"
       }
     >
       {/* 章节列表（仅完整模式） */}
-      {!isSingleMode && (
+      {showChapterNavigation && (
         <MangaChapterList
           chapters={chapters}
           statuses={statuses}

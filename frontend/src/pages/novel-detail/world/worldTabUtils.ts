@@ -22,15 +22,20 @@ export const SYSTEM_KEYS = new Set([
   "metadata",
 ]);
 
+const SYSTEM_KEY_SEGMENT_RE = /(?:^|_)(?:hash|checksum|schema|version|id|ids|metadata|debug|trace)(?:_|$)/i;
+
+export const isSystemKey = (key: string): boolean =>
+  key.startsWith("_") || SYSTEM_KEYS.has(key) || SYSTEM_KEY_SEGMENT_RE.test(key);
+
 export const CORE_KEYS = ["core_rules"];
-export const PREMISE_KEYS = ["premise"];
-export const SYSTEM_KEYS_ORDER = ["technology_or_magic"];
-export const HISTORY_KEYS = ["history_timeline"];
-export const CULTURE_KEYS = ["culture_and_society"];
-export const CONFLICT_KEYS = ["conflict_sources"];
-export const MYSTERY_KEYS = ["mysteries_and_foreshadowing"];
+export const PREMISE_KEYS = ["premise", "overview"];
+export const SYSTEM_KEYS_ORDER = ["technology_or_magic", "power_system"];
+export const HISTORY_KEYS = ["history_timeline", "history"];
+export const CULTURE_KEYS = ["culture_and_society", "culture"];
+export const CONFLICT_KEYS = ["conflict_sources", "conflicts"];
+export const MYSTERY_KEYS = ["mysteries_and_foreshadowing", "mysteries"];
 export const PROMISE_KEYS = ["genre_promises"];
-export const LOCATION_KEYS = ["key_locations"];
+export const LOCATION_KEYS = ["key_locations", "locations"];
 export const FACTION_KEYS = ["factions"];
 
 const TITLE_KEYS = new Set(["name", "title", "mystery", "period"]);
@@ -39,22 +44,32 @@ const FIELD_LABELS: Record<string, string> = {
   premise: "世界前提",
   core_rules: "核心规则",
   technology_or_magic: "能力/机制体系",
+  power_system: "能力/机制体系",
+  name: "名称",
   source: "来源",
   rules: "规则",
   limits: "限制",
+  cost: "代价",
   costs: "代价",
   key_locations: "关键地点",
+  locations: "关键地点",
   factions: "主要阵营",
   history_timeline: "历史脉络",
+  history: "历史脉络",
   event: "事件",
   impact: "影响",
   conflict_sources: "冲突来源",
+  conflicts: "冲突来源",
   stakes: "失败代价",
   culture_and_society: "文化与社会",
+  culture: "文化与社会",
+  customs: "习俗",
+  taboo: "禁忌",
   values: "价值观",
   class_structure: "阶层结构",
   daily_life: "日常生活",
   mysteries_and_foreshadowing: "悬念与伏笔",
+  mysteries: "悬念与伏笔",
   early_clues: "早期线索",
   payoff_direction: "回收方向",
   genre_promises: "类型承诺",
@@ -62,6 +77,7 @@ const FIELD_LABELS: Record<string, string> = {
   agenda: "目标/诉求",
   representative_characters: "代表角色",
   description: "描述",
+  weather_cycle: "天气与潮汐",
 };
 
 export const isRecord = (value: unknown): value is WorldObject =>

@@ -14,8 +14,9 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { BookCard } from "../../components/ui/BookCard";
+import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { listenAppEvent, type UnlistenFn } from "../../api/runtime";
 import { listProfiles, type CharacterProfile } from "../../api/character";
 import {
@@ -45,8 +46,6 @@ interface RelationshipNode {
   name: string;
   profileId: number | null;
   degree: number;
-  sourceCount: number;
-  targetCount: number;
 }
 
 interface PositionedRelationshipNode extends RelationshipNode {
@@ -134,6 +133,7 @@ interface RelationshipNodePosition {
 }
 
 type RelationshipNodePositions = Record<string, RelationshipNodePosition>;
+type MobileRelationshipView = "graph" | "characters";
 
 const DEFAULT_CANVAS_SIZE: CanvasSize = { width: 720, height: 480 };
 const MIN_CANVAS_WIDTH = 360;
@@ -301,6 +301,8 @@ const CurrentRelationshipsCard: React.FC<{
   const nodePositionsRef = useRef<RelationshipNodePositions>({});
   const [canvasSize, setCanvasSize] = useState<CanvasSize>(DEFAULT_CANVAS_SIZE);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [mobileView, setMobileView] =
+    useState<MobileRelationshipView>("graph");
   const [hoverTarget, setHoverTarget] = useState<RelationshipGraphHit | null>(
     null,
   );
@@ -556,6 +558,7 @@ const CurrentRelationshipsCard: React.FC<{
     }
     if (hit.kind === "node") {
       setSelectedNodeId((current) => (current === hit.id ? null : hit.id));
+      setMobileView("characters");
       return;
     }
     const edge = layout.edges.find((item) => item.id === hit.id);
@@ -586,113 +589,115 @@ const CurrentRelationshipsCard: React.FC<{
     setHoverTarget(null);
   };
 
+  if (relationships.length === 0) {
+    return (
+      <div className="a4n-flat-surface p-5">
+        <EmptyHint text="角色档案中还没有社会关系。" />
+      </div>
+    );
+  }
+
   return (
-    <BookCard className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-book-border px-4 py-3">
-        <h3 className="text-sm font-serif text-book-text-main">
-          当前关系网{" "}
-          <span className="text-xs text-book-text-muted">
-            ({relationships.length})
-          </span>
-        </h3>
-        <div className="flex items-center gap-1.5 text-[11px] text-book-text-muted">
-          <span className="pyqt-pill !text-[10px]">
-            角色 {layout.nodes.length}
-          </span>
-          <span className="pyqt-pill !text-[10px]">
-            关系 {layout.edges.length}
-          </span>
-          {fixedNodeCount > 0 ? (
-            <span
-              className="pyqt-pill !text-[10px]"
-              title="已手动固定位置的节点数"
-            >
-              固定 {fixedNodeCount}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
-            onClick={resetNodeLayout}
-            disabled={fixedNodeCount === 0}
-            aria-label="重置节点布局"
-            title="重置节点布局"
-          >
-            <RefreshCcw size={13} />
-          </button>
-          <button
-            type="button"
-            className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
-            onClick={() => adjustViewportScale(-0.16)}
-            disabled={viewport.scale <= MIN_GRAPH_SCALE}
-            aria-label="缩小关系图"
-            title="缩小关系图"
-          >
-            <ZoomOut size={13} />
-          </button>
-          <button
-            type="button"
-            className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
-            onClick={() => adjustViewportScale(0.16)}
-            disabled={viewport.scale >= MAX_GRAPH_SCALE}
-            aria-label="放大关系图"
-            title="放大关系图"
-          >
-            <ZoomIn size={13} />
-          </button>
-          <button
-            type="button"
-            className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
-            onClick={() => setViewport(DEFAULT_GRAPH_VIEWPORT)}
-            disabled={
-              viewport.scale === 1 &&
-              viewport.offsetX === 0 &&
-              viewport.offsetY === 0
-            }
-            aria-label="重置关系图视图"
-            title="重置关系图视图"
-          >
-            <RotateCcw size={13} />
-          </button>
+    <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden p-0 lg:flex-1">
+      <div className="flex min-h-12 items-center border-b border-book-border/60 bg-book-bg-paper px-3 py-2">
+        <div className="w-full lg:hidden">
+          <SegmentedControl
+            ariaLabel="关系页视图"
+            value={mobileView}
+            onChange={setMobileView}
+            options={[
+              { id: "graph", label: "关系图" },
+              { id: "characters", label: "角色列表" },
+            ]}
+          />
+        </div>
+        <div className="hidden min-w-0 items-baseline gap-2 lg:flex">
+          <div className="text-[13px] font-semibold text-book-text-main">
+            关系图
+          </div>
+          <div className="text-[11px] text-book-text-muted">
+            {layout.nodes.length} 位角色 · {layout.edges.length} 条关系
+          </div>
         </div>
       </div>
 
-      {relationships.length === 0 ? (
-        <div className="p-5">
-          <EmptyHint text="角色档案暂无社会关系。" />
-        </div>
-      ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div
-            ref={canvasHostRef}
-            className="relative h-[360px] min-h-0 min-w-0 bg-book-bg sm:h-[420px] lg:h-auto"
-          >
-            <canvas
-              ref={canvasRef}
-              className="block h-full w-full"
-              aria-label="当前角色关系网"
-              title="拖动节点可固定位置，拖动画布可平移，点击关系查看详情"
-              onClick={handleCanvasClick}
-              onPointerDown={handlePointerDown}
-              onPointerLeave={handlePointerLeave}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerCancel}
-            />
+      <div className="grid min-h-0 grid-cols-1 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_288px]">
+        <div
+          ref={canvasHostRef}
+          className={`${mobileView === "graph" ? "block" : "hidden"} relative h-[360px] min-h-0 min-w-0 bg-book-bg sm:h-[420px] lg:block lg:h-auto`}
+        >
+          <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-xl border border-book-border/65 bg-book-bg-paper/90 p-1 shadow-[var(--shadow-overlay)] backdrop-blur-xl">
+            <button
+              type="button"
+              className="pyqt-btn-icon !h-10 !w-10 !rounded-lg sm:!h-8 sm:!w-8"
+              onClick={() => adjustViewportScale(-0.16)}
+              disabled={viewport.scale <= MIN_GRAPH_SCALE}
+              aria-label="缩小关系图"
+              title="缩小关系图"
+            >
+              <ZoomOut size={13} />
+            </button>
+            <button
+              type="button"
+              className="pyqt-btn-icon !h-10 !w-10 !rounded-lg sm:!h-8 sm:!w-8"
+              onClick={() => adjustViewportScale(0.16)}
+              disabled={viewport.scale >= MAX_GRAPH_SCALE}
+              aria-label="放大关系图"
+              title="放大关系图"
+            >
+              <ZoomIn size={13} />
+            </button>
+            {viewport.scale !== 1 ||
+            viewport.offsetX !== 0 ||
+            viewport.offsetY !== 0 ? (
+              <button
+                type="button"
+                className="pyqt-btn-icon !h-10 !w-10 !rounded-lg sm:!h-8 sm:!w-8"
+                onClick={() => setViewport(DEFAULT_GRAPH_VIEWPORT)}
+                aria-label="还原关系图视图"
+                title="还原关系图视图"
+              >
+                <RotateCcw size={13} />
+              </button>
+            ) : null}
+            {fixedNodeCount > 0 ? (
+              <Dropdown
+                items={[
+                  {
+                    label: "恢复自动布局",
+                    icon: <RefreshCcw size={13} />,
+                    onClick: resetNodeLayout,
+                  },
+                ]}
+              />
+            ) : null}
           </div>
-
-          <RelationshipGraphPanel
-            graph={layout}
-            hoveredRelationship={hoveredRelationship}
-            selectedNode={selectedNode}
-            selectedRelationships={selectedRelationships}
-            selectedNodeId={selectedNodeId}
-            onSelectNode={(nodeId) => setSelectedNodeId(nodeId)}
-            onOpen={onOpen}
+          <canvas
+            ref={canvasRef}
+            className="block h-full w-full"
+            aria-label="当前角色关系网"
+            title="拖动节点可固定位置，拖动画布可平移，点击关系查看详情"
+            onClick={handleCanvasClick}
+            onPointerDown={handlePointerDown}
+            onPointerLeave={handlePointerLeave}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
           />
         </div>
-      )}
-    </BookCard>
+
+        <RelationshipGraphPanel
+          graph={layout}
+          hoveredRelationship={hoveredRelationship}
+          selectedNode={selectedNode}
+          selectedRelationships={selectedRelationships}
+          selectedNodeId={selectedNodeId}
+          mobileVisible={mobileView === "characters"}
+          onSelectNode={(nodeId) => setSelectedNodeId(nodeId)}
+          onOpen={onOpen}
+        />
+      </div>
+    </section>
   );
 };
 
@@ -702,6 +707,7 @@ const RelationshipGraphPanel: React.FC<{
   selectedNode: PositionedRelationshipNode | null;
   selectedRelationships: CurrentRelationship[];
   selectedNodeId: string | null;
+  mobileVisible: boolean;
   onSelectNode: (nodeId: string | null) => void;
   onOpen: (relationship: CurrentRelationship) => void;
 }> = ({
@@ -710,33 +716,34 @@ const RelationshipGraphPanel: React.FC<{
   selectedNode,
   selectedRelationships,
   selectedNodeId,
+  mobileVisible,
   onSelectNode,
   onOpen,
 }) => {
-  const prominentNodes = [...graph.nodes]
-    .sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name))
-    .slice(0, 8);
+  const prominentNodes = [...graph.nodes].sort(
+    (a, b) => b.degree - a.degree || a.name.localeCompare(b.name),
+  );
 
   return (
-    <aside className="min-h-0 min-w-0 overflow-y-auto border-t border-book-border bg-book-bg-paper px-3 py-3 custom-scrollbar lg:border-l lg:border-t-0">
+    <aside
+      className={`${mobileVisible ? "block" : "hidden"} h-[440px] min-h-0 min-w-0 overflow-y-auto border-t border-book-border bg-book-bg-paper custom-scrollbar sm:h-[520px] lg:block lg:h-auto lg:border-l lg:border-t-0`}
+    >
       {hoveredRelationship ? (
-        <section className="rounded-sm border border-book-primary/45 bg-book-bg px-2.5 py-2.5">
-          <div className="mb-1.5 flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-book-text-main">
+        <section className="border-b border-book-primary/15 bg-book-primary/5 px-4 py-3">
+          <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-book-text-main">
             <span className="truncate">{hoveredRelationship.character_a}</span>
             <span className="text-book-primary">→</span>
             <span className="truncate">{hoveredRelationship.character_b}</span>
           </div>
-          <div className="line-clamp-3 text-[10px] leading-relaxed text-book-text-muted">
+          <div className="line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
             {hoveredRelationship.description}
           </div>
         </section>
       ) : null}
 
       {selectedNode ? (
-        <section
-          className={`${hoveredRelationship ? "mt-3 " : ""}rounded-sm border border-book-border bg-book-bg px-2.5 py-2.5`}
-        >
-          <div className="flex items-start gap-2">
+        <section className="border-b border-book-border/70">
+          <div className="flex items-center gap-2.5 px-4 py-3.5">
             <InitialBadge value={selectedNode.name} />
             <div className="min-w-0 flex-1">
               <div
@@ -746,19 +753,18 @@ const RelationshipGraphPanel: React.FC<{
                 {selectedNode.name}
               </div>
               <div className="mt-0.5 text-[11px] text-book-text-muted">
-                关联 {selectedNode.degree} 条 · 发出 {selectedNode.sourceCount}{" "}
-                · 接收 {selectedNode.targetCount}
+                共 {selectedNode.degree} 条关系
               </div>
             </div>
           </div>
 
-          <div className="mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1 custom-scrollbar">
+          <div className="grid gap-1.5 border-t border-book-border/55 p-2">
             {selectedRelationships.map((relationship) => (
               <button
                 key={relationship.id}
                 type="button"
                 onClick={() => onOpen(relationship)}
-                className="block w-full rounded-sm border border-book-border bg-book-bg-paper px-2 py-1.5 text-left transition hover:border-book-primary/60 hover:bg-book-bg-tertiary/40"
+                className="block w-full rounded-xl border border-book-border/40 bg-book-bg-paper/45 px-3 py-2.5 text-left transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/55 focus-visible:border-book-primary/45 focus-visible:outline-none"
                 title="查看关系详情"
               >
                 <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-book-text-main">
@@ -766,7 +772,7 @@ const RelationshipGraphPanel: React.FC<{
                   <span className="text-book-primary">→</span>
                   <span className="truncate">{relationship.character_b}</span>
                 </div>
-                <div className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-book-text-muted">
+                <div className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
                   {relationship.description}
                 </div>
               </button>
@@ -775,13 +781,11 @@ const RelationshipGraphPanel: React.FC<{
         </section>
       ) : null}
 
-      <section
-        className={`${selectedNode || hoveredRelationship ? "mt-3 " : ""}rounded-sm border border-book-border bg-book-bg px-2.5 py-2.5`}
-      >
-        <div className="mb-1.5 text-[11px] font-semibold text-book-text-main">
-          核心角色
+      <section className="px-2 py-3">
+        <div className="mb-1 px-2 text-[11px] font-semibold text-book-text-main">
+          全部角色
         </div>
-        <div className="grid gap-1">
+        <div className="grid gap-1.5">
           {prominentNodes.map((node) => {
             const selected = node.id === selectedNodeId;
             return (
@@ -789,18 +793,22 @@ const RelationshipGraphPanel: React.FC<{
                 key={node.id}
                 type="button"
                 onClick={() => onSelectNode(selected ? null : node.id)}
-                className={`flex min-w-0 items-center justify-between gap-2 rounded-sm border px-2 py-1.5 text-left transition ${
+                aria-pressed={selected}
+                className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-2 py-2 text-left transition-colors ${
                   selected
-                    ? "border-book-primary bg-book-bg-paper text-book-text-main"
-                    : "border-book-border/70 bg-book-bg-paper/70 text-book-text-muted hover:border-book-primary/50 hover:text-book-primary"
+                    ? "border-book-primary/50 bg-book-primary/10 text-book-primary"
+                    : "border-book-border/35 bg-book-bg-paper/40 text-book-text-muted hover:border-book-primary/30 hover:bg-book-bg-tertiary/65 hover:text-book-text-main"
                 }`}
                 title={node.name}
               >
-                <span className="min-w-0 truncate text-[11px] font-semibold">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-book-bg-tertiary text-[10px] font-semibold text-book-text-muted">
+                  {initialOf(node.name)}
+                </span>
+                <span className="min-w-0 truncate text-xs font-medium">
                   {node.name}
                 </span>
-                <span className="shrink-0 rounded-sm border border-book-border bg-book-bg px-1.5 py-0.5 font-mono text-[10px]">
-                  {node.degree}
+                <span className="shrink-0 text-[10px] text-book-text-muted">
+                  {node.degree} 条
                 </span>
               </button>
             );
@@ -812,7 +820,7 @@ const RelationshipGraphPanel: React.FC<{
 };
 
 const InitialBadge: React.FC<{ value: string }> = ({ value }) => (
-  <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-sm border border-book-primary/30 bg-book-primary/10 text-xs font-bold text-book-primary font-serif">
+  <div className="flex h-9 w-9 shrink-0 select-none items-center justify-center rounded-full bg-book-primary/10 text-xs font-semibold text-book-primary">
     {initialOf(value)}
   </div>
 );
@@ -862,8 +870,6 @@ function buildRelationshipGraph(
       name: name.trim(),
       profileId,
       degree: 0,
-      sourceCount: 0,
-      targetCount: 0,
     };
     nodeById.set(id, node);
     relationshipsByNodeId.set(id, []);
@@ -874,9 +880,7 @@ function buildRelationshipGraph(
     const from = ensureNode(relationship.character_a, relationship.profile_id);
     const to = ensureNode(relationship.character_b, null);
     from.degree += 1;
-    from.sourceCount += 1;
     to.degree += 1;
-    to.targetCount += 1;
     relationshipsByNodeId.get(from.id)?.push(relationship);
     if (from.id !== to.id) {
       relationshipsByNodeId.get(to.id)?.push(relationship);

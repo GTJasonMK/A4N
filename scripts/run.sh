@@ -6,7 +6,7 @@
 #   ./scripts/run.sh                 # 开发模式（精细热重载）：
 #                                    #   - Vite HMR 永不重启（前端 session 保留）
 #                                    #   - cargo-watch 监视 Rust，改动后只重启二进制
-#   ./scripts/dev/run-no-hot.sh      # 非热重载入口（Tauri --no-watch + Vite HMR off）
+#   ./scripts/dev/run-no-hot.sh      # 静态前端入口（先构建 dist，不启动 Vite/watch）
 #   ./scripts/run.sh --no-hot        # 同 ./scripts/dev/run-no-hot.sh
 #   ./scripts/run.sh --no-reload     # 同 --no-hot
 #   ./scripts/run.sh --release       # Release 模式运行
@@ -14,6 +14,8 @@
 #   ./scripts/run.sh --frontend      # 仅启动前端开发服务器（Vite HMR）
 #   ./scripts/run.sh --remote-api    # 本地 Tauri 前端连接线上 A4N 后端
 #   ./scripts/run.sh --remote-api-url http://host/a4n/api
+#   ./scripts/run.sh --full          # 使用 embedded/full host（会编译重 provider）
+#   ./scripts/run.sh --no-services   # sidecar profile 下不自动启动 sidecar
 #   ./scripts/run.sh --migrate       # 仅运行数据库迁移
 #   ./scripts/run.sh --check         # 检查运行环境
 #   ./scripts/run.sh --help          # 显示帮助
@@ -55,6 +57,19 @@ FRONTEND_ONLY=false
 HOT_RELOAD=true  # 默认开启精细热重载
 REMOTE_API=false
 REMOTE_API_URL="${A4N_REMOTE_API_URL:-http://111.230.45.185/a4n/api}"
+FULL_HOST=false
+AUTO_START_SIDECARS=true
+SIDECAR_MODULES="prompt,llm,embedding,rag,image,video,import,export"
+HOST_CARGO_RUN_ARGS=()
+if [[ -n "${A4N_HOST_CARGO_RUN_ARGS:-}" ]]; then
+    # shellcheck disable=SC2206
+    HOST_CARGO_RUN_ARGS=(${A4N_HOST_CARGO_RUN_ARGS})
+fi
+TAURI_DEV_ARGS=()
+if [[ -n "${A4N_TAURI_DEV_ARGS:-}" ]]; then
+    # shellcheck disable=SC2206
+    TAURI_DEV_ARGS=(${A4N_TAURI_DEV_ARGS})
+fi
 
 # —— 标记：trap 是否已注册 ——
 TRAP_REGISTERED=false
@@ -87,6 +102,14 @@ while [[ $# -gt 0 ]]; do
             REMOTE_API_URL="$2"
             shift 2
             ;;
+        --full|--embedded)
+            FULL_HOST=true
+            shift
+            ;;
+        --no-services)
+            AUTO_START_SIDECARS=false
+            shift
+            ;;
         --migrate|-m)
             RUN_MIGRATE_ONLY=true
             shift
@@ -100,7 +123,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            print_script_usage "$0" 19
+            print_script_usage "$0" 21
             exit 0
             ;;
         *)
@@ -108,6 +131,44 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+reload_cargo_args_from_env() {
+    HOST_CARGO_RUN_ARGS=()
+    if [[ -n "${A4N_HOST_CARGO_RUN_ARGS:-}" ]]; then
+        # shellcheck disable=SC2206
+        HOST_CARGO_RUN_ARGS=(${A4N_HOST_CARGO_RUN_ARGS})
+    fi
+    TAURI_DEV_ARGS=()
+    if [[ -n "${A4N_TAURI_DEV_ARGS:-}" ]]; then
+        # shellcheck disable=SC2206
+        TAURI_DEV_ARGS=(${A4N_TAURI_DEV_ARGS})
+    fi
+}
+
+configure_runtime_profile() {
+    local profile
+    if $FULL_HOST; then
+        profile="full"
+        export A4N_HOST_CARGO_RUN_ARGS="${A4N_HOST_CARGO_RUN_ARGS:---features embedded-capabilities}"
+        export A4N_TAURI_DEV_ARGS="${A4N_TAURI_DEV_ARGS:---features embedded-capabilities}"
+    else
+        profile="${A4N_RUNTIME_PROFILE:-sidecar}"
+    fi
+    export A4N_RUNTIME_PROFILE="$profile"
+
+    case "${profile,,}" in
+        sidecar|minimal)
+            export A4N_HOST_CARGO_RUN_ARGS="${A4N_HOST_CARGO_RUN_ARGS:---no-default-features}"
+            export A4N_TAURI_DEV_ARGS="${A4N_TAURI_DEV_ARGS:---no-default-features}"
+            ;;
+    esac
+
+    reload_cargo_args_from_env
+}
+
+runtime_uses_sidecars() {
+    [[ "${A4N_RUNTIME_PROFILE,,}" == "sidecar" ]]
+}
 
 # ========== 进程清理与资源回收 ==========
 
@@ -156,6 +217,20 @@ configure_frontend_api_transport() {
         echo -e "  ${YELLOW}提示: Tauri 只作为本地桌面壳启动，业务数据和生成请求连接远程后端${NC}"
         echo ""
         return
+    fi
+
+    # no-hot 使用 Tauri CLI 的静态开发服务器，但不会启动 Vite 或 watcher。
+    if [[ "$RUN_MODE" == "dev" ]] && ! $HOT_RELOAD; then
+        if cargo tauri --version &>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} cargo-tauri $(cargo tauri --version 2>/dev/null || echo 'v2')"
+        else
+            echo -e "  ${YELLOW}⚠${NC} Tauri CLI 未安装，正在自动安装..."
+            cargo install tauri-cli --version "^2" 2>&1 || {
+                echo -e "${RED}✗ Tauri CLI 安装失败，请手动执行: cargo install tauri-cli${NC}"
+                exit 1
+            }
+            echo -e "  ${GREEN}✓${NC} Tauri CLI 安装完成"
+        fi
     fi
 
     if [[ -n "${VITE_A4N_API_TRANSPORT:-}" || -n "${VITE_A4N_API_BASE_URL:-}" ]]; then
@@ -422,18 +497,6 @@ check_environment() {
         check_database_reachable "$database_url" || exit 1
     fi
 
-    # Tauri CLI
-    if cargo tauri --version &>/dev/null; then
-        echo -e "  ${GREEN}✓${NC} cargo-tauri $(cargo tauri --version 2>/dev/null || echo 'v2')"
-    else
-        echo -e "  ${YELLOW}⚠${NC} Tauri CLI 未安装，正在自动安装..."
-        cargo install tauri-cli --version "^2" 2>&1 || {
-            echo -e "${RED}✗ Tauri CLI 安装失败，请手动执行: cargo install tauri-cli${NC}"
-            exit 1
-        }
-        echo -e "  ${GREEN}✓${NC} Tauri CLI 安装完成"
-    fi
-
     # cargo-watch（精细热重载需要）
     if [[ "$RUN_MODE" == "dev" ]] && $HOT_RELOAD; then
         # 通过 cargo subcommand 探测（不依赖 PATH）
@@ -560,6 +623,19 @@ run_migration() {
     echo ""
 }
 
+start_dev_sidecars() {
+    if ! runtime_uses_sidecars || ! $AUTO_START_SIDECARS || $REMOTE_API; then
+        return
+    fi
+
+    echo -e "${CYAN}━━━ 启动 Sidecar 服务 ━━━${NC}"
+    echo -e "  profile: ${CYAN}${A4N_RUNTIME_PROFILE}${NC}"
+    echo -e "  services: ${CYAN}${SIDECAR_MODULES}${NC}"
+    echo ""
+    "$PROJECT_ROOT/scripts/dev/run-services.sh" "$SIDECAR_MODULES"
+    echo ""
+}
+
 # —— 查找可用端口（从起始端口递增） ——
 find_available_port() {
     local port=$1
@@ -654,32 +730,38 @@ launch_app() {
                 cd "$FRONTEND_DIR" && npm run build 2>&1
                 cd "$PROJECT_ROOT"
             fi
-            HEADLESS=1 cargo run --bin a4n-tauri 2>&1
+            HEADLESS=1 cargo run "${HOST_CARGO_RUN_ARGS[@]}" --bin a4n-tauri 2>&1
             ;;
     esac
 }
 
-# —— 非热重载模式（Tauri dev --no-watch + Vite HMR off） ——
+# —— 非热重载模式（静态 dist + 单次 cargo run，不启动任何 watcher） ——
 launch_app_classic() {
-    local actual_port
-    actual_port=$(find_available_port "$DEFAULT_VITE_PORT")
-    if [[ "$actual_port" != "$DEFAULT_VITE_PORT" ]]; then
-        echo -e "  ${YELLOW}⚠${NC} 端口 ${DEFAULT_VITE_PORT} 被占用，使用端口 ${actual_port}"
-        export VITE_PORT="$actual_port"
-        export TAURI_DEV_URL="http://localhost:${actual_port}"
-    fi
-
-    export A4N_DISABLE_VITE_HMR=1
-
-    echo -e "  模式: ${CYAN}Tauri dev --no-watch（不热重载）${NC}"
-    echo -e "  ${YELLOW}提示: 首次运行可能需要几分钟编译 Rust 代码${NC}"
-    echo -e "  ${YELLOW}提示: Tauri watcher 已关闭，Rust 代码改动需 Ctrl+C 重启脚本${NC}"
-    echo -e "  ${YELLOW}提示: Vite HMR 已关闭，前端代码改动需刷新/重启后查看${NC}"
-    echo -e "  前端: ${CYAN}http://localhost:${actual_port}${NC}"
+    echo -e "  模式: ${CYAN}静态前端 + 单次 Tauri 运行（完全无热更新）${NC}"
+    echo -e "  ${YELLOW}提示: 启动时会构建一次 frontend/dist${NC}"
+    echo -e "  ${YELLOW}提示: 前端或 Rust 代码改动后都必须 Ctrl+C 并重新启动${NC}"
     echo ""
 
     ensure_runtime_dirs
-    cargo tauri dev --no-watch 2>&1 &
+
+    # 默认配置的 beforeDevCommand 会启动 Vite。no-hot 配置显式清除 devUrl 和
+    # beforeDevCommand，使 Tauri 只提供本次构建的 dist 静态文件。
+    echo -e "  ${CYAN}→${NC} 构建静态前端资源..."
+    (
+        cd "$FRONTEND_DIR"
+        npm run build
+    )
+    echo -e "  ${GREEN}✓${NC} 前端静态资源已构建"
+    echo ""
+
+    unset A4N_DISABLE_VITE_HMR VITE_PORT TAURI_DEV_URL
+    local no_hot_config="$PROJECT_ROOT/crates/a4n-tauri/tauri.no-hot.conf.json"
+    local tauri_command=(cargo tauri dev --no-watch --config "$no_hot_config")
+    if [[ ${#TAURI_DEV_ARGS[@]} -gt 0 ]]; then
+        tauri_command+=(-- "${TAURI_DEV_ARGS[@]}")
+    fi
+    echo -e "  ${CYAN}→${NC} 启动 Tauri 静态服务器（无 Vite、无 cargo-watch、无 Tauri watcher）..."
+    "${tauri_command[@]}" 2>&1 &
     local tauri_pid=$!
     echo "$tauri_pid" > "$TAURI_PID_FILE"
     wait "$tauri_pid" 2>/dev/null || true
@@ -742,7 +824,7 @@ launch_app_hot() {
         -i "**/tests/**" \
         -i "**/target/**" \
         -i "crates/a4n-migration/**" \
-        -s "cargo run --bin a4n-tauri 2>&1" 2>&1 &
+        -s "cargo run ${A4N_HOST_CARGO_RUN_ARGS:-} --bin a4n-tauri 2>&1" 2>&1 &
     local watch_pid=$!
     ensure_runtime_dirs
     echo "$watch_pid" > "$CARGO_WATCH_PID_FILE"
@@ -757,6 +839,7 @@ echo -e "${BOLD}${CYAN}║     A4N 项目运行脚本             ║${NC}"
 echo -e "${BOLD}${CYAN}╚══════════════════════════════════╝${NC}"
 echo ""
 
+configure_runtime_profile
 configure_frontend_api_transport
 
 if $CHECK_ONLY; then
@@ -785,6 +868,8 @@ if $FRONTEND_ONLY; then
     exit 0
 fi
 
+guard_build_cache
+
 if $RUN_MIGRATE_ONLY; then
     run_migration
     echo -e "${GREEN}${BOLD}数据库迁移完成${NC}"
@@ -797,4 +882,5 @@ if $REMOTE_API; then
 else
     run_migration
 fi
+start_dev_sidecars
 launch_app

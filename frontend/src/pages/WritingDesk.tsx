@@ -107,10 +107,10 @@ export const WritingDesk: React.FC = () => {
     finishRightPanelResize,
   } = useRightPanelLayout(rightPanel);
   const [bottomTab, setBottomTab] = useState<BottomTab>("content");
-  // 旧 AI 助手 aside 直接对应"正文优化"模式
+  // 写作助手面板沿用 optimize 路由状态，内部可在生成与优化之间切换。
   const assistantOpen = rightPanel === "optimize";
   const rightPanelAvailable = bottomTab === "content";
-  const rightPanelUnavailableTip = "只有当前页面在“正文”时才能打开 RAG 查询或正文优化";
+  const rightPanelUnavailableTip = "只有当前页面在“正文”时才能打开资料检索或正文优化";
   // 章节场景管理对话框（对应 A4N 后端 chapter_scene 子结构）
   const [scenesOpen, setScenesOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
@@ -524,7 +524,7 @@ export const WritingDesk: React.FC = () => {
       if (dirtyRef.current) {
         saveLocalDraftForCurrent();
         addToast(
-          "Agent 已写回章节正文；当前编辑器有未保存修改，未自动覆盖。",
+          "内容优化已写回章节正文；当前编辑器有未保存修改，未自动覆盖。",
           "info",
         );
         return;
@@ -698,10 +698,6 @@ export const WritingDesk: React.FC = () => {
     void safeSelectChapter(nextChapterNumber);
   };
   const handleToggleLeftSidebar = () => {
-    if (isMobileLayout) {
-      addToast("移动端已隐藏章节侧栏，可用上一章/下一章切换", "info");
-      return;
-    }
     setLeftSidebarVisible((visible) => !visible);
   };
 
@@ -724,7 +720,6 @@ export const WritingDesk: React.FC = () => {
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
       {project && outlines.length === 0 && chapters.length === 0 && (
         <MissingOutlineBanner
-          project={project}
           onOpenProjectDetail={() => safeNavigateTo(`/novel/${projectId}`)}
         />
       )}
@@ -732,6 +727,7 @@ export const WritingDesk: React.FC = () => {
       <WritingDeskHeader
         project={project}
         activeNumber={activeNumber}
+        isMobileLayout={isMobileLayout}
         canGoPrev={previousChapterNumber != null}
         canGoNext={nextChapterNumber != null}
         leftSidebarVisible={!isMobileLayout && leftSidebarVisible}
@@ -746,6 +742,7 @@ export const WritingDesk: React.FC = () => {
         onPrev={handlePrev}
         onNext={handleNext}
         onToggleLeftSidebar={handleToggleLeftSidebar}
+        onOpenProfiles={() => setProfilesOpen(true)}
         onRightPanelChange={handleRightPanelChange}
         onSaveContent={handleSaveContent}
       />
@@ -797,6 +794,7 @@ export const WritingDesk: React.FC = () => {
           onPreviewGenerateAnalysis={handlePreviewAnalysisRequest}
           onResumeAnalysisSync={handleResumeAnalysisSync}
           onPreviewResumeAnalysisSync={handlePreviewResumeAnalysisSyncRequest}
+          canEdit={project != null && canEditWritingProject(project)}
         />
 
         {!isMobileLayout && rightPanel !== "none" && (
@@ -827,7 +825,6 @@ export const WritingDesk: React.FC = () => {
             activeNumber={activeNumber}
             activeChapter={activeChapter}
             activeChapterBusy={activeChapterBusy}
-            activeChapterGeneratingMessage={activeChapterGeneratingMessage}
             canGenerateChapter={canGenerateChapter}
             generationBlockReason={generationBlockReason}
             streamTaskId={streamTaskId}
@@ -835,7 +832,6 @@ export const WritingDesk: React.FC = () => {
             streamMessage={streamMessage}
             resetBusy={resetGeneratedDataBusy}
             canResetGeneratedData={canResetGeneratedData}
-            resetDisabledReason={resetGeneratedDataDisabledReason}
             previewing={previewing}
             chapters={chapters}
             outlines={outlines}
@@ -857,14 +853,19 @@ export const WritingDesk: React.FC = () => {
         <Modal
           isOpen
           onClose={() => setRightPanel("none")}
-          title={rightPanel === "rag" ? "RAG 查询" : "正文优化"}
+          title={rightPanel === "rag" ? "资料检索" : "写作助手"}
           maxWidthClassName="max-w-3xl"
           bodyClassName="min-h-0 flex-1 overflow-hidden p-0"
         >
           {rightPanel === "rag" ? (
-            <RagQueryPanel projectId={projectId} chapterNumber={activeNumber} />
+            <RagQueryPanel
+              projectId={projectId}
+              chapterNumber={activeNumber}
+              embeddedInModal
+            />
           ) : (
             <WritingAssistantPanel
+              embeddedInModal
               projectId={projectId}
               writingNotes={writingNotes}
               minWordCount={minWordCount}
@@ -873,7 +874,6 @@ export const WritingDesk: React.FC = () => {
               activeNumber={activeNumber}
               activeChapter={activeChapter}
               activeChapterBusy={activeChapterBusy}
-              activeChapterGeneratingMessage={activeChapterGeneratingMessage}
               canGenerateChapter={canGenerateChapter}
               generationBlockReason={generationBlockReason}
               streamTaskId={streamTaskId}
@@ -881,7 +881,6 @@ export const WritingDesk: React.FC = () => {
               streamMessage={streamMessage}
               resetBusy={resetGeneratedDataBusy}
               canResetGeneratedData={canResetGeneratedData}
-              resetDisabledReason={resetGeneratedDataDisabledReason}
               previewing={previewing}
               chapters={chapters}
               outlines={outlines}

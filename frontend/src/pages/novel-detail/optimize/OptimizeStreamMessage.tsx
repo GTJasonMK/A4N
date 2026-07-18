@@ -20,10 +20,7 @@ export function StreamMessage({ item }: { item: StreamItem }) {
     ? currentBehavior.title
     : item.title ?? kindLabel(item.kind);
   const content = isProcessItem ? currentBehavior.detail : item.content;
-  const contentClassName =
-    item.activity === "llm_response" && item.status === "running"
-      ? "custom-scrollbar max-h-72 overflow-y-auto whitespace-pre-wrap break-words pr-1"
-      : "whitespace-pre-wrap break-words";
+  const contentClassName = "whitespace-pre-wrap break-words";
   const processSteps = visibleProcessSteps(item.steps, isProcessItem, currentStep);
   const showTimeline = item.kind !== "user" && (processSteps.length > 0 || isLiveModelItem(item));
   const showHeader = !showTimeline;
@@ -37,8 +34,8 @@ export function StreamMessage({ item }: { item: StreamItem }) {
     >
       {item.kind !== "user" ? <StreamIcon kind={item.kind} status={item.status} /> : null}
       <div
-        className={`min-w-0 max-w-full overflow-hidden rounded border px-2.5 py-2 text-xs leading-relaxed ${
-          item.kind === "user" ? "justify-self-end" : ""
+        className={`min-w-0 max-w-[96%] overflow-hidden rounded-2xl border px-3 py-2.5 text-xs leading-relaxed ${
+          item.kind === "user" ? "max-w-[90%] justify-self-end rounded-br-md" : "rounded-bl-md"
         } ${
           itemClassName(item.kind)
         }`}
@@ -47,7 +44,7 @@ export function StreamMessage({ item }: { item: StreamItem }) {
           <div className="mb-1 flex min-w-0 flex-wrap items-center gap-2">
             <span className="min-w-0 break-words font-semibold">{title}</span>
             {meta ? (
-              <span className="min-w-0 break-all font-mono text-[10px] opacity-70">
+              <span className="min-w-0 break-all font-mono text-[11px] opacity-70">
                 {meta}
               </span>
             ) : null}
@@ -63,11 +60,11 @@ export function StreamMessage({ item }: { item: StreamItem }) {
           <MarkdownText className={contentClassName} text={content} />
         )}
         {item.detail && !item.steps?.length ? (
-          <details className="mt-2 min-w-0 overflow-hidden rounded border border-book-border/70 bg-book-bg-paper/60">
+          <details className="mt-2 min-w-0 overflow-hidden rounded-xl border border-book-border/70 bg-book-bg-paper/60">
             <summary className="cursor-pointer select-none px-2 py-1 text-[11px] font-semibold text-book-text-sub hover:text-book-text-main">
               {item.detailLabel ?? "查看详情"}
             </summary>
-            <pre className="custom-scrollbar max-h-72 overflow-auto whitespace-pre-wrap break-words border-t border-book-border/70 px-2 py-2 font-mono text-[10px] leading-relaxed text-book-text-sub">
+            <pre className="whitespace-pre-wrap break-words border-t border-book-border/70 px-2 py-2 font-mono text-[11px] leading-relaxed text-book-text-sub">
               {item.detail}
             </pre>
           </details>
@@ -291,7 +288,7 @@ function ToolBox({ row }: { row: TimelineRow }) {
     ? "bg-success"
     : "bg-error";
   return (
-    <div className="min-w-0 overflow-hidden rounded border border-book-border/70 bg-book-bg-tertiary/35 px-2 py-1.5">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-book-border/70 bg-book-bg-tertiary/35 px-2.5 py-2">
       <div className="flex min-w-0 items-start gap-1.5">
         <span className={`mt-1 h-2 w-2 shrink-0 rounded-[2px] ${statusClass}`} />
         <div className="min-w-0 flex-1">
@@ -534,7 +531,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
       nodes.push(
         <code
           key={nodes.length}
-          className="break-all rounded bg-book-bg-tertiary px-1 py-0.5 font-mono text-[0.92em]"
+          className="break-all rounded-md bg-book-bg-tertiary px-1 py-0.5 font-mono text-[0.92em]"
         >
           {value.slice(1, -1)}
         </code>,

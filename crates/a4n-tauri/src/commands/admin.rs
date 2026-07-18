@@ -1,9 +1,9 @@
 //! 管理后台命令
 //!
-//! 对应 AdminService，暴露用量统计、任务队列管理、用户管理、项目管理和系统配置接口。
+//! 暴露用量统计、任务队列管理、用户管理、项目管理和系统配置接口。
 
 use a4n_runtime::AppState;
-use a4n_runtime::actions::admin_records;
+use a4n_runtime::host_api::admin_records;
 use tauri::State;
 
 use admin_records::{

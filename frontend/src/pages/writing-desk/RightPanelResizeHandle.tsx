@@ -73,7 +73,7 @@ export const RightPanelResizeHandle: React.FC<RightPanelResizeHandleProps> = ({
     }}
   >
     <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-book-border group-hover:bg-book-primary/40 group-data-[resizing=1]:bg-book-primary" />
-    <div className="pointer-events-none relative flex h-14 w-6 items-center justify-center rounded-sm border border-book-border bg-book-bg-paper text-book-text-muted shadow-sm transition-colors group-hover:border-book-primary/40 group-hover:text-book-primary group-focus-visible:border-book-primary/50 group-focus-visible:text-book-primary group-data-[resizing=1]:border-book-primary/60 group-data-[resizing=1]:text-book-primary">
+    <div className="pointer-events-none relative flex h-12 w-4 items-center justify-center rounded-full border border-book-border/70 bg-book-bg-paper/90 text-book-text-muted transition-colors group-hover:border-book-primary/40 group-hover:text-book-primary group-focus-visible:border-book-primary/50 group-focus-visible:text-book-primary group-data-[resizing=1]:border-book-primary/60 group-data-[resizing=1]:text-book-primary">
       <GripVertical size={14} />
     </div>
   </div>

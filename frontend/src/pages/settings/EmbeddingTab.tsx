@@ -4,7 +4,6 @@ import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import {
-  apiBaseUrl,
   canUseLocalDesktopEmbedding,
   shouldUseHttpBackend,
 } from "../../utils/runtimeMode";
@@ -57,11 +56,6 @@ export const EmbeddingTab: React.FC = () => {
     : usesRemoteBackend
       ? "远程服务器"
       : "本机";
-  const modelHostDetail = usesLocalDesktopEmbedding
-    ? "当前设备"
-    : usesRemoteBackend
-      ? apiBaseUrl()
-      : "当前设备";
   const { runProgressTask } = useProgressTask();
   const [items, setItems] = useState<ConfigItem<EmbeddingForm>[]>([]);
   const [localModels, setLocalModels] = useState<LocalEmbeddingModel[]>([]);
@@ -366,8 +360,8 @@ export const EmbeddingTab: React.FC = () => {
       {usesRemoteBackend && (
         <div className="rounded border border-warning/30 bg-warning-bg px-3 py-2 text-xs leading-relaxed text-warning">
           {usesLocalDesktopEmbedding
-            ? `当前连接远程后端：项目数据和向量库存放在服务器，fastembed 模型列表、下载、删除、连接测试和向量计算均发生在本机 ${modelHostDetail}。`
-            : `当前连接远程后端：fastembed 模型列表、下载、删除和连接测试均发生在服务器${modelHostDetail ? ` ${modelHostDetail}` : ""}；本机已经下载的模型不会被服务器直接使用。`}
+            ? `项目数据存放在服务器，嵌入模型由当前设备管理。`
+            : "嵌入模型由远程服务器管理，本机缓存不会被直接使用。"}
         </div>
       )}
       <div className="flex-1 min-h-0">

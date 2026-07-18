@@ -18,24 +18,30 @@ export const ForwardActionCard: React.FC<ForwardActionCardProps> = ({
   const actionKey = `forward-${target}`;
 
   return (
-    <div className="pyqt-card p-3">
-      <div className="text-xs text-book-text-muted mb-2">下一阶段</div>
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm text-book-text-main">推进到「{statusLabel(target)}」</div>
-        <BookButton
-          variant="primary"
-          onClick={() => void onForward(target)}
-          disabled={acting !== null}
-        >
-          {acting === actionKey ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <span className="inline-flex items-center gap-1.5">
-              <ArrowRight size={14} /> 推进
-            </span>
-          )}
-        </BookButton>
+    <section className="a4n-context-bar min-w-0 justify-between">
+      <div className="min-w-0">
+        <div className="text-[10px] text-book-text-muted">下一阶段</div>
+        <div className="truncate text-xs font-medium text-book-text-main">
+          {statusLabel(target)}
+        </div>
       </div>
-    </div>
+      <BookButton
+        variant="primary"
+        size="sm"
+        onClick={() => void onForward(target)}
+        disabled={acting !== null}
+        className="shrink-0 !min-h-8 !text-xs"
+      >
+        {acting === actionKey ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Loader2 size={13} className="animate-spin" /> 推进中…
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <ArrowRight size={14} /> 推进
+          </span>
+        )}
+      </BookButton>
+    </section>
   );
 };

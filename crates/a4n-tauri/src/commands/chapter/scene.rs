@@ -1,7 +1,7 @@
 use crate::commands::request_preview::ModelRequestPreview;
 use crate::progress_task::WorkflowProgressTask;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::chapter_scene::{
+use a4n_runtime::host_api::chapter_scene::{
     self as chapter_scene_actions, ChapterSceneSummary, GenerateChapterSceneInput,
     ReorderScenesInput, UpdateChapterSceneInput,
 };

@@ -11,7 +11,7 @@
   --color-primary: 139 69 19;          /* #8B4513 */
   --color-primary-light: 160 82 45;    /* #A0522D */
   --color-primary-dark: 107 52 16;     /* #6B3410 */
-  --color-primary-pale: 253 245 237;   /* #FDF5ED — hover/focus tint */
+  --color-primary-pale: 249 238 228;   /* #F9EEE4 — hover/focus tint */
 
   /* ==================== 强调色 — 陶土（亮色，与主色同系）==================== */
   --color-accent: 160 82 45;           /* #A0522D */
@@ -27,23 +27,23 @@
   --color-text-disabled: 176 168 160;  /* #B0A8A0 */
 
   /* ==================== 背景 ==================== */
-  --color-bg-primary: 249 245 240;     /* #F9F5F0 */
+  --color-bg-primary: 242 238 232;     /* #F2EEE8 — 工作区底色 */
   --color-bg-secondary: 255 251 240;   /* #FFFBF0 */
-  --color-bg-tertiary: 240 235 229;    /* #F0EBE5 */
-  --color-bg-card-hover: 245 240 234;  /* #F5F0EA */
-  --color-bg-muted: 240 235 229;       /* #F0EBE5 */
+  --color-bg-tertiary: 238 232 225;    /* #EEE8E1 */
+  --color-bg-card-hover: 247 242 236;  /* #F7F2EC */
+  --color-bg-muted: 238 232 225;       /* #EEE8E1 */
   --color-bg-accent: 230 220 205;      /* #E6DCCD — 沙色强调背景 */
 
   /* ==================== 边框 ==================== */
-  --color-border: 215 204 200;         /* #D7CCC8 */
-  --color-border-light: 232 228 223;   /* #E8E4DF */
-  --color-border-dark: 196 192 188;    /* #C4C0BC */
+  --color-border: 203 190 183;         /* #CBBEB7 */
+  --color-border-light: 226 217 210;   /* #E2D9D2 */
+  --color-border-dark: 184 169 160;    /* #B8A9A0 */
 
   /* ==================== 状态色（带背景 tint）====================
      原始通道值用 --status-* 命名，避免与 @theme 暴露的 --color-* 同名自指；
      语义 Tailwind 类（text-success/bg-error-bg/border-warning…）在 @theme 中映射。
      前景状态色亮暗共用（暖土色系两模式皆适配），仅 -bg tint 在 .dark 反转。 */
-  --status-success: 74 159 110;        /* #4A9F6E 翠绿 */
+  --status-success: 38 120 73;         /* #267849 深翠绿，小字号满足亮色对比度 */
   --status-success-bg: 240 249 244;    /* #F0F9F4 */
   --status-error: 168 84 72;           /* #A85448 烧焦赭 */
   --status-error-bg: 253 243 242;      /* #FDF3F2 */
@@ -56,12 +56,23 @@
   --color-button-text: 255 251 240;       /* #FFFBF0 — 在赭石按钮上 */
   --color-button-text-secondary: 44 24 16; /* #2C1810 — 在浅色按钮上 */
 
-  /* ==================== 圆角 ==================== */
-  --pyqt-radius-xs: 2px;
-  --pyqt-radius-sm: 4px;
-  --pyqt-radius-md: 6px;
-  --pyqt-radius-lg: 8px;
-  --pyqt-radius-xl: 16px;
+  /* ==================== 圆角（iOS 连续圆角）==================== */
+  --pyqt-radius-xs: 8px;
+  --pyqt-radius-sm: 12px;
+  --pyqt-radius-md: 14px;
+  --pyqt-radius-lg: 16px;
+  --pyqt-radius-xl: 24px;
+
+  /* ==================== 控件与布局密度（对齐预览 HTML）==================== */
+  --a4n-control-height-sm: 34px;
+  --a4n-control-height-md: 36px;
+  --a4n-page-header-height: 46px;
+  --a4n-content-gutter: clamp(0.85rem, 2vw, 1.5rem);
+  /* Settings 导航列宽（写作桌列宽由 WritingDesk 内联 grid + 拖拽决定） */
+  --a4n-settings-nav-w: 192px;
+  --a4n-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --a4n-motion-fast: 160ms;
+  --a4n-motion: 220ms;
 
   /* ==================== 8px 网格间距 ==================== */
   --pyqt-spacing-xs: 8px;
@@ -69,8 +80,10 @@
   --pyqt-spacing-md: 24px;
   --pyqt-spacing-lg: 32px;
 
-  /* ==================== 阴影（克制，桌面风格）==================== */
-  --shadow-card: 0 2px 6px -2px rgba(139, 69, 19, 0.08);
+  /* ==================== 阴影（浮层感，少硬边）==================== */
+  --shadow-card: 0 1px 2px rgb(44 24 16 / 0.04), 0 8px 24px -12px rgb(44 24 16 / 0.14);
+  --shadow-card-hover: 0 4px 8px rgb(44 24 16 / 0.05), 0 16px 36px -14px rgb(44 24 16 / 0.18);
+  --shadow-overlay: 0 24px 64px -20px rgb(44 24 16 / 0.28), 0 8px 20px -8px rgb(44 24 16 / 0.12);
 }
 
 .dark {
@@ -112,12 +125,17 @@
   --status-warning-bg: 45 37 24;       /* #2D2518 */
   --status-info-bg: 26 37 48;          /* #1A2530 */
 
+  /* 暗色前景单独提亮，避免复用亮色深绿后失去对比度 */
+  --status-success: 103 192 137;
+
   /* ==================== 按钮文字反转 ==================== */
   --color-button-text: 28 23 20;       /* #1C1714 — 暗色背景上的琥珀按钮 */
   --color-button-text-secondary: 232 223 212; /* #E8DFD4 */
 
-  /* ==================== 阴影（暗色更弱）==================== */
-  --shadow-card: 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+  /* ==================== 阴影（暗色浮层）==================== */
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.28), 0 10px 28px -14px rgb(0 0 0 / 0.55);
+  --shadow-card-hover: 0 4px 10px rgb(0 0 0 / 0.3), 0 18px 40px -16px rgb(0 0 0 / 0.62);
+  --shadow-overlay: 0 28px 70px -18px rgb(0 0 0 / 0.72), 0 10px 24px -10px rgb(0 0 0 / 0.45);
 }
 
 /* ============================================================================
@@ -153,6 +171,14 @@
   --color-info-bg: rgb(var(--status-info-bg));
   --font-serif: 'Noto Serif SC', serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --radius-4xl: 24px;
 }
 
 /* ============================================================================
@@ -178,8 +204,9 @@ body {
   color: rgb(var(--color-text-primary));
   background-color: rgb(var(--color-bg-primary));
   background-attachment: fixed;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
+  text-rendering: optimizeLegibility;
 }
 
 /* 桌面端使用纯色窗口背景，不绘制网格纹理 */
@@ -219,6 +246,24 @@ html.theme-switching * {
   select {
     font: inherit;
     color-scheme: inherit;
+  }
+
+  button,
+  [role='button'],
+  a,
+  input,
+  textarea,
+  select,
+  summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:focus-visible,
+  [role='button']:focus-visible,
+  a:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid rgb(var(--color-primary) / 0.38);
+    outline-offset: 2px;
   }
 
   input,
@@ -277,139 +322,171 @@ html.theme-switching * {
 
 @layer components {
   /* ============================================================================
-     A4N 基础控件 —— 保持桌面端方正气质
-     圆角 4-8px，1px 实边框，min-height 40/48px，渐变填充（primary）
+     A4N 基础控件 —— iOS 简洁丝滑（书房色）
+     圆角 12–16px，弱边框 + 浮层阴影，按压缩放反馈
      ============================================================================ */
 
-  /* 主按钮：实色，无渐变 */
+  /* 主按钮：实色 + 轻环境光 */
   .pyqt-btn-primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    min-height: 32px;
-    padding: 6px 18px;
-    border: 1px solid rgb(var(--color-primary-dark));
+    min-height: var(--a4n-control-height-md);
+    padding: 8px 18px;
+    border: 1px solid transparent;
     border-radius: var(--pyqt-radius-sm);
     background: rgb(var(--color-primary));
     color: rgb(var(--color-button-text));
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
+    letter-spacing: -0.01em;
     cursor: pointer;
-    box-shadow: 0 1px 1px rgb(139 69 19 / 0.08);
-    transition: background 120ms ease-out, border-color 120ms ease-out, box-shadow 120ms ease-out;
+    box-shadow:
+      0 1px 2px rgb(var(--color-primary) / 0.22),
+      0 8px 18px -8px rgb(var(--color-primary) / 0.45);
+    transition:
+      background var(--a4n-motion-fast) var(--a4n-ease-out),
+      box-shadow var(--a4n-motion-fast) var(--a4n-ease-out),
+      transform var(--a4n-motion-fast) var(--a4n-ease-out),
+      filter var(--a4n-motion-fast) var(--a4n-ease-out);
   }
   .pyqt-btn-primary:hover:not(:disabled) {
     background: rgb(var(--color-primary-light));
-    box-shadow: 0 2px 5px rgb(139 69 19 / 0.12);
+    box-shadow:
+      0 2px 4px rgb(var(--color-primary) / 0.2),
+      0 12px 24px -10px rgb(var(--color-primary) / 0.5);
   }
   .pyqt-btn-primary:active:not(:disabled) {
     background: rgb(var(--color-primary-dark));
-    box-shadow: none;
+    box-shadow: 0 1px 2px rgb(var(--color-primary) / 0.18);
+    transform: scale(0.97);
   }
   .pyqt-btn-primary:disabled {
     background: rgb(var(--color-bg-tertiary));
     color: rgb(var(--color-text-tertiary));
-    border-color: rgb(var(--color-border));
+    border-color: transparent;
+    box-shadow: none;
     cursor: not-allowed;
+    transform: none;
   }
   .pyqt-btn-primary:focus-visible {
-    outline: 2px solid rgb(var(--color-primary) / 0.38);
+    outline: 2px solid rgb(var(--color-primary) / 0.4);
     outline-offset: 2px;
   }
 
-  /* 次按钮：边框 + 实底（不再渐变） */
+  /* 次按钮：填充底，弱边 */
   .pyqt-btn-secondary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    min-height: 32px;
-    padding: 6px 14px;
-    border: 1px solid rgb(var(--color-border));
+    min-height: var(--a4n-control-height-md);
+    padding: 8px 16px;
+    border: 1px solid rgb(var(--color-border) / 0.55);
     border-radius: var(--pyqt-radius-sm);
-    background: rgb(var(--color-bg-secondary));
+    background: rgb(var(--color-bg-tertiary) / 0.76);
     color: rgb(var(--color-text-primary));
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
+    letter-spacing: -0.01em;
     cursor: pointer;
-    transition: border-color 120ms ease-out, background 120ms ease-out, color 120ms ease-out;
+    box-shadow: 0 1px 2px rgb(44 24 16 / 0.03);
+    transition:
+      border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+      background var(--a4n-motion-fast) var(--a4n-ease-out),
+      color var(--a4n-motion-fast) var(--a4n-ease-out),
+      box-shadow var(--a4n-motion-fast) var(--a4n-ease-out),
+      transform var(--a4n-motion-fast) var(--a4n-ease-out);
   }
   .pyqt-btn-secondary:hover:not(:disabled) {
-    border-color: rgb(var(--color-primary) / 0.55);
+    border-color: rgb(var(--color-primary) / 0.28);
     color: rgb(var(--color-primary));
-    background: rgb(var(--color-primary-pale) / 0.72);
+    background: rgb(var(--color-bg-secondary));
+    box-shadow: 0 2px 8px -4px rgb(var(--color-primary) / 0.25);
   }
   .pyqt-btn-secondary:active:not(:disabled) {
     background: rgb(var(--color-bg-tertiary));
+    transform: scale(0.97);
   }
   .pyqt-btn-secondary:disabled {
     background: rgb(var(--color-bg-tertiary));
     color: rgb(var(--color-text-tertiary));
     cursor: not-allowed;
-    border-color: rgb(var(--color-border) / 0.5);
+    border-color: rgb(var(--color-border) / 0.35);
+    box-shadow: none;
+    transform: none;
   }
   .pyqt-btn-secondary:focus-visible {
     outline: 2px solid rgb(var(--color-primary) / 0.32);
     outline-offset: 2px;
   }
 
-  /* 图标按钮：32×32 方形（不再 40×40） */
+  /* 图标按钮：圆角方形 */
   .pyqt-btn-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 1px solid rgb(var(--color-border));
+    width: var(--a4n-control-height-md);
+    height: var(--a4n-control-height-md);
+    border: 1px solid rgb(var(--color-border) / 0.5);
     border-radius: var(--pyqt-radius-sm);
-    background: rgb(var(--color-bg-secondary));
+    background: rgb(var(--color-bg-tertiary) / 0.76);
     color: rgb(var(--color-text-secondary));
     cursor: pointer;
-    transition: border-color 120ms ease-out, color 120ms ease-out, background 120ms ease-out;
+    transition:
+      border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+      color var(--a4n-motion-fast) var(--a4n-ease-out),
+      background var(--a4n-motion-fast) var(--a4n-ease-out),
+      transform var(--a4n-motion-fast) var(--a4n-ease-out);
   }
   .pyqt-btn-icon:hover:not(:disabled) {
-    border-color: rgb(var(--color-primary) / 0.55);
+    border-color: rgb(var(--color-primary) / 0.3);
     color: rgb(var(--color-primary));
-    background: rgb(var(--color-primary-pale) / 0.72);
+    background: rgb(var(--color-bg-secondary));
+  }
+  .pyqt-btn-icon:active:not(:disabled) {
+    transform: scale(0.96);
   }
   .pyqt-btn-icon:disabled {
     color: rgb(var(--color-text-tertiary));
     cursor: not-allowed;
   }
-
-  /* 卡片：1px 边框 + 微圆角（4px），不再 8px，无阴影 */
-  .pyqt-card {
-    background: rgb(var(--color-bg-secondary));
-    border: 1px solid rgb(var(--color-border));
-    border-radius: var(--pyqt-radius-sm);
-    box-shadow: var(--shadow-card);
+  .pyqt-btn-icon:focus-visible {
+    outline: 2px solid rgb(var(--color-primary) / 0.32);
+    outline-offset: 2px;
   }
 
-  /* 输入框：4px 圆角 + 1px 边框 */
+  /* 输入框：填充底 + soft ring focus */
   .pyqt-input {
     box-sizing: border-box;
     min-width: 0;
     max-width: 100%;
-    background: rgb(var(--color-bg-secondary));
-    border: 1px solid rgb(var(--color-border));
+    background: rgb(var(--color-bg-tertiary) / 0.55);
+    border: 1px solid transparent;
     border-radius: var(--pyqt-radius-sm);
-    padding: 5px 8px;
+    min-height: var(--a4n-control-height-md);
+    padding: 8px 12px;
     color: rgb(var(--color-text-primary));
-    font-size: 12px;
-    transition: border-color 120ms ease-out;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    transition:
+      border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+      background var(--a4n-motion-fast) var(--a4n-ease-out),
+      box-shadow var(--a4n-motion-fast) var(--a4n-ease-out);
     caret-color: rgb(var(--color-primary));
   }
   .pyqt-input::placeholder {
     color: rgb(var(--color-text-tertiary));
   }
   .pyqt-input:hover:not(:disabled) {
-    border-color: rgb(var(--color-primary) / 0.45);
+    background: rgb(var(--color-bg-tertiary) / 0.75);
   }
   .pyqt-input:focus {
     outline: none;
-    border-color: rgb(var(--color-primary));
-    box-shadow: 0 0 0 2px rgb(var(--color-primary) / 0.18);
+    background: rgb(var(--color-bg-secondary));
+    border-color: rgb(var(--color-primary) / 0.35);
+    box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.14);
   }
   .pyqt-input:disabled {
     background: rgb(var(--color-bg-tertiary));
@@ -421,31 +498,24 @@ html.theme-switching * {
     --a4n-select-chevron: rgb(var(--color-text-tertiary));
     appearance: none;
     -webkit-appearance: none;
-    min-height: 2rem;
-    padding-right: 2.15rem;
-    background-color: rgb(var(--color-bg-secondary));
+    min-height: var(--a4n-control-height-md);
+    padding-right: 2.25rem;
+    background-color: rgb(var(--color-bg-tertiary) / 0.55);
     background-image:
       linear-gradient(45deg, transparent 50%, var(--a4n-select-chevron) 50%),
-      linear-gradient(135deg, var(--a4n-select-chevron) 50%, transparent 50%),
-      linear-gradient(
-        to bottom,
-        rgb(var(--color-border) / 0.58),
-        rgb(var(--color-border) / 0.58)
-      );
+      linear-gradient(135deg, var(--a4n-select-chevron) 50%, transparent 50%);
     background-position:
-      calc(100% - 15px) 50%,
-      calc(100% - 10px) 50%,
-      calc(100% - 2rem) 50%;
+      calc(100% - 16px) 50%,
+      calc(100% - 11px) 50%;
     background-repeat: no-repeat;
     background-size:
       5px 5px,
-      5px 5px,
-      1px 1.25rem;
+      5px 5px;
     cursor: pointer;
   }
   select.pyqt-input:hover:not(:disabled) {
     --a4n-select-chevron: rgb(var(--color-primary));
-    background-color: rgb(var(--color-bg-card-hover));
+    background-color: rgb(var(--color-bg-tertiary) / 0.75);
   }
   select.pyqt-input:focus {
     --a4n-select-chevron: rgb(var(--color-primary));
@@ -468,8 +538,8 @@ html.theme-switching * {
   }
 
   select.a4n-compact-select {
-    height: 2rem;
-    min-height: 2rem;
+    height: var(--a4n-control-height-sm);
+    min-height: var(--a4n-control-height-sm);
     padding-top: 0;
     padding-bottom: 0;
     padding-left: 0.75rem;
@@ -479,38 +549,29 @@ html.theme-switching * {
     text-overflow: ellipsis;
   }
 
-  /* 标签胶囊：方正状态 pill */
-  .pyqt-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 1px 6px;
-    border: 1px solid rgb(var(--color-border));
-    border-radius: var(--pyqt-radius-sm);
-    background: rgb(var(--color-bg-tertiary) / 0.72);
-    color: rgb(var(--color-text-secondary));
-    font-size: 11px;
-    font-weight: 600;
-  }
-
-  /* Tab 按钮：底部 2px 高亮线，激活时不填充背景 */
+  /* Tab：底部高亮 + 更舒适触控 */
   .pyqt-tab {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 6px 14px;
+    gap: 0.4rem;
+    min-height: 38px;
+    padding: 6px 12px;
     border: none;
     border-bottom: 2px solid transparent;
     background: transparent;
     color: rgb(var(--color-text-secondary));
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
+    letter-spacing: -0.01em;
     cursor: pointer;
-    transition: color 120ms ease-out, border-color 120ms ease-out, background 120ms ease-out;
+    transition:
+      color var(--a4n-motion-fast) var(--a4n-ease-out),
+      border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+      background var(--a4n-motion-fast) var(--a4n-ease-out);
   }
   .pyqt-tab:hover {
     color: rgb(var(--color-primary));
-    background: rgb(var(--color-primary-pale) / 0.62);
+    background: rgb(var(--color-primary-pale) / 0.55);
   }
   .pyqt-tab[data-active='1'] {
     color: rgb(var(--color-primary));
@@ -529,21 +590,26 @@ html.theme-switching * {
     box-sizing: border-box;
     min-width: 0;
     max-width: 100%;
-    border: 1px solid rgb(var(--color-border));
-    background: rgb(var(--color-bg-secondary));
+    border: 1px solid transparent;
+    background: rgb(var(--color-bg-tertiary) / 0.55);
     color: rgb(var(--color-text-primary));
     caret-color: rgb(var(--color-primary));
-    transition: border-color 150ms ease-out;
+    border-radius: var(--pyqt-radius-sm);
+    transition:
+      border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+      background var(--a4n-motion-fast) var(--a4n-ease-out),
+      box-shadow var(--a4n-motion-fast) var(--a4n-ease-out);
   }
 
   .book-control:hover {
-    border-color: rgb(var(--color-primary) / 0.6);
+    background: rgb(var(--color-bg-tertiary) / 0.75);
   }
 
   .book-control:focus {
     outline: none;
-    border-color: rgb(var(--color-primary));
-    box-shadow: 0 0 0 1px rgb(var(--color-primary));
+    background: rgb(var(--color-bg-secondary));
+    border-color: rgb(var(--color-primary) / 0.35);
+    box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.14);
   }
 
   .book-control:disabled {
@@ -551,56 +617,154 @@ html.theme-switching * {
     opacity: 0.62;
   }
 
-  /* ---- 弹窗遮罩：QDialog 模态背景，半透明黑 ---- */
+  /* 弹窗遮罩：暖褐半透明 */
   .dialog-backdrop {
-    background: rgb(0 0 0 / 0.42);
+    background: rgb(44 24 16 / 0.32);
+    backdrop-filter: blur(8px) saturate(115%);
+    -webkit-backdrop-filter: blur(8px) saturate(115%);
+    animation: a4n-dialog-backdrop-enter 160ms ease-out both;
   }
 
-  /* ---- 弹窗面板：方正、单色、4px 圆角 ---- */
+  /* 弹窗面板：大圆角浮层 */
   .dialog-panel {
-    border-radius: var(--pyqt-radius-sm);
-    border: 1px solid rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-xl);
+    border: 0.5px solid rgb(var(--color-border) / 0.45);
     background: rgb(var(--color-bg-secondary));
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--shadow-overlay);
+    transform-origin: center bottom;
+    animation: a4n-dialog-panel-enter 190ms var(--a4n-ease-out) both;
   }
 
-  /* ---- 分割线：单色 1px，去渐变 ---- */
+  /* 分割线：弱分隔 */
   .story-divider {
-    height: 1px;
-    background: rgb(var(--color-border));
+    height: 0.5px;
+    background: rgb(var(--color-border) / 0.65);
   }
 
   .a4n-page-header {
-    min-height: 42px;
+    min-height: var(--a4n-page-header-height);
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding-inline: 0.75rem;
-    border-bottom: 1px solid rgb(var(--color-border));
-    background: rgb(var(--color-bg-secondary));
+    padding-inline: var(--a4n-content-gutter);
+    border-bottom: 0.5px solid rgb(var(--color-border) / 0.4);
+    background: rgb(var(--color-bg-secondary) / 0.78);
+    backdrop-filter: saturate(160%) blur(18px);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    box-shadow: none;
   }
 
-  .a4n-page-surface {
+  .a4n-app-page-header {
+    min-width: 0;
+    flex-wrap: wrap;
+    padding-block: 8px;
+  }
+
+  .a4n-app-page-header__leading,
+  .a4n-app-page-header__icon,
+  .a4n-app-page-header__meta,
+  .a4n-app-page-header__actions {
+    flex: 0 0 auto;
+  }
+
+  .a4n-app-page-header__leading {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .a4n-app-page-header__icon {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(var(--color-primary) / 0.2);
+    border-radius: 10px;
+    background: rgb(var(--color-primary) / 0.09);
+    color: rgb(var(--color-primary));
+  }
+
+  .a4n-app-page-header__identity {
+    min-width: 0;
+    flex: 1 1 160px;
+  }
+
+  .a4n-app-page-header__title-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .a4n-app-page-header__title {
+    min-width: 0;
+    overflow: hidden;
+    color: rgb(var(--color-text-primary));
+    font-family: 'Noto Serif SC', serif;
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .a4n-app-page-header__meta {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .a4n-app-page-header__subtitle {
+    margin-top: 2px;
+    overflow: hidden;
+    color: rgb(var(--color-text-tertiary));
+    font-size: 11.5px;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .a4n-app-page-header__actions {
+    display: flex;
+    margin-left: auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .a4n-app-page-header--detail .a4n-app-page-header__subtitle {
+    overflow: visible;
+    white-space: normal;
+  }
+
+  /* 静态分区不悬浮：用于列表栏、只读详情等页面骨架。 */
+  .a4n-flat-surface {
     background: rgb(var(--color-bg-secondary));
-    border: 1px solid rgb(var(--color-border));
-    border-radius: var(--pyqt-radius-sm);
-    box-shadow: var(--shadow-card);
+    border: 0.5px solid rgb(var(--color-border) / 0.38);
+    border-radius: var(--pyqt-radius-lg);
+    box-shadow: none;
   }
 
   .a4n-interactive-row {
     background: rgb(var(--color-bg-secondary));
-    border: 1px solid rgb(var(--color-border));
-    border-radius: var(--pyqt-radius-sm);
+    border: 0.5px solid rgb(var(--color-border) / 0.35);
+    border-radius: var(--pyqt-radius-lg);
     transition:
-      background 120ms ease-out,
-      border-color 120ms ease-out,
-      box-shadow 120ms ease-out;
+      background var(--a4n-motion-fast) var(--a4n-ease-out),
+      border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+      box-shadow var(--a4n-motion) var(--a4n-ease-out),
+      transform var(--a4n-motion) var(--a4n-ease-out);
   }
 
   .a4n-interactive-row:hover {
-    background: rgb(var(--color-bg-card-hover));
-    border-color: rgb(var(--color-primary) / 0.55);
-    box-shadow: 0 8px 22px -18px rgb(139 69 19 / 0.35);
+    background: rgb(var(--color-bg-secondary));
+    border-color: rgb(var(--color-primary) / 0.18);
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-1px);
   }
 
   .a4n-interactive-row:focus-visible {
@@ -609,18 +773,45 @@ html.theme-switching * {
   }
 
   .a4n-stat-tile {
-    background: rgb(var(--color-bg-secondary));
-    border: 1px solid rgb(var(--color-border));
-    border-radius: var(--pyqt-radius-sm);
-    padding: 0.5rem 0.75rem;
+    background: rgb(var(--color-bg-tertiary) / 0.36);
+    border: 0.5px solid rgb(var(--color-border) / 0.32);
+    border-radius: var(--pyqt-radius-md);
+    padding: 0.65rem 0.85rem;
+    box-shadow: none;
+  }
+
+  .a4n-empty-state {
+    display: flex;
+    min-height: 7.5rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: rgb(var(--color-text-tertiary));
+  }
+
+  .a4n-empty-state--compact {
+    min-height: auto;
+    padding-block: 1.25rem;
+  }
+
+  .a4n-empty-state--framed {
+    border: 0.5px dashed rgb(var(--color-border) / 0.58);
+    border-radius: var(--pyqt-radius-lg);
+    background: rgb(var(--color-bg-secondary) / 0.42);
   }
 
   .a4n-sidebar-item {
     width: 100%;
     border-radius: var(--pyqt-radius-sm);
-    padding: 0.5rem;
+    min-height: var(--a4n-control-height-md);
+    padding: 0.55rem 0.85rem;
     text-align: left;
-    transition: background 120ms ease-out, color 120ms ease-out;
+    transition:
+      background var(--a4n-motion-fast) var(--a4n-ease-out),
+      color var(--a4n-motion-fast) var(--a4n-ease-out);
   }
 
   .a4n-sidebar-item:hover {
@@ -632,12 +823,70 @@ html.theme-switching * {
     background: rgb(var(--color-primary) / 0.12);
     color: rgb(var(--color-primary));
     font-weight: 600;
+    box-shadow: inset 3px 0 0 rgb(var(--color-primary));
+  }
+
+  .a4n-context-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.75rem;
+    border: 0.5px solid rgb(var(--color-border) / 0.4);
+    border-radius: var(--pyqt-radius-md);
+    background: rgb(var(--color-bg-secondary) / 0.72);
+  }
+
+  .a4n-context-chip {
+    display: inline-flex;
+    min-height: 26px;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgb(var(--color-bg-tertiary) / 0.85);
+    color: rgb(var(--color-text-secondary));
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .a4n-section-heading {
+    color: rgb(var(--color-text-primary));
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1rem;
+    font-weight: 650;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+  }
+
+  .a4n-kicker {
+    color: rgb(var(--color-text-tertiary));
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 1.35;
+    text-transform: uppercase;
   }
 }
 
 /* ============================================================================
    动画关键帧
    ============================================================================ */
+
+@keyframes a4n-dialog-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes a4n-dialog-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
 @keyframes toastEnter {
   from {
@@ -744,29 +993,49 @@ html.theme-switching * {
    自定义滚动条
    ============================================================================ */
 
-/* 滚动条：方角、明确边界，hover 才出现颜色 */
+/* 滚动条：细圆角、书房色，默认低调 · hover 显主色 */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgb(var(--color-bg-tertiary) / 0.72);
-  border-left: 1px solid rgb(var(--color-border));
+  background: transparent;
+  margin-block: 4px;
+  border: none;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(var(--color-border-dark) / 0.72);
-  border: 2px solid rgb(var(--color-bg-tertiary));
+  background: rgb(var(--color-border) / 0.85);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  min-height: 32px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--color-primary) / 0.58);
+  background: rgb(var(--color-primary) / 0.48);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgb(var(--color-primary) / 0.62);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgb(var(--color-border)) rgb(var(--color-bg-tertiary));
+  scrollbar-color: rgb(var(--color-border) / 0.9) transparent;
+}
+
+.custom-scrollbar:hover {
+  scrollbar-color: rgb(var(--color-primary) / 0.42) transparent;
 }
 
 /* 范围滑块：方形轨道，较小的方角 thumb */
@@ -885,9 +1154,36 @@ html.theme-switching * {
     padding-inline: 0.5rem;
   }
 
+  .a4n-app-page-header__actions {
+    width: 100%;
+    flex: 1 1 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .a4n-app-page-header--detail {
+    flex-wrap: nowrap;
+  }
+
+  .a4n-app-page-header--detail .a4n-app-page-header__identity {
+    flex-basis: 0;
+  }
+
+  .a4n-app-page-header--detail .a4n-app-page-header__actions {
+    width: auto;
+    flex: 0 0 auto;
+    margin-left: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  .a4n-sidebar-item[data-active='1'] {
+    box-shadow: inset 0 -2px 0 rgb(var(--color-primary));
+  }
+
   .pyqt-btn-primary,
   .pyqt-btn-secondary {
-    min-height: 36px !important;
+    min-height: 40px !important;
     min-width: 0;
     max-width: 100%;
     white-space: normal;
@@ -895,8 +1191,8 @@ html.theme-switching * {
   }
 
   .pyqt-btn-icon {
-    width: 36px !important;
-    height: 36px !important;
+    width: 40px !important;
+    height: 40px !important;
   }
 
   input.pyqt-input,
@@ -909,6 +1205,7 @@ html.theme-switching * {
     padding-inline: 0.75rem;
   }
 
+  /* 窄屏保持 8px，与默认一致 */
   .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -922,6 +1219,9 @@ html.theme-switching * {
   align-items: center;
   gap: 2px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
   scrollbar-width: none;
 }
 .tab-bar::-webkit-scrollbar {
@@ -929,6 +1229,30 @@ html.theme-switching * {
 }
 .tab-bar > * {
   flex: 0 0 auto;
+}
+
+/* 移动端横滑选择轨道：保留原生滚动能力，隐藏桌面式滚动条。 */
+.a4n-mobile-scroll-rail {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
+}
+
+@media (max-width: 767px) {
+  .a4n-mobile-scroll-rail {
+    scrollbar-width: none;
+    scroll-padding-inline: 0.75rem;
+    scroll-snap-type: inline proximity;
+  }
+
+  .a4n-mobile-scroll-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .a4n-mobile-scroll-rail > li,
+  .a4n-mobile-scroll-rail > ul > li {
+    scroll-snap-align: start;
+  }
 }
 
 /* ============================================================================
@@ -1227,7 +1551,6 @@ html.theme-switching * {
     0 14px 30px rgb(0 0 0 / 0.22);
 }
 
-.a4n-studio-node-warning,
 .a4n-studio-node-problem {
   box-shadow:
     0 0 0 1px rgb(var(--status-warning) / 0.45),
@@ -1246,18 +1569,15 @@ html.theme-switching * {
   color: rgb(var(--color-primary));
 }
 
+/* 节点色条：仅保留实际 kind 映射用到的 tone */
 .a4n-studio-node-text { border-left-color: rgb(96 165 250); }
-.a4n-studio-node-prompt { border-left-color: rgb(var(--color-primary)); }
 .a4n-studio-node-action { border-left-color: rgb(var(--status-info)); }
 .a4n-studio-node-media { border-left-color: rgb(var(--status-success)); }
 .a4n-studio-node-video { border-left-color: rgb(168 85 247); }
 .a4n-studio-node-audio { border-left-color: rgb(236 72 153); }
-.a4n-studio-node-profile { border-left-color: rgb(20 184 166); }
-.a4n-studio-node-config { border-left-color: rgb(var(--status-warning)); }
 .a4n-studio-node-generate { border-left-color: rgb(var(--color-accent)); }
 .a4n-studio-node-assemble { border-left-color: rgb(245 158 11); }
 .a4n-studio-node-review { border-left-color: rgb(var(--status-success)); }
-.a4n-studio-node-artifact { border-left-color: rgb(100 116 139); }
 .a4n-studio-node-generic { border-left-color: rgb(var(--color-border-dark)); }
 
 .a4n-studio-handle,
@@ -1333,6 +1653,194 @@ html.theme-switching * {
 .a4n-studio-state-error {
   color: rgb(var(--status-error));
   background: rgb(var(--status-error-bg));
+}
+
+.a4n-status-bar-action {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(var(--color-text-tertiary));
+  cursor: pointer;
+  transition:
+    color var(--a4n-motion-fast) var(--a4n-ease-out),
+    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    background var(--a4n-motion-fast) var(--a4n-ease-out);
+}
+
+.a4n-status-bar-action:hover {
+  border-color: rgb(var(--color-primary) / 0.24);
+  background: rgb(var(--color-primary) / 0.1);
+  color: rgb(var(--color-primary));
+}
+
+.a4n-status-bar-action:focus-visible {
+  outline: 2px solid rgb(var(--color-primary) / 0.32);
+  outline-offset: 1px;
+}
+
+/* ============================================================================
+   预览对齐：SegmentedControl / Shell 布局
+   来源：docs/ui-mockups/a4n-ios-*-preview.html
+   ============================================================================ */
+
+/* 横向角色/范围筛选：内容过多时在中列滚动，不挤压右侧主操作。 */
+.a4n-filter-chips {
+  display: flex;
+  min-width: 0;
+  max-width: min(42vw, 480px);
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 2px 1px;
+  scrollbar-width: thin;
+}
+
+.a4n-filter-chip {
+  flex: 0 0 auto;
+  min-height: 26px;
+  border: 0.5px solid rgb(var(--color-border) / 0.5);
+  border-radius: 999px;
+  background: rgb(var(--color-bg-tertiary) / 0.7);
+  padding: 0 10px;
+  color: rgb(var(--color-text-secondary));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    background var(--a4n-motion-fast) var(--a4n-ease-out),
+    color var(--a4n-motion-fast) var(--a4n-ease-out);
+}
+
+.a4n-filter-chip:hover {
+  border-color: rgb(var(--color-primary) / 0.3);
+  color: rgb(var(--color-text-primary));
+}
+
+.a4n-filter-chip[data-active='1'] {
+  border-color: rgb(var(--color-primary) / 0.34);
+  background: rgb(var(--color-primary) / 0.12);
+  color: rgb(var(--color-primary));
+}
+
+.a4n-filter-chip:focus-visible {
+  outline: 2px solid rgb(var(--color-primary) / 0.32);
+  outline-offset: 1px;
+}
+
+/* iOS 分段控件：宽度 hug 内容，禁止 flex:1 拉满 */
+.a4n-seg {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgb(120 120 128 / 0.12);
+  box-sizing: border-box;
+  height: var(--a4n-control-height-sm);
+}
+
+.a4n-seg__btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  min-height: 26px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(var(--color-text-secondary));
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition:
+    background var(--a4n-motion-fast) var(--a4n-ease-out),
+    color var(--a4n-motion-fast) var(--a4n-ease-out),
+    box-shadow var(--a4n-motion-fast) var(--a4n-ease-out);
+}
+
+.a4n-seg__btn:hover:not(:disabled):not([data-active="1"]) {
+  color: rgb(var(--color-text-primary));
+}
+
+.a4n-seg__btn[data-active="1"] {
+  background: rgb(var(--color-bg-secondary));
+  color: rgb(var(--color-text-primary));
+  box-shadow: 0 1px 2px rgb(44 24 16 / 0.08);
+}
+
+.a4n-seg__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.a4n-seg__btn:focus-visible {
+  outline: 2px solid rgb(var(--color-primary) / 0.35);
+  outline-offset: 1px;
+}
+
+/* 固定宽度分段（写作桌 RAG/正文优化） */
+.a4n-seg--panel {
+  width: 200px;
+  min-width: 200px;
+  flex: 0 0 200px;
+  max-width: 200px;
+}
+
+.a4n-seg--panel .a4n-seg__btn {
+  flex: 1;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+/* 写作桌右栏（实际布局列宽由 WritingDesk 内联 grid 控制，含拖拽分隔条） */
+.a4n-desk-rail {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  background: rgb(var(--color-bg-secondary) / 0.5);
+  border-left: 0.5px solid rgb(var(--color-border) / 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Settings 布局列宽锁定 */
+.a4n-settings-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--a4n-settings-nav-w) minmax(0, 1fr);
+}
+
+@media (max-width: 900px) {
+  .a4n-desk-rail {
+    border: none;
+    border-bottom: 0.5px solid rgb(var(--color-border) / 0.28);
+    max-height: 40vh;
+  }
+
+  .a4n-settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .a4n-filter-chips {
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 /* ============================================================================

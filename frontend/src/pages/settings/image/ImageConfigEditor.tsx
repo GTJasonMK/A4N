@@ -2,6 +2,7 @@ import React from "react";
 import { detectImageConfigModels, detectServerImageConfigModels } from "../../../api/image";
 import { BookInput } from "../../../components/ui/BookInput";
 import { FormField } from "../ConfigListPanel";
+import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import {
   IMAGE_BASE_URL_HINTS,
@@ -47,7 +48,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
       </FormField>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <FormField label="Provider">
+        <FormField label="图片服务商">
           <select
             value={form.provider}
             onChange={(event) =>
@@ -99,7 +100,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField label="API Base URL" required hint={IMAGE_BASE_URL_HINTS[form.provider]}>
+      <FormField label="接口地址" required hint={IMAGE_BASE_URL_HINTS[form.provider]}>
         <BookInput
           value={form.api_base_url}
           onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
@@ -109,10 +110,10 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
       </FormField>
 
       <FormField
-        label="API Key"
+        label="访问密钥"
         hint={
           templateLocked
-            ? "只保存为你的个人密钥；系统默认模板不会共享管理员 API Key"
+            ? "只保存为你的个人密钥；系统默认模板不会共享管理员密钥"
             : "存储于本地数据库，不会上传到任何外部服务"
         }
       >
@@ -125,24 +126,20 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
           autoComplete="off"
           disabled={apiKeyInputDisabled || readonly}
         />
-        {form.has_api_key ? (
-          <label className="mt-2 flex items-center gap-2 text-xs text-book-text-muted">
-            <input
-              type="checkbox"
-              checked={form.clear_api_key}
-              disabled={readonly}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  api_key: event.target.checked ? "" : form.api_key,
-                  clear_api_key: event.target.checked,
-                })
-              }
-            />
-            清空已保存 API Key
-          </label>
-        ) : null}
       </FormField>
+      {form.has_api_key ? (
+        <ClearSavedApiKeySwitch
+          checked={form.clear_api_key}
+          disabled={readonly}
+          onChange={(checked) =>
+            setForm({
+              ...form,
+              api_key: checked ? "" : form.api_key,
+              clear_api_key: checked,
+            })
+          }
+        />
+      ) : null}
 
       {form.provider === "cliproxy-image" ? (
         <FormField
@@ -176,7 +173,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FormField
           label="尺寸"
-          hint="可手动输入宽x高；4K 如 3840x2160，实际支持范围取决于模型和 Provider"
+          hint="可手动输入宽×高；4K 如 3840×2160，实际支持范围取决于模型和图片服务商"
         >
           <BookInput
             value={form.size}

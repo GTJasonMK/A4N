@@ -15,17 +15,6 @@ interface OptimizeMangaPromptInput {
   downstream_strategy?: DownstreamConflictStrategy;
 }
 
-export interface CreateMangaPromptInput {
-  page_number: number;
-  panel_number?: number | null;
-  image_prompt: string;
-  dialogue_text?: string | null;
-  characters_in_frame?: unknown | null;
-  layout?: unknown | null;
-  camera_angle?: string | null;
-  dialogue_position?: string | null;
-}
-
 const currentUserId = (): number => {
   const id = readCurrentUserId();
   if (id == null) throw new Error("未登录，无法访问漫画面板");
@@ -38,28 +27,6 @@ export async function listMangaPanels(projectId: Id, chapterId: Id): Promise<Man
     userId: currentUserId(),
     projectId: idNum(projectId),
     chapterId: idNum(chapterId),
-  });
-}
-
-export async function createMangaPrompt(
-  projectId: Id,
-  chapterId: Id,
-  input: CreateMangaPromptInput,
-): Promise<MangaPanel> {
-  return apiInvoke<MangaPanel>("create_manga_prompt", {
-    userId: currentUserId(),
-    projectId: idNum(projectId),
-    chapterId: idNum(chapterId),
-    input: {
-      page_number: input.page_number,
-      panel_number: input.panel_number ?? null,
-      image_prompt: input.image_prompt,
-      dialogue_text: input.dialogue_text ?? null,
-      characters_in_frame: input.characters_in_frame ?? null,
-      layout: input.layout ?? null,
-      camera_angle: input.camera_angle ?? null,
-      dialogue_position: input.dialogue_position ?? null,
-    },
   });
 }
 

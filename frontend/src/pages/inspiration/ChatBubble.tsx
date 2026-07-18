@@ -16,12 +16,12 @@ const OptionCard: React.FC<{
 }> = ({ option, onSend, skeleton }) => {
   if (skeleton) {
     return (
-      <div className="inspiration-option-card inspiration-option-card-skeleton w-full text-left border border-dashed border-book-accent/40 bg-book-accent/5 rounded-sm px-2.5 py-2">
-        <div className="flex items-start gap-1.5">
-          <div className="mt-0.5 shrink-0 w-[11px] h-[11px] rounded-sm bg-book-accent/30" />
+      <div className="inspiration-option-card inspiration-option-card-skeleton w-full text-left border border-dashed border-book-accent/35 bg-book-accent/5 rounded-2xl px-3.5 py-3">
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 shrink-0 w-3 h-3 rounded-md bg-book-accent/30" />
           <div className="min-w-0 flex-1 space-y-1.5">
-            <div className="h-3 bg-book-accent/20 rounded-sm w-3/5" />
-            <div className="h-2.5 bg-book-accent/15 rounded-sm w-full" />
+            <div className="h-3.5 bg-book-accent/20 rounded-md w-3/5" />
+            <div className="h-3 bg-book-accent/15 rounded-md w-full" />
           </div>
         </div>
       </div>
@@ -32,14 +32,14 @@ const OptionCard: React.FC<{
     <button
       type="button"
       onClick={onSend}
-      className="inspiration-option-card w-full text-left border border-book-border bg-book-bg-tertiary/40 hover:bg-book-bg-tertiary text-book-text-main rounded-sm px-2.5 py-2 transition-colors"
+      className="inspiration-option-card w-full rounded-2xl border border-book-border/55 bg-book-bg-paper/70 px-3.5 py-3 text-left text-book-text-main transition-[transform,border-color,background-color,box-shadow] duration-150 ease-out hover:-translate-y-px hover:border-book-primary/25 hover:bg-book-bg-paper hover:shadow-[var(--shadow-card)] active:translate-y-0"
     >
-      <div className="flex items-start gap-1.5">
-        <ArrowRight size={11} className="mt-0.5 shrink-0 text-book-accent" />
+      <div className="flex items-start gap-2">
+        <ArrowRight size={12} className="mt-0.5 shrink-0 text-book-accent" />
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold leading-snug">{option.label}</div>
+          <div className="text-[13px] font-semibold leading-snug tracking-tight">{option.label}</div>
           {option.description && (
-            <div className="mt-1 text-[10px] leading-relaxed text-book-text-muted">
+            <div className="mt-1 text-xs leading-relaxed text-book-text-muted">
               {option.description}
             </div>
           )}
@@ -48,7 +48,7 @@ const OptionCard: React.FC<{
               {option.keyElements.map((item) => (
                 <span
                   key={item}
-                  className="rounded-sm border border-book-border px-1.5 py-0.5 text-[10px] text-book-text-muted"
+                  className="rounded-full bg-book-bg-tertiary px-2 py-0.5 text-[11px] text-book-text-muted"
                 >
                   {item}
                 </span>
@@ -62,9 +62,9 @@ const OptionCard: React.FC<{
 };
 
 /**
- *  - 用户气泡：主色实色 + 白字 + 右上角无圆角
- *  - AI 气泡：极淡背景 + 左侧 3px 装饰线（书香 accent 色），无方框
- *  - 头部 sender 标签：「你」/「AI 助手」+ 12px 加粗 + letter-spacing
+ *  - 用户气泡：主色浅底 + 深字 + 大气泡圆角（右下略尖）
+ *  - 助手气泡：轻纸面填充，不形成卡片墙
+ *  - 头部 sender 标签：「你」/「创作助手」
  *  - 流式选项：已完成的直接可点，正在生成的显示骨架动画
  */
 export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption }) => {
@@ -73,7 +73,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
 
   if (isSystem) {
     return (
-      <div className="self-center text-[10px] text-book-text-muted bg-book-bg-tertiary border border-book-border rounded-sm px-2 py-1">
+      <div className="self-center text-[11px] text-book-text-muted bg-book-bg-tertiary/80 rounded-full px-3 py-1">
         {message.content}
       </div>
     );
@@ -86,27 +86,22 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
   const showPendingSkeleton = message.streaming && message.optionsPending;
 
   return (
-    <div className={`flex flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}>
-      <div className={`max-w-[80%] ${isUser ? "" : "pl-3 border-l-[3px] border-book-accent"}`}>
+    <div className={`flex flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
+      <div className="max-w-[80%]">
         <div
-          className={`text-[10px] font-bold mb-0.5 ${
-            isUser ? "text-book-accent" : "text-book-text-muted"
+          className={`text-[11px] font-semibold mb-1 px-1 ${
+            isUser ? "text-book-primary" : "text-book-text-muted"
           }`}
-          style={{ letterSpacing: "0.06em" }}
+          style={{ letterSpacing: "0.04em" }}
         >
-          {isUser ? "你" : "AI 助手"}
+          {isUser ? "你" : "创作助手"}
         </div>
         <div
-          className={`px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-words ${
+          className={`px-4 py-3 text-[15px] leading-relaxed whitespace-pre-wrap break-words tracking-tight ${
             isUser
-              ? "rounded-sm border border-book-primary/30 bg-book-primary/10 text-book-text-main"
-              : "bg-book-bg-tertiary/30 text-book-text-main"
+              ? "rounded-[18px] rounded-br-md bg-book-primary text-[rgb(var(--color-button-text))] shadow-sm"
+              : "rounded-[18px] rounded-bl-md border border-book-border/45 bg-book-bg-paper/65 text-book-text-main"
           }`}
-          style={
-            isUser
-              ? { borderTopRightRadius: 0 }
-              : undefined
-          }
         >
           {message.content}
           {message.streaming && (

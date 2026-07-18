@@ -1,6 +1,6 @@
 use super::super::*;
 use super::fixtures::{discovery_chapter, text_anchors_for_test};
-use a4n_services::text_anchor::text_anchor_prompt_values;
+use a4n_core::source_spans::text_anchor_prompt_values;
 use serde_json::{Value, json};
 
 fn chapter_with_text_anchors(chapter_number: i32, content: &str) -> Value {

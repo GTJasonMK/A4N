@@ -1,4 +1,10 @@
-import type { NovelProject, ProjectAccessRole, ProjectKind } from "../../api/project";
+import type { NovelProject, ProjectKind } from "../../api/project";
+import {
+  PROJECT_ACCESS_ROLE_LABELS,
+  PROJECT_KIND_LABELS,
+} from "../../utils/projectRouting";
+
+export { PROJECT_KIND_LABELS };
 
 export interface Quote {
   zh: string;
@@ -37,6 +43,14 @@ const CREATIVE_QUOTES: Quote[] = [
 export type ProjectTab = "recent" | "all";
 export type ProjectKindFilter = "all" | ProjectKind;
 
+export interface ProjectFamily {
+  key: string;
+  root: NovelProject | null;
+  projects: NovelProject[];
+  title: string;
+  updatedAtMs: number;
+}
+
 export const PROJECT_TABS: readonly ProjectTab[] = ["recent", "all"] as const;
 export const PROJECT_KIND_FILTERS: readonly ProjectKindFilter[] = [
   "all",
@@ -51,24 +65,12 @@ export const PROJECT_TAB_LABELS: Record<ProjectTab, string> = {
   all: "全部项目",
 };
 
-export const PROJECT_KIND_LABELS: Record<ProjectKind, string> = {
-  text: "文本项目",
-  comic: "漫画项目",
-  video: "视频项目",
-  galgame: "GALGame 项目",
-};
-
 export const PROJECT_KIND_FILTER_LABELS: Record<ProjectKindFilter, string> = {
   all: "全部类型",
   ...PROJECT_KIND_LABELS,
 };
 
-export const PROJECT_ROLE_LABELS: Record<ProjectAccessRole, string> = {
-  owner: "所有者",
-  manager: "管理员",
-  editor: "编辑者",
-  viewer: "只读成员",
-};
+export const PROJECT_ROLE_LABELS = PROJECT_ACCESS_ROLE_LABELS;
 
 export const pickRandomQuote = (): Quote =>
   CREATIVE_QUOTES[Math.floor(Math.random() * CREATIVE_QUOTES.length)];
@@ -87,20 +89,73 @@ const projectUpdatedAtMs = (project: NovelProject): number => {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 };
 
-export const getRecentProjects = (projects: NovelProject[]): NovelProject[] =>
-  [...projects].sort((a, b) => projectUpdatedAtMs(b) - projectUpdatedAtMs(a)).slice(0, 10);
+const PROJECT_KIND_ORDER: Record<ProjectKind, number> = {
+  text: 0,
+  comic: 1,
+  video: 2,
+  galgame: 3,
+};
 
-export const groupProjectsByTitle = (projects: NovelProject[]): [string, NovelProject[]][] => {
-  const groups = new Map<string, NovelProject[]>();
-  [...projects]
+const compareFamilyProjects = (a: NovelProject, b: NovelProject): number => {
+  const kindDifference = PROJECT_KIND_ORDER[a.project_kind] - PROJECT_KIND_ORDER[b.project_kind];
+  if (kindDifference !== 0) return kindDifference;
+  const updatedDifference = projectUpdatedAtMs(b) - projectUpdatedAtMs(a);
+  if (updatedDifference !== 0) return updatedDifference;
+  return a.title.localeCompare(b.title, "zh-Hans-u-co-pinyin");
+};
+
+export const buildProjectFamilies = (projects: NovelProject[]): ProjectFamily[] => {
+  const familyProjects = new Map<string, NovelProject[]>();
+  projects.forEach((project) => {
+    const familyId = project.root_project_id ?? project.id;
+    const key = String(familyId);
+    const family = familyProjects.get(key);
+    if (family) family.push(project);
+    else familyProjects.set(key, [project]);
+  });
+
+  return [...familyProjects.entries()].map(([key, items]) => {
+    const familyId = Number(key);
+    const root = items.find((project) => project.id === familyId) ?? null;
+    const sortedProjects = [...items].sort((a, b) => {
+      if (root) {
+        if (a.id === root.id) return -1;
+        if (b.id === root.id) return 1;
+      }
+      return compareFamilyProjects(a, b);
+    });
+    return {
+      key,
+      root,
+      projects: sortedProjects,
+      title:
+        root?.title ??
+        items.find((project) => project.root_project_title?.trim())?.root_project_title?.trim() ??
+        sortedProjects[0]?.title ??
+        "未命名项目",
+      updatedAtMs: Math.max(...items.map(projectUpdatedAtMs)),
+    };
+  });
+};
+
+export const getRecentProjectFamilies = (projects: NovelProject[]): ProjectFamily[] =>
+  buildProjectFamilies(projects)
+    .sort((a, b) => b.updatedAtMs - a.updatedAtMs)
+    .slice(0, 10);
+
+export const groupProjectFamiliesByTitle = (
+  projects: NovelProject[],
+): [string, ProjectFamily[]][] => {
+  const groups = new Map<string, ProjectFamily[]>();
+  buildProjectFamilies(projects)
     .sort((a, b) => a.title.localeCompare(b.title, "zh-Hans-u-co-pinyin"))
-    .forEach((project) => {
-      const key = titleSortKey(project.title);
+    .forEach((family) => {
+      const key = titleSortKey(family.title);
       const group = groups.get(key);
       if (group) {
-        group.push(project);
+        group.push(family);
       } else {
-        groups.set(key, [project]);
+        groups.set(key, [family]);
       }
     });
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));

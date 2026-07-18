@@ -2,31 +2,18 @@ import React from "react";
 import { ListChecks } from "lucide-react";
 
 export const QueueInfoCard: React.FC = () => (
-  <div className="pyqt-card p-4 text-xs text-book-text-sub leading-relaxed">
-    <div className="font-semibold text-book-text-main mb-2 inline-flex items-center gap-1.5">
-      <ListChecks size={14} /> 关于任务队列
+  <details className="group rounded-xl border border-book-border/40 bg-book-bg-paper/55 text-xs text-book-text-sub">
+    <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 font-semibold text-book-text-main">
+      <ListChecks size={14} className="text-book-primary" />
+      队列说明
+      <span className="ml-auto text-[11px] font-normal text-book-text-muted group-open:hidden">展开</span>
+      <span className="ml-auto hidden text-[11px] font-normal text-book-text-muted group-open:inline">收起</span>
+    </summary>
+    <div className="space-y-2 border-t border-book-border/30 px-3 py-3 leading-relaxed">
+      <p>任务会根据优先级自动排队，并在可用的处理槽位中依次执行。</p>
+      <p className="text-book-text-muted">
+        高优先级用于当前操作，中优先级用于一般工作流，低优先级用于知识库入库和导入分析等后台任务。
+      </p>
     </div>
-    <p className="mb-1.5">
-      A4N 后端使用基于
-      <code className="mx-1 px-1.5 py-0.5 bg-book-bg-tertiary rounded text-[11px] font-mono">
-        tokio::Semaphore
-      </code>
-      的优先级调度。
-    </p>
-    <p className="mb-1.5">
-      <span className="pyqt-pill mr-1">High</span>
-      用户交互类任务（章节生成、灵感对话）
-      <span className="pyqt-pill mx-1 ml-3">Medium</span>
-      一般工作流
-      <span className="pyqt-pill mx-1 ml-3">Low</span>
-      后台任务（RAG 入库、导入分析）
-    </p>
-    <p className="text-book-text-muted">
-      任务记录写入
-      <code className="mx-1 px-1.5 py-0.5 bg-book-bg-tertiary rounded text-[11px] font-mono">
-        task_queue
-      </code>
-      表，设置页只提供运行中/历史任务观测与取消入口。
-    </p>
-  </div>
+  </details>
 );

@@ -51,5 +51,4 @@ export interface ConfigListPanelProps<C> {
   activateText?: string;
   activateSuccessMessage?: string;
   activateErrorMessage?: string;
-  activeDeleteTitle?: string;
 }

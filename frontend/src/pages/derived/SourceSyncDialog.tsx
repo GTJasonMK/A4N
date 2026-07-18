@@ -6,6 +6,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { Modal } from "../../components/ui/Modal";
 import { BookButton } from "../../components/ui/BookButton";
+import { Dropdown } from "../../components/ui/Dropdown";
 
 interface SourceSyncDialogProps {
   open: boolean;
@@ -28,6 +29,36 @@ const STATUS_LABELS: Record<string, string> = {
   root_updated: "根文本已更新",
   conflict: "存在冲突",
   detached: "已分离",
+};
+
+const TARGET_KIND_LABELS: Record<string, string> = {
+  galgame_scene: "GALGame 场次",
+  galgame_line: "GALGame 台词",
+  manga_prompt: "漫画页",
+  manga_page: "漫画页",
+  video_prompt: "视频提示词",
+  video_segment: "视频片段",
+  text_anchor: "正文锚点",
+};
+
+const CONFLICT_STATUS_LABELS: Record<string, string> = {
+  pending: "待处理",
+  resolved: "已按来源处理",
+  ignored: "已保留当前内容",
+};
+
+const SOURCE_CHANGE_LABELS: Record<string, string> = {
+  added: "来源新增",
+  updated: "来源已更新",
+  deleted: "来源已删除",
+  moved: "来源位置变化",
+};
+
+const LOCAL_STATE_LABELS: Record<string, string> = {
+  unchanged: "当前项目未修改",
+  modified: "当前项目已修改",
+  generated: "已有生成内容",
+  missing: "当前项目中不存在",
 };
 
 export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
@@ -141,7 +172,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       return;
     }
     if (previewBusyRef.current) {
-      addToast("正在生成同步计划", "error");
+      addToast("正在检查来源更新", "error");
       return;
     }
     previewBusyRef.current = true;
@@ -157,7 +188,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       addToast("同步计划已生成", "success");
     } catch (err) {
       if (isCurrentAction(targetScope, previewSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "生成同步计划失败"), "error");
+        addToast(extractErrorMessage(err, "检查来源更新失败"), "error");
       }
     } finally {
       if (isCurrentAction(targetScope, previewSeqRef, requestSeq)) {
@@ -328,7 +359,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     if (conflict.status !== "pending") return;
     const sceneId = galgameSceneIdForConflict(conflict);
     if (!sceneId) {
-      addToast("该冲突无法定位 Galgame 场", "error");
+      addToast("该冲突无法定位 GALGame 场", "error");
       return;
     }
     if (applyBusyRef.current) {
@@ -336,8 +367,8 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       return;
     }
     const ok = await confirmDialog({
-      title: "重建 Galgame 场",
-      message: "将用目标源快照锚点重建该场，旧行、选择支、该场背景/CG 生成意图和媒体绑定会失效。确定继续？",
+      title: "重建 GALGame 场",
+      message: "将根据最新来源内容重建该场，旧行、选择支、背景、CG 生成设置和媒体绑定会失效。确定继续？",
       confirmText: "重建场",
       dialogType: "warning",
     });
@@ -398,11 +429,11 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
           ),
         };
       });
-      addToast("Galgame 场已重建", "success");
+      addToast("GALGame 场已重建", "success");
       await onChanged();
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "重建 Galgame 场失败"), "error");
+        addToast(extractErrorMessage(err, "重建 GALGame 场失败"), "error");
       }
     } finally {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
@@ -429,7 +460,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     setDetachConfirming(true);
     const ok = await confirmDialog({
       title: "分离派生项目",
-      message: "分离后该项目不再跟随根文本更新，当前源快照会成为固定基线。确定继续？",
+      message: "分离后该项目不再跟随原项目更新，当前来源内容会保留为固定版本。确定继续？",
       confirmText: "分离项目",
       dialogType: "warning",
     });
@@ -475,66 +506,90 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     <Modal
       isOpen={open}
       onClose={handleClose}
-      title="源文本同步"
-      subtitle={`项目：${projectTitle}`}
+      title="来源同步"
+      subtitle={projectTitle}
       icon={<GitCompare size={15} />}
       maxWidthClassName="max-w-5xl"
-      bodyClassName="px-4 py-4"
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
       showCloseButton={!busy}
-      footer={
-        <div className="flex flex-wrap justify-end gap-2 px-4 py-3">
-          <BookButton variant="secondary" size="sm" onClick={handleClose} disabled={busy}>
-            关闭
+      footer={canEditSourceSync ? (
+        <div className="flex w-full items-center gap-2">
+          {!busy && sourceSyncStatus !== "detached" ? (
+            <Dropdown
+              items={[
+                {
+                  label: "分离来源项目",
+                  onClick: handleDetach,
+                  danger: true,
+                  icon: <Unplug size={12} />,
+                },
+              ]}
+            />
+          ) : null}
+          <span className="min-w-0 flex-1" />
+          <BookButton
+            variant={plan ? "secondary" : "primary"}
+            size="sm"
+            onClick={handlePreview}
+            disabled={busy}
+            className="!min-h-8 !text-xs"
+          >
+            {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            {plan ? "重新检查" : "检查更新"}
           </BookButton>
-          {canEditSourceSync ? (
-            <>
-              <BookButton
-                variant="warning"
-                size="sm"
-                onClick={handleDetach}
-                disabled={busy || sourceSyncStatus === "detached"}
-              >
-                {detaching ? <Loader2 size={13} className="animate-spin" /> : <Unplug size={13} />}
-                分离项目
-              </BookButton>
-              <BookButton variant="secondary" size="sm" onClick={handlePreview} disabled={busy}>
-                {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                生成同步计划
-              </BookButton>
-              <BookButton
-                variant="primary"
-                size="sm"
-                onClick={handleApplyUnconflicted}
-                disabled={!canApplyUnconflicted || busy}
-              >
-                {applying ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-                应用无冲突项
-              </BookButton>
-            </>
+          {canApplyUnconflicted ? (
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={handleApplyUnconflicted}
+              disabled={busy}
+              className="!min-h-8 !text-xs"
+            >
+              {applying ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <CheckCircle2 size={13} />
+              )}
+              应用安全更新
+            </BookButton>
           ) : null}
         </div>
-      }
+      ) : undefined}
     >
       <div className="space-y-4">
-        <section className="grid gap-2 text-xs sm:grid-cols-4">
-          <InfoBlock label="当前状态" value={STATUS_LABELS[sourceSyncStatus] ?? sourceSyncStatus} />
-          <InfoBlock label="同步计划" value={plan ? `#${plan.run.id}` : "未生成"} />
-          <InfoBlock label="源快照" value={plan ? `${plan.run.from_snapshot_id} -> ${plan.run.to_snapshot_id}` : "-"} />
-          <InfoBlock
-            label="冲突统计"
-            value={plan ? `${conflictCounts.info}/${conflictCounts.warning}/${conflictCounts.blocking}` : "-"}
-          />
+        <section className="flex flex-wrap gap-x-5 gap-y-1 text-xs leading-relaxed">
+          <span>
+            <span className="text-book-text-muted">来源状态</span>{" "}
+            <span className="font-medium text-book-text-main">
+              {STATUS_LABELS[sourceSyncStatus] ?? "状态未知"}
+            </span>
+          </span>
+          <span>
+            <span className="text-book-text-muted">更新检查</span>{" "}
+            <span className="font-medium text-book-text-main">{plan ? "已完成" : "尚未检查"}</span>
+          </span>
+          {plan ? (
+            <span>
+              <span className="text-book-text-muted">需要处理</span>{" "}
+              <span className="font-medium text-book-text-main">
+                {[
+                  conflictCounts.info > 0 ? `普通 ${conflictCounts.info}` : null,
+                  conflictCounts.warning > 0 ? `确认 ${conflictCounts.warning}` : null,
+                  conflictCounts.blocking > 0 ? `阻塞 ${conflictCounts.blocking}` : null,
+                ].filter(Boolean).join(" · ") || "无需处理"}
+              </span>
+            </span>
+          ) : null}
         </section>
 
         {!plan ? (
-          <div className="a4n-page-surface px-4 py-5 text-sm text-book-text-muted">
-            点击“生成同步计划”后，系统只创建 dry run 和冲突清单，不会改写提示词、媒体、片段或时间线。
-          </div>
+          <p className="text-sm leading-relaxed text-book-text-muted">
+            点击“检查更新”只会比较来源与当前项目，不会修改任何内容。
+          </p>
         ) : plan.conflicts.length === 0 ? (
-          <div className="rounded border border-success/30 bg-success/10 px-4 py-4 text-sm text-book-text-main">
-            {planCanResolveConflicts ? "当前同步计划没有冲突，可以直接应用无冲突项。" : "当前同步计划已完成。"}
+          <div className="rounded-[var(--pyqt-radius-lg)] border border-success/30 bg-success/10 px-4 py-4 text-sm text-book-text-main">
+            {planCanResolveConflicts ? "没有需要人工处理的冲突，可以应用安全更新。" : "本次来源同步已完成。"}
           </div>
         ) : (
           <div className="space-y-2">
@@ -542,7 +597,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
               <AlertTriangle size={13} className="text-warning" />
               冲突清单
             </div>
-            <div className="max-h-[48vh] space-y-2 overflow-y-auto custom-scrollbar pr-1">
+            <div className="space-y-2">
               {plan.conflicts.map((conflict) => (
                 <ConflictRow
                   key={conflict.id}
@@ -560,13 +615,6 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     </Modal>
   );
 };
-
-const InfoBlock: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="a4n-stat-tile">
-    <div className="mb-1 text-[10px] text-book-text-muted">{label}</div>
-    <div className="break-words text-xs text-book-text-main">{value}</div>
-  </div>
-);
 
 function canMutateSourceSyncRunStatus(status: string | undefined): boolean {
   return status === "planned" || status === "applying";
@@ -586,47 +634,82 @@ const ConflictRow: React.FC<{
   applying: boolean;
   onKeepLocal: () => void;
   onRegenerateScene: () => void;
-}> = ({ conflict, disabled, applying, onKeepLocal, onRegenerateScene }) => (
-  <article className="a4n-interactive-row px-3 py-2">
-    <div className="flex flex-wrap items-center gap-2 text-xs">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-        <span className={severityClass(conflict.severity)}>
-          {SEVERITY_LABELS[conflict.severity] ?? conflict.severity}
-        </span>
-        <span className="font-semibold text-book-text-main">
-          {conflict.conflict_scope} / {conflict.target_kind} #{conflict.target_id}
-        </span>
-        <span className="text-book-text-muted">
-          {conflict.source_change_kind} · {conflict.local_state_kind} · {conflict.status}
-        </span>
+}> = ({ conflict, disabled, applying, onKeepLocal, onRegenerateScene }) => {
+  const showActions = conflict.status === "pending" && (!disabled || applying);
+  return (
+    <article className="a4n-flat-surface overflow-hidden">
+      <div className="flex items-start gap-3 px-3 py-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <h3 className="font-semibold text-book-text-main">
+              {TARGET_KIND_LABELS[conflict.target_kind] ?? "关联内容"}
+            </h3>
+            <span className={severityClass(conflict.severity)}>
+              {SEVERITY_LABELS[conflict.severity] ?? "普通更新"}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+            {SOURCE_CHANGE_LABELS[conflict.source_change_kind] ?? "来源已变化"} · {LOCAL_STATE_LABELS[conflict.local_state_kind] ?? "当前项目有改动"} · {CONFLICT_STATUS_LABELS[conflict.status] ?? "状态未知"}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {canRegenerateGalgameScene(conflict) && conflict.status === "pending" && !disabled ? (
+            <Dropdown
+              items={[
+                {
+                  label: "根据来源重建场",
+                  onClick: onRegenerateScene,
+                  icon: <RefreshCw size={12} />,
+                },
+              ]}
+            />
+          ) : null}
+          {showActions ? (
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={onKeepLocal}
+              disabled={disabled}
+              className="!text-xs"
+            >
+              {applying ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+              保留当前
+            </BookButton>
+          ) : null}
+        </div>
       </div>
-      <BookButton
-        variant="secondary"
-        size="sm"
-        onClick={onKeepLocal}
-        disabled={disabled || conflict.status !== "pending"}
-      >
-        {applying ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-        保留当前
-      </BookButton>
-      {canRegenerateGalgameScene(conflict) ? (
-        <BookButton
-          variant="warning"
-          size="sm"
-          onClick={onRegenerateScene}
-          disabled={disabled || conflict.status !== "pending"}
-        >
-          {applying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-          重建场
-        </BookButton>
-      ) : null}
-    </div>
-    <div className="mt-2 grid gap-2 text-[11px] leading-relaxed text-book-text-muted md:grid-cols-2">
-      <JsonSummary title="源文本变化" value={conflict.source_summary_json} />
-      <JsonSummary title="本地对象" value={conflict.local_summary_json} />
-    </div>
-  </article>
-);
+      <div className="grid border-t border-book-border/40 text-[11px] leading-relaxed text-book-text-muted md:grid-cols-2 md:divide-x md:divide-book-border/40">
+        <JsonSummary title="源文本变化" value={conflict.source_summary_json} />
+        <JsonSummary title="当前项目" value={conflict.local_summary_json} />
+      </div>
+      <details className="border-t border-book-border/40 px-3 py-2 text-[10px] text-book-text-muted">
+        <summary className="w-fit cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main">
+          诊断信息
+        </summary>
+        <div className="mt-2 space-y-2">
+          <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 gap-y-1 font-mono">
+            <dt>冲突范围</dt>
+            <dd className="min-w-0 break-all">{conflict.conflict_scope}</dd>
+            <dt>目标定位</dt>
+            <dd className="min-w-0 break-all">{conflict.target_kind} · {conflict.target_id}</dd>
+            <dt>来源状态</dt>
+            <dd className="min-w-0 break-all">{conflict.source_change_kind}</dd>
+            <dt>本地状态</dt>
+            <dd className="min-w-0 break-all">{conflict.local_state_kind}</dd>
+          </dl>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-book-bg-tertiary/45 p-2 font-mono">
+            {JSON.stringify({
+              source: conflict.source_summary_json,
+              local: conflict.local_summary_json,
+              affected_refs: conflict.affected_refs_json,
+              decision: conflict.decision_json,
+            }, null, 2)}
+          </pre>
+        </div>
+      </details>
+    </article>
+  );
+};
 
 function canRegenerateGalgameScene(conflict: SourceSyncConflictSummary): boolean {
   return galgameSceneIdForConflict(conflict) != null;
@@ -645,33 +728,78 @@ function isSameGalgameSceneConflict(conflict: SourceSyncConflictSummary, sceneId
 }
 
 const JsonSummary: React.FC<{ title: string; value: Record<string, unknown> }> = ({ title, value }) => (
-  <div className="a4n-stat-tile px-2 py-1.5">
+  <div className="min-w-0 px-3 py-2.5">
     <div className="mb-1 text-[10px] font-medium text-book-text-sub">{title}</div>
-    <div className="break-words">{formatSummary(value)}</div>
+    <div className="break-words text-book-text-sub">{formatSummary(value)}</div>
   </div>
 );
 
 function severityClass(severity: string): string {
   if (severity === "blocking") {
-    return "rounded border border-error/35 bg-error/10 px-1.5 py-0.5 text-[10px] font-semibold text-error";
+    return "text-[11px] font-semibold text-error";
   }
   if (severity === "warning") {
-    return "rounded border border-warning/35 bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold text-warning";
+    return "text-[11px] font-semibold text-warning";
   }
-  return "rounded border border-book-primary/30 bg-book-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-book-primary";
+  return "text-[11px] font-semibold text-book-primary";
 }
 
 function formatSummary(value: Record<string, unknown>): string {
-  const entries = Object.entries(value).filter(([, item]) => item != null && item !== "");
-  if (entries.length === 0) return "-";
+  const entries = Object.entries(value).filter(
+    ([key, item]) => key in SUMMARY_KEY_LABELS && item != null && item !== "",
+  );
+  if (entries.length === 0) return "有相关内容变化，可展开诊断信息查看定位信息。";
   return entries
     .slice(0, 6)
-    .map(([key, item]) => `${key}: ${formatValue(item)}`)
+    .map(([key, item]) => `${summaryKeyLabel(key)}：${formatValue(key, item)}`)
     .join("；");
 }
 
-function formatValue(value: unknown): string {
+const SUMMARY_KEY_LABELS: Record<string, string> = {
+  title: "标题",
+  text: "内容",
+  content: "内容",
+  summary: "摘要",
+  chapter_number: "章节",
+  scene_index: "场次",
+  line_index: "行号",
+  status: "状态",
+  source_text: "来源内容",
+  local_text: "当前内容",
+  name: "名称",
+  chapter_title: "章节标题",
+  scene_title: "场次标题",
+  old_text: "原内容",
+  new_text: "新内容",
+  reason: "变化原因",
+  page_number: "页码",
+  panel_number: "分镜",
+  segment_index: "片段",
+};
+
+function summaryKeyLabel(key: string): string {
+  return SUMMARY_KEY_LABELS[key] ?? "其他信息";
+}
+
+function formatValue(key: string, value: unknown): string {
+  if (key === "chapter_number" && typeof value === "number") return `第 ${value} 章`;
+  if (key === "page_number" && typeof value === "number") return `第 ${value} 页`;
+  if (key === "panel_number" && typeof value === "number") return `分镜 ${value}`;
+  if (key === "scene_index" && typeof value === "number") return `场次 ${value + 1}`;
+  if (key === "line_index" && typeof value === "number") return `第 ${value + 1} 行`;
+  if (key === "segment_index" && typeof value === "number") return `片段 ${value + 1}`;
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return JSON.stringify(value);
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "是" : "否";
+  if (Array.isArray(value)) {
+    const readable = value.filter((item) => typeof item === "string" || typeof item === "number");
+    return readable.length === value.length && readable.length <= 4
+      ? readable.join("、")
+      : `${value.length} 项`;
+  }
+  if (value && typeof value === "object") {
+    const count = Object.keys(value as Record<string, unknown>).length;
+    return count > 0 ? `${count} 项信息` : "无";
+  }
+  return "—";
 }

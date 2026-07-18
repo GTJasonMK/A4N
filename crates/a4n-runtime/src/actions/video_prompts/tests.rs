@@ -1,11 +1,10 @@
 use super::optimization::{
-    build_video_prompt_optimization_request, optimized_motion_prompt,
-    parse_video_prompt_optimization_output, validate_optimized_prompt_fields,
-    video_prompt_optimization_checkpoint_response,
+    OptimizedVideoPromptFields, build_video_prompt_optimization_request, optimized_motion_prompt,
+    validate_optimized_prompt_fields, video_prompt_optimization_checkpoint_output,
 };
 use super::*;
-use a4n_engine::prompt::tera_engine::TeraPromptEngine;
-use a4n_services::video::PromptOutputLanguage;
+use a4n_orchestrator::video::PromptOutputLanguage;
+use a4n_prompt::tera_engine::TeraPromptEngine;
 use chrono::Utc;
 use std::path::Path;
 
@@ -63,7 +62,7 @@ fn update_prompt_input_distinguishes_missing_and_null_nullable_fields() {
 fn update_prompt_input_rejects_unknown_fields() {
     let err = serde_json::from_value::<UpdateChapterVideoPromptInput>(json!({
         "visual_prompt": "新提示词",
-        "legacy_field": true
+        "unknown_field": true
     }))
     .expect_err("unknown update input fields should fail");
 
@@ -71,39 +70,27 @@ fn update_prompt_input_rejects_unknown_fields() {
 }
 
 #[test]
-fn video_prompt_optimization_output_requires_json_object() {
-    let err = parse_video_prompt_optimization_output("优化好了").expect_err("plain text fails");
-    assert!(err.contains("JSON"));
-}
-
-#[test]
-fn video_prompt_optimization_output_rejects_fenced_json() {
-    let err = parse_video_prompt_optimization_output(
-        "```json\n{\"visual_prompt\":\"新的画面提示词\",\"motion_prompt\":null,\"negative_prompt\":\"避免模糊\"}\n```",
-    )
-    .expect_err("fenced json must fail instead of being silently unwrapped");
-    assert!(err.contains("JSON"));
-}
-
-#[test]
 fn video_prompt_optimization_output_rejects_unknown_fields() {
-    let err = parse_video_prompt_optimization_output(
-        r#"{"visual_prompt":"新的画面提示词","motion_prompt":null,"negative_prompt":null,"legacy_notes":"旧字段"}"#,
-    )
+    let err = serde_json::from_value::<OptimizedVideoPromptFields>(json!({
+        "visual_prompt": "新的画面提示词",
+        "motion_prompt": null,
+        "negative_prompt": null,
+        "unknown_notes": "未知字段",
+    }))
     .expect_err("unknown optimized fields should fail");
 
-    assert!(err.contains("unknown field"));
+    assert!(err.to_string().contains("unknown field"));
 }
 
 #[test]
-fn video_prompt_optimization_checkpoint_revalidates_response_content() {
+fn video_prompt_optimization_checkpoint_revalidates_parsed_output() {
     let raw = r#"{
         "visual_prompt": "优化后的画面提示词",
         "motion_prompt": null,
         "negative_prompt": "避免空间跳变"
     }"#;
 
-    let (response_text, usage, finish_reason) = video_prompt_optimization_checkpoint_response(
+    let (output, usage, finish_reason) = video_prompt_optimization_checkpoint_output(
         &json!({
             "response_content": raw,
             "parsed_output": {
@@ -118,7 +105,9 @@ fn video_prompt_optimization_checkpoint_revalidates_response_content() {
     )
     .expect("valid checkpoint should restore");
 
-    assert_eq!(response_text, raw);
+    assert_eq!(output.visual_prompt, "优化后的画面提示词");
+    assert_eq!(output.motion_prompt, None);
+    assert_eq!(output.negative_prompt.as_deref(), Some("避免空间跳变"));
     assert_eq!(
         usage.expect("usage should restore")["prompt_tokens"],
         json!(10)
@@ -127,14 +116,14 @@ fn video_prompt_optimization_checkpoint_revalidates_response_content() {
 }
 
 #[test]
-fn video_prompt_optimization_checkpoint_rejects_mismatched_parsed_output() {
+fn video_prompt_optimization_checkpoint_restores_repaired_parsed_output() {
     let raw = r#"{
         "visual_prompt": "优化后的画面提示词",
         "motion_prompt": null,
         "negative_prompt": "避免空间跳变"
     }"#;
 
-    let err = video_prompt_optimization_checkpoint_response(
+    let (output, _, _) = video_prompt_optimization_checkpoint_output(
         &json!({
             "response_content": raw,
             "parsed_output": {
@@ -145,9 +134,9 @@ fn video_prompt_optimization_checkpoint_rejects_mismatched_parsed_output() {
         }),
         "optimize_chapter_video_prompt:prompt:9",
     )
-    .expect_err("mismatched parsed_output must fail");
+    .expect("repaired checkpoint should restore parsed_output");
 
-    assert!(err.contains("重新解析结果不一致"));
+    assert_eq!(output.visual_prompt, "另一个画面提示词");
 }
 
 const VALID_OPTIMIZED_VIDEO_VISUAL: &str = "[主体定义与素材绑定]\n首帧输入图片定义主角站在昏暗走廊左侧的起始画面，参考图只用于保持人物服装、门框位置、墙面纹理和手电光束方向一致，不作为拼贴内容。\n\n[片段内容以及前因后果]\n主角沿走廊谨慎前进，发现门后传来轻微声响后停在门前侧耳倾听，情绪从警觉转为紧张但保持克制。\n\n[镜头分镜]\n镜头 1：平视中景承接主角站在昏暗走廊左侧的首帧，手电光束扫过左侧墙面和前方门框，脚步缓慢且肩膀收紧。\n镜头 2：镜头克制跟随主角靠近门前，他放慢脚步并侧耳听向门后，手电光源方向和门框位置保持稳定。\n镜头 3：画面稳定在主角停在门前侧耳倾听的状态，表情紧张但克制，走廊方向和墙面纹理不跳变。\n\n[画面风格描述]\n电影感写实，低饱和冷色走廊，手电光束形成明确方向，门框和墙面作为固定空间锚点，镜头稳定克制。\n\n[连续性与结尾状态]\n主角服装、走廊方向、门框位置和手电光源方向保持不变，结尾稳定在门前侧耳倾听，可供下一段承接。\n\n[限制与避免项]\n不要配背景音乐，不要字幕、水印、乱码文字、换脸、空间跳变、光影突变或把参考图画成拼贴。";
@@ -271,7 +260,7 @@ fn video_prompt_optimization_request_renders_from_prompt_registry() {
 }
 
 #[test]
-fn frame_prompt_delete_group_excludes_analysis_and_segment_plans() {
+fn frame_prompt_delete_group_excludes_segment_plan_and_video_prompts() {
     for prompt_type in [
         "frame_prompt",
         "first_frame_prompt",
@@ -283,15 +272,7 @@ fn frame_prompt_delete_group_excludes_analysis_and_segment_plans() {
         );
     }
 
-    for prompt_type in [
-        "frame_shot_analysis",
-        "first_frame_shot_analysis",
-        "chat_video_shot_analysis",
-        "frame_segment_plan",
-        "first_frame_segment_plan",
-        "chat_video_segment_plan",
-        "video_prompt",
-    ] {
+    for prompt_type in ["frame_segment_plan", "video_prompt"] {
         assert!(
             !is_generated_frame_prompt_type(prompt_type),
             "{prompt_type} must not be deleted by the frame prompt group"
@@ -302,7 +283,6 @@ fn frame_prompt_delete_group_excludes_analysis_and_segment_plans() {
 #[test]
 fn all_chain_delete_group_includes_every_video_prompt_row() {
     let rows = [
-        "frame_shot_analysis",
         "frame_segment_plan",
         "frame_prompt",
         "first_frame_prompt",
@@ -329,7 +309,6 @@ fn all_chain_delete_group_includes_every_video_prompt_row() {
     assert_eq!(
         selected_types,
         vec![
-            "frame_shot_analysis",
             "frame_segment_plan",
             "frame_prompt",
             "first_frame_prompt",

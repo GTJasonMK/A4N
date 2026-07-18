@@ -9,6 +9,7 @@ interface CharacterDetailTabsProps {
   conflictCount: number | null;
   onTabChange: (tab: CharacterDetailTab) => void;
   onRefresh: () => void | Promise<void>;
+  actions?: React.ReactNode;
 }
 
 export const CharacterDetailTabs: React.FC<CharacterDetailTabsProps> = ({
@@ -17,9 +18,10 @@ export const CharacterDetailTabs: React.FC<CharacterDetailTabsProps> = ({
   conflictCount,
   onTabChange,
   onRefresh,
+  actions,
 }) => {
   return (
-    <div className="flex items-center gap-1 border-b border-book-border/40 shrink-0">
+    <div className="flex min-w-0 shrink-0 items-center gap-1 border-b border-book-border/40">
       <TabBtn active={activeTab === "arc"} onClick={() => onTabChange("arc")} icon={<Brain size={12} />}>
         弧光
       </TabBtn>
@@ -35,7 +37,7 @@ export const CharacterDetailTabs: React.FC<CharacterDetailTabsProps> = ({
         onClick={() => onTabChange("conflict")}
         icon={<AlertTriangle size={12} />}
       >
-        一致性（{conflictCount ?? "?"}）
+        {conflictCount == null ? "一致性" : `一致性 ${conflictCount}`}
       </TabBtn>
       <TabBtn
         active={activeTab === "manage"}
@@ -45,13 +47,15 @@ export const CharacterDetailTabs: React.FC<CharacterDetailTabsProps> = ({
         管理
       </TabBtn>
       <div className="flex-1" />
+      {actions}
       {activeTab !== "manage" && (
         <button
           type="button"
           onClick={() => void onRefresh()}
           disabled={loadingTab != null}
-          className="p-1.5 text-book-text-muted hover:text-book-text-main"
-          title="刷新当前 Tab"
+          className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
+          title="刷新当前页面"
+          aria-label="刷新当前页面"
         >
           <RefreshCw size={12} className={loadingTab != null ? "animate-spin" : ""} />
         </button>

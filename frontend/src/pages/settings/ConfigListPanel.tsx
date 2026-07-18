@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../api";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -37,7 +37,6 @@ export function ConfigListPanel<C>({
   activateText = "设为默认",
   activateSuccessMessage = "已设为默认",
   activateErrorMessage = "设置默认失败",
-  activeDeleteTitle = "默认配置不可删除",
 }: ConfigListPanelProps<C>) {
   const addToast = useToast((state) => state.addToast);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -103,15 +102,19 @@ export function ConfigListPanel<C>({
   const hasItem = (id: number) => itemsRef.current.some((item) => item.id === id);
   const isSelectedItem = (id: number) => selectedIdRef.current === id && hasItem(id);
   const editorScope = () => (creatingRef.current ? "create" : `item:${selectedIdRef.current ?? "none"}`);
-  const markDirty = () => {
-    editVersionRef.current += 1;
-    dirtyRef.current = true;
-    setDirty(true);
-  };
   const markClean = () => {
     dirtyRef.current = false;
     setDirty(false);
   };
+
+  useLayoutEffect(() => {
+    if (creating || dirty || items.length !== 1) return;
+    const onlyItem = items[0];
+    if (selectedId === onlyItem.id) return;
+    setSelectedId(onlyItem.id);
+    setForm(onlyItem.config);
+    markClean();
+  }, [creating, dirty, items, selectedId]);
 
   useEffect(() => {
     if (creating || dirty || !selectedItem) return;
@@ -202,6 +205,7 @@ export function ConfigListPanel<C>({
   const handleSave = async () => {
     if (
       savingRef.current ||
+      refreshingRef.current ||
       activatingRef.current != null ||
       deletingRef.current != null ||
       testingRef.current != null ||
@@ -209,6 +213,7 @@ export function ConfigListPanel<C>({
     ) {
       return;
     }
+    if (!dirtyRef.current) return;
     const error = validate?.(form);
     if (error) {
       addToast(error, "error");
@@ -260,6 +265,14 @@ export function ConfigListPanel<C>({
     }
   };
 
+  const validationError = validate?.(form) ?? null;
+  const itemActionBusy =
+    saving ||
+    activating != null ||
+    deleting != null ||
+    testing != null ||
+    requestPreviewLoading;
+
   const handleCancel = async () => {
     if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
     draftTransitionRef.current = true;
@@ -276,7 +289,12 @@ export function ConfigListPanel<C>({
   };
 
   const handleActivate = async (id: number) => {
-    if (savingRef.current || activatingRef.current != null || deletingRef.current != null) return;
+    if (
+      savingRef.current ||
+      refreshingRef.current ||
+      activatingRef.current != null ||
+      deletingRef.current != null
+    ) return;
     if (!hasItem(id)) return;
     const requestSeq = activateSeqRef.current + 1;
     activateSeqRef.current = requestSeq;
@@ -297,7 +315,12 @@ export function ConfigListPanel<C>({
   };
 
   const handleDelete = async (id: number) => {
-    if (savingRef.current || activatingRef.current != null || deletingRef.current != null) return;
+    if (
+      savingRef.current ||
+      refreshingRef.current ||
+      activatingRef.current != null ||
+      deletingRef.current != null
+    ) return;
     if (!hasItem(id)) return;
     const item = itemsRef.current.find((row) => row.id === id);
     if (item?.deleteDisabled) {
@@ -345,7 +368,12 @@ export function ConfigListPanel<C>({
 
   const handleTest = async (id: number) => {
     if (!onTest) return;
-    if (savingRef.current || testingRef.current != null || previewLoadingRef.current) return;
+    if (
+      savingRef.current ||
+      refreshingRef.current ||
+      testingRef.current != null ||
+      previewLoadingRef.current
+    ) return;
     if (!isSelectedItem(id)) return;
     if (selectedItem?.readonly) {
       addToast(selectedItem.readonlyReason ?? "只读配置不能在这里测试", "error");
@@ -391,7 +419,12 @@ export function ConfigListPanel<C>({
 
   const handlePreviewTest = async (id: number) => {
     if (!onPreviewTest) return;
-    if (savingRef.current || testingRef.current != null || previewLoadingRef.current) return;
+    if (
+      savingRef.current ||
+      refreshingRef.current ||
+      testingRef.current != null ||
+      previewLoadingRef.current
+    ) return;
     if (!isSelectedItem(id)) return;
     if (selectedItem?.readonly) {
       addToast(selectedItem.readonlyReason ?? "只读配置不能在这里预览测试请求", "error");
@@ -436,33 +469,45 @@ export function ConfigListPanel<C>({
   };
 
   return (
-    <div className="h-full flex flex-col gap-3">
+    <section aria-label={`${title}管理`} className="flex h-auto flex-col gap-3 md:h-full">
       <ConfigListToolbar
         title={title}
         itemCount={items.length}
         loading={loading}
+        busy={itemActionBusy}
         onCreate={() => void handleStartCreate()}
         onRefresh={handleRefresh}
       />
 
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[280px_1fr] md:grid-rows-1">
-        <ConfigListSidebar
-          title={title}
-          items={items}
-          loading={loading}
-          selectedId={selectedId}
-          creating={creating}
-          formatItem={formatItem}
-          testResults={testResults}
-          activeLabel={activeLabel}
-          onSelect={(id) => void handleSelect(id)}
-        />
+      <div
+        className={`grid min-h-0 gap-3 md:flex-1 md:grid-rows-1 ${
+          items.length > 1 ? "md:grid-cols-[260px_minmax(0,1fr)]" : "md:grid-cols-1"
+        }`}
+      >
+        {items.length > 1 ? (
+          <ConfigListSidebar
+            title={title}
+            items={items}
+            loading={loading}
+            busy={itemActionBusy || loading}
+            selectedId={selectedId}
+            creating={creating}
+            formatItem={formatItem}
+            testResults={testResults}
+            activeLabel={activeLabel}
+            onSelect={(id) => void handleSelect(id)}
+          />
+        ) : null}
 
         <ConfigEditorPanel
           title={title}
+          itemCount={items.length}
           creating={creating}
           selectedItem={selectedItem}
           form={form}
+          dirty={dirty}
+          validationError={validationError}
+          busy={loading}
           saving={saving}
           activating={activating}
           deleting={deleting}
@@ -472,11 +517,16 @@ export function ConfigListPanel<C>({
           canTest={Boolean(onTest)}
           canPreviewTest={Boolean(onPreviewTest)}
           activateText={activateText}
-          activeDeleteTitle={activeDeleteTitle}
           renderEditor={renderEditor}
           onFormChange={(nextForm) => {
             setForm(nextForm);
-            markDirty();
+            editVersionRef.current += 1;
+            const baselineForm = creating
+              ? defaultForm
+              : selectedItem?.config ?? defaultForm;
+            const nextDirty = !configFormsEqual(nextForm, baselineForm);
+            dirtyRef.current = nextDirty;
+            setDirty(nextDirty);
           }}
           onCancel={handleCancel}
           onSave={handleSave}
@@ -499,6 +549,9 @@ export function ConfigListPanel<C>({
           setRequestPreviewData(null);
         }}
       />
-    </div>
+    </section>
   );
 }
+
+const configFormsEqual = <C,>(left: C, right: C): boolean =>
+  JSON.stringify(left) === JSON.stringify(right);

@@ -1,14 +1,20 @@
 import type { ReactNode } from "react";
-import { AlertCircle, Check, CheckCircle2, Edit3, Eye, Loader2, Trash2, Zap } from "lucide-react";
-import { BookButton } from "../../../components/ui/BookButton";
+import { AlertCircle, Check, CheckCircle2, Edit3, Eye, Loader2, Trash2, X, Zap } from "lucide-react";
+import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { formatConfigTestTime } from "./testResultUtils";
 import type { ConfigEditorRenderContext, ConfigItem, ConfigTestResult } from "./types";
+import { configCreateLabel } from "./configText";
 
 interface ConfigEditorPanelProps<C> {
   title: string;
+  itemCount: number;
   creating: boolean;
   selectedItem: ConfigItem<C> | null;
   form: C;
+  dirty: boolean;
+  validationError: string | null;
+  busy: boolean;
   saving: boolean;
   activating: number | null;
   deleting: number | null;
@@ -18,7 +24,6 @@ interface ConfigEditorPanelProps<C> {
   canTest: boolean;
   canPreviewTest: boolean;
   activateText: string;
-  activeDeleteTitle: string;
   renderEditor: (
     form: C,
     setForm: (config: C) => void,
@@ -35,9 +40,13 @@ interface ConfigEditorPanelProps<C> {
 
 export function ConfigEditorPanel<C>({
   title,
+  itemCount,
   creating,
   selectedItem,
   form,
+  dirty,
+  validationError,
+  busy,
   saving,
   activating,
   deleting,
@@ -47,7 +56,6 @@ export function ConfigEditorPanel<C>({
   canTest,
   canPreviewTest,
   activateText,
-  activeDeleteTitle,
   renderEditor,
   onFormChange,
   onCancel,
@@ -57,42 +65,77 @@ export function ConfigEditorPanel<C>({
   onPreviewTest,
   onTest,
 }: ConfigEditorPanelProps<C>) {
-  const itemActionBusy = activating != null || deleting != null || testing != null || previewing;
+  const itemActionBusy =
+    busy || activating != null || deleting != null || testing != null || previewing;
+  const empty = !creating && !selectedItem;
+  const createLabel = configCreateLabel(title);
 
   return (
-    <section className="pyqt-card overflow-y-auto p-3 sm:p-5 custom-scrollbar">
-      {!creating && !selectedItem ? (
-        <div className="h-full flex flex-col items-center justify-center text-center text-book-text-muted">
-          <Edit3 size={32} className="text-book-primary/30 mb-3" />
+    <section
+      className={`a4n-flat-surface flex min-h-0 flex-col overflow-visible p-3 sm:p-4 md:overflow-hidden ${
+        empty ? "min-h-[180px] self-start md:w-full" : ""
+      }`}
+    >
+      {empty ? (
+        <div className="a4n-empty-state min-h-[148px]">
+          <Edit3 size={24} className="text-book-primary/30" />
           <p className="text-sm">
-            从左侧选择一项进行编辑，
-            <br />
-            或点击"新增 {title}"开始。
+            {itemCount === 0 ? (
+              <>
+                还没有{title}。
+                <br />
+                点击“{createLabel}”开始。
+              </>
+            ) : (
+              <>
+                选择一项进行编辑，
+                <br />
+                或点击“{createLabel}”开始。
+              </>
+            )}
           </p>
         </div>
       ) : (
-        <>
-          <div className="mb-4 flex flex-col gap-3 border-b border-book-border/60 pb-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-sm font-serif text-book-text-main">
-              {creating ? `新建 ${title}` : `编辑 ${title}`}
-            </h3>
-            <ConfigEditorActions
-              selectedItem={selectedItem}
-              creating={creating}
-              saving={saving}
-              activating={activating}
-              deleting={deleting}
-              testing={testing}
-              previewing={previewing}
-              canTest={canTest}
-              canPreviewTest={canPreviewTest}
-              activateText={activateText}
-              activeDeleteTitle={activeDeleteTitle}
-              onActivate={onActivate}
-              onDelete={onDelete}
-              onPreviewTest={onPreviewTest}
-              onTest={onTest}
-            />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="mb-4 flex min-w-0 items-start gap-3 border-b border-book-border/60 pb-3">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-book-text-main">
+                {creating ? `新建 ${title}` : `编辑 ${title}`}
+              </h3>
+              {selectedItem ? (
+                <div className={`mt-0.5 text-[11px] ${selectedItem.isActive ? "text-success" : "text-book-text-muted"}`}>
+                  {selectedItem.isActive ? "当前已启用" : "当前未启用"}
+                </div>
+              ) : null}
+            </div>
+            {creating ? (
+              <BookIconButton
+                label="取消新建"
+                variant="ghost"
+                size="sm"
+                onClick={() => void onCancel()}
+                disabled={saving || itemActionBusy}
+              >
+                <X size={13} />
+              </BookIconButton>
+            ) : (
+              <ConfigEditorActions
+                selectedItem={selectedItem}
+                creating={creating}
+                saving={saving}
+                activating={activating}
+                deleting={deleting}
+                testing={testing}
+                previewing={previewing}
+                canTest={canTest}
+                canPreviewTest={canPreviewTest}
+                activateText={activateText}
+                onActivate={onActivate}
+                onDelete={onDelete}
+                onPreviewTest={onPreviewTest}
+                onTest={onTest}
+              />
+            )}
           </div>
 
           {canTest && !creating ? (
@@ -104,35 +147,37 @@ export function ConfigEditorPanel<C>({
           ) : null}
 
           {selectedItem?.readonly ? (
-            <div className="mb-4 rounded border border-book-primary/30 bg-book-primary/5 px-3 py-2 text-xs text-book-text-muted">
+            <div className="a4n-context-bar mb-4 text-xs text-book-text-muted">
               {selectedItem.readonlyReason ?? "该配置由系统维护，不能在这里编辑。"}
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-4">
-            {renderEditor(
-              form,
-              selectedItem?.readonly ? () => undefined : onFormChange,
-              {
-                selectedId: selectedItem?.id ?? null,
-                readonly: selectedItem?.readonly === true,
-              },
-            )}
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-visible md:overflow-y-auto md:pr-1">
+            <div className="flex flex-col gap-4 pb-2">
+              {renderEditor(
+                form,
+                selectedItem?.readonly ? () => undefined : onFormChange,
+                {
+                  selectedId: selectedItem?.id ?? null,
+                  readonly: selectedItem?.readonly === true,
+                },
+              )}
+            </div>
           </div>
 
-          <div className="mt-6 flex flex-col-reverse gap-2 border-t border-book-border/60 pt-4 sm:flex-row sm:items-center sm:justify-end">
-            <BookButton
-              variant="secondary"
-              onClick={() => void onCancel()}
-              disabled={saving || itemActionBusy}
-            >
-              取消
-            </BookButton>
-            {!selectedItem?.readonly ? (
+          {!selectedItem?.readonly ? (
+            <div className="mt-3 flex shrink-0 flex-col gap-2 border-t border-book-border/60 pt-3 sm:flex-row sm:items-center">
+              {dirty && validationError ? (
+                <div role="status" className="min-w-0 flex-1 text-[11px] leading-relaxed text-warning">
+                  {validationError}
+                </div>
+              ) : (
+                <span className="flex-1" />
+              )}
               <BookButton
-                variant="primary"
                 onClick={() => void onSave()}
-                disabled={saving || itemActionBusy}
+                disabled={!dirty || validationError != null || saving || itemActionBusy}
+                className="w-full sm:w-auto"
               >
                 {saving ? (
                   <span className="inline-flex items-center gap-2">
@@ -144,9 +189,9 @@ export function ConfigEditorPanel<C>({
                   "保存"
                 )}
               </BookButton>
-            ) : null}
-          </div>
-        </>
+            </div>
+          ) : null}
+        </div>
       )}
     </section>
   );
@@ -162,18 +207,11 @@ const ConnectionTestStatus = <C,>({
   testResult: ConfigTestResult | null;
 }) => {
   const running = selectedItem != null && testing === selectedItem.id;
-  if (!running && !testResult) {
-    return (
-      <div className="a4n-stat-tile mb-4 flex items-center gap-2 px-3 py-2 text-xs text-book-text-muted">
-        <AlertCircle size={13} />
-        <span>尚未测试当前已保存配置。</span>
-      </div>
-    );
-  }
+  if (!running && !testResult) return null;
 
   if (running) {
     return (
-      <div className="mb-4 flex items-center gap-2 rounded border border-book-primary/45 bg-book-primary/5 px-3 py-2 text-xs text-book-primary">
+      <div className="mb-4 flex items-center gap-2 rounded border border-book-primary/45 bg-book-primary/5 px-3 py-2 text-xs text-book-primary" role="status" aria-live="polite">
         <Loader2 size={13} className="animate-spin" />
         <span>正在测试当前已保存配置…</span>
       </div>
@@ -189,6 +227,7 @@ const ConnectionTestStatus = <C,>({
           ? "border-success/45 bg-success-bg/60 text-success"
           : "border-error/45 bg-error-bg/60 text-error"
       }`}
+      role={success ? "status" : "alert"}
     >
       {success ? (
         <CheckCircle2 size={13} className="mt-0.5 shrink-0" />
@@ -217,7 +256,6 @@ interface ConfigEditorActionsProps<C> {
   canTest: boolean;
   canPreviewTest: boolean;
   activateText: string;
-  activeDeleteTitle: string;
   onActivate: (id: number) => void | Promise<void>;
   onDelete: (id: number) => void | Promise<void>;
   onPreviewTest: (id: number) => void | Promise<void>;
@@ -235,7 +273,6 @@ function ConfigEditorActions<C>({
   canTest,
   canPreviewTest,
   activateText,
-  activeDeleteTitle,
   onActivate,
   onDelete,
   onPreviewTest,
@@ -243,87 +280,50 @@ function ConfigEditorActions<C>({
 }: ConfigEditorActionsProps<C>) {
   if (creating || !selectedItem) return null;
   const mutationBusy = saving || activating != null || deleting != null;
-  const testActionBusy = mutationBusy || testing != null || previewing;
+  const actionBusy = mutationBusy || testing != null || previewing;
   const readonly = selectedItem.readonly === true;
+  const moreItems: DropdownItem[] = [];
+
+  if (canTest && !readonly && !actionBusy) {
+    moreItems.push({
+      label: "测试连接",
+      icon: <Zap size={12} />,
+      onClick: () => void onTest(selectedItem.id),
+    });
+  }
+  if (canPreviewTest && !readonly && !actionBusy) {
+    moreItems.push({
+      label: "查看模型请求",
+      icon: <Eye size={12} />,
+      onClick: () => void onPreviewTest(selectedItem.id),
+    });
+  }
+  if (!readonly && !selectedItem.isActive && !mutationBusy) {
+    if (moreItems.length > 0) moreItems.push({ type: "divider" });
+    moreItems.push({
+      label: activateText,
+      icon: <Check size={12} />,
+      onClick: () => void onActivate(selectedItem.id),
+    });
+  }
+  if (!readonly && !selectedItem.isActive && !selectedItem.deleteDisabled && !mutationBusy) {
+    if (moreItems.length > 0) moreItems.push({ type: "divider" });
+    moreItems.push({
+      label: "删除配置",
+      icon: <Trash2 size={12} />,
+      danger: true,
+      onClick: () => void onDelete(selectedItem.id),
+    });
+  }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {canTest && !readonly && (
-        <>
-          <button
-            type="button"
-            onClick={() => void onTest(selectedItem.id)}
-            disabled={testActionBusy}
-            className="pyqt-btn-secondary !min-h-9 !px-3 text-xs sm:!min-h-[30px]"
-          >
-            {testing === selectedItem.id ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <>
-                <Zap size={12} className="mr-1" />
-                测试
-              </>
-            )}
-          </button>
-        </>
-      )}
-      {canPreviewTest && !readonly && (
-        <button
-          type="button"
-          onClick={() => void onPreviewTest(selectedItem.id)}
-          disabled={testActionBusy}
-          className="pyqt-btn-secondary !min-h-9 !px-3 text-xs sm:!min-h-[30px]"
-        >
-          {previewing ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <>
-              <Eye size={12} className="mr-1" />
-              预览测试请求
-            </>
-          )}
-        </button>
-      )}
-      {!selectedItem.isActive && (
-        <button
-          type="button"
-          onClick={() => void onActivate(selectedItem.id)}
-          disabled={mutationBusy}
-          className="pyqt-btn-secondary !min-h-9 !px-3 text-xs sm:!min-h-[30px]"
-        >
-          {activating === selectedItem.id ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <>
-              <Check size={12} className="mr-1" />
-              {activateText}
-            </>
-          )}
-        </button>
-      )}
-      {!readonly ? (
-        <button
-          type="button"
-          onClick={() => void onDelete(selectedItem.id)}
-          disabled={mutationBusy || selectedItem.isActive || selectedItem.deleteDisabled}
-          title={
-            selectedItem.deleteDisabled
-              ? selectedItem.deleteDisabledReason ?? "该配置不可删除"
-              : selectedItem.isActive
-                ? activeDeleteTitle
-                : ""
-          }
-          className="pyqt-btn-secondary !min-h-9 !px-3 text-xs !border-error/50 !text-error hover:!bg-error-bg sm:!min-h-[30px]"
-        >
-          {deleting === selectedItem.id ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <>
-              <Trash2 size={12} className="mr-1" />
-              删除
-            </>
-          )}
-        </button>
+    <div className="flex min-h-8 items-center justify-end">
+      {testing === selectedItem.id || previewing || activating === selectedItem.id ? (
+        <Loader2 size={13} className="animate-spin text-book-text-muted" />
+      ) : deleting === selectedItem.id ? (
+        <Loader2 size={13} className="animate-spin text-error" />
+      ) : moreItems.length > 0 ? (
+        <Dropdown items={moreItems} />
       ) : null}
     </div>
   );

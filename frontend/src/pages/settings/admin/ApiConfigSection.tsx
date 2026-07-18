@@ -53,14 +53,17 @@ export const ApiConfigSection: React.FC = () => {
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      <div className="flex shrink-0 flex-wrap items-center gap-1">
+      <div
+        className="tab-bar shrink-0 overflow-x-auto border-b border-book-border/45"
+        aria-label="API 配置类型"
+      >
         {PANEL_DEFS.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setPanel(item.id)}
             data-active={panel === item.id ? "1" : undefined}
-            className="pyqt-tab inline-flex items-center gap-1.5"
+            className="pyqt-tab inline-flex items-center gap-1.5 whitespace-nowrap"
           >
             {item.icon}
             {item.label}
@@ -71,7 +74,7 @@ export const ApiConfigSection: React.FC = () => {
       {panel === "overview" ? (
         <ApiConfigOverview />
       ) : (
-        <div className="min-h-[60vh] min-w-0 rounded border border-book-border bg-book-bg-soft/40 p-2 sm:p-3 lg:h-[72vh] lg:min-h-[640px]">
+        <div className="min-h-[60vh] min-w-0 lg:h-[72vh] lg:min-h-[640px]">
           {panel === "llm" && <LlmTab scope="server" />}
           {panel === "image" && <ImageTab scope="server" />}
           {panel === "video" && <VideoTab scope="server" />}
@@ -133,16 +136,21 @@ const ApiConfigOverview: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-serif text-book-text-main">系统全局默认 API 调用配置</h3>
-          <div className="text-[11px] text-book-text-muted">
-            服务器数据库配置，所有账号共享，由管理员统一管理
-          </div>
-        </div>
-        <BookIconButton label="刷新" variant="secondary" size="sm" onClick={load} disabled={loading}>
-          <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
-        </BookIconButton>
+      <div className="flex items-center gap-2 text-xs text-book-text-muted">
+        <ServerCog size={13} className="shrink-0 text-book-primary" />
+        <span>这里的默认配置由管理员维护，所有账号共享。</span>
+        <span className="flex-1" />
+        <span className="shrink-0">
+          <BookIconButton
+            label="刷新"
+            variant="secondary"
+            size="sm"
+            onClick={load}
+            disabled={loading}
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
+          </BookIconButton>
+        </span>
       </div>
 
       {loading && snapshot == null ? (
@@ -151,29 +159,38 @@ const ApiConfigOverview: React.FC = () => {
           正在加载配置
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2" aria-label="共享默认配置">
           <ApiSummaryCard
             icon={<Bot size={16} />}
-            title="LLM 默认调用"
+            title="语言模型默认配置"
             empty={!defaults.llm}
-            rows={
+            primaryRows={
               defaults.llm
                 ? [
                     ["配置", configName(defaults.llm)],
                     ["模型", defaults.llm.model],
-                    ["Provider", defaults.llm.provider],
-                    ["Base URL", defaults.llm.base_url],
-                    ["并发 / 超时", `${defaults.llm.max_concurrent} / ${defaults.llm.timeout_secs}s`],
+                    ["服务商", providerLabel(defaults.llm.provider)],
+                    ["访问密钥", defaults.llm.has_api_key ? "已配置" : "未配置"],
+                  ]
+                : []
+            }
+            diagnosticRows={
+              defaults.llm
+                ? [
+                    ["接口地址", defaults.llm.base_url],
+                    [
+                      "并发 / 超时",
+                      `${defaults.llm.max_concurrent} / ${defaults.llm.timeout_secs}s`,
+                    ],
                     [
                       "上下文 / 最大输出",
                       `${defaults.llm.max_context_tokens} / ${defaults.llm.max_output_tokens}`,
                     ],
-                    ["API Key", defaults.llm.has_api_key ? "已配置" : "未配置"],
-                    ["请求选项", compactJson(defaults.llm.request_options_json)],
+                    ["高级参数", configuredLabel(defaults.llm.request_options_json)],
                   ]
                 : []
             }
-            footer={
+            diagnosticFooter={
               snapshot
                 ? `场景预算：章节 ${snapshot.maxTokens.chapter_generation}，分析 ${snapshot.maxTokens.chapter_analysis}，媒体 ${snapshot.maxTokens.media_prompt}`
                 : undefined
@@ -184,17 +201,26 @@ const ApiConfigOverview: React.FC = () => {
             icon={<ImageIcon size={16} />}
             title="图片生成默认调用"
             empty={!defaults.image}
-            rows={
+            primaryRows={
               defaults.image
                 ? [
                     ["配置", configName(defaults.image)],
                     ["模型", defaults.image.model],
-                    ["Backend", defaults.image.backend],
-                    ["Base URL", valueOrMissing(defaults.image.base_url)],
-                    ["默认尺寸", `${defaults.image.default_width} x ${defaults.image.default_height}`],
+                    ["运行方式", backendLabel(defaults.image.backend)],
+                    ["访问密钥", defaults.image.has_api_key ? "已配置" : "未配置"],
+                  ]
+                : []
+            }
+            diagnosticRows={
+              defaults.image
+                ? [
+                    ["接口地址", valueOrMissing(defaults.image.base_url)],
+                    [
+                      "默认尺寸",
+                      `${defaults.image.default_width} × ${defaults.image.default_height}`,
+                    ],
                     ["并发", String(defaults.image.max_concurrent)],
-                    ["API Key", defaults.image.has_api_key ? "已配置" : "未配置"],
-                    ["Provider 选项", compactJson(defaults.image.provider_options_json)],
+                    ["服务选项", configuredLabel(defaults.image.provider_options_json)],
                   ]
                 : []
             }
@@ -204,21 +230,30 @@ const ApiConfigOverview: React.FC = () => {
             icon={<Film size={16} />}
             title="视频生成默认调用"
             empty={!defaults.video}
-            rows={
+            primaryRows={
               defaults.video
                 ? [
                     ["配置", configName(defaults.video)],
                     ["模型", defaults.video.model],
-                    ["Backend", defaults.video.backend],
-                    ["Base URL", valueOrMissing(defaults.video.base_url)],
-                    ["默认规格", `${defaults.video.default_width} x ${defaults.video.default_height}`],
+                    ["运行方式", backendLabel(defaults.video.backend)],
+                  ]
+                : []
+            }
+            diagnosticRows={
+              defaults.video
+                ? [
+                    ["接口地址", valueOrMissing(defaults.video.base_url)],
                     [
-                      "时长 / FPS",
+                      "默认规格",
+                      `${defaults.video.default_width} × ${defaults.video.default_height}`,
+                    ],
+                    [
+                      "时长 / 帧率",
                       `${defaults.video.default_duration_secs}s / ${defaults.video.default_fps}`,
                     ],
                     ["时长模式", videoDurationText(defaults.video)],
                     ["并发", String(defaults.video.max_concurrent)],
-                    ["Provider 选项", compactJson(defaults.video.provider_options_json)],
+                    ["服务选项", configuredLabel(defaults.video.provider_options_json)],
                   ]
                 : []
             }
@@ -228,21 +263,30 @@ const ApiConfigOverview: React.FC = () => {
             icon={<Brain size={16} />}
             title="嵌入默认调用"
             empty={!defaults.embedding}
-            rows={
+            primaryRows={
               defaults.embedding
                 ? [
                     ["配置", configName(defaults.embedding)],
-                    ["模型", defaults.embedding.model],
-                    ["Backend", defaults.embedding.backend],
-                    ["Base URL", valueOrMissing(defaults.embedding.base_url)],
-                    ["维度 / Batch", `${defaults.embedding.dimension} / ${defaults.embedding.batch_size}`],
+                    ["模型", modelLabel(defaults.embedding.model)],
+                    ["运行方式", backendLabel(defaults.embedding.backend)],
+                    ["访问密钥", defaults.embedding.has_api_key ? "已配置" : "未配置"],
+                  ]
+                : []
+            }
+            diagnosticRows={
+              defaults.embedding
+                ? [
+                    ["接口地址", valueOrMissing(defaults.embedding.base_url)],
+                    [
+                      "维度 / 批大小",
+                      `${defaults.embedding.dimension} / ${defaults.embedding.batch_size}`,
+                    ],
                     ["本地模型路径", valueOrMissing(defaults.embedding.local_model_path)],
-                    ["API Key", defaults.embedding.has_api_key ? "已配置" : "未配置"],
                   ]
                 : []
             }
           />
-        </div>
+        </section>
       )}
     </div>
   );
@@ -252,40 +296,64 @@ const ApiSummaryCard: React.FC<{
   icon: React.ReactNode;
   title: string;
   empty: boolean;
-  rows: Array<[string, string]>;
-  footer?: string;
-}> = ({ icon, title, empty, rows, footer }) => (
-  <section className="pyqt-card min-w-0 p-3">
-    <div className="mb-3 flex items-center gap-2">
-      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-book-border bg-book-bg-tertiary text-book-primary">
+  primaryRows: Array<[string, string]>;
+  diagnosticRows?: Array<[string, string]>;
+  diagnosticFooter?: string;
+}> = ({ icon, title, empty, primaryRows, diagnosticRows = [], diagnosticFooter }) => (
+  <article className="a4n-flat-surface min-w-0 overflow-hidden">
+    <div className="flex items-center gap-2 px-3 py-2.5">
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-book-primary">
         {icon}
       </span>
-      <h4 className="min-w-0 truncate text-sm font-medium text-book-text-main">{title}</h4>
+      <h4 className="min-w-0 truncate text-xs font-medium text-book-text-main">
+        {title}
+      </h4>
     </div>
     {empty ? (
-      <div className="py-6 text-center text-xs text-book-text-muted">未设置默认配置</div>
+      <div className="border-t border-book-border/25 px-3 py-3 text-xs text-book-text-muted">
+        未设置默认配置
+      </div>
     ) : (
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-        {rows.map(([label, value]) => (
-          <div key={label} className="min-w-0 rounded border border-book-border bg-book-bg-soft px-2.5 py-2">
-            <div className="text-[11px] text-book-text-muted">{label}</div>
-            <div className="mt-0.5 min-h-[18px] truncate text-xs text-book-text-main" title={value}>
-              {value}
+      <>
+        <ConfigRows rows={primaryRows} />
+        {(diagnosticRows.length > 0 || diagnosticFooter) && (
+          <details className="border-t border-book-border/35">
+            <summary className="cursor-pointer px-3 py-2.5 text-[11px] text-book-text-muted transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-text-sub">
+              诊断信息
+            </summary>
+            <div className="border-t border-book-border/25 bg-book-bg-soft/35">
+              <ConfigRows rows={diagnosticRows} />
+              {diagnosticFooter && (
+                <div className="border-t border-book-border/30 px-3 py-2 text-[11px] leading-relaxed text-book-text-muted">
+                  {diagnosticFooter}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
-      </div>
+          </details>
+        )}
+      </>
     )}
-    {footer && !empty && (
-      <div className="mt-3 rounded border border-book-border bg-book-bg-tertiary/40 px-2.5 py-2 text-[11px] text-book-text-muted">
-        {footer}
+  </article>
+);
+
+const ConfigRows: React.FC<{ rows: Array<[string, string]> }> = ({ rows }) => (
+  <dl className="divide-y divide-book-border/30 border-t border-book-border/25">
+    {rows.map(([label, value]) => (
+      <div
+        key={label}
+        className="grid min-w-0 grid-cols-[minmax(5rem,0.7fr)_minmax(0,1.3fr)] gap-3 px-3 py-2.5 text-xs"
+      >
+        <dt className="text-book-text-muted">{label}</dt>
+        <dd className="min-w-0 truncate text-right text-book-text-main" title={value}>
+          {value}
+        </dd>
       </div>
-    )}
-  </section>
+    ))}
+  </dl>
 );
 
 function configName(config: { id: number; name: string }): string {
-  return `#${config.id} ${config.name}`;
+  return config.name;
 }
 
 function valueOrMissing(value: string | null | undefined): string {
@@ -293,14 +361,38 @@ function valueOrMissing(value: string | null | undefined): string {
   return text ? text : "未配置";
 }
 
-function compactJson(value: unknown): string {
-  if (value == null) return "无";
-  try {
-    const text = JSON.stringify(value);
-    return text.length > 90 ? `${text.slice(0, 87)}...` : text;
-  } catch {
-    return "无法显示";
+function configuredLabel(value: unknown): string {
+  if (value == null) return "未配置";
+  if (typeof value === "object" && Object.keys(value as Record<string, unknown>).length === 0) {
+    return "未配置";
   }
+  return "已配置";
+}
+
+function backendLabel(value: string): string {
+  if (value === "local" || value === "fastembed" || value === "local_hash") return "本地运行";
+  if (value === "api" || value === "openai_compatible") return "远程接口";
+  return "其他运行方式";
+}
+
+function providerLabel(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  const labels: Record<string, string> = {
+    openai: "OpenAI",
+    anthropic: "Anthropic",
+    gemini: "Gemini",
+    deepseek: "DeepSeek",
+    openrouter: "OpenRouter",
+    ollama: "Ollama",
+    custom: "自定义接口",
+    openai_compatible: "兼容接口",
+  };
+  return labels[normalized] ?? "其他服务商";
+}
+
+function modelLabel(value: string): string {
+  if (value === "local-sha256-hash") return "内置哈希向量";
+  return value;
 }
 
 function videoDurationText(config: VideoGenConfig): string {

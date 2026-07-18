@@ -222,7 +222,7 @@ export const QueueTab: React.FC = () => {
     try {
       await cancelTask(taskId);
       if (!mountedRef.current) return;
-      addToast(`已取消任务 ${taskId.slice(0, 8)}…`, "success");
+      addToast("任务已取消", "success");
       await refresh({ force: true });
     } catch (err) {
       if (!mountedRef.current) return;
@@ -242,7 +242,7 @@ export const QueueTab: React.FC = () => {
     try {
       await cancelWorkflow(taskId);
       if (!mountedRef.current) return;
-      addToast(`已取消工作流 ${taskId.slice(0, 8)}…`, "success");
+      addToast("工作流已取消", "success");
       await refresh({ force: true });
     } catch (err) {
       if (!mountedRef.current) return;
@@ -258,7 +258,7 @@ export const QueueTab: React.FC = () => {
     try {
       await resumeWorkflowRun(run.id);
       if (!mountedRef.current) return;
-      addToast(`已恢复工作流 #${run.id}`, "success");
+      addToast("已恢复工作流", "success");
       await refresh({ force: true });
     } catch (err) {
       if (!mountedRef.current) return;
@@ -279,22 +279,21 @@ export const QueueTab: React.FC = () => {
 
   if (!canReadQueueDiagnostics) {
     return (
-      <div className="pyqt-card p-3 text-sm text-book-text-muted">
+      <div className="border-l-2 border-book-border/70 pl-3 text-sm text-book-text-muted">
         请求队列诊断仅管理员可查看。
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-serif text-book-text-main inline-flex items-center gap-2">
-          <Activity size={16} className="text-book-primary" />
-          任务队列状态
-          <span className="text-xs text-book-text-muted ml-2">每 5 秒自动刷新</span>
-        </h3>
+    <div className="custom-scrollbar flex h-auto flex-col gap-3 overflow-visible md:h-full md:overflow-y-auto md:pr-2">
+      <div className="flex shrink-0 items-center justify-end gap-2 text-[11px] text-book-text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <Activity size={12} className="text-book-primary" />
+          每 5 秒自动刷新
+        </span>
         <BookIconButton
-          label="刷新"
+          label="立即刷新"
           onClick={() => void refresh()}
           variant="secondary"
           size="sm"
@@ -306,18 +305,18 @@ export const QueueTab: React.FC = () => {
 
       <QueueStatsGrid stats={stats} />
 
-      <TaskHistoryPanel
-        tasks={tasks}
-        loading={tasksLoading}
-        cancellingTaskIds={cancellingTaskIds}
-        onCancel={(taskId) => void handleCancel(taskId)}
-      />
-
       <ActiveWorkflowsPanel
         workflows={workflows}
         loading={loading}
         cancellingTaskIds={cancellingWorkflowIds}
         onCancel={(taskId) => void handleCancelWorkflow(taskId)}
+      />
+
+      <TaskHistoryPanel
+        tasks={tasks}
+        loading={tasksLoading}
+        cancellingTaskIds={cancellingTaskIds}
+        onCancel={(taskId) => void handleCancel(taskId)}
       />
 
       <WorkflowRunsPanel

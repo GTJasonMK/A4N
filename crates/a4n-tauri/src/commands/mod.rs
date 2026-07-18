@@ -77,7 +77,7 @@ macro_rules! tauri_image_progress_input_command {
                 let reporter =
                     |current, total, message: &str| progress_task.progress(current, total, message);
                 let runtime_progress =
-                    a4n_runtime::actions::image_generation::ImageGenerationProgress::new(
+                    a4n_runtime::host_api::image_generation::ImageGenerationProgress::new(
                         Some(&reporter),
                         Some(&cancel_token),
                     );

@@ -1,0 +1,102 @@
+use super::super::types::{SettingsAllConfigImportError, SettingsAllConfigImportInput};
+use super::contracts::{DefaultImportPolicy, DefaultStateRow};
+use super::policy::ensure_single_default_after_import;
+use a4n_core::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
+use sea_orm::{DatabaseConnection, EntityTrait};
+
+pub async fn validate_settings_all_config_import_defaults(
+    db: &DatabaseConnection,
+    input: &SettingsAllConfigImportInput,
+) -> Result<(), SettingsAllConfigImportError> {
+    let existing_llm = llm_config::Entity::find()
+        .all(db)
+        .await
+        .map_err(|source| SettingsAllConfigImportError::Database {
+            operation: "读取现有 LLM 配置失败",
+            source,
+        })?
+        .into_iter()
+        .map(|row| DefaultStateRow {
+            name: row.name,
+            is_default: row.is_default,
+        })
+        .collect::<Vec<_>>();
+    ensure_single_default_after_import(
+        "默认 LLM 配置",
+        &existing_llm,
+        &input.llm_configs,
+        input.overwrite,
+        DefaultImportPolicy::PreserveIfConfigured,
+        |row| row.name.as_str(),
+        |row| row.is_default,
+    )?;
+
+    let existing_embedding = embedding_config::Entity::find()
+        .all(db)
+        .await
+        .map_err(|source| SettingsAllConfigImportError::Database {
+            operation: "读取现有 Embedding 配置失败",
+            source,
+        })?
+        .into_iter()
+        .map(|row| DefaultStateRow {
+            name: row.name,
+            is_default: row.is_default,
+        })
+        .collect::<Vec<_>>();
+    ensure_single_default_after_import(
+        "默认 Embedding 配置",
+        &existing_embedding,
+        &input.embedding_configs,
+        input.overwrite,
+        DefaultImportPolicy::Required,
+        |row| row.name.as_str(),
+        |row| row.is_default,
+    )?;
+
+    let existing_image = image_gen_config::Entity::find()
+        .all(db)
+        .await
+        .map_err(|source| SettingsAllConfigImportError::Database {
+            operation: "读取现有图片配置失败",
+            source,
+        })?
+        .into_iter()
+        .map(|row| DefaultStateRow {
+            name: row.name,
+            is_default: row.is_default,
+        })
+        .collect::<Vec<_>>();
+    ensure_single_default_after_import(
+        "默认图片配置",
+        &existing_image,
+        &input.image_configs,
+        input.overwrite,
+        DefaultImportPolicy::PreserveIfConfigured,
+        |row| row.name.as_str(),
+        |row| row.is_default,
+    )?;
+
+    let existing_video = video_gen_config::Entity::find()
+        .all(db)
+        .await
+        .map_err(|source| SettingsAllConfigImportError::Database {
+            operation: "读取现有视频配置失败",
+            source,
+        })?
+        .into_iter()
+        .map(|row| DefaultStateRow {
+            name: row.name,
+            is_default: row.is_default,
+        })
+        .collect::<Vec<_>>();
+    ensure_single_default_after_import(
+        "默认视频配置",
+        &existing_video,
+        &input.video_configs,
+        input.overwrite,
+        DefaultImportPolicy::PreserveIfConfigured,
+        |row| row.name.as_str(),
+        |row| row.is_default,
+    )
+}

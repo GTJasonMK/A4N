@@ -1,4 +1,4 @@
-use a4n_engine::llm::provider::is_truncated_finish_reason;
+use a4n_llm::provider::is_truncated_finish_reason;
 
 pub(super) fn ensure_character_sync_response_not_truncated(
     finish_reason: Option<&str>,

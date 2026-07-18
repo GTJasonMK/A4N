@@ -5,7 +5,6 @@ import {
   createTheme,
   deleteTheme,
   exportTheme,
-  getSystemDefaultTheme,
   getThemeCssVariables,
   importTheme,
   listThemes,
@@ -34,10 +33,10 @@ export const useThemeTabController = () => {
   const [newMode, setNewMode] = useState<ThemeMode>("light");
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
   const [exportingId, setExportingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState("");
-  const [defaultTheme, setDefaultTheme] = useState<Theme | null>(null);
   const scopeKey = `${scope}:${user?.id ?? "anonymous"}`;
   const mountedRef = useRef(true);
   const activeScopeKeyRef = useRef(scopeKey);
@@ -59,6 +58,13 @@ export const useThemeTabController = () => {
   const renamingRef = useRef<number | null>(null);
   const renamingIdRef = useRef<number | null>(renamingId);
   const renameValueRef = useRef(renameValue);
+
+  const hasThemeMutationInFlight = () =>
+    activatingRef.current != null ||
+    creatingRef.current ||
+    deletingRef.current != null ||
+    importingRef.current ||
+    renamingRef.current != null;
 
   activeScopeKeyRef.current = scopeKey;
   renamingIdRef.current = renamingId;
@@ -107,13 +113,9 @@ export const useThemeTabController = () => {
           ? listUserThemes(user.id)
           : listThemes(user.id)
         : Promise.resolve([]);
-      const [data, systemDefaultTheme] = await Promise.all([
-        listPromise,
-        getSystemDefaultTheme(),
-      ]);
+      const data = await listPromise;
       if (!isCurrentRefresh(requestScopeKey, requestSeq)) return;
       setThemes(data);
-      setDefaultTheme(systemDefaultTheme);
     } catch (err) {
       if (!isCurrentRefresh(requestScopeKey, requestSeq)) return;
       addToast(extractErrorMessage(err, "加载主题列表失败"), "error");
@@ -145,12 +147,12 @@ export const useThemeTabController = () => {
     renameSeqRef.current += 1;
     renamingRef.current = null;
     setThemes([]);
-    setDefaultTheme(null);
     setActivating(null);
     setDeleting(null);
     setExportingId(null);
     setRenamingId(null);
     setRenameValue("");
+    setRenameSaving(false);
   }, [scopeKey]);
 
   useEffect(() => {
@@ -174,10 +176,7 @@ export const useThemeTabController = () => {
   );
 
   const handleActivate = async (id: number) => {
-    if (activatingRef.current != null) {
-      addToast("已有主题激活操作进行中，请等待完成", "error");
-      return;
-    }
+    if (hasThemeMutationInFlight()) return;
     const requestSeq = activateSeqRef.current + 1;
     activateSeqRef.current = requestSeq;
     activatingRef.current = id;
@@ -200,7 +199,7 @@ export const useThemeTabController = () => {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (deletingRef.current != null) return;
+    if (hasThemeMutationInFlight()) return;
     deletingRef.current = id;
     const ok = await confirmDialog({
       title: "删除主题",
@@ -235,7 +234,7 @@ export const useThemeTabController = () => {
   };
 
   const handleCreate = async () => {
-    if (creatingRef.current) return;
+    if (hasThemeMutationInFlight()) return;
     if (!newName.trim()) {
       addToast("请输入主题名称", "error");
       return;
@@ -268,24 +267,27 @@ export const useThemeTabController = () => {
   };
 
   const handleStartRename = (theme: Theme) => {
-    if (renamingRef.current != null) return;
+    if (hasThemeMutationInFlight()) return;
     setRenamingId(theme.id);
     setRenameValue(theme.name);
   };
 
   const handleConfirmRename = async () => {
     if (renamingId == null) return;
-    if (renamingRef.current != null) return;
+    if (hasThemeMutationInFlight()) return;
     if (!renameValue.trim()) {
       addToast("名称不能为空", "error");
       return;
     }
+    const currentTheme = themes.find((theme) => theme.id === renamingId);
+    if (currentTheme && currentTheme.name.trim() === renameValue.trim()) return;
     const requestScopeKey = scopeKey;
     const requestRenamingId = renamingId;
     const requestName = renameValue.trim();
     const requestSeq = renameSeqRef.current + 1;
     renameSeqRef.current = requestSeq;
     renamingRef.current = requestRenamingId;
+    setRenameSaving(true);
     try {
       await updateTheme(requestRenamingId, { name: requestName });
       if (
@@ -316,6 +318,9 @@ export const useThemeTabController = () => {
       addToast(extractErrorMessage(err, "重命名失败"), "error");
     } finally {
       if (renameSeqRef.current === requestSeq) renamingRef.current = null;
+      if (mountedRef.current && renameSeqRef.current === requestSeq) {
+        setRenameSaving(false);
+      }
     }
   };
 
@@ -360,7 +365,7 @@ export const useThemeTabController = () => {
   };
 
   const handleImport = async () => {
-    if (importingRef.current) return;
+    if (hasThemeMutationInFlight()) return;
     if (!importText.trim()) {
       addToast("请粘贴主题 JSON", "error");
       return;
@@ -389,7 +394,6 @@ export const useThemeTabController = () => {
 
   return {
     themes,
-    defaultTheme,
     scope,
     loading,
     activating,
@@ -399,9 +403,17 @@ export const useThemeTabController = () => {
     newMode,
     renamingId,
     renameValue,
+    renameSaving,
     exportingId,
     importing,
     importText,
+    mutationBusy:
+      activating != null ||
+      deleting != null ||
+      creating ||
+      importing ||
+      renamingId != null ||
+      renameSaving,
     hasUser: Boolean(user),
     refresh,
     setScope,

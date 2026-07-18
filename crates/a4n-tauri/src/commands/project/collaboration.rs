@@ -1,9 +1,9 @@
 use a4n_runtime::AppState;
-use a4n_runtime::actions::project_collaboration as collaboration_actions;
-use a4n_runtime::actions::project_collaboration::{
-    InviteProjectMemberInput, UpdateProjectMemberRoleInput,
+use a4n_runtime::host_api::project_collaboration as collaboration_actions;
+use a4n_runtime::host_api::project_collaboration::{
+    InviteProjectMemberInput, ProjectInviteSummary, ProjectMemberSummary,
+    UpdateProjectMemberRoleInput,
 };
-use a4n_services::collaboration::{ProjectInviteSummary, ProjectMemberSummary};
 use tauri::State;
 
 #[tauri::command]

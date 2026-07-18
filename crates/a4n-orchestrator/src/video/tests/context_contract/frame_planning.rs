@@ -1,0 +1,100 @@
+#[test]
+fn frame_prompt_builders_require_sectioned_image_prompt_text() {
+    let segment_plan = json!({"segments": []});
+    let available_assets = json!([]);
+    let reference_ids = json!([]);
+    let engine = prompt_engine();
+
+    let single_frame_prompt = super::super::prompt_context::build_single_frame_prompt_user(
+        frame_prompt_context!(
+            &engine,
+            &segment_plan,
+            &available_assets,
+            "电影感写实",
+            PromptOutputLanguage::ZhCn,
+            "16:9",
+            &reference_ids,
+        ),
+        &json!({
+            "frame_number": 2,
+            "expected_segment_numbers": [1, 2],
+            "required_duration_secs": 5,
+            "required_aspect_ratio": "16:9",
+            "previous_frame": {
+                "scene_summary": "角色在门外",
+                "blocking_state": {"position": "门外"},
+                "lighting_state": {"key_light": "月光"},
+                "frame_prompt": "角色站在门外。"
+            }
+        }),
+    )
+    .expect("single boundary frame prompt builder should render");
+    assert!(single_frame_prompt.contains("【参考图约束】"));
+    assert!(single_frame_prompt.contains("【构图光线风格】"));
+    assert!(single_frame_prompt.contains("U 个视频执行单元共享 U+1 张边界帧"));
+    assert!(single_frame_prompt.contains("constraints.reference_slots"));
+    assert!(single_frame_prompt.contains("不得使用紧贴数字的参考图/图片编号写法"));
+    assert!(single_frame_prompt.contains("required_frame_count"));
+    assert!(single_frame_prompt.contains("focused_chapter_video_segment_plan"));
+    assert!(!single_frame_prompt.contains("completed_chapter_video_frame_prompts"));
+    assert!(single_frame_prompt.contains("current_frame"));
+    assert!(single_frame_prompt.contains("只输出 frames 数组中的 1 条"));
+    assert!(single_frame_prompt.contains("previous_frame"));
+    assert!(single_frame_prompt.contains("style_template_verbatim"));
+    assert!(!single_frame_prompt.contains("frame_number_rule"));
+
+    let initial_frame_prompt = super::super::prompt_context::build_first_frame_prompt_user(
+        frame_prompt_context!(
+            &engine,
+            &segment_plan,
+            &available_assets,
+            "电影感写实",
+            PromptOutputLanguage::ZhCn,
+            "16:9",
+            &reference_ids,
+        ),
+        "角色推门进入暗室。",
+    )
+    .expect("initial first-frame prompt builder should render");
+    assert!(initial_frame_prompt.contains("【参考图约束】"));
+    assert!(initial_frame_prompt.contains("【一致性与避免项】"));
+    assert!(initial_frame_prompt.contains("style_template_verbatim"));
+    assert!(initial_frame_prompt.contains("不要自行精简、概括"));
+}
+
+#[test]
+fn planning_prompt_builders_include_safe_visual_rewrite_rule() {
+    let source_spans = Vec::new();
+    let engine = prompt_engine();
+    let context = super::super::prompt_context::VideoPlanningPromptContext {
+        prompt_renderer: &engine,
+        project_id: PROMPT_PROJECT_ID,
+        chapter_summary: None,
+        chapter_analysis: None,
+        project_context: None,
+        style: "电影感写实",
+        duration_secs: 5,
+        aspect_ratio: "16:9",
+    };
+    let current_shot = json!({
+        "source_shot_id": "scene-1-shot-1",
+        "action_beats": [
+            {
+                "beat_id": "scene-1-shot-1-beat-1",
+                "natural_seconds": 5.0,
+                "required": true,
+                "visible_action": "角色发现线索",
+                "source_span_ids": ["ch1:s1:f1"]
+            }
+        ]
+    });
+    let segment_prompt = super::super::prompt_context::build_segment_plan_for_shot_user(
+        context,
+        &current_shot,
+        &source_spans,
+    )
+    .expect("segment plan prompt builder should render");
+    assert!(segment_prompt.contains("safe_visual_rewrite_rule"));
+    assert!(segment_prompt.contains("非血腥痕迹"));
+    assert!(segment_prompt.contains("video_intent.hook"));
+}

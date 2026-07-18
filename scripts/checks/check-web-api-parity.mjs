@@ -11,7 +11,13 @@ const repoRoot = path.resolve(
 );
 const frontendSrc = path.join(repoRoot, "frontend", "src");
 const webApiIndex = path.join(frontendSrc, "api", "index.ts");
-const tauriMain = path.join(repoRoot, "crates", "a4n-tauri", "src", "main.rs");
+const tauriCommandRegistry = path.join(
+  repoRoot,
+  "crates",
+  "a4n-tauri",
+  "src",
+  "command_registry.rs",
+);
 const serverRoutes = path.join(
   repoRoot,
   "crates",
@@ -28,14 +34,51 @@ const serverCommandRoutes = path.join(
   "routes",
   "commands.rs",
 );
-const serverCommandImportProjectRoutes = path.join(
+const serverCommandDispatchRoutes = fs
+  .readdirSync(
+    path.join(
+      repoRoot,
+      "crates",
+      "a4n-server",
+      "src",
+      "routes",
+      "commands",
+      "dispatch",
+    ),
+    { withFileTypes: true },
+  )
+  .filter((entry) => entry.isFile() && entry.name.endsWith(".rs"))
+  .map((entry) =>
+    path.join(
+      repoRoot,
+      "crates",
+      "a4n-server",
+      "src",
+      "routes",
+      "commands",
+      "dispatch",
+      entry.name,
+    ),
+  )
+  .sort();
+const serverCommandCanvasRoutes = path.join(
   repoRoot,
   "crates",
   "a4n-server",
   "src",
   "routes",
   "commands",
-  "import_project.rs",
+  "canvas.rs",
+);
+const serverCommandImportReverseRoutes = path.join(
+  repoRoot,
+  "crates",
+  "a4n-server",
+  "src",
+  "routes",
+  "commands",
+  "import_project",
+  "reverse.rs",
 );
 const allowedTauriAdapterFiles = new Set([
   path.join(frontendSrc, "api", "index.ts"),
@@ -59,12 +102,19 @@ const runtimeModeSymbols = new Set([
 const frontendCommandRefs = collectFrontendCommandRefs(frontendSrc);
 const frontendCommands = sortCommands(frontendCommandRefs.keys());
 const webInvokeCommands = collectWebCommands(webApiIndex);
-const serverCommandDispatchCommands =
-  collectServerCommandDispatchCommands(serverCommandRoutes);
+const serverCommandDispatchCommands = sortCommands(
+  new Set([
+    ...collectServerCommandDispatchCommands(serverCommandRoutes),
+    ...serverCommandDispatchRoutes.flatMap((file) =>
+      collectServerCommandDispatchCommands(file),
+    ),
+    ...collectServerCommandDispatchCommands(serverCommandCanvasRoutes),
+  ]),
+);
 const serverSpecialDispatchCommands = sortCommands(
   new Set([
     ...collectServerSpecialDispatchCommands(serverCommandRoutes),
-    ...collectReverseEngineerWebCommands(serverCommandImportProjectRoutes),
+    ...collectReverseEngineerWebCommands(serverCommandImportReverseRoutes),
   ]),
 );
 const webCommands = sortCommands(
@@ -74,7 +124,7 @@ const webCommands = sortCommands(
     ...serverSpecialDispatchCommands,
   ]),
 );
-const tauriCommands = collectTauriCommands(tauriMain);
+const tauriCommands = collectTauriCommands(tauriCommandRegistry);
 const directTauriImports = collectDirectTauriImports(frontendSrc);
 const directRuntimeModeImports = collectDirectRuntimeModeImports(frontendSrc);
 const directApiInvokeCalls = collectDirectApiInvokeCalls(frontendSrc);

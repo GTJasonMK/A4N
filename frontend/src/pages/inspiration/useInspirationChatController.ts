@@ -135,10 +135,6 @@ export const useInspirationChatController = () => {
   });
   const { showBlueprintConfirmation, stage } = blueprintWorkflow;
 
-  const focusConversationInput = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
-
   const applyParsedAssistant = useCallback((assistantId: string, rawResponse: string) => {
     const parsed = parseInspirationResponse(rawResponse);
     if (parsed.placeholder) {
@@ -542,12 +538,10 @@ export const useInspirationChatController = () => {
     setRequestPreviewOpen,
     progressSummaryLines,
     nextQuestion,
-    userTurns,
     conversationComplete,
     canTryGenerate: blueprintWorkflow.canTryGenerate,
     canGenerate: blueprintWorkflow.canGenerate,
     canCancelBlueprintGeneration: blueprintWorkflow.canCancelBlueprintGeneration,
-    focusConversationInput,
     handleSend,
     handlePreviewInspirationRequest,
     handleKeyDown,

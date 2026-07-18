@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, Loader2, LocateFixed, RotateCcw, Sparkles } from "lucide-react";
 import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
+import { Dropdown, type DropdownItem } from "../components/ui/Dropdown";
 import { useToast } from "../components/feedback/Toast";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { RequestPreviewModal } from "../components/feedback/RequestPreviewModal";
@@ -103,8 +104,8 @@ const ConflictScopeControls: React.FC<{
   onUseCurrentChapter,
   onClear,
 }) => (
-  <div className="flex flex-col gap-2 rounded-sm border border-book-border bg-book-bg-paper px-3 py-2">
-    <div className="flex flex-wrap items-center gap-2">
+  <div className="flex flex-col gap-2 border-b border-book-border/45 pb-3">
+    <div className="flex flex-wrap items-end gap-2">
       <span className="text-[11px] font-semibold text-book-text-muted">检查范围</span>
       <label className="inline-flex items-center gap-1.5 text-[11px] text-book-text-muted">
         <span>起始章</span>
@@ -630,59 +631,60 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     return null;
   }
 
+  const tabActionItems: DropdownItem[] = [];
+  if (tab === "manage" && activeChapterNumber != null) {
+    tabActionItems.push({
+      label: syncing ? "正在从章节同步" : "从当前章节同步",
+      onClick: () => void handleSync(),
+      icon: syncing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />,
+      disabled: syncing || syncingRef.current,
+    });
+  }
+  const requestPreviewItems: DropdownItem[] = [];
+  if (tab === "conflict") {
+    requestPreviewItems.push({
+      label: "一致性检查请求",
+      onClick: handlePreviewConflict,
+      icon: <Eye size={12} />,
+    });
+  }
+  if (activeChapterNumber != null) {
+    requestPreviewItems.push({
+      label: "章节同步请求",
+      onClick: handlePreviewSync,
+      icon: <Eye size={12} />,
+    });
+  }
+  if (tabActionItems.length > 0 && requestPreviewItems.length > 0) {
+    tabActionItems.push({ type: "divider" });
+  }
+  tabActionItems.push(...requestPreviewItems);
+
   return (
     <>
       <Modal
         isOpen={open}
         onClose={onClose}
-        title={`角色详情 · ${character.name}`}
+        title={character.name}
         maxWidthClassName="max-w-3xl"
-        footer={
-          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              {tab === "conflict" ? (
-                <BookButton
-                  variant="secondary"
-                  onClick={handlePreviewConflict}
-                  disabled={loadingTab === "conflict" || refreshingRef.current}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Eye size={14} /> 预览检查请求
-                  </span>
-                </BookButton>
-              ) : null}
-              <BookButton
-                variant="secondary"
-                onClick={handlePreviewSync}
-                disabled={syncing || activeChapterNumber == null}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Eye size={14} /> 预览同步请求
-                </span>
-              </BookButton>
-              <BookButton
-                variant="secondary"
-                onClick={handleSync}
-                disabled={syncing || syncingRef.current || activeChapterNumber == null}
-              >
-                {syncing ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 size={14} className="animate-spin" /> 同步中…
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-2">
-                    <Sparkles size={14} /> 从章节同步
-                  </span>
-                )}
-              </BookButton>
-            </div>
-            <BookButton variant="secondary" onClick={onClose}>
-              关闭
-            </BookButton>
-          </div>
-        }
+        footer={activeChapterNumber != null && tab !== "manage" ? (
+          <BookButton
+            onClick={handleSync}
+            disabled={syncing || syncingRef.current}
+          >
+            {syncing ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin" /> 同步中…
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                <Sparkles size={14} /> 从章节同步
+              </span>
+            )}
+          </BookButton>
+        ) : undefined}
       >
-        <div className="flex max-h-[78dvh] flex-col gap-3 sm:max-h-[65vh]">
+        <div className="flex flex-col gap-2.5">
           <CharacterSummaryCard character={character} />
 
           <CharacterDetailTabs
@@ -691,6 +693,11 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
             conflictCount={currentConflicts?.length ?? null}
             onTabChange={setTab}
             onRefresh={handleRefresh}
+            actions={
+              tabActionItems.length > 0 ? (
+                <Dropdown items={tabActionItems} />
+              ) : null
+            }
           />
 
           {tab === "conflict" ? (
@@ -707,7 +714,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
             />
           ) : null}
 
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+          <div>
             <CharacterDetailContent
               tab={tab}
               loadingTab={loadingTab}
@@ -728,7 +735,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="角色请求预览"
+        fallbackTitle="角色模型请求"
         onClose={() => {
           requestPreviewSeqRef.current += 1;
           setRequestPreviewOpen(false);

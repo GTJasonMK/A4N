@@ -13,7 +13,7 @@ fn apply_attribute_to_state_rejects_corrupt_state_shape() {
     )
     .expect_err("non-object state must fail");
 
-    assert!(err.contains("角色当前状态必须是 JSON 对象"));
+    assert!(err.to_string().contains("角色当前状态不是 JSON 对象"));
 }
 
 #[test]
@@ -32,7 +32,7 @@ fn apply_attribute_to_state_rejects_corrupt_category_shape() {
     )
     .expect_err("non-object category must fail");
 
-    assert!(err.contains("explicit_attributes"));
+    assert!(err.to_string().contains("explicit_attributes"));
 }
 
 #[test]

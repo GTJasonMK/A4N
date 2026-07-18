@@ -1,0 +1,107 @@
+use std::sync::Arc;
+
+use a4n_capabilities::LlmClient;
+use a4n_core::error::AppError;
+use a4n_core::models::ai::llm_config;
+use a4n_llm::provider::ChatRequest;
+use a4n_orchestrator::OrchestratorContext;
+use a4n_orchestrator::task_queue::PersistentTaskQueue;
+
+use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
+use crate::runtime_config;
+
+impl DynamicLlmProvider {
+    /// 阶段 11E：不再接收数据库连接（配置解析经 orchestrator，旧 db 参数已无用）。
+    pub(crate) fn new(
+        orchestrator: OrchestratorContext,
+        task_queue: Arc<PersistentTaskQueue>,
+    ) -> Self {
+        Self {
+            orchestrator,
+            task_queue,
+            sidecar_client: None,
+        }
+    }
+
+    pub(crate) fn new_with_sidecar_client(
+        orchestrator: OrchestratorContext,
+        task_queue: Arc<PersistentTaskQueue>,
+        sidecar_client: Arc<dyn LlmClient>,
+    ) -> Self {
+        Self {
+            orchestrator,
+            task_queue,
+            sidecar_client: Some(sidecar_client),
+        }
+    }
+
+    pub(super) async fn resolve_model_by_id(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<llm_config::Model, AppError> {
+        if let Some(snapshot_model) = runtime_config::current_llm_model_for_id(config_id) {
+            return Ok(snapshot_model);
+        }
+        if config_id.is_none() && runtime_config::uses_system_default_llm_template() {
+            return self.resolve_system_default_template_with_user_key().await;
+        }
+        if let Some(id) = config_id
+            && runtime_config::current_llm_snapshot_scope_present()
+        {
+            return Err(AppError::ConfigError(format!(
+                "runtime_config_snapshot.llm_configs 不包含 LLM 配置 #{id}"
+            )));
+        }
+        if runtime_config::current_user_id().is_some() {
+            return Err(AppError::ConfigError(match config_id {
+                Some(id) => format!(
+                    "远程用户请求不能直接使用服务器 LLM 配置 #{id}；请在用户配置页使用个人 LLM 配置快照"
+                ),
+                None => "使用系统默认 LLM 需要先在用户配置页填写并保存你的个人 API Key".to_string(),
+            }));
+        }
+
+        self.orchestrator.resolve_llm_config(config_id).await
+    }
+
+    async fn resolve_system_default_template_with_user_key(
+        &self,
+    ) -> Result<llm_config::Model, AppError> {
+        let api_key = runtime_config::current_system_llm_api_key().ok_or_else(|| {
+            AppError::ConfigError(
+                "使用系统默认 LLM 需要先在用户配置页填写并保存你的个人 API Key".to_string(),
+            )
+        })?;
+        let mut model = self.orchestrator.resolve_llm_config(None).await?;
+        model.api_key_encrypted = Some(api_key);
+        Ok(model)
+    }
+
+    pub(in crate::dynamic_llm) async fn resolve_runtime_model_by_id(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<ResolvedLlmModel, AppError> {
+        let model = self.resolve_model_by_id(config_id).await?;
+        ResolvedLlmModel::new(model)
+    }
+
+    pub(in crate::dynamic_llm) async fn resolve_max_tokens(
+        &self,
+        request: &ChatRequest,
+    ) -> Result<Option<usize>, AppError> {
+        let Some(profile) = request.max_tokens_profile.as_deref() else {
+            return Ok(request.max_tokens);
+        };
+        let config = match runtime_config::current_llm_max_tokens() {
+            Some(config) => config,
+            None => self.orchestrator.llm_max_tokens_config().await?,
+        };
+        let configured = config.for_profile(profile).ok_or_else(|| {
+            AppError::ConfigError(format!("未知的 LLM max_tokens 场景配置: {profile}"))
+        })?;
+        Ok(Some(match request.max_tokens {
+            Some(required_minimum) => configured.max(required_minimum),
+            None => configured,
+        }))
+    }
+}

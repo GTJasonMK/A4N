@@ -14,6 +14,7 @@ import {
   type PromptEntry,
   type PromptRenderAbResult,
 } from "../../../api/prompt";
+import { PromptProjectSelect } from "./PromptProjectSelect";
 
 export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt }) => {
   const { addToast } = useToast();
@@ -43,7 +44,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
 
   // 当前/原始模板对照渲染
   const [abVarsJson, setAbVarsJson] = useState<string>("{}");
-  const [abProjectId, setAbProjectId] = useState<string>("");
+  const [abProjectId, setAbProjectId] = useState<number | null>(null);
   const [abBusy, setAbBusy] = useState(false);
   const [abResult, setAbResult] = useState<PromptRenderAbResult | null>(null);
 
@@ -105,21 +106,26 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
     setMissingVars(null);
   };
 
-  const handleRenderInputChange = (field: "project" | "vars", value: string) => {
+  const resetRenderResults = () => {
     renderInputVersionRef.current += 1;
     directRenderSeqRef.current += 1;
     abRenderSeqRef.current += 1;
     directRenderBusyRef.current = false;
     abRenderBusyRef.current = false;
-    if (field === "project") {
-      setAbProjectId(value);
-    } else {
-      setAbVarsJson(value);
-    }
     setRenderBusy(false);
     setAbBusy(false);
     setRenderResult(null);
     setAbResult(null);
+  };
+
+  const handleRenderProjectChange = (value: number | null) => {
+    resetRenderResults();
+    setAbProjectId(value);
+  };
+
+  const handleRenderVariablesChange = (value: string) => {
+    resetRenderResults();
+    setAbVarsJson(value);
   };
 
   const loadGraph = async () => {
@@ -220,23 +226,11 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
     }
   };
 
-  const parseProjectId = (): number | null | undefined => {
-    const value = abProjectId.trim();
-    if (!value) return null;
-    const projectId = Number(value);
-    if (!Number.isInteger(projectId) || projectId <= 0) {
-      addToast("project_id 必须是正整数", "error");
-      return undefined;
-    }
-    return projectId;
-  };
-
   const handleDirectRender = async () => {
     if (directRenderBusyRef.current) return;
     const vars = parseAbVars();
     if (vars === null) return;
-    const pid = parseProjectId();
-    if (pid === undefined) return;
+    const pid = abProjectId;
     const targetScope = { name: prompt.name, token: scopeRef.current.token };
     const requestInputVersion = renderInputVersionRef.current;
     const requestSeq = directRenderSeqRef.current + 1;
@@ -283,8 +277,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
     if (abRenderBusyRef.current) return;
     const vars = parseAbVars();
     if (vars === null) return;
-    const pid = parseProjectId();
-    if (pid === undefined) return;
+    const pid = abProjectId;
     const targetScope = { name: prompt.name, token: scopeRef.current.token };
     const requestInputVersion = renderInputVersionRef.current;
     const requestSeq = abRenderSeqRef.current + 1;
@@ -329,7 +322,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
 
   return (
     <>
-      <details className="pyqt-card p-2.5">
+      <details className="py-2.5">
         <summary
           className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5"
           onClick={(e) => {
@@ -350,15 +343,10 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-2 mb-1.5">
-                <BookButton variant="secondary" onClick={loadGraph}>
+              <div className="mb-1.5 flex items-center gap-2">
+                <BookButton variant="secondary" size="sm" onClick={loadGraph}>
                   刷新
                 </BookButton>
-                {graph && (
-                  <span className="text-book-text-muted">
-                    总节点 {graph.nodes.length} / 总边 {graph.edges.length}
-                  </span>
-                )}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -366,16 +354,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
                   {deps.length === 0 ? (
                     <div className="italic text-book-text-muted">无</div>
                   ) : (
-                    <div className="flex flex-wrap gap-1">
-                      {deps.map((d) => (
-                        <span
-                          key={d}
-                          className="pyqt-pill !text-[10px] !border-book-primary/40 !text-book-primary"
-                        >
-                          →{d}
-                        </span>
-                      ))}
-                    </div>
+                    <div className="break-words font-mono text-book-text-sub">{deps.join("、")}</div>
                   )}
                 </div>
                 <div>
@@ -383,16 +362,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
                   {reverseDeps.length === 0 ? (
                     <div className="italic text-book-text-muted">无</div>
                   ) : (
-                    <div className="flex flex-wrap gap-1">
-                      {reverseDeps.map((d) => (
-                        <span
-                          key={d}
-                          className="pyqt-pill !text-[10px] !border-warning/40 !text-warning"
-                        >
-                          ←{d}
-                        </span>
-                      ))}
-                    </div>
+                    <div className="break-words font-mono text-book-text-sub">{reverseDeps.join("、")}</div>
                   )}
                 </div>
               </div>
@@ -401,7 +371,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
         </div>
       </details>
 
-      <details className="pyqt-card p-2.5">
+      <details className="py-2.5">
         <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
           <CheckCircle2 size={11} /> 变量校验
         </summary>
@@ -416,7 +386,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
             placeholder="如：title, chapter_number, character_name"
           />
           <div className="flex items-center gap-2">
-            <BookButton variant="secondary" onClick={handleValidate} disabled={validateBusy}>
+            <BookButton variant="secondary" size="sm" onClick={handleValidate} disabled={validateBusy}>
               {validateBusy ? (
                 <Loader2 size={11} className="animate-spin" />
               ) : (
@@ -428,51 +398,44 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
             )}
           </div>
           {missingVars !== null && missingVars.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              <span className="text-error">缺失：</span>
-              {missingVars.map((m) => (
-                <span
-                  key={m}
-                  className="pyqt-pill !text-[10px] !border-error/50 !text-error"
-                >
-                  {m}
-                </span>
-              ))}
+            <div className="break-words border-l border-error/40 pl-2.5 pt-1 text-error">
+              缺失：<span className="font-mono">{missingVars.join("、")}</span>
             </div>
           )}
         </div>
       </details>
 
-      <details className="pyqt-card p-2.5">
+      <details className="py-2.5">
         <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
           <Play size={11} /> 渲染对照
         </summary>
         <div className="mt-2 text-[11px] space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-book-text-muted shrink-0">project_id（可空）</span>
-            <input
+          <label className="grid gap-1">
+            <span className="text-book-text-muted">项目上下文</span>
+            <PromptProjectSelect
               value={abProjectId}
-              onChange={(e) => handleRenderInputChange("project", e.target.value)}
-              placeholder="如 1"
-              className="pyqt-input !py-1 !px-2 w-20"
+              onChange={handleRenderProjectChange}
+              allowEmpty
+              ariaLabel="渲染时使用的项目上下文"
+              className="w-full"
             />
-          </div>
-          <div className="text-book-text-muted">变量 JSON 对象</div>
+          </label>
+          <div className="text-book-text-muted">变量结构数据</div>
           <textarea
             value={abVarsJson}
-            onChange={(e) => handleRenderInputChange("vars", e.target.value)}
+            onChange={(e) => handleRenderVariablesChange(e.target.value)}
             className="pyqt-input w-full text-[11px] h-20 resize-y font-mono"
             placeholder='{"title": "示例", "chapter": 1}'
           />
           <div className="flex items-center gap-2 flex-wrap">
-            <BookButton variant="secondary" onClick={handleDirectRender} disabled={renderBusy}>
+            <BookButton variant="secondary" size="sm" onClick={handleDirectRender} disabled={renderBusy}>
               {renderBusy ? (
                 <Loader2 size={11} className="animate-spin" />
               ) : (
                 "直接渲染"
               )}
             </BookButton>
-            <BookButton variant="primary" onClick={handleAbRender} disabled={abBusy}>
+            <BookButton variant="primary" size="sm" onClick={handleAbRender} disabled={abBusy}>
               {abBusy ? (
                 <Loader2 size={11} className="animate-spin" />
               ) : (
@@ -483,7 +446,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
           {renderResult !== null && (
             <div>
               <div className="text-book-text-muted">直接渲染结果</div>
-              <pre className="rounded border border-book-border/40 bg-book-bg-tertiary/40 p-2 text-[10px] font-mono whitespace-pre-wrap break-words max-h-44 overflow-y-auto custom-scrollbar">
+              <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-[10px] text-book-text-sub">
                 {renderResult || "（空）"}
               </pre>
             </div>
@@ -491,11 +454,11 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
           {abResult !== null && (
             <div>
               <div className="text-book-text-muted">当前模板</div>
-              <pre className="rounded border border-book-border/40 bg-book-bg-tertiary/40 p-2 text-[10px] font-mono whitespace-pre-wrap break-words max-h-44 overflow-y-auto custom-scrollbar">
+              <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-[10px] text-book-text-sub">
                 {abResult.version_a || "（空）"}
               </pre>
               <div className="text-book-text-muted mt-1.5">原始模板</div>
-              <pre className="rounded border border-book-border/40 bg-book-bg-tertiary/40 p-2 text-[10px] font-mono whitespace-pre-wrap break-words max-h-44 overflow-y-auto custom-scrollbar">
+              <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-[10px] text-book-text-sub">
                 {abResult.version_b || "（空）"}
               </pre>
             </div>

@@ -10,8 +10,8 @@ use a4n_core::models::{
     asset::{object_profile, profile_primary_material},
     canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
     chapter::{
-        chapter, chapter_manga_prompt, chapter_outline, chapter_scene, chapter_video_prompt,
-        part_outline,
+        chapter, chapter_manga_prompt, chapter_outline, chapter_scene, chapter_shooting_script,
+        chapter_video_prompt, part_outline,
     },
     character::{
         attribute_event, character_portrait, character_state_index, foreshadowing_index,
@@ -32,7 +32,7 @@ use a4n_core::models::{
     },
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
-    task::{task_dependency, task_queue},
+    task::{cleanup_outbox, task_dependency, task_queue},
     user::{
         conversation, invite_code, llm_usage_log, message, theme_config, usage_stats, user,
         user_session,
@@ -586,7 +586,7 @@ ON chapter_video_prompt (
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
-#[async_trait::async_trait]
+#[sea_orm_migration::async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         if manager.get_database_backend() != DbBackend::Postgres {
@@ -670,6 +670,24 @@ impl MigrationTrait for Migration {
         create_entity_table!(manager, schema, chapter_outline::Entity);
         create_entity_table!(manager, schema, chapter::Entity);
         create_entity_table!(manager, schema, chapter_scene::Entity);
+        create_entity_table!(manager, schema, chapter_shooting_script::Entity);
+        create_entity_index!(
+            manager,
+            "uidx_chapter_shooting_script_source_revision",
+            chapter_shooting_script::Entity,
+            [
+                chapter_shooting_script::Column::RootProjectId,
+                chapter_shooting_script::Column::SourceChapterId,
+                chapter_shooting_script::Column::SourceRevisionKey
+            ],
+            unique
+        );
+        create_entity_index!(
+            manager,
+            "idx_chapter_shooting_script_snapshot_chapter",
+            chapter_shooting_script::Entity,
+            [chapter_shooting_script::Column::SourceSnapshotChapterId]
+        );
         create_entity_table!(manager, schema, chapter_manga_prompt::Entity);
         create_entity_table!(manager, schema, chapter_video_prompt::Entity);
 
@@ -702,6 +720,24 @@ impl MigrationTrait for Migration {
 
         create_entity_table!(manager, schema, task_queue::Entity);
         create_entity_table!(manager, schema, task_dependency::Entity);
+        create_entity_table!(manager, schema, cleanup_outbox::Entity);
+        create_entity_index!(
+            manager,
+            "uidx_project_cleanup_outbox_dedupe",
+            cleanup_outbox::Entity,
+            [cleanup_outbox::Column::DedupeKey],
+            unique
+        );
+        create_entity_index!(
+            manager,
+            "idx_project_cleanup_outbox_claim",
+            cleanup_outbox::Entity,
+            [
+                cleanup_outbox::Column::Status,
+                cleanup_outbox::Column::NextAttemptAt,
+                cleanup_outbox::Column::LeaseExpiresAt
+            ]
+        );
 
         create_entity_table!(manager, schema, llm_config::Entity);
         create_entity_table!(manager, schema, embedding_config::Entity);
@@ -791,6 +827,7 @@ impl MigrationTrait for Migration {
         drop_entity_table!(manager, llm_config::Entity);
         drop_entity_table!(manager, task_dependency::Entity);
         drop_entity_table!(manager, task_queue::Entity);
+        drop_entity_table!(manager, cleanup_outbox::Entity);
         drop_entity_table!(manager, scene_entity_state::Entity);
         drop_entity_table!(manager, scene_transition::Entity);
         drop_entity_table!(manager, scene_occurrence::Entity);
@@ -807,6 +844,7 @@ impl MigrationTrait for Migration {
         drop_entity_table!(manager, protagonist_profile::Entity);
         drop_entity_table!(manager, chapter_video_prompt::Entity);
         drop_entity_table!(manager, chapter_manga_prompt::Entity);
+        drop_entity_table!(manager, chapter_shooting_script::Entity);
         drop_entity_table!(manager, chapter_scene::Entity);
         drop_entity_table!(manager, chapter::Entity);
         drop_entity_table!(manager, chapter_outline::Entity);

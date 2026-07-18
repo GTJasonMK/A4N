@@ -2,7 +2,7 @@ use crate::commands::request_preview::ModelRequestPreview;
 use crate::progress_task::WorkflowProgressTask;
 use a4n_core::event::channel::TaskType;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::image_generation::{
+use a4n_runtime::host_api::image_generation::{
     self as image_generation_actions, GeneratedImageSummary,
 };
 use tauri::{State, Window};

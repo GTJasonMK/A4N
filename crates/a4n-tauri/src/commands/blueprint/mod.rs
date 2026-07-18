@@ -1,14 +1,14 @@
 //! 故事蓝图命令。
 //!
 //! Tauri 层只保留命令签名和窗口事件；蓝图业务逻辑统一在
-//! `a4n_runtime::actions::blueprint_records`。
+//! `a4n_runtime::host_api::blueprint_records`。
 
 use crate::commands::request_preview::ModelRequestPreview;
 use crate::progress_task::WorkflowProgressTask;
 use a4n_core::error::AppError;
 use a4n_core::event::channel::TaskType;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::blueprint_records as blueprint_actions;
+use a4n_runtime::host_api::blueprint_records as blueprint_actions;
 use blueprint_actions::{
     BlueprintDiffSummary, BlueprintSummary, BlueprintVersionSummary, DiffBlueprintVersionsInput,
     GenerateBlueprintInput, RefineBlueprintInput, RestoreBlueprintVersionInput,

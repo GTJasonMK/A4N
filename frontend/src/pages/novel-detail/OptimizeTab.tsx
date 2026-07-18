@@ -205,8 +205,8 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
       <section
         className={
           embedded
-            ? "flex h-full min-h-[28rem] min-w-0 flex-col overflow-hidden bg-book-bg-paper/40"
-            : "mx-auto flex h-[min(72dvh,calc(100dvh-6rem))] max-w-5xl flex-col overflow-hidden rounded border border-book-border bg-book-bg-paper/60 md:h-[calc(100vh-10rem)]"
+            ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-book-bg-paper/40"
+            : "mx-auto flex h-[min(72dvh,calc(100dvh-6rem))] max-w-5xl flex-col overflow-hidden rounded-2xl border border-book-border/55 bg-book-bg-paper/60 md:h-[calc(100vh-10rem)]"
         }
       >
         <OptimizeHeader

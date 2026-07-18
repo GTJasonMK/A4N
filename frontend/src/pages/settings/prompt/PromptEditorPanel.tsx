@@ -1,6 +1,7 @@
 import React from "react";
-import { Loader2, RotateCcw, Save, Users } from "lucide-react";
+import { Check, ChevronDown, Loader2, RotateCcw, Save } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
+import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import type { PromptEntry } from "../../../api/prompt";
 import { PromptAdvancedPanels } from "./AdvancedPanels";
 import { ProjectOverridePanel } from "./ProjectOverridePanel";
@@ -26,41 +27,65 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
   onDraftChange,
   onSave,
   onReset,
-}) => (
-  <div className="pyqt-card p-3 flex flex-col min-h-0">
-    {!prompt ? (
-      <div className="m-auto text-xs text-book-text-muted">
-        从左侧选择一个提示词以编辑
-      </div>
-    ) : (
-      <>
-        <PromptEditorHeader
-          prompt={prompt}
-          dirty={dirty}
-          saving={saving}
-          resetting={resetting}
-          onSave={onSave}
-          onReset={onReset}
-        />
+}) => {
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
 
-        <textarea
-          value={draft}
-          onChange={(event) => onDraftChange(event.target.value)}
-          className="book-control flex-1 min-h-0 rounded p-3 font-mono text-xs leading-relaxed resize-none"
-          spellCheck={false}
-        />
+  React.useEffect(() => {
+    setAdvancedOpen(false);
+  }, [prompt?.name]);
 
-        <PromptMetadata prompt={prompt} />
-
-        <div className="mt-4 pt-3 border-t border-book-border/30 shrink-0 flex flex-col gap-2">
-          <PromptHistoryPanel prompt={prompt} />
-          <ProjectOverridePanel prompt={prompt} content={draft} />
-          <PromptAdvancedPanels prompt={prompt} />
+  return (
+    <div
+      className={`a4n-flat-surface custom-scrollbar flex min-h-0 flex-col overflow-visible p-3 md:overflow-y-auto ${
+        prompt ? "" : "min-h-[180px] self-start md:w-full"
+      }`}
+    >
+      {!prompt ? (
+        <div className="a4n-empty-state min-h-[148px] text-xs text-book-text-muted">
+          从左侧选择一个提示词以编辑
         </div>
-      </>
-    )}
-  </div>
-);
+      ) : (
+        <>
+          <PromptEditorHeader
+            prompt={prompt}
+            dirty={dirty}
+            saving={saving}
+            resetting={resetting}
+            onSave={onSave}
+            onReset={onReset}
+          />
+
+          <textarea
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+            className="book-control min-h-[18rem] flex-1 resize-none rounded-xl p-3 font-mono text-xs leading-relaxed"
+            spellCheck={false}
+          />
+
+          <PromptMetadata prompt={prompt} />
+
+          <details
+            open={advancedOpen}
+            onToggle={(event) => setAdvancedOpen((event.currentTarget as HTMLDetailsElement).open)}
+            className="group mt-3 shrink-0 border-t border-book-border/35 pt-2"
+          >
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 py-1 text-xs text-book-text-muted transition-colors hover:text-book-text-sub [&::-webkit-details-marker]:hidden">
+              <ChevronDown size={12} className="transition-transform group-open:rotate-180" />
+              高级工具
+            </summary>
+            {advancedOpen ? (
+              <div className="mt-1 divide-y divide-book-border/35 border-t border-book-border/35">
+                <PromptHistoryPanel prompt={prompt} />
+                <ProjectOverridePanel prompt={prompt} content={prompt.content} dirty={dirty} />
+                <PromptAdvancedPanels prompt={prompt} />
+              </div>
+            ) : null}
+          </details>
+        </>
+      )}
+    </div>
+  );
+};
 
 const PromptEditorHeader: React.FC<{
   prompt: PromptEntry;
@@ -69,107 +94,79 @@ const PromptEditorHeader: React.FC<{
   resetting: boolean;
   onSave: () => void;
   onReset: () => void;
-}> = ({ prompt, dirty, saving, resetting, onSave, onReset }) => (
-  <div className="flex items-start justify-between gap-3 mb-3 shrink-0">
-    <div className="min-w-0">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-sm font-semibold text-book-text-main">
-          {prompt.title || prompt.name}
-        </span>
-        <span className="pyqt-pill !text-[10px]">{prompt.category}</span>
-        {prompt.is_modified && (
-          <span className="pyqt-pill !text-[10px] !border-warning !text-warning">
-            已修改
-          </span>
-        )}
-      </div>
-      <div className="text-[11px] text-book-text-muted font-mono">
-        {prompt.name} · v{prompt.version || "—"}
-      </div>
-      {prompt.description && (
-        <div className="text-xs text-book-text-sub mt-1 leading-relaxed">
-          {prompt.description}
-        </div>
-      )}
-    </div>
-    <div className="flex items-center gap-2 shrink-0">
-      <BookButton
-        variant="secondary"
-        onClick={onReset}
-        disabled={resetting || !prompt.is_modified}
-        title={!prompt.is_modified ? "未修改无需重置" : ""}
-      >
-        {resetting ? (
-          <span className="inline-flex items-center gap-2">
-            <Loader2 size={14} className="animate-spin" />
-            重置中…
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-2">
-            <RotateCcw size={14} /> 重置默认
-          </span>
-        )}
-      </BookButton>
-      <BookButton variant="primary" onClick={onSave} disabled={!dirty || saving}>
-        {saving ? (
-          <span className="inline-flex items-center gap-2">
-            <Loader2 size={14} className="animate-spin" /> 保存中…
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-2">
-            <Save size={14} /> {dirty ? "保存（git 提交）" : "已保存"}
-          </span>
-        )}
-      </BookButton>
-    </div>
-  </div>
-);
-
-const PromptMetadata: React.FC<{ prompt: PromptEntry }> = ({ prompt }) => {
-  const hasMetadata = Boolean(
-    prompt.dependencies?.length || prompt.tags?.length || prompt.used_by?.length || prompt.path,
-  );
-  if (!hasMetadata) return null;
+}> = ({ prompt, dirty, saving, resetting, onSave, onReset }) => {
+  const moreItems: DropdownItem[] =
+    prompt.is_modified && !resetting
+      ? [
+          {
+            label: "恢复默认内容",
+            icon: <RotateCcw size={12} />,
+            onClick: onReset,
+          },
+        ]
+      : [];
 
   return (
-    <div className="mt-2 flex flex-col gap-1 shrink-0 text-[11px]">
-      {prompt.used_by && prompt.used_by.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1 text-book-text-muted">
-            <Users size={11} /> 被调用：
+    <div className="mb-3 flex shrink-0 items-start gap-3">
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate text-sm font-medium text-book-text-main">
+          {prompt.title || "提示词"}
+        </h3>
+        {prompt.description ? (
+          <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-book-text-sub">
+            {prompt.description}
+          </div>
+        ) : null}
+        <div className={`mt-1 inline-flex items-center gap-1 text-[11px] ${dirty ? "text-warning" : "text-book-text-muted"}`}>
+          {dirty ? null : <Check size={11} />}
+          {saving ? "正在保存…" : dirty ? "有未保存修改" : prompt.is_modified ? "已保存自定义内容" : "使用默认内容"}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {dirty || saving ? (
+          <BookButton variant="primary" size="sm" onClick={onSave} disabled={saving}>
+            {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+            {saving ? "保存中…" : "保存"}
+          </BookButton>
+        ) : null}
+        {resetting ? (
+          <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted" title="正在恢复默认内容">
+            <Loader2 size={14} className="animate-spin" />
           </span>
-          {prompt.used_by.map((usedBy) => (
-            <span
-              key={`u-${usedBy}`}
-              className="pyqt-pill !text-[10px] !border-book-primary/40 !text-book-primary font-mono"
-              title="后端 service 调用此提示词"
-            >
-              {usedBy}
-            </span>
-          ))}
-        </div>
-      )}
-      {(prompt.tags?.length || prompt.dependencies?.length) && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {prompt.tags?.map((tag) => (
-            <span key={`tag-${tag}`} className="pyqt-pill !text-[10px] !text-book-text-muted">
-              #{tag}
-            </span>
-          ))}
-          {prompt.dependencies?.map((dependency) => (
-            <span
-              key={`dep-${dependency}`}
-              className="pyqt-pill !text-[10px] !border-warning/40 !text-warning"
-              title="依赖的其他提示词"
-            >
-              →{dependency}
-            </span>
-          ))}
-        </div>
-      )}
-      {prompt.path && (
-        <div className="text-book-text-muted font-mono text-[10px] truncate">📂 {prompt.path}</div>
-      )}
+        ) : moreItems.length > 0 ? (
+          <Dropdown items={moreItems} />
+        ) : null}
+      </div>
     </div>
+  );
+};
+
+const PromptMetadata: React.FC<{ prompt: PromptEntry }> = ({ prompt }) => {
+  return (
+    <details className="mt-2 shrink-0 border-t border-book-border/30 pt-2 text-[11px]">
+      <summary className="cursor-pointer text-book-text-muted transition-colors hover:text-book-text-sub">
+        诊断信息
+      </summary>
+      <div className="mt-2 grid gap-1.5 border-l border-book-border/40 pl-2.5 text-book-text-muted">
+        <div>内部名称：<span className="font-mono text-book-text-sub">{prompt.name}</span></div>
+        <div>版本：<span className="font-mono text-book-text-sub">{prompt.version || "—"}</span></div>
+        <div>分类：<span className="font-mono text-book-text-sub">{prompt.category}</span></div>
+        {prompt.used_by && prompt.used_by.length > 0 && (
+          <div>使用位置：<span className="font-mono text-book-text-sub">{prompt.used_by.join("、")}</span></div>
+        )}
+        {(prompt.tags?.length || prompt.dependencies?.length) && (
+          <div>
+            {prompt.tags?.length ? `标签：${prompt.tags.join("、")}` : ""}
+            {prompt.tags?.length && prompt.dependencies?.length ? " · " : ""}
+            {prompt.dependencies?.length ? `依赖：${prompt.dependencies.join("、")}` : ""}
+          </div>
+        )}
+        {prompt.path && (
+          <div className="break-all font-mono text-[11px] text-book-text-muted">
+            文件：{prompt.path}
+          </div>
+        )}
+      </div>
+    </details>
   );
 };

@@ -3,31 +3,26 @@ name = "a4n-tauri"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+embedded-capabilities = [
+    "a4n-runtime/migration",
+    "a4n-runtime/embedded-capabilities",
+]
+
 [dependencies]
 a4n-core = { path = "../a4n-core" }
-a4n-engine = { path = "../a4n-engine" }
-a4n-services = { path = "../a4n-services" }
-a4n-migration = { path = "../a4n-migration" }
-a4n-runtime = { path = "../a4n-runtime" }
+a4n-runtime = { path = "../a4n-runtime", default-features = false }
 
 # Tauri
 tauri = { workspace = true }
 
 # 异步
 tokio = { workspace = true }
-async-trait = { workspace = true }
-futures = { workspace = true }
-anyhow = { workspace = true }
 
 # 序列化
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yaml = { workspace = true }
-base64 = { workspace = true }
-tera = { workspace = true }
-
-# 数据库
-sea-orm = { workspace = true }
 
 # 时间处理
 chrono = { workspace = true }

@@ -4,20 +4,17 @@ use crate::progress_task::WorkflowProgressTask;
 use a4n_core::event::channel::TaskType;
 use a4n_core::models::galgame::{galgame_choice, galgame_line, galgame_scene};
 use a4n_runtime::AppState;
-use a4n_runtime::actions::export_files::ExportFileData;
-use a4n_runtime::actions::galgame_records;
-use a4n_runtime::actions::galgame_records::{
-    BindGalgameMediaInput, DeleteGalgameLineInput, GalgameAssetGenerationSummary,
-    GalgameMediaBindingResult, GalgamePipelineStatusSummary, GalgameProjectInput,
-    ImportGalgameAudioInput, RunGalgameAssetGenerationInput, StartGalgamePipelineInput,
-    UnbindGalgameMediaInput,
+use a4n_runtime::host_api::export_files::ExportFileData;
+use a4n_runtime::host_api::galgame_records;
+use a4n_runtime::host_api::galgame_records::{
+    BindGalgameMediaInput, DeleteGalgameLineInput, GALGAME_PIPELINE_TOTAL_STEPS,
+    GalgameAssetGenerationSummary, GalgameAssetPlan, GalgameMediaBindingResult,
+    GalgamePipelineProgressUpdate, GalgamePipelineStatusSummary, GalgameProjectInput,
+    GalgameScriptDetail, ImportGalgameAudioInput, InsertGalgameLineInput, ReorderGalgameLinesInput,
+    RunGalgameAssetGenerationInput, StartGalgamePipelineInput, UnbindGalgameMediaInput,
+    UpdateGalgameChoicesInput, UpdateGalgameLineInput, UpdateGalgameSceneInput,
 };
-use a4n_runtime::actions::request_preview::ModelRequestPreview;
-use a4n_services::galgame::{
-    GALGAME_PIPELINE_TOTAL_STEPS, GalgameAssetPlan, GalgameScriptDetail, InsertGalgameLineInput,
-    ReorderGalgameLinesInput, UpdateGalgameChoicesInput, UpdateGalgameLineInput,
-    UpdateGalgameSceneInput,
-};
+use a4n_runtime::host_api::request_preview::ModelRequestPreview;
 use std::sync::Arc;
 use tauri::{State, Window};
 
@@ -43,21 +40,19 @@ pub async fn start_galgame_pipeline(
         input.task_id.clone(),
         TaskType::GalgameGeneration,
         Some(input.project_id),
-        GALGAME_PIPELINE_TOTAL_STEPS as u32,
+        GALGAME_PIPELINE_TOTAL_STEPS,
         "正在准备 Galgame 管线",
     ));
     let reporter_task = progress_task.clone();
-    let progress_reporter = Arc::new(
-        move |event: a4n_services::galgame::GalgamePipelineProgressUpdate| {
-            reporter_task.progress_with_meta(
-                event.current,
-                event.total,
-                &event.message,
-                Some(event.meta),
-            );
-            Ok(())
-        },
-    );
+    let progress_reporter = Arc::new(move |event: GalgamePipelineProgressUpdate| {
+        reporter_task.progress_with_meta(
+            event.current,
+            event.total,
+            &event.message,
+            Some(event.meta),
+        );
+        Ok(())
+    });
     let result = galgame_records::start_galgame_pipeline_with_progress(
         state.inner(),
         user_id,

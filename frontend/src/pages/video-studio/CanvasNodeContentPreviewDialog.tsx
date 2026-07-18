@@ -70,31 +70,24 @@ export const CanvasNodeContentPreviewDialog: React.FC<CanvasNodeContentPreviewDi
       title={preview ? `${preview.title} 内容查看` : "节点内容查看"}
       subtitle={
         node && preview
-          ? `节点 #${node.id} · ${preview.kindLabel} · ${contentTypeLabel(preview.dataType)}`
+          ? `${preview.kindLabel} · ${contentTypeLabel(preview.dataType)}`
           : "查看节点当前保存或观察到的内容"
       }
       icon={<Eye size={15} />}
       maxWidthClassName="max-w-[min(96vw,72rem)]"
       bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4"
       footer={
-        <div className="flex w-full items-center justify-between gap-3">
-          <span className="truncate text-xs text-book-text-muted">
-            {copied ? "已复制" : preview?.filePath || preview?.emptyMessage || ""}
-          </span>
-          <div className="flex shrink-0 items-center gap-2">
-            <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={() => void copyContent()}
-              disabled={!copyValue}
-            >
-              <Copy size={13} />
-              {copyLabel}
-            </BookButton>
-            <BookButton variant="secondary" size="sm" onClick={onClose}>
-              关闭
-            </BookButton>
-          </div>
+        <div className="flex w-full items-center justify-end gap-2">
+          {copied ? <span className="text-xs text-success">已复制</span> : null}
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={() => void copyContent()}
+            disabled={!copyValue}
+          >
+            <Copy size={13} />
+            {copyLabel}
+          </BookButton>
         </div>
       }
     >
@@ -120,17 +113,17 @@ const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview
   return (
     <div className="space-y-3 text-xs">
       {preview.dataType === "text" && preview.text ? (
-        <pre className="max-h-[58vh] min-h-[18rem] overflow-auto whitespace-pre-wrap break-words rounded border border-book-border bg-book-bg-paper px-3 py-2 text-sm leading-6 text-book-text-main custom-scrollbar">
+        <pre className="whitespace-pre-wrap break-words rounded-xl border border-book-border bg-book-bg-paper px-3 py-2 text-sm leading-6 text-book-text-main">
           {preview.text}
         </pre>
       ) : null}
       {preview.dataType === "image" && mediaSrc ? (
-        <div className="flex max-h-[64vh] min-h-[18rem] items-center justify-center overflow-auto rounded border border-book-border bg-book-bg custom-scrollbar">
+        <div className="flex min-h-[18rem] items-center justify-center rounded-xl border border-book-border bg-book-bg">
           <img src={mediaSrc} alt={preview.title} className="max-h-[64vh] max-w-full object-contain" />
         </div>
       ) : null}
       {preview.dataType === "video" && (videoSrc || videoLoading || videoLoadError) ? (
-        <div className="overflow-hidden rounded border border-book-border bg-black">
+        <div className="overflow-hidden rounded-xl border border-book-border bg-black">
           {videoSrc ? (
             <video
               key={videoSrc}
@@ -159,24 +152,29 @@ const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview
         </div>
       ) : null}
       {preview.dataType === "audio" && mediaSrc ? (
-        <div className="rounded border border-book-border bg-book-bg-paper p-4">
+        <div className="rounded-xl border border-book-border bg-book-bg-paper p-4">
           <audio src={mediaSrc} controls className="w-full" />
         </div>
       ) : null}
       {!hasContent ? (
-        <div className="flex min-h-[18rem] items-center justify-center rounded border border-dashed border-book-border bg-book-bg p-6 text-center text-sm text-book-text-muted">
+        <div className="flex min-h-[18rem] items-center justify-center rounded-xl border border-dashed border-book-border bg-book-bg p-6 text-center text-sm text-book-text-muted">
           {preview.emptyMessage}
         </div>
       ) : null}
       {preview.metadataRows.length > 0 ? (
-        <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-1 rounded border border-book-border bg-book-bg-paper p-3 text-[11px]">
-          {preview.metadataRows.map(([label, value]) => (
-            <React.Fragment key={label}>
-              <span className="text-book-text-muted">{label}</span>
-              <span className="break-all font-mono text-book-text-main">{value}</span>
-            </React.Fragment>
-          ))}
-        </div>
+        <details className="rounded-xl border border-book-border/70 bg-book-bg-paper/60">
+          <summary className="cursor-pointer px-3 py-2 text-[11px] text-book-text-muted">
+            诊断信息
+          </summary>
+          <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-book-border/60 px-3 py-2 text-[11px]">
+            {preview.metadataRows.map(([label, value]) => (
+              <React.Fragment key={label}>
+                <span className="text-book-text-muted">{label}</span>
+                <span className="break-all font-mono text-book-text-main">{value}</span>
+              </React.Fragment>
+            ))}
+          </div>
+        </details>
       ) : null}
     </div>
   );
@@ -392,7 +390,7 @@ function nodeContentEmptyMessage(node: StudioNode, dataType: CanvasNodeContentTy
     return `该输出节点尚未保存${contentTypeLabel(dataType)}结果。请运行画布或运行到该输出节点后再查看。`;
   }
   if (nodeHasProviderRequest(node)) {
-    return "该节点是外部请求节点，请使用“预览请求”查看将发送的请求内容。";
+    return "该节点会调用外部模型，请使用“模型请求”查看将发送的内容。";
   }
   return "该节点当前没有可查看的保存内容。";
 }

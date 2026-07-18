@@ -5,8 +5,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Activity, BarChart3, RefreshCw } from "lucide-react";
-import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { ChevronRight, RefreshCw } from "lucide-react";
+import { BookIconButton } from "../../../components/ui/BookButton";
 import { extractErrorMessage } from "../../../api";
 import {
   getGenerationCallAnalytics,
@@ -22,12 +22,11 @@ import { useAuthStore } from "../../../store/auth";
 import { logger } from "../../../utils/logger";
 
 const KIND_LABELS: Record<string, string> = {
-  llm: "LLM",
+  llm: "语言模型",
   image: "图片",
   video: "视频",
 };
 
-const DATE_RANGES = [7, 30, 90, 180];
 const CHART_WIDTH = 720;
 const CHART_HEIGHT = 164;
 
@@ -125,43 +124,49 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
   }, [displayData]);
 
   const llmOverview = overviewByKind.get("llm");
+  const recentLlmDescription = displayLoading
+    ? "正在加载…"
+    : displayFailed
+      ? "读取失败"
+      : displayData && displayData.recent_llm_calls.length > 0
+        ? `${displayData.recent_llm_calls.length} 条记录`
+        : "暂无记录";
+  const recentMediaDescription = displayLoading
+    ? "正在加载…"
+    : displayFailed
+      ? "读取失败"
+      : displayData && displayData.recent_media_calls.length > 0
+        ? `${displayData.recent_media_calls.length} 条记录`
+        : "暂无记录";
 
   if (!canReadDiagnostics) {
     return (
-      <section className="pyqt-card p-3">
-        <div className="text-sm font-medium text-book-text-main">
-          生成调用分析
-        </div>
-        <div className="mt-2 text-xs text-book-text-muted">
-          服务器诊断数据仅管理员可查看。
-        </div>
-      </section>
+      <div className="border-l-2 border-book-border/70 py-2 pl-4 text-sm text-book-text-muted">
+        服务器诊断数据仅管理员可查看。
+      </div>
     );
   }
 
   return (
-    <section className="pyqt-card p-3 flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Activity size={15} />
-          <span>生成调用分析</span>
-        </div>
-        <div className="flex-1" />
-        <div className="flex items-center gap-1">
-          {DATE_RANGES.map((range) => (
-            <BookButton
-              key={range}
-              size="sm"
-              variant={days === range ? "primary" : "secondary"}
-              onClick={() => setDays(range)}
-            >
-              {range} 天
-            </BookButton>
-          ))}
-        </div>
+    <section className="flex flex-col gap-3">
+      <div className="flex min-h-8 flex-wrap items-center gap-2 text-xs">
+        <label className="inline-flex items-center gap-2 text-book-text-muted">
+          统计范围
+          <select
+            value={days}
+            onChange={(event) => setDays(Number(event.target.value))}
+            className="pyqt-input w-28 px-2 py-1"
+            aria-label="生成调用统计范围"
+          >
+            <option value={7}>最近 7 天</option>
+            <option value={30}>最近 30 天</option>
+            <option value={90}>最近 90 天</option>
+            <option value={180}>最近 180 天</option>
+          </select>
+        </label>
+        <span className="flex-1" />
         <BookIconButton
           label="刷新生成调用分析"
-          variant="secondary"
           size="sm"
           onClick={refresh}
           disabled={loading}
@@ -174,14 +179,14 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
       </div>
 
       {displayError && !displayLoading && (
-        <div className="rounded border border-error/30 bg-error-bg px-3 py-2 text-xs text-error">
+        <div className="rounded border border-error/30 bg-error-bg px-3 py-2 text-xs text-error" role="alert">
           {displayError}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 items-start gap-2 lg:grid-cols-3">
         {(["llm", "image", "video"] as const).map((kind) => (
-          <OverviewTile
+          <OverviewRow
             key={kind}
             item={overviewByKind.get(kind)}
             kind={kind}
@@ -191,12 +196,9 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] gap-3">
-        <div className="border border-book-border rounded-md p-3 min-w-0">
-          <div className="flex items-center gap-2 text-xs font-medium mb-2">
-            <BarChart3 size={14} />
-            <span>每日调用量</span>
-          </div>
+      <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <section className="a4n-flat-surface min-w-0 p-3">
+          <h3 className="mb-2 text-xs font-medium">每日调用量</h3>
           {displayData && displayData.daily.length > 0 ? (
             <DailyCallsChart rows={displayData.daily} />
           ) : (
@@ -210,165 +212,147 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
               }
             />
           )}
-        </div>
+        </section>
 
-        <div className="border border-book-border rounded-md p-3 min-w-0">
-          <div className="text-xs font-medium mb-2">Prompt 缓存</div>
+        <section className="a4n-flat-surface min-w-0 p-3">
+          <h3 className="mb-2 text-xs font-medium">提示词缓存</h3>
           <CacheSummary
             item={llmOverview}
             loading={displayLoading}
             failed={displayFailed}
           />
+        </section>
+      </div>
+
+      <section aria-label="工作流明细" className="space-y-2">
+        <div className="flex items-baseline gap-2 px-1">
+          <h3 className="text-xs font-medium text-book-text-main">工作流明细</h3>
+          <p className="text-[11px] text-book-text-muted">按调用域查看消耗与生成表现</p>
         </div>
-      </div>
+        <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
+          <DiagnosticDomainDetails
+            title="语言模型工作流"
+            description="令牌、缓存与耗时"
+            domain="llm-workflows"
+          >
+            <MetricTable
+              emptyText={displayLoading ? "加载中..." : displayFailed ? "当前范围读取失败" : "暂无语言模型调用"}
+              rows={displayData?.llm_by_workflow ?? []}
+              renderHeader={() => (
+                <>
+                  <th className="py-1 pr-2 text-left">步骤</th>
+                  <th className="px-2 py-1 text-right">调用</th>
+                  <th className="px-2 py-1 text-right">令牌数</th>
+                  <th className="px-2 py-1 text-right">缓存</th>
+                  <th className="py-1 pl-2 text-right">耗时</th>
+                </>
+              )}
+              renderRow={(row) => (
+                <>
+                  <td className="min-w-0 py-1 pr-2"><WorkflowLabel workflow={row.workflow} /></td>
+                  <td className="px-2 py-1 text-right">{formatInteger(row.calls)}</td>
+                  <td className="px-2 py-1 text-right">{formatCompact(row.total_tokens)}</td>
+                  <td className="px-2 py-1 text-right">{formatPercent(row.prompt_cache_hit_ratio)}</td>
+                  <td className="py-1 pl-2 text-right">{formatDuration(row.avg_duration_ms)}</td>
+                </>
+              )}
+            />
+          </DiagnosticDomainDetails>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        <MetricTable
-          title="LLM 高消耗步骤"
-          emptyText={
-            displayLoading
-              ? "加载中..."
-              : displayFailed
-                ? "当前范围读取失败"
-                : "暂无 LLM 调用"
-          }
-          rows={displayData?.llm_by_workflow ?? []}
-          renderHeader={() => (
-            <>
-              <th className="text-left py-1 pr-2">步骤</th>
-              <th className="text-right py-1 px-2">调用</th>
-              <th className="text-right py-1 px-2">Token</th>
-              <th className="text-right py-1 px-2">缓存</th>
-              <th className="text-right py-1 pl-2">耗时</th>
-            </>
-          )}
-          renderRow={(row) => (
-            <>
-              <td className="py-1 pr-2 min-w-0">
-                <WorkflowLabel workflow={row.workflow} stepKey={row.step_key} />
-              </td>
-              <td className="text-right py-1 px-2">
-                {formatInteger(row.calls)}
-              </td>
-              <td className="text-right py-1 px-2">
-                {formatCompact(row.total_tokens)}
-              </td>
-              <td className="text-right py-1 px-2">
-                {formatPercent(row.prompt_cache_hit_ratio)}
-              </td>
-              <td className="text-right py-1 pl-2">
-                {formatDuration(row.avg_duration_ms)}
-              </td>
-            </>
-          )}
-        />
+          <DiagnosticDomainDetails
+            title="图片与视频工作流"
+            description="成功、失败与耗时"
+            domain="media-workflows"
+          >
+            <MetricTable
+              emptyText={displayLoading ? "加载中..." : displayFailed ? "当前范围读取失败" : "暂无媒体生成记录"}
+              rows={displayData?.media_by_workflow ?? []}
+              renderHeader={() => (
+                <>
+                  <th className="py-1 pr-2 text-left">步骤</th>
+                  <th className="px-2 py-1 text-right">调用</th>
+                  <th className="px-2 py-1 text-right">成功</th>
+                  <th className="px-2 py-1 text-right">失败</th>
+                  <th className="py-1 pl-2 text-right">耗时</th>
+                </>
+              )}
+              renderRow={(row) => (
+                <>
+                  <td className="min-w-0 py-1 pr-2"><WorkflowLabel workflow={`${kindLabel(row.kind)} / ${row.workflow}`} /></td>
+                  <td className="px-2 py-1 text-right">{formatInteger(row.calls)}</td>
+                  <td className="px-2 py-1 text-right">{formatInteger(row.success)}</td>
+                  <td className="px-2 py-1 text-right">{formatInteger(row.failed)}</td>
+                  <td className="py-1 pl-2 text-right">{formatDuration(row.avg_duration_ms)}</td>
+                </>
+              )}
+            />
+          </DiagnosticDomainDetails>
+        </div>
+      </section>
 
-        <MetricTable
-          title="图片/视频生成步骤"
-          emptyText={
-            displayLoading
-              ? "加载中..."
-              : displayFailed
-                ? "当前范围读取失败"
-                : "暂无媒体生成记录"
-          }
-          rows={displayData?.media_by_workflow ?? []}
-          renderHeader={() => (
-            <>
-              <th className="text-left py-1 pr-2">步骤</th>
-              <th className="text-right py-1 px-2">调用</th>
-              <th className="text-right py-1 px-2">成功</th>
-              <th className="text-right py-1 px-2">失败</th>
-              <th className="text-right py-1 pl-2">耗时</th>
-            </>
-          )}
-          renderRow={(row) => (
-            <>
-              <td className="py-1 pr-2 min-w-0">
-                <WorkflowLabel
-                  workflow={`${kindLabel(row.kind)} / ${row.workflow}`}
-                  stepKey={row.step_key}
-                />
-              </td>
-              <td className="text-right py-1 px-2">
-                {formatInteger(row.calls)}
-              </td>
-              <td className="text-right py-1 px-2">
-                {formatInteger(row.success)}
-              </td>
-              <td className="text-right py-1 px-2">
-                {formatInteger(row.failed)}
-              </td>
-              <td className="text-right py-1 pl-2">
-                {formatDuration(row.avg_duration_ms)}
-              </td>
-            </>
-          )}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        <RecentLlmCalls
-          rows={displayData?.recent_llm_calls ?? []}
-          loading={displayLoading}
-          failed={displayFailed}
-        />
-        <RecentMediaCalls
-          rows={displayData?.recent_media_calls ?? []}
-          loading={displayLoading}
-          failed={displayFailed}
-        />
-      </div>
+      <section aria-label="最近调用" className="space-y-2">
+        <div className="flex items-baseline gap-2 px-1">
+          <h3 className="text-xs font-medium text-book-text-main">最近调用</h3>
+          <p className="text-[11px] text-book-text-muted">按需查看逐条记录</p>
+        </div>
+        <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
+          <DiagnosticDomainDetails
+            title="语言模型调用"
+            description={recentLlmDescription}
+            domain="recent-llm"
+          >
+            <RecentLlmCalls
+              rows={displayData?.recent_llm_calls ?? []}
+              loading={displayLoading}
+              failed={displayFailed}
+            />
+          </DiagnosticDomainDetails>
+          <DiagnosticDomainDetails
+            title="图片与视频调用"
+            description={recentMediaDescription}
+            domain="recent-media"
+          >
+            <RecentMediaCalls
+              rows={displayData?.recent_media_calls ?? []}
+              loading={displayLoading}
+              failed={displayFailed}
+            />
+          </DiagnosticDomainDetails>
+        </div>
+      </section>
     </section>
   );
 };
 
-const OverviewTile: React.FC<{
+const OverviewRow: React.FC<{
   item: CallKindOverview | undefined;
   kind: GenerationCallKind;
   loading: boolean;
   failed: boolean;
 }> = ({ item, kind, loading, failed }) => {
   const unavailable = (loading || failed) && !item;
+  const value = unavailable
+    ? loading
+      ? "正在加载…"
+      : "读取失败"
+    : kind === "llm"
+      ? `${formatInteger(item?.calls ?? 0)} 次 · ${formatCompact(item?.total_tokens ?? 0)} 令牌 · 缓存命中 ${formatPercent(item?.prompt_cache_hit_ratio ?? null)}`
+      : `${formatInteger(item?.calls ?? 0)} 次 · 成功 ${formatInteger(item?.success ?? 0)} · 失败 ${formatInteger(item?.failed ?? 0)} · 平均 ${formatDuration(item?.avg_duration_ms ?? null)}`;
   return (
-    <div className="border border-book-border rounded-md p-3 min-w-0">
-      <div className="text-xs text-book-text-muted mb-2">{kindLabel(kind)}</div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums">
-          {unavailable ? "..." : formatInteger(item?.calls ?? 0)}
-        </span>
-        <span className="text-xs text-book-text-muted">
-          {loading && !item ? "加载中" : failed && !item ? "读取失败" : "次"}
-        </span>
-      </div>
-      {loading && !item ? (
-        <div className="mt-2 text-xs text-book-text-muted">
-          正在加载当前范围统计...
-        </div>
-      ) : failed && !item ? (
-        <div className="mt-2 text-xs text-error">当前范围统计读取失败</div>
-      ) : kind === "llm" ? (
-        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-          <MetricValue
-            label="Token"
-            value={formatCompact(item?.total_tokens ?? 0)}
-          />
-          <MetricValue
-            label="缓存命中"
-            value={formatPercent(item?.prompt_cache_hit_ratio ?? null)}
-          />
-        </div>
-      ) : (
-        <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-          <MetricValue label="成功" value={formatInteger(item?.success ?? 0)} />
-          <MetricValue label="失败" value={formatInteger(item?.failed ?? 0)} />
-          <MetricValue
-            label="耗时"
-            value={formatDuration(item?.avg_duration_ms ?? null)}
-          />
-        </div>
-      )}
-    </div>
+    <dl
+      className="a4n-flat-surface min-w-0 p-3 text-xs"
+      data-generation-kind={kind}
+      aria-label={`${kindLabel(kind)}调用摘要`}
+    >
+      <dt className="font-medium text-book-text-main">{kindLabel(kind)}</dt>
+      <dd
+        className={`mt-1 min-w-0 text-[11px] leading-relaxed ${
+          failed && !item ? "text-error" : "text-book-text-muted"
+        }`}
+      >
+        {value}
+      </dd>
+    </dl>
   );
 };
 
@@ -409,7 +393,7 @@ const CacheSummary: React.FC<{
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="h-3 rounded-sm bg-book-bg-tertiary overflow-hidden flex">
+      <div className="flex h-2 overflow-hidden rounded-full bg-book-bg-tertiary">
         <div className="bg-success" style={{ width: `${hitWidth}%` }} />
         <div className="bg-warning" style={{ width: `${missWidth}%` }} />
       </div>
@@ -418,8 +402,8 @@ const CacheSummary: React.FC<{
           label="命中率"
           value={formatPercent(item?.prompt_cache_hit_ratio ?? null)}
         />
-        <MetricValue label="命中 Token" value={formatCompact(hit)} />
-        <MetricValue label="未命中 Token" value={formatCompact(miss)} />
+        <MetricValue label="命中令牌" value={formatCompact(hit)} />
+        <MetricValue label="未命中令牌" value={formatCompact(miss)} />
       </div>
     </div>
   );
@@ -505,7 +489,7 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
                   x={x + barWidth / 2}
                   y={CHART_HEIGHT - 6}
                   textAnchor="middle"
-                  className="fill-book-text-muted text-[9px]"
+                  className="fill-book-text-muted text-[10px]"
                 >
                   {row.date.slice(5)}
                 </text>
@@ -528,27 +512,48 @@ const Legend: React.FC<{ colorClass: string; label: string }> = ({
   label,
 }) => (
   <span className="inline-flex items-center gap-1">
-    <span className={`w-2 h-2 rounded-sm ${colorClass}`} />
+    <span className={`h-2 w-2 rounded-full ${colorClass}`} />
     {label}
   </span>
 );
 
+const DiagnosticDomainDetails: React.FC<{
+  title: string;
+  description: string;
+  domain: string;
+  children: React.ReactNode;
+}> = ({ title, description, domain, children }) => (
+  <details
+    className="a4n-flat-surface group min-w-0 overflow-hidden"
+    data-diagnostic-domain={domain}
+  >
+    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
+      <span className="font-medium text-book-text-main">{title}</span>
+      <span className="min-w-0 flex-1 truncate text-right text-[11px] text-book-text-muted">
+        {description}
+      </span>
+      <ChevronRight
+        size={13}
+        className="shrink-0 text-book-text-muted transition-transform duration-200 group-open:rotate-90"
+      />
+    </summary>
+    <div className="border-t border-book-border/30">{children}</div>
+  </details>
+);
+
 function MetricTable<T>({
-  title,
   emptyText,
   rows,
   renderHeader,
   renderRow,
 }: {
-  title: string;
   emptyText: string;
   rows: T[];
   renderHeader: () => React.ReactNode;
   renderRow: (row: T) => React.ReactNode;
 }) {
   return (
-    <div className="border border-book-border rounded-md p-3 min-w-0">
-      <div className="text-xs font-medium mb-2">{title}</div>
+    <div className="min-w-0 p-3">
       {rows.length === 0 ? (
         <EmptyState text={emptyText} />
       ) : (
@@ -574,13 +579,9 @@ function MetricTable<T>({
   );
 }
 
-const WorkflowLabel: React.FC<{ workflow: string; stepKey: string }> = ({
-  workflow,
-  stepKey,
-}) => (
-  <div className="min-w-0">
+const WorkflowLabel: React.FC<{ workflow: string }> = ({ workflow }) => (
+  <div className="min-w-0" title={workflow}>
     <div className="font-medium truncate">{workflow}</div>
-    <div className="text-[11px] text-book-text-muted truncate">{stepKey}</div>
   </div>
 );
 
@@ -589,22 +590,21 @@ const RecentLlmCalls: React.FC<{
   loading: boolean;
   failed: boolean;
 }> = ({ rows, loading, failed }) => (
-  <div className="border border-book-border rounded-md p-3 min-w-0">
-    <div className="text-xs font-medium mb-2">最近 LLM 调用</div>
+  <div className="min-w-0 p-3">
     {rows.length === 0 ? (
       <EmptyState
         text={
-          loading ? "加载中..." : failed ? "当前范围读取失败" : "暂无 LLM 调用"
+          loading ? "加载中..." : failed ? "当前范围读取失败" : "暂无语言模型调用"
         }
       />
     ) : (
-      <div className="max-h-56 overflow-y-auto custom-scrollbar">
+      <div>
         {rows.map((row) => (
           <div
             key={row.id}
             className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 py-1.5 border-b border-book-border/60 last:border-b-0 text-xs"
           >
-            <WorkflowLabel workflow={row.workflow} stepKey={row.step_key} />
+            <WorkflowLabel workflow={row.workflow} />
             <div className="text-right tabular-nums">
               <div>{formatTokenValue(row.total_tokens)}</div>
               <div className="text-[11px] text-book-text-muted">
@@ -627,8 +627,7 @@ const RecentMediaCalls: React.FC<{
   loading: boolean;
   failed: boolean;
 }> = ({ rows, loading, failed }) => (
-  <div className="border border-book-border rounded-md p-3 min-w-0">
-    <div className="text-xs font-medium mb-2">最近图片/视频调用</div>
+  <div className="min-w-0 p-3">
     {rows.length === 0 ? (
       <EmptyState
         text={
@@ -640,7 +639,7 @@ const RecentMediaCalls: React.FC<{
         }
       />
     ) : (
-      <div className="max-h-56 overflow-y-auto custom-scrollbar">
+      <div>
         {rows.map((row) => (
           <div
             key={row.id}
@@ -650,8 +649,11 @@ const RecentMediaCalls: React.FC<{
               <div className="font-medium truncate">
                 {kindLabel(row.kind)} / {row.title}
               </div>
-              <div className="text-[11px] text-book-text-muted truncate">
-                {row.workflow} / {row.step_key}
+              <div
+                className="text-[11px] text-book-text-muted truncate"
+                title={row.workflow}
+              >
+                {row.workflow}
               </div>
             </div>
             <div className="text-right tabular-nums">
@@ -668,11 +670,11 @@ const RecentMediaCalls: React.FC<{
 );
 
 const EmptyState: React.FC<{ text: string }> = ({ text }) => (
-  <div className="text-xs text-book-text-muted py-6 text-center">{text}</div>
+  <div className="a4n-empty-state a4n-empty-state--compact text-xs">{text}</div>
 );
 
 function kindLabel(kind: GenerationCallKind): string {
-  return KIND_LABELS[kind] ?? kind;
+  return KIND_LABELS[kind] ?? "其他调用";
 }
 
 function statusLabel(status: string): string {
@@ -680,7 +682,9 @@ function statusLabel(status: string): string {
     return "成功";
   if (status === "failed" || status === "error") return "失败";
   if (status === "cancelled" || status === "canceled") return "取消";
-  return status;
+  if (status === "pending" || status === "queued" || status === "waiting") return "等待中";
+  if (status === "running" || status === "processing") return "进行中";
+  return "未知状态";
 }
 
 function formatInteger(value: number): string {
@@ -701,7 +705,7 @@ function formatOptionalCompact(value: number | null): string {
 }
 
 function formatTokenValue(value: number | null): string {
-  return value == null ? "未返回 token" : `${formatCompact(value)} token`;
+  return value == null ? "未返回令牌" : `${formatCompact(value)} 令牌`;
 }
 
 function formatPercent(value: number | null): string {

@@ -1,4 +1,4 @@
-use a4n_runtime::actions::generation_analytics::{
+use a4n_runtime::host_api::generation_analytics::{
     GenerationCallAnalytics, GenerationCallAnalyticsInput,
     get_generation_call_analytics_for_admin as get_generation_call_analytics_action,
 };

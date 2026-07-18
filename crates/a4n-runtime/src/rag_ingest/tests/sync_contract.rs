@@ -1,9 +1,7 @@
 use super::super::sync::{
-    RagIngestProgress, RagRecord, RagRecordSyncOutcome, RagSyncContext, required_record_dimension,
+    ExpectedSyncStats, RagIngestProgress, RagRecord, RagRecordSyncOutcome,
+    required_record_dimension,
 };
-use super::test_embedding_identity;
-use a4n_core::rag::RAG_TEXT_INDEX_VERSION;
-use a4n_services::rag::RagService;
 use serde_json::json;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
@@ -47,96 +45,55 @@ fn rag_ingest_progress_rejects_after_cancellation() {
 }
 
 #[test]
-fn rag_sync_context_classifies_unchanged_changed_and_new_records() {
-    let unchanged_hash = RagService::content_hash("旧内容").expect("hash");
-    let mut sync = RagSyncContext {
-        project_id: 1,
-        embedding_identity: test_embedding_identity("current-test"),
-        stored_metadata: std::collections::HashMap::from([
-            (
-                "chunk:unchanged".to_string(),
-                json!({
-                    "content_hash": unchanged_hash,
-                    "text_index_version": RAG_TEXT_INDEX_VERSION,
-                    "embedding_backend": "LocalHash",
-                    "embedding_model": "current-test",
-                    "embedding_dimension": 2,
-                }),
-            ),
-            (
-                "chunk:old-model".to_string(),
-                json!({
-                    "content_hash": unchanged_hash,
-                    "text_index_version": RAG_TEXT_INDEX_VERSION,
-                    "embedding_backend": "LocalHash",
-                    "embedding_model": "old-test",
-                    "embedding_dimension": 2,
-                }),
-            ),
-            (
-                "chunk:old-index".to_string(),
-                json!({
-                    "content_hash": unchanged_hash,
-                    "text_index_version": "legacy",
-                    "embedding_backend": "LocalHash",
-                    "embedding_model": "current-test",
-                    "embedding_dimension": 2,
-                }),
-            ),
-            (
-                "chunk:changed".to_string(),
-                json!({"content_hash": "different"}),
-            ),
-        ]),
-        stale_ids: std::collections::HashSet::from([
-            "chunk:unchanged".to_string(),
-            "chunk:old-model".to_string(),
-            "chunk:old-index".to_string(),
-            "chunk:changed".to_string(),
-            "chunk:stale".to_string(),
-        ]),
+fn rag_ingest_progress_rejects_u32_overflow() {
+    let mut progress = RagIngestProgress::new(u32::MAX, None, None);
+    progress
+        .advance(u32::MAX, "推进到上限")
+        .expect("first advance reaches the declared total");
+
+    let err = progress
+        .advance(1, "不应饱和")
+        .expect_err("progress overflow must be visible");
+
+    assert!(err.contains("RAG 同步进度超过 u32 上限"));
+}
+
+#[test]
+fn rag_sync_stats_reject_outcome_count_overflow_without_partial_update() {
+    let mut stats = ExpectedSyncStats {
+        added_count: u32::MAX,
+        ..Default::default()
     };
 
-    assert_eq!(
-        sync.classify_record_hash(
-            "chunk:unchanged",
-            &RagService::content_hash("旧内容").expect("hash")
-        ),
-        RagRecordSyncOutcome::Skipped
-    );
-    assert_eq!(
-        sync.classify_record_hash(
-            "chunk:old-model",
-            &RagService::content_hash("旧内容").expect("hash")
-        ),
-        RagRecordSyncOutcome::Updated
-    );
-    assert_eq!(
-        sync.classify_record_hash(
-            "chunk:old-index",
-            &RagService::content_hash("旧内容").expect("hash")
-        ),
-        RagRecordSyncOutcome::Updated
-    );
-    assert_eq!(
-        sync.classify_record_hash(
-            "chunk:changed",
-            &RagService::content_hash("新内容").expect("hash")
-        ),
-        RagRecordSyncOutcome::Updated
-    );
-    assert_eq!(
-        sync.classify_record_hash(
-            "chunk:new",
-            &RagService::content_hash("新增").expect("hash")
-        ),
-        RagRecordSyncOutcome::Added
-    );
-    assert!(!sync.stale_ids.contains("chunk:unchanged"));
-    assert!(!sync.stale_ids.contains("chunk:old-model"));
-    assert!(!sync.stale_ids.contains("chunk:old-index"));
-    assert!(!sync.stale_ids.contains("chunk:changed"));
-    assert!(sync.stale_ids.contains("chunk:stale"));
+    let err = stats
+        .record_outcome(RagRecordSyncOutcome::Added)
+        .expect_err("outcome overflow must be visible");
+
+    assert!(err.contains("新增记录数超过 u32 上限"));
+    assert_eq!(stats.added_count, u32::MAX);
+    assert_eq!(stats.chunk_count, 0);
+}
+
+#[test]
+fn rag_sync_stats_reject_merge_count_overflow_without_partial_update() {
+    let mut stats = ExpectedSyncStats {
+        item_count: u32::MAX,
+        chunk_count: 3,
+        ..Default::default()
+    };
+    let other = ExpectedSyncStats {
+        item_count: 1,
+        chunk_count: 5,
+        ..Default::default()
+    };
+
+    let err = stats
+        .merge(other)
+        .expect_err("merge overflow must be visible");
+
+    assert!(err.contains("RAG 业务记录数超过 u32 上限"));
+    assert_eq!(stats.item_count, u32::MAX);
+    assert_eq!(stats.chunk_count, 3);
 }
 
 #[test]

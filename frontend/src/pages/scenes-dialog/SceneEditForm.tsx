@@ -19,7 +19,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
   onSave,
 }) => (
   <div className="flex flex-col gap-2">
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <label className="flex flex-col gap-1">
         <span className="text-[10px] text-book-text-muted">标题</span>
         <input
@@ -37,7 +37,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
           value={editTextValue(form.scene_type)}
           onChange={(event) => onChange({ scene_type: event.target.value })}
           disabled={saving}
-          placeholder="dialog / action / introspection"
+          placeholder="例如：对话、行动、内心"
           className="pyqt-input !py-1 text-xs"
         />
       </label>
@@ -68,7 +68,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
         value={editTextValue(form.summary)}
         onChange={(event) => onChange({ summary: event.target.value })}
         disabled={saving}
-        className="book-control min-h-[40px] rounded p-2 text-xs resize-none"
+        className="book-control min-h-[48px] resize-none rounded-xl p-2 text-xs"
       />
     </label>
     <label className="flex flex-col gap-1">
@@ -78,14 +78,14 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
         onChange={(event) => onChange({ content: event.target.value })}
         disabled={saving}
         spellCheck={false}
-        className="book-control min-h-[140px] rounded p-2 text-xs font-serif leading-relaxed resize-y"
+        className="book-control min-h-[140px] resize-y rounded-xl p-2 font-serif text-xs leading-relaxed"
       />
     </label>
     <div className="flex items-center justify-end gap-2 mt-1">
-      <BookButton variant="secondary" onClick={onCancel} disabled={saving}>
+      <BookButton variant="secondary" size="sm" onClick={onCancel} disabled={saving}>
         取消
       </BookButton>
-      <BookButton variant="primary" onClick={onSave} disabled={saving}>
+      <BookButton variant="primary" size="sm" onClick={onSave} disabled={saving}>
         {saving ? (
           <span className="inline-flex items-center gap-2">
             <Loader2 size={14} className="animate-spin" /> 保存中…

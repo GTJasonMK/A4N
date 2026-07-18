@@ -11,6 +11,8 @@ async-trait = { workspace = true }
 # 序列化
 serde = { workspace = true }
 serde_json = { workspace = true }
+schemars = { workspace = true }
+sha2 = { workspace = true }
 
 # ORM
 sea-orm = { workspace = true }

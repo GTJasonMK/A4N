@@ -66,7 +66,12 @@ const importFileTypeFromName = (fileName: string): string | null => {
   return null;
 };
 
-export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
+interface ImportsTabProps {
+  projectId: number;
+  onBusyChange?: (busy: boolean) => void;
+}
+
+export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange }) => {
   const { addToast } = useToast();
   const { runProgressTask: runReverseProgressTask } = useProgressTask();
   const [reviews, setReviews] = useState<ImportReview[]>([]);
@@ -81,6 +86,7 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
   const [activeReview, setActiveReview] = useState<ImportReview | null>(null);
   const [activeReviewJson, setActiveReviewJson] = useState("");
   const [activeReviewJsonError, setActiveReviewJsonError] = useState<string | null>(null);
+  const [activeReviewJsonDirty, setActiveReviewJsonDirty] = useState(false);
   const activeReviewRef = useRef<ImportReview | null>(null);
   const activeReviewJsonDirtyRef = useRef(false);
   const reviewsRef = useRef<ImportReview[]>([]);
@@ -97,6 +103,7 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
   const dedupInputVersionRef = useRef(0);
   const reverseSeqRef = useRef(0);
   const requestPreviewSeqRef = useRef(0);
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const importAnalysisDialogDismissedRef = useRef(false);
   const importBusyRef = useRef(false);
   const analyzeBusyRef = useRef(false);
@@ -123,12 +130,30 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
   const [importAnalysisDialog, setImportAnalysisDialog] = useState<ImportAnalysisDialogState>(
     emptyImportAnalysisDialog,
   );
+  const writeBusy =
+    importBusy ||
+    analyzeBusy ||
+    cancelBusy ||
+    batchBusy ||
+    actBusy !== null ||
+    reverseBusy === "apply";
 
   // 导入新文件
   const [importFileName, setImportFileName] = useState("");
   const [importUploadFile, setImportUploadFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState("txt");
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    onBusyChange?.(writeBusy);
+  }, [onBusyChange, writeBusy]);
+
+  useEffect(
+    () => () => {
+      onBusyChange?.(false);
+    },
+    [onBusyChange],
+  );
 
   const setActiveReviewState = (review: ImportReview | null) => {
     activeReviewRef.current = review;
@@ -138,6 +163,7 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
   const setActiveReviewJsonState = (value: string, dirty: boolean) => {
     activeReviewJsonDirtyRef.current = dirty;
     setActiveReviewJson(value);
+    setActiveReviewJsonDirty(dirty);
   };
 
   const setProgressDialogFromProgress = (progress: ProjectImportAnalysisProgress) => {
@@ -165,6 +191,22 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
     analyzeBusy ||
     projectProgress?.status === "analyzing" ||
     analysis.some((item) => item.status === "analyzing" && item.count > 0);
+  const analysisInProgress = canCancelAnalysis();
+  const fileExternalBusy =
+    analysisInProgress ||
+    batchBusy ||
+    actBusy !== null ||
+    dedupBusy ||
+    reverseBusy !== null;
+  const reviewExternalBusy = importBusy || dedupBusy || reverseBusy !== null;
+  const detailExternalBusy =
+    importBusy ||
+    analysisInProgress ||
+    batchBusy ||
+    dedupBusy ||
+    reverseBusy !== null;
+  const toolsExternalBusy =
+    importBusy || analysisInProgress || batchBusy || actBusy !== null;
 
   const invalidateProjectScopedRequests = () => {
     loadRequestRef.current += 1;
@@ -274,6 +316,7 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
     setActiveReviewState(null);
     setActiveReviewJsonState("", false);
     setActiveReviewJsonError(null);
+    setActiveReviewJsonDirty(false);
     void load(projectId);
     const t = setInterval(() => {
       void load(projectId);
@@ -656,6 +699,11 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
       setActiveReviewState(detail);
       setActiveReviewJsonState(JSON.stringify(detail.analysis_result ?? {}, null, 2), false);
       setActiveReviewJsonError(null);
+      if (window.matchMedia("(max-width: 1023px)").matches) {
+        requestAnimationFrame(() => {
+          detailPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
     } catch (err) {
       if (isCurrentAction(requestProjectId, detailSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, "查看失败"), "error");
@@ -679,6 +727,7 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
 
   const handleModify = async () => {
     if (batchBusyRef.current || actBusyRef.current != null) return;
+    if (!activeReviewJsonDirtyRef.current) return;
     const requestReview = activeReviewRef.current;
     if (!requestReview) return;
     const requestProjectId = projectId;
@@ -742,9 +791,13 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
 
   const handleDedup = async () => {
     if (dedupBusyRef.current) return;
+    const requestText = dedupText.trim();
+    if (!requestText) {
+      addToast("请先粘贴需要检查的段落", "error");
+      return;
+    }
     dedupBusyRef.current = true;
     const requestProjectId = projectId;
-    const requestText = dedupText;
     const requestInputVersion = dedupInputVersionRef.current;
     const requestSeq = nextSequence(dedupSeqRef);
     setDedupBusy(true);
@@ -941,23 +994,26 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
 
   return (
     <>
-      <div className="content-wide grid grid-cols-1 lg:grid-cols-[1fr_22rem] gap-4">
-        <div className="flex flex-col gap-4">
+      <div className="content-wide grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="lg:col-start-1 lg:row-start-1">
           <ImportFilePanel
             fileName={importFileName}
             fileType={fileType}
             importBusy={importBusy}
+            externalBusy={fileExternalBusy}
             onFileTypeChange={setFileType}
             onSelectFile={handleSelectImportFile}
             onImport={handleImport}
           />
-          <input
-            ref={importFileInputRef}
-            type="file"
-            accept=".txt,.md,.markdown,.epub,.docx,text/plain,text/markdown,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            className="hidden"
-            onChange={handleImportFileChange}
-          />
+        </div>
+        <input
+          ref={importFileInputRef}
+          type="file"
+          accept=".txt,.md,.markdown,.epub,.docx,text/plain,text/markdown,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          className="hidden"
+          onChange={handleImportFileChange}
+        />
+        <div className="lg:col-start-1 lg:row-start-2">
           <ImportReviewQueuePanel
             reviews={reviews}
             loading={loading}
@@ -965,10 +1021,11 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
             projectProgress={projectProgress}
             selected={selected}
             analyzeBusy={analyzeBusy}
-            canCancelAnalysis={canCancelAnalysis()}
+            canCancelAnalysis={analysisInProgress}
             cancelBusy={cancelBusy}
             batchBusy={batchBusy}
             actBusy={actBusy}
+            externalBusy={reviewExternalBusy}
             onStartAnalysis={handleStartAnalysis}
             onPreviewAnalysisRequest={handlePreviewImportAnalysisRequest}
             onCancelAnalysis={handleCancelAnalysis}
@@ -977,6 +1034,24 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
             onViewDetail={handleViewDetail}
             onAct={handleAct}
           />
+        </div>
+        <div
+          ref={detailPanelRef}
+          className="scroll-mt-28 lg:col-start-2 lg:row-start-1 lg:row-span-3"
+        >
+          <ImportReviewDetailPanel
+            activeReview={activeReview}
+            activeReviewJson={activeReviewJson}
+            activeReviewJsonError={activeReviewJsonError}
+            activeReviewJsonDirty={activeReviewJsonDirty}
+            actBusy={actBusy}
+            externalBusy={detailExternalBusy}
+            onAnalysisJsonChange={handleAnalysisJsonChange}
+            onModify={handleModify}
+            onUpdateStatus={handleUpdateStatus}
+          />
+        </div>
+        <div className="lg:col-start-1 lg:row-start-3">
           <ImportToolsPanel
             dedupText={dedupText}
             dedupResult={dedupResult}
@@ -986,6 +1061,7 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
             reverseAutoContext={reverseAutoContext}
             reverseResult={reverseResult}
             reverseBusy={reverseBusy}
+            externalBusy={toolsExternalBusy}
             onDedupTextChange={handleDedupTextChange}
             onDedup={handleDedup}
             onReverseTypeChange={handleReverseTypeChange}
@@ -995,16 +1071,6 @@ export const ImportsTab: React.FC<{ projectId: number }> = ({ projectId }) => {
             onReverseEngineer={handleReverseEngineer}
           />
         </div>
-
-        <ImportReviewDetailPanel
-          activeReview={activeReview}
-          activeReviewJson={activeReviewJson}
-          activeReviewJsonError={activeReviewJsonError}
-          actBusy={actBusy}
-          onAnalysisJsonChange={handleAnalysisJsonChange}
-          onModify={handleModify}
-          onUpdateStatus={handleUpdateStatus}
-        />
       </div>
       <ProgressDialog
         open={importAnalysisDialog.open}

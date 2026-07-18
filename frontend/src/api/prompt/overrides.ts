@@ -1,6 +1,7 @@
 import { apiInvoke } from "../index";
 import { readCurrentUserId } from "../authStorage";
 import { type ApiId as Id, idNum } from "../shared";
+import type { ProjectPromptOverrideSummary } from "./types";
 
 const currentUserId = (): number => {
   const id = readCurrentUserId();
@@ -23,8 +24,8 @@ export async function promptRemoveProjectOverride(input: {
   return apiInvoke<void>("prompt_remove_project_override", { userId: currentUserId(), input });
 }
 
-export async function promptListProjectOverrides(projectId: Id): Promise<unknown[]> {
-  return apiInvoke<unknown[]>("prompt_list_project_overrides", {
+export async function promptListProjectOverrides(projectId: Id): Promise<ProjectPromptOverrideSummary[]> {
+  return apiInvoke<ProjectPromptOverrideSummary[]>("prompt_list_project_overrides", {
     userId: currentUserId(),
     projectId: idNum(projectId),
   });

@@ -8,7 +8,6 @@ import {
   Loader2,
   PauseCircle,
   Play,
-  Plus,
   RefreshCw,
   Trash2,
   XCircle,
@@ -25,11 +24,9 @@ import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { promptDialog } from "../../../components/feedback/PromptDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
-import { BookCard } from "../../../components/ui/BookCard";
-import { Modal } from "../../../components/ui/Modal";
+import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import {
   bindMangaReferenceImage,
-  createMangaPrompt,
   deleteMangaPrompt,
   optimizeMangaPrompt,
   type BindMangaReferenceImageInput,
@@ -132,10 +129,6 @@ export function MangaChapterDetailPanel({
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
     useState<ModelRequestPreview | null>(null);
-  const [createPanelOpen, setCreatePanelOpen] = useState(false);
-  const [createPageNumber, setCreatePageNumber] = useState("1");
-  const [createPrompt, setCreatePrompt] = useState("");
-  const [creatingPanel, setCreatingPanel] = useState(false);
   const [optimizingPromptId, setOptimizingPromptId] = useState<number | null>(null);
   const selectedChapterId = selectedChapter?.id ?? null;
   const scopeKey = `${projectId}:${selectedChapterId ?? "none"}`;
@@ -148,7 +141,7 @@ export function MangaChapterDetailPanel({
   const previewBusyRef = useRef(false);
   const selectedChapterReady = Boolean(selectedChapter?.content?.trim());
   const selectedChapterGenerating = isChapterGenerating(selectedChapter);
-  const detailBusy = panelActionBusy || requestPreviewLoading || creatingPanel;
+  const detailBusy = panelActionBusy || requestPreviewLoading;
 
   activeScopeRef.current = scopeKey;
   panelsRef.current = panels;
@@ -235,10 +228,6 @@ export function MangaChapterDetailPanel({
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
     setRequestPreviewData(null);
-    setCreatePanelOpen(false);
-    setCreatePageNumber("1");
-    setCreatePrompt("");
-    setCreatingPanel(false);
     setOptimizingPromptId(null);
   }, [scopeKey]);
 
@@ -263,6 +252,16 @@ export function MangaChapterDetailPanel({
         : selectedStatus?.pipeline_status === "completed"
           ? "ok"
           : "muted";
+  const chapterMeta = [
+    `正文 ${selectedChapter?.content?.length ?? 0} 字`,
+    characterProfileCount > 0 || portraitCount > 0
+      ? `立绘 ${primaryPortraitCount}/${characterProfileCount}`
+      : null,
+    portraitCount > 0 ? `素材 ${portraitCount} 张` : null,
+    selectedStatus?.current != null && selectedStatus.total != null
+      ? `流水线 ${selectedStatus.current}/${selectedStatus.total}`
+      : null,
+  ].filter((item): item is string => item != null);
 
   const notice = (() => {
     if (!selectedChapterReady) {
@@ -439,7 +438,7 @@ export function MangaChapterDetailPanel({
       if (prompt?.generated_image_id != null) {
         const strategy = await chooseDownstreamConflictStrategy({
           title: "漫画提示词存在下游图片",
-          assetLabel: `第 ${prompt.page_number} 页提示词 #${prompt.id}`,
+          assetLabel: `第 ${prompt.page_number} 页提示词`,
           downstreamLabel: "漫画图片",
           downstreamCount: 1,
           operation: "修改参考图绑定",
@@ -499,7 +498,7 @@ export function MangaChapterDetailPanel({
       if (prompt?.generated_image_id != null) {
         const strategy = await chooseDownstreamConflictStrategy({
           title: "漫画提示词存在下游图片",
-          assetLabel: `第 ${prompt.page_number} 页提示词 #${prompt.id}`,
+          assetLabel: `第 ${prompt.page_number} 页提示词`,
           downstreamLabel: "漫画图片",
           downstreamCount: 1,
           operation: "修改",
@@ -567,7 +566,7 @@ export function MangaChapterDetailPanel({
       if (requestPrompt.generated_image_id != null) {
         const strategy = await chooseDownstreamConflictStrategy({
           title: "漫画提示词存在下游图片",
-          assetLabel: `第 ${requestPrompt.page_number} 页提示词 #${requestPrompt.id}`,
+          assetLabel: `第 ${requestPrompt.page_number} 页提示词`,
           downstreamLabel: "漫画图片",
           downstreamCount: 1,
           operation: "优化",
@@ -612,51 +611,6 @@ export function MangaChapterDetailPanel({
     }
   };
 
-  const handleCreatePanel = async () => {
-    if (!canEditManga) {
-      addToast("当前账号没有编辑此漫画项目的权限", "error");
-      return;
-    }
-    const requestScope = scopeKey;
-    const chapter = selectedChapter;
-    if (!chapter) return;
-    if (selectedChapterGenerating) {
-      addToast("当前章节正文仍在生成中，无法新增漫画提示词", "error");
-      return;
-    }
-    const pageNumber = Number(createPageNumber);
-    if (!Number.isInteger(pageNumber) || pageNumber <= 0) {
-      addToast("页码必须是正整数", "error");
-      return;
-    }
-    const imagePrompt = createPrompt.trim();
-    if (!imagePrompt) {
-      addToast("整页漫画提示词不能为空", "error");
-      return;
-    }
-    const actionSeq = beginAction(requestScope);
-    if (actionSeq == null) return;
-    setCreatingPanel(true);
-    try {
-      await createMangaPrompt(projectId, chapter.id, {
-        page_number: pageNumber,
-        image_prompt: imagePrompt,
-      });
-      if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast("漫画提示词已新增", "success");
-      setCreatePanelOpen(false);
-      setCreatePrompt("");
-      await onPanelsChanged();
-    } catch (err) {
-      if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "新增漫画提示词失败"), "error");
-      }
-    } finally {
-      if (isCurrentAction(requestScope, actionSeq)) setCreatingPanel(false);
-      finishAction(actionSeq);
-    }
-  };
-
   const handleDeletePrompt = async (prompt: MangaPanel) => {
     if (!canEditManga) {
       addToast("当前账号没有编辑此漫画项目的权限", "error");
@@ -683,7 +637,7 @@ export function MangaChapterDetailPanel({
       if (requestPrompt.generated_image_id != null) {
         const strategy = await chooseDownstreamConflictStrategy({
           title: "漫画提示词存在下游图片",
-          assetLabel: `第 ${requestPrompt.page_number} 页提示词 #${requestPrompt.id}`,
+          assetLabel: `第 ${requestPrompt.page_number} 页提示词`,
           downstreamLabel: "漫画图片",
           downstreamCount: 1,
           operation: "删除",
@@ -693,7 +647,7 @@ export function MangaChapterDetailPanel({
       } else {
         const ok = await confirmDialog({
           title: "删除漫画提示词",
-          message: `删除第 ${requestPrompt.page_number} 页提示词 #${requestPrompt.id}？`,
+          message: `删除第 ${requestPrompt.page_number} 页提示词？`,
           confirmText: "删除",
           dialogType: "danger",
         });
@@ -719,13 +673,103 @@ export function MangaChapterDetailPanel({
     }
   };
 
+  const pipelineRunning = selectedStatus?.can_cancel === true;
+  const pipelineCanResume = selectedStatus?.can_resume === true && !pipelineRunning;
+  const hasMangaResult = panels.length > 0;
+  const mangaResultStale = (panelSourceStatus?.staleCount ?? 0) > 0;
+  const pipelineFailed =
+    selectedStatus?.pipeline_status === "failed" && !pipelineCanResume;
+  const showPipelineDirectAction =
+    !hasMangaResult || pipelineCanResume || pipelineFailed || mangaResultStale;
+  const pipelineDirectVariant =
+    mangaResultStale && !pipelineCanResume && !pipelineFailed
+      ? "secondary"
+      : "primary";
+  const pipelineDirectLabel = pipelineCanResume
+    ? "继续生成"
+    : pipelineFailed
+      ? "重新生成本章漫画"
+      : mangaResultStale
+        ? "更新本章漫画"
+        : "生成本章漫画";
+  const pipelinePreviewLabel = pipelineCanResume
+    ? "查看继续生成请求"
+    : pipelineFailed
+      ? "查看重新生成请求"
+      : mangaResultStale
+        ? "查看更新请求"
+        : hasMangaResult
+          ? "查看重新生成请求"
+          : "查看生成请求";
+  const pipelineStartBusy =
+    selectedChapter != null &&
+    acting === `start-${selectedChapter.chapter_number}`;
+  const pipelineResumeBusy =
+    selectedChapter != null &&
+    acting === `resume-${selectedChapter.chapter_number}`;
+  const pipelineMainDisabled =
+    selectedChapter == null ||
+    detailBusy ||
+    !selectedChapterReady ||
+    selectedChapterGenerating;
+  const pipelineMenuItems: DropdownItem[] = [];
+  if (canEditManga && selectedChapter && !pipelineRunning) {
+    if (showPipelineDirectAction) {
+      pipelineMenuItems.push({
+        label: pipelinePreviewLabel,
+        icon: <Eye size={12} />,
+        disabled: pipelineMainDisabled || pipelineResumeBusy || pipelineStartBusy,
+        onClick: () => onPreviewPipeline(pipelineCanResume ? "resume" : "start"),
+      });
+    }
+    if (pipelineCanResume || (hasMangaResult && !mangaResultStale && !pipelineFailed)) {
+      pipelineMenuItems.push({
+        label: "从所选阶段重新生成",
+        icon: <Play size={12} />,
+        disabled: pipelineMainDisabled || pipelineStartBusy,
+        onClick: () => onRunPipeline("start"),
+      });
+      pipelineMenuItems.push({
+        label: "查看重新生成请求",
+        icon: <Eye size={12} />,
+        disabled: pipelineMainDisabled || pipelineStartBusy,
+        onClick: () => onPreviewPipeline("start"),
+      });
+    }
+    if (missingPortraitCount > 0) {
+      pipelineMenuItems.push({ type: "divider" });
+      pipelineMenuItems.push({
+        label: `补齐 ${missingPortraitCount} 张立绘`,
+        icon: <ImagePlus size={12} />,
+        disabled:
+          detailBusy ||
+          acting === "generate-missing-portraits" ||
+          characterAssetsLoading,
+        onClick: onGenerateMissingPortraits,
+      });
+    }
+    if (!detailBusy && acting !== `delete-${selectedChapter.id}` && !selectedChapterGenerating) {
+      pipelineMenuItems.push({ type: "divider" });
+      pipelineMenuItems.push({
+        label: "删除本章漫画",
+        icon: <Trash2 size={12} />,
+        danger: true,
+        onClick: onDeleteManga,
+      });
+    }
+  }
+  const selectedStartStageLabel =
+    MANGA_PIPELINE_START_STAGE_OPTIONS.find(
+      (option) => option.value === pipelineStartStage,
+    )?.label ?? "从头开始";
+
   return (
     <>
-      <BookCard
+      <section
         className={
           isSingleMode
-            ? "flex h-full min-h-0 flex-col p-3"
-            : "flex min-h-[60vh] flex-col p-3 lg:h-[calc(100vh-260px)] lg:min-h-0 lg:p-4"
+            ? "flex h-full min-h-0 min-w-0 flex-col"
+            : "flex min-h-[60vh] min-w-0 flex-col lg:h-full lg:min-h-0"
         }
       >
       {!selectedChapter ? (
@@ -735,30 +779,60 @@ export function MangaChapterDetailPanel({
       ) : (
         <>
           <header className="shrink-0 border-b border-book-border/55 pb-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <h3 className="truncate font-serif text-sm text-book-text-main">
-                    {chapterHeading(selectedChapter)}
-                  </h3>
-                  <span className={`pyqt-pill !text-[10px] ${noticeClass[statusTone]}`}>
-                    {stageText}
-                  </span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-book-text-muted">
-                  <span>正文 {selectedChapter.content?.length ?? 0} 字符</span>
-                  <span>立绘 {primaryPortraitCount}/{characterProfileCount} 主立绘</span>
-                  <span>素材 {portraitCount} 张</span>
-                  {selectedStatus?.current != null && selectedStatus.total != null ? (
-                    <span>
-                      流水线 {selectedStatus.current}/{selectedStatus.total}
-                    </span>
+                <h2 className="truncate text-sm font-semibold text-book-text-main">
+                  {chapterHeading(selectedChapter)}
+                </h2>
+                <p className={`mt-1 text-[11px] ${noticeClass[statusTone]}`}>
+                  {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+              {canEditManga ? (
+                <div className="flex items-center justify-end gap-2">
+                  {pipelineMenuItems.length > 0 ? <Dropdown items={pipelineMenuItems} /> : null}
+                  {pipelineRunning ? (
+                    <BookButton
+                      size="sm"
+                      variant="secondary"
+                      onClick={onCancelPipeline}
+                      disabled={detailBusy || acting === `cancel-${selectedChapter.id}`}
+                    >
+                      {acting === `cancel-${selectedChapter.id}` ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <PauseCircle size={13} />
+                      )}
+                      停止生成
+                    </BookButton>
+                  ) : showPipelineDirectAction ? (
+                    <BookButton
+                      size="sm"
+                      variant={pipelineDirectVariant}
+                      onClick={() => onRunPipeline(pipelineCanResume ? "resume" : "start")}
+                      disabled={pipelineMainDisabled || pipelineResumeBusy || pipelineStartBusy}
+                    >
+                      {pipelineResumeBusy || pipelineStartBusy ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : pipelineCanResume || pipelineFailed || mangaResultStale ? (
+                        <RefreshCw size={13} />
+                      ) : (
+                        <Play size={13} />
+                      )}
+                      {pipelineDirectLabel}
+                    </BookButton>
                   ) : null}
                 </div>
-              </div>
+              ) : null}
+            </div>
 
-              {canEditManga ? (
-                <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+            {canEditManga && !pipelineRunning ? (
+              <details className="mt-2 text-[11px] text-book-text-muted">
+                <summary className="w-fit cursor-pointer hover:text-book-text-main">
+                  生成选项 · {selectedStartStageLabel}
+                </summary>
+                <label className="mt-2 flex max-w-sm flex-col gap-1">
+                  <span>开始阶段</span>
                   <select
                     value={pipelineStartStage}
                     onChange={(event) =>
@@ -766,13 +840,8 @@ export function MangaChapterDetailPanel({
                         event.target.value as MangaPipelineStartStageOption,
                       )
                     }
-                    className="pyqt-input h-8 min-w-[136px] !px-2 !py-1 text-xs"
-                    disabled={
-                      detailBusy ||
-                      acting === `start-${selectedChapter.chapter_number}` ||
-                      selectedStatus?.can_cancel === true ||
-                      selectedChapterGenerating
-                    }
+                    className="pyqt-input h-9 !px-2 !py-1 text-xs"
+                    disabled={detailBusy || pipelineStartBusy || selectedChapterGenerating}
                   >
                     {MANGA_PIPELINE_START_STAGE_OPTIONS.map((option) => (
                       <option key={option.value || "fresh"} value={option.value}>
@@ -780,144 +849,17 @@ export function MangaChapterDetailPanel({
                       </option>
                     ))}
                   </select>
-                  <BookButton
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => onPreviewPipeline("start")}
-                    disabled={
-                      detailBusy ||
-                      acting === `start-${selectedChapter.chapter_number}` ||
-                      !selectedChapterReady ||
-                      selectedStatus?.can_cancel === true ||
-                      selectedChapterGenerating
-                    }
-                  >
-                    <Eye size={13} />
-                    预览启动
-                  </BookButton>
-                  <BookButton
-                    size="sm"
-                    variant="primary"
-                    onClick={() => onRunPipeline("start")}
-                    disabled={
-                      detailBusy ||
-                      acting === `start-${selectedChapter.chapter_number}` ||
-                      !selectedChapterReady ||
-                      selectedStatus?.can_cancel === true ||
-                      selectedChapterGenerating
-                    }
-                  >
-                    {acting === `start-${selectedChapter.chapter_number}` ? (
-                      <Loader2 size={13} className="animate-spin" />
-                    ) : (
-                      <Play size={13} />
-                    )}
-                    启动
-                  </BookButton>
-                  <BookButton
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => onPreviewPipeline("resume")}
-                    disabled={
-                      detailBusy ||
-                      acting === `resume-${selectedChapter.chapter_number}` ||
-                      !selectedChapterReady ||
-                      selectedStatus?.can_resume !== true ||
-                      selectedChapterGenerating
-                    }
-                  >
-                    <Eye size={13} />
-                    预览续传
-                  </BookButton>
-                  <BookButton
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => onRunPipeline("resume")}
-                    disabled={
-                      detailBusy ||
-                      acting === `resume-${selectedChapter.chapter_number}` ||
-                      !selectedChapterReady ||
-                      selectedStatus?.can_resume !== true ||
-                      selectedChapterGenerating
-                    }
-                  >
-                    <RefreshCw size={13} />
-                    续传
-                  </BookButton>
-                  <BookButton
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      const nextPage = panels.reduce((max, panel) => Math.max(max, panel.page_number), 0) + 1;
-                      setCreatePageNumber(String(nextPage));
-                      setCreatePrompt("");
-                      setCreatePanelOpen(true);
-                    }}
-                    disabled={detailBusy || selectedChapterGenerating}
-                  >
-                    <Plus size={13} />
-                    新增页
-                  </BookButton>
-                  <BookButton
-                    size="sm"
-                    variant="secondary"
-                    onClick={onGenerateMissingPortraits}
-                    disabled={
-                      detailBusy ||
-                      acting === "generate-missing-portraits" ||
-                      characterAssetsLoading ||
-                      missingPortraitCount === 0
-                    }
-                  >
-                    {acting === "generate-missing-portraits" ? (
-                      <Loader2 size={13} className="animate-spin" />
-                    ) : (
-                      <ImagePlus size={13} />
-                    )}
-                    {missingPortraitCount > 0 ? missingPortraitCount : "立绘"}
-                  </BookButton>
-                  <BookButton
-                    size="sm"
-                    variant="secondary"
-                    onClick={onCancelPipeline}
-                    disabled={
-                      detailBusy ||
-                      acting === `cancel-${selectedChapter.id}` ||
-                      selectedStatus?.can_cancel !== true
-                    }
-                  >
-                    <PauseCircle size={13} />
-                    取消
-                  </BookButton>
-                  <BookButton
-                    size="sm"
-                    variant="danger"
-                    onClick={onDeleteManga}
-                    disabled={
-                      detailBusy ||
-                      acting === `delete-${selectedChapter.id}` ||
-                      selectedChapterGenerating
-                    }
-                  >
-                    <Trash2 size={13} />
-                    删除
-                  </BookButton>
-                </div>
-              ) : null}
-            </div>
+                </label>
+              </details>
+            ) : null}
 
             <div
-              className={`mt-3 flex items-start gap-2 rounded border bg-book-bg-paper/50 px-2.5 py-2 text-xs ${noticeClass[notice.tone]}`}
+              className={`mt-3 flex items-start gap-2 rounded-xl border bg-book-bg-paper/50 px-2.5 py-2 text-xs ${noticeClass[notice.tone]}`}
             >
               <span className="mt-0.5 shrink-0">{noticeIcon(notice.tone)}</span>
               <span className="min-w-0 flex-1 whitespace-pre-wrap break-words leading-relaxed">
                 {notice.text}
               </span>
-              {selectedStatus?.task_id ? (
-                <span className="hidden max-w-[220px] truncate font-mono text-[10px] text-book-text-muted lg:inline">
-                  {selectedStatus.task_id}
-                </span>
-              ) : null}
             </div>
           </header>
 
@@ -946,7 +888,7 @@ export function MangaChapterDetailPanel({
           </div>
         </>
       )}
-      </BookCard>
+      </section>
       <RequestPreviewModal
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
@@ -954,57 +896,6 @@ export function MangaChapterDetailPanel({
         fallbackTitle="漫画页图片请求预览"
         onClose={closeRequestPreview}
       />
-      <Modal
-        isOpen={createPanelOpen}
-        onClose={() => {
-          if (!creatingPanel && !panelActionBusy) setCreatePanelOpen(false);
-        }}
-        title="新增整页漫画提示词"
-        icon={<Plus size={15} />}
-        maxWidthClassName="max-w-2xl"
-        footer={
-          <>
-            <BookButton
-              variant="secondary"
-              onClick={() => setCreatePanelOpen(false)}
-              disabled={creatingPanel || panelActionBusy}
-            >
-              取消
-            </BookButton>
-            <BookButton
-              variant="primary"
-              onClick={() => void handleCreatePanel()}
-              disabled={creatingPanel || panelActionBusy || !createPrompt.trim()}
-            >
-              {creatingPanel ? <Loader2 size={12} className="animate-spin" /> : null}
-              新增
-            </BookButton>
-          </>
-        }
-      >
-        <div className="grid gap-3 text-xs">
-          <label className="grid gap-1 text-[11px] text-book-text-muted">
-            页码
-            <input
-              type="number"
-              min={1}
-              value={createPageNumber}
-              disabled={creatingPanel || panelActionBusy}
-              onChange={(event) => setCreatePageNumber(event.target.value)}
-              className="pyqt-input !px-2 !py-1 text-xs"
-            />
-          </label>
-          <label className="grid gap-1 text-[11px] text-book-text-muted">
-            整页漫画提示词
-            <textarea
-              value={createPrompt}
-              disabled={creatingPanel || panelActionBusy}
-              onChange={(event) => setCreatePrompt(event.target.value)}
-              className="pyqt-input min-h-[220px] resize-y !px-2 !py-1 font-mono text-xs"
-            />
-          </label>
-        </div>
-      </Modal>
     </>
   );
 }

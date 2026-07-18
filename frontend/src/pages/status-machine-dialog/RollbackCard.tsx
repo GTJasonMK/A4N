@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2, Undo2 } from "lucide-react";
+import { ChevronRight, Loader2, Undo2 } from "lucide-react";
 import { BookButton } from "../../components/ui/BookButton";
 import type { RollbackPreview } from "../../api/project";
 import type { ProjectStatus } from "../../utils/projectStatus";
@@ -31,56 +31,77 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
   const actionBusy = acting !== null;
 
   return (
-    <div className="pyqt-card p-3">
-      <div className="text-xs text-book-text-muted mb-2 inline-flex items-center gap-1.5">
-        <Undo2 size={12} /> 回滚到先前阶段
-      </div>
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {targets.map((step) => (
-          <button
-            key={step.id}
-            type="button"
-            onClick={() => void onPreview(step.id)}
+    <details
+      className="group border-t border-book-border/35 pt-2"
+      onToggle={(event) => {
+        if (!(event.currentTarget as HTMLDetailsElement).open && target) onCancel();
+      }}
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-xs text-book-text-sub [&::-webkit-details-marker]:hidden">
+        <Undo2 size={12} className="shrink-0 text-book-text-muted" />
+        <span className="font-medium">回滚到先前阶段</span>
+        <span className="text-[10px] text-book-text-muted">{targets.length} 个可选目标</span>
+        <span className="ml-auto text-[10px] text-warning">谨慎操作</span>
+        <ChevronRight
+          size={11}
+          className="shrink-0 text-book-text-muted transition-transform duration-200 group-open:rotate-90"
+        />
+      </summary>
+      <div className="mt-2 space-y-2 sm:pl-5">
+        <label className="flex min-w-0 flex-col gap-1 text-[10px] text-book-text-muted">
+          目标阶段
+          <select
+            value={target ?? ""}
+            onChange={(event) => {
+              const value = event.target.value as ProjectStatus;
+              if (value) void onPreview(value);
+              else onCancel();
+            }}
             disabled={actionBusy}
-            className={`pyqt-btn-secondary !min-h-9 !px-2.5 text-[11px] sm:!min-h-[28px] ${
-              target === step.id ? "!border-book-primary !text-book-primary" : ""
-            }`}
+            className="pyqt-input !px-2 !py-1 text-xs"
           >
-            {step.label}
-          </button>
-        ))}
-      </div>
-      {target && (
-        <div className="mt-3 rounded border border-warning/40 bg-warning-bg/40 p-2.5">
-          <div className="text-xs text-warning mb-1.5">
-            回滚到「{statusLabel(target)}」将影响以下内容：
-          </div>
-          {preview == null ? (
-            <div className="text-xs text-book-text-muted inline-flex items-center gap-1.5">
-              <Loader2 size={10} className="animate-spin" /> 预览中…
+            <option value="">选择要恢复的阶段</option>
+            {targets.map((step) => (
+              <option key={step.id} value={step.id}>
+                {step.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {target ? (
+          <div className="border-l-2 border-warning/55 py-1 pl-3">
+            <div className="mb-1.5 text-xs text-warning">
+              回滚到「{statusLabel(target)}」将影响以下内容：
             </div>
-          ) : (
-            <RollbackPreviewView preview={preview} />
-          )}
-          <div className="flex items-center justify-end gap-2 mt-2">
-            <BookButton variant="secondary" onClick={onCancel} disabled={actionBusy}>
-              取消
-            </BookButton>
-            <button
-              type="button"
-              onClick={() => void onConfirm()}
-              disabled={actionBusy || preview == null || !preview.can_rollback}
-              className="pyqt-btn-secondary !min-h-9 !px-3 text-xs !border-error/60 !text-error hover:!bg-error-bg sm:!min-h-[32px]"
-            >
-              {acting === actionKey ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                "确认回滚"
-              )}
-            </button>
+            {preview == null ? (
+              <div className="inline-flex items-center gap-1.5 text-xs text-book-text-muted">
+                <Loader2 size={10} className="animate-spin" /> 正在检查影响范围…
+              </div>
+            ) : (
+              <RollbackPreviewView preview={preview} />
+            )}
+            {preview?.can_rollback ? (
+              <div className="mt-2 flex justify-end">
+                <BookButton
+                  variant="danger"
+                  size="sm"
+                  onClick={() => void onConfirm()}
+                  disabled={actionBusy}
+                  className="!min-h-8 !text-xs"
+                >
+                  {acting === actionKey ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Loader2 size={12} className="animate-spin" /> 回滚中…
+                    </span>
+                  ) : (
+                    "确认回滚"
+                  )}
+                </BookButton>
+              </div>
+            ) : null}
           </div>
-        </div>
-      )}
-    </div>
+        ) : null}
+      </div>
+    </details>
   );
 };

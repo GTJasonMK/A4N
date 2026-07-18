@@ -1,5 +1,5 @@
 use a4n_runtime::AppState;
-use a4n_runtime::actions::manga_records::{self as manga_records_actions, PipelineStatusSummary};
+use a4n_runtime::host_api::manga_records::{self as manga_records_actions, PipelineStatusSummary};
 use tauri::State;
 
 #[tauri::command]

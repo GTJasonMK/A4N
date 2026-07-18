@@ -1,9 +1,14 @@
 import React from "react";
-import { ListChecks, Loader2, X } from "lucide-react";
-import { BookIconButton } from "../../../components/ui/BookButton";
+import { Loader2, X } from "lucide-react";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import type { TaskInfo } from "../../../api/task";
 import { taskProgressDisplay } from "./queueTabUtils";
 import { ProgressEventList } from "./ProgressEventList";
+import {
+  getOperationStatusLabel,
+  getTaskPriorityLabel,
+  getTaskTypeLabel,
+} from "../../../utils/workflowPresentation";
 
 interface TaskHistoryPanelProps {
   tasks: TaskInfo[];
@@ -18,106 +23,120 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
   cancellingTaskIds,
   onCancel,
 }) => (
-  <div className="pyqt-card p-4">
-    <div className="flex items-center justify-between mb-2">
-      <h4 className="text-sm font-serif text-book-text-main inline-flex items-center gap-2">
-        <ListChecks size={14} className="text-book-primary" /> 最近任务（30 条）
-      </h4>
-      {loading && <Loader2 size={12} className="animate-spin text-book-text-muted" />}
+  <section>
+    <div className="flex items-baseline gap-2 px-1 pb-2">
+      <h3 className="text-xs font-semibold text-book-text-main">最近任务</h3>
+      <span className="text-[11px] text-book-text-muted">
+        {tasks.length > 0 ? `显示最近 ${tasks.length} 条` : "执行记录"}
+      </span>
+      {loading ? <Loader2 size={12} className="ml-auto animate-spin text-book-text-muted" /> : null}
     </div>
     {loading && tasks.length === 0 ? (
-      <div className="inline-flex items-center justify-center gap-1.5 py-4 text-xs text-book-text-muted">
+      <div className="a4n-flat-surface flex items-center justify-center gap-1.5 px-3 py-5 text-xs text-book-text-muted">
         <Loader2 size={12} className="animate-spin" />
         正在加载最近任务…
       </div>
     ) : tasks.length === 0 ? (
-      <div className="text-xs text-book-text-muted py-4 text-center">暂无任务</div>
+      <div className="a4n-empty-state a4n-empty-state--framed px-3 py-5 text-center text-xs text-book-text-muted">
+        暂无任务
+      </div>
     ) : (
-      <ul className="max-h-72 overflow-y-auto custom-scrollbar divide-y divide-book-border/30">
+      <ul className="space-y-2.5">
         {tasks.map((task) => {
           const canCancel = task.status === "pending" || task.status === "running";
           const progressDisplay = taskProgressDisplay(task);
           const cancelling = cancellingTaskIds.has(task.id);
+          const taskTime = formatTaskTime(task.completed_at ?? task.started_at ?? task.created_at);
           return (
-            <li key={task.id} className="py-2 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-book-text-muted shrink-0 w-20 truncate">
-                  {task.id.slice(0, 16)}
-                </span>
-                <span className="pyqt-pill !text-[10px] shrink-0">{task.task_type}</span>
-                <span
-                  className={`pyqt-pill !text-[10px] shrink-0 ${
-                    task.priority === "high"
-                      ? "!border-error/50 !text-error"
-                      : task.priority === "low"
-                        ? "!text-book-text-muted"
-                        : ""
-                  }`}
-                >
-                  {task.priority}
-                </span>
-                <span
-                  className={`pyqt-pill !text-[10px] shrink-0 ${
-                    task.status === "completed"
-                      ? "!border-success/50 !text-success"
-                      : task.status === "failed"
-                        ? "!border-error/50 !text-error"
-                        : task.status === "running"
-                          ? "!border-book-primary !text-book-primary"
-                          : ""
-                  }`}
-                >
-                  {task.status}
-                </span>
-                {task.task_scope && (
-                  <span className="pyqt-pill !text-[10px] shrink-0">{task.task_scope}</span>
-                )}
-                {task.root_project_id != null && (
-                  <span className="text-book-text-muted shrink-0">
-                    root #{task.root_project_id}
-                  </span>
-                )}
-                {task.source_snapshot_id != null && (
-                  <span className="text-book-text-muted shrink-0">
-                    snap #{task.source_snapshot_id}
-                  </span>
-                )}
-                {task.progress && (
-                  <span className="text-book-text-muted shrink-0">
-                    {task.progress.current}/{task.progress.total}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-book-text-sub">
-                    {progressDisplay.stage}
-                  </span>
-                  {progressDisplay.detail ? (
-                    <span className="block truncate text-[10px] leading-4 text-book-text-muted">
-                      {progressDisplay.detail}
+            <li key={task.id} className="a4n-flat-surface px-3 py-3 text-xs">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-book-text-main">
+                    {getTaskTypeLabel(task.task_type)}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-book-text-muted">
+                    <span className={task.priority === "high" ? "text-error" : undefined}>
+                      {getTaskPriorityLabel(task.priority)}
                     </span>
-                  ) : null}
-                </span>
-                {canCancel && (
-                  <BookIconButton
-                    label="取消任务"
-                    onClick={() => onCancel(task.id)}
-                    variant="secondary"
-                    size="sm"
-                    disabled={cancelling}
-                  >
-                    {cancelling ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <X size={12} />
-                    )}
-                  </BookIconButton>
-                )}
+                    <span aria-hidden="true">·</span>
+                    <span className={taskStatusTone(task.status)}>
+                      {getOperationStatusLabel(task.status)}
+                    </span>
+                    {task.progress ? (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span>{task.progress.current} / {task.progress.total}</span>
+                      </>
+                    ) : null}
+                    {taskTime ? (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <time>{taskTime}</time>
+                      </>
+                    ) : null}
+                  </div>
+                  <div className="mt-1.5 min-w-0">
+                    <span className="block truncate text-[11px] text-book-text-sub">
+                      {progressDisplay.stage}
+                    </span>
+                    {progressDisplay.detail ? (
+                      <span className="block truncate text-[11px] leading-4 text-book-text-muted">
+                        {progressDisplay.detail}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                {cancelling ? (
+                  <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
+                    <Loader2 size={13} className="animate-spin" />
+                  </span>
+                ) : canCancel ? (
+                  <Dropdown
+                    items={[
+                      {
+                        label: "取消任务",
+                        icon: <X size={13} />,
+                        danger: true,
+                        onClick: () => onCancel(task.id),
+                      },
+                    ]}
+                  />
+                ) : null}
               </div>
               <ProgressEventList events={task.progress_events} limit={2} />
+              <details className="mt-1 text-[10px] text-book-text-muted">
+                <summary className="cursor-pointer">诊断信息</summary>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono">
+                  <span>任务编号 {task.id}</span>
+                  {task.task_scope ? <span>任务范围 {task.task_scope}</span> : null}
+                  {task.root_project_id != null ? <span>根项目 {task.root_project_id}</span> : null}
+                  {task.source_snapshot_id != null ? <span>来源快照 {task.source_snapshot_id}</span> : null}
+                </div>
+              </details>
             </li>
           );
         })}
       </ul>
     )}
-  </div>
+  </section>
 );
+
+function taskStatusTone(status: string): string {
+  if (status === "completed") return "text-success";
+  if (status === "failed") return "text-error";
+  if (status === "running") return "text-book-primary";
+  return "text-book-text-muted";
+}
+
+function formatTaskTime(value: string | null): string {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}

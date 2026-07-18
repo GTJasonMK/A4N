@@ -79,6 +79,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
   const forwardTarget = getForwardTarget(project.status, forwardArtifacts);
   const rollbackTargets = getRollbackTargets(project.status);
   const scopeKey = open ? `${project.id}:${project.status}` : "closed";
+  const actionBusy = acting !== null;
 
   activeProjectIdRef.current = project.id;
 
@@ -319,15 +320,22 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
   return (
     <Modal
       isOpen={open}
-      onClose={onClose}
-      title="项目状态机"
-      maxWidthClassName="max-w-2xl"
+      onClose={() => {
+        if (!actionBusy) onClose();
+      }}
+      title="项目阶段"
+      subtitle={project.title}
+      maxWidthClassName="max-w-xl"
+      bodyClassName="px-4 py-4"
+      closeOnBackdrop={!actionBusy}
+      closeOnEscape={!actionBusy}
+      showCloseButton={!actionBusy}
     >
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3">
         <StatusFlowView currentStatus={project.status} />
 
         {loadingForwardArtifacts && (
-          <div className="pyqt-card p-3 text-xs text-book-text-muted inline-flex items-center gap-2">
+          <div className="a4n-flat-surface inline-flex items-center gap-2 p-3 text-xs text-book-text-muted">
             <Loader2 size={12} className="animate-spin" /> 正在检查下一阶段条件…
           </div>
         )}

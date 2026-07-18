@@ -16,7 +16,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    logging::init_tracing();
+    logging::init_tracing()?;
 
     let config = state::ServerConfig::from_env()?;
     let bind_addr = config.bind_addr;

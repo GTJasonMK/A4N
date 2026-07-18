@@ -1,11 +1,4 @@
 import React from "react";
-import {
-  CheckCircle2,
-  Clock3,
-  Loader2,
-  XCircle,
-} from "lucide-react";
-import type { MangaPanel } from "../../../api/manga";
 import type { LayoutSummaryItem } from "./mangaPagePromptModel";
 
 export type MangaPageDetailView = "prompt" | "image";
@@ -23,68 +16,31 @@ export const statusLabel = (status: string): string => {
     case "pending":
       return "待生成";
     default:
-      return status || "未知";
+      return "未知状态";
   }
 };
-
-const statusClassName = (status: string): string => {
-  switch (status) {
-    case "completed":
-      return "border-success/50 text-success";
-    case "failed":
-      return "border-error/50 text-error";
-    case "generating":
-      return "border-book-primary/60 text-book-primary";
-    case "cancelled":
-      return "border-book-border text-book-text-muted";
-    default:
-      return "border-book-border text-book-text-sub";
-  }
-};
-
-const statusIcon = (status: string) => {
-  switch (status) {
-    case "completed":
-      return <CheckCircle2 size={11} />;
-    case "failed":
-      return <XCircle size={11} />;
-    case "generating":
-      return <Loader2 size={11} className="animate-spin" />;
-    case "cancelled":
-      return <XCircle size={11} />;
-    default:
-      return <Clock3 size={11} />;
-  }
-};
-
-export const PageStatusPill: React.FC<{ prompt: MangaPanel }> = ({ prompt }) => (
-  <span className={`pyqt-pill !text-[10px] ${statusClassName(prompt.status)}`}>
-    {statusIcon(prompt.status)}
-    {statusLabel(prompt.status)}
-  </span>
-);
 
 export const LayoutSummaryGrid: React.FC<{ items: LayoutSummaryItem[] }> = ({ items }) => {
   if (items.length === 0) {
     return (
-      <div className="a4n-stat-tile p-3 text-xs text-book-text-muted">
+      <div className="border-l-2 border-book-border/70 pl-2 text-xs text-book-text-muted">
         暂无构图字段。
       </div>
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+    <dl className="divide-y divide-book-border/35 border-y border-book-border/35">
       {items.map((item) => (
         <div
           key={item.key}
-          className="a4n-stat-tile min-w-0 px-2.5 py-2"
+          className="grid min-w-0 gap-1 px-3 py-2 md:grid-cols-[100px_minmax(0,1fr)] md:gap-3"
         >
-          <div className="mb-1 text-[10px] text-book-text-muted">{item.label}</div>
-          <div className="line-clamp-3 text-xs leading-relaxed text-book-text-main">
+          <dt className="text-[11px] font-medium text-book-text-muted">{item.label}</dt>
+          <dd className="line-clamp-3 text-xs leading-relaxed text-book-text-main">
             {item.value}
-          </div>
+          </dd>
         </div>
       ))}
-    </div>
+    </dl>
   );
 };

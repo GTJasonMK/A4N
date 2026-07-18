@@ -1,7 +1,7 @@
 use crate::commands::request_preview::ModelRequestPreview;
 use crate::progress_task::WorkflowProgressTask;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::chapter_content::{ChapterSummary, chapter_summary};
+use a4n_runtime::host_api::chapter_content::{ChapterSummary, chapter_summary};
 use a4n_runtime::workflow::{
     self as chapter_workflow, CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisProgress,
     GenerateChapterAnalysisInput,

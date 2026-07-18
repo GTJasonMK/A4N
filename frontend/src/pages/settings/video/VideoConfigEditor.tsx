@@ -2,6 +2,7 @@ import React from "react";
 import { detectServerVideoConfigModels, detectVideoConfigModels } from "../../../api/video";
 import { BookInput } from "../../../components/ui/BookInput";
 import { FormField } from "../ConfigListPanel";
+import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import {
   VIDEO_BASE_URL_HINTS,
@@ -58,7 +59,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
       </FormField>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <FormField label="Provider">
+        <FormField label="视频服务商">
           <select
             value={form.provider}
             onChange={(event) =>
@@ -110,7 +111,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField label="API Base URL" hint={VIDEO_BASE_URL_HINTS[form.provider]}>
+      <FormField label="接口地址" hint={VIDEO_BASE_URL_HINTS[form.provider]}>
         <BookInput
           value={form.api_base_url}
           onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
@@ -120,10 +121,10 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
       </FormField>
 
       <FormField
-        label="API Key"
+        label="访问密钥"
         hint={
           templateLocked
-            ? "只保存为你的个人密钥；系统默认模板不会共享管理员 API Key"
+            ? "只保存为你的个人密钥；系统默认模板不会共享管理员密钥"
             : "存储于本地数据库，不会上传到任何外部服务"
         }
       >
@@ -136,24 +137,20 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
           autoComplete="off"
           disabled={apiKeyInputDisabled || readonly}
         />
-        {form.has_api_key ? (
-          <label className="mt-2 flex items-center gap-2 text-xs text-book-text-muted">
-            <input
-              type="checkbox"
-              checked={form.clear_api_key}
-              disabled={readonly}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  api_key: event.target.checked ? "" : form.api_key,
-                  clear_api_key: event.target.checked,
-                })
-              }
-            />
-            清空已保存 API Key
-          </label>
-        ) : null}
       </FormField>
+      {form.has_api_key ? (
+        <ClearSavedApiKeySwitch
+          checked={form.clear_api_key}
+          disabled={readonly}
+          onChange={(checked) =>
+            setForm({
+              ...form,
+              api_key: checked ? "" : form.api_key,
+              clear_api_key: checked,
+            })
+          }
+        />
+      ) : null}
 
       {form.provider === "cliproxy-openai-video" ? (
         <FormField
@@ -184,7 +181,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         </FormField>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(210px,1.2fr)_120px_100px_100px]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <FormField label="尺寸">
           <select
             value={form.size}
@@ -209,6 +206,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
                   type="button"
                   onClick={() => setDurationMode(mode.value)}
                   disabled={structureDisabled}
+                  aria-pressed={active}
                   className={`h-9 px-2 text-xs font-semibold transition-colors ${
                     active
                       ? "bg-book-primary/10 text-book-primary"

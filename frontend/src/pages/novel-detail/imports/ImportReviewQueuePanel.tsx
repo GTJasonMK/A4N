@@ -1,13 +1,14 @@
 import React from "react";
-import { Eye, Loader2, Upload as ImportIcon } from "lucide-react";
+import { Check, Eye, Loader2, Trash2, X } from "lucide-react";
 import type {
   ImportAnalysisStatus,
   ImportReview,
   ProjectImportAnalysisProgress,
 } from "../../../api/import";
 import { BookButton } from "../../../components/ui/BookButton";
-import { BookCard } from "../../../components/ui/BookCard";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { progressDisplayText } from "../../../utils/progressDisplay";
+import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { EmptyHint } from "../shared";
 import { projectProgressPercent } from "./importTabUtils";
 
@@ -24,6 +25,7 @@ interface ImportReviewQueuePanelProps {
   cancelBusy: boolean;
   batchBusy: boolean;
   actBusy: string | null;
+  externalBusy: boolean;
   onStartAnalysis: () => void | Promise<void>;
   onPreviewAnalysisRequest: () => void | Promise<void>;
   onCancelAnalysis: () => void | Promise<void>;
@@ -32,12 +34,6 @@ interface ImportReviewQueuePanelProps {
   onViewDetail: (id: number) => void | Promise<void>;
   onAct: (id: number, action: ReviewAction) => void | Promise<void>;
 }
-
-const reviewStatusClassName = (status: string): string => {
-  if (status === "accepted") return "!border-success/50 !text-success";
-  if (status === "rejected") return "!border-error/50 !text-error";
-  return "";
-};
 
 export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
   reviews,
@@ -50,6 +46,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
   cancelBusy,
   batchBusy,
   actBusy,
+  externalBusy,
   onStartAnalysis,
   onPreviewAnalysisRequest,
   onCancelAnalysis,
@@ -73,99 +70,128 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
       })
     : null;
   const reviewActionBusy = actBusy !== null;
-  const reviewSelectionLocked = batchBusy || reviewActionBusy;
+  const reviewSelectionLocked =
+    batchBusy || reviewActionBusy || externalBusy || analysisStatus === "analyzing";
+  const visibleAnalysis = analysis.filter((item) => item.count > 0);
 
   return (
-    <BookCard className="p-4">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-serif text-book-text-main inline-flex items-center gap-2">
-          <ImportIcon size={14} className="text-book-primary" /> 审核队列（{reviews.length}）
-        </h3>
-        <div className="inline-flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 text-xs">
-          <BookButton
-            variant="secondary"
-            onClick={() => void onPreviewAnalysisRequest()}
-            disabled={analyzeBusy || cancelBusy || analysisStatus === "analyzing"}
-          >
-            <Eye size={11} />
-            预览请求
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={() => void onStartAnalysis()}
-            disabled={analyzeBusy || cancelBusy || analysisStatus === "analyzing"}
-          >
-            {analyzeBusy ? (
-              <Loader2 size={11} className="animate-spin" />
-            ) : analysisStatus === "analyzing" ? (
-              "分析中"
-            ) : (
-              analyzeActionLabel
-            )}
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={() => void onCancelAnalysis()}
-            disabled={cancelBusy || !canCancelAnalysis}
-          >
-            {cancelBusy ? <Loader2 size={11} className="animate-spin" /> : "取消分析"}
-          </BookButton>
-          <BookButton
-            variant="primary"
-            onClick={() => void onBatchAccept()}
-            disabled={batchBusy || reviewActionBusy || selected.size === 0}
-          >
-            {batchBusy ? (
-              <Loader2 size={11} className="animate-spin" />
-            ) : (
-              `批量接受 (${selected.size})`
-            )}
-          </BookButton>
+    <section className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-book-text-main">审核队列</h3>
+          {reviews.length > 0 ? (
+            <p className="mt-0.5 text-[11px] text-book-text-muted">
+              {reviews.length} 条记录
+              {selected.size > 0 ? ` · 已选 ${selected.size} 条` : ""}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          {analysisStatus === "analyzing" ? (
+            canCancelAnalysis || cancelBusy ? (
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={() => void onCancelAnalysis()}
+                disabled={cancelBusy}
+                className="!min-h-8 !text-xs"
+              >
+                {cancelBusy ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Loader2 size={11} className="animate-spin" /> 停止中…
+                  </span>
+                ) : (
+                  "停止分析"
+                )}
+              </BookButton>
+            ) : null
+          ) : selected.size > 0 ? (
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={() => void onBatchAccept()}
+              disabled={batchBusy || reviewActionBusy || externalBusy}
+              className="!min-h-8 !text-xs"
+            >
+              {batchBusy ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 size={11} className="animate-spin" /> 接受中（{selected.size}）…
+                </span>
+              ) : (
+                `接受所选（${selected.size}）`
+              )}
+            </BookButton>
+          ) : (
+            <>
+              {!analyzeBusy && !cancelBusy && !externalBusy ? (
+                <Dropdown
+                  items={[
+                    {
+                      label: "查看分析模型请求",
+                      icon: <Eye size={12} />,
+                      onClick: () => void onPreviewAnalysisRequest(),
+                    },
+                  ]}
+                />
+              ) : null}
+              <BookButton
+                variant={selected.size > 0 ? "secondary" : "primary"}
+                size="sm"
+                onClick={() => void onStartAnalysis()}
+                disabled={analyzeBusy || cancelBusy || externalBusy}
+                className="!min-h-8 !text-xs"
+              >
+                {analyzeBusy ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Loader2 size={11} className="animate-spin" />
+                    {analyzeActionLabel === "继续分析" ? "继续分析中…" : "分析中…"}
+                  </span>
+                ) : (
+                  analyzeActionLabel
+                )}
+              </BookButton>
+            </>
+          )}
         </div>
       </div>
 
-      {(analysis.length > 0 || projectProgress) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2 text-[10px]">
-          {analysis.length > 0 && (
-            <div className="rounded border border-book-border/40 bg-book-bg-tertiary/30 p-2">
-              <div className="text-book-text-muted mb-1">审核状态</div>
-              <div className="flex flex-wrap gap-1">
-                {analysis.map((item) => (
-                  <span key={item.status} className="pyqt-pill !text-[10px]">
-                    {item.status}: {item.count}
-                  </span>
-                ))}
+      {(visibleAnalysis.length > 0 || projectProgress) && (
+        <div className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden px-3 text-[11px]">
+          {visibleAnalysis.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 py-2">
+              <div className="shrink-0 text-book-text-muted">审核状态</div>
+              <div className="min-w-0 flex-1 text-book-text-sub">
+                {visibleAnalysis
+                  .map((item) => `${getOperationStatusLabel(item.status)} ${item.count}`)
+                  .join(" · ")}
               </div>
             </div>
           )}
           {projectProgress && (
-            <div className="rounded border border-book-border/40 bg-book-bg-tertiary/30 p-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-semibold text-book-text-sub">
+            <div className="py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-book-text-main">
                   {progressDisplay?.stage ?? "项目分析"}
                 </span>
-                <span className="font-mono">
-                  {progressPercent == null ? "未返回" : `${progressPercent}%`}
+                <span className="text-book-text-muted">{getOperationStatusLabel(projectProgress.status)}</span>
+                <span className="ml-auto font-mono text-book-text-muted">
+                  {progressPercent == null ? "—" : `${progressPercent}%`}
                 </span>
               </div>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="text-book-text-muted">状态</span>
-                <span className="pyqt-pill !text-[10px]">{projectProgress.status}</span>
-              </div>
-              <div className="relative mt-1 h-4 overflow-hidden rounded border border-book-border/50 bg-book-bg-paper">
+              <div className="relative mt-1.5 h-4 overflow-hidden rounded bg-book-bg-tertiary">
                 <div
                   className="h-full bg-book-primary/35"
                   style={{ width: progressPercent == null ? "0%" : `${progressPercent}%` }}
                 />
-                <div className="pointer-events-none absolute inset-x-1 top-1/2 -translate-y-1/2 truncate text-[10px] leading-3 text-book-text-main">
+                <div className="pointer-events-none absolute inset-x-1.5 top-1/2 -translate-y-1/2 truncate text-[10px] leading-3 text-book-text-main">
                   {progressDisplay?.detail ?? "等待子阶段更新…"}
                 </div>
               </div>
               {!progressDisplay?.detail ? (
-                <div className="mt-1 text-book-text-muted">后端未返回进度消息</div>
+                <div className="mt-1 text-book-text-muted">等待进度更新…</div>
               ) : null}
               {projectProgress.error ? (
-                <div className="mt-1 text-[10px] leading-4 text-error truncate">
+                <div role="alert" className="mt-1 truncate text-[11px] leading-4 text-error">
                   {projectProgress.error}
                 </div>
               ) : null}
@@ -175,82 +201,73 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
       )}
 
       {reviews.length === 0 ? (
-        <EmptyHint text={loading ? "加载中…" : "队列为空"} />
+        <EmptyHint text={loading ? "加载中…" : "暂无待审核内容。"} />
       ) : (
-        <ul className="space-y-1">
+        <ul className="grid gap-2">
           {reviews.map((review) => (
             <li
               key={review.id}
-              className="a4n-stat-tile px-2 py-1.5 text-xs"
+              className="a4n-flat-surface p-3 text-xs"
             >
-              <div className="flex items-center gap-2 flex-wrap">
-                <input
-                  type="checkbox"
-                  checked={selected.has(review.id)}
+              <div className="flex flex-wrap items-start gap-2">
+                <button
+                  type="button"
+                  aria-pressed={selected.has(review.id)}
+                  aria-label={`选择 ${review.filename}`}
                   disabled={reviewSelectionLocked}
-                  onChange={() => onToggleSelect(review.id)}
-                  className="accent-book-primary"
-                />
-                <span className="font-mono text-[10px] text-book-text-muted shrink-0">
-                  #{review.id}
-                </span>
-                <span className="pyqt-pill !text-[10px]">{review.file_type}</span>
-                <span
-                  className={`pyqt-pill !text-[10px] ${reviewStatusClassName(
-                    review.review_status,
-                  )}`}
+                  onClick={() => onToggleSelect(review.id)}
+                  className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border transition-colors focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    selected.has(review.id)
+                      ? "border-book-primary bg-book-primary text-white"
+                      : "border-book-border/70 bg-book-bg-paper/45 text-transparent hover:border-book-primary/55"
+                  }`}
                 >
-                  {review.review_status}
-                </span>
-                <span className="truncate flex-1 text-book-text-main">{review.filename}</span>
-                <span className="text-book-text-muted text-[10px] shrink-0">
-                  {review.parsed_chapters} 章 ·{" "}
-                  {review.dedup_rate != null
-                    ? `${(review.dedup_rate * 100).toFixed(0)}%`
-                    : "?"}{" "}
-                  去重
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void onViewDetail(review.id)}
-                  disabled={reviewSelectionLocked}
-                  className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] sm:!min-h-[24px] sm:!px-1.5"
-                >
-                  详情
+                  <Check size={13} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void onAct(review.id, "accept")}
-                  disabled={
-                    reviewSelectionLocked || review.review_status === "accepted"
-                  }
-                  className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] !border-success/40 !text-success sm:!min-h-[24px] sm:!px-1.5"
-                >
-                  接受
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onAct(review.id, "reject")}
-                  disabled={
-                    reviewSelectionLocked || review.review_status === "rejected"
-                  }
-                  className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] !border-warning/40 !text-warning sm:!min-h-[24px] sm:!px-1.5"
-                >
-                  拒绝
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onAct(review.id, "delete")}
-                  disabled={reviewSelectionLocked}
-                  className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] !border-error/50 !text-error sm:!min-h-[24px] sm:!px-1.5"
-                >
-                  删除
-                </button>
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => void onViewDetail(review.id)}
+                    disabled={reviewSelectionLocked}
+                    className="block w-full rounded-md text-left outline-none transition-colors hover:text-book-primary focus-visible:ring-2 focus-visible:ring-book-primary/35 disabled:opacity-60"
+                    aria-label={`查看 ${review.filename} 的审核详情`}
+                  >
+                    <span className="block truncate font-medium text-book-text-main">
+                      {review.filename}
+                    </span>
+                    <span className="mt-1 block text-[11px] text-book-text-muted">
+                      {review.file_type.toUpperCase()} · {getOperationStatusLabel(review.review_status)} ·{" "}
+                      {review.parsed_chapters} 章
+                      {review.dedup_rate != null
+                        ? ` · 去重 ${(review.dedup_rate * 100).toFixed(0)}%`
+                        : ""}
+                    </span>
+                  </button>
+                </div>
+                {!reviewSelectionLocked ? (
+                  <Dropdown
+                    items={[
+                      ...(review.review_status !== "accepted"
+                        ? [{ label: "接受审核", icon: <Check size={12} />, onClick: () => void onAct(review.id, "accept") }]
+                        : []),
+                      ...(review.review_status !== "rejected"
+                        ? [{ label: "拒绝审核", icon: <X size={12} />, onClick: () => void onAct(review.id, "reject") }]
+                        : []),
+                      { type: "divider" as const },
+                      {
+                        label: "删除审核记录",
+                        icon: <Trash2 size={12} />,
+                        danger: true,
+                        onClick: () => void onAct(review.id, "delete"),
+                      },
+                    ]}
+                  />
+                ) : null}
               </div>
             </li>
           ))}
         </ul>
       )}
-    </BookCard>
+    </section>
   );
 };

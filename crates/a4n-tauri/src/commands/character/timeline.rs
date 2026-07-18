@@ -1,10 +1,10 @@
 //! 角色快照时间线命令。
 //!
 //! Tauri 层只保留 command 签名；快照、差异和回滚逻辑统一在
-//! `a4n_runtime::actions::character_records`。
+//! `a4n_runtime::host_api::character_records`。
 
 use a4n_runtime::AppState;
-use a4n_runtime::actions::character_records as character_records_actions;
+use a4n_runtime::host_api::character_records as character_records_actions;
 use character_records_actions::{
     CheckProfileSyncConflictInput, DiffProfileChaptersInput, GetProfileStateAtChapterInput,
     GetSnapshotInput, ListSnapshotsInput, ProfileChapterStateSummary, ProfileSyncConflictSummary,

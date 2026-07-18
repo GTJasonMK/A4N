@@ -2,7 +2,7 @@ use crate::commands::request_preview::ModelRequestPreview;
 use crate::progress_task::WorkflowProgressTask;
 use a4n_core::event::channel::TaskType;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::character_conflict as character_conflict_actions;
+use a4n_runtime::host_api::character_conflict as character_conflict_actions;
 use serde_json::Value;
 use tauri::{State, Window};
 

@@ -4,7 +4,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { listBehaviors, type BehaviorRecord } from "../../api/character";
-import { jsonPreview, listPreview } from "./manageViewUtils";
+import { behaviorTypeLabel, jsonPreview, listPreview } from "./manageViewUtils";
 
 const behaviorLoadKey = (
   profileId: number,
@@ -112,13 +112,14 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
       <div className="text-[10px] text-book-text-muted">
         行为记录由章节同步生成，用于隐性属性复审和后续溯源。
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <label className="flex items-center gap-1 text-book-text-muted">
-          章节
+      <div className="grid grid-cols-2 items-end gap-2 text-[11px] sm:flex sm:flex-wrap">
+        <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
+          <span>章节</span>
           <input
             type="number"
             min={1}
             value={chapterFilter}
+            disabled={loading}
             onChange={(event) => {
               const value = event.target.value;
               if (!value) {
@@ -133,30 +134,44 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
                 setChapterFilter(next);
               }
             }}
-            className="pyqt-input !px-2 !py-1 w-20"
+            className="pyqt-input w-full !px-2 !py-1 sm:w-24"
             placeholder="全部"
           />
         </label>
-        <label className="flex items-center gap-1 text-book-text-muted">
-          数量
-          <input
-            type="number"
-            min={1}
-            max={100}
+        <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
+          <span>显示数量</span>
+          <select
             value={limit}
+            disabled={loading}
             onChange={(event) => {
               const parsed = Number(event.target.value);
-              if (Number.isFinite(parsed) && parsed > 0) {
-                const next = Math.max(1, Math.min(100, Math.floor(parsed)));
+              if (parsed === 20 || parsed === 50 || parsed === 100) {
+                const next = parsed;
                 if (limitRef.current !== next) invalidateLoadedResults();
                 setLimit(next);
               }
             }}
-            className="pyqt-input !px-2 !py-1 w-20"
-          />
+            className="pyqt-input w-full !px-2 !py-1 sm:w-24"
+          >
+            <option value={20}>20 条</option>
+            <option value={50}>50 条</option>
+            <option value={100}>100 条</option>
+          </select>
         </label>
-        <BookButton variant="secondary" size="sm" onClick={load} disabled={loading}>
-          {loading ? <Loader2 size={11} className="animate-spin" /> : "刷新"}
+        <BookButton
+          variant="secondary"
+          size="sm"
+          onClick={load}
+          disabled={loading}
+          className="col-span-2 justify-self-end sm:col-auto sm:justify-self-auto"
+        >
+          {loading ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Loader2 size={11} className="animate-spin" /> 刷新中…
+            </span>
+          ) : (
+            "刷新"
+          )}
         </BookButton>
       </div>
       {loading ? (
@@ -166,25 +181,22 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
       ) : items.length === 0 ? (
         <div className="text-[11px] text-book-text-muted italic">尚无行为记录</div>
       ) : (
-        <ul className="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
+        <ul className="a4n-flat-surface divide-y divide-book-border/45">
           {items.map((item) => (
             <li
               key={item.id}
-              className="a4n-stat-tile px-2 py-1.5 text-[11px]"
+              className="px-3 py-2 text-[11px]"
             >
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="pyqt-pill !text-[10px] font-mono">
-                  第{item.chapter_number}章
-                </span>
-                <span className="pyqt-pill !text-[10px]">{item.behavior_type}</span>
+              <div className="mb-1 text-[10px] text-book-text-muted">
+                第 {item.chapter_number} 章 · {behaviorTypeLabel(item.behavior_type)}
               </div>
-              <div className="text-book-text-sub">{item.behavior_description}</div>
+              <div className="leading-relaxed text-book-text-main">{item.behavior_description}</div>
               {item.original_text && (
-                <div className="mt-1 rounded bg-book-bg-tertiary/50 px-2 py-1 text-[10px] leading-relaxed text-book-text-muted">
-                  原文：{item.original_text}
-                </div>
+                <blockquote className="mt-1.5 border-l-2 border-book-border/70 pl-2 text-[10px] leading-relaxed text-book-text-muted">
+                  {item.original_text}
+                </blockquote>
               )}
-              <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-book-text-muted">
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-book-text-muted">
                 {listPreview(item.behavior_tags) && (
                   <span>标签：{listPreview(item.behavior_tags)}</span>
                 )}
@@ -193,9 +205,12 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
                 )}
               </div>
               {jsonPreview(item.classification_results) && (
-                <div className="mt-0.5 font-mono text-[10px] text-book-text-muted">
-                  分类：{jsonPreview(item.classification_results)}
-                </div>
+                <details className="mt-1 text-[10px] text-book-text-muted">
+                  <summary className="w-fit cursor-pointer hover:text-book-text-main">诊断信息</summary>
+                  <div className="mt-1 break-words font-mono">
+                    {jsonPreview(item.classification_results)}
+                  </div>
+                </details>
               )}
               {item.impact_analysis && (
                 <div className="text-book-text-muted italic mt-0.5">

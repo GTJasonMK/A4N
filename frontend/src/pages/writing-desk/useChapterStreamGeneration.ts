@@ -63,6 +63,11 @@ const makeChapterStreamTaskId = (projectId: number, chapterNumber: number) =>
     .toString(36)
     .slice(2, 8)}`;
 
+const userFacingStreamError = (error: unknown, fallback: string): string =>
+  extractErrorMessage(error, fallback)
+    .replace(/workflow:chapter-[^\s，。]+/gi, "正文生成进度通道")
+    .replace(/chapter-\d+-\d+-[^\s，。]+/gi, "当前生成任务");
+
 export const useChapterStreamGeneration = ({
   projectId,
   projectIdKey,
@@ -392,10 +397,10 @@ export const useChapterStreamGeneration = ({
           setStreamBusy(false);
         });
 
-      addToast(`流式生成已启动 (task=${taskId.slice(0, 8)}…)`, "success");
+      addToast("正文生成已启动", "success");
     } catch (err) {
       clearStreamState(null);
-      addToast(extractErrorMessage(err, "启动流式生成失败"), "error");
+      addToast(userFacingStreamError(err, "启动流式生成失败"), "error");
     } finally {
       streamStartBusyRef.current = false;
       setStreamBusy(false);

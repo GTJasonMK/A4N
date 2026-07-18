@@ -95,14 +95,14 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "user" }) => {
     items.find((item) => item.isActive)?.config.max_output_tokens ?? null;
 
   return (
-    <div className="h-full min-h-0 flex flex-col gap-3">
+    <div className="flex h-auto min-h-0 flex-col gap-3 md:h-full">
       <LlmMaxTokensPanel
         modelMaxOutputTokens={defaultModelOutputCap}
         getConfig={serverScope ? getServerLlmMaxTokensConfig : undefined}
         updateConfig={serverScope ? updateServerLlmMaxTokensConfig : undefined}
       />
 
-      <div className="flex-1 min-h-0">
+      <div className="min-h-0 md:flex-1">
         <ConfigListPanel<LlmForm>
           title="LLM 配置"
           items={items}
@@ -114,7 +114,6 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "user" }) => {
           activateText={serverScope ? "设为全局默认" : "设为默认"}
           activateSuccessMessage={serverScope ? "已设为系统全局默认" : "已设为当前默认"}
           activateErrorMessage={serverScope ? "设置系统全局默认失败" : "设置默认失败"}
-          activeDeleteTitle={serverScope ? "全局默认配置不可删除" : "默认配置不可删除"}
           formatItem={formatLlmItem}
           renderEditor={(form, setForm, context) => (
             <LlmConfigEditor

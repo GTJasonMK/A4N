@@ -1,7 +1,7 @@
 use super::basic::project_summary_with_family_for_user;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::project_duplication::DuplicateProjectInput;
-use a4n_runtime::actions::project_records::ProjectSummary;
+use a4n_runtime::host_api::project_duplication::DuplicateProjectInput;
+use a4n_runtime::host_api::project_records::ProjectSummary;
 use tauri::State;
 
 #[tauri::command]
@@ -10,9 +10,12 @@ pub async fn duplicate_project(
     user_id: i64,
     input: DuplicateProjectInput,
 ) -> Result<ProjectSummary, String> {
-    let project =
-        a4n_runtime::actions::project_duplication::duplicate_project(state.inner(), user_id, input)
-            .await?;
+    let project = a4n_runtime::host_api::project_duplication::duplicate_project(
+        state.inner(),
+        user_id,
+        input,
+    )
+    .await?;
     project_summary_with_family_for_user(&state, user_id, &project).await
 }
 
@@ -24,7 +27,7 @@ pub async fn branch_project(
     branch_title: String,
     at_status: String,
 ) -> Result<ProjectSummary, String> {
-    let project = a4n_runtime::actions::project_duplication::branch_project(
+    let project = a4n_runtime::host_api::project_duplication::branch_project(
         state.inner(),
         user_id,
         project_id,

@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowRight, Clock3, MapPin } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { importanceRank } from "./storyEventUtils";
 import type { ChapterStorySection } from "./types";
 
@@ -10,51 +10,42 @@ interface ChapterEventSectionProps {
 
 const importanceClass = (importance: string): string => {
   const rank = importanceRank(importance);
-  if (rank >= 3) return "!border-error/45 !text-error";
-  if (rank === 2) return "!border-warning/45 !text-warning";
-  if (rank === 1) return "!border-success/45 !text-success";
-  return "";
+  if (rank >= 3) return "text-book-primary";
+  if (rank === 2) return "text-warning";
+  return "text-book-text-muted";
 };
 
 export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
   section,
   onOpenChapter,
 }) => (
-  <section className="rounded-sm border border-book-border/45 bg-book-bg-paper/35 p-3">
-    <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-[11px] text-book-text-muted">
-            #{section.chapter.chapter_number}
-          </span>
-          <h4 className="text-sm font-semibold text-book-text-main">{section.title}</h4>
-          {!section.hasAnalysis && <span className="pyqt-pill !text-[9px]">未分析</span>}
+  <section className="a4n-flat-surface p-3 sm:p-4">
+    <div className="mb-2 flex min-w-0 items-start gap-3">
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate text-sm font-semibold text-book-text-main">
+          {section.title}
+        </h3>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-book-text-muted">
+          <span>第 {section.chapter.chapter_number} 章</span>
+          {!section.hasAnalysis ? <span>未分析</span> : null}
+          {section.timelineMarker ? <span>{section.timelineMarker}</span> : null}
+          {section.tone ? <span>{section.tone}</span> : null}
+          {section.locations.length > 0 ? (
+            <span>{section.locations.slice(0, 3).join("、")}</span>
+          ) : null}
         </div>
-        {(section.timelineMarker || section.tone || section.locations.length > 0) && (
-          <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] text-book-text-muted">
-            {section.timelineMarker && (
-              <span className="inline-flex items-center gap-1">
-                <Clock3 size={10} /> {section.timelineMarker}
-              </span>
-            )}
-            {section.tone && <span>{section.tone}</span>}
-            {section.locations.slice(0, 3).map((location) => (
-              <span key={location} className="inline-flex items-center gap-1">
-                <MapPin size={10} /> {location}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
-      {onOpenChapter && (
+      {onOpenChapter ? (
         <button
           type="button"
           onClick={() => onOpenChapter(section.chapter.chapter_number)}
-          className="pyqt-btn-secondary !min-h-9 !px-2.5 text-[11px] inline-flex items-center gap-1 sm:!min-h-[26px]"
+          className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
+          aria-label={`打开第 ${section.chapter.chapter_number} 章`}
+          title={`打开第 ${section.chapter.chapter_number} 章`}
         >
-          打开章节 <ArrowRight size={11} />
+          <ArrowRight size={12} />
         </button>
-      )}
+      ) : null}
     </div>
 
     {section.summary && (
@@ -62,42 +53,38 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
     )}
 
     {(section.characters.length > 0 || section.keywords.length > 0) && (
-      <div className="mb-2 flex flex-wrap gap-1">
-        {section.characters.slice(0, 8).map((name) => (
-          <span key={`character-${name}`} className="pyqt-pill !text-[9px]">
-            {name}
-          </span>
-        ))}
-        {section.keywords.slice(0, 6).map((keyword) => (
-          <span key={`keyword-${keyword}`} className="pyqt-pill !text-[9px] !text-book-primary">
-            {keyword}
-          </span>
-        ))}
+      <div className="mb-2 space-y-0.5 text-[11px] leading-relaxed text-book-text-muted">
+        {section.characters.length > 0 ? (
+          <div>人物 · {section.characters.slice(0, 8).join("、")}</div>
+        ) : null}
+        {section.keywords.length > 0 ? (
+          <div>关键词 · {section.keywords.slice(0, 6).join("、")}</div>
+        ) : null}
       </div>
     )}
 
     {section.events.length > 0 ? (
-      <ol className="space-y-2">
-        {section.events.map((event, index) => (
-          <li key={event.id} className="grid grid-cols-[24px_1fr] gap-2">
-            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-sm border border-book-border/50 bg-book-bg-tertiary text-[10px] font-mono text-book-text-muted">
-              {index + 1}
-            </span>
+      <ol className="divide-y divide-book-border/40 border-y border-book-border/40">
+        {section.events.map((event) => (
+          <li key={event.id} className="flex gap-2.5 py-2.5">
+            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-book-primary/75" />
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-medium leading-relaxed text-book-text-main">
-                  {event.description}
-                </span>
-                <span className="pyqt-pill !text-[9px]">{event.type}</span>
-                <span className={`pyqt-pill !text-[9px] ${importanceClass(event.importance)}`}>
+              <div className="text-xs font-medium leading-relaxed text-book-text-main">
+                {event.description}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-book-text-muted">
+                <span>{event.type}</span>
+                <span aria-hidden="true">·</span>
+                <span className={importanceClass(event.importance)}>
                   {event.importance}
                 </span>
+                {event.involvedCharacters.length > 0 ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{event.involvedCharacters.join("、")}</span>
+                  </>
+                ) : null}
               </div>
-              {event.involvedCharacters.length > 0 && (
-                <div className="mt-0.5 text-[10px] text-book-text-muted">
-                  {event.involvedCharacters.join("、")}
-                </div>
-              )}
             </div>
           </li>
         ))}
@@ -107,16 +94,11 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
     )}
 
     {(section.plantedCount > 0 || section.resolvedCount > 0 || section.tensionCount > 0) && (
-      <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-book-text-muted">
-        {section.plantedCount > 0 && (
-          <span className="pyqt-pill !text-[9px]">埋设 {section.plantedCount}</span>
-        )}
-        {section.resolvedCount > 0 && (
-          <span className="pyqt-pill !text-[9px]">回收 {section.resolvedCount}</span>
-        )}
-        {section.tensionCount > 0 && (
-          <span className="pyqt-pill !text-[9px]">悬念 {section.tensionCount}</span>
-        )}
+      <div className="mt-2 text-[11px] text-book-text-muted">
+        伏笔
+        {section.plantedCount > 0 ? ` · 埋设 ${section.plantedCount}` : ""}
+        {section.resolvedCount > 0 ? ` · 回收 ${section.resolvedCount}` : ""}
+        {section.tensionCount > 0 ? ` · 悬念 ${section.tensionCount}` : ""}
       </div>
     )}
   </section>

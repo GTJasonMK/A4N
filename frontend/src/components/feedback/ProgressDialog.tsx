@@ -166,15 +166,21 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
       showCloseButton={canClose}
       footer={
         canClose ? (
-          <BookButton variant="secondary" onClick={onClose}>
+          <BookButton variant="primary" size="sm" onClick={onClose} className="!min-h-8 !text-xs">
             {closeLabel}
           </BookButton>
         ) : onCancel ? (
           <>
-            <span className="text-[11px] text-book-text-sub">
+            <span className="mr-auto text-[11px] leading-relaxed text-book-text-sub">
               {runningHint}
             </span>
-            <BookButton variant="danger" onClick={onCancel} disabled={cancelling}>
+            <BookButton
+              variant="danger"
+              size="sm"
+              onClick={onCancel}
+              disabled={cancelling}
+              className="!min-h-8 !text-xs"
+            >
               {cancelling ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 size={13} className="animate-spin" /> 正在停止…
@@ -191,18 +197,23 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
         )
       }
     >
-      <div className="space-y-4">
-        <div>
-          <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
-            <span className="min-w-0 truncate font-semibold text-book-text-main">
+      <div className="space-y-4" aria-live="polite">
+        <section>
+          <div className="mb-2 flex min-w-0 items-baseline justify-between gap-3">
+            <span className="min-w-0 truncate text-sm font-semibold text-book-text-main">
               {display.stage}
             </span>
-            <span className="shrink-0 font-mono text-book-text-sub">
+            <span className="shrink-0 font-mono text-xs tabular-nums text-book-text-sub">
               {progressLabel}
             </span>
           </div>
           <div
-            className="relative h-7 overflow-hidden rounded-sm border border-book-border bg-book-bg-tertiary"
+            className="relative h-2.5 overflow-hidden rounded-full bg-book-bg-tertiary"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+            aria-label={display.stage}
           >
             <div
               className={`absolute inset-y-0 left-0 transition-all duration-300 ${
@@ -216,33 +227,11 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
               }`}
               style={{ width: `${percent}%` }}
             />
-            {hasStreamText ? (
-              <div className="pointer-events-none absolute inset-x-2 top-1/2 h-4 -translate-y-1/2 overflow-hidden">
-                {streamFrame.previous ? (
-                  <span
-                    key={`previous-${streamFrame.version}`}
-                    className="a4n-progress-stream-line a4n-progress-stream-line-exit text-book-text-sub"
-                  >
-                    {streamFrame.previous}
-                  </span>
-                ) : null}
-                <span
-                  key={`current-${streamFrame.version}`}
-                  className="a4n-progress-stream-line a4n-progress-stream-line-enter text-book-text-main"
-                >
-                  {streamFrame.current}
-                </span>
-              </div>
-            ) : (
-              null
-            )}
           </div>
-          <div className="mt-2 grid gap-1.5 text-xs">
-            <div className="min-w-0 rounded-sm border border-book-border/60 bg-book-bg-secondary px-2.5 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-semibold text-book-text-main" title={barDetail}>
-                  {barDetail}
-                </span>
+          <div className="mt-2.5 flex min-w-0 items-start justify-between gap-4 text-xs">
+            <div className="min-w-0 flex-1 leading-relaxed text-book-text-sub">
+              <div className="flex min-w-0 items-baseline gap-2">
+                <span className="min-w-0 truncate" title={barDetail}>{barDetail}</span>
                 {display.countLabel ? (
                   <span className="shrink-0 font-mono text-[11px] text-book-text-muted">
                     {display.countLabel}
@@ -250,44 +239,42 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
                 ) : null}
               </div>
               {hasStreamText ? (
-                <div className="mt-1 truncate text-[11px] text-book-text-muted" title={streamFrame.current}>
+                <div className="mt-1 break-words text-[11px] text-book-text-muted">
                   {streamFrame.current}
                 </div>
               ) : null}
             </div>
-          </div>
-          {timingLabel ? (
-            <div className="mt-1.5 min-h-5 pb-0.5 text-right text-[11px] leading-5 text-book-text-sub">
-              <span className="inline-block max-w-full break-words align-top">
+            {timingLabel ? (
+              <span className="shrink-0 text-right text-[11px] leading-relaxed text-book-text-muted">
                 {timingLabel}
               </span>
-            </div>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        </section>
 
         {error ? (
-          <div className="rounded-sm border border-error bg-error-bg px-3 py-2 text-xs leading-relaxed text-book-text-main">
+          <div role="alert" className="rounded-[var(--pyqt-radius-lg)] border border-error/45 bg-error-bg px-3.5 py-3 text-xs leading-relaxed text-book-text-main">
             {error}
           </div>
         ) : null}
 
         {connectionWarning ? (
-          <div className="rounded-sm border border-warning/60 bg-warning-bg px-3 py-2 text-xs leading-relaxed text-book-text-main">
+          <div role="status" className="rounded-[var(--pyqt-radius-lg)] border border-warning/45 bg-warning-bg px-3.5 py-3 text-xs leading-relaxed text-book-text-main">
             {connectionWarning}
           </div>
         ) : null}
 
         {timeline.length > 1 ? (
-          <div className="rounded-sm border border-book-border/70 bg-book-bg-secondary">
-            <div className="border-b border-book-border/60 px-3 py-2 text-[11px] font-semibold text-book-text-sub">
-              最近进展
-            </div>
-            <ol className="max-h-56 overflow-y-auto px-3 py-2 custom-scrollbar">
+          <details className="border-t border-book-border/55 pt-3 text-xs text-book-text-muted">
+            <summary className="cursor-pointer select-none font-medium transition-colors hover:text-book-text-main">
+              最近进展 · {timeline.length}
+            </summary>
+            <ol className="mt-2 divide-y divide-book-border/45">
               {timeline.map((item) => (
                 <ProgressTimelineRow key={item.id} item={item} />
               ))}
             </ol>
-          </div>
+          </details>
         ) : null}
 
       </div>
@@ -315,7 +302,7 @@ const ProgressTimelineRow: React.FC<{ item: ProgressTimelineItem }> = ({ item })
           : "bg-book-primary";
 
   return (
-    <li className="grid grid-cols-[auto_1fr_auto] gap-2 py-1.5 text-[11px]">
+    <li className="grid grid-cols-[auto_1fr_auto] gap-2 py-2 text-[11px]">
       <span className={`mt-1 h-1.5 w-1.5 rounded-full ${dotClass}`} />
       <span className="min-w-0">
         <span className="block truncate font-semibold text-book-text-main" title={display.stage}>

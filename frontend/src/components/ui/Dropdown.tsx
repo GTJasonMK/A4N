@@ -1,12 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical, ChevronDown } from 'lucide-react';
 import { getPortalRoot } from './portalRoot';
 
-type DropdownItem = {
+export type DropdownItem = {
   label: string;
   onClick: () => void;
   danger?: boolean;
+  disabled?: boolean;
   icon?: React.ReactNode;
 } | {
   type: 'divider';
@@ -22,6 +23,33 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const updateMenuPosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const buttonRect = buttonRef.current.getBoundingClientRect();
+    const menuRect = menuRef.current?.getBoundingClientRect();
+    const viewportPadding = 8;
+    const menuGap = 4;
+    const menuWidth = menuRect?.width ?? 200;
+    const menuHeight = menuRect?.height ?? 0;
+    const left = Math.max(
+      viewportPadding,
+      Math.min(
+        buttonRect.right - menuWidth,
+        window.innerWidth - menuWidth - viewportPadding,
+      ),
+    );
+    const spaceBelow = window.innerHeight - buttonRect.bottom - menuGap - viewportPadding;
+    const spaceAbove = buttonRect.top - menuGap - viewportPadding;
+    const opensAbove = menuHeight > spaceBelow && spaceAbove > spaceBelow;
+    const preferredTop = opensAbove
+      ? buttonRect.top - menuHeight - menuGap
+      : buttonRect.bottom + menuGap;
+    const top = Math.max(
+      viewportPadding,
+      Math.min(preferredTop, window.innerHeight - menuHeight - viewportPadding),
+    );
+    setMenuPosition({ top, left });
+  }, [items.length]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -36,50 +64,37 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const estimatedWidth = 200;
-      const left = Math.max(8, Math.min(rect.right - estimatedWidth, window.innerWidth - estimatedWidth - 8));
-      setMenuPosition({
-        top: rect.bottom + 2,
-        left,
-      });
-    }
-  }, [isOpen]);
+  useLayoutEffect(() => {
+    if (isOpen) updateMenuPosition();
+  }, [isOpen, updateMenuPosition]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      setIsOpen(false);
     };
-    const handleReposition = () => {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
-      const estimatedWidth = 200;
-      const left = Math.max(8, Math.min(rect.right - estimatedWidth, window.innerWidth - estimatedWidth - 8));
-      setMenuPosition({
-        top: rect.bottom + 2,
-        left,
-      });
-    };
+    const handleReposition = () => updateMenuPosition();
 
-    window.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleEscape, true);
     window.addEventListener('resize', handleReposition);
     window.addEventListener('scroll', handleReposition, true);
     return () => {
-      window.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleEscape, true);
       window.removeEventListener('resize', handleReposition);
       window.removeEventListener('scroll', handleReposition, true);
     };
-  }, [isOpen]);
+  }, [isOpen, updateMenuPosition]);
 
   const menuContent = isOpen && (
     <div
       ref={menuRef}
       role="menu"
-      className="fixed pointer-events-auto max-h-[min(24rem,calc(100vh-1rem))] min-w-[12rem] max-w-[min(18rem,calc(100vw-1rem))] overflow-y-auto rounded-sm border border-book-border bg-book-bg-paper p-1 shadow-[0_14px_34px_rgb(0_0_0_/_0.18)]"
+      className="fixed pointer-events-auto max-h-[min(24rem,calc(100vh-1rem))] min-w-[12rem] max-w-[min(18rem,calc(100vw-1rem))] overflow-y-auto rounded-xl border border-book-border/70 bg-book-bg-paper/95 p-1.5 shadow-[var(--shadow-overlay)] backdrop-blur-xl"
       style={{
         top: menuPosition.top,
         left: menuPosition.left,
@@ -90,18 +105,26 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
         if ('type' in item && item.type === 'divider') {
           return <div key={`divider-${idx}`} className="my-1 border-t border-book-border" />;
         }
-        const menuItem = item as { label: string; onClick: () => void; danger?: boolean; icon?: React.ReactNode };
+        const menuItem = item as {
+          label: string;
+          onClick: () => void;
+          danger?: boolean;
+          disabled?: boolean;
+          icon?: React.ReactNode;
+        };
         return (
           <button
             key={`action-${menuItem.label}-${idx}`}
             type="button"
             role="menuitem"
+            disabled={menuItem.disabled}
+            aria-disabled={menuItem.disabled || undefined}
             onClick={(e) => {
               e.stopPropagation();
               menuItem.onClick();
               setIsOpen(false);
             }}
-            className={`flex w-full items-center gap-2 rounded-[3px] px-2.5 py-1.5 text-left text-xs transition-colors ${
+            className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
               menuItem.danger
                 ? 'text-error hover:bg-error-bg focus-visible:bg-error-bg'
                 : 'text-book-text-main hover:bg-book-bg-tertiary focus-visible:bg-book-bg-tertiary'
@@ -135,7 +158,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
           }}
           aria-expanded={isOpen}
           aria-haspopup="menu"
-          className={`pyqt-btn-secondary !min-h-9 !px-2 text-xs sm:!min-h-[28px] ${
+          className={`pyqt-btn-secondary !min-h-8 !px-2.5 text-xs ${
             isOpen ? 'border-book-primary/70 bg-[rgb(var(--color-primary-pale))] text-book-primary' : ''
           }`}
         >
@@ -155,7 +178,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
           }}
           aria-expanded={isOpen}
           aria-haspopup="menu"
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-sm border bg-book-bg-paper transition-colors sm:h-7 sm:w-7 ${
+          className={`inline-flex h-10 w-10 items-center justify-center rounded-[10px] border bg-book-bg-tertiary/70 transition-colors sm:h-8 sm:w-8 ${
             isOpen
               ? 'border-book-primary/70 text-book-primary'
               : 'border-book-border text-book-text-muted hover:border-book-primary/55 hover:bg-book-bg-tertiary hover:text-book-primary'

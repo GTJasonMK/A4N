@@ -16,7 +16,7 @@ pub struct Model {
     /// 格序号
     pub panel_number: i32,
 
-    /// 提示词类型：info_extraction / page_planning / page_drawing_prompt / page_generation
+    /// v2 记录类型：pipeline_status / page_generation / panel_plan
     pub prompt_type: String,
 
     /// 图片生成提示词
@@ -30,7 +30,7 @@ pub struct Model {
     #[sea_orm(column_type = "Json")]
     pub characters_in_frame: Option<serde_json::Value>,
 
-    /// DSL 布局定义
+    /// v2 typed 页面/画格计划及来源、导演计划、参考素材绑定
     #[sea_orm(column_type = "Json")]
     pub layout: Option<serde_json::Value>,
 

@@ -1,8 +1,8 @@
 use a4n_runtime::AppState;
-use a4n_runtime::actions::dependency_conflict::DownstreamConflictStrategy;
-use a4n_runtime::actions::manga_records::{
-    self as manga_records_actions, BindReferenceImageInput, CreateMangaPromptInput,
-    MangaPromptSummary, OptimizeMangaPromptInput, UpdateMangaPromptInput,
+use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
+use a4n_runtime::host_api::manga_records::{
+    self as manga_records_actions, BindReferenceImageInput, MangaPromptSummary,
+    OptimizeMangaPromptInput, UpdateMangaPromptInput,
 };
 use tauri::State;
 
@@ -14,24 +14,6 @@ pub async fn list_manga_panels(
     chapter_id: i64,
 ) -> Result<Vec<MangaPromptSummary>, String> {
     manga_records_actions::list_manga_panels(state.inner(), user_id, project_id, chapter_id).await
-}
-
-#[tauri::command]
-pub async fn create_manga_prompt(
-    state: State<'_, AppState>,
-    user_id: i64,
-    project_id: i64,
-    chapter_id: i64,
-    input: CreateMangaPromptInput,
-) -> Result<MangaPromptSummary, String> {
-    manga_records_actions::create_manga_prompt(
-        state.inner(),
-        user_id,
-        project_id,
-        chapter_id,
-        input,
-    )
-    .await
 }
 
 #[tauri::command]

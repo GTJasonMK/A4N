@@ -1,0 +1,59 @@
+use a4n_core::models::project::novel_project;
+use sea_orm::DbErr;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProjectFamilyMetadataQuery {
+    pub project_id: i64,
+    pub root_project_id: Option<i64>,
+    pub source_snapshot_id: Option<i64>,
+    pub source_mode: String,
+}
+
+impl ProjectFamilyMetadataQuery {
+    pub fn from_project(project: &novel_project::Model) -> Self {
+        Self {
+            project_id: project.id,
+            root_project_id: project.root_project_id,
+            source_snapshot_id: project.source_snapshot_id,
+            source_mode: project.source_mode.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProjectFamilyMetadata {
+    pub project_id: i64,
+    pub root_project_title: Option<String>,
+    pub source_snapshot_created_at: Option<String>,
+    pub derived_chapter_scope: Option<serde_json::Value>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProjectFamilyMetadataReadError {
+    #[error("{0}")]
+    InvalidArgument(String),
+    #[error("项目缺少族元数据: {project_id}")]
+    MetadataMissing { project_id: i64 },
+    #[error("派生项目引用的根文本项目不存在: {root_project_id}")]
+    RootProjectMissing { root_project_id: i64 },
+    #[error("派生项目引用的源文本快照不存在: {source_snapshot_id}")]
+    SourceSnapshotMissing { source_snapshot_id: i64 },
+    #[error("派生项目缺少派生关系: {project_id}")]
+    DerivationMissing { project_id: i64 },
+    #[error("{operation}: {source}")]
+    Database {
+        operation: &'static str,
+        #[source]
+        source: DbErr,
+    },
+}
+
+impl ProjectFamilyMetadataReadError {
+    pub(in crate::project::family_metadata) fn database(
+        operation: &'static str,
+        source: DbErr,
+    ) -> Self {
+        Self::Database { operation, source }
+    }
+}

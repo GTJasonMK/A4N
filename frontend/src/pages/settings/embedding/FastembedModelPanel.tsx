@@ -1,10 +1,11 @@
 import React from "react";
-import { Download, HardDrive, Loader2, Trash2 } from "lucide-react";
+import { Download, Loader2, Trash2 } from "lucide-react";
 import type {
   EmbeddingModelDownloadInfo,
   LocalEmbeddingModel,
 } from "../../../api/config";
 import { BookButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { formatBytes } from "./embeddingTabUtils";
 
 interface FastembedModelPanelProps {
@@ -39,28 +40,48 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
       : "预计总大小获取中";
 
   return (
-    <div className="a4n-page-surface px-3 py-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-semibold text-book-text-main">
-            <HardDrive size={14} />
-            <span className="truncate">{model?.name ?? modelName}</span>
+    <div aria-label="本地嵌入模型" className="a4n-flat-surface px-3 py-3">
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-semibold text-book-text-main">
+            {model?.name ?? modelName}
           </div>
-          <div className="mt-1 truncate text-[11px] text-book-text-muted">
-            {model
-              ? `${model.model_code} · ${model.dimension} 维 · ${totalSizeText}`
-              : `未加载到${modelHostLabel}模型目录`}
+          <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[11px] text-book-text-muted">
+            <span className={model?.downloaded ? "text-success" : "text-warning"}>
+              {model?.downloaded ? "已下载" : "未下载"}
+            </span>
+            {model ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{model.dimension} 维</span>
+                <span aria-hidden="true">·</span>
+                <span>{totalSizeText}</span>
+              </>
+            ) : (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>未加载到{modelHostLabel}模型目录</span>
+              </>
+            )}
           </div>
         </div>
-        <span
-          className={`shrink-0 rounded border px-2 py-0.5 text-[11px] ${
-            model?.downloaded
-              ? "border-success/40 bg-success-bg text-success"
-              : "border-warning/40 bg-warning-bg text-warning"
-          }`}
-        >
-          {model?.downloaded ? "已下载" : "未下载"}
-        </span>
+        {busy && model?.downloaded ? (
+          <span className="inline-flex h-8 shrink-0 items-center gap-1.5 text-[11px] text-book-text-muted">
+            <Loader2 size={13} className="animate-spin" />
+            正在删除
+          </span>
+        ) : model?.downloaded ? (
+          <Dropdown
+            items={[
+              {
+                label: "删除模型缓存",
+                icon: <Trash2 size={12} />,
+                danger: true,
+                onClick: onDelete,
+              },
+            ]}
+          />
+        ) : null}
       </div>
       {!downloadInfo && !downloadInfoError ? (
         <div className="mb-2 text-[11px] text-book-text-muted">正在获取模型大小…</div>
@@ -80,32 +101,12 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
           {model.description}
         </p>
       )}
-      <div className="flex items-center gap-2">
-        <BookButton
-          variant="secondary"
-          onClick={onDownload}
-          disabled={busy || !model || model.downloaded}
-        >
-          {busy && !model?.downloaded ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Download size={14} />
-          )}
+      {!model?.downloaded && model ? (
+        <BookButton onClick={onDownload} disabled={busy}>
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
           {downloadLabel}
         </BookButton>
-        <BookButton
-          variant="danger"
-          onClick={onDelete}
-          disabled={busy || !model?.downloaded}
-        >
-          {busy && model?.downloaded ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Trash2 size={14} />
-          )}
-          删除缓存
-        </BookButton>
-      </div>
+      ) : null}
     </div>
   );
 };

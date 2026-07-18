@@ -8,7 +8,6 @@ pub(crate) struct DecodedUploadedImage {
     pub(crate) mime_type: &'static str,
     pub(crate) width: i32,
     pub(crate) height: i32,
-    pub(crate) file_size: i64,
     pub(crate) source_file_name: String,
 }
 
@@ -42,20 +41,19 @@ pub(crate) fn decode_uploaded_image_data(
     let decoded = image::load_from_memory_with_format(&bytes, format)
         .map_err(|err| format!("上传图片解析失败：{err}"))?;
     let (width, height) = decoded.dimensions();
-    if width == 0 || height == 0 || width > i32::MAX as u32 || height > i32::MAX as u32 {
+    if width == 0 || height == 0 {
         return Err("上传图片尺寸无效".to_string());
     }
-    let file_size =
-        i64::try_from(bytes.len()).map_err(|_| "上传图片过大，无法记录文件大小".to_string())?;
+    let width = i32::try_from(width).map_err(|_| "上传图片宽度超过 i32 范围".to_string())?;
+    let height = i32::try_from(height).map_err(|_| "上传图片高度超过 i32 范围".to_string())?;
     let source_file_name = required_upload_text(file_name, "上传图片文件名")?;
 
     Ok(DecodedUploadedImage {
         bytes,
         extension,
         mime_type: actual_mime,
-        width: width as i32,
-        height: height as i32,
-        file_size,
+        width,
+        height,
         source_file_name,
     })
 }
@@ -114,7 +112,6 @@ mod tests {
             assert_eq!(decoded.mime_type, "image/png");
             assert_eq!(decoded.extension, "png");
             assert_eq!((decoded.width, decoded.height), (1, 1));
-            assert_eq!(decoded.file_size, decoded.bytes.len() as i64);
         }
     }
 

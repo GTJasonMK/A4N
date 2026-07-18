@@ -86,3 +86,58 @@ export interface DailyUsagePoint {
   success_count: number;
   fail_count: number;
 }
+
+export interface AdminOverviewSummary {
+  total_users: number;
+  total_projects: number;
+  total_chapters: number;
+  task_queue_count: number;
+  pending_tasks: number;
+  running_tasks: number;
+  total_llm_calls: number;
+  llm_config_count: number;
+  embedding_config_count: number;
+  image_gen_config_count: number;
+  active_theme: {
+    id: number;
+    name: string;
+    mode: string;
+  } | null;
+  daily_active_users: number;
+}
+
+export type AdminServiceMode = "embedded" | "sidecar" | "remote" | "disabled" | string;
+export type AdminServicePidStatus =
+  | "observed"
+  | "missing"
+  | "stale"
+  | "invalid"
+  | "unreadable"
+  | "unverifiable"
+  | string;
+
+export interface AdminServiceHealth {
+  name: string;
+  mode: AdminServiceMode;
+  service_mode?: AdminServiceMode;
+  url: string | null;
+  port: number | null;
+  health_path: string | null;
+  binary: string | null;
+  pid: number | null;
+  pid_status?: AdminServicePidStatus | null;
+  pid_source?: string | null;
+  healthy: boolean;
+  status: string | null;
+  service_version: string | null;
+  protocol_version: string | null;
+  capability_version: string | null;
+  error_code: string | null;
+  error_message: string | null;
+}
+
+export interface AdminHealthCheck {
+  runtime_profile?: string;
+  services?: AdminServiceHealth[];
+  [key: string]: unknown;
+}

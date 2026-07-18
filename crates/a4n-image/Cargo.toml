@@ -1,0 +1,11 @@
+[package]
+name = "a4n-image"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+
+async-trait = { workspace = true }
+serde = { workspace = true }
+

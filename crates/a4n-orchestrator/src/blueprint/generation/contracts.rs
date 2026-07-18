@@ -1,0 +1,16 @@
+use super::*;
+
+mod stage_specs;
+pub use stage_specs::BLUEPRINT_GENERATION_STAGES;
+
+pub struct BlueprintStageSpec {
+    pub key: &'static str,
+    pub title: &'static str,
+    pub validate: fn(&Value) -> Result<(), AppError>,
+    pub progress_current: u32,
+    pub progress_message: &'static str,
+    pub restored_message: &'static str,
+    pub output_schema: &'static str,
+    pub expected_top_level_keys: &'static [&'static str],
+    pub blocked_note: &'static str,
+}

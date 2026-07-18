@@ -1,0 +1,154 @@
+use super::portable::non_empty_env_path;
+use super::*;
+use std::path::PathBuf;
+
+pub(super) fn default_data_dir() -> PathBuf {
+    if let Some(path) = non_empty_env_path("A4N_DATA_DIR") {
+        return resolve_portable_path(path);
+    }
+    portable_home_dir().join("data")
+}
+pub(super) fn default_cache_dir() -> PathBuf {
+    default_data_dir().join("cache")
+}
+pub(super) fn default_temp_dir() -> PathBuf {
+    default_data_dir().join("tmp")
+}
+pub(super) fn default_log_dir() -> PathBuf {
+    default_data_dir().join("logs")
+}
+pub(super) fn default_database_url() -> String {
+    String::new()
+}
+pub(super) fn default_llm_provider() -> String {
+    "deepseek".into()
+}
+pub(super) fn default_llm_base_url() -> String {
+    "https://api.deepseek.com/v1".into()
+}
+pub(super) fn default_llm_model() -> String {
+    "deepseek-v4-flash".into()
+}
+pub(super) fn default_llm_max_concurrent() -> usize {
+    3
+}
+pub(super) fn default_llm_timeout_secs() -> u64 {
+    300
+}
+pub(super) fn default_llm_max_context_tokens() -> usize {
+    DEFAULT_LLM_MAX_CONTEXT_TOKENS
+}
+pub(super) fn default_llm_max_output_tokens() -> usize {
+    DEFAULT_LLM_MAX_OUTPUT_TOKENS
+}
+pub(super) fn default_retry_times() -> u32 {
+    2
+}
+pub(super) fn default_embedding_backend() -> String {
+    "local_hash".into()
+}
+pub(super) fn default_embedding_base_url() -> String {
+    String::new()
+}
+pub(super) fn default_embedding_model() -> String {
+    "local-sha256-hash".into()
+}
+pub(super) fn default_embedding_dim() -> usize {
+    384
+}
+pub(super) fn default_embedding_batch_size() -> usize {
+    100
+}
+pub(super) fn default_image_backend() -> String {
+    "openai-compatible-image".into()
+}
+pub(super) fn default_image_model() -> String {
+    "dall-e-3".into()
+}
+pub(super) fn default_image_max_concurrent() -> usize {
+    2
+}
+pub(super) fn default_image_width() -> u32 {
+    1024
+}
+pub(super) fn default_image_height() -> u32 {
+    1024
+}
+pub(super) fn default_queue_capacity() -> usize {
+    100
+}
+pub(super) fn default_event_bus_capacity() -> usize {
+    1024
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            database_url: default_database_url(),
+            data_dir: default_data_dir(),
+            cache_dir: default_cache_dir(),
+            temp_dir: default_temp_dir(),
+            log_dir: default_log_dir(),
+            llm: LlmConfig::default(),
+            embedding: EmbeddingConfig::default(),
+            image_gen: ImageGenConfig::default(),
+            security: SecurityConfig::default(),
+            system: SystemConfig::default(),
+        }
+    }
+}
+
+impl Default for LlmConfig {
+    fn default() -> Self {
+        Self {
+            primary_provider: default_llm_provider(),
+            base_url: default_llm_base_url(),
+            api_key: None,
+            model: default_llm_model(),
+            max_concurrent: default_llm_max_concurrent(),
+            timeout_secs: default_llm_timeout_secs(),
+            max_context_tokens: default_llm_max_context_tokens(),
+            max_output_tokens: default_llm_max_output_tokens(),
+            request_options_json: None,
+            retry_times: default_retry_times(),
+            max_tokens: LlmMaxTokensConfig::default(),
+        }
+    }
+}
+
+impl Default for EmbeddingConfig {
+    fn default() -> Self {
+        Self {
+            backend: default_embedding_backend(),
+            base_url: default_embedding_base_url(),
+            api_key: None,
+            model: default_embedding_model(),
+            dimension: default_embedding_dim(),
+            batch_size: default_embedding_batch_size(),
+            local_model_path: None,
+        }
+    }
+}
+
+impl Default for ImageGenConfig {
+    fn default() -> Self {
+        Self {
+            backend: default_image_backend(),
+            base_url: None,
+            api_key: None,
+            model: default_image_model(),
+            max_concurrent: default_image_max_concurrent(),
+            default_width: default_image_width(),
+            default_height: default_image_height(),
+        }
+    }
+}
+
+impl Default for SystemConfig {
+    fn default() -> Self {
+        Self {
+            queue_capacity: default_queue_capacity(),
+            event_bus_capacity: default_event_bus_capacity(),
+        }
+    }
+}

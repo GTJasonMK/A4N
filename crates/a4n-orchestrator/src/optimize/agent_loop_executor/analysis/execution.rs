@@ -1,0 +1,179 @@
+use super::super::{
+    AGENT_LOOP_RUNAWAY_GUARD_STEPS, AgentLoopAction, AgentLoopDecisionRequest,
+    AgentLoopThinkObservationInput, AppError, EVENT_KIND_ERROR, EVENT_STATUS_FAILED,
+    ExplicitAnalysisAgentLoopInput, FailedAgentLoopToolInput, OrchestratorContext,
+    execute_optimization_runtime_tool, optimization_session, report_optimize_progress,
+    runtime_tool_reads_current_chapter, tool_observation,
+};
+
+impl OrchestratorContext {
+    pub(in crate::optimize) async fn run_explicit_analysis_agent_loop(
+        &self,
+        input: ExplicitAnalysisAgentLoopInput<'_, '_, '_>,
+    ) -> Result<optimization_session::Model, AppError> {
+        let ExplicitAnalysisAgentLoopInput {
+            turn_id,
+            session,
+            analysis_prompt,
+            base_user_message,
+            analysis_context,
+            workflow_run_id,
+            progress,
+            stream,
+        } = input;
+        self.save_agent_event(
+            session.id,
+            "启动显式 Agent Loop：由模型选择读取上下文、调用工具或输出 final。",
+        )
+        .await?;
+        if let Err(err) = report_optimize_progress(progress, 1, 5, "正在准备 Agent Loop") {
+            self.cancel_session(session.id).await?;
+            return Err(err);
+        }
+
+        let mut observations = Vec::new();
+        let mut has_read_current_chapter = false;
+        for step in 1..=AGENT_LOOP_RUNAWAY_GUARD_STEPS {
+            let phase = format!("内容优化 Agent Loop #{step}");
+            let progress_message = format!("正在等待 Agent 第 {step} 步决策");
+            let decision = self
+                .request_agent_loop_decision(
+                    turn_id,
+                    session.id,
+                    progress,
+                    stream,
+                    AgentLoopDecisionRequest {
+                        project_id: session.project_id,
+                        workflow: "content_optimization_agent_loop",
+                        phase: &phase,
+                        system_prompt: &analysis_prompt,
+                        base_user_message: &base_user_message,
+                        observations: &observations,
+                        step,
+                        build_error_label: "Agent Loop",
+                        request_event_label: "Agent Loop",
+                        llm_error_label: "LLM Agent Loop",
+                        parse_error_label: "Agent Loop",
+                        progress_current: 2,
+                        progress_total: 5,
+                        progress_message: &progress_message,
+                        release_operation: Some("内容优化 Agent Loop"),
+                        cancel_session_on_progress_error: true,
+                        workflow_run_id,
+                    },
+                )
+                .await?;
+            let decision_event = match decision.action {
+                AgentLoopAction::Think | AgentLoopAction::RunTool => format!(
+                    "Agent 第 {step} 步：{}；动作：{}。",
+                    decision.public_update_for_non_final()?,
+                    decision.action.as_str()
+                ),
+                AgentLoopAction::Final => format!("Agent 第 {step} 步：final。"),
+            };
+            self.save_agent_event(session.id, &decision_event).await?;
+
+            match decision.action {
+                AgentLoopAction::Think => {
+                    observations.push(
+                        self.record_agent_loop_think_observation(AgentLoopThinkObservationInput {
+                            turn_id,
+                            session_id: session.id,
+                            step,
+                            decision: &decision,
+                            think_event_prefix: "Agent 思考",
+                            error_context: "Agent Loop",
+                            release_operation: Some("内容优化 Agent Loop"),
+                        })
+                        .await?,
+                    );
+                }
+                AgentLoopAction::RunTool => {
+                    let (tool_name, tool_arguments) = self
+                        .prepare_agent_loop_tool_call(
+                            turn_id,
+                            session.id,
+                            step,
+                            &decision,
+                            "Agent Loop",
+                            Some("内容优化 Agent Loop"),
+                        )
+                        .await?;
+                    let result = match execute_optimization_runtime_tool(
+                        &tool_name,
+                        tool_arguments.clone(),
+                        &analysis_context,
+                        session.id,
+                        session.project_id,
+                        session.chapter_id,
+                    ) {
+                        Ok(result) => result,
+                        Err(err) => {
+                            observations.push(
+                                self.record_failed_agent_loop_tool(FailedAgentLoopToolInput {
+                                    turn_id,
+                                    session_id: session.id,
+                                    step,
+                                    tool_name: &tool_name,
+                                    tool_arguments,
+                                    err: &err,
+                                    tool_event_prefix: "",
+                                })
+                                .await?,
+                            );
+                            continue;
+                        }
+                    };
+                    if runtime_tool_reads_current_chapter(&tool_name, &tool_arguments) {
+                        has_read_current_chapter = true;
+                    }
+                    let observation = tool_observation(
+                        step,
+                        &AgentLoopAction::RunTool,
+                        &tool_name,
+                        tool_arguments,
+                        result,
+                    );
+                    self.record_successful_agent_loop_tool(
+                        turn_id,
+                        session.id,
+                        step,
+                        &tool_name,
+                        &observation,
+                        "",
+                    )
+                    .await?;
+                    observations.push(observation);
+                }
+                AgentLoopAction::Final => {
+                    return self
+                        .finish_explicit_analysis_agent_loop(
+                            session,
+                            decision.arguments,
+                            &analysis_context,
+                            has_read_current_chapter,
+                            progress,
+                        )
+                        .await;
+                }
+            }
+        }
+
+        let err = AppError::InvalidArgument(
+            "内容优化 Agent Loop 未收敛：模型持续请求新动作但没有返回 final".to_string(),
+        );
+        self.append_turn_event(
+            turn_id,
+            EVENT_KIND_ERROR,
+            EVENT_STATUS_FAILED,
+            &err.to_string(),
+            None,
+        )
+        .await?;
+        self.save_agent_event(session.id, &format!("Agent Loop 未完成：{err}"))
+            .await?;
+        self.release_in_progress_session_after_failure(session.id, "内容优化 Agent Loop", &err)
+            .await?;
+        Err(err)
+    }
+}

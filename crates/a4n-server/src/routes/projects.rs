@@ -2,8 +2,8 @@ use super::auth::authenticated_user;
 use super::error::ApiError;
 use crate::state::ServerState;
 use a4n_core::models::project::novel_project;
-use a4n_runtime::actions::project_records as project_records_actions;
-use a4n_runtime::actions::project_records::{
+use a4n_runtime::host_api::project_records as project_records_actions;
+use a4n_runtime::host_api::project_records::{
     CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
     PaginatedProjects, ProjectSummary, SourceSnapshotChapterSummary,
 };
@@ -30,7 +30,7 @@ pub(super) async fn list_projects(
     let page = positive_or_default(query.page, 1, "page")?;
     let page_size = positive_or_default(query.page_size, 20, "page_size")?;
     let projects = project_records_actions::list_projects(
-        &state,
+        state.runtime(),
         user.id,
         page,
         page_size,
@@ -50,7 +50,7 @@ pub async fn create_project(
     Json(input): Json<CreateProjectInput>,
 ) -> Result<Json<ProjectSummary>, ApiError> {
     let user = authenticated_user(&state, &headers).await?;
-    let project = project_records_actions::create_project(&state, user.id, input)
+    let project = project_records_actions::create_project(state.runtime(), user.id, input)
         .await
         .map_err(ApiError::bad_request)?;
     Ok(Json(project))
@@ -62,7 +62,7 @@ pub async fn create_derived_project(
     Json(input): Json<CreateDerivedProjectInput>,
 ) -> Result<Json<ProjectSummary>, ApiError> {
     let user = authenticated_user(&state, &headers).await?;
-    let project = project_records_actions::create_derived_project(&state, user.id, input)
+    let project = project_records_actions::create_derived_project(state.runtime(), user.id, input)
         .await
         .map_err(ApiError::bad_request)?;
     Ok(Json(project))
@@ -74,9 +74,10 @@ pub async fn create_freeform_video_project(
     Json(input): Json<CreateFreeformVideoProjectInput>,
 ) -> Result<Json<ProjectSummary>, ApiError> {
     let user = authenticated_user(&state, &headers).await?;
-    let project = project_records_actions::create_freeform_video_project(&state, user.id, input)
-        .await
-        .map_err(ApiError::bad_request)?;
+    let project =
+        project_records_actions::create_freeform_video_project(state.runtime(), user.id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
     Ok(Json(project))
 }
 
@@ -86,9 +87,10 @@ pub async fn get_project(
     Path(project_id): Path<i64>,
 ) -> Result<Json<ProjectSummary>, ApiError> {
     let user = authenticated_user(&state, &headers).await?;
-    let project = project_records_actions::get_project_summary(&state, user.id, project_id)
-        .await
-        .map_err(ApiError::bad_request)?;
+    let project =
+        project_records_actions::get_project_summary(state.runtime(), user.id, project_id)
+            .await
+            .map_err(ApiError::bad_request)?;
     Ok(Json(project))
 }
 
@@ -98,10 +100,13 @@ pub async fn list_source_snapshot_chapters(
     Path(project_id): Path<i64>,
 ) -> Result<Json<Vec<SourceSnapshotChapterSummary>>, ApiError> {
     let user = authenticated_user(&state, &headers).await?;
-    let chapters =
-        project_records_actions::list_source_snapshot_chapters(&state, user.id, project_id)
-            .await
-            .map_err(ApiError::bad_request)?;
+    let chapters = project_records_actions::list_source_snapshot_chapters(
+        state.runtime(),
+        user.id,
+        project_id,
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
     Ok(Json(chapters))
 }
 
@@ -118,7 +123,7 @@ pub(crate) async fn project_summary_with_family_for_user(
     user_id: i64,
     project: &novel_project::Model,
 ) -> Result<ProjectSummary, ApiError> {
-    project_records_actions::project_summary_with_family_for_user(state, user_id, project)
+    project_records_actions::project_summary_with_family_for_user(state.runtime(), user_id, project)
         .await
         .map_err(ApiError::bad_request)
 }

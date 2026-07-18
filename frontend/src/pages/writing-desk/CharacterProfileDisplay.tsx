@@ -5,6 +5,7 @@ import {
   characterAttributeValueText,
 } from "../../utils/characterAttributes";
 import { nonEmptyText } from "../../utils/text";
+import { attributeKeyLabel } from "../character-detail-dialog/manageViewUtils";
 
 export const describeProfile = (profile: CharacterProfile): string | null =>
   nonEmptyText(profile.personality) ??
@@ -21,6 +22,7 @@ const compactValue = (value: unknown): string | null => {
     if (parts.length === 0) return null;
     return `${parts.join("、")}${value.length > 4 ? ` 等 ${value.length} 项` : ""}`;
   }
+  if (typeof value === "object") return null;
   return nonEmptyText(characterAttributeValueText(value));
 };
 
@@ -35,12 +37,10 @@ export const ProfileField: React.FC<{ label: string; value: string | null }> = (
   if (!text) return null;
 
   return (
-    <section className="a4n-page-surface p-3">
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-book-text-muted">
-        {label}
-      </div>
-      <div className="whitespace-pre-wrap leading-relaxed text-book-text-sub">{text}</div>
-    </section>
+    <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-2 leading-relaxed">
+      <dt className="text-book-text-muted">{label}</dt>
+      <dd className="whitespace-pre-wrap text-book-text-sub">{text}</dd>
+    </div>
   );
 };
 
@@ -60,29 +60,25 @@ export const AttributePreview: React.FC<{
   if (visibleEntries.length === 0) return null;
 
   return (
-    <section className="a4n-page-surface p-3 md:col-span-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-book-text-muted">
-          {label}
-        </div>
-        <span className="pyqt-pill !text-[10px]">{visibleEntries.length} 项</span>
-      </div>
-      <div className="grid gap-1.5 md:grid-cols-2">
+    <section className="px-3 py-3 sm:px-4">
+      <h3 className="mb-2 text-[11px] font-semibold text-book-text-main">{label}</h3>
+      <ul className="divide-y divide-book-border/35">
         {visibleEntries.slice(0, 6).map(({ key, text }) => (
-          <button
-            type="button"
-            key={key}
-            onClick={() => onOpenHistory(category, key)}
-            className="a4n-interactive-row px-2 py-1.5 text-left"
-            title="查看该属性的事件溯源"
-          >
-            <div className="truncate font-medium text-book-text-main">{key}</div>
-            <div className="mt-0.5 line-clamp-2 leading-relaxed text-book-text-muted">
-              {clampText(text)}
-            </div>
-          </button>
+          <li key={key}>
+            <button
+              type="button"
+              onClick={() => onOpenHistory(category, key)}
+              className="flex w-full flex-col gap-1 py-2 text-left transition-colors hover:text-book-primary sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+              title="查看该属性的事件溯源"
+            >
+              <span className="font-medium text-book-text-main">{attributeKeyLabel(key)}</span>
+              <span className="line-clamp-2 min-w-0 leading-relaxed text-book-text-muted sm:max-w-[70%] sm:text-right">
+                {clampText(text)}
+              </span>
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
       {visibleEntries.length > 6 && (
         <div className="mt-2 text-[10px] text-book-text-muted">
           另有 {visibleEntries.length - 6} 项，进入深度详情查看完整状态和溯源。
@@ -99,7 +95,7 @@ export const ProfileTextarea: React.FC<{
   placeholder: string;
   onChange: (value: string) => void;
 }> = ({ label, value, disabled, placeholder, onChange }) => (
-  <label className="col-span-2 flex flex-col gap-1.5">
+  <label className="flex flex-col gap-1.5 sm:col-span-2">
     <span className="text-xs text-book-text-sub">{label}</span>
     <textarea
       value={value}

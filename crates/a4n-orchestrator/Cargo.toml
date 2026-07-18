@@ -1,0 +1,48 @@
+[package]
+name = "a4n-orchestrator"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+embedded-media-providers = ["dep:a4n-image-providers", "dep:a4n-video-providers"]
+
+[dependencies]
+a4n-capabilities = { path = "../a4n-capabilities" }
+a4n-core = { path = "../a4n-core" }
+a4n-db = { path = "../a4n-db" }
+a4n-domain = { path = "../a4n-domain" }
+a4n-service-manager = { path = "../a4n-service-manager" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+a4n-llm = { path = "../a4n-llm" }
+a4n-prompt = { path = "../a4n-prompt" }
+a4n-queue = { path = "../a4n-queue" }
+a4n-embedding = { path = "../a4n-embedding" }
+a4n-rag-core = { path = "../a4n-rag-core" }
+a4n-image = { path = "../a4n-image" }
+a4n-image-providers = { path = "../a4n-image-providers", optional = true }
+a4n-video = { path = "../a4n-video" }
+a4n-video-providers = { path = "../a4n-video-providers", optional = true }
+
+anyhow = { workspace = true }
+dashmap = { workspace = true }
+chrono = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = { workspace = true }
+jsonschema = { workspace = true }
+sha2 = { workspace = true }
+regex = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+[dev-dependencies]
+a4n-migration = { path = "../a4n-migration" }
+a4n-prompt = { path = "../a4n-prompt", features = ["test-support"] }
+a4n-test-support = { path = "../a4n-test-support" }

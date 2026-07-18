@@ -66,6 +66,8 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
     () => profiles.find((profile) => profile.id === profileId) ?? null,
     [profileId, profiles],
   );
+  const canSubmit =
+    selectedProfile != null && file != null && prompt.trim().length > 0;
 
   useEffect(() => {
     setProfileId((current) => {
@@ -157,10 +159,38 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
   };
 
   return (
-    <Modal isOpen onClose={onClose} title="上传角色立绘" maxWidthClassName="max-w-2xl">
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="上传角色立绘"
+      subtitle="将本地图片添加到角色档案"
+      icon={<Upload size={15} />}
+      maxWidthClassName="max-w-2xl"
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
+      showCloseButton={!busy}
+      footer={
+        <BookButton
+          variant="primary"
+          size="sm"
+          onClick={handleSubmit}
+          disabled={busy || !canSubmit}
+          className="w-full !text-xs sm:ml-auto sm:w-auto"
+        >
+          {busy ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Loader2 size={12} className="animate-spin" />
+              上传中…
+            </span>
+          ) : (
+            "上传立绘"
+          )}
+        </BookButton>
+      }
+    >
       <div className="space-y-3 text-sm">
         {profiles.length === 0 ? (
-          <div className="rounded border border-book-border/50 bg-book-bg-paper/45 px-3 py-2 text-xs text-book-text-muted">
+          <div className="rounded-[12px] border border-book-border/50 bg-book-bg-paper/45 px-3 py-3 text-xs leading-relaxed text-book-text-muted">
             当前项目还没有角色档案，需先创建或同步角色档案后再上传立绘。
           </div>
         ) : null}
@@ -199,7 +229,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
 
         <label
           className={[
-            "flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed border-book-border/70 bg-book-bg-paper/45 p-3 text-center text-xs text-book-text-muted transition-colors hover:border-book-primary/70",
+            "flex min-h-[168px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-book-border/70 bg-book-bg-paper/35 p-3 text-center text-xs text-book-text-muted transition-[border-color,background-color,transform] duration-150 ease-out hover:border-book-primary/55 hover:bg-book-bg-paper/60 active:scale-[0.995]",
             busy ? "pointer-events-none opacity-60" : "",
           ].join(" ")}
         >
@@ -207,7 +237,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
             <img
               src={previewUrl}
               alt=""
-              className="max-h-56 max-w-full rounded border border-book-border/50 object-contain"
+              className="max-h-56 max-w-full rounded-[12px] border border-book-border/50 object-contain"
             />
           ) : (
             <>
@@ -215,7 +245,11 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
               <span>选择 PNG/JPEG/WebP 本地图片作为最终角色立绘</span>
             </>
           )}
-          {file ? <span className="font-mono text-[10px]">{file.name}</span> : null}
+          {file ? (
+            <span className="max-w-full truncate text-[11px] text-book-text-sub">
+              已选择：{file.name}
+            </span>
+          ) : null}
           <input
             type="file"
             accept={supportedImageAccept()}
@@ -244,46 +278,44 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
             value={expression}
             disabled={busy}
             onChange={(event) => setExpression(event.target.value)}
-            placeholder="如：neutral / 微笑 / 严肃"
+            placeholder="如：自然、微笑、严肃"
           />
           <BookInput
             label="姿态（可空）"
             value={pose}
             disabled={busy}
             onChange={(event) => setPose(event.target.value)}
-            placeholder="如：standing / 半身正面"
+            placeholder="如：自然站立、半身正面"
           />
         </div>
 
-        <label className="inline-flex items-center gap-2 text-xs text-book-text-muted">
-          <input
-            type="checkbox"
-            checked={setPrimary}
-            disabled={busy}
-            onChange={(event) => setSetPrimary(event.target.checked)}
-          />
-          设为该角色主图
-        </label>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <BookButton variant="secondary" onClick={onClose} disabled={busy}>
-            取消
-          </BookButton>
-          <BookButton
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={busy || profiles.length === 0}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={setPrimary}
+          disabled={busy}
+          onClick={() => setSetPrimary((current) => !current)}
+          className="flex w-full items-center justify-between gap-3 rounded-[12px] border border-book-border/50 bg-book-bg-paper/35 px-3 py-2.5 text-left transition-colors hover:bg-book-bg-paper/60 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-medium text-book-text-main">设为角色主图</span>
+            <span className="mt-0.5 block text-[11px] leading-relaxed text-book-text-muted">
+              在立绘列表和角色详情中优先展示
+            </span>
+          </span>
+          <span
+            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+              setPrimary ? "bg-book-primary" : "bg-book-text-muted/25"
+            }`}
+            aria-hidden="true"
           >
-            {busy ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Loader2 size={12} className="animate-spin" />
-                上传中…
-              </span>
-            ) : (
-              "上传立绘"
-            )}
-          </BookButton>
-        </div>
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                setPrimary ? "translate-x-[22px]" : "translate-x-0.5"
+              }`}
+            />
+          </span>
+        </button>
       </div>
     </Modal>
   );

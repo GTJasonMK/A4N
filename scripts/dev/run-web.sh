@@ -7,6 +7,9 @@ source "$SCRIPT_DIR/../lib/common.sh"
 cd "$PROJECT_ROOT"
 
 CHECK_ONLY=false
+FULL_HOST=false
+AUTO_START_SIDECARS=true
+SIDECAR_MODULES="prompt,llm,embedding,rag,image,video,import,export"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -14,11 +17,21 @@ while [[ $# -gt 0 ]]; do
       CHECK_ONLY=true
       shift
       ;;
+    --full|--embedded)
+      FULL_HOST=true
+      shift
+      ;;
+    --no-services)
+      AUTO_START_SIDECARS=false
+      shift
+      ;;
     --help|-h)
       cat <<'EOF'
 用法:
   ./scripts/dev/run-web.sh          # 构建前端并启动 a4n-server
   ./scripts/dev/run-web.sh --check  # 只检查 Web 服务必需环境变量
+  ./scripts/dev/run-web.sh --full   # 使用 embedded/full host
+  ./scripts/dev/run-web.sh --no-services # sidecar profile 下不自动启动 sidecar
   ./scripts/dev/run-web.sh --help   # 显示帮助
 
 必需环境变量:
@@ -71,4 +84,17 @@ cd frontend
 npm run build
 cd "$PROJECT_ROOT"
 
-exec cargo run -p a4n-server
+guard_build_cache
+
+if $FULL_HOST; then
+  require_onnxruntime
+  export A4N_RUNTIME_PROFILE="${A4N_RUNTIME_PROFILE:-full}"
+  exec cargo run -p a4n-server --features embedded-capabilities
+fi
+
+export A4N_RUNTIME_PROFILE="${A4N_RUNTIME_PROFILE:-sidecar}"
+if $AUTO_START_SIDECARS; then
+  log_section "启动 Sidecar 服务"
+  "$PROJECT_ROOT/scripts/dev/run-services.sh" "$SIDECAR_MODULES"
+fi
+exec cargo run -p a4n-server --no-default-features

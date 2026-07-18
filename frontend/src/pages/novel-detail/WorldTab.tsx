@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { BookCard } from "../../components/ui/BookCard";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { getBlueprint, updateWorldSetting, type Blueprint } from "../../api/blueprint";
@@ -30,7 +29,6 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
   const [jsonDraft, setJsonDraft] = useState("{}");
   const [textDraft, setTextDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showJsonView, setShowJsonView] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
   const activeProjectIdRef = useRef(projectId);
@@ -52,6 +50,13 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
     () => (isRecord(normalizedWorld) ? normalizedWorld : null),
     [normalizedWorld],
   );
+  const hasWorldContent = useMemo(() => {
+    if (normalizedWorld === null || normalizedWorld === undefined) return false;
+    if (typeof normalizedWorld === "string") return normalizedWorld.trim().length > 0;
+    if (Array.isArray(normalizedWorld)) return normalizedWorld.length > 0;
+    if (isRecord(normalizedWorld)) return Object.keys(normalizedWorld).length > 0;
+    return true;
+  }, [normalizedWorld]);
 
   const load = useCallback(async () => {
     const requestProjectId = projectId;
@@ -66,7 +71,6 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
         | { world_setting?: unknown; blueprint_data?: { world_setting?: unknown } }
         | null;
       setWorldValue(raw?.world_setting ?? raw?.blueprint_data?.world_setting ?? null);
-      setShowJsonView(false);
     } catch (err) {
       if (!isCurrentLoad(requestProjectId, requestSeq)) return;
       setBlueprint(null);
@@ -89,7 +93,6 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
     setSaving(false);
     saveBusyRef.current = false;
     setDetailOpen(false);
-    setShowJsonView(false);
   }, [projectId]);
 
   useEffect(() => {
@@ -159,6 +162,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
   const displayBlueprint = loadedProjectId === projectId ? blueprint : null;
   const displayNormalizedWorld = loadedProjectId === projectId ? normalizedWorld : null;
   const displayWorldObject = loadedProjectId === projectId ? worldObject : null;
+  const displayHasWorldContent = loadedProjectId === projectId && hasWorldContent;
   const displayLoading = loading || loadedProjectId !== projectId;
 
   if (displayLoading) {
@@ -170,20 +174,22 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
   }
 
   return (
-    <div className="content-main">
-      <BookCard className="p-5">
-        <WorldPanelHeader
-          editing={editing}
-          saving={saving}
-          canEdit={Boolean(displayBlueprint) && canEditWorld}
-          worldObject={displayWorldObject}
-          onStartEdit={handleStartEdit}
-          onCancelEdit={() => setEditing(false)}
-          onSave={handleSave}
-          onOpenDetail={() => setDetailOpen(true)}
-        />
+    <div className="content-main space-y-3">
+      {editing ? (
+        <section className="a4n-flat-surface p-4 sm:p-5">
+          <WorldPanelHeader
+            editing
+            saving={saving}
+            canEdit={Boolean(displayBlueprint) && canEditWorld}
+            hasBlueprint={Boolean(displayBlueprint)}
+            hasWorldContent={displayHasWorldContent}
+            worldObject={displayWorldObject}
+            onStartEdit={handleStartEdit}
+            onCancelEdit={() => setEditing(false)}
+            onSave={handleSave}
+            onOpenDetail={() => setDetailOpen(true)}
+          />
 
-        {editing ? (
           <WorldEditor
             editMode={editMode}
             jsonDraft={jsonDraft}
@@ -193,21 +199,34 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
             onJsonDraftChange={setJsonDraft}
             onTextDraftChange={setTextDraft}
           />
-        ) : (
+        </section>
+      ) : (
+        <>
+          <WorldPanelHeader
+            editing={false}
+            saving={saving}
+            canEdit={Boolean(displayBlueprint) && canEditWorld}
+            hasBlueprint={Boolean(displayBlueprint)}
+            hasWorldContent={displayHasWorldContent}
+            worldObject={displayWorldObject}
+            onStartEdit={handleStartEdit}
+            onCancelEdit={() => setEditing(false)}
+            onSave={handleSave}
+            onOpenDetail={() => setDetailOpen(true)}
+          />
           <WorldReadPanel
             hasBlueprint={Boolean(displayBlueprint)}
+            hasWorldContent={displayHasWorldContent}
             normalizedWorld={displayNormalizedWorld}
             worldObject={displayWorldObject}
           />
-        )}
-      </BookCard>
+        </>
+      )}
 
       <WorldDetailModal
         open={detailOpen}
         worldObject={displayWorldObject}
-        showJsonView={showJsonView}
         onClose={() => setDetailOpen(false)}
-        onToggleJsonView={() => setShowJsonView((value) => !value)}
       />
     </div>
   );

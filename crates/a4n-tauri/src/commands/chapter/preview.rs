@@ -1,6 +1,6 @@
 use crate::commands::request_preview::ModelRequestPreview;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::chapter_generation::{
+use a4n_runtime::host_api::chapter_generation::{
     self, FinishChapterGenerationRagContextInput, PreviewChapterPromptInput,
 };
 use tauri::State;

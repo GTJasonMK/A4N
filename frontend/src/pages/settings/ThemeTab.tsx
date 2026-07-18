@@ -15,10 +15,9 @@ export const ThemeTab: React.FC = () => {
   const themeTab = useThemeTabController();
 
   return (
-    <div className="h-full flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
+    <div className="custom-scrollbar flex h-auto flex-col gap-4 overflow-visible md:h-full md:overflow-y-auto md:pr-2">
       <ThemeListSection
         themes={themeTab.themes}
-        defaultTheme={themeTab.defaultTheme}
         scope={themeTab.scope}
         loading={themeTab.loading}
         hasUser={themeTab.hasUser}
@@ -27,6 +26,8 @@ export const ThemeTab: React.FC = () => {
         exportingId={themeTab.exportingId}
         renamingId={themeTab.renamingId}
         renameValue={themeTab.renameValue}
+        renameSaving={themeTab.renameSaving}
+        mutationBusy={themeTab.mutationBusy}
         onScopeChange={themeTab.setScope}
         onRefresh={themeTab.refresh}
         onRenameInput={themeTab.setRenameValue}
@@ -43,6 +44,7 @@ export const ThemeTab: React.FC = () => {
         name={themeTab.newName}
         mode={themeTab.newMode}
         creating={themeTab.creating}
+        disabled={themeTab.mutationBusy}
         onNameChange={themeTab.setNewName}
         onModeChange={themeTab.setNewMode}
         onCreate={themeTab.handleCreate}
@@ -51,6 +53,7 @@ export const ThemeTab: React.FC = () => {
       <SingleThemeImportPanel
         importText={themeTab.importText}
         importing={themeTab.importing}
+        disabled={themeTab.mutationBusy}
         onImportTextChange={themeTab.setImportText}
         onImport={themeTab.handleImport}
       />

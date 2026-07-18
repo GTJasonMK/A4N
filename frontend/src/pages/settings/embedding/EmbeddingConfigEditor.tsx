@@ -5,6 +5,7 @@ import type {
 } from "../../../api/config";
 import { BookInput } from "../../../components/ui/BookInput";
 import { FormField } from "../ConfigListPanel";
+import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { FastembedModelPanel } from "./FastembedModelPanel";
 import {
   BACKEND_LABELS,
@@ -157,7 +158,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
     )}
 
     {form.backend === "api" && (
-      <FormField label="API Base URL">
+      <FormField label="接口地址">
         <BookInput
           value={form.api_base_url}
           onChange={(e) => setForm({ ...form, api_base_url: e.target.value })}
@@ -167,54 +168,54 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
     )}
 
     {form.backend === "api" && (
-      <FormField label="API Key">
-        <BookInput
-          type="password"
-          value={form.api_key}
-          onChange={(e) =>
-            setForm({ ...form, api_key: e.target.value, clear_api_key: false })
-          }
-          autoComplete="off"
-          disabled={apiKeyInputDisabled}
-        />
+      <>
+        <FormField label="访问密钥">
+          <BookInput
+            type="password"
+            value={form.api_key}
+            onChange={(e) =>
+              setForm({ ...form, api_key: e.target.value, clear_api_key: false })
+            }
+            autoComplete="off"
+            disabled={apiKeyInputDisabled}
+          />
+        </FormField>
         {form.has_api_key ? (
-          <label className="mt-2 flex items-center gap-2 text-xs text-book-text-muted">
-            <input
-              type="checkbox"
-              checked={form.clear_api_key}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  api_key: event.target.checked ? "" : form.api_key,
-                  clear_api_key: event.target.checked,
-                })
-              }
-            />
-            清空已保存 API Key
-          </label>
+          <ClearSavedApiKeySwitch
+            checked={form.clear_api_key}
+            onChange={(checked) =>
+              setForm({
+                ...form,
+                api_key: checked ? "" : form.api_key,
+                clear_api_key: checked,
+              })
+            }
+          />
         ) : null}
-      </FormField>
+      </>
     )}
 
-    <FormField label="向量维度" required hint="必须与模型输出维度一致">
-      <BookInput
-        type="number"
-        min={32}
-        max={8192}
-        value={String(form.dimension)}
-        disabled={form.backend === "fastembed"}
-        onChange={(e) => setForm({ ...form, dimension: Number(e.target.value) })}
-      />
-    </FormField>
-    <FormField label="批量大小" required>
-      <BookInput
-        type="number"
-        min={1}
-        max={2048}
-        value={String(form.batch_size)}
-        onChange={(e) => setForm({ ...form, batch_size: Number(e.target.value) })}
-      />
-    </FormField>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <FormField label="向量维度" required hint="必须与模型输出维度一致">
+        <BookInput
+          type="number"
+          min={32}
+          max={8192}
+          value={String(form.dimension)}
+          disabled={form.backend === "fastembed"}
+          onChange={(e) => setForm({ ...form, dimension: Number(e.target.value) })}
+        />
+      </FormField>
+      <FormField label="批量大小" required>
+        <BookInput
+          type="number"
+          min={1}
+          max={2048}
+          value={String(form.batch_size)}
+          onChange={(e) => setForm({ ...form, batch_size: Number(e.target.value) })}
+        />
+      </FormField>
+    </div>
     </>
   );
 };

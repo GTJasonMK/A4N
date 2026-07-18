@@ -106,17 +106,12 @@ const promptPreviewOverride = (
 });
 
 const VIDEO_PROMPT_STAGE_BY_TYPE: Record<string, number> = {
-  frame_shot_analysis: 1,
-  first_frame_shot_analysis: 1,
-  chat_video_shot_analysis: 1,
-  frame_segment_plan: 2,
-  first_frame_segment_plan: 2,
-  chat_video_segment_plan: 2,
-  frame_prompt: 3,
-  first_frame_prompt: 3,
-  chat_video_frame_prompt: 3,
-  storyboard_prompt: 3,
-  video_prompt: 4,
+  frame_segment_plan: 1,
+  frame_prompt: 2,
+  first_frame_prompt: 2,
+  chat_video_frame_prompt: 2,
+  storyboard_prompt: 2,
+  video_prompt: 3,
 };
 
 const videoPromptStage = (prompt: ChapterVideoPrompt): number | null =>
@@ -124,8 +119,7 @@ const videoPromptStage = (prompt: ChapterVideoPrompt): number | null =>
 
 const promptIsSharedVideoUpstream = (prompt: ChapterVideoPrompt): boolean =>
   videoWorkflowModeOfPrompt(prompt) === "boundary_frames" &&
-  (prompt.prompt_type === "frame_shot_analysis" ||
-    prompt.prompt_type === "frame_segment_plan");
+  prompt.prompt_type === "frame_segment_plan";
 
 const promptSameGenerationChain = (
   left: ChapterVideoPrompt,
@@ -342,7 +336,7 @@ export function useVideoRecordActions({
   );
   const invalidReferenceIdsMessage =
     invalidReferenceIds.length > 0
-      ? `当前草稿参考图包含不可用图片 ID：${invalidReferenceIds.join(", ")}，请先清除后再保存或预览`
+      ? `当前草稿中有 ${invalidReferenceIds.length} 张参考图已不可用，请先清除后再保存或预览`
       : null;
 
   const videoPromptGenerateBlockedReason = (
@@ -1186,7 +1180,7 @@ export function useVideoRecordActions({
       const ok = await confirmDialog({
         title: "清空视频链路",
         message:
-          "清空当前章节所有视频链路记录？这会删除镜头分析、片段规划、帧提示词和视频提示词。",
+          "清空当前章节所有视频链路记录？这会删除片段规划、帧提示词和视频提示词，但不会删除正文页的结构化拍摄剧本。",
         confirmText: "清空",
         dialogType: "danger",
       });
@@ -1253,7 +1247,7 @@ export function useVideoRecordActions({
       const ok = await confirmDialog({
         title: "删除所有帧提示词",
         message:
-          "删除当前章节所有边界帧/首帧提示词？镜头分析和片段规划会保留。",
+          "删除当前章节所有边界帧/首帧提示词？片段规划和正文页的结构化拍摄剧本会保留。",
         confirmText: "删除全部",
         dialogType: "danger",
       });

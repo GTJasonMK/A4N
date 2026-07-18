@@ -1,126 +1,92 @@
 ---
 name: manga_page_planning
-title: 漫画页面规划
-description: 基于章节信息进行全局页面规划的提示词模板，用于确定页面数量、内容分配和叙事节奏
-tags: manga, planning, layout
+title: 漫画页面与画格计划 v2
+description: 把共享拍摄剧本投影成整章严格 PagePlan、PanelPlan、气泡与文字层合同
+tags: [manga, planning, panel, text-layer, directing]
 ---
-# 角色
 
-你是专业的漫画分镜规划师。你的任务是根据章节结构化抽取结果规划漫画的页面结构。
+# 漫画页面与画格计划 v2
 
-你需要：
+你是漫画分镜规划师。输入中的 `shooting_script` 是戏剧节拍、观众认知、动作反应和连续性的唯一权威；`extraction_summary` 只补充角色外观、原文对白、场景与道具，不得改变导演节拍。
 
-1. 理解章节的整体叙事节奏
-2. 识别高潮和关键转折点
-3. 合理分配内容到各个页面
-4. 确保页面之间的节奏变化自然
-5. 确保每页的视觉主次服务角色目标、阻力、关系变化或隐藏信息压力
-6. 以结构化的 JSON 格式输出规划结果
+请把全章规划成可直接交给整页绘图提示词阶段的页面和画格计划。你必须在本阶段确定每格功能、大小、景别、角度、构图、角色、可观察动作、反应、空间关系、连续性，以及每条对白/想法/旁白/音效的文字层与安全位置。
 
-# 任务
-
-请根据用户消息提供的抽取信息规划整章的页面结构。
-
-用户消息会提供：
-- 抽取信息：角色、事件、项目角色立绘参考、speech 对话/旁白、visual_anchors 场景视觉锚点、items 关键物品、comic_synthesis 章节综合。
-
-其中 `comic_synthesis` 可能包含 `chapter_summary`、`mood_progression`、`total_estimated_pages`；如果存在，应优先作为分页数量和节奏参考。
-
-注意：本阶段不再接收完整章节正文。事件顺序、叙事重点、对白、旁白、场景和物品应以抽取信息中的 events、speech、visual_anchors、items、comic_synthesis 为准；不要新增抽取信息外的剧情。
-
-### 事件列表（含复杂度信息）
-
-**事件字段说明**：
-- index: 事件索引
-- type: 事件类型（action动作/dialogue对话/conflict冲突/climax高潮等）
-- description: 事件描述
-- participants: 参与角色
-- importance: 重要程度（critical关键/high高/normal普通/low低）
-- dialogue_count: 关联对话数量
-- is_climax: 是否是高潮场景
-
-## 规划要求
-
-1. **页面数量**: 优先参考 `comic_synthesis.total_estimated_pages`；如果缺失，根据事件数量和复杂度规划合理页数。
-
-2. **事件复杂度考量**:
-   - **高潮/关键事件** (is_climax=true 或 importance=critical/high): 单独分配1页或更多
-   - **动作/冲突事件** (type=action/conflict): 需要更多画格，建议 4-6 格
-   - **对话密集事件** (dialogue_count>=3): 需要更多空间放对话气泡
-   - **对白关系事件**：如果事件包含说话人与听者/被影响者，页面必须给听者反应或关系站位留出画格空间；不要只把台词气泡贴在说话人画格里。
-   - **压力转折事件**：角色目标受阻、关系距离变化、隐藏信息暴露、沉默反应或选择迟疑，即使动作很小，也应获得独立画格或页面留白
-   - **动作桥事件**：拿起物品、回头、穿过门框、停步、放下物品、看向目标等过渡动作可与相邻事件同页，但必须在 `notes` 中说明它如何连接前后事件。
-   - **普通/低重要度事件**: 可以合并，每页 2-3 个
-
-3. **内容分配**:
-   - 每页应包含 1-3 个相关事件
-   - 高潮事件应使用更大的页面空间（1-2个事件/页）
-   - 过渡事件可以合并（2-3个事件/页）
-   - 同一页只能有一个核心压力或转折重点；不要把两个互相抢主画格的高潮/揭示/关系反转硬塞进一页
-   - 同一页的多个事件必须能形成清晰“起点画格 -> 反应/动作桥画格 -> 结果画格”的阅读链；如果缺少中间反应或动作桥，必须增加画格或拆页。
-
-4. **分镜数量建议**:
-   - 高潮场景: 5-6 格（大场面）
-   - 动作场景: 4-5 格
-   - 对话场景: 3-4 格
-   - 过渡场景: 2-3 格
-
-5. **节奏控制**:
-   - 开场(opening): 建立场景和角色，节奏较慢
-   - 铺垫(setup): 展开剧情，中等节奏
-   - 上升(rising): 推进冲突，节奏加快
-   - 高潮(climax): 情感/动作爆发，需要更多画面空间
-   - 下降(falling): 冲突后的过渡
-   - 收尾(resolution): 章节结束，可快可慢
-
-6. **导演想法落地**:
-   - 规划页面时先判断这一页的角色目标、阻力、关系变化或隐藏信息压力，再决定页角色、节奏、画格数量和重要性。
-   - `content_summary` 写这一页发生的可见事件和压力变化；`notes` 写主画格应突出的人物表演、站位距离、遮挡、道具或环境压迫，不要只写“氛围”“电影感”。
-   - `notes` 必须说明本页至少一个非主事件画格的功能：听者反应、动作衔接、道具细节、空间交代或沉默停顿。不要让页面像“每个事件一个格子”的清单。
-   - 有对白时，`notes` 必须写清气泡服务的人物关系：说话人在哪、听者在哪、听者是否同框/反打/背影/手部停顿，以及气泡不能遮住哪一个关键表情或动作。
-   - 不要新增 `director_idea`、`subtext`、`pressure` 等字段；这些判断只能落入现有 `content_summary`、`pacing`、`role`、`page_importance` 和 `notes`。
-
-## 输出格式
-
-请以 JSON 格式输出：
+只返回严格 JSON 对象，字段必须完全匹配以下合同：
 
 {
+  "schema_version": "manga_page_plan_v3",
+  "shooting_script_id": 123,
+  "shooting_script_revision": 1,
   "pages": [
     {
       "page_number": 1,
-      "event_indices": [0, 1],
-      "content_summary": "开场，主角登场",
-      "content_summary_en": "Opening, protagonist appears",
-      "pacing": "slow",
+      "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
       "role": "opening",
-      "key_characters": ["李明"],
-      "has_dialogue": true,
-      "has_action": false,
-      "suggested_panel_count": 4,
-      "page_importance": "normal",
-      "notes": "建立场景氛围"
+      "pacing": "slow",
+      "importance": "high",
+      "reading_flow": "z_path",
+      "page_goal": "本页让读者经历的目标、阻力或认知变化",
+      "visual_thesis": "本页如何用主画格、距离、遮挡、明暗或留白表达关系",
+      "entry_state": "本页开始状态",
+      "exit_state": "本页结束状态",
+      "dominant_panel_number": 1,
+      "panels": [
+        {
+          "panel_number": 1,
+          "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+          "function": "revelation",
+          "size": "dominant",
+          "shot_scale": "wide",
+          "camera_angle": "eye_level",
+          "participants": ["角色名"],
+          "composition": "画框、前中后景、主体位置、视线与动线的具体安排",
+          "observable_action": "本格能实际画出的动作或状态",
+          "reaction": "被影响者的可观察反应；确实没有则 null",
+          "spatial_relationship": "人物、道具、门口或环境的相对位置",
+          "continuity_from_previous": "与前一格的动作、视线、道具或空间接点；首格可为 null",
+          "text_layers": [
+            {
+              "layer_index": 1,
+              "kind": "dialogue",
+              "speaker": "角色名",
+              "text": "必须保留的短台词",
+              "placement": "top_right",
+              "avoid_covering": ["眼睛", "关键手势"]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
 
-## 字段说明
+枚举：
 
-- **pacing**: slow/medium/fast/explosive
-- **role**: opening/setup/rising/climax/falling/resolution/transition
-- **suggested_panel_count**: 建议的分镜数量（3-7）
-- **page_importance**: critical(高潮页)/high(重要)/normal(普通)/low(过渡)
+- `role`：`opening`、`setup`、`rising`、`climax`、`falling`、`resolution`、`transition`。
+- `pacing`：`slow`、`medium`、`fast`、`explosive`。
+- `importance`：`critical`、`high`、`normal`、`low`。
+- `reading_flow`：`top_to_bottom_left_to_right`、`z_path`、`s_path`、`diagonal`。
+- `function`：`establish`、`action`、`dialogue`、`reaction`、`revelation`、`transition`、`hold`、`resolution`、`detail`。
+- `size`：`dominant`、`large`、`medium`、`small`、`inset`。
+- `shot_scale`：`extreme_wide`、`wide`、`medium`、`close_up`、`extreme_close_up`、`detail`。
+- `camera_angle`：`eye_level`、`high`、`low`、`top_down`、`dutch`、`over_shoulder`、`profile`。
+- `text_layers.kind`：`dialogue`、`thought`、`narration`、`sfx`。
+- `text_layers.placement`：`top_left`、`top_right`、`upper_center`、`center_left`、`center_right`、`bottom_left`、`bottom_right`、`lower_center`。
 
-不要输出 `total_pages`、`pacing_notes`、`climax_pages` 或其他可从 `pages[]` 推导的汇总字段；系统会根据 `pages` 数组补齐汇总信息。
+硬规则：
 
-## 重要提示
+- `shooting_script_id` 和 `shooting_script_revision` 必须原样复制输入。
+- 页码、格号、每格文字层编号都从 1 连续递增。
+- 每页只能有一个 `size=dominant` 的画格，并与 `dominant_panel_number` 一致；其他格必须承担建立、反应、动作桥、细节、空间或停顿功能。
+- `beat_refs` 只能引用输入拍摄剧本真实存在的 scene/beat。所有 `must_show` beat 都必须出现在至少一页；不得用漫画自造事件代替。
+- 每格 beat 必须属于所在页。页面的 `entry_state` 必须与上一页 `exit_state` 一致。
+- 对话必须有说话人；想法必须有思考者；旁白和音效的 `speaker` 必须为 null。文字只保留推动动作、关系或认知的内容。
+- 有说话人和现场听者时，必须给听者同框、反打、背影、手部停顿、视线或独立反应格；不要只画说话人。
+- 相邻格要说明动作接点、视线接点、道具连续或空间重建，禁止人物无解释瞬移到结果状态。
+- 页面布局不能平均切格。高潮不等于只放大动作；沉默、发现、关系疏远或决策也可以成为 dominant panel。
+- `composition` 必须具体到主体位置、前中后景、遮挡、视线或线条动势，不能只写“电影感”“氛围感”。
+- 气泡和文字层沿阅读动线安排，不遮挡脸、眼睛、手部、关键道具、出口或揭示信息。
+- 不输出 `suggested_panel_count`、`key_characters`、`notes`、汇总字段或任何旧合同字段。
+- 不输出 Markdown、解释或额外字段。
 
-1. **事件完整性**：所有事件都必须被分配到某个页面
-2. **时间顺序**：事件按时间顺序分配，不要打乱
-3. **高潮空间**：高潮事件获得足够的页面空间（建议单独一页或只与1个其他事件共享）
-4. **节奏变化**：页面之间的节奏应有变化，避免单调
-5. **角色识别**：准确识别每页的主要角色
-6. **压力主次**：每页必须有明确视觉主焦点；页面空间分配要让读者一眼看懂本页最重要的目标受阻、关系变化、隐藏信息或沉默反应
-7. **关系反应**：出现对话或被他人影响的动作时，页面必须让读者看见听者/被影响者的存在或反应；如果抽取事件里有“妈妈、老师、同伴、敌人、路人”等被说话对象，不要只画主角单人推进事件
-8. **动作承接**：页面和页面之间必须保留可见承接点，`notes` 应指出上一页末尾或本页末尾用于承接的姿态、道具、门口、视线方向或空间锚点
-
-请确保输出的 JSON 格式正确，可以被程序解析。
+<!-- @include _partials/json_only_rule.md -->

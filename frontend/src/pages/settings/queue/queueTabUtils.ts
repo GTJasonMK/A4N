@@ -15,8 +15,20 @@ export const taskProgressDisplay = (task: TaskInfo): ProgressDisplayModel => {
   return progressDisplayModel({
     current: 0,
     total: 1,
-    message: task.created_at ?? "",
+    message: formatTaskCreatedAt(task.created_at),
     status: task.status === "cancelled" ? "cancelled" : "idle",
     fallbackStage: task.created_at == null ? "暂无进度" : "任务已创建",
+  });
+};
+
+const formatTaskCreatedAt = (value: string | null): string => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString([], {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };

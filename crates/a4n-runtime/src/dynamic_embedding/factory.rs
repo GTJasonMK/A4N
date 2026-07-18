@@ -1,0 +1,132 @@
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use a4n_core::error::AppError;
+use a4n_core::models::ai::embedding_config;
+use a4n_embedding::http::HttpEmbeddingProvider;
+use a4n_embedding::local::LocalEmbeddingProvider;
+use a4n_embedding::provider::EmbeddingProvider;
+#[cfg(feature = "local-embedding")]
+use a4n_embedding_fastembed::FastEmbedProvider;
+
+use super::contracts::{
+    ResolvedEmbeddingConfig, SupportedEmbeddingBackend, positive_usize, required_text,
+    resolve_fastembed_cache_dir,
+};
+
+pub fn make_provider_from_model(
+    model: &embedding_config::Model,
+    default_fastembed_cache_dir: PathBuf,
+) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
+    let dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
+    let batch_size = positive_usize(model.batch_size, "批量大小", &model.name)?;
+    let fastembed_cache_dir = resolve_fastembed_cache_dir(
+        model.local_model_path.as_deref(),
+        default_fastembed_cache_dir,
+    );
+    make_provider(ResolvedEmbeddingConfig {
+        name: model.name.clone(),
+        backend: model.backend.clone(),
+        base_url: model.base_url.clone(),
+        api_key: model.api_key_encrypted.clone(),
+        model: model.model.clone(),
+        dimension,
+        batch_size,
+        fastembed_cache_dir,
+    })
+}
+
+pub(super) fn make_provider_from_default_model(
+    model: Option<embedding_config::Model>,
+    default_fastembed_cache_dir: PathBuf,
+) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
+    let model = model.ok_or_else(missing_default_embedding_config_error)?;
+    make_provider_from_model(&model, default_fastembed_cache_dir)
+}
+
+fn make_provider(config: ResolvedEmbeddingConfig) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
+    let backend = SupportedEmbeddingBackend::parse(&config.backend).ok_or_else(|| {
+        AppError::ConfigError(format!(
+            "嵌入配置 {} 使用不支持的后端: {}",
+            config.name, config.backend
+        ))
+    })?;
+    let model = required_text(&config.model, "模型名", &config.name)?;
+
+    match backend {
+        SupportedEmbeddingBackend::Api => {
+            let base_url = required_text(
+                config.base_url.as_deref().unwrap_or(""),
+                "API Base URL",
+                &config.name,
+            )?;
+            Ok(Arc::new(HttpEmbeddingProvider::new_with_batch(
+                normalize_api_base_url(base_url),
+                model,
+                config.dimension,
+                config.api_key,
+                config.batch_size,
+            )))
+        }
+        SupportedEmbeddingBackend::LocalHash => {
+            Ok(Arc::new(LocalEmbeddingProvider::new(config.dimension)))
+        }
+        SupportedEmbeddingBackend::FastEmbed => make_fastembed_provider(
+            &config.name,
+            model,
+            config.dimension,
+            config.batch_size,
+            config.fastembed_cache_dir,
+        ),
+    }
+}
+
+#[cfg(feature = "local-embedding")]
+fn make_fastembed_provider(
+    config_name: &str,
+    model: String,
+    dimension: usize,
+    batch_size: usize,
+    cache_dir: PathBuf,
+) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
+    let provider = FastEmbedProvider::try_new(&model, batch_size, cache_dir)?;
+    if provider.dimension() != dimension {
+        return Err(AppError::ConfigError(format!(
+            "嵌入配置 {} 的向量维度为 {}，但 fastembed 模型 {} 实际输出 {} 维",
+            config_name,
+            dimension,
+            provider.model_name(),
+            provider.dimension()
+        )));
+    }
+    Ok(Arc::new(provider))
+}
+
+#[cfg(not(feature = "local-embedding"))]
+fn make_fastembed_provider(
+    config_name: &str,
+    _model: String,
+    _dimension: usize,
+    _batch_size: usize,
+    _cache_dir: PathBuf,
+) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
+    Err(AppError::ConfigError(format!(
+        "嵌入配置 {config_name} 使用 fastembed，但当前 runtime 未启用 local-embedding；请使用 embedding sidecar 或启用该 feature"
+    )))
+}
+
+fn normalize_api_base_url(base_url: String) -> String {
+    let trimmed = base_url.trim_end_matches('/').to_string();
+    let lower = trimmed.to_ascii_lowercase();
+    let looks_like_ollama = lower.contains("localhost:11434")
+        || lower.contains("127.0.0.1:11434")
+        || lower.contains(":11434");
+    if looks_like_ollama && !trimmed.ends_with("/v1") {
+        return format!("{trimmed}/v1");
+    }
+    trimmed
+}
+
+fn missing_default_embedding_config_error() -> AppError {
+    AppError::ConfigError("请先设置默认 Embedding 配置".to_string())
+}

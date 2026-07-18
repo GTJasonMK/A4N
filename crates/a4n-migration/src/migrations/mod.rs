@@ -2,7 +2,10 @@
 
 pub mod canvas_assemble_clip_order;
 pub mod canvas_assemble_edge_role;
+pub mod chapter_shooting_script;
 pub mod chapter_video_prompt_language_identity;
+pub mod cleanup_outbox;
+pub mod directing_workflow_v2;
 pub mod freeform_canonical_media;
 pub mod freeform_generation_context;
 pub mod galgame_generation_spec_contract;
@@ -26,7 +29,10 @@ pub mod object_profile_usage_fields;
 pub mod postgres_baseline;
 pub mod project_collaboration;
 pub mod shared_video_segment_plan;
+pub mod shooting_script_narrative_units;
+pub mod shooting_script_staged_generation;
 pub mod user_default_ai_config;
 pub mod video_canvas_workflow;
+pub mod video_execution_contract_v5_reset;
 pub mod workflow_checkpoint_fingerprint_repair;
 pub mod workflow_runs;

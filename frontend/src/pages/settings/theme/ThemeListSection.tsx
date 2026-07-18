@@ -1,12 +1,12 @@
 import React from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { type Theme } from "../../../api/theme";
+import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { ThemeCard } from "./ThemeCard";
 import { type ThemeScope } from "./types";
 
 interface ThemeListSectionProps {
   themes: Theme[];
-  defaultTheme: Theme | null;
   scope: ThemeScope;
   loading: boolean;
   hasUser: boolean;
@@ -15,6 +15,8 @@ interface ThemeListSectionProps {
   exportingId: number | null;
   renamingId: number | null;
   renameValue: string;
+  renameSaving: boolean;
+  mutationBusy: boolean;
   onScopeChange: (scope: ThemeScope) => void;
   onRefresh: () => void;
   onRenameInput: (value: string) => void;
@@ -29,7 +31,6 @@ interface ThemeListSectionProps {
 
 export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
   themes,
-  defaultTheme,
   scope,
   loading,
   hasUser,
@@ -38,6 +39,8 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
   exportingId,
   renamingId,
   renameValue,
+  renameSaving,
+  mutationBusy,
   onScopeChange,
   onRefresh,
   onRenameInput,
@@ -50,65 +53,53 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
   onViewCss,
 }) => (
   <div>
-    <div className="flex items-center justify-between mb-3">
-      <h3 className="text-sm font-serif text-book-text-main">主题列表</h3>
-      <div className="inline-flex items-center gap-2">
-        <div className="inline-flex pyqt-tab text-xs">
-          <button
-            type="button"
-            data-active={scope === "all" ? "1" : undefined}
-            onClick={() => onScopeChange("all")}
-          >
-            全部
-          </button>
-          <button
-            type="button"
-            data-active={scope === "user" ? "1" : undefined}
-            onClick={() => onScopeChange("user")}
-            disabled={!hasUser}
-          >
-            我的
-          </button>
-        </div>
-        <span className="pyqt-pill">{themes.length} 个</span>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={loading}
-          className="pyqt-btn-secondary !min-h-9 !px-2 text-xs sm:!min-h-[28px]"
-          title="刷新"
-        >
-          <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
-        </button>
-      </div>
+    <div className="mb-3 flex min-w-0 items-center gap-2">
+      <SegmentedControl
+        ariaLabel="主题范围"
+        value={scope}
+        onChange={onScopeChange}
+        options={[
+          { id: "all", label: "全部", disabled: mutationBusy },
+          { id: "user", label: "我的", disabled: !hasUser || mutationBusy },
+        ]}
+      />
+      <span className="min-w-0 flex-1 truncate text-[11px] text-book-text-muted">
+        {loading ? "正在更新…" : `${themes.length} 个主题`}
+      </span>
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={loading || mutationBusy}
+        className="pyqt-btn-icon !h-8 !w-8 shrink-0"
+        title="刷新主题"
+        aria-label="刷新主题"
+      >
+        <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+      </button>
     </div>
-
-    {defaultTheme && (
-      <div className="text-[11px] text-book-text-muted mb-2">
-        系统默认主题：<span className="font-mono">{defaultTheme.name}</span>（{defaultTheme.mode}）
-      </div>
-    )}
 
     {loading && themes.length === 0 ? (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
         <Loader2 size={12} className="animate-spin" /> 加载主题…
       </div>
     ) : themes.length === 0 ? (
-      <div className="pyqt-card p-6 text-center text-xs text-book-text-muted">
+      <div className="a4n-empty-state a4n-empty-state--framed text-xs">
         尚未配置任何主题。下方可创建第一个主题。
       </div>
     ) : (
-      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <ul className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
         {themes.map((theme) => (
           <ThemeCard
             key={theme.id}
             theme={theme}
             activating={activatingId === theme.id}
-            activateDisabled={activatingId != null}
+            activateDisabled={mutationBusy}
             deleting={deletingId === theme.id}
             exporting={exportingId === theme.id}
             renaming={renamingId === theme.id}
             renameValue={renameValue}
+            renameSaving={renameSaving && renamingId === theme.id}
+            mutationBusy={mutationBusy}
             onRenameInput={onRenameInput}
             onRenameStart={() => onRenameStart(theme)}
             onRenameConfirm={onRenameConfirm}

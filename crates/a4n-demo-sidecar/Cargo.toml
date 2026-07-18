@@ -1,0 +1,12 @@
+[package]
+name = "a4n-demo-sidecar"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-sidecar-bootstrap = { path = "../a4n-sidecar-bootstrap" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+
+anyhow = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }

@@ -1,5 +1,5 @@
 use a4n_core::config::app_config::LlmMaxTokensConfig;
-use a4n_runtime::actions::config_records::{
+use a4n_runtime::host_api::config_records::{
     self as config_records_actions, CreateLlmInput, LlmConfigSummary, ModelDiscoveryInput,
     ModelDiscoveryResult, ModelRequestPreview, UpdateLlmInput,
 };

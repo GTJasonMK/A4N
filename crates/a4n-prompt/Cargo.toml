@@ -1,0 +1,28 @@
+[package]
+name = "a4n-prompt"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+test-support = []
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+a4n-llm = { path = "../a4n-llm" }
+
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+parking_lot = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+similar = { workspace = true }
+tera = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

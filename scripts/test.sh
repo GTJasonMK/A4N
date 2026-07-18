@@ -70,6 +70,9 @@ done
 # —— 前置检查 ——
 check_prerequisites() {
     require_command cargo
+    if [[ -z "$TARGET_CRATE" || "$TARGET_CRATE" =~ ^a4n-(embedding-fastembed|embedding-service|runtime|server|tauri)$ ]]; then
+        require_onnxruntime
+    fi
 }
 
 # —— 获取所有 crate 列表 ——
@@ -97,6 +100,7 @@ run_tests() {
     echo ""
 
     check_prerequisites
+    guard_build_cache
 
     # 构建测试标志
     local test_flags=""

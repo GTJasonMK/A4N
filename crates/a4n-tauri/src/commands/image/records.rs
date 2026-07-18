@@ -1,10 +1,10 @@
 use a4n_runtime::AppState;
-use a4n_runtime::actions::image_generation::GeneratedImageSummary;
-use a4n_runtime::actions::image_records::{
+use a4n_runtime::host_api::image_generation::GeneratedImageSummary;
+use a4n_runtime::host_api::image_records::{
     self as image_records_actions, ListImagesByChapterInput, ListVideoReferenceImagesInput,
     UpdateGeneratedImageInput, UploadImageInput,
 };
-use a4n_runtime::actions::profile_materials::{
+use a4n_runtime::host_api::profile_materials::{
     self as profile_materials_actions, ListProfileMaterialsInput, ProfileMaterialGroup,
     SetProfilePrimaryMaterialInput, UploadProfileMaterialImageInput,
 };

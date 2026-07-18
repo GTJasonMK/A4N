@@ -1,22 +1,30 @@
 import React from "react";
-import { Search } from "lucide-react";
 import { RagQuickPanel } from "./RagQuickPanel";
 
 interface RagQueryPanelProps {
   projectId: number;
   chapterNumber: number | null;
+  embeddedInModal?: boolean;
 }
 
+/** 写作桌资料检索右栏。 */
 export const RagQueryPanel: React.FC<RagQueryPanelProps> = ({
   projectId,
   chapterNumber,
+  embeddedInModal = false,
 }) => (
-  <aside className="flex h-full min-w-0 flex-col overflow-hidden border-l border-book-border bg-book-bg-paper/40 p-2">
-    <h3 className="text-xs font-semibold text-book-text-sub uppercase tracking-wider mb-2 px-1">
-      <Search size={11} className="inline mr-1" />
-      RAG 查询
-    </h3>
-    <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+  <aside
+    aria-label="资料检索"
+    className={embeddedInModal
+      ? "flex h-full min-w-0 flex-col overflow-hidden"
+      : "a4n-desk-rail flex h-full min-w-0 flex-col overflow-hidden border-l border-book-border/80 !p-0"}
+  >
+    {!embeddedInModal ? (
+      <div className="shrink-0 border-b border-book-border/60 px-3 py-2 text-[11px] text-book-text-muted">
+        {chapterNumber != null ? `检索第 ${chapterNumber} 章相关资料` : "检索项目资料库"}
+      </div>
+    ) : null}
+    <div className="min-h-0 flex-1 overflow-y-auto p-2.5 custom-scrollbar">
       <RagQuickPanel projectId={projectId} chapterNumber={chapterNumber} />
     </div>
   </aside>

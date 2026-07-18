@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Copy, RefreshCw } from "lucide-react";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
-import { BookInput } from "../../../components/ui/BookInput";
+import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { useToast } from "../../../components/feedback/Toast";
 import { extractErrorMessage } from "../../../api";
 import { getLogDir, readRecentLogs, setLogLevel } from "../../../api/logs";
@@ -179,7 +179,7 @@ export const LogsTab: React.FC = () => {
 
   if (!canReadDiagnostics) {
     return (
-      <div className="pyqt-card p-3 text-sm text-book-text-muted">
+      <div className="border-l-2 border-book-border/70 py-2 pl-4 text-sm text-book-text-muted">
         服务器诊断仅管理员可查看。
       </div>
     );
@@ -187,54 +187,54 @@ export const LogsTab: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full gap-3 min-h-0">
-      <div className="flex items-center gap-1 border-b border-book-border">
-        <button
-          type="button"
-          onClick={() => setActiveTab("analytics")}
-          className={`px-3 py-2 text-sm border-b-2 transition-colors ${
-            activeTab === "analytics"
-              ? "border-info text-book-text-main font-medium"
-              : "border-transparent text-book-text-muted hover:text-book-text-main"
-          }`}
-        >
-          生成调用分析
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("logs")}
-          className={`px-3 py-2 text-sm border-b-2 transition-colors ${
-            activeTab === "logs"
-              ? "border-info text-book-text-main font-medium"
-              : "border-transparent text-book-text-muted hover:text-book-text-main"
-          }`}
-        >
-          运行日志
-        </button>
+      <div className="shrink-0">
+        <SegmentedControl
+          ariaLabel="诊断视图"
+          value={activeTab}
+          onChange={setActiveTab}
+          options={[
+            { id: "analytics" as const, label: "生成调用分析" },
+            { id: "logs" as const, label: "运行日志" },
+          ]}
+        />
       </div>
 
       {activeTab === "analytics" ? (
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+        <div
+          id="diagnostics-panel-analytics"
+          className="custom-scrollbar min-h-0 overflow-visible md:flex-1 md:overflow-y-auto md:pr-1"
+          role="tabpanel"
+          aria-label="生成调用分析"
+        >
           <GenerationCallAnalyticsPanel />
         </div>
       ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-book-text-muted">行数</span>
+        <div
+          id="diagnostics-panel-logs"
+          className="flex min-h-0 flex-1 flex-col gap-3"
+          role="tabpanel"
+          aria-label="运行日志"
+        >
+          <div className="flex min-h-8 flex-wrap items-center gap-2 text-xs">
+            <span className="text-book-text-muted">读取范围</span>
             <select
+              id="log-lines"
+              aria-label="日志行数"
               value={lines}
               onChange={(e) => setLines(Number(e.target.value))}
-              className="pyqt-input py-1 px-2 w-24"
+              className="pyqt-input w-28 px-2 py-1"
             >
-              <option value={100}>100</option>
-              <option value={500}>500</option>
-              <option value={2000}>2000</option>
-              <option value={10000}>10000</option>
+              <option value={100}>最近 100 行</option>
+              <option value={500}>最近 500 行</option>
+              <option value={2000}>最近 2,000 行</option>
+              <option value={10000}>最近 10,000 行</option>
             </select>
-            <span className="text-book-text-muted ml-2">日期</span>
             <select
+              id="log-days"
+              aria-label="日志日期"
               value={daysAgo}
               onChange={(e) => setDaysAgo(Number(e.target.value))}
-              className="pyqt-input py-1 px-2 w-28"
+              className="pyqt-input w-24 px-2 py-1"
             >
               <option value={0}>今天</option>
               <option value={1}>昨天</option>
@@ -242,57 +242,66 @@ export const LogsTab: React.FC = () => {
               <option value={3}>3 天前</option>
               <option value={7}>7 天前</option>
             </select>
-            <BookIconButton
-              label="刷新"
-              variant="secondary"
-              size="sm"
-              onClick={refresh}
-              disabled={loading}
-            >
+            {result ? (
+              <span className="text-book-text-muted sm:ml-auto">
+                已显示 {result.returned_lines.toLocaleString()} / {result.total_lines.toLocaleString()} 行
+              </span>
+            ) : (
+              <span className="flex-1" />
+            )}
+            <BookIconButton label="刷新日志" size="sm" onClick={refresh} disabled={loading}>
               <RefreshCw
                 size={14}
                 className={loading ? "animate-spin" : undefined}
               />
             </BookIconButton>
-            <div className="flex-1" />
-            <BookInput
-              value={filterInput}
-              onChange={(e) => setFilterInput(e.target.value)}
-              placeholder="过滤：info / debug / a4n=trace,warn"
-              className="!w-72 text-xs"
-            />
-            <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={handleApplyFilter}
-              disabled={applyingFilter}
-            >
-              {applyingFilter ? "应用中…" : "应用级别"}
-            </BookButton>
           </div>
 
-          <div className="text-xs text-book-text-muted flex items-center gap-2 break-all">
-            <span className="font-mono">
-              {logPathText(result?.file_path, logDir)}
-            </span>
-            {result && (
-              <span className="pyqt-pill">
-                {result.returned_lines}/{result.total_lines} 行
+          <details className="group border-y border-book-border/35 text-xs">
+            <summary className="w-fit cursor-pointer py-2 text-book-text-muted transition-colors hover:text-book-text-main">
+              日志级别
+            </summary>
+            <div className="flex flex-wrap items-center gap-2 pb-2">
+              <input
+                aria-label="日志过滤级别"
+                value={filterInput}
+                onChange={(e) => setFilterInput(e.target.value)}
+                placeholder="过滤：info / debug / a4n=trace,warn"
+                className="pyqt-input w-full text-xs sm:w-72"
+              />
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={handleApplyFilter}
+                disabled={applyingFilter}
+              >
+                {applyingFilter ? "应用中…" : "应用级别"}
+              </BookButton>
+            </div>
+          </details>
+
+          <details className="text-xs text-book-text-muted">
+            <summary className="w-fit cursor-pointer transition-colors hover:text-book-text-main">
+              日志位置
+            </summary>
+            <div className="mt-2 flex flex-wrap items-center gap-2 break-all border-l border-book-border/40 pl-2.5">
+              <span className="font-mono">
+                {logPathText(result?.file_path, logDir)}
               </span>
-            )}
-            <BookIconButton
-              label="复制路径"
-              variant="ghost"
-              size="sm"
-              onClick={handleCopyPath}
-              disabled={!logDir}
-            >
-              <Copy size={12} />
-            </BookIconButton>
-            {copied && <span className="text-success">已复制</span>}
-          </div>
+              <BookIconButton
+                label="复制路径"
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyPath}
+                disabled={!logDir}
+              >
+                <Copy size={12} />
+              </BookIconButton>
+              {copied && <span className="text-success">已复制</span>}
+            </div>
+          </details>
 
-          <div className="flex-1 min-h-0 pyqt-card p-3 overflow-y-auto custom-scrollbar font-mono text-[11px] leading-relaxed bg-book-bg-tertiary/40">
+          <div className="a4n-flat-surface flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar font-mono text-[11px] leading-relaxed bg-book-bg-tertiary/40">
             {!result ? (
               loading ? (
                 <div className="text-book-text-muted">加载中…</div>
@@ -315,7 +324,7 @@ export const LogsTab: React.FC = () => {
               </pre>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

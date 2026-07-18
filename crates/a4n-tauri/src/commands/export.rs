@@ -115,7 +115,7 @@ macro_rules! tauri_export_progress_command {
                     progress_task.progress(current, total, message)
                 };
                 let export_progress =
-                    a4n_runtime::actions::export_files::ExportProgress::new(
+                    a4n_runtime::host_api::export_files::ExportProgress::new(
                         Some(&reporter),
                         Some(&cancel_token),
                     );

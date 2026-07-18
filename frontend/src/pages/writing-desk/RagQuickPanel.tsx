@@ -21,6 +21,7 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
   const [queries, setQueries] = useState<RagEnhancedQuerySummary[]>([]);
   const [candidateCount, setCandidateCount] = useState(0);
   const [busy, setBusy] = useState(false);
+  const queryReady = query.trim().length > 0;
   const mountedRef = useRef(false);
   const activeScopeRef = useRef({ projectId, chapterNumber });
   const queryRef = useRef(query);
@@ -113,7 +114,7 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
           requestSeq,
         )
       ) {
-        addToast(extractErrorMessage(err, "RAG 查询失败"), "error");
+        addToast(extractErrorMessage(err, "资料检索失败"), "error");
       }
     } finally {
       if (
@@ -132,56 +133,74 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
 
   return (
     <div className="space-y-2">
-      <div className="text-[10px] text-book-text-muted">
-        {chapterNumber != null ? `当前章节：第 ${chapterNumber} 章` : "全项目检索"}
-      </div>
-      <textarea
-        value={query}
-        onChange={(e) => handleQueryChange(e.target.value)}
-        placeholder="输入查询文本，测试 RAG 检索效果…"
-        rows={3}
-        className="pyqt-input w-full text-xs resize-y"
-      />
-      <BookButton variant="primary" onClick={handleSearch} disabled={busy}>
-        {busy ? (
-          <span className="inline-flex items-center gap-1">
-            <Loader2 size={11} className="animate-spin" /> 查询中…
-        </span>
-      ) : (
-          "增强检索"
-      )}
-      </BookButton>
-      {results != null && (
-        <div className="border-t border-book-border/40 pt-2 mt-2 space-y-1.5">
-          <div className="text-[10px] text-book-text-muted">
-            找到 {results.length} 条 · 候选 {candidateCount} 条
-          </div>
-          {queries.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {queries.map((item) => (
-                <span
-                  key={`${item.kind}-${item.query}`}
-                  className="pyqt-pill max-w-full !text-[9px]"
-                  title={item.query}
-                >
-                  {formatQueryKind(item.kind)} · {item.weight.toFixed(2)}
-                </span>
-              ))}
-            </div>
-          )}
-          {results.length === 0 ? (
-            <div className="text-[11px] text-book-text-muted italic">无匹配结果</div>
+      <label className="block text-[11px] text-book-text-muted">
+        查询
+        <textarea
+          value={query}
+          onChange={(e) => handleQueryChange(e.target.value)}
+          placeholder="输入人物、事件或设定关键词…"
+          rows={2}
+          className="pyqt-input mt-1 w-full resize-y text-xs"
+        />
+      </label>
+      <div className="flex items-center gap-2">
+        {results != null ? (
+          <BookButton variant="ghost" size="sm" onClick={clearResults} disabled={busy}>
+            清除结果
+          </BookButton>
+        ) : null}
+        <BookButton
+          variant="primary"
+          size="sm"
+          className="ml-auto flex-1 sm:flex-none"
+          onClick={handleSearch}
+          disabled={busy || !queryReady}
+        >
+          {busy ? (
+            <span className="inline-flex items-center gap-1">
+              <Loader2 size={11} className="animate-spin" /> 查询中…
+            </span>
           ) : (
-            results.map((r) => (
-              <div key={r.id} className="a4n-stat-tile p-1.5 text-[11px]">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="font-mono text-[10px] text-book-text-muted">{r.id}</span>
-                  <span className="pyqt-pill !text-[9px]">综合 {r.score.toFixed(3)}</span>
-                </div>
-                <p className="text-book-text-sub line-clamp-3">{r.content}</p>
-              </div>
-            ))
+            "检索"
           )}
+        </BookButton>
+      </div>
+      {results != null && (
+        <div className="mt-2 space-y-2 border-t border-book-border/40 pt-2">
+          <div className="text-[10px] text-book-text-muted">{results.length} 条结果</div>
+          {results.length === 0 ? (
+            <div className="py-4 text-center text-[11px] text-book-text-muted">没有找到相关资料。</div>
+          ) : (
+            <ul className="grid grid-cols-1 gap-2">
+              {results.map((result, index) => (
+                <li key={result.id} className="a4n-flat-surface p-2.5 text-[11px]">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate font-medium text-book-text-main">
+                      {searchResultTitle(result, index)}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-book-text-muted">
+                      相关度 {result.score.toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="line-clamp-4 leading-relaxed text-book-text-sub">{result.content}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          {queries.length > 0 || candidateCount > 0 ? (
+            <details className="text-[10px] text-book-text-muted">
+              <summary className="w-fit cursor-pointer hover:text-book-text-main">检索范围</summary>
+              <div className="mt-1.5 space-y-1 border-l-2 border-book-border/60 pl-2">
+                {candidateCount > 0 ? <div>候选资料 {candidateCount} 条</div> : null}
+                {queries.map((item) => (
+                  <div key={`${item.kind}-${item.query}`} className="leading-relaxed">
+                    <span className="font-medium text-book-text-sub">{formatQueryKind(item.kind)}：</span>
+                    {item.query}
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
         </div>
       )}
     </div>
@@ -199,6 +218,21 @@ function formatQueryKind(kind: string): string {
     case "location":
       return "场景";
     default:
-      return kind;
+      return "其他查询";
   }
+}
+
+function searchResultTitle(result: RagSearchResult, index: number): string {
+  if (result.metadata && typeof result.metadata === "object" && !Array.isArray(result.metadata)) {
+    const metadata = result.metadata as Record<string, unknown>;
+    for (const key of ["title", "label", "name"]) {
+      const value = metadata[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    const chapterNumber = metadata.chapter_number;
+    if (typeof chapterNumber === "number" && Number.isFinite(chapterNumber)) {
+      return `第 ${chapterNumber} 章`;
+    }
+  }
+  return `结果 ${index + 1}`;
 }

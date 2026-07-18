@@ -66,7 +66,7 @@ export const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, select
   return (
     <div
       className={[
-        "a4n-studio-node group relative w-[190px] overflow-visible rounded-md border bg-book-bg-paper shadow-sm transition",
+        "a4n-studio-node group relative w-[200px] overflow-visible rounded-xl border bg-book-bg-paper shadow-[var(--shadow-card)] transition",
         meta.tone,
         selected ? "a4n-studio-node-selected" : "",
         data.state === "failed" || data.state === "missing" ? "a4n-studio-node-problem" : "",
@@ -103,10 +103,10 @@ export const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, select
           <Icon size={14} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[11px] font-medium text-book-text-main" title={nodeDisplayTitle(data)}>
+          <div className="truncate text-xs font-semibold text-book-text-main" title={nodeDisplayTitle(data)}>
             {nodeDisplayTitle(data)}
           </div>
-          <div className="truncate text-[9px] text-book-text-muted">
+          <div className="truncate text-[10px] text-book-text-muted">
             {contract ? studioCategoryLabel(contract.category) : "未知节点"}
           </div>
         </div>
@@ -130,17 +130,19 @@ export const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, select
       ) : videoPreview ? (
         <StudioNodeVideoPreview preview={videoPreview} />
       ) : (
-        <div className="flex min-h-[58px] flex-col justify-between gap-2 px-2 py-2">
-          <p className="line-clamp-2 text-[10px] leading-4 text-book-text-sub">{nodeBodyPreview(data)}</p>
-          <div className="flex items-center justify-between gap-2 text-[9px] text-book-text-muted">
-            <span className="truncate">{nodeSubtitle(data)}</span>
+        <div className="flex min-h-[58px] flex-col gap-2 px-2 py-2">
+          <p className="line-clamp-2 flex-1 text-[11px] leading-4 text-book-text-sub">
+            {nodeBodyPreview(data)}
+          </p>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-[10px] text-book-text-muted">
+            <span className="min-w-0 truncate">{nodeSubtitle(data)}</span>
             <span className="font-mono">{nodeDimensionLabel(data)}</span>
           </div>
         </div>
       )}
 
       {issues.length > 0 ? (
-        <div className="border-t border-amber-300/50 bg-amber-50 px-2 py-1 text-[9px] text-amber-800">
+        <div className="border-t border-warning/45 bg-warning-bg px-2 py-1 text-[10px] text-warning">
           <div className="flex items-center gap-1">
             <AlertTriangle size={10} />
             <span className="truncate" title={issues.join("；")}>
@@ -328,16 +330,45 @@ export function nodeDisplayTitle(data: StudioNodeData): string {
   return nodeKindMeta(data.nodeKind).label;
 }
 
+export function canvasDataTypeLabel(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  const labels: Record<string, string> = {
+    text: "文本",
+    image: "图片",
+    video: "视频",
+    audio: "音频",
+    media: "媒体",
+    json: "结构数据",
+    any: "任意内容",
+    canvas_text: "画布文本",
+    image_prompt: "图片提示词",
+    video_prompt: "视频提示词",
+    shot_script: "镜头脚本",
+    storyboard: "分镜",
+  };
+  return labels[normalized] ?? (normalized || "未知内容");
+}
+
+function canvasReferenceTypeLabel(value: string): string {
+  const labels: Record<string, string> = {
+    generated_image: "图片",
+    generated_video: "视频",
+    media_asset: "媒体",
+    canvas_text_asset: "文本",
+  };
+  return labels[value] ?? "资源";
+}
+
 function nodeSubtitle(data: StudioNodeData): string {
   const fileName = configText(data.config, "file_path").split("/").pop();
   if (fileName) return fileName;
   const dimension = nodeDimensionLabel(data);
   if (dimension !== "-") return dimension;
-  if (data.refType) return `${data.refType} #${data.refId ?? "-"}`;
+  if (data.refType) return `已绑定${canvasReferenceTypeLabel(data.refType)}`;
   const prompt = configText(data.config, "prompt").trim();
   if (prompt) return prompt;
   const observedType = configText(data.config, "observed_data_type").trim();
-  if (observedType) return `已观察：${observedType}`;
+  if (observedType) return `已观察：${canvasDataTypeLabel(observedType)}`;
   return nodeKindMeta(data.nodeKind).label;
 }
 

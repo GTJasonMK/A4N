@@ -1,47 +1,53 @@
 import React from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { BookIconButton } from "../../../components/ui/BookButton";
+import { configCreateLabel } from "./configText";
 
 interface ConfigListToolbarProps {
   title: string;
   itemCount: number;
   loading: boolean;
+  busy: boolean;
   onCreate: () => void;
   onRefresh: () => void | Promise<void>;
 }
 
+/** 配置列表工具条。 */
 export const ConfigListToolbar: React.FC<ConfigListToolbarProps> = ({
   title,
   itemCount,
   loading,
+  busy,
   onCreate,
   onRefresh,
 }) => {
+  const createLabel = configCreateLabel(title);
   return (
-    <div className="flex items-center gap-2">
+    <div className="a4n-flat-surface flex flex-wrap items-center gap-2 px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <h3 className="text-xs font-semibold text-book-text-main">{title}</h3>
+        <p className="mt-0.5 text-[11px] text-book-text-muted">
+          {itemCount > 0 ? `${itemCount} 项配置` : "尚未添加配置"}
+        </p>
+      </div>
       <button
         type="button"
         onClick={onCreate}
-        className="pyqt-btn-primary !min-h-[36px] !px-4 text-xs"
+        disabled={loading || busy}
+        className="pyqt-btn-primary !min-h-8 !px-3 text-xs"
       >
-        <span className="inline-flex items-center gap-1.5">
-          <Plus size={14} />
-          新增{title}
-        </span>
+        <Plus size={14} />
+        {createLabel}
       </button>
       <BookIconButton
         label="刷新"
         variant="secondary"
         size="sm"
         onClick={() => void onRefresh()}
-        disabled={loading}
+        disabled={loading || busy}
       >
         <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
       </BookIconButton>
-      <div className="flex-1" />
-      {itemCount > 0 && (
-        <span className="text-xs text-book-text-muted">共 {itemCount} 项</span>
-      )}
     </div>
   );
 };

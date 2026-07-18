@@ -23,7 +23,7 @@ export function OptimizeStreamPane({
       className="custom-scrollbar min-h-0 min-w-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-2 py-3"
     >
       {streamItems.length === 0 ? (
-        <div className="flex h-full min-h-[14rem] min-w-0 items-center justify-center rounded border border-dashed border-book-border bg-book-bg-paper/60 px-3 text-center text-xs text-book-text-sub">
+        <div className="flex h-full min-h-[14rem] min-w-0 items-center justify-center rounded-2xl border border-dashed border-book-border/70 bg-book-bg-paper/45 px-4 text-center text-xs leading-relaxed text-book-text-sub">
           输入优化要求后，用户消息和 Agent 回复会显示为对话气泡，过程信息会收进对应气泡。
         </div>
       ) : (

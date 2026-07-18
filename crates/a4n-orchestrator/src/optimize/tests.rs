@@ -1,0 +1,22 @@
+use super::messages::{
+    OptimizeIssue, build_content_optimization_chat_user_message,
+    build_content_optimization_patch_user_message, build_content_optimization_user_message,
+    is_content_optimization_analysis_prompt, materialize_optimization_issue_evidence,
+    optimization_chat_history, parse_content_optimization_issues, parse_optimization_issues,
+};
+use super::*;
+use a4n_core::error::AppError;
+use a4n_core::models::ai::{optimization_session, optimization_turn};
+use a4n_llm::provider::MessageRole;
+use a4n_prompt::engine::PromptEngine;
+use a4n_prompt::tera_engine::TeraPromptEngine;
+use chrono::Utc;
+use serde_json::json;
+use std::path::Path;
+
+mod message_contract;
+mod patch_flow;
+
+fn prompts_dir() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../prompts")
+}

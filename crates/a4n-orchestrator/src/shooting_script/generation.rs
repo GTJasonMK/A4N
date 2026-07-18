@@ -1,0 +1,71 @@
+mod design;
+mod screenplay;
+
+use a4n_core::error::AppError;
+use tokio_util::sync::CancellationToken;
+
+use crate::OrchestratorContext;
+
+use self::{design::generate_shooting_scenes, screenplay::generate_screenplay_plan};
+use super::{
+    assembly::assemble_chapter_shooting_script,
+    contracts::{
+        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, RegenerateChapterShootingScriptInput,
+        ResolvedChapterShootingScript, ShootingScriptProgressReporter,
+    },
+    screenplay::{validate_script_against_plan, validate_script_source_spans},
+};
+
+impl OrchestratorContext {
+    pub async fn regenerate_chapter_shooting_script_with_progress(
+        &self,
+        input: RegenerateChapterShootingScriptInput,
+        progress: ShootingScriptProgressReporter<'_>,
+        cancel_token: Option<&CancellationToken>,
+    ) -> Result<ResolvedChapterShootingScript, AppError> {
+        let workflow_run_id = input.workflow_run_id;
+        let progress_total = CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL;
+        progress(0, progress_total, "正在读取章节正文和来源锚点")?;
+        let prepared = self.prepare_chapter_shooting_script_request(input).await?;
+        let plan = generate_screenplay_plan(
+            self,
+            workflow_run_id,
+            &prepared,
+            progress_total,
+            progress,
+            cancel_token,
+        )
+        .await?;
+        progress(48, progress_total, "剧本改编校验完成，开始逐单元镜头设计")?;
+        let scenes = generate_shooting_scenes(
+            self,
+            workflow_run_id,
+            &prepared,
+            &plan,
+            progress_total,
+            progress,
+            cancel_token,
+        )
+        .await?;
+        let script = assemble_chapter_shooting_script(&plan, scenes)?;
+        validate_script_source_spans(&script, &prepared.source_spans)?;
+        validate_script_against_plan(&script, &plan)?;
+        progress(
+            94,
+            progress_total,
+            "确定性装配与合同校验完成，正在发布新版本",
+        )?;
+
+        let resolved = self
+            .publish_chapter_shooting_script(
+                prepared.source,
+                prepared.existing,
+                prepared.input_fingerprint_sha256,
+                script,
+                workflow_run_id,
+            )
+            .await?;
+        progress(progress_total, progress_total, "结构化拍摄剧本已原子发布")?;
+        Ok(resolved)
+    }
+}

@@ -37,14 +37,14 @@ export const ReferenceBindingsPanel: React.FC<{
 }) => {
   if (page.referenceBindings.length === 0) {
     return (
-      <div className="a4n-stat-tile p-3 text-xs text-book-text-muted">
+      <div className="border-l-2 border-book-border/70 pl-2 text-xs text-book-text-muted">
         本页没有参考图槽位。
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-2">
+    <div className="divide-y divide-book-border/35 border-y border-book-border/35">
       {page.referenceBindings.map((slot) => {
         const candidates = buildReferenceCandidates(slot, profiles, portraits, projectImages);
         const slotKey = `${page.prompt.id}:${slot.slotId}`;
@@ -64,10 +64,10 @@ export const ReferenceBindingsPanel: React.FC<{
         return (
           <div
             key={slot.slotId}
-            className="a4n-stat-tile p-2"
+            className="py-3"
           >
             <div className="flex items-start gap-2">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded border border-book-border/50 bg-book-bg-tertiary text-[10px] text-book-text-muted">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-book-border/50 bg-book-bg-tertiary text-[10px] text-book-text-muted">
                 {boundSrc ? (
                   <img src={boundSrc} alt={slot.label} className="h-full w-full object-cover" />
                 ) : (
@@ -75,30 +75,25 @@ export const ReferenceBindingsPanel: React.FC<{
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                   <span className="truncate text-xs font-semibold text-book-text-main">
                     {slot.label}
                   </span>
                   <span
-                    className={`pyqt-pill !text-[10px] ${
+                    className={`text-[10px] ${
                       slot.boundAsset
-                        ? "!border-success/50 !text-success"
+                        ? "text-success"
                         : slot.required
-                          ? "!border-warning/50 !text-warning"
-                          : ""
+                          ? "text-warning"
+                          : "text-book-text-muted"
                     }`}
                   >
                     {slot.boundAsset ? "已绑定" : slot.required ? "必需" : "可选"}
                   </span>
                 </div>
-                <div className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-book-text-muted">
+                <div className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
                   {slot.purpose ?? slot.targetName ?? slot.slotId}
                 </div>
-                {slot.boundAsset ? (
-                  <div className="mt-1 truncate font-mono text-[10px] text-book-text-muted">
-                    {slot.boundAsset.asset_kind} #{slot.boundAsset.asset_id}
-                  </div>
-                ) : null}
               </div>
             </div>
 

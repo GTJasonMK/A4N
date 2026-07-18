@@ -1,0 +1,94 @@
+use super::{
+    errors::{llm_response_shape_error, upstream_error_message},
+    json::{optional_nested_usize, optional_usize, required_usize},
+};
+use a4n_core::error::AppError;
+use a4n_llm::provider::UsageInfo;
+use serde_json::Value;
+
+pub(in crate::http) fn stream_usage_only_chunk(
+    json: &Value,
+) -> Result<Option<UsageInfo>, AppError> {
+    if !json
+        .get("choices")
+        .and_then(Value::as_array)
+        .is_some_and(Vec::is_empty)
+    {
+        return Ok(None);
+    }
+    stream_usage(json)
+}
+
+pub(in crate::http) fn stream_usage(json: &Value) -> Result<Option<UsageInfo>, AppError> {
+    let Some(usage) = json.get("usage").filter(|usage| usage.is_object()) else {
+        return Ok(None);
+    };
+    upstream_error_message(json)
+        .is_none()
+        .then(|| usage_info_from_json(usage))
+        .transpose()
+}
+
+pub(in crate::http) fn first_choice<'a>(
+    json: &'a Value,
+    field: &str,
+    body: Option<&str>,
+) -> Result<&'a Value, AppError> {
+    let choices = json["choices"].as_array().ok_or_else(|| {
+        llm_response_shape_error(json, format!("LLM 响应缺少数组字段 {field}"), body)
+    })?;
+    choices.first().ok_or_else(|| {
+        llm_response_shape_error(json, format!("LLM 响应字段 {field} 不能为空"), body)
+    })
+}
+
+pub(in crate::http) fn usage_info_from_json(value: &Value) -> Result<UsageInfo, AppError> {
+    let prompt_tokens = required_usize(&value["prompt_tokens"], "usage.prompt_tokens")?;
+    let completion_tokens = required_usize(&value["completion_tokens"], "usage.completion_tokens")?;
+    let total_tokens = required_usize(&value["total_tokens"], "usage.total_tokens")?;
+    let prompt_cache_hit_tokens = prompt_cache_hit_tokens_from_usage(value)?;
+    let prompt_cache_miss_tokens = match optional_usize(
+        value.get("prompt_cache_miss_tokens"),
+        "usage.prompt_cache_miss_tokens",
+    )? {
+        Some(value) => Some(value),
+        None => prompt_cache_hit_tokens
+            .map(|hit| {
+                prompt_tokens.checked_sub(hit).ok_or_else(|| {
+                    AppError::LlmError(format!(
+                        "LLM usage 缓存命中 token 数超过 prompt token 数：hit={hit}, prompt={prompt_tokens}"
+                    ))
+                })
+            })
+            .transpose()?,
+    };
+
+    Ok(UsageInfo {
+        prompt_tokens,
+        completion_tokens,
+        total_tokens,
+        prompt_cache_hit_tokens,
+        prompt_cache_miss_tokens,
+    })
+}
+
+fn prompt_cache_hit_tokens_from_usage(value: &Value) -> Result<Option<usize>, AppError> {
+    if let Some(tokens) = optional_usize(
+        value.get("prompt_cache_hit_tokens"),
+        "usage.prompt_cache_hit_tokens",
+    )? {
+        return Ok(Some(tokens));
+    }
+    if let Some(tokens) = optional_nested_usize(
+        value,
+        &["prompt_tokens_details", "cached_tokens"],
+        "usage.prompt_tokens_details.cached_tokens",
+    )? {
+        return Ok(Some(tokens));
+    }
+    optional_nested_usize(
+        value,
+        &["input_tokens_details", "cached_tokens"],
+        "usage.input_tokens_details.cached_tokens",
+    )
+}

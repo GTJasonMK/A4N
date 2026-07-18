@@ -763,7 +763,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     if (actionSeq == null) return;
     const ok = await confirmDialog({
       title: "删除图片",
-      message: `删除图片 #${requestImage.id}？相关漫画分镜或视频参考图会同步解除关联。`,
+      message: "删除这张图片？相关漫画分镜或视频参考图会同步解除关联。",
       confirmText: "删除",
       dialogType: "danger",
     });
@@ -807,8 +807,8 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       return;
     }
     const score = Number(scoreInput);
-    if (!Number.isFinite(score)) {
-      addToast("评分必须是数字", "error");
+    if (!Number.isFinite(score) || score < 0 || score > 1) {
+      addToast("质量评分必须是 0 到 1 之间的数字", "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
@@ -836,6 +836,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     if (busyId == null && scoringId == null) setActionImage(null);
   };
 
+  const handleOpenImageActions = (image: GeneratedImage) => {
+    setScoreInput(image.ai_score == null ? "0.8" : image.ai_score.toFixed(2));
+    setActionImage(image);
+  };
+
   if (hasChapterContext && !chapter) {
     return <EmptyHint text="请先选择已生成的章节，再管理本章图像素材。" />;
   }
@@ -861,7 +866,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         onOpenTools={() => setToolsOpen(true)}
         onImportImage={handlePickImportImage}
         onToggleFavorite={(image) => void handleToggleFavorite(image)}
-        onOpenActions={setActionImage}
+        onOpenActions={handleOpenImageActions}
       />
       <input
         ref={importFileInputRef}

@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown,
-  ArrowUp,
   Download,
   FileText,
   FileSearch,
@@ -14,6 +12,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { formatUiDateTime } from "../../utils/dateTime";
 import {
   bindGalgameMedia,
   cancelGalgamePipeline,
@@ -34,7 +33,10 @@ import {
   updateGalgameScene,
   type GalgameChoice,
   type GalgameLine,
+  type GalgameLinePresentationDocumentV2,
   type GalgameLineType,
+  type GalgameStagePositionV2,
+  type GalgameVisibleCastMemberV2,
   type GalgameAssetPlan,
   type GalgameAssetPlanItem,
   type GalgameMediaBindingSummary,
@@ -54,10 +56,15 @@ import { extractErrorMessage } from "../../api";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
+import { Dropdown } from "../../components/ui/Dropdown";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import type { SourceSnapshotChapter } from "../../api/project";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import {
+  createProgressTaskId,
+  useProgressTask,
+} from "../../hooks/useProgressTask";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
 
 interface GalgameTabProps {
@@ -85,43 +92,46 @@ const POSITIONS = [
 
 const EXPRESSIONS = [
   { value: "", label: "无表情" },
-  { value: "neutral", label: "neutral" },
-  { value: "smile", label: "smile" },
-  { value: "sad", label: "sad" },
-  { value: "angry", label: "angry" },
-  { value: "surprised", label: "surprised" },
-  { value: "shy", label: "shy" },
-  { value: "serious", label: "serious" },
+  { value: "neutral", label: "自然" },
+  { value: "smile", label: "微笑" },
+  { value: "sad", label: "悲伤" },
+  { value: "angry", label: "生气" },
+  { value: "surprised", label: "惊讶" },
+  { value: "shy", label: "害羞" },
+  { value: "serious", label: "严肃" },
 ];
 
 const POSE_SUGGESTIONS = [
-  "natural",
-  "standing",
-  "sitting",
-  "walking",
-  "turning",
-  "close_up",
+  { value: "natural", label: "自然" },
+  { value: "standing", label: "站立" },
+  { value: "sitting", label: "坐姿" },
+  { value: "walking", label: "行走" },
+  { value: "turning", label: "转身" },
+  { value: "close_up", label: "近景" },
 ];
 
-const DEFAULT_CG_IMPORTANCE = "normal";
+const DEFAULT_CG_IMPORTANCE = "normal" as const;
 const CG_IMPORTANCE_VALUES = ["normal", "high", "critical"];
 const CG_IMPORTANCE_OPTIONS = [
   { value: "", label: "CG 优先级" },
-  { value: "normal", label: "normal" },
-  { value: "high", label: "high" },
-  { value: "critical", label: "critical" },
+  { value: "normal", label: "普通" },
+  { value: "high", label: "重要" },
+  { value: "critical", label: "关键" },
 ];
 
 const TRANSITION_OPTIONS = [
   { value: "", label: "无转场" },
-  { value: "cut", label: "cut" },
-  { value: "fade", label: "fade" },
-  { value: "dissolve", label: "dissolve" },
+  { value: "cut", label: "直接切换" },
+  { value: "fade", label: "淡入淡出" },
+  { value: "dissolve", label: "叠化" },
 ];
 
-const PIPELINE_START_STAGES: Array<{ value: GalgamePipelineStartStage | ""; label: string }> = [
+const PIPELINE_START_STAGES: Array<{
+  value: GalgamePipelineStartStage | "";
+  label: string;
+}> = [
   { value: "", label: "从头开始" },
-  { value: "scene_segmentation", label: "场景切分" },
+  { value: "shooting_script_projection", label: "拍摄剧本投影" },
   { value: "script_adaptation", label: "剧本改编" },
   { value: "character_staging", label: "角色演出" },
   { value: "visual_planning", label: "视觉规划" },
@@ -132,14 +142,17 @@ const PIPELINE_START_STAGES: Array<{ value: GalgamePipelineStartStage | ""; labe
 
 const lineBusyTarget = (lineId: number): string => `line:${lineId}`;
 const sceneBusyTarget = (sceneId: number): string => `scene:${sceneId}`;
-const audioBusyTarget = (lineId: number, role: "bgm" | "sfx"): string => `audio:${lineId}:${role}`;
+const audioBusyTarget = (lineId: number, role: "bgm" | "sfx"): string =>
+  `audio:${lineId}:${role}`;
 const bindMediaBusyTarget = (
   targetKind: "galgame_scene" | "galgame_line",
   targetId: number,
   role: "background" | "cg" | "bgm" | "sfx",
 ): string => `bind-media:${targetKind}:${targetId}:${role}`;
-const insertBusyTarget = (sceneId: number, afterLineId: number | null): string =>
-  `insert:${sceneId}:${afterLineId ?? "start"}`;
+const insertBusyTarget = (
+  sceneId: number,
+  afterLineId: number | null,
+): string => `insert:${sceneId}:${afterLineId ?? "start"}`;
 
 export const GalgameTab: React.FC<GalgameTabProps> = ({
   projectId,
@@ -149,21 +162,31 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const { addToast } = useToast();
   const { runProgressTask } = useProgressTask();
   const [detail, setDetail] = useState<GalgameScriptDetail | null>(null);
-  const [pipelineStatus, setPipelineStatus] = useState<GalgamePipelineStatus | null>(null);
+  const [pipelineStatus, setPipelineStatus] =
+    useState<GalgamePipelineStatus | null>(null);
   const [selectedSceneId, setSelectedSceneId] = useState<number | null>(null);
+  const [mobileWorkspaceView, setMobileWorkspaceView] = useState<
+    "scenes" | "editor"
+  >("scenes");
+  const [pipelineControlsOpen, setPipelineControlsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [pipelineCancelling, setPipelineCancelling] = useState(false);
   const [planningAssets, setPlanningAssets] = useState(false);
   const [generatingAssets, setGeneratingAssets] = useState(false);
-  const [generatingAssetSpecId, setGeneratingAssetSpecId] = useState<number | null>(null);
+  const [generatingAssetSpecId, setGeneratingAssetSpecId] = useState<
+    number | null
+  >(null);
   const [exportingWebgal, setExportingWebgal] = useState(false);
   const [assetPlan, setAssetPlan] = useState<GalgameAssetPlan | null>(null);
   const [busyTarget, setBusyTarget] = useState<string | null>(null);
-  const [pipelineStartStage, setPipelineStartStage] = useState<GalgamePipelineStartStage | "">("");
+  const [pipelineStartStage, setPipelineStartStage] = useState<
+    GalgamePipelineStartStage | ""
+  >("");
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
-  const [requestPreviewData, setRequestPreviewData] = useState<ModelRequestPreview | null>(null);
+  const [requestPreviewData, setRequestPreviewData] =
+    useState<ModelRequestPreview | null>(null);
   const requestSeqRef = useRef(0);
   const previewSeqRef = useRef(0);
 
@@ -181,11 +204,17 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         setPipelineStatus(statusResult.value);
       } else {
         setPipelineStatus(null);
-        addToast(extractErrorMessage(statusResult.reason, "加载 Galgame 管线状态失败"), "error");
+        addToast(
+          extractErrorMessage(statusResult.reason, "加载 Galgame 管线状态失败"),
+          "error",
+        );
       }
       if (scriptResult.status === "fulfilled") {
         setDetail(scriptResult.value);
-        setSelectedSceneId((current) => current ?? scriptResult.value.scenes[0]?.scene.id ?? null);
+        setSelectedSceneId(
+          (current) =>
+            current ?? scriptResult.value.scenes[0]?.scene.id ?? null,
+        );
       } else {
         setDetail(null);
         const message = extractErrorMessage(scriptResult.reason, "");
@@ -202,6 +231,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     setDetail(null);
     setPipelineStatus(null);
     setSelectedSceneId(null);
+    setMobileWorkspaceView("scenes");
     void load();
     return () => {
       requestSeqRef.current += 1;
@@ -216,7 +246,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 
   const selectedScene = useMemo(
     () =>
-      (selectedSceneId != null ? sceneById.get(selectedSceneId) ?? null : null) ??
+      (selectedSceneId != null
+        ? (sceneById.get(selectedSceneId) ?? null)
+        : null) ??
       detail?.scenes[0] ??
       null,
     [detail?.scenes, sceneById, selectedSceneId],
@@ -227,6 +259,11 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     for (const chapter of snapshotChapters) map.set(chapter.id, chapter);
     return map;
   }, [snapshotChapters]);
+  const selectedSourceChapter = selectedScene
+    ? (chapterBySnapshotId.get(
+        selectedScene.scene.source_snapshot_chapter_id,
+      ) ?? null)
+    : null;
 
   const textAnchorById = useMemo(() => {
     const map = new Map<number, GalgameTextAnchorSummary>();
@@ -274,7 +311,17 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const currentPipelineStartStage = (): GalgamePipelineStartStage | null =>
     pipelineStartStage || null;
 
-  const pipelineRunning = generating || pipelineStatus?.run?.status === "running";
+  const pipelineRunning =
+    generating || pipelineStatus?.run?.status === "running";
+  const pipelineCanResume = Boolean(pipelineStatus?.run?.can_resume);
+  const showPipelinePrimary = !detail || pipelineCanResume;
+  const regenerateScriptLabel = pipelineStartStage
+    ? `从${pipelineStartStageLabel(pipelineStartStage)}重新生成`
+    : "重新生成完整剧本";
+
+  useEffect(() => {
+    if (pipelineRunning || (!loading && !detail)) setPipelineControlsOpen(true);
+  }, [detail, loading, pipelineRunning]);
 
   const handleGenerate = async (resumeFromCheckpoint = false) => {
     if (!canEditGalgame || generating) return;
@@ -315,8 +362,13 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     } catch (err) {
       const message = extractErrorMessage(err, "运行 Galgame 管线失败");
       const cancelled = message.includes("取消");
-      addToast(cancelled ? "Galgame 管线已取消" : message, cancelled ? "info" : "error");
-      const nextStatus = await getGalgamePipelineStatus(projectId).catch(() => pipelineStatus);
+      addToast(
+        cancelled ? "Galgame 管线已取消" : message,
+        cancelled ? "info" : "error",
+      );
+      const nextStatus = await getGalgamePipelineStatus(projectId).catch(
+        () => pipelineStatus,
+      );
       setPipelineStatus(nextStatus);
     } finally {
       setGenerating(false);
@@ -353,7 +405,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (previewSeqRef.current === seq) {
-        addToast(extractErrorMessage(err, "预览 Galgame 管线请求失败"), "error");
+        addToast(
+          extractErrorMessage(err, "预览 Galgame 管线请求失败"),
+          "error",
+        );
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -401,7 +456,13 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handleGenerateAssetSpec = async (generationSpecId: number) => {
-    if (!canEditGalgame || generatingAssets || generatingAssetSpecId != null || !detail) return;
+    if (
+      !canEditGalgame ||
+      generatingAssets ||
+      generatingAssetSpecId != null ||
+      !detail
+    )
+      return;
     setGeneratingAssetSpecId(generationSpecId);
     try {
       const result = await runGalgameAssetGeneration(projectId, {
@@ -419,21 +480,29 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     }
   };
 
-  const handleLinePatch = async (line: GalgameLine, patch: Partial<GalgameLine>) => {
+  const handleLinePatch = async (
+    line: GalgameLine,
+    patch: Partial<GalgameLine>,
+  ) => {
     if (!canEditGalgame || busyTarget != null) return;
     setBusyTarget(lineBusyTarget(line.id));
     try {
       const input: UpdateGalgameLineInput = { line_id: line.id };
-      if ("line_type" in patch && patch.line_type != null) input.line_type = patch.line_type;
+      if ("line_type" in patch && patch.line_type != null)
+        input.line_type = patch.line_type;
       if ("speaker_profile_id" in patch) {
         input.speaker_profile_id = patch.speaker_profile_id ?? null;
       }
       if ("text" in patch && patch.text != null) input.text = patch.text;
-      if ("position" in patch) input.position = patch.position ?? null;
-      if ("expression" in patch) input.expression = patch.expression ?? null;
-      if ("pose" in patch) input.pose = patch.pose ?? null;
-      if ("presentation_json" in patch) {
-        input.presentation_json = requireRecordValue(patch.presentation_json, "presentation_json");
+      if (
+        "line_type" in patch ||
+        "speaker_profile_id" in patch ||
+        "position" in patch ||
+        "expression" in patch ||
+        "pose" in patch ||
+        "presentation_json" in patch
+      ) {
+        input.presentation = presentationForLinePatch(line, patch);
       }
       await updateGalgameLine(projectId, input);
       await load();
@@ -444,7 +513,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     }
   };
 
-  const handleScenePatch = async (scene: GalgameScene, patch: Partial<GalgameScene>) => {
+  const handleScenePatch = async (
+    scene: GalgameScene,
+    patch: Partial<GalgameScene>,
+  ) => {
     if (!canEditGalgame || busyTarget != null) return;
     setBusyTarget(sceneBusyTarget(scene.id));
     try {
@@ -452,8 +524,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       if ("title" in patch && patch.title != null) input.title = patch.title;
       if ("location" in patch) input.location = patch.location ?? null;
       if ("time_of_day" in patch) input.time_of_day = patch.time_of_day ?? null;
-      if ("background_note" in patch) input.background_note = patch.background_note ?? null;
-      if ("next_scene_id" in patch) input.next_scene_id = patch.next_scene_id ?? null;
+      if ("background_note" in patch)
+        input.background_note = patch.background_note ?? null;
+      if ("next_scene_id" in patch)
+        input.next_scene_id = patch.next_scene_id ?? null;
       await updateGalgameScene(projectId, input);
       await load();
     } catch (err) {
@@ -463,7 +537,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     }
   };
 
-  const handleAddLine = async (scene: GalgameSceneDetail, afterLine: GalgameLine | null) => {
+  const handleAddLine = async (
+    scene: GalgameSceneDetail,
+    afterLine: GalgameLine | null,
+  ) => {
     if (!canEditGalgame || busyTarget != null) return;
     setBusyTarget(insertBusyTarget(scene.scene.id, afterLine?.id ?? null));
     try {
@@ -473,10 +550,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         line_type: "narration",
         speaker_profile_id: null,
         text: "新的剧本行",
-        expression: null,
-        pose: null,
-        position: null,
-        presentation_json: {},
+        presentation: emptyGalgamePresentation(),
         text_anchor_id: null,
       });
       await load();
@@ -500,7 +574,11 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     }
   };
 
-  const handleMoveLine = async (scene: GalgameSceneDetail, line: GalgameLine, direction: -1 | 1) => {
+  const handleMoveLine = async (
+    scene: GalgameSceneDetail,
+    line: GalgameLine,
+    direction: -1 | 1,
+  ) => {
     if (!canEditGalgame || busyTarget != null) return;
     const index = scene.lines.findIndex((item) => item.id === line.id);
     const nextIndex = index + direction;
@@ -539,7 +617,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 
   const handleImportAudio = async (line: GalgameLine, role: "bgm" | "sfx") => {
     if (!canEditGalgame || busyTarget != null) return;
-    const file = await pickLocalFile("audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg");
+    const file = await pickLocalFile(
+      "audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg",
+    );
     if (!file) return;
     setBusyTarget(audioBusyTarget(line.id, role));
     try {
@@ -552,7 +632,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         data_base64: await readFileAsBase64(file),
       });
       await load();
-      addToast(role === "bgm" ? "BGM 已导入并绑定" : "音效已导入并绑定", "success");
+      addToast(
+        role === "bgm" ? "BGM 已导入并绑定" : "音效已导入并绑定",
+        "success",
+      );
     } catch (err) {
       addToast(extractErrorMessage(err, "导入 Galgame 音频失败"), "error");
     } finally {
@@ -617,276 +700,420 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     }
   };
 
-  const totalLines = detail?.scenes.reduce((sum, scene) => sum + scene.lines.length, 0) ?? 0;
+  const totalLines =
+    detail?.scenes.reduce((sum, scene) => sum + scene.lines.length, 0) ?? 0;
 
   return (
-    <div className="grid min-h-[60vh] grid-cols-1 gap-4 lg:min-h-[640px] lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="min-h-0 border border-book-border bg-book-surface p-3">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-book-text-main">剧本场次</h2>
-            <p className="text-[11px] text-book-text-muted">
-              {detail ? `${detail.scenes.length} 场 / ${totalLines} 行` : "尚未生成"}
-            </p>
-          </div>
-          <BookButton
-            variant="secondary"
-            size="sm"
-            onClick={load}
-            disabled={loading || generating || pipelineCancelling}
-          >
-            <RefreshCw size={13} />
-          </BookButton>
-        </div>
-          <BookButton
-            variant="primary"
-            size="sm"
-            className="mb-3 w-full"
-            onClick={() => handleGenerate(false)}
-            disabled={!canEditGalgame || generating || pipelineCancelling}
-          >
-            {generating ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-            {detail ? "重新运行管线" : "运行 Galgame 管线"}
-          </BookButton>
-          {pipelineRunning ? (
-            <BookButton
-              variant="secondary"
-              size="sm"
-              className="mb-3 w-full"
-              onClick={handleCancelPipeline}
-              disabled={!canEditGalgame || pipelineCancelling}
+    <div className="flex min-h-[60vh] flex-col gap-3 lg:h-full lg:min-h-0">
+      <div className="lg:hidden">
+        <SegmentedControl
+          ariaLabel="Galgame 移动工作区"
+          value={mobileWorkspaceView}
+          onChange={setMobileWorkspaceView}
+          options={[
+            { id: "scenes", label: "场次" },
+            { id: "editor", label: "编辑" },
+          ]}
+        />
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-4">
+        <aside
+          aria-label="Galgame 场次与管线"
+          className={`${mobileWorkspaceView === "scenes" ? "block" : "hidden"} min-h-0 space-y-3 lg:block lg:overflow-y-auto custom-scrollbar`}
+        >
+          <div className="flex items-start gap-3 px-1 pb-1">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs font-semibold text-book-text-main">
+                场次
+              </h2>
+              <p className="mt-0.5 text-[10px] text-book-text-muted">
+                {detail
+                  ? `${detail.scenes.length} 场 · ${totalLines} 行`
+                  : "尚未生成"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={load}
+              disabled={loading || generating || pipelineCancelling}
+              className="pyqt-btn-icon !h-9 !w-9 !rounded-xl sm:!h-8 sm:!w-8"
+              aria-label="刷新 Galgame 剧本"
+              title="刷新"
             >
-              {pipelineCancelling ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
-              取消管线
-            </BookButton>
-          ) : null}
-          <select
-            className="mb-2 w-full rounded-none border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
-            value={pipelineStartStage}
-            disabled={!canEditGalgame || generating || pipelineCancelling}
-            onChange={(event) =>
-              setPipelineStartStage(event.target.value as GalgamePipelineStartStage | "")
-            }
-          >
-            {PIPELINE_START_STAGES.map((stage) => (
-              <option key={stage.value || "all"} value={stage.value}>
-                {stage.label}
-              </option>
-            ))}
-          </select>
-          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={handlePreviewPipeline}
-              disabled={!canEditGalgame || requestPreviewLoading || generating || pipelineCancelling}
-            >
-              {requestPreviewLoading ? (
+              {loading ? (
                 <Loader2 size={13} className="animate-spin" />
               ) : (
-                <FileSearch size={13} />
+                <RefreshCw size={13} />
               )}
-              预览请求
-            </BookButton>
-            <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={() => handleGenerate(true)}
-              disabled={!canEditGalgame || generating || pipelineCancelling || !pipelineStatus?.run?.can_resume}
-            >
-              {generating ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-              续跑
-            </BookButton>
+            </button>
+            {detail && canEditGalgame ? (
+              <Dropdown
+                items={[
+                  {
+                    label: exportingWebgal
+                      ? "正在导出 WebGAL 工程"
+                      : "导出 WebGAL 工程",
+                    icon: exportingWebgal ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Download size={13} />
+                    ),
+                    onClick: handleExportWebgal,
+                    disabled: exportingWebgal,
+                  },
+                ]}
+              />
+            ) : null}
           </div>
-        <PipelineStatusPanel status={pipelineStatus} loading={loading || generating} />
-        <AssetPlanPanel
-          plan={assetPlan}
-          speakerProfiles={detail?.speaker_profiles ?? []}
-          loading={planningAssets}
-          generating={generatingAssets}
-          generatingSpecId={generatingAssetSpecId}
-          disabled={
-            !canEditGalgame ||
-            planningAssets ||
-            generatingAssets ||
-            generatingAssetSpecId != null ||
-            !detail
-          }
-          onPlan={handlePlanAssets}
-          onGenerate={handleGenerateAssets}
-          onGenerateSpec={handleGenerateAssetSpec}
-        />
-        <ExportPanel
-          loading={exportingWebgal}
-          disabled={!canEditGalgame || exportingWebgal || !detail}
-          onExport={handleExportWebgal}
-        />
-        <div className="space-y-2">
-          {detail?.scenes.map((item) => {
-            const chapter = chapterBySnapshotId.get(item.scene.source_snapshot_chapter_id);
-            const active = item.scene.id === selectedScene?.scene.id;
-            const nextScene =
-              item.scene.next_scene_id != null
-                ? sceneById.get(item.scene.next_scene_id) ?? null
-                : null;
-            return (
-              <button
-                key={item.scene.id}
-                type="button"
-                className={`w-full border px-3 py-2 text-left text-xs ${
-                  active
-                    ? "border-book-primary bg-book-primary/10 text-book-text-main"
-                    : "border-book-border bg-book-bg text-book-text-muted hover:text-book-text-main"
-                }`}
-                onClick={() => setSelectedSceneId(item.scene.id)}
-              >
-                <div className="truncate font-semibold">
-                  {item.scene.scene_index}. {item.scene.title}
-                </div>
-                <div className="mt-1 truncate text-[11px]">
-                  {chapter ? `第 ${chapter.chapter_number} 章` : "源快照章节"}
-                  {" · "}
-                  {item.lines.length} 行
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-1 text-[10px]">
-                  <span className="border border-book-border bg-book-surface px-1.5 py-0.5">
-                    {sceneEntryKindLabel(item.scene.entry_kind)}
-                  </span>
-                  {item.scene.next_scene_id != null ? (
-                    <span
-                      className={`border px-1.5 py-0.5 ${
-                        nextScene && !(item.scene.entry_kind === "branch" && nextScene.scene.entry_kind !== "main")
-                          ? "border-book-border bg-book-surface text-book-text-muted"
-                          : "border-error/50 bg-book-surface text-error"
-                      }`}
+          <details
+            aria-label="Galgame 剧本生成"
+            className="a4n-flat-surface overflow-hidden"
+            open={pipelineControlsOpen}
+            onToggle={(event) =>
+              setPipelineControlsOpen(event.currentTarget.open)
+            }
+          >
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-xs font-medium text-book-text-main hover:bg-book-bg-tertiary/55 [&::-webkit-details-marker]:hidden">
+              <span>剧本生成</span>
+              <span className="flex-1" />
+              <span className="text-[11px] font-normal text-book-text-muted">
+                {pipelineRunning
+                  ? "生成中"
+                  : pipelineCanResume
+                    ? "可继续"
+                    : detail
+                      ? "已生成"
+                      : "未生成"}
+              </span>
+            </summary>
+            <div className="border-t border-book-border/40 px-3 pb-3 pt-2.5">
+              {pipelineRunning ? (
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleCancelPipeline}
+                  disabled={!canEditGalgame || pipelineCancelling}
+                >
+                  {pipelineCancelling ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <X size={13} />
+                  )}
+                  停止生成
+                </BookButton>
+              ) : showPipelinePrimary ? (
+                <BookButton
+                  variant="primary"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => handleGenerate(pipelineCanResume)}
+                  disabled={!canEditGalgame || generating || pipelineCancelling}
+                >
+                  {generating ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <FileText size={14} />
+                  )}
+                  {pipelineCanResume ? "继续生成" : "生成剧本"}
+                </BookButton>
+              ) : null}
+              {!pipelineRunning ? (
+                <div className="mt-2 flex items-start justify-between gap-2">
+                  <details className="min-w-0 flex-1">
+                    <summary className="cursor-pointer rounded-lg px-1 py-1 text-[10px] text-book-text-muted hover:bg-book-bg-tertiary/55 hover:text-book-text-main">
+                      生成选项 · {pipelineStartStageLabel(pipelineStartStage)}
+                    </summary>
+                    <select
+                      className="pyqt-input mt-1.5 w-full text-xs"
+                      value={pipelineStartStage}
+                      disabled={
+                        !canEditGalgame || generating || pipelineCancelling
+                      }
+                      onChange={(event) =>
+                        setPipelineStartStage(
+                          event.target.value as GalgamePipelineStartStage | "",
+                        )
+                      }
                     >
-                      {nextScene
-                        ? item.scene.entry_kind === "branch" && nextScene.scene.entry_kind !== "main"
-                          ? `→ 非主线 #${nextScene.scene.scene_index}`
-                          : `→ #${nextScene.scene.scene_index}`
-                        : `→ 缺失 #${item.scene.next_scene_id}`}
-                    </span>
-                  ) : item.scene.entry_kind === "branch" ? (
-                    <span className="border border-error/50 bg-book-surface px-1.5 py-0.5 text-error">
-                      未回收敛
-                    </span>
-                  ) : null}
+                      {PIPELINE_START_STAGES.map((stage) => (
+                        <option key={stage.value || "all"} value={stage.value}>
+                          {stage.label}
+                        </option>
+                      ))}
+                    </select>
+                  </details>
+                  <Dropdown
+                    items={[
+                      {
+                        label: requestPreviewLoading
+                          ? "正在准备模型请求"
+                          : "查看模型请求",
+                        icon: requestPreviewLoading ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <FileSearch size={13} />
+                        ),
+                        onClick: handlePreviewPipeline,
+                        disabled:
+                          !canEditGalgame ||
+                          requestPreviewLoading ||
+                          generating ||
+                          pipelineCancelling,
+                      },
+                      ...(detail
+                        ? [
+                            { type: "divider" as const },
+                            {
+                              label: regenerateScriptLabel,
+                              icon: <RefreshCw size={13} />,
+                              onClick: () => handleGenerate(false),
+                              disabled:
+                                !canEditGalgame ||
+                                generating ||
+                                pipelineCancelling,
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
                 </div>
-              </button>
-            );
-          })}
-        </div>
-      </aside>
+              ) : null}
+            </div>
+          </details>
+          <PipelineStatusPanel
+            status={pipelineStatus}
+            loading={loading || generating}
+          />
+          {detail && detail.scenes.length > 0 ? (
+            <div className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
+              {detail.scenes.map((item) => {
+                const chapter = chapterBySnapshotId.get(
+                  item.scene.source_snapshot_chapter_id,
+                );
+                const active = item.scene.id === selectedScene?.scene.id;
+                const nextScene =
+                  item.scene.next_scene_id != null
+                    ? (sceneById.get(item.scene.next_scene_id) ?? null)
+                    : null;
+                return (
+                  <button
+                    key={item.scene.id}
+                    type="button"
+                    aria-current={active ? "true" : undefined}
+                    className={`w-full px-3 py-2.5 text-left text-xs transition-colors ${
+                      active
+                        ? "bg-book-primary/8 text-book-text-main shadow-[inset_3px_0_0_rgb(var(--color-primary))]"
+                        : "text-book-text-muted hover:bg-book-bg-tertiary/55 hover:text-book-text-main"
+                    }`}
+                    onClick={() => {
+                      setSelectedSceneId(item.scene.id);
+                      setMobileWorkspaceView("editor");
+                    }}
+                  >
+                    <div className="truncate font-semibold">
+                      {item.scene.scene_index}. {item.scene.title}
+                    </div>
+                    <div className="mt-1 truncate text-[11px]">
+                      {chapter
+                        ? `第 ${chapter.chapter_number} 章`
+                        : "来源章节"}
+                      {" · "}
+                      {item.lines.length} 行
+                    </div>
+                    <div className="mt-1 text-[10px] leading-relaxed text-book-text-subtle">
+                      {sceneEntryKindLabel(item.scene.entry_kind)}
+                      {item.scene.next_scene_id != null ? (
+                        <span
+                          className={
+                            nextScene &&
+                            !(
+                              item.scene.entry_kind === "branch" &&
+                              nextScene.scene.entry_kind !== "main"
+                            )
+                              ? ""
+                              : "text-error"
+                          }
+                        >
+                          {" · "}
+                          {nextScene
+                            ? item.scene.entry_kind === "branch" &&
+                              nextScene.scene.entry_kind !== "main"
+                              ? `→ 非主线场 ${nextScene.scene.scene_index}`
+                              : `→ 场次 ${nextScene.scene.scene_index}`
+                            : "→ 下一场缺失"}
+                        </span>
+                      ) : item.scene.entry_kind === "branch" ? (
+                        <span className="text-error"> · 未回收敛</span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          <AssetPlanPanel
+            plan={assetPlan}
+            speakerProfiles={detail?.speaker_profiles ?? []}
+            loading={planningAssets}
+            generating={generatingAssets}
+            generatingSpecId={generatingAssetSpecId}
+            disabled={
+              !canEditGalgame ||
+              planningAssets ||
+              generatingAssets ||
+              generatingAssetSpecId != null ||
+              !detail
+            }
+            onPlan={handlePlanAssets}
+            onGenerate={handleGenerateAssets}
+            onGenerateSpec={handleGenerateAssetSpec}
+          />
+        </aside>
 
-      <section className="min-h-0 border border-book-border bg-book-surface">
-        <div className="flex items-center justify-between gap-3 border-b border-book-border px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-book-text-main">
-              {selectedScene?.scene.title ?? "Galgame 剧本"}
-            </h2>
-            <p className="truncate text-[11px] text-book-text-muted">
-              {selectedScene
-                ? selectedScene.scene.background_note || "Galgame 剧本"
-                : "生成后可编辑场和行"}
-            </p>
+        <section
+          aria-label="Galgame 剧本编辑区"
+          className={`${mobileWorkspaceView === "editor" ? "block" : "hidden"} a4n-flat-surface min-h-0 overflow-hidden ${
+            selectedScene ? "lg:flex lg:flex-col" : "self-start lg:block"
+          }`}
+        >
+          <div className="flex items-start gap-3 border-b border-book-border/40 px-3 py-3 sm:px-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-sm font-semibold text-book-text-main">
+                {selectedScene?.scene.title ?? "Galgame 剧本"}
+              </h2>
+              <p className="mt-0.5 truncate text-[10px] text-book-text-muted">
+                {selectedScene
+                  ? [
+                      selectedScene.scene.background_note,
+                      sceneEntryKindLabel(selectedScene.scene.entry_kind),
+                      selectedSourceChapter
+                        ? `第 ${selectedSourceChapter.chapter_number} 章`
+                        : "来源章节",
+                      `${selectedScene.lines.length} 行`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : "生成后可编辑场和行"}
+              </p>
+            </div>
+            {selectedScene && canEditGalgame ? (
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  handleAddLine(
+                    selectedScene,
+                    selectedScene.lines.length
+                      ? selectedScene.lines[selectedScene.lines.length - 1]
+                      : null,
+                  )
+                }
+                disabled={busyTarget != null}
+                className="!min-h-9 !px-2.5 !text-xs sm:!min-h-8"
+              >
+                <Plus size={14} />
+                添加行
+              </BookButton>
+            ) : null}
           </div>
-          {selectedScene && canEditGalgame ? (
-            <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={() =>
-                handleAddLine(
-                  selectedScene,
-                  selectedScene.lines.length
-                    ? selectedScene.lines[selectedScene.lines.length - 1]
-                    : null,
+
+          {selectedScene ? (
+            <SceneMetaEditor
+              scene={selectedScene.scene}
+              scenes={detail?.scenes ?? []}
+              mediaBindings={
+                mediaBindingsByScene.get(selectedScene.scene.id) ?? []
+              }
+              disabled={!canEditGalgame || busyTarget != null}
+              onPatch={(patch) => handleScenePatch(selectedScene.scene, patch)}
+              onBindMedia={(mediaAssetId) =>
+                handleBindMedia(
+                  "galgame_scene",
+                  selectedScene.scene.id,
+                  "background",
+                  mediaAssetId,
                 )
               }
-              disabled={busyTarget != null}
-            >
-              <Plus size={14} />
-              行
-            </BookButton>
+              onUnbindMedia={handleUnbindMedia}
+            />
           ) : null}
-        </div>
 
-        {selectedScene ? (
-          <SceneMetaEditor
-            scene={selectedScene.scene}
-            scenes={detail?.scenes ?? []}
-                        mediaBindings={mediaBindingsByScene.get(selectedScene.scene.id) ?? []}
-                        disabled={!canEditGalgame || busyTarget != null}
-                        onPatch={(patch) => handleScenePatch(selectedScene.scene, patch)}
-                        onBindMedia={(mediaAssetId) =>
-                          handleBindMedia(
-                            "galgame_scene",
-                            selectedScene.scene.id,
-                            "background",
-                            mediaAssetId,
-                          )
-                        }
-                        onUnbindMedia={handleUnbindMedia}
-                      />
-        ) : null}
-
-        <div className="min-h-[60vh] overflow-y-auto p-3 lg:max-h-[calc(100vh-250px)] lg:min-h-[520px] lg:p-4 custom-scrollbar">
-          {loading ? (
-            <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
-              <Loader2 size={14} className="animate-spin" />
-              加载 Galgame 剧本
-            </div>
-          ) : !selectedScene ? (
-            <div className="flex h-64 flex-col items-center justify-center gap-3 text-xs text-book-text-muted">
-              <PenLine size={22} />
-              <span>尚未生成剧本</span>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {selectedScene.lines.map((line, index) => (
-                <LineEditor
-                  key={line.id}
-                  line={line}
-                  speakerProfiles={detail?.speaker_profiles ?? []}
-                  sourceAnchor={
-                    line.text_anchor_id ? textAnchorById.get(line.text_anchor_id) ?? null : null
-                  }
-                  sourceChapter={
-                    line.text_anchor_id
-                      ? chapterBySnapshotId.get(
-                          textAnchorById.get(line.text_anchor_id)?.source_snapshot_chapter_id ?? -1,
-                        ) ?? null
-                      : null
-                  }
-                  disabled={!canEditGalgame || busyTarget != null}
-                  saving={busyTarget === lineBusyTarget(line.id)}
-                  mediaBindings={mediaBindingsByLine.get(line.id) ?? []}
-                  choices={choicesByLine.get(line.id) ?? []}
-                  scenes={detail?.scenes ?? []}
-                  sceneById={sceneById}
-                  onPatch={(patch) => handleLinePatch(line, patch)}
-                  onChoicesUpdate={(choices) => handleChoicesUpdate(line, choices)}
-                  onMoveUp={() => handleMoveLine(selectedScene, line, -1)}
-                  onMoveDown={() => handleMoveLine(selectedScene, line, 1)}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < selectedScene.lines.length - 1}
-                  onInsertAfter={() => handleAddLine(selectedScene, line)}
-                            onDelete={() => handleDeleteLine(line)}
-                            onImportAudio={(role) => handleImportAudio(line, role)}
-                            onBindMedia={(role, mediaAssetId) =>
-                              handleBindMedia("galgame_line", line.id, role, mediaAssetId)
-                            }
-                            onUnbindMedia={handleUnbindMedia}
-                          />
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
+          <div
+            className={`p-3 lg:p-4 custom-scrollbar ${
+              selectedScene
+                ? "min-h-[60vh] lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+                : ""
+            }`}
+          >
+            {loading ? (
+              <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
+                <Loader2 size={14} className="animate-spin" />
+                加载 Galgame 剧本
+              </div>
+            ) : !selectedScene ? (
+              <div className="m-auto flex min-h-[160px] max-w-md flex-col items-center justify-center gap-3 text-xs text-book-text-muted">
+                <PenLine size={22} />
+                <span>尚未生成剧本</span>
+              </div>
+            ) : (
+              <div className="divide-y divide-book-border/40">
+                {selectedScene.lines.map((line, index) => (
+                  <LineEditor
+                    key={line.id}
+                    line={line}
+                    speakerProfiles={detail?.speaker_profiles ?? []}
+                    sourceAnchor={
+                      line.text_anchor_id
+                        ? (textAnchorById.get(line.text_anchor_id) ?? null)
+                        : null
+                    }
+                    sourceChapter={
+                      line.text_anchor_id
+                        ? (chapterBySnapshotId.get(
+                            textAnchorById.get(line.text_anchor_id)
+                              ?.source_snapshot_chapter_id ?? -1,
+                          ) ?? null)
+                        : null
+                    }
+                    disabled={!canEditGalgame || busyTarget != null}
+                    saving={busyTarget === lineBusyTarget(line.id)}
+                    mediaBindings={mediaBindingsByLine.get(line.id) ?? []}
+                    choices={choicesByLine.get(line.id) ?? []}
+                    scenes={detail?.scenes ?? []}
+                    sceneById={sceneById}
+                    onPatch={(patch) => handleLinePatch(line, patch)}
+                    onChoicesUpdate={(choices) =>
+                      handleChoicesUpdate(line, choices)
+                    }
+                    onMoveUp={() => handleMoveLine(selectedScene, line, -1)}
+                    onMoveDown={() => handleMoveLine(selectedScene, line, 1)}
+                    canMoveUp={index > 0}
+                    canMoveDown={index < selectedScene.lines.length - 1}
+                    onInsertAfter={() => handleAddLine(selectedScene, line)}
+                    onDelete={() => handleDeleteLine(line)}
+                    onImportAudio={(role) => handleImportAudio(line, role)}
+                    onBindMedia={(role, mediaAssetId) =>
+                      handleBindMedia(
+                        "galgame_line",
+                        line.id,
+                        role,
+                        mediaAssetId,
+                      )
+                    }
+                    onUnbindMedia={handleUnbindMedia}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
       <RequestPreviewModal
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="Galgame 管线请求预览"
+        fallbackTitle="Galgame 生成请求"
         onClose={closeRequestPreview}
       />
     </div>
@@ -922,38 +1149,76 @@ const PipelineStatusPanel: React.FC<{
   loading: boolean;
 }> = ({ status, loading }) => {
   const run = status?.run ?? null;
+  const [open, setOpen] = useState(
+    run?.status === "running" || run?.status === "failed",
+  );
+
+  useEffect(() => {
+    if (run?.status === "running" || run?.status === "failed") setOpen(true);
+  }, [run?.status]);
+
+  if (!run && !loading) return null;
 
   return (
-    <div className="mb-3 border border-book-border bg-book-bg px-3 py-2 text-xs">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="font-semibold text-book-text-main">管线状态</span>
-        {loading ? <Loader2 size={13} className="animate-spin text-book-text-muted" /> : null}
-      </div>
-      {!run ? (
-        <div className="text-[11px] text-book-text-muted">尚未运行</div>
-      ) : (
-        <div className="space-y-1 text-[11px] text-book-text-muted">
-          <div className="flex items-center justify-between gap-2">
-            <span>{pipelineStatusLabel(run.status)}</span>
-            <span className="truncate">{formatPipelineTime(run.updated_at)}</span>
-          </div>
-          {run.current_step_key ? (
-            <div className="truncate">步骤：{pipelineStepLabel(run.current_step_key)}</div>
-          ) : null}
-          {run.error_message ? <div className="text-error">{run.error_message}</div> : null}
-          {status?.checkpoints.length ? (
-            <div className="mt-2 space-y-1 border-t border-book-border pt-2">
-              {status.checkpoints.map((checkpoint) => (
-                <div key={checkpoint.id} className="flex items-center justify-between gap-2">
-                  <span className="truncate">{pipelineStepLabel(checkpoint.step_key)}</span>
-                  <span>{pipelineStatusLabel(checkpoint.status)}</span>
-                </div>
-              ))}
+    <details
+      aria-label="生成状态"
+      className="a4n-flat-surface overflow-hidden text-xs"
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 font-medium text-book-text-main hover:bg-book-bg-tertiary/55 [&::-webkit-details-marker]:hidden">
+        <span>生成状态</span>
+        <span className="flex-1" />
+        {loading ? <Loader2 size={13} className="animate-spin" /> : null}
+        {run ? (
+          <span className="text-[11px] font-normal text-book-text-muted">
+            {pipelineStatusLabel(run.status)}
+          </span>
+        ) : null}
+      </summary>
+      <div className="border-t border-book-border/40 px-3 py-3">
+        {!run ? (
+          <div className="text-[11px] text-book-text-muted">正在读取状态…</div>
+        ) : (
+          <div className="space-y-1 text-[11px] text-book-text-muted">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+              <span>{pipelineStatusLabel(run.status)}</span>
+              <span className="min-w-0 truncate text-right">
+                {formatPipelineTime(run.updated_at)}
+              </span>
             </div>
-          ) : null}
-        </div>
-      )}
-    </div>
+            {run.current_step_key ? (
+              <div className="truncate">
+                步骤：{pipelineStepLabel(run.current_step_key)}
+              </div>
+            ) : null}
+            {run.error_message ? (
+              <div
+                role="alert"
+                className="rounded-xl border border-error/35 bg-error-bg/65 p-2.5 text-error"
+              >
+                {run.error_message}
+              </div>
+            ) : null}
+            {status?.checkpoints.length ? (
+              <div className="mt-2 space-y-1 border-t border-book-border pt-2">
+                {status.checkpoints.map((checkpoint) => (
+                  <div
+                    key={checkpoint.id}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
+                  >
+                    <span className="min-w-0 truncate">
+                      {pipelineStepLabel(checkpoint.step_key)}
+                    </span>
+                    <span>{pipelineStatusLabel(checkpoint.status)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </details>
   );
 };
 
@@ -978,99 +1243,123 @@ const AssetPlanPanel: React.FC<{
   onGenerate,
   onGenerateSpec,
 }) => {
+  const planSummary = plan
+    ? [
+        plan.summary.background_specs > 0
+          ? `背景 ${plan.summary.background_specs}`
+          : null,
+        plan.summary.portrait_expression_specs > 0
+          ? `角色差分 ${plan.summary.portrait_expression_specs}`
+          : null,
+        plan.summary.event_cg_specs > 0
+          ? `事件 CG ${plan.summary.event_cg_specs}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+  const outcomeSummary = plan
+    ? [
+        plan.summary.created_specs > 0
+          ? `新增 ${plan.summary.created_specs}`
+          : null,
+        plan.summary.updated_specs > 0
+          ? `更新 ${plan.summary.updated_specs}`
+          : null,
+        plan.summary.reused_specs > 0
+          ? `复用 ${plan.summary.reused_specs}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
   return (
-    <div className="mb-3 border border-book-border bg-book-bg px-3 py-2 text-xs">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="font-semibold text-book-text-main">资产规划</span>
+    <details
+      aria-label="资产规划"
+      className="a4n-flat-surface overflow-hidden text-xs"
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 font-medium text-book-text-main hover:bg-book-bg-tertiary/55 [&::-webkit-details-marker]:hidden">
+        <span>视觉资产</span>
+        <span className="flex-1" />
         {loading || generating ? (
-          <Loader2 size={13} className="animate-spin text-book-text-muted" />
+          <Loader2 size={13} className="animate-spin" />
         ) : null}
+        <span className="text-[11px] font-normal text-book-text-muted">
+          {plan ? "已规划" : "未规划"}
+        </span>
+      </summary>
+      <div className="border-t border-book-border/40 px-3 py-3">
+        <BookButton
+          variant="primary"
+          size="sm"
+          className="w-full"
+          onClick={plan ? onGenerate : onPlan}
+          disabled={disabled}
+        >
+          {loading || generating ? (
+            <Loader2 size={13} className="animate-spin" />
+          ) : (
+            <Images size={13} />
+          )}
+          {plan ? "生成视觉资产" : "规划视觉资产"}
+        </BookButton>
+        {plan ? (
+          <div className="mt-2 flex justify-end">
+            <Dropdown
+              items={[
+                {
+                  label: "重新规划视觉资产",
+                  icon: <RefreshCw size={13} />,
+                  onClick: onPlan,
+                  disabled,
+                },
+              ]}
+            />
+          </div>
+        ) : null}
+        {!plan ? (
+          <div className="mt-2 text-[11px] text-book-text-muted">
+            规划后可统一生成背景、角色差分与事件 CG。
+          </div>
+        ) : (
+          <div className="mt-2 space-y-2 text-[11px] text-book-text-muted">
+            {planSummary ? <p>{planSummary}</p> : null}
+            {outcomeSummary ? (
+              <p className="text-[10px] text-book-text-subtle">
+                {outcomeSummary}
+              </p>
+            ) : null}
+            <AssetPlanList title="背景" items={plan.backgrounds} />
+            <PortraitExpressionMatrix
+              items={plan.portrait_expressions}
+              speakerProfiles={speakerProfiles}
+              disabled={disabled}
+              generatingSpecId={generatingSpecId}
+              onGenerateSpec={onGenerateSpec}
+            />
+            <AssetPlanList title="事件 CG" items={plan.event_cgs} />
+          </div>
+        )}
       </div>
-      <BookButton variant="secondary" size="sm" className="mb-2 w-full" onClick={onPlan} disabled={disabled}>
-        {loading ? <Loader2 size={13} className="animate-spin" /> : <Images size={13} />}
-        写入资产生成意图
-      </BookButton>
-      <BookButton
-        variant="secondary"
-        size="sm"
-        className="mb-2 w-full"
-        onClick={onGenerate}
-        disabled={disabled}
-      >
-        {generating ? <Loader2 size={13} className="animate-spin" /> : <Images size={13} />}
-        生成视觉资产
-      </BookButton>
-      {!plan ? (
-        <div className="text-[11px] text-book-text-muted">尚未规划</div>
-      ) : (
-        <div className="space-y-2 text-[11px] text-book-text-muted">
-          <div className="grid grid-cols-3 gap-1 text-center">
-            <AssetPlanMetric label="背景" value={plan.summary.background_specs} />
-            <AssetPlanMetric label="差分" value={plan.summary.portrait_expression_specs} />
-            <AssetPlanMetric label="CG" value={plan.summary.event_cg_specs} />
-          </div>
-          <div className="grid grid-cols-3 gap-1 text-center">
-            <AssetPlanMetric label="新增" value={plan.summary.created_specs} />
-            <AssetPlanMetric label="更新" value={plan.summary.updated_specs} />
-            <AssetPlanMetric label="复用" value={plan.summary.reused_specs} />
-          </div>
-          <AssetPlanList title="背景" items={plan.backgrounds} />
-          <PortraitExpressionMatrix
-            items={plan.portrait_expressions}
-            speakerProfiles={speakerProfiles}
-            disabled={disabled}
-            generatingSpecId={generatingSpecId}
-            onGenerateSpec={onGenerateSpec}
-          />
-          <AssetPlanList title="事件 CG" items={plan.event_cgs} />
-        </div>
-      )}
-    </div>
+    </details>
   );
 };
 
-const ExportPanel: React.FC<{
-  loading: boolean;
-  disabled: boolean;
-  onExport: () => void;
-}> = ({ loading, disabled, onExport }) => (
-  <div className="mb-3 border border-book-border bg-book-bg px-3 py-2 text-xs">
-    <div className="mb-2 flex items-center justify-between gap-2">
-      <span className="font-semibold text-book-text-main">导出</span>
-      {loading ? <Loader2 size={13} className="animate-spin text-book-text-muted" /> : null}
-    </div>
-    <BookButton
-      variant="secondary"
-      size="sm"
-      className="w-full"
-      onClick={onExport}
-      disabled={disabled}
-    >
-      {loading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-      WebGAL zip
-    </BookButton>
-  </div>
-);
-
-const AssetPlanMetric: React.FC<{ label: string; value: number }> = ({ label, value }) => (
-  <div className="border border-book-border bg-book-surface px-1 py-1">
-    <div className="font-semibold text-book-text-main">{value}</div>
-    <div>{label}</div>
-  </div>
-);
-
-const AssetPlanList: React.FC<{ title: string; items: GalgameAssetPlan["backgrounds"] }> = ({
-  title,
-  items,
-}) => {
+const AssetPlanList: React.FC<{
+  title: string;
+  items: GalgameAssetPlan["backgrounds"];
+}> = ({ title, items }) => {
   if (!items.length) return null;
   return (
     <div className="border-t border-book-border pt-2">
       <div className="mb-1 font-semibold text-book-text-main">{title}</div>
       <div className="space-y-1">
         {items.slice(0, 4).map((item) => (
-          <div key={item.canonical_key} className="flex items-center justify-between gap-2">
-            <span className="truncate" title={item.label}>
+          <div
+            key={item.canonical_key}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
+          >
+            <span className="min-w-0 truncate" title={item.label}>
               {item.label}
             </span>
             <span>{assetPlanOutcomeLabel(item.outcome)}</span>
@@ -1102,7 +1391,13 @@ const PortraitExpressionMatrix: React.FC<{
   disabled: boolean;
   generatingSpecId: number | null;
   onGenerateSpec: (generationSpecId: number) => void;
-}> = ({ items, speakerProfiles, disabled, generatingSpecId, onGenerateSpec }) => {
+}> = ({
+  items,
+  speakerProfiles,
+  disabled,
+  generatingSpecId,
+  onGenerateSpec,
+}) => {
   const cells = useMemo(
     () => buildPortraitExpressionCells(items, speakerProfiles),
     [items, speakerProfiles],
@@ -1115,21 +1410,23 @@ const PortraitExpressionMatrix: React.FC<{
 
   return (
     <div className="border-t border-book-border pt-2">
-      <div className="mb-1 flex items-center justify-between gap-2">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="font-semibold text-book-text-main">角色差分</span>
-        <span>{cells.length} 项</span>
+        <span className="text-[10px] tabular-nums text-book-text-subtle">
+          {cells.length} 项
+        </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[360px] border-collapse text-[11px]">
           <thead>
             <tr className="text-left text-book-text-muted">
-              <th className="border border-book-border bg-book-surface px-2 py-1 font-medium">
+              <th className="border border-book-border bg-book-bg-paper px-2 py-1 font-medium">
                 角色
               </th>
               {expressionValues.map((expression) => (
                 <th
                   key={expression || "none"}
-                  className="border border-book-border bg-book-surface px-2 py-1 font-medium"
+                  className="border border-book-border bg-book-bg-paper px-2 py-1 font-medium"
                 >
                   {portraitExpressionLabel(expression)}
                 </th>
@@ -1140,17 +1437,21 @@ const PortraitExpressionMatrix: React.FC<{
             {rows.map(({ rowKey, firstCell }) => {
               return (
                 <tr key={rowKey}>
-                  <th className="max-w-28 border border-book-border bg-book-surface px-2 py-1 text-left font-medium text-book-text-main">
+                  <th className="max-w-28 border border-book-border bg-book-bg-paper px-2 py-1 text-left font-medium text-book-text-main">
                     <div className="truncate" title={firstCell.profileName}>
                       {firstCell.profileName}
                     </div>
-                    <div className="truncate text-book-text-muted" title={firstCell.pose || "默认姿势"}>
-                      {firstCell.pose || "默认姿势"}
+                    <div
+                      className="truncate text-book-text-muted"
+                      title={poseDisplayValue(firstCell.pose) || "默认姿势"}
+                    >
+                      {poseDisplayValue(firstCell.pose) || "默认姿势"}
                     </div>
                   </th>
                   {expressionValues.map((expression) => {
                     const cell = cellsByKey.get(`${rowKey}:${expression}`);
-                    const generating = generatingSpecId === cell?.item.generation_spec_id;
+                    const generating =
+                      generatingSpecId === cell?.item.generation_spec_id;
                     return (
                       <td
                         key={`${rowKey}:${expression || "none"}`}
@@ -1173,14 +1474,18 @@ const PortraitExpressionMatrix: React.FC<{
                               size="sm"
                               className="h-7 w-full"
                               disabled={disabled}
-                              onClick={() => onGenerateSpec(cell.item.generation_spec_id)}
+                              onClick={() =>
+                                onGenerateSpec(cell.item.generation_spec_id)
+                              }
                             >
                               {generating ? (
                                 <Loader2 size={12} className="animate-spin" />
                               ) : (
                                 <RefreshCw size={12} />
                               )}
-                              {cell.item.status === "completed" ? "检查" : "生成"}
+                              {cell.item.status === "completed"
+                                ? "检查"
+                                : "生成"}
                             </BookButton>
                           </div>
                         ) : (
@@ -1207,7 +1512,15 @@ const SceneMetaEditor: React.FC<{
   onPatch: (patch: Partial<GalgameScene>) => void;
   onBindMedia: (mediaAssetId: number) => void;
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
-}> = ({ scene, scenes, mediaBindings, disabled, onPatch, onBindMedia, onUnbindMedia }) => {
+}> = ({
+  scene,
+  scenes,
+  mediaBindings,
+  disabled,
+  onPatch,
+  onBindMedia,
+  onUnbindMedia,
+}) => {
   const [draft, setDraft] = useState({
     title: scene.title,
     location: scene.location ?? "",
@@ -1236,7 +1549,13 @@ const SceneMetaEditor: React.FC<{
       background_note: scene.background_note ?? "",
       next_scene_id: scene.next_scene_id?.toString() ?? "",
     });
-  }, [scene.background_note, scene.location, scene.next_scene_id, scene.time_of_day, scene.title]);
+  }, [
+    scene.background_note,
+    scene.location,
+    scene.next_scene_id,
+    scene.time_of_day,
+    scene.title,
+  ]);
 
   const commit = (
     key: "title" | "location" | "time_of_day" | "background_note",
@@ -1246,57 +1565,70 @@ const SceneMetaEditor: React.FC<{
       key === "title"
         ? scene.title
         : key === "location"
-          ? scene.location ?? ""
+          ? (scene.location ?? "")
           : key === "time_of_day"
-            ? scene.time_of_day ?? ""
-            : scene.background_note ?? "";
+            ? (scene.time_of_day ?? "")
+            : (scene.background_note ?? "");
     if (value === current) return;
     onPatch({ [key]: key === "title" ? value : value || null });
   };
-  const backgroundBindings = mediaBindings.filter((item) => item.binding.role === "background");
+  const backgroundBindings = mediaBindings.filter(
+    (item) => item.binding.role === "background",
+  );
 
   return (
     <div className="grid gap-3 border-b border-book-border bg-book-bg px-4 py-3 text-xs lg:grid-cols-[minmax(0,1fr)_220px]">
       <div className="grid gap-2 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
         <input
-          className="border border-book-border bg-book-surface px-2 py-1 text-book-text-main outline-none focus:border-book-primary"
+          className="pyqt-input text-book-text-main"
           value={draft.title}
           disabled={disabled}
-          onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+          onChange={(event) =>
+            setDraft((current) => ({ ...current, title: event.target.value }))
+          }
           onBlur={() => commit("title", draft.title)}
         />
         <input
-          className="border border-book-border bg-book-surface px-2 py-1 text-book-text-main outline-none focus:border-book-primary"
+          className="pyqt-input text-book-text-main"
           value={draft.location}
           disabled={disabled}
           placeholder="地点"
           onChange={(event) =>
-            setDraft((current) => ({ ...current, location: event.target.value }))
+            setDraft((current) => ({
+              ...current,
+              location: event.target.value,
+            }))
           }
           onBlur={() => commit("location", draft.location)}
         />
         <input
-          className="border border-book-border bg-book-surface px-2 py-1 text-book-text-main outline-none focus:border-book-primary"
+          className="pyqt-input text-book-text-main"
           value={draft.time_of_day}
           disabled={disabled}
           placeholder="时间"
           onChange={(event) =>
-            setDraft((current) => ({ ...current, time_of_day: event.target.value }))
+            setDraft((current) => ({
+              ...current,
+              time_of_day: event.target.value,
+            }))
           }
           onBlur={() => commit("time_of_day", draft.time_of_day)}
         />
         <textarea
-          className="min-h-16 border border-book-border bg-book-surface px-2 py-1 text-book-text-main outline-none focus:border-book-primary md:col-span-3"
+          className="pyqt-input min-h-16 text-book-text-main md:col-span-3"
           value={draft.background_note}
           disabled={disabled}
           placeholder="背景需求"
           onChange={(event) =>
-            setDraft((current) => ({ ...current, background_note: event.target.value }))
+            setDraft((current) => ({
+              ...current,
+              background_note: event.target.value,
+            }))
           }
           onBlur={() => commit("background_note", draft.background_note)}
         />
         <select
-          className="rounded-none border border-book-border bg-book-surface px-2 py-1 text-book-text-main outline-none focus:border-book-primary md:col-span-3"
+          className="pyqt-input text-book-text-main md:col-span-3"
           value={draft.next_scene_id}
           disabled={disabled}
           onChange={(event) => {
@@ -1305,12 +1637,14 @@ const SceneMetaEditor: React.FC<{
             onPatch({ next_scene_id: value ? Number(value) : null });
           }}
         >
-          <option value="">{scene.entry_kind === "branch" ? "未回收敛" : "无下一场"}</option>
+          <option value="">
+            {scene.entry_kind === "branch" ? "未回收敛" : "无下一场"}
+          </option>
           {!selectedNextSceneSelectable && scene.next_scene_id != null ? (
             <option value={scene.next_scene_id}>
               {scenes.some((item) => item.scene.id === scene.next_scene_id)
-                ? `非主线场 #${scene.next_scene_id}`
-                : `缺失场 #${scene.next_scene_id}`}
+                ? "当前下一场不是可用主线场"
+                : "当前下一场已缺失"}
             </option>
           ) : null}
           {availableNextScenes.map((item) => (
@@ -1320,20 +1654,30 @@ const SceneMetaEditor: React.FC<{
           ))}
         </select>
       </div>
-      <ImageBindingStrip
-        title="背景"
-        emptyLabel="未绑定背景"
-        bindings={backgroundBindings}
-        disabled={disabled}
-        bindControl={
-          <MediaAssetIdBinder
-            label="绑定背景资产"
+      <details className="rounded-xl border border-book-border/40 bg-book-bg-paper/45 p-2.5">
+        <summary className="cursor-pointer text-[11px] font-medium text-book-text-main">
+          背景素材 ·{" "}
+          {backgroundBindings.length
+            ? `${backgroundBindings.length} 项`
+            : "未绑定"}
+        </summary>
+        <div className="mt-2">
+          <ImageBindingStrip
+            title="背景"
+            emptyLabel=""
+            bindings={backgroundBindings}
             disabled={disabled}
-            onBind={onBindMedia}
+            bindControl={
+              <MediaAssetIdBinder
+                label="绑定背景素材"
+                disabled={disabled}
+                onBind={onBindMedia}
+              />
+            }
+            onUnbindMedia={onUnbindMedia}
           />
-        }
-        onUnbindMedia={onUnbindMedia}
-      />
+        </div>
+      </details>
     </div>
   );
 };
@@ -1362,32 +1706,36 @@ const LineEditor: React.FC<LineEditorProps> = ({
   onUnbindMedia,
 }) => {
   const [text, setText] = useState(line.text);
-  const [pose, setPose] = useState(line.pose ?? "");
+  const [pose, setPose] = useState(poseDisplayValue(line.pose ?? ""));
   const isSpeakingLine = SPEAKING_LINE_TYPES.has(line.line_type);
   const isChoiceLine = line.line_type === "choice";
   const expressionValue = selectValue(line.expression, EXPRESSIONS);
-  const missingSpeakingExpression = isSpeakingLine && expressionValue.length === 0;
+  const missingSpeakingExpression =
+    isSpeakingLine && expressionValue.length === 0;
   const poseDatalistId = `galgame-pose-suggestions-${line.id}`;
   const speaker = useMemo(
-    () => speakerProfiles.find((profile) => profile.id === line.speaker_profile_id) ?? null,
+    () =>
+      speakerProfiles.find(
+        (profile) => profile.id === line.speaker_profile_id,
+      ) ?? null,
     [line.speaker_profile_id, speakerProfiles],
   );
 
   useEffect(() => {
     setText(line.text);
-    setPose(line.pose ?? "");
+    setPose(poseDisplayValue(line.pose ?? ""));
   }, [line.pose, line.text]);
 
   const firstSpeakerId = speakerProfiles[0]?.id ?? null;
 
   return (
-    <div className="border border-book-border bg-book-bg px-3 py-3">
+    <article className="py-4 first:pt-0 last:pb-0">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="min-w-8 text-[11px] font-semibold text-book-text-muted">
-          #{line.line_index}
+          第 {line.line_index} 行
         </span>
         <select
-          className="rounded-none border border-book-border bg-book-surface px-2 py-1 text-xs text-book-text-main"
+          className="pyqt-input text-xs text-book-text-main"
           value={line.line_type}
           disabled={disabled}
           onChange={(event) => {
@@ -1395,7 +1743,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
             onPatch({
               line_type: nextType,
               speaker_profile_id: SPEAKING_LINE_TYPES.has(nextType)
-                ? line.speaker_profile_id ?? firstSpeakerId
+                ? (line.speaker_profile_id ?? firstSpeakerId)
                 : null,
               expression: SPEAKING_LINE_TYPES.has(nextType)
                 ? expressionValue || "neutral"
@@ -1407,7 +1755,10 @@ const LineEditor: React.FC<LineEditorProps> = ({
             <option
               key={item.value}
               value={item.value}
-              disabled={SPEAKING_LINE_TYPES.has(item.value) && speakerProfiles.length === 0}
+              disabled={
+                SPEAKING_LINE_TYPES.has(item.value) &&
+                speakerProfiles.length === 0
+              }
             >
               {item.label}
             </option>
@@ -1415,13 +1766,17 @@ const LineEditor: React.FC<LineEditorProps> = ({
         </select>
         {isSpeakingLine ? (
           <select
-            className="rounded-none border border-book-border bg-book-surface px-2 py-1 text-xs text-book-text-main"
+            className="pyqt-input text-xs text-book-text-main"
             value={line.speaker_profile_id ?? ""}
             disabled={disabled || speakerProfiles.length === 0}
             onChange={(event) =>
               onPatch({
-                speaker_profile_id: event.target.value ? Number(event.target.value) : null,
-                expression: event.target.value ? expressionValue || "neutral" : line.expression,
+                speaker_profile_id: event.target.value
+                  ? Number(event.target.value)
+                  : null,
+                expression: event.target.value
+                  ? expressionValue || "neutral"
+                  : line.expression,
               })
             }
           >
@@ -1437,10 +1792,12 @@ const LineEditor: React.FC<LineEditorProps> = ({
         ) : null}
         {!isChoiceLine ? (
           <select
-            className="rounded-none border border-book-border bg-book-surface px-2 py-1 text-xs text-book-text-main"
+            className="pyqt-input text-xs text-book-text-main"
             value={line.position ?? ""}
             disabled={disabled}
-            onChange={(event) => onPatch({ position: event.target.value || null })}
+            onChange={(event) =>
+              onPatch({ position: event.target.value || null })
+            }
           >
             {POSITIONS.map((item) => (
               <option key={item.value} value={item.value}>
@@ -1451,17 +1808,17 @@ const LineEditor: React.FC<LineEditorProps> = ({
         ) : null}
         {isSpeakingLine ? (
           <span
-            className={`max-w-[180px] truncate border px-2 py-1 text-[11px] ${
+            className={`max-w-[180px] truncate text-[11px] ${
               speaker && !missingSpeakingExpression
-                ? "border-book-border bg-book-surface text-book-text-muted"
-                : "border-error/50 bg-book-surface text-error"
+                ? "text-book-text-muted"
+                : "text-error"
             }`}
             title={
               speaker
                 ? missingSpeakingExpression
-                  ? "对白/独白必须设置 expression"
-                  : `profile_id=${speaker.id}`
-                : "未绑定 speaker_profile_id"
+                  ? "对白或独白必须设置表情"
+                  : speaker.name
+                : "未绑定角色"
             }
           >
             {speaker
@@ -1478,42 +1835,55 @@ const LineEditor: React.FC<LineEditorProps> = ({
             }`}
             title={
               sourceAnchor
-                ? `${sourceChapter ? `第 ${sourceChapter.chapter_number} 章` : "源快照章节"} · P${
+                ? `${sourceChapter ? `第 ${sourceChapter.chapter_number} 章` : "来源章节"} · P${
                     sourceAnchor.paragraph_index + 1
                   } · ${sourceAnchor.quote}`
-                : `text_anchor ${line.text_anchor_id} 未随剧本返回`
+                : "来源锚点未随剧本返回"
             }
           >
             {sourceAnchor
               ? `${sourceChapter ? `第 ${sourceChapter.chapter_number} 章` : "源快照"} · ${
                   sourceAnchor.quote
                 }`
-              : `锚点缺失 ${line.text_anchor_id}`}
+              : "来源锚点缺失"}
           </span>
         ) : null}
         <div className="ml-auto flex items-center gap-1">
-          {saving ? <Loader2 size={13} className="animate-spin text-book-text-muted" /> : null}
-          <BookButton variant="secondary" size="sm" onClick={onMoveUp} disabled={disabled || !canMoveUp}>
-            <ArrowUp size={13} />
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            size="sm"
-            onClick={onMoveDown}
-            disabled={disabled || !canMoveDown}
-          >
-            <ArrowDown size={13} />
-          </BookButton>
-          <BookButton variant="secondary" size="sm" onClick={onInsertAfter} disabled={disabled}>
-            <Plus size={13} />
-          </BookButton>
-          <BookButton variant="secondary" size="sm" onClick={onDelete} disabled={disabled}>
-            <Trash2 size={13} />
-          </BookButton>
+          {saving ? (
+            <Loader2 size={13} className="animate-spin text-book-text-muted" />
+          ) : null}
+          <Dropdown
+            items={[
+              {
+                label: "上移一行",
+                onClick: onMoveUp,
+                disabled: disabled || !canMoveUp,
+              },
+              {
+                label: "下移一行",
+                onClick: onMoveDown,
+                disabled: disabled || !canMoveDown,
+              },
+              {
+                label: "在下方插入",
+                icon: <Plus size={13} />,
+                onClick: onInsertAfter,
+                disabled,
+              },
+              { type: "divider" },
+              {
+                label: "删除此行",
+                icon: <Trash2 size={13} />,
+                onClick: onDelete,
+                disabled,
+                danger: true,
+              },
+            ]}
+          />
         </div>
       </div>
       <textarea
-        className="min-h-20 w-full resize-y border border-book-border bg-book-surface px-3 py-2 text-xs leading-relaxed text-book-text-main outline-none focus:border-book-primary"
+        className="pyqt-input min-h-20 w-full resize-y px-3 py-2 text-xs leading-relaxed text-book-text-main"
         value={text}
         disabled={disabled}
         onChange={(event) => setText(event.target.value)}
@@ -1524,10 +1894,12 @@ const LineEditor: React.FC<LineEditorProps> = ({
       {!isChoiceLine ? (
         <div className="mt-2 grid gap-2 md:grid-cols-2">
           <select
-            className="rounded-none border border-book-border bg-book-surface px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
+            className="pyqt-input text-xs text-book-text-main"
             value={expressionValue}
             disabled={disabled}
-            onChange={(event) => onPatch({ expression: event.target.value || null })}
+            onChange={(event) =>
+              onPatch({ expression: event.target.value || null })
+            }
           >
             {EXPRESSIONS.map((item) => (
               <option
@@ -1541,24 +1913,28 @@ const LineEditor: React.FC<LineEditorProps> = ({
           </select>
           <input
             list={poseDatalistId}
-            className="border border-book-border bg-book-surface px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
+            className="pyqt-input text-xs text-book-text-main"
             value={pose}
             disabled={disabled}
             placeholder="姿势"
             onChange={(event) => setPose(event.target.value)}
             onBlur={() => {
-              if (pose !== (line.pose ?? "")) onPatch({ pose: pose || null });
+              const storedPose = poseStoredValue(pose);
+              if (storedPose !== (line.pose ?? ""))
+                onPatch({ pose: storedPose || null });
             }}
           />
           <datalist id={poseDatalistId}>
             {POSE_SUGGESTIONS.map((item) => (
-              <option key={item} value={item} />
+              <option key={item.value} value={item.label} />
             ))}
           </datalist>
           <PresentationEditor
             line={line}
             disabled={disabled}
-            onPatch={(presentationJson) => onPatch({ presentation_json: presentationJson })}
+            onPatch={(presentationJson) =>
+              onPatch({ presentation_json: presentationJson })
+            }
           />
         </div>
       ) : (
@@ -1578,21 +1954,32 @@ const LineEditor: React.FC<LineEditorProps> = ({
         onBindMedia={onBindMedia}
         onUnbindMedia={onUnbindMedia}
       />
-    </div>
+    </article>
   );
 };
 
 const PresentationEditor: React.FC<{
   line: GalgameLine;
   disabled: boolean;
-  onPatch: (presentationJson: Record<string, unknown>) => void;
+  onPatch: (presentationJson: GalgameLinePresentationDocumentV2) => void;
 }> = ({ line, disabled, onPatch }) => {
-  const presentation = useMemo(() => recordValue(line.presentation_json), [line.presentation_json]);
-  const currentCgEnabled = presentation["cg"] === true || presentationCgNote(presentation).length > 0;
+  const presentation = useMemo(
+    () =>
+      requireGalgamePresentation(
+        line.presentation_json,
+        `Galgame 行 ${line.id} presentation_json`,
+      ),
+    [line.id, line.presentation_json],
+  );
+  const currentCgEnabled =
+    presentation["cg"] === true || presentationCgNote(presentation).length > 0;
   const currentCgImportance =
     selectValue(presentation["cg_importance"], CG_IMPORTANCE_OPTIONS) ||
     (currentCgEnabled ? DEFAULT_CG_IMPORTANCE : "");
-  const currentTransition = selectValue(presentation["transition"], TRANSITION_OPTIONS);
+  const currentTransition = selectValue(
+    presentation["transition"],
+    TRANSITION_OPTIONS,
+  );
   const [cgNote, setCgNote] = useState(presentationCgNote(presentation));
   const [cgEnabled, setCgEnabled] = useState(currentCgEnabled);
   const [cgImportance, setCgImportance] = useState(currentCgImportance);
@@ -1610,48 +1997,62 @@ const PresentationEditor: React.FC<{
   };
 
   return (
-    <div className="md:col-span-2 border border-book-border bg-book-surface px-2 py-2">
+    <div className="rounded-xl bg-book-bg-paper/45 px-2.5 py-2.5 md:col-span-2">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1 text-[11px] text-book-text-main">
-          <input
-            type="checkbox"
-            checked={cgEnabled}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={cgEnabled}
+          disabled={disabled}
+          onClick={() => {
+            const checked = !cgEnabled;
+            setCgEnabled(checked);
+            if (!checked) {
+              setCgNote("");
+              setCgImportance("");
+              update({ cgEnabled: false });
+              return;
+            }
+            const nextImportance = cgImportance || DEFAULT_CG_IMPORTANCE;
+            if (!cgImportance) setCgImportance(nextImportance);
+            if (cgNote.trim()) {
+              update({ cgNote, cgImportance: nextImportance });
+            }
+          }}
+          className="inline-flex items-center gap-1.5 text-[11px] text-book-text-main disabled:opacity-50"
+        >
+          <span
+            className={`relative inline-flex h-[18px] w-8 shrink-0 rounded-full transition-colors ${
+              cgEnabled ? "bg-book-primary" : "bg-book-text-muted/25"
+            }`}
+          >
+            <span
+              className={`absolute top-[2px] h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
+                cgEnabled ? "translate-x-4" : "translate-x-[2px]"
+              }`}
+            />
+          </span>
+          事件 CG
+        </button>
+        {cgEnabled ? (
+          <select
+            className="pyqt-input text-xs text-book-text-main"
+            value={cgImportance}
             disabled={disabled}
             onChange={(event) => {
-              const checked = event.target.checked;
-              setCgEnabled(checked);
-              if (!checked) {
-                setCgNote("");
-                setCgImportance("");
-                update({ cgEnabled: false });
-                return;
-              }
-              const nextImportance = cgImportance || DEFAULT_CG_IMPORTANCE;
-              if (!cgImportance) setCgImportance(nextImportance);
-              if (cgNote.trim()) {
-                update({ cgNote, cgImportance: nextImportance });
-              }
+              setCgImportance(event.target.value);
+              update({ cgImportance: event.target.value });
             }}
-          />
-          事件 CG
-        </label>
+          >
+            {CG_IMPORTANCE_OPTIONS.map((item) => (
+              <option key={item.value || "none"} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <select
-          className="rounded-none border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
-          value={cgImportance}
-          disabled={disabled || !cgEnabled}
-          onChange={(event) => {
-            setCgImportance(event.target.value);
-            update({ cgImportance: event.target.value });
-          }}
-        >
-          {CG_IMPORTANCE_OPTIONS.map((item) => (
-            <option key={item.value || "none"} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="rounded-none border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
+          className="pyqt-input text-xs text-book-text-main"
           value={transition}
           disabled={disabled}
           onChange={(event) => {
@@ -1666,24 +2067,29 @@ const PresentationEditor: React.FC<{
           ))}
         </select>
       </div>
-      <textarea
-        className="min-h-16 w-full resize-y border border-book-border bg-book-bg px-2 py-1 text-xs leading-relaxed text-book-text-main outline-none focus:border-book-primary"
-        value={cgNote}
-        disabled={disabled}
-        placeholder="事件 CG 画面描述"
-        onChange={(event) => setCgNote(event.target.value)}
-        onBlur={() => {
-          if (cgNote !== presentationCgNote(presentation)) {
-            if (cgNote.trim()) {
-              setCgEnabled(true);
-              if (!cgImportance) setCgImportance(DEFAULT_CG_IMPORTANCE);
-              update({ cgNote, cgImportance: cgImportance || DEFAULT_CG_IMPORTANCE });
-            } else {
-              update({ cgNote: "" });
+      {cgEnabled ? (
+        <textarea
+          className="min-h-16 w-full resize-y rounded-xl border border-book-border/55 bg-book-bg px-2.5 py-2 text-xs leading-relaxed text-book-text-main outline-none focus:border-book-primary"
+          value={cgNote}
+          disabled={disabled}
+          placeholder="事件 CG 画面描述"
+          onChange={(event) => setCgNote(event.target.value)}
+          onBlur={() => {
+            if (cgNote !== presentationCgNote(presentation)) {
+              if (cgNote.trim()) {
+                setCgEnabled(true);
+                if (!cgImportance) setCgImportance(DEFAULT_CG_IMPORTANCE);
+                update({
+                  cgNote,
+                  cgImportance: cgImportance || DEFAULT_CG_IMPORTANCE,
+                });
+              } else {
+                update({ cgNote: "" });
+              }
             }
-          }
-        }}
-      />
+          }}
+        />
+      ) : null}
     </div>
   );
 };
@@ -1710,7 +2116,10 @@ const ChoiceEditor: React.FC<{
   }, [choices, line, sceneById, scenes]);
 
   const targetInspections = useMemo(
-    () => drafts.map((draft) => inspectChoiceTarget(draft.target_scene_id, sceneById)),
+    () =>
+      drafts.map((draft) =>
+        inspectChoiceTarget(draft.target_scene_id, sceneById),
+      ),
     [drafts, sceneById],
   );
   const normalizedChoices = useMemo(() => {
@@ -1718,7 +2127,11 @@ const ChoiceEditor: React.FC<{
       .map((draft) => {
         const optionText = draft.option_text.trim();
         const targetSceneId = Number(draft.target_scene_id);
-        if (!optionText || !Number.isInteger(targetSceneId) || !sceneById.has(targetSceneId)) {
+        if (
+          !optionText ||
+          !Number.isInteger(targetSceneId) ||
+          !sceneById.has(targetSceneId)
+        ) {
           return null;
         }
         return {
@@ -1730,10 +2143,13 @@ const ChoiceEditor: React.FC<{
   }, [drafts, sceneById]);
 
   const structurallyComplete =
-    drafts.length >= 2 && drafts.length <= 3 && normalizedChoices.length === drafts.length;
-  const targetIssueCount = targetInspections.filter((item) => item.kind === "error").length;
-  const canSave =
-    structurallyComplete && targetIssueCount === 0;
+    drafts.length >= 2 &&
+    drafts.length <= 3 &&
+    normalizedChoices.length === drafts.length;
+  const targetIssueCount = targetInspections.filter(
+    (item) => item.kind === "error",
+  ).length;
+  const canSave = structurallyComplete && targetIssueCount === 0;
   const validationMessage =
     scenes.length === 0
       ? "没有可用目标场"
@@ -1745,7 +2161,9 @@ const ChoiceEditor: React.FC<{
 
   const updateDraft = (index: number, patch: Partial<ChoiceDraft>) => {
     setDrafts((current) =>
-      current.map((draft, itemIndex) => (itemIndex === index ? { ...draft, ...patch } : draft)),
+      current.map((draft, itemIndex) =>
+        itemIndex === index ? { ...draft, ...patch } : draft,
+      ),
     );
   };
 
@@ -1755,18 +2173,21 @@ const ChoiceEditor: React.FC<{
       ...current,
       {
         option_text: "",
-        target_scene_id: defaultChoiceTargetSceneId(line, scenes, sceneById)?.toString() ?? "",
+        target_scene_id:
+          defaultChoiceTargetSceneId(line, scenes, sceneById)?.toString() ?? "",
       },
     ]);
   };
 
   const removeDraft = (index: number) => {
     if (drafts.length <= 2) return;
-    setDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setDrafts((current) =>
+      current.filter((_, itemIndex) => itemIndex !== index),
+    );
   };
 
   return (
-    <div className="mt-2 border border-book-border bg-book-surface p-2">
+    <div className="mt-2 rounded-xl bg-book-bg-paper/45 p-2.5">
       <div className="space-y-2">
         {drafts.map((draft, index) => {
           const inspection = targetInspections[index];
@@ -1778,31 +2199,42 @@ const ChoiceEditor: React.FC<{
                   value={draft.option_text}
                   disabled={disabled}
                   placeholder={`选项 ${index + 1}`}
-                  onChange={(event) => updateDraft(index, { option_text: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft(index, { option_text: event.target.value })
+                  }
                 />
                 <select
-                  className="rounded-none border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main"
+                  className="pyqt-input text-xs text-book-text-main"
                   value={draft.target_scene_id}
                   disabled={disabled || scenes.length === 0}
-                  onChange={(event) => updateDraft(index, { target_scene_id: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft(index, { target_scene_id: event.target.value })
+                  }
                 >
-                  {scenes.length === 0 ? <option value="">无目标场</option> : null}
+                  {scenes.length === 0 ? (
+                    <option value="">无目标场</option>
+                  ) : null}
                   {scenes.map((item) => (
                     <option key={item.scene.id} value={item.scene.id}>
                       {sceneSelectLabel(item.scene)}
                     </option>
                   ))}
                 </select>
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => removeDraft(index)}
-                  disabled={disabled || drafts.length <= 2}
-                >
-                  <Trash2 size={13} />
-                </BookButton>
+                {drafts.length > 2 ? (
+                  <BookButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => removeDraft(index)}
+                    disabled={disabled}
+                    aria-label={`删除选项 ${index + 1}`}
+                  >
+                    <Trash2 size={13} />
+                  </BookButton>
+                ) : null}
               </div>
-              {inspection ? <ChoiceTargetSummary inspection={inspection} /> : null}
+              {inspection ? (
+                <ChoiceTargetSummary inspection={inspection} />
+              ) : null}
             </div>
           );
         })}
@@ -1812,15 +2244,17 @@ const ChoiceEditor: React.FC<{
           存在缺失目标或未回收敛支线，导出前需要修正。
         </div>
       ) : null}
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="mt-2 flex flex-col gap-2 border-t border-book-border/35 pt-2 sm:flex-row sm:items-center">
         <span
-          className={`text-[11px] ${
-            canSave && targetIssueCount === 0 ? "text-book-text-muted" : "text-error"
+          className={`min-w-0 flex-1 text-[11px] ${
+            canSave && targetIssueCount === 0
+              ? "text-book-text-muted"
+              : "text-error"
           }`}
         >
           {validationMessage}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <BookButton
             variant="secondary"
             size="sm"
@@ -1850,15 +2284,13 @@ type ChoiceTargetInspection =
   | { kind: "main"; message: string }
   | { kind: "branch"; message: string };
 
-const ChoiceTargetSummary: React.FC<{ inspection: ChoiceTargetInspection }> = ({ inspection }) => {
+const ChoiceTargetSummary: React.FC<{ inspection: ChoiceTargetInspection }> = ({
+  inspection,
+}) => {
   const className =
-    inspection.kind === "error"
-      ? "border-error/50 text-error"
-      : "border-book-border text-book-text-muted";
+    inspection.kind === "error" ? "text-error" : "text-book-text-muted";
   return (
-    <div className={`border bg-book-bg px-2 py-1 text-[11px] ${className}`}>
-      {inspection.message}
-    </div>
+    <div className={`px-1 text-[11px] ${className}`}>{inspection.message}</div>
   );
 };
 
@@ -1871,41 +2303,41 @@ function inspectChoiceTarget(
   }
   const sceneId = Number(targetSceneId);
   if (!Number.isInteger(sceneId)) {
-    return { kind: "error", message: "目标场 ID 无效" };
+    return { kind: "error", message: "目标场无效" };
   }
   const target = sceneById.get(sceneId);
   if (!target) {
-    return { kind: "error", message: `目标场不存在 #${sceneId}` };
+    return { kind: "error", message: "选择的目标场不存在" };
   }
   if (target.scene.entry_kind !== "branch") {
     return {
       kind: "main",
-      message: `跳转到主线 #${target.scene.scene_index} ${target.scene.title}`,
+      message: `跳转到主线场次 ${target.scene.scene_index} · ${target.scene.title}`,
     };
   }
   const returnSceneId = target.scene.next_scene_id;
   if (returnSceneId == null) {
     return {
       kind: "error",
-      message: `支线 #${target.scene.scene_index} ${target.scene.title} 未设置回收敛场`,
+      message: `支线场次 ${target.scene.scene_index} · ${target.scene.title} 未设置回收敛场`,
     };
   }
   const returnScene = sceneById.get(returnSceneId);
   if (!returnScene) {
     return {
       kind: "error",
-      message: `支线 #${target.scene.scene_index} 回收敛目标缺失 #${returnSceneId}`,
+      message: `支线场次 ${target.scene.scene_index} 的回收敛目标不存在`,
     };
   }
   if (returnScene.scene.entry_kind !== "main") {
     return {
       kind: "error",
-      message: `支线 #${target.scene.scene_index} 回收敛目标不是主线 #${returnScene.scene.scene_index}`,
+      message: `支线场次 ${target.scene.scene_index} 的回收敛目标不是主线场次 ${returnScene.scene.scene_index}`,
     };
   }
   return {
     kind: "branch",
-    message: `进入支线 #${target.scene.scene_index} ${target.scene.title}，回到 #${returnScene.scene.scene_index} ${returnScene.scene.title}`,
+    message: `进入支线场次 ${target.scene.scene_index} · ${target.scene.title}，回到场次 ${returnScene.scene.scene_index} · ${returnScene.scene.title}`,
   };
 }
 
@@ -1923,7 +2355,8 @@ function buildChoiceDrafts(
         target_scene_id: choice.target_scene_id?.toString() ?? "",
       }));
   }
-  const targetSceneId = defaultChoiceTargetSceneId(line, scenes, sceneById)?.toString() ?? "";
+  const targetSceneId =
+    defaultChoiceTargetSceneId(line, scenes, sceneById)?.toString() ?? "";
   return [
     { option_text: "", target_scene_id: targetSceneId },
     { option_text: "", target_scene_id: targetSceneId },
@@ -1941,7 +2374,9 @@ function defaultChoiceTargetSceneId(
     return nextSceneId;
   }
   return (
-    scenes.find((item) => item.scene.id !== line.scene_id)?.scene.id ?? scenes[0]?.scene.id ?? null
+    scenes.find((item) => item.scene.id !== line.scene_id)?.scene.id ??
+    scenes[0]?.scene.id ??
+    null
   );
 }
 
@@ -1956,62 +2391,75 @@ const LineMediaBindings: React.FC<{
     (item) => item.binding.role === "bgm" || item.binding.role === "sfx",
   );
   const cgBindings = bindings.filter((item) => item.binding.role === "cg");
+  const bindingCount = audioBindings.length + cgBindings.length;
   return (
-    <div className="mt-2 border-t border-book-border pt-2">
-      <ImageBindingStrip
-        title="CG"
-        emptyLabel=""
-        bindings={cgBindings}
-        disabled={disabled}
-        bindControl={
-          <MediaAssetIdBinder
-            label="绑定 CG 资产"
+    <details className="mt-3 border-t border-book-border/40 pt-2.5">
+      <summary className="cursor-pointer rounded-lg px-1 py-1 text-[11px] font-medium text-book-text-main hover:bg-book-bg-tertiary/55">
+        媒体与音效 · {bindingCount > 0 ? `${bindingCount} 项` : "未绑定"}
+      </summary>
+      <div className="mt-2.5">
+        <ImageBindingStrip
+          title="CG"
+          emptyLabel=""
+          bindings={cgBindings}
+          disabled={disabled}
+          bindControl={
+            <MediaAssetIdBinder
+              label="绑定 CG 资产"
+              disabled={disabled}
+              onBind={(mediaAssetId) => onBindMedia("cg", mediaAssetId)}
+            />
+          }
+          onUnbindMedia={onUnbindMedia}
+        />
+        <div className="mb-2 divide-y divide-book-border/35 rounded-xl bg-book-bg-paper/45 lg:grid lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+          <AudioBindingControl
+            label="BGM"
             disabled={disabled}
-            onBind={(mediaAssetId) => onBindMedia("cg", mediaAssetId)}
+            onImport={() => onImportAudio("bgm")}
+            onBind={(mediaAssetId) => onBindMedia("bgm", mediaAssetId)}
           />
-        }
-        onUnbindMedia={onUnbindMedia}
-      />
-      <div className="mb-2 grid gap-2 lg:grid-cols-2">
-        <AudioBindingControl
-          label="BGM"
-          disabled={disabled}
-          onImport={() => onImportAudio("bgm")}
-          onBind={(mediaAssetId) => onBindMedia("bgm", mediaAssetId)}
-        />
-        <AudioBindingControl
-          label="SFX"
-          disabled={disabled}
-          onImport={() => onImportAudio("sfx")}
-          onBind={(mediaAssetId) => onBindMedia("sfx", mediaAssetId)}
-        />
-      </div>
-      {audioBindings.length ? (
-        <div className="space-y-2">
-          {audioBindings.map((item) => {
-            const src = item.asset.file_path ? toMediaSrc(item.asset.file_path) : "";
-            return (
-              <div
-                key={item.binding.id}
-                className="grid gap-2 border border-book-border bg-book-surface p-2 text-[11px] text-book-text-muted md:grid-cols-[64px_minmax(0,1fr)_auto]"
-              >
-                <span className="font-semibold text-book-text-main">
-                  {item.binding.role === "bgm" ? "BGM" : "SFX"}
-                </span>
-                {src ? (
-                  <audio src={src} controls className="h-8 w-full" />
-                ) : (
-                  <span>音频文件缺失</span>
-                )}
-                <BookButton variant="secondary" size="sm" onClick={() => onUnbindMedia(item)} disabled={disabled}>
-                  <X size={13} />
-                </BookButton>
-              </div>
-            );
-          })}
+          <AudioBindingControl
+            label="SFX"
+            disabled={disabled}
+            onImport={() => onImportAudio("sfx")}
+            onBind={(mediaAssetId) => onBindMedia("sfx", mediaAssetId)}
+          />
         </div>
-      ) : null}
-    </div>
+        {audioBindings.length ? (
+          <div className="divide-y divide-book-border/35 rounded-xl bg-book-bg-paper/45 px-2.5">
+            {audioBindings.map((item) => {
+              const src = item.asset.file_path
+                ? toMediaSrc(item.asset.file_path)
+                : "";
+              return (
+                <div
+                  key={item.binding.id}
+                  className="grid gap-2 py-2.5 text-[11px] text-book-text-muted md:grid-cols-[64px_minmax(0,1fr)_auto]"
+                >
+                  <span className="font-semibold text-book-text-main">
+                    {item.binding.role === "bgm" ? "BGM" : "SFX"}
+                  </span>
+                  {src ? (
+                    <audio src={src} controls className="h-8 w-full" />
+                  ) : (
+                    <span>音频文件缺失</span>
+                  )}
+                  <BookButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onUnbindMedia(item)}
+                    disabled={disabled}
+                  >
+                    <X size={13} />
+                  </BookButton>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    </details>
   );
 };
 
@@ -2022,12 +2470,19 @@ const ImageBindingStrip: React.FC<{
   disabled: boolean;
   bindControl?: React.ReactNode;
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
-}> = ({ title, emptyLabel, bindings, disabled, bindControl, onUnbindMedia }) => {
+}> = ({
+  title,
+  emptyLabel,
+  bindings,
+  disabled,
+  bindControl,
+  onUnbindMedia,
+}) => {
   if (!bindings.length) {
     return (
       <div className="mb-2 space-y-2">
         {emptyLabel ? (
-          <div className="border border-dashed border-book-border bg-book-surface px-3 py-4 text-center text-[11px] text-book-text-muted">
+          <div className="border border-dashed border-book-border bg-book-bg-paper px-3 py-4 text-center text-[11px] text-book-text-muted">
             {emptyLabel}
           </div>
         ) : null}
@@ -2042,25 +2497,29 @@ const ImageBindingStrip: React.FC<{
           const mediaPath = item.asset.thumbnail_path || item.asset.file_path;
           const src = mediaPath ? toMediaSrc(mediaPath) : "";
           return (
-            <div key={item.binding.id} className="border border-book-border bg-book-surface">
-              <div className="flex items-center justify-between gap-2 border-b border-book-border px-2 py-1">
-                <span className="truncate text-[11px] font-semibold text-book-text-main">
-                  {title} #{item.asset.id}
+            <div
+              key={item.binding.id}
+              className="overflow-hidden rounded-xl border border-book-border/45 bg-book-bg-paper"
+            >
+              <div className="flex items-center gap-2 px-2.5 py-2">
+                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-book-text-main">
+                  {title}
                 </span>
-                <BookButton
-                  variant="secondary"
-                  size="sm"
+                <button
+                  type="button"
                   onClick={() => onUnbindMedia(item)}
                   disabled={disabled}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-book-text-muted hover:bg-book-bg-tertiary hover:text-book-text-main disabled:opacity-45"
+                  aria-label={`取消绑定${title}`}
                 >
                   <X size={13} />
-                </BookButton>
+                </button>
               </div>
               <div className="aspect-video w-full overflow-hidden bg-book-bg">
                 {src ? (
                   <img
                     src={src}
-                    alt={`${title} #${item.asset.id}`}
+                    alt={title}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -2085,7 +2544,10 @@ const AudioBindingControl: React.FC<{
   onBind: (mediaAssetId: number) => void;
 }> = ({ label, disabled, onImport, onBind }) => {
   return (
-    <div className="border border-book-border bg-book-surface p-2">
+    <section className="p-2.5">
+      <div className="mb-2 text-[11px] font-semibold text-book-text-main">
+        {label}
+      </div>
       <BookButton
         variant="secondary"
         size="sm"
@@ -2096,8 +2558,12 @@ const AudioBindingControl: React.FC<{
         <Music size={13} />
         导入 {label}
       </BookButton>
-      <MediaAssetIdBinder label={`绑定 ${label} 资产`} disabled={disabled} onBind={onBind} />
-    </div>
+      <MediaAssetIdBinder
+        label={`绑定 ${label} 资产`}
+        disabled={disabled}
+        onBind={onBind}
+      />
+    </section>
   );
 };
 
@@ -2112,7 +2578,7 @@ const MediaAssetIdBinder: React.FC<{
 
   const submit = () => {
     if (mediaAssetId == null) {
-      setError("请输入正整数媒体资产 ID");
+      setError("请输入有效的素材编号");
       return;
     }
     setError("");
@@ -2120,34 +2586,40 @@ const MediaAssetIdBinder: React.FC<{
   };
 
   return (
-    <div className="space-y-1">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-        <input
-          className="min-w-0 border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
-          value={draft}
-          disabled={disabled}
-          inputMode="numeric"
-          placeholder="media_asset_id"
-          onChange={(event) => {
-            setDraft(event.target.value);
-            if (error) setError("");
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") submit();
-          }}
-        />
-        <BookButton
-          variant="secondary"
-          size="sm"
-          onClick={submit}
-          disabled={disabled || mediaAssetId == null}
-        >
-          <Images size={13} />
-          {label}
-        </BookButton>
+    <details className="border-t border-book-border/55 pt-2">
+      <summary className="cursor-pointer list-none text-[11px] text-book-text-muted hover:text-book-text-main [&::-webkit-details-marker]:hidden">
+        从已有素材绑定
+      </summary>
+      <div className="mt-2 space-y-1">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <input
+            className="min-w-0 border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
+            value={draft}
+            disabled={disabled}
+            inputMode="numeric"
+            aria-label="素材编号"
+            placeholder="素材编号"
+            onChange={(event) => {
+              setDraft(event.target.value);
+              if (error) setError("");
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submit();
+            }}
+          />
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={submit}
+            disabled={disabled || mediaAssetId == null}
+          >
+            <Images size={13} />
+            {label}
+          </BookButton>
+        </div>
+        {error ? <div className="text-[11px] text-error">{error}</div> : null}
       </div>
-      {error ? <div className="text-[11px] text-error">{error}</div> : null}
-    </div>
+    </details>
   );
 };
 
@@ -2166,16 +2638,37 @@ function pipelineStatusLabel(status: string): string {
     case "superseded":
       return "已取代";
     default:
-      return status;
+      return "状态未知";
   }
+}
+
+function pipelineStartStageLabel(
+  stage: GalgamePipelineStartStage | "",
+): string {
+  return (
+    PIPELINE_START_STAGES.find((item) => item.value === stage)?.label ??
+    "从头开始"
+  );
 }
 
 function pipelineStepLabel(stepKey: string): string {
   switch (stepKey) {
+    case "shooting_script_projection":
+      return "拍摄剧本投影";
+    case "script_adaptation":
+      return "剧本改编";
+    case "character_staging":
+      return "角色演出";
+    case "visual_planning":
+      return "视觉规划";
+    case "branch_design":
+      return "分支设计";
     case "persist_script":
       return "写入剧本";
+    case "asset_generation":
+      return "资产意图";
     default:
-      return stepKey;
+      return "其他步骤";
   }
 }
 
@@ -2186,13 +2679,13 @@ function sceneEntryKindLabel(entryKind: string): string {
     case "branch":
       return "支线";
     default:
-      return entryKind;
+      return "其他场次";
   }
 }
 
 function sceneSelectLabel(scene: GalgameScene): string {
   const entryKind = scene.entry_kind === "branch" ? "支线" : "主线";
-  return `#${scene.scene_index} ${scene.title} · ${entryKind}`;
+  return `场次 ${scene.scene_index} · ${scene.title} · ${entryKind}`;
 }
 
 function assetPlanOutcomeLabel(outcome: string): string {
@@ -2204,7 +2697,7 @@ function assetPlanOutcomeLabel(outcome: string): string {
     case "reused":
       return "复用";
     default:
-      return outcome;
+      return "其他结果";
   }
 }
 
@@ -2219,7 +2712,7 @@ function assetSpecStatusLabel(status: string): string {
     case "running":
       return "生成中";
     default:
-      return status;
+      return "状态未知";
   }
 }
 
@@ -2227,11 +2720,14 @@ function buildPortraitExpressionCells(
   items: GalgameAssetPlanItem[],
   speakerProfiles: GalgameSpeakerProfile[],
 ): PortraitExpressionCell[] {
-  const speakerNameById = new Map(speakerProfiles.map((profile) => [profile.id, profile.name]));
+  const speakerNameById = new Map(
+    speakerProfiles.map((profile) => [profile.id, profile.name]),
+  );
   return items.map((item) => {
     const params = recordValue(item.params_json);
-    const profileId = numberValue(params.character_profile_id) ?? item.target_entity_id;
-    const profileName = speakerNameById.get(profileId) ?? `角色 #${profileId}`;
+    const profileId =
+      numberValue(params.character_profile_id) ?? item.target_entity_id;
+    const profileName = speakerNameById.get(profileId) ?? "未知角色";
     const expression = stringValue(params.expression);
     const pose = stringValue(params.pose);
     return {
@@ -2279,7 +2775,21 @@ function portraitExpressionColumns(present: Set<string>): string[] {
 }
 
 function portraitExpressionLabel(expression: string): string {
-  return EXPRESSIONS.find((item) => item.value === expression)?.label ?? expression;
+  return (
+    EXPRESSIONS.find((item) => item.value === expression)?.label ?? "其他表情"
+  );
+}
+
+function poseDisplayValue(pose: string): string {
+  return POSE_SUGGESTIONS.find((item) => item.value === pose)?.label ?? pose;
+}
+
+function poseStoredValue(pose: string): string {
+  const normalized = pose.trim();
+  return (
+    POSE_SUGGESTIONS.find((item) => item.label === normalized)?.value ??
+    normalized
+  );
 }
 
 function recordValue(value: unknown): Record<string, unknown> {
@@ -2288,11 +2798,129 @@ function recordValue(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function requireRecordValue(value: unknown, fieldName: string): Record<string, unknown> {
+function requireRecordValue(
+  value: unknown,
+  fieldName: string,
+): Record<string, unknown> {
   if (value != null && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }
   throw new Error(`${fieldName} 必须是 JSON 对象`);
+}
+
+function emptyGalgamePresentation(): GalgameLinePresentationDocumentV2 {
+  return {
+    schema_version: "galgame_line_presentation_v2",
+    visible_cast: [],
+    enter: [],
+    exit: [],
+    focus_character_profile_id: null,
+    hold: false,
+    player_knowledge: [],
+  };
+}
+
+function requireGalgamePresentation(
+  value: unknown,
+  fieldName: string,
+): GalgameLinePresentationDocumentV2 {
+  const record = requireRecordValue(value, fieldName);
+  const allowed = new Set([
+    "schema_version",
+    "visible_cast",
+    "enter",
+    "exit",
+    "focus_character_profile_id",
+    "hold",
+    "player_knowledge",
+    "cg",
+    "cg_note",
+    "cg_importance",
+    "transition",
+    "branch",
+    "branch_id",
+    "returns_to_scene_index",
+    "after_beat_ref",
+  ]);
+  const unknownField = Object.keys(record).find((key) => !allowed.has(key));
+  if (unknownField)
+    throw new Error(`${fieldName} 包含未知字段 ${unknownField}`);
+  if (record.schema_version !== "galgame_line_presentation_v2") {
+    throw new Error(
+      `${fieldName}.schema_version 必须是 galgame_line_presentation_v2`,
+    );
+  }
+  if (!Array.isArray(record.visible_cast))
+    throw new Error(`${fieldName}.visible_cast 必须是数组`);
+  if (!Array.isArray(record.enter) || !Array.isArray(record.exit)) {
+    throw new Error(`${fieldName}.enter/exit 必须是数组`);
+  }
+  if (!Array.isArray(record.player_knowledge)) {
+    throw new Error(`${fieldName}.player_knowledge 必须是数组`);
+  }
+  if (typeof record.hold !== "boolean")
+    throw new Error(`${fieldName}.hold 必须是布尔值`);
+  return record as unknown as GalgameLinePresentationDocumentV2;
+}
+
+function presentationForLinePatch(
+  line: GalgameLine,
+  patch: Partial<GalgameLine>,
+): GalgameLinePresentationDocumentV2 {
+  const direct =
+    "presentation_json" in patch
+      ? requireGalgamePresentation(patch.presentation_json, "presentation_json")
+      : requireGalgamePresentation(
+          line.presentation_json,
+          `Galgame 行 ${line.id} presentation_json`,
+        );
+  const presentation: GalgameLinePresentationDocumentV2 = {
+    ...direct,
+    visible_cast: direct.visible_cast.map((member) => ({ ...member })),
+    enter: [...direct.enter],
+    exit: [...direct.exit],
+    player_knowledge: [...direct.player_knowledge],
+  };
+  const nextType = patch.line_type ?? line.line_type;
+  if (!SPEAKING_LINE_TYPES.has(nextType)) return presentation;
+  const speakerProfileId =
+    "speaker_profile_id" in patch
+      ? (patch.speaker_profile_id ?? null)
+      : line.speaker_profile_id;
+  if (speakerProfileId == null)
+    throw new Error(`${nextType} 行必须绑定 speaker_profile_id`);
+  const existing = presentation.visible_cast.find(
+    (member) => member.character_profile_id === speakerProfileId,
+  );
+  const expression =
+    ("expression" in patch
+      ? patch.expression
+      : (existing?.expression ?? line.expression)) || "neutral";
+  const pose =
+    ("pose" in patch ? patch.pose : (existing?.pose ?? line.pose)) ||
+    "standing";
+  const position = (("position" in patch
+    ? patch.position
+    : (existing?.position ?? line.position)) ||
+    "center") as GalgameStagePositionV2;
+  const speaker: GalgameVisibleCastMemberV2 = {
+    character_profile_id: speakerProfileId,
+    expression,
+    pose,
+    position,
+    facing: existing?.facing ?? "front",
+    layer: existing?.layer ?? "front",
+  };
+  presentation.visible_cast = [
+    ...presentation.visible_cast.filter(
+      (member) => member.character_profile_id !== speakerProfileId,
+    ),
+    speaker,
+  ];
+  if (presentation.focus_character_profile_id == null) {
+    presentation.focus_character_profile_id = speakerProfileId;
+  }
+  return presentation;
 }
 
 function stringValue(value: unknown): string {
@@ -2317,18 +2945,14 @@ interface PresentationPatch {
   transition?: string;
 }
 
-function presentationCgNote(value: Record<string, unknown>): string {
-  return (
-    stringValue(value.cg_note) ||
-    stringValue(value.cg_prompt) ||
-    stringValue(value.event_cg_note)
-  );
+function presentationCgNote(value: GalgameLinePresentationDocumentV2): string {
+  return stringValue(value.cg_note);
 }
 
 function updatePresentationJson(
-  current: Record<string, unknown>,
+  current: GalgameLinePresentationDocumentV2,
   patch: PresentationPatch,
-): Record<string, unknown> {
+): GalgameLinePresentationDocumentV2 {
   const next = { ...current };
 
   if (patch.cgEnabled === false) {
@@ -2339,8 +2963,6 @@ function updatePresentationJson(
 
   if (patch.cgNote != null) {
     const note = patch.cgNote.trim();
-    delete next.cg_prompt;
-    delete next.event_cg_note;
     if (note) {
       next.cg = true;
       next.cg_note = note;
@@ -2368,7 +2990,7 @@ function updatePresentationJson(
   }
 
   if (patch.transition != null) {
-    if (patch.transition) {
+    if (isValidTransition(patch.transition)) {
       next.transition = patch.transition;
     } else {
       delete next.transition;
@@ -2378,19 +3000,30 @@ function updatePresentationJson(
   return next;
 }
 
-function clearEventCgPresentation(value: Record<string, unknown>): void {
+function clearEventCgPresentation(
+  value: GalgameLinePresentationDocumentV2,
+): void {
   delete value.cg;
   delete value.cg_note;
-  delete value.cg_prompt;
-  delete value.event_cg_note;
   delete value.cg_importance;
 }
 
-function isValidCgImportance(value: string): boolean {
+function isValidCgImportance(
+  value: string,
+): value is NonNullable<GalgameLinePresentationDocumentV2["cg_importance"]> {
   return CG_IMPORTANCE_VALUES.includes(value);
 }
 
-function selectValue(value: unknown, options: Array<{ value: string }>): string {
+function isValidTransition(
+  value: string,
+): value is NonNullable<GalgameLinePresentationDocumentV2["transition"]> {
+  return ["cut", "fade", "dissolve"].includes(value);
+}
+
+function selectValue(
+  value: unknown,
+  options: Array<{ value: string }>,
+): string {
   const normalized = stringValue(value);
   return options.some((item) => item.value === normalized) ? normalized : "";
 }
@@ -2404,7 +3037,5 @@ function fallbackAudioMime(fileName: string): string {
 }
 
 function formatPipelineTime(value: string): string {
-  const time = new Date(value);
-  if (Number.isNaN(time.getTime())) return value;
-  return time.toLocaleString();
+  return formatUiDateTime(value);
 }

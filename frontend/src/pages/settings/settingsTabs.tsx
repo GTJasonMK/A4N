@@ -3,10 +3,10 @@ import {
   Activity,
   Bot,
   Brain,
+  CircleUserRound,
   FileText,
   Film,
   Image as ImageIcon,
-  Info,
   Palette,
   ScrollText,
   Shield,
@@ -45,7 +45,7 @@ export const TABS: TabDef[] = [
   { id: "admin", label: "管理员", icon: <Shield size={14} />, scopeLabel: "系统 / 管理员", groupLabel: "云端管理" },
   { id: "queue", label: "请求队列", icon: <Activity size={14} />, scopeLabel: "运维 / 队列", groupLabel: "服务器诊断" },
   { id: "logs", label: "日志", icon: <ScrollText size={14} />, scopeLabel: "系统 / 日志", groupLabel: "服务器诊断" },
-  { id: "about", label: "关于", icon: <Info size={14} />, scopeLabel: "系统 / 关于", groupLabel: "服务器诊断" },
+  { id: "about", label: "账户与应用", icon: <CircleUserRound size={14} />, scopeLabel: "账户 / 应用", groupLabel: "本机设置" },
 ];
 
 export const TAB_IDS = TABS.map((tab) => tab.id) as readonly TabId[];

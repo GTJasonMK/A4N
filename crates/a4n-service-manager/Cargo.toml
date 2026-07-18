@@ -1,0 +1,16 @@
+[package]
+name = "a4n-service-manager"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+
+reqwest = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

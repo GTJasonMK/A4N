@@ -1,0 +1,74 @@
+use serde_json::{Map, Value, json};
+
+use a4n_core::error::AppError;
+use a4n_video::VideoGenerationRequest;
+
+use super::Seedance2VideoProvider;
+
+impl Seedance2VideoProvider {
+    pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
+        let media = req.reference_media.as_ref().ok_or_else(|| {
+            AppError::InvalidArgument("Seedance 2.0 参考媒体模式缺少 reference_media".into())
+        })?;
+        if media.image_files.is_empty()
+            && media.video_files.is_empty()
+            && media.audio_files.is_empty()
+        {
+            return Err(AppError::InvalidArgument(
+                "Seedance 2.0 参考媒体模式至少需要一个 image_files、video_files 或 audio_files"
+                    .into(),
+            ));
+        }
+
+        let mut parameters = Map::new();
+        parameters.insert("prompt".into(), json!(req.prompt));
+        parameters.insert("functionMode".into(), json!("omni_reference"));
+        parameters.insert("image_files".into(), json!(media.image_files));
+        parameters.insert("video_files".into(), json!(media.video_files));
+        parameters.insert("audio_files".into(), json!(media.audio_files));
+        parameters.insert(
+            "ratio".into(),
+            json!(ratio_from_size(req.width, req.height)),
+        );
+        if !(4..=15).contains(&req.duration_secs) {
+            return Err(AppError::InvalidArgument(format!(
+                "Seedance 2.0 duration 必须在 4-15 秒之间，当前为 {} 秒",
+                req.duration_secs
+            )));
+        }
+        parameters.insert("duration".into(), json!(req.duration_secs));
+
+        Ok(json!({
+            "model_id": req.model,
+            "parameters": Value::Object(parameters),
+        }))
+    }
+
+    pub fn request_body_preview(req: &VideoGenerationRequest) -> Result<Value, AppError> {
+        Self::request_body(req)
+    }
+}
+fn ratio_from_size(width: i32, height: i32) -> &'static str {
+    if width <= 0 || height <= 0 {
+        return "16:9";
+    }
+    if width * 9 == height * 21 {
+        return "21:9";
+    }
+    if width * 9 == height * 16 {
+        return "16:9";
+    }
+    if width * 3 == height * 4 {
+        return "4:3";
+    }
+    if width == height {
+        return "1:1";
+    }
+    if width * 4 == height * 3 {
+        return "3:4";
+    }
+    if width * 16 == height * 9 {
+        return "9:16";
+    }
+    "16:9"
+}

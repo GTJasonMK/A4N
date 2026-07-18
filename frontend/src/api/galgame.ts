@@ -19,7 +19,7 @@ export type GalgameLineType =
   | "choice";
 
 export type GalgamePipelineStartStage =
-  | "scene_segmentation"
+  | "shooting_script_projection"
   | "script_adaptation"
   | "character_staging"
   | "visual_planning"
@@ -83,6 +83,42 @@ export interface GalgameLine {
   text_anchor_id: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export type GalgameStagePositionV2 = "left" | "center" | "right";
+export type GalgameFacingV2 = "left" | "right" | "front";
+export type GalgameStageLayerV2 = "back" | "middle" | "front";
+
+export interface GalgameVisibleCastMemberV2 {
+  character_profile_id: number;
+  expression: string;
+  pose: string;
+  position: GalgameStagePositionV2;
+  facing: GalgameFacingV2;
+  layer: GalgameStageLayerV2;
+}
+
+export interface GalgameBeatRefV2 {
+  scene_index: number;
+  beat_index: number;
+}
+
+export interface GalgameLinePresentationDocumentV2 {
+  schema_version: "galgame_line_presentation_v2";
+  visible_cast: GalgameVisibleCastMemberV2[];
+  enter: number[];
+  exit: number[];
+  focus_character_profile_id: number | null;
+  hold: boolean;
+  player_knowledge: string[];
+  cg?: boolean;
+  cg_note?: string;
+  cg_importance?: "normal" | "high" | "critical";
+  transition?: "cut" | "fade" | "dissolve";
+  branch?: boolean;
+  branch_id?: string;
+  returns_to_scene_index?: number;
+  after_beat_ref?: GalgameBeatRefV2;
 }
 
 export interface GalgameChoice {
@@ -247,10 +283,7 @@ export interface UpdateGalgameLineInput {
   line_type?: GalgameLineType | string;
   speaker_profile_id?: number | null;
   text?: string;
-  expression?: string | null;
-  pose?: string | null;
-  position?: string | null;
-  presentation_json?: Record<string, unknown>;
+  presentation?: GalgameLinePresentationDocumentV2;
   text_anchor_id?: number | null;
 }
 
@@ -269,10 +302,7 @@ export interface InsertGalgameLineInput {
   line_type: GalgameLineType | string;
   speaker_profile_id: number | null;
   text: string;
-  expression: string | null;
-  pose: string | null;
-  position: string | null;
-  presentation_json?: Record<string, unknown>;
+  presentation: GalgameLinePresentationDocumentV2;
   text_anchor_id: number | null;
 }
 

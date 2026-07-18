@@ -1,0 +1,14 @@
+[package]
+name = "a4n-prompt-git"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+a4n-prompt = { path = "../a4n-prompt" }
+
+anyhow = { workspace = true }
+git2 = { version = "0.19", default-features = false }
+
+[dev-dependencies]
+tempfile = { workspace = true }

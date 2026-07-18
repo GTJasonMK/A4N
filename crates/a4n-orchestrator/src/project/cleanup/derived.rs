@@ -1,0 +1,77 @@
+use a4n_core::error::AppError;
+use sea_orm::{ConnectionTrait, TransactionTrait};
+
+use super::super::ChapterDerivedCleanupArtifacts;
+use super::cleanup_character_profile_timeline_for_chapter_in;
+
+pub(in crate::project) async fn cleanup_chapter_derived_data_in<C>(
+    db: &C,
+    project_id: i64,
+    chapter_id: i64,
+    chapter_number: i32,
+    include_generated_outputs: bool,
+) -> Result<ChapterDerivedCleanupArtifacts, AppError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let mut artifacts = ChapterDerivedCleanupArtifacts::default();
+    let character_artifacts =
+        cleanup_character_profile_timeline_for_chapter_in(db, project_id, chapter_number).await?;
+    artifacts
+        .stale_profile_ids
+        .extend(character_artifacts.stale_profile_ids);
+    artifacts
+        .stale_character_state_ids
+        .extend(character_artifacts.stale_character_state_ids);
+    artifacts
+        .stale_attribute_event_ids
+        .extend(character_artifacts.stale_attribute_event_ids);
+    artifacts
+        .media_file_paths
+        .extend(character_artifacts.media_file_paths);
+
+    artifacts.scene_records_changed =
+        a4n_db::scene_profile::delete_chapter_scene_sync_records(db, project_id, chapter_id)
+            .await
+            .map_err(crate::scene_profile::scene_profile_db_error)?;
+
+    if include_generated_outputs {
+        let foreshadowing_artifacts =
+            a4n_db::project::cleanup_foreshadowing_for_chapter(db, project_id, chapter_number)
+                .await
+                .map_err(crate::project::foreshadowing_db_error_to_app_error)?;
+        artifacts
+            .stale_foreshadowing_ids
+            .extend(foreshadowing_artifacts.stale_ids);
+        artifacts
+            .changed_foreshadowing_ids
+            .extend(foreshadowing_artifacts.changed_ids);
+        artifacts.extend_media_file_paths(
+            a4n_db::project::cleanup_chapter_media_data(db, project_id, chapter_id)
+                .await
+                .map_err(crate::errors::project_cleanup_error_to_app_error)?,
+        );
+    }
+
+    Ok(artifacts)
+}
+
+pub(in crate::project) async fn delete_chapter_content_record_in<C>(
+    db: &C,
+    project_id: i64,
+    chapter_id: i64,
+    chapter_number: i32,
+) -> Result<ChapterDerivedCleanupArtifacts, AppError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let artifacts =
+        cleanup_chapter_derived_data_in(db, project_id, chapter_id, chapter_number, true).await?;
+    a4n_db::project::cleanup_chapter_optimization_data(db, chapter_id)
+        .await
+        .map_err(crate::errors::project_cleanup_error_to_app_error)?;
+    a4n_db::project::delete_chapter_content_record(db, chapter_id)
+        .await
+        .map_err(crate::project::project_chapter_context_error_to_app_error)?;
+    Ok(artifacts)
+}

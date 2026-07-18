@@ -45,20 +45,19 @@ export const CharacterProfileEditorModal: React.FC<{
       closeOnEscape={!saving}
       showCloseButton={!saving}
       footer={
-        <>
-          <BookButton variant="secondary" onClick={onClose} disabled={saving}>
-            取消
-          </BookButton>
-          <BookButton variant="primary" onClick={onSave} disabled={saving}>
-            {saving ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 size={14} className="animate-spin" /> 保存中…
-              </span>
-            ) : (
-              "保存"
-            )}
-          </BookButton>
-        </>
+        <BookButton
+          variant="primary"
+          onClick={onSave}
+          disabled={saving || !form.name.trim()}
+        >
+          {saving ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 size={14} className="animate-spin" /> 保存中…
+            </span>
+          ) : (
+            "保存"
+          )}
+        </BookButton>
       }
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

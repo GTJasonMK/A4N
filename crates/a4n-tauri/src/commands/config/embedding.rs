@@ -1,16 +1,16 @@
 use crate::events::bridge::EventBridge;
 use crate::progress_task::WorkflowProgressTask;
 use a4n_core::event::channel::TaskType;
-use a4n_engine::embedding::provider::DownloadProgress;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::config_records::{
+use a4n_runtime::host_api::config_records::{
     self as config_records_actions, CreateEmbeddingInput, EmbeddingConfigSummary,
     ModelRequestPreview, UpdateEmbeddingInput,
 };
-use a4n_runtime::actions::embedding_model::{
-    CancelEmbeddingModelDownloadInput, EmbeddingModelDownloadInfoSummary, EmbeddingModelInput,
-    LocalEmbeddingModelSummary,
+use a4n_runtime::host_api::embedding_model::{
+    CancelEmbeddingModelDownloadInput, DownloadProgress, EmbeddingModelDownloadInfoSummary,
+    EmbeddingModelInput, LocalEmbeddingModelSummary,
 };
+use a4n_runtime::host_api::task_records;
 use std::sync::Arc;
 use tauri::{State, Window};
 
@@ -60,10 +60,11 @@ pub fn list_embedding_backends() -> Result<Vec<String>, String> {
 
 /// 列出 fastembed 支持的本地嵌入模型及当前缓存状态。
 #[tauri::command]
-pub fn list_local_embedding_models(
+pub async fn list_local_embedding_models(
     state: State<'_, AppState>,
 ) -> Result<Vec<LocalEmbeddingModelSummary>, String> {
-    a4n_runtime::actions::embedding_model::list_local_embedding_models(&state)
+    a4n_runtime::host_api::embedding_model::list_local_embedding_models(&state)
+        .await
         .map_err(|e| e.to_string())
 }
 
@@ -73,7 +74,7 @@ pub async fn get_embedding_model_download_info(
     state: State<'_, AppState>,
     input: EmbeddingModelInput,
 ) -> Result<EmbeddingModelDownloadInfoSummary, String> {
-    a4n_runtime::actions::embedding_model::get_embedding_model_download_info(&state, input)
+    a4n_runtime::host_api::embedding_model::get_embedding_model_download_info(&state, input)
         .await
         .map_err(|e| e.to_string())
 }
@@ -85,7 +86,7 @@ pub async fn download_embedding_model(
     state: State<'_, AppState>,
     input: EmbeddingModelInput,
 ) -> Result<LocalEmbeddingModelSummary, String> {
-    let scope = a4n_runtime::actions::embedding_model::embedding_model_download_task_scope();
+    let scope = a4n_runtime::host_api::embedding_model::embedding_model_download_task_scope();
     let progress_task = Arc::new(WorkflowProgressTask::new(
         window,
         state.inner(),
@@ -112,7 +113,7 @@ pub async fn download_embedding_model(
         tx
     });
 
-    let summary = match a4n_runtime::actions::embedding_model::download_embedding_model(
+    let summary = match a4n_runtime::host_api::embedding_model::download_embedding_model(
         state.inner(),
         input.clone(),
         progress_tx,
@@ -122,9 +123,7 @@ pub async fn download_embedding_model(
     {
         Ok(summary) => summary,
         Err(err) => {
-            let is_cancelled = matches!(err, a4n_core::error::AppError::Cancelled)
-                || err.to_string().contains("取消")
-                || err.to_string().contains("停止");
+            let is_cancelled = matches!(&err, a4n_core::error::AppError::Cancelled);
             let msg = if is_cancelled {
                 "模型下载已停止".to_string()
             } else {
@@ -152,9 +151,9 @@ pub async fn cancel_embedding_model_download(
     state: State<'_, AppState>,
     input: CancelEmbeddingModelDownloadInput,
 ) -> Result<(), String> {
-    let task_id = a4n_runtime::actions::embedding_model::required_task_id(input)
+    let task_id = a4n_runtime::host_api::embedding_model::required_task_id(input)
         .map_err(|e| e.to_string())?;
-    if !state.task_manager.cancel(&task_id) {
+    if !task_records::cancel_registered_task(state.inner(), &task_id) {
         return Err(format!("模型下载任务不存在或已结束：{task_id}"));
     }
 
@@ -165,10 +164,11 @@ pub async fn cancel_embedding_model_download(
 
 /// 删除 fastembed 本地模型缓存。
 #[tauri::command]
-pub fn delete_local_embedding_model(
+pub async fn delete_local_embedding_model(
     state: State<'_, AppState>,
     input: EmbeddingModelInput,
 ) -> Result<(), String> {
-    a4n_runtime::actions::embedding_model::delete_local_embedding_model(&state, input)
+    a4n_runtime::host_api::embedding_model::delete_local_embedding_model(&state, input)
+        .await
         .map_err(|e| e.to_string())
 }

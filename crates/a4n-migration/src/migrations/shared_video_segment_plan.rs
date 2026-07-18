@@ -173,7 +173,7 @@ WHERE metadata_json->'a4n_migration_shared_segment_plan_source'->>'name' = 'shar
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
-#[async_trait::async_trait]
+#[sea_orm_migration::async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         ensure_postgres(manager)?;

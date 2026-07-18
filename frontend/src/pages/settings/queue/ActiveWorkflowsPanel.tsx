@@ -1,9 +1,10 @@
 import React from "react";
-import { Loader2, Wifi, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import type { WorkflowState } from "../../../api/streaming";
-import { BookIconButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
 import { ProgressEventList } from "./ProgressEventList";
+import { getWorkflowStatusLabel } from "../../../utils/workflowPresentation";
 
 interface ActiveWorkflowsPanelProps {
   workflows: WorkflowState[];
@@ -18,100 +19,121 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
   cancellingTaskIds,
   onCancel,
 }) => (
-  <div className="pyqt-card p-4">
-    <div className="flex items-center justify-between mb-2">
-      <h4 className="text-sm font-serif text-book-text-main inline-flex items-center gap-2">
-        <Wifi size={14} className="text-book-primary" /> 活跃工作流（{workflows.length}）
-      </h4>
-      <span className="text-[10px] text-book-text-muted">含进度条与阶段信息</span>
+  <section>
+    <div className="flex items-baseline gap-2 px-1 pb-2">
+      <h3 className="text-xs font-semibold text-book-text-main">活跃工作流</h3>
+      <span className="text-[11px] text-book-text-muted">
+        {workflows.length > 0 ? `${workflows.length} 个运行中` : "实时进度"}
+      </span>
     </div>
     {loading && workflows.length === 0 ? (
-      <div className="inline-flex items-center justify-center gap-1.5 py-3 text-xs text-book-text-muted">
+      <div className="a4n-flat-surface flex items-center justify-center gap-1.5 px-3 py-5 text-xs text-book-text-muted">
         <Loader2 size={12} className="animate-spin" />
         正在加载活跃工作流…
       </div>
     ) : workflows.length === 0 ? (
-      <div className="text-xs text-book-text-muted py-3 text-center">
-        当前无运行中的流式工作流
+      <div className="a4n-empty-state a4n-empty-state--framed px-3 py-5 text-center text-xs text-book-text-muted">
+        当前没有运行中的工作流
       </div>
     ) : (
-      <ul className="space-y-1.5">
+      <ul className="space-y-2.5">
         {workflows.map((workflow) => {
-          const hasProgress = workflow.progress != null;
           const cancelling = cancellingTaskIds.has(workflow.task_id);
+          const canCancel = !["completed", "failed", "cancelled", "canceled"].includes(
+            workflow.status,
+          );
           return (
-            <li
-              key={workflow.task_id}
-              className="a4n-stat-tile px-3 py-2"
-            >
-              <div className="mb-1 flex min-w-0 items-center gap-2 text-xs">
-                <span className="shrink-0 font-mono text-[10px] text-book-text-muted">
-                  {workflow.task_id.slice(0, 12)}
-                </span>
-                <span
-                  className={`pyqt-pill !text-[10px] shrink-0 ${
-                    workflow.status === "completed"
-                      ? "!border-success/50 !text-success"
-                      : workflow.status === "failed"
-                        ? "!border-error/50 !text-error"
-                        : workflow.status === "running"
-                          ? "!border-book-primary !text-book-primary"
-                          : ""
-                  }`}
-                >
-                  {workflow.status}
-                </span>
-                {workflow.stage && !hasProgress && (
-                  <span className="pyqt-pill min-w-0 !text-[10px]">
-                    <span className="block max-w-40 truncate">{workflow.stage}</span>
+            <li key={workflow.task_id} className="a4n-flat-surface px-3 py-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium text-book-text-main">
+                    {activeWorkflowTitle(workflow)}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-book-text-muted">
+                    <span className={workflowStatusTone(workflow.status)}>
+                      {getWorkflowStatusLabel(workflow.status)}
+                    </span>
+                    {workflow.progress ? (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                          {workflow.progress.current} / {workflow.progress.total}
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+                {cancelling ? (
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-book-text-muted">
+                    <Loader2 size={13} className="animate-spin" />
                   </span>
-                )}
-                {workflow.task_scope && (
-                  <span className="pyqt-pill !text-[10px] shrink-0">{workflow.task_scope}</span>
-                )}
-                {workflow.root_project_id != null && (
-                  <span className="shrink-0 text-book-text-muted text-[10px]">
-                    root #{workflow.root_project_id}
-                  </span>
-                )}
-                {workflow.source_snapshot_id != null && (
-                  <span className="shrink-0 text-book-text-muted text-[10px]">
-                    snap #{workflow.source_snapshot_id}
-                  </span>
-                )}
-                {workflow.progress && (
-                  <span className="shrink-0 text-book-text-muted text-[10px]">
-                    {workflow.progress.current} / {workflow.progress.total}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1" />
-                <BookIconButton
-                  label="取消工作流"
-                  onClick={() => onCancel(workflow.task_id)}
-                  variant="secondary"
-                  size="sm"
-                  disabled={
-                    cancelling ||
-                    workflow.status === "completed" ||
-                    workflow.status === "failed"
-                  }
-                >
-                  {cancelling ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <X size={12} />
-                  )}
-                </BookIconButton>
+                ) : canCancel ? (
+                  <Dropdown
+                    items={[
+                      {
+                        label: "取消工作流",
+                        icon: <X size={13} />,
+                        danger: true,
+                        onClick: () => onCancel(workflow.task_id),
+                      },
+                    ]}
+                  />
+                ) : null}
               </div>
               {workflow.progress && <WorkflowProgress progress={workflow.progress} />}
               <ProgressEventList events={workflow.progress_events} />
+              <details className="mt-2 text-[10px] text-book-text-muted">
+                <summary className="w-fit cursor-pointer select-none py-1 hover:text-book-text-main">
+                  诊断信息
+                </summary>
+                <div className="mt-1 grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 rounded-xl bg-book-bg-tertiary/45 p-2.5">
+                  <span className="text-book-text-muted">任务编号</span>
+                  <span className="break-all font-mono text-book-text-sub">{workflow.task_id}</span>
+                  {workflow.task_scope ? (
+                    <>
+                      <span className="text-book-text-muted">任务范围</span>
+                      <span className="break-all font-mono text-book-text-sub">{workflow.task_scope}</span>
+                    </>
+                  ) : null}
+                  {workflow.root_project_id != null ? (
+                    <>
+                      <span className="text-book-text-muted">根项目</span>
+                      <span className="font-mono text-book-text-sub">{workflow.root_project_id}</span>
+                    </>
+                  ) : null}
+                  {workflow.source_snapshot_id != null ? (
+                    <>
+                      <span className="text-book-text-muted">来源快照</span>
+                      <span className="font-mono text-book-text-sub">{workflow.source_snapshot_id}</span>
+                    </>
+                  ) : null}
+                </div>
+              </details>
             </li>
           );
         })}
       </ul>
     )}
-  </div>
+  </section>
 );
+
+function activeWorkflowTitle(workflow: WorkflowState): string {
+  const scopeLabels: Record<string, string> = {
+    project: "项目任务",
+    chapter: "章节任务",
+    video: "视频任务",
+    canvas: "画布任务",
+    source_sync: "来源同步",
+  };
+  return scopeLabels[workflow.task_scope ?? ""] ?? "后台任务";
+}
+
+function workflowStatusTone(status: string): string {
+  if (status === "failed") return "text-error";
+  if (status === "completed") return "text-success";
+  if (status === "running") return "text-book-primary";
+  return "text-book-text-muted";
+}
 
 const WorkflowProgress: React.FC<{ progress: NonNullable<WorkflowState["progress"]> }> = ({
   progress,
@@ -127,34 +149,26 @@ const WorkflowProgress: React.FC<{ progress: NonNullable<WorkflowState["progress
   const detail = display.detail ?? "等待子阶段更新…";
 
   return (
-    <>
-      <div className="mb-1 flex min-w-0 items-center justify-between gap-2 text-[10px]">
-        <span className="min-w-0 truncate font-semibold text-book-text-sub">
+    <div className="mt-2.5">
+      <div className="flex min-w-0 items-baseline gap-2 text-[11px]">
+        <span className="min-w-0 flex-1 truncate text-book-text-sub" title={display.stage}>
           {display.stage}
         </span>
-        <span className="shrink-0 font-mono text-book-text-muted">
-          {display.percent == null ? "未返回" : `${Math.round(display.percent)}%`}
+        <span className="shrink-0 text-book-text-muted">
+          {display.percent == null ? display.countLabel : `${Math.round(display.percent)}%`}
         </span>
       </div>
-      <div className="relative h-4 w-full overflow-hidden rounded border border-book-border/50 bg-book-bg-tertiary">
-        <div
-          className="h-full bg-book-primary/35 transition-all"
-          style={{ width: display.percent == null ? "0%" : `${display.percent}%` }}
-        />
-      </div>
-      <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[10px]">
-        <span className="min-w-0 truncate text-book-text-muted" title={detail}>
-          {detail}
-        </span>
-        {display.countLabel ? (
-          <span className="shrink-0 font-mono text-book-text-muted">{display.countLabel}</span>
-        ) : null}
-      </div>
-      {display.percent == null ? (
-        <div className="mt-1 text-[10px] text-book-text-muted">
-          后端未返回进度百分比
+      {display.percent != null ? (
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-book-bg-tertiary">
+          <div
+            className="h-full rounded-full bg-book-primary/70 transition-[width] duration-300 ease-out"
+            style={{ width: `${display.percent}%` }}
+          />
         </div>
       ) : null}
-    </>
+      <div className="mt-1 truncate text-[11px] leading-4 text-book-text-muted" title={detail}>
+        {detail}
+      </div>
+    </div>
   );
 };

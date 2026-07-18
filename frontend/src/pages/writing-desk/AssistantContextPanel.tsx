@@ -42,21 +42,21 @@ export const AssistantContextPanel: React.FC<AssistantContextPanelProps> = ({
   const previousTail = previousChapterTail(chapters, activeNumber);
   const nextOutline = nextOutlineText(outlines, activeNumber);
 
+  if (!previousTail && !nextOutline) return null;
+
   return (
-    <>
-      <h3 className="text-xs font-semibold text-book-text-sub uppercase tracking-wider mb-2">
-        上下文
-      </h3>
-      <div className="text-xs text-book-text-muted leading-relaxed space-y-2">
+    <details className="text-xs text-book-text-muted">
+      <summary className="w-fit cursor-pointer hover:text-book-text-main">参考上下文</summary>
+      <div className="a4n-flat-surface mt-2 divide-y divide-book-border/40 overflow-hidden leading-relaxed">
         {previousTail && (
-          <div className="a4n-page-surface px-3 py-2">
-            <div className="font-semibold text-book-text-main mb-1">前章末尾</div>
+          <section className="px-3 py-2.5">
+            <div className="mb-1 font-semibold text-book-text-main">前章末尾</div>
             <div className="line-clamp-4 whitespace-pre-wrap">…{previousTail}</div>
-          </div>
+          </section>
         )}
         {nextOutline && (
-          <div className="a4n-page-surface px-3 py-2">
-            <div className="font-semibold text-book-text-main mb-1">下章章纲</div>
+          <section className="px-3 py-2.5">
+            <div className="mb-1 font-semibold text-book-text-main">下章章纲</div>
             <div className="line-clamp-3">
               {nextOutline.title && (
                 <span className="text-book-text-main">{nextOutline.title}</span>
@@ -65,9 +65,9 @@ export const AssistantContextPanel: React.FC<AssistantContextPanelProps> = ({
                 <div className="text-book-text-muted">{nextOutline.summary}</div>
               )}
             </div>
-          </div>
+          </section>
         )}
       </div>
-    </>
+    </details>
   );
 };

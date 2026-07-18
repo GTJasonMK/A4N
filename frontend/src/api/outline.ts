@@ -36,6 +36,20 @@ export interface GenerationProgress {
   completed_chapter_outlines: number;
 }
 
+export interface ChapterOutlinePacing {
+  pacing_score: number;
+  chapter_count: number;
+  summary?: string;
+  analysis: Array<{
+    chapter_number: number;
+    title: string | null;
+    pacing_score: number;
+    word_count_target: number | null;
+    has_beats: boolean;
+    has_key_scenes: boolean;
+  }>;
+}
+
 const currentUserId = (): number => {
   const id = readCurrentUserId();
   if (id == null) throw new Error("未登录，无法访问大纲");
@@ -329,8 +343,8 @@ export async function deleteLatestChapterOutlines(
   });
 }
 
-export async function getChapterOutlinesPacing(projectId: Id): Promise<unknown> {
-  return apiInvoke<unknown>("get_chapter_outlines_pacing", {
+export async function getChapterOutlinesPacing(projectId: Id): Promise<ChapterOutlinePacing> {
+  return apiInvoke<ChapterOutlinePacing>("get_chapter_outlines_pacing", {
     userId: currentUserId(),
     projectId: idNum(projectId),
   });

@@ -101,7 +101,6 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
       activateText={serverScope ? "设为全局默认" : "设为默认"}
       activateSuccessMessage={serverScope ? "已设为系统全局默认" : "已设为当前默认"}
       activateErrorMessage={serverScope ? "设置系统全局默认失败" : "设置默认失败"}
-      activeDeleteTitle={serverScope ? "全局默认配置不可删除" : "默认配置不可删除"}
       formatItem={formatImageItem}
       renderEditor={(form, setForm, context) => (
         <ImageConfigEditor

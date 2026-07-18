@@ -1,6 +1,6 @@
 use crate::commands::request_preview::ModelRequestPreview;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::character_implicit_review as implicit_review_actions;
+use a4n_runtime::host_api::character_implicit_review as implicit_review_actions;
 use tauri::State;
 
 use implicit_review_actions::{

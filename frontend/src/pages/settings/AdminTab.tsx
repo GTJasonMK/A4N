@@ -1,13 +1,5 @@
 import React, { useState } from "react";
-import {
-  Activity,
-  Database,
-  Loader2,
-  ServerCog,
-  Shield,
-  TrendingUp,
-  Users,
-} from "lucide-react";
+import { Shield } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
 import { OverviewSection } from "./admin/OverviewSection";
 import { ApiConfigSection } from "./admin/ApiConfigSection";
@@ -18,13 +10,13 @@ import { UsersSection } from "./admin/UsersSection";
 
 type Section = "overview" | "users" | "projects" | "tasks" | "api" | "trends";
 
-const SECTION_DEFS: { id: Section; label: string; icon: React.ReactNode }[] = [
-  { id: "overview", label: "概览", icon: <Activity size={14} /> },
-  { id: "users", label: "用户", icon: <Users size={14} /> },
-  { id: "projects", label: "全部项目", icon: <Database size={14} /> },
-  { id: "tasks", label: "待处理任务", icon: <Loader2 size={14} /> },
-  { id: "api", label: "API 配置", icon: <ServerCog size={14} /> },
-  { id: "trends", label: "用量趋势", icon: <TrendingUp size={14} /> },
+const SECTION_DEFS: { id: Section; label: string }[] = [
+  { id: "overview", label: "概览" },
+  { id: "users", label: "用户" },
+  { id: "projects", label: "项目" },
+  { id: "tasks", label: "任务" },
+  { id: "api", label: "配置" },
+  { id: "trends", label: "趋势" },
 ];
 
 export const AdminTab: React.FC = () => {
@@ -41,35 +33,35 @@ export const AdminTab: React.FC = () => {
 
   if (user.role !== "admin") {
     return (
-      <div className="pyqt-card p-6 text-center">
-        <Shield size={28} className="mx-auto text-book-text-muted mb-2" />
-        <div className="text-sm text-book-text-main mb-1">需要管理员权限</div>
+      <div className="border-l-2 border-book-border/70 py-2 pl-4">
+        <Shield size={20} className="mb-2 text-book-text-muted" />
+        <div className="mb-1 text-sm text-book-text-main">需要管理员权限</div>
         <div className="text-xs text-book-text-muted">
-          以下管理功能仅对 role=admin 的账户开放。后端 RBAC
-          中间件会拦截非管理员调用。
+          以下管理功能仅对管理员开放。
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col gap-3 min-h-0">
-      <div className="flex items-center gap-1 flex-wrap shrink-0">
+    <div className="flex h-auto min-h-0 flex-col gap-3 md:h-full">
+      <div className="tab-bar shrink-0 border-b border-book-border/45" aria-label="管理视图">
         {SECTION_DEFS.map((s) => (
           <button
             key={s.id}
             type="button"
             onClick={() => setSection(s.id)}
+            aria-pressed={section === s.id}
+            aria-current={section === s.id ? "page" : undefined}
             data-active={section === s.id ? "1" : undefined}
-            className="pyqt-tab inline-flex items-center gap-1.5"
+            className="pyqt-tab whitespace-nowrap"
           >
-            {s.icon}
             {s.label}
           </button>
         ))}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
+      <div className="custom-scrollbar min-h-0 overflow-visible md:flex-1 md:overflow-y-auto md:pr-2">
         {section === "overview" && <OverviewSection callerUserId={user.id} />}
         {section === "users" && <UsersSection callerUserId={user.id} />}
         {section === "projects" && <ProjectsSection callerUserId={user.id} />}

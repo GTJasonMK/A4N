@@ -1,6 +1,6 @@
 //! 导入命令
 //!
-//! 对应 ImportService，暴露导入审核队列管理接口。
+//! 导入审核队列与分析入口；业务经 runtime actions / orchestrator 执行。
 
 use a4n_runtime::AppState;
 pub mod analysis;
@@ -10,15 +10,15 @@ pub mod review;
 use tauri::State;
 
 use a4n_core::models::project::import_review_queue;
-use a4n_runtime::actions::import_analysis::StartImportAnalysisInput;
-use a4n_runtime::actions::import_file::{ImportFileResult, ImportUploadedFileInput};
-use a4n_runtime::actions::import_review as import_review_actions;
-use a4n_runtime::actions::import_review::{
+use a4n_runtime::host_api::import_analysis::StartImportAnalysisInput;
+use a4n_runtime::host_api::import_file::{ImportFileResult, ImportUploadedFileInput};
+use a4n_runtime::host_api::import_review as import_review_actions;
+use a4n_runtime::host_api::import_review::{
     ImportAnalysisStatusSummary, ImportReviewSummary, UpdateImportStatusInput,
 };
 
 pub(super) fn to_summary(m: &import_review_queue::Model) -> Result<ImportReviewSummary, String> {
-    a4n_runtime::actions::import_review::import_review_summary(m).map_err(|e| e.to_string())
+    a4n_runtime::host_api::import_review::import_review_summary(m).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -60,7 +60,7 @@ pub async fn import_uploaded_file(
     _state: State<'_, AppState>,
     input: ImportUploadedFileInput,
 ) -> Result<ImportFileResult, String> {
-    a4n_runtime::actions::import_file::import_uploaded_file(input)
+    a4n_runtime::host_api::import_file::import_uploaded_file(input)
 }
 
 #[tauri::command]
@@ -70,7 +70,7 @@ pub async fn start_import_analysis(
     project_id: i64,
     input: StartImportAnalysisInput,
 ) -> Result<Vec<ImportReviewSummary>, String> {
-    let reviews = a4n_runtime::actions::import_analysis::start_import_analysis(
+    let reviews = a4n_runtime::host_api::import_analysis::start_import_analysis(
         state.inner(),
         user_id,
         project_id,

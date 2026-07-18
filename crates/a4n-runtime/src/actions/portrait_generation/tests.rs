@@ -1,5 +1,16 @@
 use super::*;
 use chrono::NaiveDate;
+use serde_json::json;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn unique_temp_dir(prefix: &str) -> PathBuf {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock after UNIX_EPOCH")
+        .as_nanos();
+    std::env::temp_dir().join(format!("{prefix}_{}_{}", std::process::id(), stamp))
+}
 
 fn profile_for_test() -> protagonist_profile::Model {
     let now = NaiveDate::from_ymd_opt(2026, 5, 31)
@@ -66,6 +77,27 @@ fn first_expression_or_default_trims_first_value() {
         first_expression_or_default(Some(expressions.as_slice())),
         "happy".to_string()
     );
+}
+
+#[test]
+fn portrait_file_persistence_keeps_output_and_reports_actual_size() {
+    let data_dir = unique_temp_dir("a4n_portrait_persist");
+
+    let (path, relative_path, file_size) = super::image_pipeline::persist_portrait_file(
+        &data_dir,
+        7,
+        42,
+        b"portrait-image",
+        "png",
+        "立绘图片",
+    )
+    .expect("persist portrait file");
+
+    assert!(path.is_file());
+    assert!(relative_path.starts_with("projects/7/portraits/portrait_42_"));
+    assert!(relative_path.ends_with(".png"));
+    assert_eq!(file_size, 14);
+    let _ = std::fs::remove_dir_all(&data_dir);
 }
 
 #[test]

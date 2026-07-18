@@ -15,13 +15,17 @@ A4N 是一个面向小说创作与多模态派生内容生产的本地应用。�
 
 ```text
 crates/
-  a4n-core       共享模型、配置、状态和事件类型
-  a4n-engine     LLM、图像、视频、提示词、队列和 RAG 引擎
-  a4n-services   业务服务层
-  a4n-tauri      Tauri 命令、应用状态和桌面入口
-  a4n-server     Web 部署 HTTP 服务端
-  a4n-migration  数据库迁移
-  a4n-dsl        提示词 DSL 支撑
+  a4n-core                     SeaORM entity、配置、事件和基础共享类型
+  a4n-domain / a4n-db          领域值对象与数据库边界
+  a4n-queue                    任务队列合同与实现
+  a4n-prompt* / a4n-llm*      Prompt 与 LLM 核心、provider 和 sidecar
+  a4n-embedding* / a4n-rag*   Embedding 与 RAG 核心、索引和 sidecar
+  a4n-image* / a4n-video*     图片/视频合同、provider 和 sidecar
+  a4n-services                业务服务层
+  a4n-orchestrator            权限、事务、工作流和能力编排边界
+  a4n-runtime                 本地 runtime 组装和 host API 实现
+  a4n-tauri / a4n-server      桌面与 Web host 入口
+  a4n-migration               数据库迁移
 frontend/
   src/           React 前端源码
   resources/     前端资源
@@ -47,12 +51,27 @@ scripts/         开发、构建、测试脚本
 ./scripts/dev/dev-db.sh up
 ```
 
+数据库测试使用独立的 `a4n_test` 库。具体连接方式和并行测试注意事项见[测试数据库说明](TEST_DATABASE.md)。
+
 安装前端依赖：
 
 ```bash
 cd frontend
 npm install
 ```
+
+安装本地 embedding 使用的共享 ONNX Runtime 1.24.2：
+
+```bash
+./scripts/dev/setup-onnxruntime.sh
+```
+
+运行库默认安装到 `~/.local/share/a4n/onnxruntime/1.24.2`，独立于 Cargo 的
+`target/` 和构建缓存。项目构建脚本会动态链接该固定版本；缺失或版本不匹配时
+会明确失败，不会在 Cargo 构建阶段自动下载。
+
+部署目标机同样需要先运行该安装脚本，或通过 `A4N_ONNXRUNTIME_ROOT` 指向一套
+完整的 ONNX Runtime 1.24.2 动态库目录。
 
 启动开发环境：
 

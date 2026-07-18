@@ -8,6 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { extractErrorMessage } from "../../../api";
@@ -23,6 +24,7 @@ import { copyTextToClipboard } from "../../../utils/clipboard";
 interface StoragePathsPanelProps {
   callerUserId?: number | null;
   isAdmin?: boolean;
+  className?: string;
 }
 
 const formatBytes = (bytes: number): string => {
@@ -40,6 +42,7 @@ const formatBytes = (bytes: number): string => {
 export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   callerUserId,
   isAdmin = false,
+  className = "mt-5",
 }) => {
   const { addToast } = useToast();
   const [paths, setPaths] = useState<StoragePathsSummary | null>(null);
@@ -220,115 +223,149 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     : [];
 
   return (
-    <div className="mt-5 pyqt-card p-3 space-y-3 text-xs">
-      <div className="flex items-center justify-between gap-2">
-        <div className="font-serif text-sm text-book-text-main inline-flex items-center gap-1.5">
-          <FolderOpen size={14} className="text-book-primary" />
-          本地存储
-        </div>
-        <BookIconButton
-          label="刷新路径"
-          variant="ghost"
-          size="sm"
-          onClick={refresh}
-          disabled={loading}
-        >
-          <RefreshCw
-            size={12}
-            className={loading ? "animate-spin" : undefined}
-          />
-        </BookIconButton>
-      </div>
-
-      {loading && !paths ? (
-        <div className="text-book-text-muted inline-flex items-center gap-1.5">
-          <Loader2 size={11} className="animate-spin" /> 加载中…
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          {rows.map(([label, value]) => (
-            <div
-              key={label}
-              className="grid grid-cols-[72px_1fr_auto] items-center gap-2"
-            >
-              <span className="text-book-text-muted">{label}</span>
-              <span className="font-mono text-[11px] text-book-text-main break-all">
-                {value}
-              </span>
-              <BookIconButton
-                label={`复制${label}`}
-                variant="ghost"
-                size="sm"
-                onClick={() => copyPath(label, value)}
-              >
-                <Copy size={11} />
-              </BookIconButton>
-            </div>
-          ))}
-          {copiedKey && (
-            <div className="text-success inline-flex items-center gap-1">
-              <Database size={11} />
-              已复制：{copiedKey}
-            </div>
-          )}
-        </div>
-      )}
-
-      {isAdmin && callerUserId != null && (
-        <div className="border-t border-book-border pt-3 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-book-text-main">孤儿项目目录</div>
-            <div className="inline-flex items-center gap-2">
-              <BookButton
-                variant="ghost"
-                size="sm"
-                onClick={scanOrphanProjectDirs}
-                disabled={orphanLoading || orphanCleaning}
-              >
-                {orphanLoading ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : null}
-                扫描
-              </BookButton>
-              <BookButton
-                variant="danger"
-                size="sm"
-                onClick={cleanupOrphanProjectDirs}
-                disabled={
-                  orphanCleaning ||
-                  orphanLoading ||
-                  (orphanSummary?.total_count ?? 0) <= 0
-                }
-              >
-                {orphanCleaning ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Trash2 size={12} />
-                )}
-                清理
-              </BookButton>
-            </div>
+    <div className={`${className} space-y-3 text-xs`}>
+      <section aria-label="存储位置" className="a4n-flat-surface space-y-3 p-3">
+        <div className="flex items-center gap-2">
+          <FolderOpen size={14} className="shrink-0 text-book-primary" />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-xs font-semibold text-book-text-main">存储位置</h3>
+            <p className="mt-0.5 text-[11px] text-book-text-muted">完整路径默认隐藏</p>
           </div>
-          {orphanSummary && (
-            <div className="space-y-1 text-book-text-muted">
-              <div>
-                {orphanSummary.total_count > 0
-                  ? `${orphanSummary.total_count} 个目录，约 ${formatBytes(orphanSummary.total_size_bytes)}`
-                  : "未发现可清理目录"}
-              </div>
-              {orphanSummary.items.slice(0, 5).map((item) => (
+          <BookIconButton
+            label="刷新路径"
+            variant="ghost"
+            size="sm"
+            onClick={refresh}
+            disabled={loading}
+          >
+            <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+          </BookIconButton>
+        </div>
+
+        {loading && !paths ? (
+          <div className="inline-flex items-center gap-1.5 text-book-text-muted">
+            <Loader2 size={11} className="animate-spin" /> 加载中…
+          </div>
+        ) : (
+          <details className="border-t border-book-border/35 pt-2">
+            <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-book-text-sub [&::-webkit-details-marker]:hidden">
+              <span>查看存储位置</span>
+              <span className="text-[11px] text-book-text-muted">{rows.length} 项</span>
+            </summary>
+            <div className="mt-2 divide-y divide-book-border/30 border-y border-book-border/30">
+              {rows.map(([label, value]) => (
                 <div
-                  key={item.project_id}
-                  className="font-mono text-[11px] break-all"
+                  key={label}
+                  className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-2 py-2"
                 >
-                  #{item.project_id} · {formatBytes(item.size_bytes)} ·{" "}
-                  {item.path}
+                  <span className="text-book-text-muted">{label}</span>
+                  <span className="break-all font-mono text-[11px] text-book-text-main">
+                    {storageValueForDisplay(label, value)}
+                  </span>
+                  {label === "数据库" ? (
+                    <span className="h-8 w-8" aria-hidden="true" />
+                  ) : (
+                    <BookIconButton
+                      label={`复制${label}`}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyPath(label, value)}
+                    >
+                      <Copy size={11} />
+                    </BookIconButton>
+                  )}
                 </div>
               ))}
             </div>
-          )}
-        </div>
+            {copiedKey && (
+              <div className="mt-2 inline-flex items-center gap-1 text-success">
+                <Database size={11} />
+                已复制：{copiedKey}
+              </div>
+            )}
+          </details>
+        )}
+      </section>
+
+      {isAdmin && callerUserId != null && (
+        <section aria-label="存储清理" className="a4n-flat-surface space-y-3 p-3">
+          <div className="flex items-center gap-2">
+            <Trash2 size={14} className="shrink-0 text-book-primary" />
+            <div className="min-w-0 flex-1">
+              <h3 className="text-xs font-semibold text-book-text-main">存储清理</h3>
+              <p className="mt-0.5 text-[11px] text-book-text-muted">
+                扫描并清理已失去项目归属的本地目录
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 border-t border-book-border/35 pt-3">
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-book-text-main">孤儿项目目录</div>
+              <div className="mt-0.5 text-[11px] text-book-text-muted">
+                {orphanSummary
+                  ? orphanSummary.total_count > 0
+                    ? `${orphanSummary.total_count} 个目录，约 ${formatBytes(orphanSummary.total_size_bytes)}`
+                    : "未发现可清理目录"
+                  : "尚未扫描"}
+              </div>
+            </div>
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={scanOrphanProjectDirs}
+              disabled={orphanLoading || orphanCleaning}
+            >
+              {orphanLoading ? <Loader2 size={12} className="animate-spin" /> : null}
+              {orphanLoading ? "扫描中…" : "扫描"}
+            </BookButton>
+            {orphanCleaning ? (
+              <span className="inline-flex min-h-8 items-center gap-1 px-2 text-[11px] text-book-text-muted">
+                <Loader2 size={12} className="animate-spin" />
+                正在清理…
+              </span>
+            ) : (orphanSummary?.total_count ?? 0) > 0 ? (
+              <Dropdown
+                items={[
+                  {
+                    label: "清理孤儿项目目录",
+                    icon: <Trash2 size={12} />,
+                    danger: true,
+                    onClick: () => void cleanupOrphanProjectDirs(),
+                  },
+                ]}
+              />
+            ) : null}
+          </div>
+
+          {orphanSummary && orphanSummary.items.length > 0 ? (
+            <details className="border-t border-book-border/35 pt-2 text-[10px] text-book-text-muted">
+              <summary className="w-fit cursor-pointer hover:text-book-text-main">
+                诊断信息
+              </summary>
+              <div className="mt-1 space-y-1 font-mono">
+                {orphanSummary.items.slice(0, 5).map((item) => (
+                  <div key={item.project_id} className="break-all">
+                    {item.path} · {formatBytes(item.size_bytes)}
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+        </section>
       )}
     </div>
   );
 };
+
+function storageValueForDisplay(label: string, value: string): string {
+  if (label !== "数据库") return value;
+  try {
+    const url = new URL(value);
+    const databaseName = url.pathname.replace(/^\//, "");
+    const endpoint = `${url.hostname}${url.port ? `:${url.port}` : ""}`;
+    return databaseName ? `${endpoint}/${databaseName}` : endpoint || "已配置";
+  } catch {
+    return value ? "已配置" : "未配置";
+  }
+}

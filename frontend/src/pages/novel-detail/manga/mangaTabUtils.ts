@@ -3,8 +3,8 @@ import type { ChapterRow } from "../shared";
 import { nonEmptyText } from "../../../utils/text";
 
 export type MangaPanelSource = {
-  content_sha256: string | null;
-  content_chars: number | null;
+  content_sha256: string;
+  source_revision_key: string;
 };
 
 type MangaPanelSourceStatus = {
@@ -21,7 +21,6 @@ export const MANGA_PIPELINE_START_STAGE_OPTIONS: Array<{
   label: string;
 }> = [
   { value: "", label: "从头运行" },
-  { value: "event_beats", label: "事件卡片" },
   { value: "character_binding", label: "角色绑定" },
   { value: "speech_selection", label: "对白旁白" },
   { value: "visual_anchor_extraction", label: "视觉锚点" },
@@ -42,28 +41,18 @@ export const chapterHeading = (chapter: ChapterRow): string => {
   return title ? `第 ${chapter.chapter_number} 章 · ${title}` : `第 ${chapter.chapter_number} 章`;
 };
 
-export const extractMangaPanelSource = (layout: unknown): MangaPanelSource | null => {
-  if (!layout || typeof layout !== "object") return null;
-  const source = (layout as { source?: unknown }).source;
-  if (!source || typeof source !== "object") return null;
-  const rawHash = (source as { content_sha256?: unknown }).content_sha256;
-  const rawChars = (source as { content_chars?: unknown }).content_chars;
-  const contentHash = typeof rawHash === "string" && rawHash.trim() ? rawHash.trim() : null;
-  const contentChars = typeof rawChars === "number" && Number.isFinite(rawChars) ? rawChars : null;
-  if (!contentHash && contentChars == null) return null;
+export const extractMangaPanelSource = (panel: MangaPanel): MangaPanelSource => {
   return {
-    content_sha256: contentHash,
-    content_chars: contentChars,
+    content_sha256: panel.source.content_sha256,
+    source_revision_key: panel.source.source_revision_key,
   };
 };
 
 export const isMangaPanelSourceStale = (
-  source: MangaPanelSource | null,
+  source: MangaPanelSource,
   currentContentHash: string | null,
 ): boolean => {
-  if (!source) return false;
   const contentStale =
-    source.content_sha256 != null &&
     currentContentHash != null &&
     source.content_sha256 !== currentContentHash;
   return contentStale;
@@ -78,11 +67,7 @@ export const summarizePanelSources = (
   let staleCount = 0;
   let firstHash: string | null = null;
   for (const panel of panels) {
-    const source = extractMangaPanelSource(panel.layout);
-    if (!source) {
-      missingCount += 1;
-      continue;
-    }
+    const source = extractMangaPanelSource(panel);
     sourcedCount += 1;
     firstHash ||= source.content_sha256;
     if (isMangaPanelSourceStale(source, currentContentHash)) {
@@ -94,8 +79,6 @@ export const summarizePanelSources = (
 
 export const mangaStageLabel = (stage: string | null | undefined): string => {
   switch (stage) {
-    case "event_beats":
-      return "事件卡片";
     case "character_binding":
       return "角色绑定";
     case "speech_selection":

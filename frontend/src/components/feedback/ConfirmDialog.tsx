@@ -147,26 +147,25 @@ export function ConfirmDialogHost() {
       tone={modalTone}
       maxWidthClassName="max-w-xl"
       zIndexClassName="z-[120]"
-      closeOnBackdrop={false}
-      closeOnEscape={false}
-      showCloseButton={false}
       footer={
         <>
-          <BookButton variant="ghost" onClick={cancel}>
-            {current.cancelText}
-          </BookButton>
           {current.secondaryText ? (
-            <BookButton variant="secondary" onClick={secondary}>
+            <BookButton variant="secondary" size="sm" onClick={secondary} className="!min-h-8 !text-xs">
               {current.secondaryText}
             </BookButton>
           ) : null}
-          <BookButton variant={confirmVariant} onClick={confirm}>
+          <BookButton
+            variant={confirmVariant}
+            size="sm"
+            onClick={confirm}
+            className="!min-h-8 !text-xs"
+          >
             {current.confirmText}
           </BookButton>
         </>
       }
     >
-      <div className="text-sm text-book-text-main whitespace-pre-wrap leading-relaxed">
+      <div className="whitespace-pre-wrap py-1 text-sm leading-7 text-book-text-main">
         {current.message}
       </div>
     </Modal>

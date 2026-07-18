@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { History, Loader2 } from "lucide-react";
+import { Check, History, Loader2 } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { useToast } from "../../../components/feedback/Toast";
 import { extractErrorMessage } from "../../../api";
@@ -9,6 +9,10 @@ import {
   type PromptEntry,
   type PromptVersion,
 } from "../../../api/prompt";
+import { formatUiDateTime } from "../../../utils/dateTime";
+
+const promptVersionLabel = (index: number): string =>
+  index === 0 ? "最新版本" : `历史版本 ${index}`;
 
 interface PromptHistoryPanelProps {
   prompt: PromptEntry;
@@ -128,10 +132,10 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
     <details
       open={open}
       onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}
-      className="pyqt-card p-2.5"
+      className="py-2.5"
     >
       <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
-        <History size={11} /> 版本历史（git2）
+        <History size={11} /> 版本历史
       </summary>
       <div className="mt-2">
         {loading ? (
@@ -144,51 +148,63 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 mb-1.5 text-[10px]">
-              <span className="text-book-text-muted">勾选 2 个版本对比</span>
+            <div className="mb-1.5 flex items-center gap-2 text-[11px]">
+              <span className="text-book-text-muted">选择两个版本查看内容差异</span>
               {diffPair.length === 2 && (
-                <BookButton variant="secondary" onClick={handleDiff} disabled={diffLoading}>
+                <BookButton variant="secondary" size="sm" onClick={handleDiff} disabled={diffLoading}>
                   {diffLoading ? (
                     <>
                       <Loader2 size={10} className="animate-spin" />
                       对比中…
                     </>
                   ) : (
-                    <>对比 {diffPair[0].slice(0, 8)} ↔ {diffPair[1].slice(0, 8)}</>
+                    <>对比已选版本</>
                   )}
                 </BookButton>
               )}
             </div>
-            <ul className="space-y-0.5 max-h-44 overflow-y-auto custom-scrollbar">
-              {history.map((version) => {
+            <ul className="divide-y divide-book-border/35 border-y border-book-border/35">
+              {history.map((version, index) => {
                 const isPicked = diffPair.includes(version.version);
                 return (
                   <li
                     key={version.version}
-                    className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] ${
-                      isPicked ? "bg-book-primary/10 border border-book-primary/40" : ""
-                    }`}
+                    className={isPicked ? "bg-book-primary/10" : ""}
                   >
-                    <input
-                      type="checkbox"
-                      checked={isPicked}
-                      onChange={() => toggleDiffPick(version.version)}
-                      className="accent-book-primary"
-                    />
-                    <span className="font-mono text-book-text-main shrink-0">
-                      {version.version.slice(0, 8)}
-                    </span>
-                    <span className="text-book-text-muted shrink-0 text-[10px]">
-                      {new Date(version.timestamp).toLocaleString()}
-                    </span>
-                    <span className="text-book-text-muted shrink-0">{version.author}</span>
-                    <span className="text-book-text-sub truncate flex-1">{version.message}</span>
+                    <button
+                      type="button"
+                      aria-pressed={isPicked}
+                      onClick={() => toggleDiffPick(version.version)}
+                      className="flex w-full cursor-pointer items-start gap-2.5 px-3 py-2.5 text-left"
+                    >
+                      <span className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${isPicked ? "border-book-primary bg-book-primary text-white" : "border-book-border text-transparent"}`}>
+                        <Check size={10} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-medium text-book-text-main">
+                            {promptVersionLabel(index)}
+                          </span>
+                          <time className="text-[10px] tabular-nums text-book-text-muted">
+                            {formatUiDateTime(version.timestamp)}
+                          </time>
+                          {version.author ? (
+                            <span className="text-[10px] text-book-text-muted">
+                              {version.author}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11px] text-book-text-sub">
+                          {version.message || "保存提示词"}
+                        </span>
+                      </span>
+                    </button>
                   </li>
                 );
               })}
             </ul>
             {diffResult != null && (
-              <pre className="mt-2 rounded border border-book-border/40 bg-book-bg-tertiary/40 p-2 text-[10px] font-mono whitespace-pre-wrap break-words max-h-44 overflow-y-auto custom-scrollbar">
+              <pre className="mt-2 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-[11px] leading-relaxed text-book-text-sub">
                 {diffResult}
               </pre>
             )}

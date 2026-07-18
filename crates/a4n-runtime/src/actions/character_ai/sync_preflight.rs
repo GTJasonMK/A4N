@@ -1,6 +1,5 @@
-use crate::state::AppState;
+use crate::{actions::app_error_message, state::AppState};
 use a4n_core::models::{chapter::chapter, character::protagonist_profile};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use super::sync_scope::{
     CharacterSyncRangeMode, analysis_profile_sync_skip_reason, character_sync_range,
@@ -19,15 +18,18 @@ pub(crate) async fn preflight_analysis_character_profile_sync_to_chapter(
     project_id: i64,
     chapter_number: i32,
 ) -> Result<(), String> {
-    let chapters = crate::workflow::character_sync_chapters(state, project_id).await?;
+    let chapters = state
+        .orchestrator
+        .character_sync_chapters(project_id)
+        .await
+        .map_err(|err| err.to_string())?;
     let target_chapter =
         validate_character_sync_target_chapter(&chapters, project_id, chapter_number)?;
-    let profiles = protagonist_profile::Entity::find()
-        .filter(protagonist_profile::Column::ProjectId.eq(project_id))
-        .order_by_asc(protagonist_profile::Column::Id)
-        .all(state.db.as_ref())
+    let profiles = state
+        .orchestrator
+        .protagonist_profiles_for_project(project_id)
         .await
-        .map_err(|err| format!("查询角色档案失败: {err}"))?;
+        .map_err(app_error_message)?;
     report_analysis_character_profile_sync_preflight_failures(
         analysis_character_profile_sync_preflight_failures(&profiles, &chapters, target_chapter),
     )

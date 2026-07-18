@@ -56,7 +56,10 @@ impl<'a> CharacterProgressScope<'a> {
         if let Some(progress) = self.progress {
             let local_total = local_total.max(1);
             let current = current.min(local_total);
-            let mapped = self.base + current.saturating_mul(self.span) / local_total;
+            let offset = u64::from(current) * u64::from(self.span) / u64::from(local_total);
+            let mapped = self.base
+                + u32::try_from(offset)
+                    .expect("character progress offset is bounded by the u32 span");
             progress.report(
                 mapped.min(self.total),
                 self.total,
@@ -65,6 +68,10 @@ impl<'a> CharacterProgressScope<'a> {
             )?;
         }
         Ok(())
+    }
+
+    pub(super) fn is_cancelled(&self) -> bool {
+        self.progress.is_some_and(CharacterAiProgress::is_cancelled)
     }
 }
 

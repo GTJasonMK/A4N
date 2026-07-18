@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Upload } from "lucide-react";
+import { ChevronRight, Loader2, Upload } from "lucide-react";
 import { BookButton } from "../../components/ui/BookButton";
-import { BookCard } from "../../components/ui/BookCard";
 import { Modal } from "../../components/ui/Modal";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
@@ -10,6 +9,7 @@ import { importChapter, listChapters, type ChapterData } from "../../api/chapter
 import { EmptyHint } from "./shared";
 import { useNovelDetailLoader } from "./useNovelDetailLoader";
 import { nonEmptyText } from "../../utils/text";
+import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
 const chapterWordCount = (chapter: ChapterData): number => {
   return chapter.word_count == null ? 0 : chapter.word_count;
@@ -17,7 +17,13 @@ const chapterWordCount = (chapter: ChapterData): number => {
 
 const nextImportChapterNumber = (chapters: ChapterData[]): number => {
   if (chapters.length === 0) return 1;
-  return chapters[chapters.length - 1].chapter_number + 1;
+  return Math.max(...chapters.map((chapter) => chapter.chapter_number)) + 1;
+};
+
+const chapterStatusLabel = (status: string | null | undefined): string | null => {
+  const normalized = status?.trim().toLowerCase();
+  if (!normalized || normalized === "completed") return null;
+  return getOperationStatusLabel(normalized);
 };
 
 interface ChaptersTabProps {
@@ -162,6 +168,10 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 
   const displayChapters = loadedProjectId === projectId ? chapters : [];
   const displayLoading = loading || loadedProjectId !== projectId;
+  const importReady =
+    Number.isInteger(importForm.chapter_number) &&
+    importForm.chapter_number > 0 &&
+    importForm.content.trim().length > 0;
   const totalWords = useMemo(
     () => displayChapters.reduce((sum, chapter) => sum + chapterWordCount(chapter), 0),
     [displayChapters],
@@ -176,58 +186,49 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   }
 
   return (
-    <div className="content-main">
-      <BookCard className="p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-serif text-book-text-main">
-            章节 <span className="text-xs text-book-text-muted">({displayChapters.length})</span>
-          </h3>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-book-text-muted">
-              共 {totalWords.toLocaleString()} 字
-            </span>
-            {canEditChapters && (
-              <BookButton variant="secondary" onClick={openImportDialog}>
-                导入章节
-              </BookButton>
-            )}
-          </div>
-        </div>
+    <div className="content-main flex flex-col gap-3">
+      <div className="flex min-h-8 items-center gap-3">
+        {displayChapters.length > 0 ? (
+          <span className="min-w-0 flex-1 truncate text-xs text-book-text-muted">
+            {displayChapters.length} 章 · {totalWords.toLocaleString("zh-CN")} 字
+          </span>
+        ) : null}
+        {canEditChapters ? (
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={openImportDialog}
+            className="ml-auto !min-h-8 !text-xs"
+          >
+            导入章节
+          </BookButton>
+        ) : null}
+      </div>
+      <section className="a4n-flat-surface overflow-hidden">
         {displayChapters.length === 0 ? (
-          <EmptyHint
-            text="还没有章节。"
-            actionText={canEditChapters ? "进入写作桌生成第一章" : undefined}
-            onAction={canEditChapters ? () => openWritingDesk() : undefined}
-          />
+          <div className="p-4">
+            <EmptyHint
+              text="还没有章节。"
+              actionText={canEditChapters ? "进入写作桌生成第一章" : undefined}
+              onAction={canEditChapters ? () => openWritingDesk() : undefined}
+            />
+          </div>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="divide-y divide-book-border/50">
             {displayChapters.map((c) => (
-              <li
+              <ChapterRow
                 key={c.id}
-                className={`rounded-md border border-book-border/30 bg-book-bg-paper/40 px-3 py-2 text-sm flex items-center gap-3 ${
-                  canEditChapters ? "cursor-pointer hover:bg-book-bg-paper/80" : ""
-                }`}
-                onClick={canEditChapters ? () => openWritingDesk(c.chapter_number) : undefined}
-              >
-                <span className="font-mono text-book-text-muted text-xs shrink-0 min-w-[3em] text-right">
-                  #{c.chapter_number}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-book-text-main truncate">
-                    {c.title || `第 ${c.chapter_number} 章`}
-                  </div>
-                </div>
-                {c.status && <span className="pyqt-pill shrink-0">{c.status}</span>}
-                {c.word_count != null && (
-                  <span className="text-xs text-book-text-muted shrink-0">
-                    {c.word_count.toLocaleString()} 字
-                  </span>
-                )}
-              </li>
+                chapter={c}
+                onOpen={
+                  canEditChapters
+                    ? () => openWritingDesk(c.chapter_number)
+                    : undefined
+                }
+              />
             ))}
           </ul>
         )}
-      </BookCard>
+      </section>
 
       {/* 导入章节 Modal */}
       {importOpen && (
@@ -243,27 +244,23 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
           closeOnEscape={!importing}
           showCloseButton={!importing}
           footer={
-            <>
-              <BookButton
-                variant="secondary"
-                onClick={() => setImportOpen(false)}
-                disabled={importing}
-              >
-                取消
-              </BookButton>
-              <BookButton variant="primary" onClick={handleImport} disabled={importing}>
-                {importing ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 size={14} className="animate-spin" /> 导入中…
-                  </span>
-                ) : (
-                  "确认导入"
-                )}
-              </BookButton>
-            </>
+            <BookButton
+              variant="primary"
+              onClick={handleImport}
+              disabled={importing || !importReady}
+              className="w-full sm:w-auto"
+            >
+              {importing ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" /> 导入中…
+                </span>
+              ) : (
+                "确认导入"
+              )}
+            </BookButton>
           }
         >
-          <div className="flex max-h-[78dvh] min-h-0 flex-col">
+          <div className="space-y-3">
             <div className="mb-3 grid gap-3 sm:grid-cols-[100px_1fr]">
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-book-text-sub">章节序号</span>
@@ -292,7 +289,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
                 />
               </label>
             </div>
-            <label className="flex-1 min-h-0 flex flex-col gap-1">
+            <label className="flex flex-col gap-1">
               <span className="text-xs text-book-text-sub">正文</span>
               <textarea
                 value={importForm.content}
@@ -301,13 +298,64 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
                 }
                 disabled={importing}
                 spellCheck={false}
-                placeholder="粘贴本章正文（status 会设为 imported）"
-                className="book-control min-h-[220px] flex-1 resize-none rounded p-3 font-serif text-sm leading-relaxed sm:min-h-[280px]"
+                placeholder="粘贴本章正文；导入后会标记为外部导入"
+                className="book-control min-h-[220px] resize-y rounded-xl p-3 font-serif text-sm leading-relaxed sm:min-h-[280px]"
               />
             </label>
           </div>
         </Modal>
       )}
     </div>
+  );
+};
+
+const ChapterRow: React.FC<{
+  chapter: ChapterData;
+  onOpen?: () => void;
+}> = ({ chapter, onOpen }) => {
+  const status = chapterStatusLabel(chapter.status);
+  const content = (
+    <>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium text-book-text-main">
+          第 {chapter.chapter_number} 章
+          {chapter.title?.trim() ? ` · ${chapter.title.trim()}` : ""}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-book-text-muted">
+          <span>{chapterWordCount(chapter).toLocaleString("zh-CN")} 字</span>
+          {status ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{status}</span>
+            </>
+          ) : null}
+        </div>
+      </div>
+      {onOpen ? (
+        <ChevronRight
+          size={14}
+          className="shrink-0 text-book-text-muted"
+          aria-hidden
+        />
+      ) : null}
+    </>
+  );
+
+  return (
+    <li>
+      {onOpen ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex min-h-14 w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-book-bg-tertiary/55 focus-visible:bg-book-bg-tertiary/55 focus-visible:outline-none sm:px-4"
+        >
+          {content}
+        </button>
+      ) : (
+        <div className="flex min-h-14 items-center gap-3 px-3 py-3 sm:px-4">
+          {content}
+        </div>
+      )}
+    </li>
   );
 };

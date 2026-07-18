@@ -1,6 +1,6 @@
 use a4n_runtime::AppState;
-use a4n_runtime::actions::video_generation::GeneratedVideoSummary;
-use a4n_runtime::actions::video_records::{
+use a4n_runtime::host_api::video_generation::GeneratedVideoSummary;
+use a4n_runtime::host_api::video_records::{
     self as video_records_actions, ApplyAssemblyPostprocessEditInput, AssembledChapterVideoPreview,
     AssemblyPushResult, DeleteChapterVideoAssetsResult, PushAssembledChapterVideoInput,
     UpdateAssemblyPushStatusInput, UpdateGeneratedVideoInput, UploadAssemblyInsertVideoInput,

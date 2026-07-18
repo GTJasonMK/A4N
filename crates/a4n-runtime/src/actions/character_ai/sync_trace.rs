@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use a4n_core::config::app_config::llm_token_profiles;
-use a4n_engine::llm::provider::ChatMessage;
+use a4n_llm::provider::ChatMessage;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 

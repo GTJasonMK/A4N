@@ -27,7 +27,7 @@ tags: manga, visual, scene
       "lighting": "光线",
       "indoor_outdoor": "indoor",
       "description": "视觉描述",
-      "event_indices": [0],
+      "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
       "source_span_ids": ["ch1:s2:f1"]
     }
   ]
@@ -35,7 +35,7 @@ tags: manga, visual, scene
 
 ## 规则
 
-- `event_indices` 必须引用输入 `events[].index`。
+- `beat_refs` 必须引用输入 `events[].beat_ref`，不得回退到事件数组下标。
 - `source_span_ids` 必须来自输入 `chapter.available_source_spans[].id`。
 - `location_en` 是简短英文标签，不要写长句。
 - 场景锚点不仅记录地点，也要记录能强化角色目标、阻力、关系距离或隐藏信息的空间结构，例如门窗、走廊、桌椅距离、遮挡物、光源、阴影、视线阻隔和可形成压迫/隔离/暴露的环境元素。

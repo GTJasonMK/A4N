@@ -1,10 +1,29 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, X } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import { cancelAdminTask, listPendingTasks, type AdminTaskInfo } from "../../../api/admin";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookIconButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
+import {
+  getTaskPriorityLabel,
+  getTaskTypeLabel,
+  getWorkflowStatusLabel,
+} from "../../../utils/workflowPresentation";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
+
+const formatTaskDate = (value: string | null): string => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "时间未知";
+  return parsed.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
 
 export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId }) => {
   const { addToast } = useToast();
@@ -77,7 +96,7 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
     try {
       await cancelAdminTask(requestCallerUserId, id);
       if (!isCurrentCaller(requestCallerUserId)) return;
-      addToast(`已取消任务 ${id.slice(0, 8)}…`, "success");
+      addToast("已取消任务", "success");
       await load();
     } catch (err) {
       if (!isCurrentCaller(requestCallerUserId)) return;
@@ -89,57 +108,69 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-serif text-book-text-main">
-          全局待处理任务（{tasks.length}，每 5s 刷新）
-        </h4>
-        <BookIconButton label="刷新" onClick={load} variant="secondary" size="sm" disabled={loading}>
+      <div className="flex min-h-8 items-center gap-2 text-xs text-book-text-muted">
+        <span>{tasks.length} 个待处理任务 · 每 5 秒更新</span>
+        <span className="flex-1" />
+        <BookIconButton label="立即刷新任务" onClick={load} size="sm" disabled={loading}>
           <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
         </BookIconButton>
       </div>
       {loading && tasks.length === 0 ? (
-        <div className="inline-flex items-center justify-center gap-1.5 py-4 text-xs text-book-text-muted pyqt-card">
+        <div className="a4n-flat-surface inline-flex items-center justify-center gap-1.5 py-4 text-xs text-book-text-muted">
           <Loader2 size={12} className="animate-spin" />
           正在加载待处理任务…
         </div>
       ) : tasks.length === 0 ? (
-        <div className="text-xs text-book-text-muted py-4 text-center pyqt-card">
+        <div className="a4n-empty-state a4n-empty-state--framed text-xs">
           无待处理任务
         </div>
       ) : (
-        <ul className="pyqt-card divide-y divide-book-border/30">
+        <ul className="space-y-2.5">
           {tasks.map((t) => (
-            <li key={t.id} className="p-2.5 flex items-center gap-2 text-xs">
-              <span className="font-mono text-[10px] text-book-text-muted shrink-0 w-16 truncate">
-                {t.id.slice(0, 12)}
-              </span>
-              <span className="pyqt-pill !text-[10px]">{t.task_type}</span>
-              <span className="pyqt-pill !text-[10px]">{t.priority}</span>
-              <span className="pyqt-pill !text-[10px]">{t.status}</span>
-              {t.project_id != null && (
-                <span className="text-book-text-muted">proj #{t.project_id}</span>
-              )}
-              {t.task_scope && (
-                <span className="pyqt-pill !text-[10px]">{t.task_scope}</span>
-              )}
-              {t.root_project_id != null && (
-                <span className="text-book-text-muted">root #{t.root_project_id}</span>
-              )}
-              {t.source_snapshot_id != null && (
-                <span className="text-book-text-muted">snap #{t.source_snapshot_id}</span>
-              )}
-              {t.dag_id && (
-                <span className="text-book-text-muted">DAG {t.dag_id.slice(0, 8)}</span>
-              )}
-              <span className="flex-1" />
-              <button
-                type="button"
-                onClick={() => void handleCancel(t.id)}
-                disabled={cancellingIds.has(t.id)}
-                className="text-[11px] text-error px-2 py-0.5 rounded hover:bg-error-bg"
-              >
-                {cancellingIds.has(t.id) ? "…" : "取消"}
-              </button>
+            <li key={t.id} className="a4n-flat-surface p-3 text-xs">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-book-text-main">
+                    {getTaskTypeLabel(t.task_type)}
+                  </div>
+                  <div className="mt-1 truncate text-[11px] text-book-text-muted">
+                    {[getWorkflowStatusLabel(t.status), getTaskPriorityLabel(t.priority), formatTaskDate(t.created_at)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                </div>
+                <span className="ml-auto">
+                  {cancellingIds.has(t.id) ? (
+                    <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
+                      <Loader2 size={12} className="animate-spin" />
+                    </span>
+                  ) : (
+                    <Dropdown
+                      items={[
+                        {
+                          label: "取消任务",
+                          icon: <X size={12} />,
+                          danger: true,
+                          onClick: () => void handleCancel(t.id),
+                        },
+                      ]}
+                    />
+                  )}
+                </span>
+              </div>
+              <details className="mt-1 text-[11px] text-book-text-muted">
+                <summary className="w-fit cursor-pointer select-none rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
+                  诊断信息
+                </summary>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-book-bg-tertiary/45 p-2 font-mono">
+                  <span title={t.id}>ID {t.id}</span>
+                  {t.project_id != null ? <span>项目 {t.project_id}</span> : null}
+                  {t.task_scope ? <span>范围 {t.task_scope}</span> : null}
+                  {t.root_project_id != null ? <span>根项目 {t.root_project_id}</span> : null}
+                  {t.source_snapshot_id != null ? <span>源快照 {t.source_snapshot_id}</span> : null}
+                  {t.dag_id ? <span>DAG {t.dag_id}</span> : null}
+                </div>
+              </details>
             </li>
           ))}
         </ul>

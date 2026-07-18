@@ -1,9 +1,10 @@
-use a4n_services::import::dedup;
-use a4n_services::import::file_parsers::{DocxParser, EpubParser, TxtParser};
-use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 
-const MAX_UPLOADED_IMPORT_FILE_BYTES: usize = 100 * 1024 * 1024;
+mod parsing;
+mod upload;
+
+use parsing::parse_import_file_bytes;
+use upload::decode_import_upload;
 
 #[derive(Debug, Deserialize)]
 pub struct ImportUploadedFileInput {
@@ -40,105 +41,14 @@ pub struct ImportFileResult {
 }
 
 pub fn import_uploaded_file(input: ImportUploadedFileInput) -> Result<ImportFileResult, String> {
-    let file_name = input.file_name.trim();
-    if file_name.is_empty() {
-        return Err("上传导入文件缺少文件名".to_string());
-    }
-    let raw = strip_data_url_prefix(&input.data_base64).trim();
-    if raw.is_empty() {
-        return Err("上传导入文件数据不能为空".to_string());
-    }
-    let file_bytes = base64::engine::general_purpose::STANDARD
-        .decode(raw)
-        .map_err(|err| format!("上传导入文件 base64 解码失败：{err}"))?;
-    if file_bytes.is_empty() {
-        return Err("上传导入文件不能为空".to_string());
-    }
-    if file_bytes.len() > MAX_UPLOADED_IMPORT_FILE_BYTES {
-        return Err(format!(
-            "上传导入文件超过 {}MB",
-            MAX_UPLOADED_IMPORT_FILE_BYTES / 1024 / 1024
-        ));
-    }
-    parse_import_file_bytes(&input.file_type, &file_bytes)
-}
-
-fn parse_import_file_bytes(file_type: &str, file_bytes: &[u8]) -> Result<ImportFileResult, String> {
-    let text_content = import_file_text_content(file_type, file_bytes)?;
-
-    let parser = TxtParser::new();
-    let parse_result = parser
-        .parse(&text_content)
-        .map_err(|e| format!("章节解析失败: {e}"))?;
-
-    let chapters = parse_result
-        .chapters
-        .iter()
-        .map(|ch| {
-            let hash = dedup::compute_simhash(&ch.content, 3);
-            ParsedChapterSummary {
-                number: ch.number,
-                title: ch.title.clone(),
-                content: ch.content.clone(),
-                content_hash: Some(format!("{:016x}", hash.0)),
-            }
-        })
-        .collect::<Vec<_>>();
-
-    let total_words = chapters
-        .iter()
-        .map(|chapter| chapter.content.chars().count() as i32)
-        .sum();
-
-    Ok(ImportFileResult {
-        chapters,
-        detected_encoding: parse_result.detected_encoding,
-        total_words,
-        warnings: parse_result.warnings,
-    })
-}
-
-fn import_file_text_content(file_type: &str, file_bytes: &[u8]) -> Result<String, String> {
-    match file_type.trim().to_ascii_lowercase().as_str() {
-        "txt" | "md" | "markdown" => {
-            String::from_utf8(file_bytes.to_vec()).map_err(|e| format!("无法解析文本编码: {e}"))
-        }
-        "epub" => {
-            let result = EpubParser::new()
-                .parse(file_bytes)
-                .map_err(|e| format!("EPUB 解析失败: {e}"))?;
-            Ok(result
-                .chapters
-                .iter()
-                .map(|chapter| format!("{}\n{}\n", chapter.title, chapter.content))
-                .collect::<Vec<_>>()
-                .join("\n"))
-        }
-        "docx" => {
-            let result = DocxParser::new()
-                .parse(file_bytes)
-                .map_err(|e| format!("DOCX 解析失败: {e}"))?;
-            Ok(result
-                .chapters
-                .iter()
-                .map(|chapter| format!("{}\n{}\n", chapter.title, chapter.content))
-                .collect::<Vec<_>>()
-                .join("\n"))
-        }
-        other => Err(format!("不支持的文件类型: {other}")),
-    }
-}
-
-fn strip_data_url_prefix(value: &str) -> &str {
-    value
-        .split_once(";base64,")
-        .map(|(_, body)| body)
-        .unwrap_or(value)
+    let upload = decode_import_upload(input)?;
+    parse_import_file_bytes(&upload.file_type, &upload.file_bytes)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine as _;
 
     #[test]
     fn parse_import_file_bytes_accepts_markdown_as_plain_text() {

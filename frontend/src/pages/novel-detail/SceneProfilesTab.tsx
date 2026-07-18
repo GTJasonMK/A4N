@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronRight,
   Loader2,
   Map,
   Pencil,
@@ -23,7 +24,7 @@ import {
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
-import { BookCard } from "../../components/ui/BookCard";
+import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
 import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
@@ -48,7 +49,8 @@ const IMPORTANCE_LABELS: Record<string, string> = {
   minor: "次要",
 };
 
-const profileInitial = (name: string): string => name.trim().charAt(0).toUpperCase() || "?";
+const sceneTypeLabel = (value: string): string => SCENE_TYPE_LABELS[value] ?? "其他";
+const importanceLabel = (value: string): string => IMPORTANCE_LABELS[value] ?? "未标注";
 
 const chapterRangeText = (first: number, last: number): string =>
   first === last ? `第 ${first} 章` : `第 ${first}-${last} 章`;
@@ -210,7 +212,6 @@ export const SceneProfilesTab: React.FC<{
     return {
       total: profiles.length,
       primary: profiles.filter((profile) => profile.importance === "primary").length,
-      occurrences: profiles.reduce((sum, profile) => sum + profile.occurrence_count, 0),
       images: profiles.reduce((sum, profile) => sum + profile.generated_image_count, 0),
     };
   }, [profiles]);
@@ -482,57 +483,57 @@ export const SceneProfilesTab: React.FC<{
 
   return (
     <div className="content-main flex flex-col gap-4">
-      <BookCard className="p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="inline-flex items-center gap-2 font-serif text-sm text-book-text-main">
-            <Map size={14} className="text-book-primary" />
-            场景档案
-            <span className="text-xs text-book-text-muted">
-              （{stats.total} 个 / 关键 {stats.primary} 个 / 出场 {stats.occurrences} 次 / 素材图 {stats.images} 张）
-            </span>
-          </h3>
-          <div className="flex flex-wrap items-center gap-2">
-            {canEditProfiles && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setEditingProfile("new")}
-                  disabled={busyId != null || syncing}
-                  className="pyqt-btn-secondary !min-h-9 !px-2 text-xs sm:!min-h-[28px]"
-                  title="新建场景档案"
-                >
-                  <Plus size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSync()}
-                  disabled={syncing || busyId != null}
-                  className="pyqt-btn-secondary !min-h-9 !px-2 text-xs sm:!min-h-[28px]"
-                  title="同步场景档案"
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {syncing ? <Loader2 size={12} className="animate-spin" /> : <Route size={12} />}
-                    同步
-                  </span>
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => void load({ projectId })}
-              disabled={loading || syncing || busyId != null}
-              className="pyqt-btn-secondary !min-h-9 !px-2 text-xs sm:!min-h-[28px]"
-              title="刷新场景档案"
-            >
-              <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
-            </button>
+      <section>
+        <header className="mb-3 flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-book-text-main">场景档案</h2>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+              {stats.total > 0
+                ? `共 ${stats.total} 个档案${stats.primary > 0 ? `，${stats.primary} 个关键场景` : ""}${stats.images > 0 ? `，已生成 ${stats.images} 张素材图` : ""}`
+                : "整理故事中的地点、空间关系和环境规则"}
+            </p>
           </div>
-        </div>
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+            <Dropdown
+              items={[
+                {
+                  label: loading ? "正在刷新…" : "刷新档案",
+                  icon: <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />,
+                  onClick: () => void load({ projectId }),
+                  disabled: loading || syncing || busyId != null,
+                },
+                ...(canEditProfiles
+                  ? [
+                      {
+                        label: syncing ? "正在同步…" : "从章节同步",
+                        icon: syncing ? <Loader2 size={12} className="animate-spin" /> : <Route size={12} />,
+                        onClick: () => void handleSync(),
+                        disabled: syncing || busyId != null,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            {canEditProfiles ? (
+              <BookButton
+                variant="primary"
+                size="sm"
+                onClick={() => setEditingProfile("new")}
+                disabled={busyId != null || syncing}
+                className="min-w-0 flex-1 !text-xs sm:flex-none"
+              >
+                <Plus size={12} /> 新建档案
+              </BookButton>
+            ) : null}
+          </div>
+        </header>
 
         {profiles.length === 0 ? (
-          <EmptyHint text="尚未从章节分析中同步出场景档案。" />
+          <div className="a4n-flat-surface p-3">
+            <EmptyHint text="尚未从章节分析中同步出场景档案。" />
+          </div>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
             {profiles.map((profile) => (
               <li
                 key={profile.id}
@@ -545,50 +546,29 @@ export const SceneProfilesTab: React.FC<{
                     setDetailFor(profile);
                   }
                 }}
-                className="flex cursor-pointer items-start gap-3 rounded-sm border border-book-border bg-book-bg-paper px-3 py-2 transition-colors hover:border-book-primary/60 hover:bg-book-bg-tertiary/40"
+                className="a4n-flat-surface flex min-h-16 cursor-pointer items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
                 title="查看场景详情"
               >
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-sm border border-book-primary/30 bg-book-primary/10 text-xs font-bold text-book-primary">
-                  {profileInitial(profile.name)}
-                </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm font-semibold text-book-text-main">
-                      {profile.name}
-                    </span>
-                    <span className="pyqt-pill !text-[10px]">
-                      {SCENE_TYPE_LABELS[profile.scene_type] ?? profile.scene_type}
-                    </span>
-                    <span className="pyqt-pill !text-[10px]">
-                      {IMPORTANCE_LABELS[profile.importance] ?? profile.importance}
-                    </span>
-                    <span className="pyqt-pill !text-[10px]">
-                      {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
-                    </span>
+                  <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
+                  <div className="mt-0.5 text-[10px] text-book-text-muted">
+                    {sceneTypeLabel(profile.scene_type)} · {importanceLabel(profile.importance)} · {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-sub">
                     {profile.visual_description || profile.base_description || "暂无场景摘要。"}
                   </p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-book-text-muted">
-                    <span>
-                      {profile.spatial_layout || profile.atmosphere || "未记录空间布局"}
-                    </span>
-                    <span className="pyqt-pill !text-[10px]">
-                      {profile.occurrence_count > 0
-                        ? `出场 ${profile.occurrence_count} 次`
-                        : "未记录出场"}
-                    </span>
-                    <span className="pyqt-pill !text-[10px]">
-                      素材图 {profile.generated_image_count} 张
-                    </span>
+                  <div className="mt-1 truncate text-[10px] text-book-text-muted">
+                    {profile.spatial_layout || profile.atmosphere || "未记录空间布局"}
+                    {profile.occurrence_count > 0 ? ` · ${profile.occurrence_count} 次出场` : ""}
+                    {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
                   </div>
                 </div>
-                <Sparkles size={13} className="mt-1 shrink-0 text-book-text-muted" />
+                <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
               </li>
             ))}
           </ul>
         )}
-      </BookCard>
+      </section>
 
       <SceneProfileDetailModal
         profile={detailFor}
@@ -608,6 +588,7 @@ export const SceneProfilesTab: React.FC<{
       {canEditProfiles && (
         <SceneProfileEditModal
           profile={editingProfile}
+          profiles={profiles}
           busy={busyId != null || syncing}
           onClose={() => setEditingProfile(null)}
           onSave={(input) => handleSaveProfile(input)}
@@ -641,88 +622,73 @@ function SceneProfileDetailModal({
       isOpen={profile != null}
       onClose={onClose}
       title={profile?.name ?? "场景档案"}
-      subtitle={profile ? `${SCENE_TYPE_LABELS[profile.scene_type] ?? profile.scene_type} / ${IMPORTANCE_LABELS[profile.importance] ?? profile.importance}` : undefined}
+      subtitle={profile ? `${sceneTypeLabel(profile.scene_type)} · ${importanceLabel(profile.importance)}` : undefined}
       icon={<Map size={15} />}
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-4 py-4"
     >
       {profile ? (
         <div className="space-y-3 text-xs text-book-text-sub">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {aliases.map((alias) => (
-              <span key={alias} className="pyqt-pill !text-[10px]">
-                {alias}
-              </span>
-            ))}
-            <span className="pyqt-pill !text-[10px]">
-              第 {profile.first_seen_chapter}-{profile.last_seen_chapter} 章
-            </span>
-            <span className="pyqt-pill !text-[10px]">
-              出场 {profile.occurrence_count} 次
-            </span>
-            <span className="pyqt-pill !text-[10px]">
-              素材图 {profile.generated_image_count} 张
-            </span>
-          </div>
-          <DetailRow label="基础定义" value={profile.base_description} />
-          <DetailRow label="视觉特征" value={profile.visual_description} />
-          <DetailRow label="空间布局" value={profile.spatial_layout} />
-          <DetailRow label="氛围" value={profile.atmosphere} />
-          <JsonRow label="出入口" value={profile.entry_points_json} />
-          <JsonRow label="规则" value={profile.rules_json} />
-          <JsonRow label="当前状态" value={profile.current_state_json} />
-          <DetailRow label="提示词种子" value={profile.image_prompt_seed} />
+          <p className="text-[11px] leading-relaxed text-book-text-muted">
+            {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
+            {aliases.length > 0 ? ` · 别名：${aliases.join("、")}` : ""}
+            {profile.occurrence_count > 0 ? ` · ${profile.occurrence_count} 次出场` : ""}
+            {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
+          </p>
+          <dl className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
+            <DetailRow label="基础定义" value={profile.base_description} />
+            <DetailRow label="视觉特征" value={profile.visual_description} />
+            <DetailRow label="空间布局" value={profile.spatial_layout} />
+            <DetailRow label="氛围" value={profile.atmosphere} />
+            <JsonRow label="出入口" value={profile.entry_points_json} />
+            <JsonRow label="规则" value={profile.rules_json} />
+            <JsonRow label="当前状态" value={profile.current_state_json} />
+            <DetailRow label="图像描述" value={profile.image_prompt_seed} />
+          </dl>
           {evidence.length > 0 ? (
-            <div>
-              <div className="mb-1 text-[11px] font-semibold text-book-text-main">证据</div>
-              <ul className="space-y-1">
+            <details className="a4n-flat-surface overflow-hidden">
+              <summary className="cursor-pointer px-3 py-2.5 text-[11px] font-medium text-book-text-main">
+                依据 · {evidence.length} 条
+              </summary>
+              <ul className="space-y-1 border-t border-book-border/40 px-3 py-2.5">
                 {evidence.map((item, index) => (
                   <li key={`${item}-${index}`} className="border-l border-book-border pl-2">
                     {item}
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           ) : null}
           {canEdit && (
-            <div className="flex flex-wrap justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-1">
+              {busyId == null ? (
+                <Dropdown
+                  items={[
+                    {
+                      label: "编辑档案",
+                      icon: <Pencil size={12} />,
+                      onClick: () => onEdit(profile),
+                    },
+                    { type: "divider" },
+                    {
+                      label: "删除档案",
+                      onClick: () => onDelete(profile),
+                      danger: true,
+                    },
+                  ]}
+                />
+              ) : null}
               <BookButton
                 variant="primary"
                 size="sm"
                 onClick={() => onGenerate(profile)}
                 disabled={busyId != null}
+                className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
                 <span className="inline-flex items-center gap-1">
                   {busyId === profile.id ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                   生成素材图
                 </span>
-              </BookButton>
-              <BookButton
-                variant="secondary"
-                size="sm"
-                onClick={() => onEdit(profile)}
-                disabled={busyId != null}
-                title={
-                  profile.generated_image_count > 0
-                    ? "编辑前会提示处理下游素材图"
-                    : undefined
-                }
-              >
-                <Pencil size={12} />
-                编辑档案
-              </BookButton>
-              <BookButton
-                variant="danger"
-                size="sm"
-                onClick={() => onDelete(profile)}
-                disabled={busyId != null}
-                title={
-                  profile.generated_image_count > 0
-                    ? "删除前会提示处理下游素材图"
-                    : undefined
-                }
-              >
-                删除档案
               </BookButton>
             </div>
           )}
@@ -734,11 +700,13 @@ function SceneProfileDetailModal({
 
 function SceneProfileEditModal({
   profile,
+  profiles,
   busy,
   onClose,
   onSave,
 }: {
   profile: SceneProfile | "new" | null;
+  profiles: SceneProfile[];
   busy: boolean;
   onClose: () => void;
   onSave: (input: SceneProfileInput) => Promise<void>;
@@ -783,19 +751,14 @@ function SceneProfileEditModal({
       closeOnBackdrop={!busy && !saving}
       closeOnEscape={!busy && !saving}
       footer={
-        <>
-          <BookButton variant="secondary" onClick={onClose} disabled={saving || busy}>
-            取消
-          </BookButton>
-          <BookButton
-            variant="primary"
-            onClick={() => void submit()}
-            disabled={busy || saving || !draft.name.trim() || !draft.visual_description.trim()}
-          >
-            {saving ? <Loader2 size={12} className="animate-spin" /> : null}
-            保存
-          </BookButton>
-        </>
+        <BookButton
+          variant="primary"
+          onClick={() => void submit()}
+          disabled={busy || saving || !draft.name.trim() || !draft.visual_description.trim()}
+        >
+          {saving ? <Loader2 size={12} className="animate-spin" /> : null}
+          保存
+        </BookButton>
       }
     >
       <fieldset disabled={busy || saving} className="grid gap-3 text-xs disabled:opacity-75">
@@ -815,12 +778,28 @@ function SceneProfileEditModal({
             labels={IMPORTANCE_LABELS}
             onChange={(value) => update("importance", value)}
           />
-          <NumberField
-            label="父场景 ID"
-            value={Number(draft.parent_scene_id ?? 0)}
-            min={0}
-            onChange={(value) => update("parent_scene_id", value > 0 ? value : null)}
-          />
+          <label className="flex flex-col gap-1">
+            <span className="text-book-text-muted">上级场景</span>
+            <select
+              value={draft.parent_scene_id ?? ""}
+              onChange={(event) =>
+                update(
+                  "parent_scene_id",
+                  event.target.value ? Number(event.target.value) : null,
+                )
+              }
+              className="pyqt-input"
+            >
+              <option value="">无</option>
+              {profiles
+                .filter((item) => profile === "new" || item.id !== profile.id)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+            </select>
+          </label>
           <NumberField
             label="首次章节"
             value={draft.first_seen_chapter}
@@ -863,7 +842,7 @@ function SceneProfileEditModal({
           onChange={(value) => update("evidence", splitLines(value))}
         />
         <TextAreaField
-          label="图片提示词种子"
+          label="图像描述"
           value={draft.image_prompt_seed}
           onChange={(value) => update("image_prompt_seed", value)}
         />
@@ -874,9 +853,9 @@ function SceneProfileEditModal({
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="mb-1 text-[11px] font-semibold text-book-text-main">{label}</div>
-      <p className="leading-relaxed whitespace-pre-wrap">{value}</p>
+    <div className="px-3 py-2.5 sm:grid sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-3">
+      <dt className="text-[11px] font-medium text-book-text-muted">{label}</dt>
+      <dd className="mt-1 whitespace-pre-wrap leading-relaxed text-book-text-sub sm:mt-0">{value}</dd>
     </div>
   );
 }
@@ -885,13 +864,55 @@ function JsonRow({ label, value }: { label: string; value: unknown }) {
   const text = formatJson(value);
   if (!text) return null;
   return (
-    <div>
-      <div className="mb-1 text-[11px] font-semibold text-book-text-main">{label}</div>
-      <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-sm border border-book-border bg-book-bg-paper px-2 py-2 text-[11px] leading-relaxed text-book-text-sub custom-scrollbar">
-        {text}
-      </pre>
+    <div className="px-3 py-2.5 sm:grid sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-3">
+      <dt className="text-[11px] font-medium text-book-text-muted">{label}</dt>
+      <dd className="mt-1 min-w-0 text-[11px] leading-relaxed text-book-text-sub sm:mt-0">
+        <div>{formatStructuredSummary(value)}</div>
+        <details className="mt-1 text-[10px] text-book-text-muted">
+          <summary className="w-fit cursor-pointer rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
+            诊断信息
+          </summary>
+          <pre className="mt-1 whitespace-pre-wrap break-words rounded-[10px] bg-book-bg-tertiary/50 px-2 py-2 font-mono leading-relaxed text-book-text-sub">
+            {text}
+          </pre>
+        </details>
+      </dd>
     </div>
   );
+}
+
+const STRUCTURED_FIELD_LABELS: Record<string, string> = {
+  name: "名称",
+  title: "名称",
+  type: "类型",
+  description: "说明",
+  direction: "方向",
+  condition: "条件",
+  rule: "规则",
+  status: "状态",
+  value: "内容",
+};
+
+function formatStructuredSummary(value: unknown, depth = 0): string {
+  if (value == null) return "未记录";
+  if (typeof value === "string") return value.trim() || "未记录";
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    const rows = value.map((item) => formatStructuredSummary(item, depth + 1)).filter(Boolean);
+    return rows.length > 0 ? rows.join("；") : "未记录";
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return "未记录";
+    return entries
+      .slice(0, 8)
+      .map(([key, item]) => {
+        const itemText = formatStructuredSummary(item, depth + 1);
+        return `${STRUCTURED_FIELD_LABELS[key] ?? "信息"}：${itemText}`;
+      })
+      .join("；");
+  }
+  return String(value);
 }
 
 function stringList(value: unknown): string[] {
@@ -1066,7 +1087,7 @@ function validateSceneProfileDraft(draft: SceneProfileInput): string | null {
   if (!draft.visual_description.trim()) return "场景视觉特征不能为空";
   if (!draft.spatial_layout.trim()) return "场景空间布局不能为空";
   if (!draft.atmosphere.trim()) return "场景氛围不能为空";
-  if (!draft.image_prompt_seed.trim()) return "场景图片提示词种子不能为空";
+  if (!draft.image_prompt_seed.trim()) return "场景图像描述不能为空";
   if (!draft.evidence || draft.evidence.length === 0) return "场景证据不能为空";
   if (!Number.isInteger(draft.first_seen_chapter) || draft.first_seen_chapter <= 0) {
     return "场景首次出现章节必须是正整数";

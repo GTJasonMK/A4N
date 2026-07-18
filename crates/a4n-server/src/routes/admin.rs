@@ -1,7 +1,7 @@
 use super::auth::authenticated_user;
 use super::error::ApiError;
 use crate::state::ServerState;
-use a4n_runtime::actions::admin_records;
+use a4n_runtime::host_api::admin_records;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
@@ -12,7 +12,7 @@ pub async fn list_users(
 ) -> Result<Json<Vec<admin_records::AdminUserSummary>>, ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
     Ok(Json(
-        admin_records::list_all_users_for_admin(&state, caller.id).await?,
+        admin_records::list_all_users_for_admin(state.runtime(), caller.id).await?,
     ))
 }
 
@@ -23,7 +23,7 @@ pub async fn create_user(
 ) -> Result<Json<admin_records::AdminUserSummary>, ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
     Ok(Json(
-        admin_records::create_user_for_admin(&state, caller.id, input).await?,
+        admin_records::create_user_for_admin(state.runtime(), caller.id, input).await?,
     ))
 }
 
@@ -33,7 +33,7 @@ pub async fn list_invite_codes(
 ) -> Result<Json<Vec<admin_records::InviteCodeSummary>>, ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
     Ok(Json(
-        admin_records::list_invite_codes_for_admin(&state, caller.id).await?,
+        admin_records::list_invite_codes_for_admin(state.runtime(), caller.id).await?,
     ))
 }
 
@@ -44,7 +44,7 @@ pub async fn create_invite_code(
 ) -> Result<Json<admin_records::InviteCodeSummary>, ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
     Ok(Json(
-        admin_records::create_invite_code_for_admin(&state, caller.id, input).await?,
+        admin_records::create_invite_code_for_admin(state.runtime(), caller.id, input).await?,
     ))
 }
 
@@ -56,7 +56,8 @@ pub async fn update_user_role(
 ) -> Result<Json<admin_records::AdminUserSummary>, ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
     Ok(Json(
-        admin_records::update_user_role_for_admin(&state, caller.id, user_id, input).await?,
+        admin_records::update_user_role_for_admin(state.runtime(), caller.id, user_id, input)
+            .await?,
     ))
 }
 
@@ -66,6 +67,6 @@ pub async fn disable_user(
     Path(user_id): Path<i64>,
 ) -> Result<(), ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
-    admin_records::delete_user_for_admin(&state, caller.id, user_id).await?;
+    admin_records::delete_user_for_admin(state.runtime(), caller.id, user_id).await?;
     Ok(())
 }

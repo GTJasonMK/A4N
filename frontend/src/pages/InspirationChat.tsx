@@ -1,12 +1,16 @@
-import React from "react";
-import { Loader2 } from "lucide-react";
+import React, { useState } from "react";
+import { ListChecks, Loader2 } from "lucide-react";
 import { ProgressDialog } from "../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../components/feedback/RequestPreviewModal";
+import { Modal } from "../components/ui/Modal";
 import { BlueprintConfirmationPane } from "./inspiration/BlueprintConfirmationPane";
 import { BlueprintDisplayPane } from "./inspiration/BlueprintDisplayPane";
 import { ConversationPane } from "./inspiration/ConversationPane";
 import { InspirationChatHeader } from "./inspiration/InspirationChatHeader";
-import { InspirationGuidePanel } from "./inspiration/InspirationGuidePanel";
+import {
+  InspirationGuidePanel,
+  InspirationProgressContent,
+} from "./inspiration/InspirationGuidePanel";
 import { useInspirationChatController } from "./inspiration/useInspirationChatController";
 
 /**
@@ -17,6 +21,7 @@ import { useInspirationChatController } from "./inspiration/useInspirationChatCo
  */
 export const InspirationChat: React.FC = () => {
   const chat = useInspirationChatController();
+  const [progressOpen, setProgressOpen] = useState(false);
 
   if (!chat.project) {
     return (
@@ -30,11 +35,13 @@ export const InspirationChat: React.FC = () => {
     <div className="h-full w-full flex flex-col">
       <InspirationChatHeader
         projectTitle={chat.project.title}
+        showConversationControls={chat.stage === "conversation"}
         useStream={chat.useStream}
         onUseStreamChange={chat.setUseStream}
         generating={chat.generating}
         canTryGenerate={chat.canTryGenerate}
         canGenerate={chat.canGenerate}
+        onOpenProgress={() => setProgressOpen(true)}
         onGenerateBlueprint={() => void chat.handleGenerateBlueprint()}
         onPreviewGenerateBlueprint={() => void chat.handlePreviewGenerateBlueprint()}
       />
@@ -67,11 +74,8 @@ export const InspirationChat: React.FC = () => {
               <InspirationGuidePanel
                 progressSummaryLines={chat.progressSummaryLines}
                 nextQuestion={chat.nextQuestion}
-                userTurns={chat.userTurns}
                 isReady={chat.conversationComplete}
                 sending={chat.sending}
-                generating={chat.generating}
-                onFocusConversation={chat.focusConversationInput}
               />
             </div>
           )}
@@ -112,6 +116,22 @@ export const InspirationChat: React.FC = () => {
         cancelling={chat.blueprintCancelling}
         cancelLabel="停止生成"
       />
+      <Modal
+        isOpen={progressOpen && chat.stage === "conversation"}
+        onClose={() => setProgressOpen(false)}
+        title="创作进度"
+        subtitle="已确认的信息会随对话自动整理"
+        icon={<ListChecks size={15} />}
+        maxWidthClassName="max-w-md"
+        bodyClassName="px-4 py-4"
+      >
+        <InspirationProgressContent
+          progressSummaryLines={chat.progressSummaryLines}
+          nextQuestion={chat.nextQuestion}
+          isReady={chat.conversationComplete}
+          sending={chat.sending}
+        />
+      </Modal>
       <RequestPreviewModal
         open={chat.requestPreviewOpen}
         loading={chat.requestPreviewLoading}

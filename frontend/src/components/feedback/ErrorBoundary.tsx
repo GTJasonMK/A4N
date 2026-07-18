@@ -1,6 +1,5 @@
 import React from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { BookCard } from "../ui/BookCard";
 import { BookButton } from "../ui/BookButton";
 import { logger } from "../../utils/logger";
 import { reloadAppShell } from "../../utils/appReload";
@@ -40,24 +39,34 @@ export class ErrorBoundary extends React.Component<
     if (!this.state.hasError) return this.props.children;
 
     return (
-      <div className="min-h-[60vh] flex items-center justify-center p-6">
-        <BookCard className="max-w-xl w-full p-6">
-          <div className="flex items-center gap-3 text-book-text-main">
-            <AlertTriangle className="text-book-accent" size={22} />
-            <div className="font-serif text-lg font-bold">页面渲染出错</div>
+      <div className="flex min-h-[60vh] items-center justify-center p-6">
+        <section className="a4n-flat-surface w-full max-w-xl overflow-hidden">
+          <div className="flex items-start gap-3 px-5 py-5">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning-bg text-warning">
+              <AlertTriangle size={17} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h1 className="font-serif text-base font-semibold text-book-text-main">
+                页面暂时无法显示
+              </h1>
+              <p className="mt-1 text-sm leading-relaxed text-book-text-muted">
+                当前页面的数据或状态出现异常。可以先返回重试，或重新加载应用。
+              </p>
+            </div>
           </div>
 
-          <div className="mt-3 text-sm text-book-text-muted leading-relaxed">
-            这通常是某个组件的状态/数据不符合预期导致的。你可以尝试刷新页面继续使用。
-          </div>
+          {this.state.error?.message ? (
+            <details className="border-t border-book-border/40 px-5 py-3 text-xs text-book-text-muted">
+              <summary className="w-fit cursor-pointer hover:text-book-text-main">
+                诊断信息
+              </summary>
+              <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">
+                {this.state.error.message}
+              </pre>
+            </details>
+          ) : null}
 
-          {this.state.error?.message && (
-            <pre className="mt-4 p-3 text-xs bg-book-bg rounded-sm border border-book-border/40 overflow-auto text-book-text-muted">
-              {this.state.error.message}
-            </pre>
-          )}
-
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-book-border/40 px-5 py-4">
             <BookButton
               variant="ghost"
               onClick={() =>
@@ -66,15 +75,12 @@ export class ErrorBoundary extends React.Component<
             >
               返回
             </BookButton>
-            <BookButton
-              variant="primary"
-              onClick={reloadAppShell}
-            >
-              <RefreshCw size={16} className="mr-2" />
-              刷新
+            <BookButton variant="primary" onClick={reloadAppShell}>
+              <RefreshCw size={14} />
+              重新加载
             </BookButton>
           </div>
-        </BookCard>
+        </section>
       </div>
     );
   }

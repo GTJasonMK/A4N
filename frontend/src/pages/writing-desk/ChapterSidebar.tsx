@@ -5,7 +5,7 @@ import { type ChapterOutline } from "../../api/outline";
 import { BookIconButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import { ChapterCard } from "./ChapterCard";
-import { FlippableBlueprintCard } from "./FlippableBlueprintCard";
+import { WritingContextCards } from "./WritingContextCards";
 import { countChapterBodyCharacters } from "./wordCount";
 
 interface ChapterSidebarProps {
@@ -84,10 +84,10 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
 
   return (
     <aside
-      className="grid h-full min-h-0 min-w-0 gap-2 overflow-hidden border-r border-book-border bg-book-bg-paper p-2"
+      className="grid h-full min-h-0 min-w-0 gap-2 overflow-hidden border-r border-book-border/80 bg-book-bg-paper p-2.5"
       style={{ gridTemplateRows: SIDEBAR_GRID_ROWS }}
     >
-      <FlippableBlueprintCard
+      <WritingContextCards
         projectId={projectId}
         chapterCount={chapters.length}
         totalChapters={outlines.length}
@@ -98,20 +98,20 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
         className="grid min-h-0 min-w-0 overflow-hidden"
         style={{ gridTemplateRows: CHAPTER_LIST_GRID_ROWS }}
       >
-        <div className="flex min-w-0 shrink-0 items-center gap-1.5">
-          <h3 className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wider text-book-text-sub">
-            章节列表
-            {chapterNumbers.length > 0 && (
-              <span className="ml-1 font-mono text-book-text-muted">
-                {filteredChapterNumbers.length}/{chapterNumbers.length}
-              </span>
-            )}
-          </h3>
+        <div className="flex min-w-0 items-center gap-2 px-1 py-1">
+          <h2 className="min-w-0 flex-1 text-xs font-semibold text-book-text-main">章节</h2>
+          {chapterNumbers.length > 0 ? (
+            <span className="text-[10px] text-book-text-muted">
+              {filteredChapterNumbers.length === chapterNumbers.length
+                ? `${chapterNumbers.length} 章`
+                : `${filteredChapterNumbers.length} / ${chapterNumbers.length} 章`}
+            </span>
+          ) : null}
           <BookIconButton
-            label="刷新"
+            label="刷新章节"
             onClick={() => void onRefreshChapters()}
             variant="secondary"
-            size="md"
+            size="sm"
           >
             <RefreshCw size={12} />
           </BookIconButton>
@@ -122,7 +122,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             value={chapterQuery}
             onChange={(event) => onChapterQueryChange(event.target.value)}
             placeholder="搜索章节、标题、章纲…"
-            className="pyqt-input h-8 w-full pl-7 pr-7 text-[11px]"
+            className="pyqt-input w-full pl-8 pr-8 text-xs"
           />
           <Search
             size={12}
@@ -132,7 +132,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             <button
               type="button"
               onClick={onClearChapterQuery}
-            className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-sm text-[11px] text-book-text-muted hover:bg-book-primary/10 hover:text-book-primary sm:right-1.5 sm:h-5 sm:w-5"
+              className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full text-[11px] text-book-text-muted hover:bg-book-primary/10 hover:text-book-primary sm:right-1.5 sm:h-5 sm:w-5"
               aria-label="清空章节搜索"
               title="清空搜索"
             >
@@ -141,7 +141,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
           )}
         </div>
         <div className="custom-scrollbar mt-2 min-h-0 min-w-0 overflow-y-auto pr-1">
-          <ul className="space-y-1">
+          <ul className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
             {filteredChapterNumbers.map((chapterNumber) => {
               const chapter = chaptersByNumber.get(chapterNumber);
               const outline = outlinesByNumber.get(chapterNumber);
@@ -156,7 +156,6 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
                     title={chapterTitle(chapter, outline)}
                     wordCount={wordCount}
                     status={chapter?.status}
-                    hasContent={!!chapter?.content}
                     hasDraft={draftSet.has(chapterNumber)}
                     selected={chapterNumber === activeNumber}
                     onClick={() => void onSelectChapter(chapterNumber)}
@@ -185,44 +184,28 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
       </section>
 
       <div className="min-w-0 overflow-hidden border-t border-book-border pt-1">
-        <button
-          type="button"
-          onClick={() => activeOutline && setOutlineDetailOpen(true)}
-          className="a4n-interactive-row h-full min-w-0 w-full overflow-hidden px-1.5 py-1 text-left text-[11px] leading-snug text-book-text-sub disabled:cursor-default disabled:text-book-text-muted disabled:hover:border-book-border disabled:hover:bg-book-bg-paper disabled:hover:shadow-none"
-          disabled={!activeOutline}
-          title={activeOutline ? "查看本章章纲" : "暂无本章章纲"}
-        >
-          {activeOutline ? (
-            <>
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="shrink-0 font-semibold text-book-text-muted">章纲</span>
-                <span className="min-w-0 flex-1 truncate font-semibold text-book-text-main">
-                  {currentOutlineTitle ?? `第 ${activeOutline.chapter_number} 章`}
-                </span>
-              </div>
-              {currentOutlineSummary && (
-                <div className="mt-0.5 truncate text-[10px] text-book-text-sub">
-                  {currentOutlineSummary}
-                </div>
-              )}
-              {!currentOutlineSummary && (
-                <div className="mt-0.5 truncate text-[10px]" aria-hidden="true">
-                  &nbsp;
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="shrink-0 font-semibold text-book-text-muted">章纲</span>
-                <span className="min-w-0 flex-1 truncate">暂无本章章纲</span>
-              </div>
-              <div className="mt-0.5 truncate text-[10px]" aria-hidden="true">
-                &nbsp;
-              </div>
+        {activeOutline ? (
+          <button
+            type="button"
+            onClick={() => setOutlineDetailOpen(true)}
+            className="w-full rounded-xl px-2 py-2 text-left text-[11px] leading-snug text-book-text-sub transition-colors hover:bg-book-bg-tertiary/55"
+            title="查看本章章纲"
+          >
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="shrink-0 font-semibold text-book-text-muted">本章章纲</span>
+              <span className="min-w-0 flex-1 truncate font-semibold text-book-text-main">
+                {currentOutlineTitle ?? `第 ${activeOutline.chapter_number} 章`}
+              </span>
             </div>
-          )}
-        </button>
+            {currentOutlineSummary ? (
+              <div className="mt-0.5 truncate text-[10px] text-book-text-muted">
+                {currentOutlineSummary}
+              </div>
+            ) : null}
+          </button>
+        ) : (
+          <p className="px-2 py-2 text-[11px] text-book-text-muted">本章暂无章纲</p>
+        )}
       </div>
 
       <Modal

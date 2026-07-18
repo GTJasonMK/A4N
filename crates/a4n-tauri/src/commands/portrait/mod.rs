@@ -1,16 +1,16 @@
 //! 人物三视图拆解命令
 //!
-//! 对应服务：PortraitService
+//! 人物立绘命令入口；提示词 workflow 由 orchestrator portrait 域执行。
 //! 项目级人物参考图查询、主图设置、提示词生成与图像生成。
 
 pub(crate) mod generation;
 
 use crate::commands::request_preview::ModelRequestPreview;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::portrait_generation::{
+use a4n_runtime::host_api::portrait_generation::{
     GeneratePortraitPromptInput, PortraitSummary, UploadPortraitInput,
 };
-use a4n_runtime::actions::portrait_records as portrait_records_actions;
+use a4n_runtime::host_api::portrait_records as portrait_records_actions;
 use tauri::State;
 
 /// 按项目列出所有人物参考图
@@ -50,7 +50,7 @@ pub async fn upload_portrait(
     user_id: i64,
     input: UploadPortraitInput,
 ) -> Result<PortraitSummary, String> {
-    a4n_runtime::actions::portrait_generation::upload_portrait(state.inner(), user_id, input).await
+    a4n_runtime::host_api::portrait_generation::upload_portrait(state.inner(), user_id, input).await
 }
 
 /// 生成人物三视图拆解提示词（LLM 生成）
@@ -63,7 +63,7 @@ pub async fn generate_portrait_prompt(
     user_id: i64,
     input: GeneratePortraitPromptInput,
 ) -> Result<String, String> {
-    a4n_runtime::actions::portrait_generation::generate_portrait_prompt(
+    a4n_runtime::host_api::portrait_generation::generate_portrait_prompt(
         state.inner(),
         user_id,
         input,
@@ -77,7 +77,7 @@ pub async fn preview_generate_portrait_prompt_request(
     user_id: i64,
     input: GeneratePortraitPromptInput,
 ) -> Result<ModelRequestPreview, String> {
-    a4n_runtime::actions::portrait_generation::preview_generate_portrait_prompt_request(
+    a4n_runtime::host_api::portrait_generation::preview_generate_portrait_prompt_request(
         state.inner(),
         user_id,
         input,

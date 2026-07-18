@@ -1,0 +1,125 @@
+use super::super::{
+    ApiError, blueprint_records_actions, command_input, finish_web_task, i64_arg,
+    register_web_task, sanitize_optional_task_id, to_value, web_progress_reporter,
+};
+use crate::state::ServerState;
+use a4n_core::event::channel::TaskType;
+use serde_json::Value;
+
+pub(in crate::routes::commands) async fn get_blueprint(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    to_value(blueprint_records_actions::get_blueprint(state.runtime(), user_id, project_id).await?)
+}
+
+macro_rules! blueprint_web_input_command {
+    ($name:ident, $input:ty, $action:path $(,)?) => {
+        pub(in crate::routes::commands) async fn $name(
+            state: &ServerState,
+            user_id: i64,
+            args: &Value,
+        ) -> Result<Value, ApiError> {
+            let input: $input = command_input(args, stringify!($name))?;
+            to_value($action(state.runtime(), user_id, input).await?)
+        }
+    };
+}
+
+macro_rules! blueprint_web_preview_command {
+    ($name:ident, $input:ty, $action:path $(,)?) => {
+        pub(in crate::routes::commands) async fn $name(
+            state: &ServerState,
+            user_id: i64,
+            args: &Value,
+        ) -> Result<Value, ApiError> {
+            let input: $input = command_input(args, stringify!($name))?;
+            to_value($action(state.runtime(), user_id, input).await?)
+        }
+    };
+}
+
+pub(in crate::routes::commands) async fn generate_blueprint(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: blueprint_records_actions::GenerateBlueprintInput =
+        command_input(args, "generate_blueprint")?;
+    let scope =
+        blueprint_records_actions::generate_blueprint_task_scope(state.runtime(), user_id, &input)
+            .await
+            .map_err(|err| ApiError::bad_request(err.to_string()))?;
+    let task_id = sanitize_optional_task_id(input.task_id.clone())?;
+    let task = register_web_task(
+        state,
+        task_id.clone(),
+        TaskType::LlmCall,
+        scope.project_id,
+        scope.total,
+        "启动蓝图生成",
+    )
+    .await;
+    let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
+    let progress = web_progress_reporter(state, task, task_id.clone());
+    let result = blueprint_records_actions::generate_blueprint(
+        state.runtime(),
+        user_id,
+        input,
+        cancel_token.as_ref(),
+        Some(&progress),
+    )
+    .await;
+    let blueprint = finish_web_task(state, task_id, result, "首版蓝图已生成").await?;
+    to_value(blueprint)
+}
+
+blueprint_web_preview_command!(
+    preview_generate_blueprint_request,
+    blueprint_records_actions::GenerateBlueprintInput,
+    blueprint_records_actions::preview_generate_blueprint_request,
+);
+
+blueprint_web_input_command!(
+    refine_blueprint,
+    blueprint_records_actions::RefineBlueprintInput,
+    blueprint_records_actions::refine_blueprint,
+);
+
+blueprint_web_preview_command!(
+    preview_refine_blueprint_request,
+    blueprint_records_actions::RefineBlueprintInput,
+    blueprint_records_actions::preview_refine_blueprint_request,
+);
+
+pub(in crate::routes::commands) async fn list_blueprint_versions(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    to_value(
+        blueprint_records_actions::list_blueprint_versions(state.runtime(), user_id, project_id)
+            .await?,
+    )
+}
+
+blueprint_web_input_command!(
+    diff_blueprint_versions,
+    blueprint_records_actions::DiffBlueprintVersionsInput,
+    blueprint_records_actions::diff_blueprint_versions,
+);
+
+blueprint_web_input_command!(
+    restore_blueprint_version,
+    blueprint_records_actions::RestoreBlueprintVersionInput,
+    blueprint_records_actions::restore_blueprint_version,
+);
+
+blueprint_web_input_command!(
+    update_world_setting,
+    blueprint_records_actions::UpdateWorldSettingInput,
+    blueprint_records_actions::update_world_setting,
+);

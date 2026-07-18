@@ -1,7 +1,7 @@
 use crate::AppState;
-use a4n_services::collaboration::{
-    ProjectInviteSummary, ProjectMemberRole, ProjectMemberSummary, parse_project_member_role,
-};
+use crate::actions::app_error_message;
+pub use a4n_orchestrator::collaboration::{ProjectInviteSummary, ProjectMemberSummary};
+use a4n_orchestrator::collaboration::{ProjectMemberRole, parse_project_member_role};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,10 +23,10 @@ pub async fn list_project_members(
     project_id: i64,
 ) -> Result<Vec<ProjectMemberSummary>, String> {
     state
-        .collaboration
+        .orchestrator
         .list_project_members(user_id, project_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 pub async fn invite_project_member(
@@ -37,10 +37,10 @@ pub async fn invite_project_member(
 ) -> Result<ProjectInviteSummary, String> {
     let role = parse_role(&input.role)?;
     state
-        .collaboration
+        .orchestrator
         .invite_project_member(user_id, project_id, &input.username_or_email, role)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 pub async fn list_project_invites(
@@ -49,10 +49,10 @@ pub async fn list_project_invites(
     project_id: i64,
 ) -> Result<Vec<ProjectInviteSummary>, String> {
     state
-        .collaboration
+        .orchestrator
         .list_project_invites(user_id, project_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 pub async fn list_my_project_invites(
@@ -60,10 +60,10 @@ pub async fn list_my_project_invites(
     user_id: i64,
 ) -> Result<Vec<ProjectInviteSummary>, String> {
     state
-        .collaboration
+        .orchestrator
         .list_my_project_invites(user_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 pub async fn accept_project_invite(
@@ -72,10 +72,10 @@ pub async fn accept_project_invite(
     invite_id: i64,
 ) -> Result<ProjectMemberSummary, String> {
     state
-        .collaboration
+        .orchestrator
         .accept_project_invite(user_id, invite_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 pub async fn decline_project_invite(
@@ -84,10 +84,10 @@ pub async fn decline_project_invite(
     invite_id: i64,
 ) -> Result<ProjectInviteSummary, String> {
     state
-        .collaboration
+        .orchestrator
         .decline_project_invite(user_id, invite_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 pub async fn revoke_project_invite(
@@ -97,10 +97,10 @@ pub async fn revoke_project_invite(
     invite_id: i64,
 ) -> Result<ProjectInviteSummary, String> {
     state
-        .collaboration
+        .orchestrator
         .revoke_project_invite(user_id, project_id, invite_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 pub async fn update_project_member_role(
@@ -112,10 +112,10 @@ pub async fn update_project_member_role(
 ) -> Result<ProjectMemberSummary, String> {
     let role = parse_role(&input.role)?;
     state
-        .collaboration
+        .orchestrator
         .update_project_member_role(user_id, project_id, member_user_id, role)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 pub async fn remove_project_member(
@@ -125,20 +125,20 @@ pub async fn remove_project_member(
     member_user_id: i64,
 ) -> Result<(), String> {
     state
-        .collaboration
+        .orchestrator
         .remove_project_member(user_id, project_id, member_user_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 pub async fn leave_project(state: &AppState, user_id: i64, project_id: i64) -> Result<(), String> {
     state
-        .collaboration
+        .orchestrator
         .leave_project(user_id, project_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(app_error_message)
 }
 
 fn parse_role(value: &str) -> Result<ProjectMemberRole, String> {
-    parse_project_member_role(value).map_err(|e| e.to_string())
+    parse_project_member_role(value).map_err(|error| error.to_string())
 }

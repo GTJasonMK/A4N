@@ -33,6 +33,7 @@ tags: galgame, visual, planning
 
 ## 规则
 
+- 必须始终输出 `backgrounds` 和 `event_cgs`；没有事件 CG 时 `event_cgs` 显式输出空数组，不得省略字段。
 - 每个场景必须有一个 `backgrounds` 条目。
 - `background_note` 描述稳定空间、时间、天气、光线、气氛和可见关键物，不写摄影器材参数。
 - 事件 CG 只选择剧情高潮、关系变化、动作转折或视觉记忆点；不要为普通对白生成 CG。

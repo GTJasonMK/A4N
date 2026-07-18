@@ -27,9 +27,17 @@ impl EventBridge {
     /// 前端通过 `listen("workflow:{task_id}", callback)` 监听。
     fn emit_workflow_event(&self, task_id: &str, event: SseEvent) -> Result<(), AppError> {
         let channel = SseEvent::workflow_channel(task_id);
-        self.window
-            .emit(&channel, serde_json::to_value(&event)?)
-            .map_err(|e| AppError::Internal(e.into()))
+        let result = serde_json::to_value(&event)
+            .map_err(AppError::Serialization)
+            .and_then(|payload| {
+                self.window
+                    .emit(&channel, payload)
+                    .map_err(|error| AppError::Internal(error.into()))
+            });
+        if let Err(error) = &result {
+            tracing::warn!(task_id, channel, %error, "Tauri workflow 事件发送失败");
+        }
+        result
     }
 
     pub fn emit_progress_with_meta(

@@ -459,6 +459,11 @@ export const useBlueprintWorkflow = ({
   const handleRefineBlueprint = useCallback(
     async (focus: string) => {
       if (!project) return;
+      const requestFocus = focus.trim();
+      if (!requestFocus) {
+        addToast("请先说明要调整的方向", "error");
+        return;
+      }
       const requestProjectId = projectId;
       const requestSeq = refineSeqRef.current + 1;
       refineSeqRef.current = requestSeq;
@@ -466,7 +471,7 @@ export const useBlueprintWorkflow = ({
       try {
         const refined = await refineBlueprint({
           project_id: requestProjectId,
-          focus,
+          focus: requestFocus,
           variables: null,
         });
         if (!isCurrentProject(requestProjectId) || refineSeqRef.current !== requestSeq) return;
@@ -487,6 +492,11 @@ export const useBlueprintWorkflow = ({
   const handlePreviewRefineBlueprint = useCallback(
     async (focus: string) => {
       if (!project) return;
+      const requestFocus = focus.trim();
+      if (!requestFocus) {
+        addToast("请先说明要调整的方向", "error");
+        return;
+      }
       const requestProjectId = projectId;
       const requestSeq = requestPreviewSeqRef.current + 1;
       requestPreviewSeqRef.current = requestSeq;
@@ -496,7 +506,7 @@ export const useBlueprintWorkflow = ({
       try {
         const preview = await previewRefineBlueprintRequest({
           project_id: requestProjectId,
-          focus: focus.trim() || "全面优化",
+          focus: requestFocus,
           variables: null,
         });
         if (

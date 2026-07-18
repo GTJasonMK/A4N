@@ -1,79 +1,74 @@
-use crate::AppState;
+use a4n_core::error::AppError;
 use a4n_core::models::generation::workflow_checkpoint;
-use a4n_services::generation::generation_checkpoint_fingerprint_sha256;
-use a4n_services::workflow::{UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED};
+use a4n_orchestrator::workflow::{self as orchestrator_workflow, WorkflowCheckpointContractError};
 use serde_json::Value;
 
-pub(crate) fn workflow_checkpoint_fingerprint_sha256(value: &Value) -> Result<String, String> {
-    generation_checkpoint_fingerprint_sha256(value).map_err(|err| err.to_string())
+pub(crate) use a4n_orchestrator::workflow::CompletedLlmCallCheckpointInput;
+
+pub(crate) fn llm_call_checkpoint_fingerprint_sha256(value: &Value) -> Result<String, AppError> {
+    orchestrator_workflow::llm_call_checkpoint_fingerprint_sha256(value)
+        .map_err(llm_checkpoint_contract_error)
 }
 
-pub(crate) async fn load_completed_workflow_checkpoint(
-    state: &AppState,
+pub(crate) fn required_llm_call_workflow_run_id(
     workflow_run_id: Option<i64>,
-    step_key: &str,
-    input_fingerprint_json: &Value,
-) -> Result<Option<workflow_checkpoint::Model>, String> {
-    let Some(workflow_run_id) = workflow_run_id else {
-        return Ok(None);
-    };
-    let fingerprint_sha = workflow_checkpoint_fingerprint_sha256(input_fingerprint_json)?;
-    state
-        .workflow_run
-        .completed_checkpoint_by_fingerprint(workflow_run_id, step_key, &fingerprint_sha)
-        .await
-        .map_err(|err| err.to_string())
+    call_key: &str,
+) -> Result<i64, AppError> {
+    orchestrator_workflow::required_llm_call_workflow_run_id(workflow_run_id, call_key)
+        .map_err(llm_checkpoint_contract_error)
 }
 
-pub(crate) fn required_checkpoint_json(
-    checkpoint: &workflow_checkpoint::Model,
-    step_key: &str,
-) -> Result<Value, String> {
-    checkpoint
-        .checkpoint_json
-        .clone()
-        .ok_or_else(|| format!("{step_key} 已完成 checkpoint 缺少 checkpoint_json"))
+pub(crate) fn required_llm_call_checkpoint_json(
+    checkpoint: workflow_checkpoint::Model,
+    call_key: &str,
+) -> Result<Value, AppError> {
+    orchestrator_workflow::required_llm_call_checkpoint_json(checkpoint, call_key)
+        .map_err(llm_checkpoint_contract_error)
 }
 
-pub(crate) fn required_checkpoint_field(
-    checkpoint_json: &Value,
-    step_key: &str,
-    field: &str,
-) -> Result<Value, String> {
-    checkpoint_json
-        .get(field)
-        .cloned()
-        .ok_or_else(|| format!("{step_key} 已完成 checkpoint 缺少 {field}"))
+fn llm_checkpoint_contract_error(error: WorkflowCheckpointContractError) -> AppError {
+    match error {
+        WorkflowCheckpointContractError::Invalid(message) => AppError::InvalidArgument(message),
+        WorkflowCheckpointContractError::MissingCheckpointJson { call_key } => {
+            AppError::InvalidState {
+                current: "missing_checkpoint_json".to_string(),
+                operation: format!("读取 LLM 调用断点 {call_key}"),
+            }
+        }
+        WorkflowCheckpointContractError::Serialization(error) => {
+            AppError::InvalidArgument(error.to_string())
+        }
+    }
 }
 
-pub(crate) async fn save_completed_workflow_checkpoint(
-    state: &AppState,
-    workflow_run_id: Option<i64>,
-    step_key: impl Into<String>,
-    step_order: i32,
-    input_fingerprint_json: Value,
-    checkpoint_json: Value,
-) -> Result<(), String> {
-    let Some(workflow_run_id) = workflow_run_id else {
-        return Ok(());
-    };
-    let input_fingerprint_sha256 = workflow_checkpoint_fingerprint_sha256(&input_fingerprint_json)?;
-    state
-        .workflow_run
-        .upsert_checkpoint(UpsertWorkflowCheckpointInput {
-            workflow_run_id,
-            step_key: step_key.into(),
-            step_order,
-            status: WORKFLOW_STATUS_COMPLETED.to_string(),
-            input_fingerprint_sha256: Some(input_fingerprint_sha256),
-            input_fingerprint_json: Some(input_fingerprint_json),
-            checkpoint_json: Some(checkpoint_json),
-            artifacts_json: None,
-            generation_run_ids_json: None,
-            error_message: None,
-            completed: true,
-        })
-        .await
-        .map_err(|err| err.to_string())?;
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn llm_checkpoint_missing_payload_maps_to_invalid_state() {
+        let error =
+            llm_checkpoint_contract_error(WorkflowCheckpointContractError::MissingCheckpointJson {
+                call_key: "chapter.scene".to_string(),
+            });
+
+        assert!(matches!(
+            error,
+            AppError::InvalidState { current, operation }
+                if current == "missing_checkpoint_json"
+                    && operation.contains("chapter.scene")
+        ));
+    }
+
+    #[test]
+    fn llm_checkpoint_invalid_contract_maps_to_invalid_argument() {
+        let error = llm_checkpoint_contract_error(WorkflowCheckpointContractError::Invalid(
+            "checkpoint 缺少 parsed_output".to_string(),
+        ));
+
+        assert!(matches!(
+            error,
+            AppError::InvalidArgument(message) if message.contains("parsed_output")
+        ));
+    }
 }

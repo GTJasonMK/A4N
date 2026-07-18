@@ -11,6 +11,7 @@ import { RequestPreviewModal } from "../../../components/feedback/RequestPreview
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { createProgressTaskId, useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
@@ -147,9 +148,42 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
     <>
       <Modal
         isOpen
-        onClose={onClose}
-        title={`生成年龄变体 #${portrait.id}`}
+        onClose={() => {
+          if (!busy) onClose();
+        }}
+        title="生成年龄变体"
         maxWidthClassName="max-w-sm"
+        closeOnBackdrop={!busy}
+        closeOnEscape={!busy}
+        showCloseButton={!busy}
+        footer={
+          <div className="flex w-full items-center gap-2">
+            <Dropdown
+              items={[
+                {
+                  label: "查看模型请求",
+                  icon: <Eye size={12} />,
+                  onClick: handlePreview,
+                  disabled: busy || !age.trim(),
+                },
+              ]}
+            />
+            <span className="min-w-0 flex-1" />
+            <BookButton
+              variant="primary"
+              onClick={handleSubmit}
+              disabled={busy || !age.trim()}
+            >
+              {busy ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> 生成中…
+                </span>
+              ) : (
+                "生成变体"
+              )}
+            </BookButton>
+          </div>
+        }
       >
         <div className="space-y-3 text-sm">
           <div className="text-xs text-book-text-muted">
@@ -161,27 +195,8 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
               value={age}
               onChange={(event) => setAge(event.target.value)}
               placeholder="少年 / 中年 / 老年 / 25 岁 ..."
+              autoFocus
             />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <BookButton variant="secondary" onClick={onClose} disabled={busy}>
-              取消
-            </BookButton>
-            <BookButton variant="secondary" onClick={handlePreview} disabled={busy}>
-              <span className="inline-flex items-center gap-1.5">
-                <Eye size={12} />
-                预览请求
-              </span>
-            </BookButton>
-            <BookButton variant="primary" onClick={handleSubmit} disabled={busy}>
-              {busy ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" /> 生成中…
-                </span>
-              ) : (
-                "生成"
-              )}
-            </BookButton>
           </div>
         </div>
       </Modal>

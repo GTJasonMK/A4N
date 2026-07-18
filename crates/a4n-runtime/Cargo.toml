@@ -3,11 +3,51 @@ name = "a4n-runtime"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+migration = ["dep:a4n-migration"]
+embedded-capabilities = [
+    "embedded-prompt-git",
+    "embedded-llm-provider",
+    "local-embedding",
+    "embedded-rag-index",
+    "embedded-media-providers",
+]
+embedded-prompt-git = ["dep:a4n-prompt-git"]
+embedded-llm-provider = ["dep:a4n-llm-http"]
+local-embedding = ["dep:a4n-embedding-fastembed"]
+embedded-rag-index = ["dep:a4n-rag-index"]
+embedded-media-providers = [
+    "a4n-orchestrator/embedded-media-providers",
+    "dep:a4n-image-providers",
+    "dep:a4n-video-providers",
+]
+
 [dependencies]
+a4n-capabilities = { path = "../a4n-capabilities" }
 a4n-core = { path = "../a4n-core" }
-a4n-engine = { path = "../a4n-engine" }
-a4n-services = { path = "../a4n-services" }
-a4n-migration = { path = "../a4n-migration" }
+a4n-db = { path = "../a4n-db" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+a4n-orchestrator = { path = "../a4n-orchestrator" }
+a4n-queue = { path = "../a4n-queue" }
+a4n-prompt = { path = "../a4n-prompt" }
+a4n-prompt-git = { path = "../a4n-prompt-git", optional = true }
+a4n-llm = { path = "../a4n-llm" }
+a4n-llm-http = { path = "../a4n-llm-http", optional = true }
+a4n-media = { path = "../a4n-media" }
+a4n-embedding = { path = "../a4n-embedding" }
+a4n-embedding-fastembed = { path = "../a4n-embedding-fastembed", optional = true }
+a4n-export-core = { path = "../a4n-export-core" }
+a4n-rag-core = { path = "../a4n-rag-core" }
+a4n-rag-index = { path = "../a4n-rag-index", optional = true }
+a4n-image = { path = "../a4n-image" }
+a4n-import-core = { path = "../a4n-import-core" }
+a4n-image-providers = { path = "../a4n-image-providers", optional = true }
+a4n-model-discovery = { path = "../a4n-model-discovery" }
+a4n-service-manager = { path = "../a4n-service-manager" }
+a4n-video = { path = "../a4n-video" }
+a4n-video-providers = { path = "../a4n-video-providers", optional = true }
+a4n-migration = { path = "../a4n-migration", optional = true }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
@@ -15,6 +55,7 @@ base64 = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
 image = { workspace = true }
+jsonwebtoken = { workspace = true }
 reqwest = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
@@ -26,7 +67,11 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+uuid = { workspace = true }
 zip = { workspace = true, features = ["deflate"] }
 
 [dev-dependencies]
+a4n-migration = { path = "../a4n-migration" }
+a4n-prompt = { path = "../a4n-prompt", features = ["test-support"] }
+a4n-test-support = { path = "../a4n-test-support" }
 tempfile = { workspace = true }

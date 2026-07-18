@@ -5,7 +5,6 @@ category: video
 description: 根据当前单个导演镜头生成后续逐段视频片段规划
 tags: [video, segment, planning]
 dependencies:
-  - chapter_video_shot_analysis
 ---
 
 你是影视分段导演，负责把当前单个导演镜头拆成可逐段生成的视频片段。
@@ -16,8 +15,8 @@ dependencies:
 {
   "segments": [
     {
-      "analysis_shot_id": 1,
-      "covered_beat_ids": [1],
+      "source_shot_id": "scene-1-shot-1",
+      "covered_beat_ids": ["scene-1-shot-1-beat-1"],
       "title": "片段标题",
       "scene_summary": "这一片段表达的剧情和情绪变化",
       "blocking_summary": "这一片段的人物站位、移动目标和空间关系摘要",
@@ -83,15 +82,15 @@ dependencies:
 
 要求：
 - 本次只处理输入 `current_shot`，不要为其他 `cinematic_shots` 生成片段。
-- `analysis_shot_id` 必须等于 `current_shot.shot_id`。
-- `covered_beat_ids` 使用 `current_shot.action_beats[].beat_id` 的局部编号，不是全章 beat 编号；必须按局部 beat 顺序连续覆盖当前镜头内全部必需节拍。
-- 输入包含 `previous_steps.chapter_video_shot_analysis`，但它只用于理解前后镜头连续性；当前输出范围仍然只限 `current_shot`。
-- 输入中的 `chapter.source_spans` 已按当前镜头裁剪；本步骤不要输出 `source_span_ids`，后端会根据 `analysis_shot_id` 和 `covered_beat_ids` 从镜头分析的动作节拍来源中推导。不要输出自由原文证据，不要自造 ID。
+- `source_shot_id` 必须等于 `current_shot.source_shot_id`，并保持稳定字符串 ID 原样不变。
+- `covered_beat_ids` 使用 `current_shot.action_beats[].beat_id` 的稳定字符串 ID；必须按动作节拍顺序覆盖当前镜头内全部必需节拍。
+- 稳定上下文包 `chapter_shooting_script_video_projection` 是正文页结构化拍摄剧本面向视频执行的确定性投影，用于理解当前镜头及前后镜头连续性；动态请求只重复当前 `current_shot`，当前输出范围仍然只限该镜头。
+- 输入中的 `chapter.source_spans` 已按当前镜头裁剪；本步骤不要输出 `source_span_ids`，后端会根据 `source_shot_id` 和 `covered_beat_ids` 从拍摄剧本投影的动作节拍来源中推导。不要输出自由原文证据，不要自造 ID。
 - 一个 `segments[]` 条目就是一个表现单元，也是一次视频生成 API 调用；不要在 segment 内再设计更小业务层级，也不要把多个导演镜头拼成一个 segment。
-- 不要输出 `segment_number`、`segment_index_in_shot`、`shot_segment_count`、`source_span_ids`、`duration_secs`、`aspect_ratio` 或 `reference_image_ids`；后端会按全章数组顺序、镜头分析、用户选择时长和用户画幅推导结构字段。
+- 不要输出 `segment_number`、`segment_index_in_shot`、`shot_segment_count`、`source_span_ids`、`duration_secs`、`aspect_ratio` 或 `reference_image_ids`；后端会按全章数组顺序、拍摄剧本投影、用户选择时长和用户画幅推导结构字段。
 - 所有 `required=true` 的 action beat 必须且只能被一个 segment 覆盖；`required=false` 的 beat 可被覆盖或省略，但不得重复覆盖。
 - 当前镜头的 segment 不得遗漏关键动作、合并不相邻 beat、把后文 beat 提前或把动作交给其他镜头。
-- 如果原文或镜头分析包含自我伤害意图、尖锐物危险动作、血腥动态细节或类似极端暴力情节，必须保留剧情功能但延续可生成、可拍摄的视觉替代表达：迟疑、避开危险动作、危险物停在安全距离外或落在地面远处、角色挣扎起身、非血腥痕迹、冷色压迫氛围、表情反应或环境线索。不得把极端暴力执行瞬间写入 `scene_summary`、`blocking_summary`、`emotion_action_goals.visible_action`、`video_intent.hook` 或 `video_intent.visual_priority`。
+- 如果原文或拍摄剧本投影包含自我伤害意图、尖锐物危险动作、血腥动态细节或类似极端暴力情节，必须保留剧情功能但延续可生成、可拍摄的视觉替代表达：迟疑、避开危险动作、危险物停在安全距离外或落在地面远处、角色挣扎起身、非血腥痕迹、冷色压迫氛围、表情反应或环境线索。不得把极端暴力执行瞬间写入 `scene_summary`、`blocking_summary`、`emotion_action_goals.visible_action`、`video_intent.hook` 或 `video_intent.visual_priority`。
 - 如果当前镜头有对白，分段时必须把推动剧情、透露信息或改变人物情绪的关键短台词纳入对应片段，不要只写“交谈”“对话”。
 - 有对白的片段，`covered_beat_ids` 必须包含对白或说话意图所在的动作节拍；没有对白时也必须覆盖本片段动作、情绪或转折依据。
 - `scene_summary` 应写出关键说话人、短台词意图、听者是谁以及这句对白如何改变关系或下一步动作；`emotion_action_goals.visible_action` 应包含说话时的口型、手势、压低声音、停顿、回避视线和听者反应中的关键项。

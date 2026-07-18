@@ -1,7 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
-  Film,
   Loader2,
   RotateCcw,
   Scissors,
@@ -17,7 +16,7 @@ import {
 } from "../../../api/video";
 import type { ToastType } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
-import { BookCard } from "../../../components/ui/BookCard";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
 import { pickLocalFile, readFileAsBase64 } from "../../../utils/fileUpload";
 import {
@@ -26,7 +25,6 @@ import {
   videoMimeForUploadFile,
 } from "../../../utils/videoUpload";
 import { EmptyHint, type ChapterRow } from "../shared";
-import { statusClass } from "./videoGenerationDisplay";
 import { useVideoPlaybackSource } from "./useVideoPlaybackSource";
 import { formatVideoCreatedAt } from "./videoTabUtils";
 
@@ -57,9 +55,9 @@ const pushMetadata = (video: GeneratedVideo): Record<string, unknown> | null =>
 const pushStatus = (video: GeneratedVideo): string =>
   String(pushMetadata(video)?.status ?? "pending");
 
-const pushIndex = (video: GeneratedVideo): number => {
+const pushIndex = (video: GeneratedVideo): number | null => {
   const value = pushMetadata(video)?.push_index;
-  return Number.isInteger(value) ? Number(value) : video.id;
+  return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
 };
 
 const pushSourceIds = (video: GeneratedVideo): number[] => {
@@ -80,6 +78,12 @@ const editOperationLabel: Record<string, string> = {
   replace: "替换",
 };
 
+const PUSH_STATUS_LABELS: Record<string, string> = {
+  pending: "待确认",
+  accepted: "已同意",
+  rejected: "已拒绝",
+};
+
 export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps> = ({
   projectId,
   chapter,
@@ -97,7 +101,12 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
             video.workflow_mode === workflowMode &&
             video.status === "completed",
         )
-        .sort((a, b) => pushIndex(a) - pushIndex(b) || a.id - b.id),
+        .sort(
+          (a, b) =>
+            (pushIndex(a) ?? Number.MAX_SAFE_INTEGER) -
+              (pushIndex(b) ?? Number.MAX_SAFE_INTEGER) ||
+            a.id - b.id,
+        ),
     [videos, workflowMode],
   );
   const editsByPushId = useMemo(() => {
@@ -215,10 +224,10 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
   const editDisabledReason =
     !selectedPush
       ? "没有可编辑推送"
-      : !editableLatest
-        ? "只能编辑当前最新推送"
-        : selectedPushStatus === "rejected"
-          ? "已拒绝推送不能编辑"
+      : selectedPushStatus === "rejected"
+        ? "已拒绝推送不能编辑"
+        : !editableLatest
+          ? "只能编辑当前最新推送"
           : null;
 
   const appendMarker = (rawValue: number) => {
@@ -244,7 +253,15 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
   };
 
   const handleTimelineClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!currentVideo || markers.length >= 2 || draggingMarkerIndex != null) return;
+    if (
+      !currentVideo ||
+      editDisabledReason ||
+      acting?.startsWith("edit-") ||
+      markers.length >= 2 ||
+      draggingMarkerIndex != null
+    ) {
+      return;
+    }
     const value = markerValueFromClientX(event.clientX);
     if (value == null) return;
     setMarkerValue(value);
@@ -393,109 +410,172 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
     }
   };
 
+  const statusActionItems: React.ComponentProps<typeof Dropdown>["items"] =
+    editableLatest && selectedPushStatus === "pending"
+      ? [
+          {
+            label: "拒绝此推送",
+            icon: <X size={12} />,
+            danger: true,
+            onClick: () => void handlePushStatus("reject"),
+          },
+        ]
+      : editableLatest && selectedPushStatus === "accepted"
+        ? [
+            {
+              label: "撤销同意",
+              icon: <RotateCcw size={12} />,
+              onClick: () => void handlePushStatus("undo"),
+            },
+          ]
+        : [];
+  const editActionItems: React.ComponentProps<typeof Dropdown>["items"] = [
+    ...(markers.length > 0
+      ? [
+          {
+            label: "清除竖线",
+            icon: <RotateCcw size={12} />,
+            onClick: () => setMarkers([]),
+          },
+        ]
+      : []),
+    ...(selectedRange
+      ? [
+          { type: "divider" as const },
+          {
+            label: "删除选中区间",
+            icon: <Scissors size={12} />,
+            danger: true,
+            onClick: () => void applyDelete(),
+          },
+        ]
+      : []),
+  ];
+  const statusActing = acting?.startsWith("status-") ?? false;
+  const editActing = acting?.startsWith("edit-") ?? false;
+  const markerSummary =
+    markers.length === 0
+      ? "点击剪辑条添加插入点；添加第二根竖线可选择区间。"
+      : singleMarker != null
+        ? `插入位置 ${singleMarker.toFixed(2)}s`
+        : selectedRange
+          ? `已选择 ${selectedRange.start.toFixed(2)}s–${selectedRange.end.toFixed(2)}s · ${(
+              selectedRange.end - selectedRange.start
+            ).toFixed(2)}s`
+          : `两根竖线至少需要间隔 ${MARKER_MIN_GAP_SECS.toFixed(2)}s`;
+
+  if (pushes.length === 0) {
+    return (
+      <section className="a4n-flat-surface w-full self-start">
+        <div className="a4n-empty-state min-h-[180px] px-4 py-6">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-book-bg-tertiary text-book-primary">
+            <Scissors size={16} />
+          </div>
+          <div className="max-w-sm">
+            <h3 className="text-sm font-medium text-book-text-main">还没有待处理的成片</h3>
+            <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
+              从成片合成阶段推送预览后，才能在这里确认和调整剪辑。
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[220px_minmax(0,1fr)]">
-      <BookCard className="flex min-h-0 flex-col p-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="inline-flex items-center gap-1.5 font-serif text-sm text-book-text-main">
-            <Film size={14} className="text-book-primary" />
-            推送片段
-          </h3>
-          <span className="text-[11px] text-book-text-muted">{pushes.length} 条</span>
+      <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-book-border/35 px-3 py-2.5">
+          <h3 className="text-xs font-medium text-book-text-main">推送批次</h3>
+          <span className="text-[10px] text-book-text-muted">{pushes.length} 批</span>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
-          {pushes.length === 0 ? (
-            <EmptyHint text="成片合成页推送后会出现在这里。" />
-          ) : (
-            <ul className="space-y-2">
-              {pushes.map((push) => {
-                const active = selectedPush?.id === push.id;
-                const status = pushStatus(push);
-                return (
-                  <li key={push.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPushId(push.id)}
-                      data-active={active ? "1" : undefined}
-                      className="a4n-interactive-row w-full px-2 py-2 text-left"
-                    >
-                      <div className="flex items-center gap-1 text-xs">
-                        <span className="font-mono text-book-text-main">#{push.id}</span>
-                        <span className="pyqt-pill !text-[10px]">批次 {pushIndex(push)}</span>
-                        <span className={`pyqt-pill !text-[10px] ${status === "rejected" ? "text-error" : statusClass(push.status)}`}>
-                          {status}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-[10px] text-book-text-muted">
-                        源片段：{pushSourceIds(push).join(", ") || "-"}
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      </BookCard>
+        <ul className="flex min-h-0 divide-x divide-book-border/35 overflow-x-auto custom-scrollbar xl:flex-1 xl:flex-col xl:divide-x-0 xl:divide-y xl:overflow-x-hidden xl:overflow-y-auto">
+          {pushes.map((push, index) => {
+            const active = selectedPush?.id === push.id;
+            const status = pushStatus(push);
+            const sourceCount = pushSourceIds(push).length;
+            const statusTone =
+              status === "accepted"
+                ? "text-success"
+                : status === "rejected"
+                  ? "text-error"
+                  : status === "pending"
+                    ? "text-warning"
+                    : "text-book-text-muted";
+            return (
+              <li key={push.id} className="min-w-[148px] shrink-0 xl:min-w-0 xl:w-full">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPushId(push.id)}
+                  disabled={acting != null}
+                  data-active={active ? "1" : undefined}
+                  aria-current={active ? "true" : undefined}
+                  className={`w-full border-b-2 px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 xl:border-b-0 xl:border-l-2 ${
+                    active
+                      ? "border-book-primary bg-book-primary/[0.07]"
+                      : "border-transparent hover:bg-book-bg-tertiary/35"
+                  }`}
+                >
+                  <div className="text-xs font-medium text-book-text-main">
+                    批次 {pushIndex(push) ?? index + 1}
+                  </div>
+                  <div className="mt-1 text-[10px] text-book-text-muted">
+                    {sourceCount > 0 ? `${sourceCount} 个片段` : "未记录片段"}
+                    <span className="mx-1">·</span>
+                    <span className={statusTone}>{PUSH_STATUS_LABELS[status] ?? "状态未知"}</span>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
-      <div className="min-h-0 space-y-3 overflow-y-auto custom-scrollbar pr-1">
-        <BookCard className="flex min-h-[clamp(420px,58vh,640px)] flex-col p-3">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="font-serif text-sm text-book-text-main">后处理预览</h3>
-              {currentVideo ? (
-                <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-book-text-muted">
-                  <span className="pyqt-pill !text-[10px]">视频 #{currentVideo.id}</span>
-                  <span className="pyqt-pill !text-[10px]">{formatSeconds(currentVideo.duration_secs)}</span>
-                  <span className="pyqt-pill !text-[10px]">版本 {versions.length + 1}</span>
-                  {currentVideo.updated_at && (
-                    <span className="pyqt-pill !text-[10px]">{formatVideoCreatedAt(currentVideo.updated_at)}</span>
-                  )}
-                </div>
+      <div className="min-h-0 space-y-3 overflow-y-auto pb-6 pr-1 custom-scrollbar">
+        <section className="a4n-flat-surface flex min-h-[clamp(380px,58vh,640px)] flex-col p-3">
+          <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/35 pb-3">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-medium text-book-text-main">后处理预览</h3>
+              {currentVideo && selectedPush ? (
+                <p className="mt-1 text-[10px] leading-relaxed text-book-text-muted">
+                  批次 {pushIndex(selectedPush) ?? pushes.indexOf(selectedPush) + 1} · {PUSH_STATUS_LABELS[selectedPushStatus ?? ""] ?? "状态未知"} · {formatSeconds(currentVideo.duration_secs)} · 第 {versions.length + 1} 版
+                  {currentVideo.updated_at ? ` · ${formatVideoCreatedAt(currentVideo.updated_at)}` : ""}
+                </p>
               ) : null}
             </div>
-            <div className="flex items-center gap-1">
-              <BookButton
-                variant="secondary"
-                size="sm"
-                onClick={() => void handlePushStatus("reject")}
-                disabled={!editableLatest || selectedPushStatus !== "pending" || acting != null}
-                className="!min-h-8 !px-2 text-error"
-              >
-                {acting === "status-reject" ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
-                拒绝
-              </BookButton>
-              <BookButton
-                variant="secondary"
-                size="sm"
-                onClick={() => void handlePushStatus("undo")}
-                disabled={!editableLatest || selectedPushStatus !== "accepted" || acting != null}
-                className="!min-h-8 !px-2"
-              >
-                {acting === "status-undo" ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-                撤销
-              </BookButton>
-              <BookButton
-                variant="primary"
-                size="sm"
-                onClick={() => void handlePushStatus("accept")}
-                disabled={!editableLatest || selectedPushStatus !== "pending" || acting != null}
-                className="!min-h-8 !px-2"
-              >
-                {acting === "status-accept" ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                同意
-              </BookButton>
-            </div>
+            {statusActing ? (
+              <span role="status" className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
+                <Loader2 size={12} className="animate-spin" />
+              </span>
+            ) : (
+              <>
+                {acting == null && statusActionItems.length > 0 ? (
+                  <Dropdown items={statusActionItems} />
+                ) : null}
+                {editableLatest && selectedPushStatus === "pending" ? (
+                  <BookButton
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void handlePushStatus("accept")}
+                    disabled={acting != null}
+                    className="!min-h-8 !px-3"
+                  >
+                    <Check size={12} />
+                    同意推送
+                  </BookButton>
+                ) : null}
+              </>
+            )}
           </div>
 
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-book-border/50 bg-black">
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-book-border/50 bg-black">
             {videoPlaybackSrc ? (
               <video
                 controls
                 playsInline
                 preload="metadata"
                 src={videoPlaybackSrc}
-                className="h-full min-h-[320px] w-full bg-black object-contain"
+                className="h-full min-h-[280px] w-full bg-black object-contain"
                 onLoadStart={handleVideoLoadStart}
                 onLoadedMetadata={handleVideoLoaded}
                 onLoadedData={handleVideoLoaded}
@@ -503,13 +583,13 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
                 onError={handleVideoError}
               />
             ) : (
-              <div className="flex h-full min-h-[320px] items-center justify-center bg-book-bg-tertiary">
+              <div className="flex h-full min-h-[280px] items-center justify-center bg-book-bg-tertiary">
                 <EmptyHint text={currentVideo ? "正在加载后处理视频。" : "暂无推送视频。"} />
               </div>
             )}
             {videoLoading && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white">
-                <span className="inline-flex items-center gap-1.5 rounded bg-black/55 px-2 py-1">
+                <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 px-2.5 py-1.5 backdrop-blur-sm">
                   <Loader2 size={12} className="animate-spin" />
                   正在加载视频
                 </span>
@@ -517,158 +597,138 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
             )}
           </div>
           {videoLoadError && (
-            <div className="mt-2 rounded border border-error/40 bg-error/10 px-2 py-1.5 text-[11px] text-error">
+            <div role="alert" className="mt-2 rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-[11px] text-error">
               {videoLoadError}
             </div>
           )}
-        </BookCard>
+        </section>
 
-        <BookCard className="shrink-0 p-3">
-          <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="inline-flex items-center gap-1.5 font-serif text-sm text-book-text-main">
-                <Scissors size={14} className="text-book-primary" />
-                剪辑条
-              </h3>
-              {editDisabledReason && (
-                <div className="mt-1 text-[11px] text-book-text-muted">{editDisabledReason}</div>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-1">
-              <BookButton
-                variant="secondary"
-                size="sm"
-                onClick={addMarker}
-                disabled={!currentVideo || markers.length >= 2}
-                className="!min-h-7 !px-2 text-[11px]"
-              >
-                添加竖线
-              </BookButton>
-              <BookButton
-                variant="secondary"
-                size="sm"
-                onClick={() => setMarkers([])}
-                disabled={markers.length === 0}
-                className="!min-h-7 !px-2 text-[11px]"
-              >
-                清除
-              </BookButton>
-            </div>
+        <section className="a4n-flat-surface shrink-0 p-3">
+          <div className="mb-3 border-b border-book-border/35 pb-3">
+            <h3 className="text-sm font-medium text-book-text-main">剪辑条</h3>
+            {editDisabledReason ? (
+              <p className="mt-1 text-[10px] text-book-text-muted">{editDisabledReason}</p>
+            ) : null}
           </div>
 
-          <div className="rounded border border-book-border/50 bg-book-bg-paper/60 p-2">
-            <div className="flex items-center justify-between text-[10px] text-book-text-muted">
-              <span>0s</span>
-              <span className="font-mono">{markerValue.toFixed(2)}s</span>
-              <span>{duration.toFixed(2)}s</span>
+          {editActing ? (
+            <div role="status" className="flex min-h-24 items-center justify-center gap-2 text-xs text-book-text-muted">
+              <Loader2 size={14} className="animate-spin" />
+              正在应用后处理编辑
             </div>
-            <div
-              ref={timelineRef}
-              role="button"
-              tabIndex={0}
-              title={markers.length >= 2 ? "已添加两根竖线，请先清除" : "点击剪辑条添加竖线"}
-              onClick={handleTimelineClick}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  addMarker();
-                }
-              }}
-              className={`relative mt-2 h-10 rounded bg-book-bg-tertiary ${
-                currentVideo && markers.length < 2 ? "cursor-crosshair" : "cursor-default"
-              }`}
-            >
-              {markers.map((marker, index) => (
-                <span
-                  key={`${marker}-${index}`}
-                  role="slider"
+          ) : editDisabledReason || !currentVideo ? (
+            <div className="flex min-h-20 items-center justify-center text-xs text-book-text-muted">
+              当前批次不可编辑。
+            </div>
+          ) : (
+            <>
+              <div>
+                <div className="grid grid-cols-3 text-[10px] tabular-nums text-book-text-muted">
+                  <span>0s</span>
+                  <span className="justify-self-center">{markerValue.toFixed(2)}s</span>
+                  <span className="justify-self-end">{duration.toFixed(2)}s</span>
+                </div>
+                <div
+                  ref={timelineRef}
+                  role="button"
                   tabIndex={0}
-                  aria-label={`剪辑竖线 ${index + 1}`}
-                  aria-valuemin={0}
-                  aria-valuemax={duration}
-                  aria-valuenow={Number(marker.toFixed(2))}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setDraggingMarkerIndex(index);
-                    setMarkerValue(marker);
-                  }}
+                  aria-disabled={markers.length >= 2 || undefined}
+                  title={markers.length >= 2 ? "已添加两根竖线，请先清除" : "点击剪辑条添加竖线"}
+                  onClick={handleTimelineClick}
                   onKeyDown={(event) => {
-                    const step = event.shiftKey ? 1 : 0.05;
-                    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-                    event.preventDefault();
-                    const direction = event.key === "ArrowLeft" ? -1 : 1;
-                    const value = Math.max(0, Math.min(duration, marker + direction * step));
-                    setMarkerValue(value);
-                    setMarkers((prev) =>
-                      prev
-                        .map((item, itemIndex) => (itemIndex === index ? value : item))
-                        .sort((a, b) => a - b),
-                    );
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      addMarker();
+                    }
                   }}
-                  className="absolute top-0 h-10 w-4 -translate-x-1/2 cursor-ew-resize touch-none"
-                  style={{ left: `${Math.min(100, Math.max(0, (marker / duration) * 100))}%` }}
-                  title={`${marker.toFixed(2)}s`}
+                  className={`relative mt-2 h-11 rounded-xl bg-book-bg-tertiary ${
+                    markers.length < 2 ? "cursor-crosshair" : "cursor-default"
+                  }`}
                 >
-                  <span className="absolute left-1/2 top-0 h-10 w-0.5 -translate-x-1/2 bg-book-primary" />
-                  <span className="absolute left-1/2 top-1 h-2.5 w-2.5 -translate-x-1/2 rounded-full border border-book-primary bg-book-bg-paper shadow-sm" />
-                </span>
-              ))}
-              {selectedRange && (
-                <span
-                  className="pointer-events-none absolute top-2.5 h-5 rounded bg-book-primary/25"
-                  style={{
-                    left: `${(selectedRange.start / duration) * 100}%`,
-                    width: `${((selectedRange.end - selectedRange.start) / duration) * 100}%`,
-                  }}
-                />
-              )}
-            </div>
-          </div>
+                  {markers.map((marker, index) => (
+                    <span
+                      key={`${marker}-${index}`}
+                      role="slider"
+                      tabIndex={0}
+                      aria-label={`剪辑竖线 ${index + 1}`}
+                      aria-valuemin={0}
+                      aria-valuemax={duration}
+                      aria-valuenow={Number(marker.toFixed(2))}
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setDraggingMarkerIndex(index);
+                        setMarkerValue(marker);
+                      }}
+                      onKeyDown={(event) => {
+                        const step = event.shiftKey ? 1 : 0.05;
+                        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                        event.preventDefault();
+                        const direction = event.key === "ArrowLeft" ? -1 : 1;
+                        const value = Math.max(0, Math.min(duration, marker + direction * step));
+                        setMarkerValue(value);
+                        setMarkers((prev) =>
+                          prev
+                            .map((item, itemIndex) => (itemIndex === index ? value : item))
+                            .sort((a, b) => a - b),
+                        );
+                      }}
+                      className="absolute top-0 h-11 w-5 -translate-x-1/2 cursor-ew-resize touch-none"
+                      style={{ left: `${Math.min(100, Math.max(0, (marker / duration) * 100))}%` }}
+                      title={`${marker.toFixed(2)}s`}
+                    >
+                      <span className="absolute left-1/2 top-0 h-11 w-0.5 -translate-x-1/2 bg-book-primary" />
+                      <span className="absolute left-1/2 top-1 h-3 w-3 -translate-x-1/2 rounded-full border border-book-primary bg-book-bg-paper" />
+                    </span>
+                  ))}
+                  {selectedRange && (
+                    <span
+                      className="pointer-events-none absolute top-3 h-5 rounded-lg bg-book-primary/25"
+                      style={{
+                        left: `${(selectedRange.start / duration) * 100}%`,
+                        width: `${((selectedRange.end - selectedRange.start) / duration) * 100}%`,
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div className="space-y-2 rounded border border-book-border/50 p-2">
-              <div className="text-xs font-medium text-book-text-main">单竖线：添加片段</div>
-              <div className="grid gap-1">
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void applyUploadEdit("insert")}
-                  disabled={!!editDisabledReason || singleMarker == null || acting != null}
-                  className="!min-h-8 !px-2 text-[11px]"
-                >
-                  <Upload size={12} />
-                  上传添加
-                </BookButton>
+              <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-book-text-muted">
+                  {markerSummary}
+                </p>
+                <div className="flex shrink-0 items-center gap-2">
+                  {acting == null && editActionItems.length > 0 ? (
+                    <Dropdown items={editActionItems} />
+                  ) : null}
+                  {singleMarker != null ? (
+                    <BookButton
+                      variant="primary"
+                      size="sm"
+                      onClick={() => void applyUploadEdit("insert")}
+                      disabled={acting != null}
+                      className="!min-h-9 min-w-0 flex-1 !px-3 text-[11px] sm:flex-none"
+                    >
+                      <Upload size={12} />
+                      上传并插入
+                    </BookButton>
+                  ) : selectedRange ? (
+                    <BookButton
+                      variant="primary"
+                      size="sm"
+                      onClick={() => void applyUploadEdit("replace")}
+                      disabled={acting != null}
+                      className="!min-h-9 min-w-0 flex-1 !px-3 text-[11px] sm:flex-none"
+                    >
+                      <Upload size={12} />
+                      上传并替换
+                    </BookButton>
+                  ) : null}
+                </div>
               </div>
-            </div>
-            <div className="space-y-2 rounded border border-book-border/50 p-2">
-              <div className="text-xs font-medium text-book-text-main">双竖线：删除/替换片段</div>
-              <div className="grid grid-cols-2 gap-1">
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void applyDelete()}
-                  disabled={!!editDisabledReason || !selectedRange || acting != null}
-                  className="!min-h-8 !px-2 text-[11px] text-error"
-                >
-                  {acting === "edit-delete" ? <Loader2 size={12} className="animate-spin" /> : <Scissors size={12} />}
-                  删除
-                </BookButton>
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void applyUploadEdit("replace")}
-                  disabled={!!editDisabledReason || !selectedRange || acting != null}
-                  className="!min-h-8 !px-2 text-[11px]"
-                >
-                  <Upload size={12} />
-                  上传替换
-                </BookButton>
-              </div>
-            </div>
-          </div>
-        </BookCard>
+            </>
+          )}
+        </section>
       </div>
     </div>
   );

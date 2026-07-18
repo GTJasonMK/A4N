@@ -56,10 +56,10 @@ export const EmptyHint: React.FC<{
   actionText?: string;
   onAction?: () => void;
 }> = ({ text, actionText, onAction }) => (
-  <div className="flex flex-col items-center justify-center py-6 text-center">
-    <p className="text-sm text-book-text-muted mb-3">{text}</p>
+  <div className="a4n-empty-state a4n-empty-state--compact">
+    <p className="max-w-lg text-sm leading-relaxed text-book-text-muted">{text}</p>
     {actionText && onAction && (
-      <BookButton variant="secondary" onClick={onAction}>
+      <BookButton variant="secondary" size="sm" onClick={onAction}>
         {actionText}
       </BookButton>
     )}
@@ -70,8 +70,8 @@ export const Row: React.FC<{ label: string; children: React.ReactNode }> = ({
   label,
   children,
 }) => (
-  <div className="flex justify-between gap-2">
-    <span className="text-book-text-muted shrink-0">{label}</span>
-    <span className="text-book-text-main text-right truncate">{children}</span>
+  <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-0.5">
+    <span className="shrink-0 text-book-text-muted">{label}</span>
+    <span className="min-w-0 truncate text-right text-book-text-main">{children}</span>
   </div>
 );

@@ -363,22 +363,26 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
+    const extendingParts = partsRef.current.length > 0;
+    const progressActionLabel = extendingParts ? "追加分部大纲" : "生成分部大纲";
+    const successMessage = extendingParts
+      ? `已追加 ${requestedPartCount} 个分部`
+      : `已生成 ${requestedPartCount} 个分部`;
     setGeneratingParts(true);
     try {
-      const existingPartCount = partsRef.current.length;
       const taskId = createProgressTaskId("outline-parts", requestProjectId);
       await runOutlineProgressTask(
         {
-          title: existingPartCount > 0 ? "重新生成分部大纲" : "生成分部大纲",
-          startMessage: "准备调用模型生成分部大纲…",
-          successMessage: "分部大纲已生成",
-          errorMessage: "生成分部失败",
+          title: progressActionLabel,
+          startMessage: `准备调用模型${progressActionLabel}…`,
+          successMessage,
+          errorMessage: extendingParts ? "追加分部失败" : "生成分部失败",
           total: 3,
           taskId,
         },
         async ({ setProgress }) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress("模型正在生成分部大纲，耗时可能较长…", 1);
+          setProgress(`模型正在${progressActionLabel}，耗时可能较长…`, 1);
           await generateParts({
             project_id: requestProjectId,
             part_count: requestedPartCount,
@@ -393,11 +397,14 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast("分部大纲已生成", "success");
+      addToast(successMessage, "success");
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await load({ showLoading: false });
-        const message = extractErrorMessage(err, "生成分部失败");
+        const message = extractErrorMessage(
+          err,
+          extendingParts ? "追加分部失败" : "生成分部失败",
+        );
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
     } finally {
@@ -700,7 +707,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       title: "删除后续章纲",
       message:
         `确认删除第 ${o.chapter_number} 章及其之后所有章纲？` +
-        `\n\n将删除 #${o.chapter_number} 到 #${lastChapterNumber} 共 ${count} 个章纲。`,
+        `\n\n将删除第 ${o.chapter_number} 章到第 ${lastChapterNumber} 章，共 ${count} 个章纲。`,
       confirmText: "删除",
       dialogType: "danger",
     });
@@ -987,7 +994,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         onGenerate={() => void handleGenerateChapterOutlines()}
         onPreviewGenerate={() => void handlePreviewGenerateChapterOutlines()}
         onOpenDetail={setOutlineDetail}
-        onStartEdit={startEdit}
         onCancelEdit={cancelEdit}
         onEditFormChange={setEditForm}
         onSave={(outline) => void handleSaveOutline(outline)}
@@ -1016,6 +1022,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           delActing={delActing}
           disabled={interactionBusy}
           onClose={() => setOutlineAction(null)}
+          onEdit={startEdit}
           onRegenerate={handleRegenOutline}
           onPreviewRegenerate={(outline) => void handlePreviewRegenOutline(outline)}
           onDelete={handleDeleteOutline}

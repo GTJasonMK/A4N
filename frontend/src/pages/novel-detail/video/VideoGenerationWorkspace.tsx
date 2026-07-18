@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Film,
   Eye,
   Image as ImageIcon,
   Images,
@@ -8,7 +7,10 @@ import {
   Loader2,
   Copy,
   PanelTop,
+  Play,
   Save,
+  Trash2,
+  Upload,
   Wand2,
 } from "lucide-react";
 import type { GeneratedImage } from "../../../api/image";
@@ -19,10 +21,13 @@ import type {
   VideoWorkflowMode,
 } from "../../../api/video";
 import { BookButton } from "../../../components/ui/BookButton";
-import { BookCard } from "../../../components/ui/BookCard";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
+import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { toMediaSrc } from "../../../utils/mediaSrc";
+import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { EmptyHint, type ChapterRow } from "../shared";
+import { imageTypeLabel } from "../images/imageTabUtils";
 import {
   parseNumberInput,
   promptByteCount,
@@ -44,7 +49,6 @@ import {
   directorSections,
   isVideoTailFrameImage,
   promptTitle,
-  statusClass,
 } from "./videoGenerationDisplay";
 
 interface VideoGenerationWorkspaceProps {
@@ -73,7 +77,6 @@ interface VideoGenerationWorkspaceProps {
   selectedPromptRunning: boolean;
   selectedPromptDirty: boolean;
   staleSavedReferenceCount: number;
-  staleSavedReferenceIds: number[];
   savedReferenceIdsError: string | null;
   invalidPromptReferenceIds: number[];
   systemReferenceIds: Set<number>;
@@ -83,7 +86,6 @@ interface VideoGenerationWorkspaceProps {
   frameImages: GeneratedImage[];
   videos: GeneratedVideo[];
   totalVideoAssetCount: number;
-  totalVideoPromptCount: number;
   totalVideoChainPromptCount: number;
   selectedVideo: GeneratedVideo | null;
   selectedVideoId: number | null;
@@ -207,7 +209,6 @@ export const VideoGenerationWorkspace: React.FC<
   selectedPromptRunning,
   selectedPromptDirty,
   staleSavedReferenceCount,
-  staleSavedReferenceIds,
   savedReferenceIdsError,
   invalidPromptReferenceIds,
   systemReferenceIds,
@@ -217,7 +218,6 @@ export const VideoGenerationWorkspace: React.FC<
   frameImages,
   videos,
   totalVideoAssetCount,
-  totalVideoPromptCount,
   totalVideoChainPromptCount,
   selectedVideo,
   selectedVideoId,
@@ -255,6 +255,7 @@ export const VideoGenerationWorkspace: React.FC<
   onTrim,
 }) => {
   const [promptDetailOpen, setPromptDetailOpen] = useState(false);
+  const [mobilePane, setMobilePane] = useState<"setup" | "results">("setup");
 
   const updateDraft = (patch: Partial<PromptDraft>) =>
     onDraftChange({ ...draft, ...patch });
@@ -331,7 +332,7 @@ export const VideoGenerationWorkspace: React.FC<
 
     return (
       <ul className="grid grid-cols-4 gap-2 md:grid-cols-6 xl:grid-cols-8">
-        {boundReferenceImages.map((image, index) => {
+        {boundReferenceImages.map((image) => {
           const role = videoFrameImageRoleOfImage(image);
           const src = toMediaSrc(image.file_path);
           const scopeLabel = referenceImageScopeLabel(image);
@@ -340,7 +341,7 @@ export const VideoGenerationWorkspace: React.FC<
           return (
             <li key={image.id} className="min-w-0 text-[10px]">
               <div
-                className={`relative flex aspect-square items-center justify-center overflow-hidden rounded border bg-book-bg-tertiary ${
+                className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border bg-book-bg-tertiary ${
                   stale ? "border-error/60" : "border-book-border/50"
                 }`}
               >
@@ -353,15 +354,9 @@ export const VideoGenerationWorkspace: React.FC<
                 ) : (
                   "无图"
                 )}
-                <span className="absolute left-1 top-1 rounded bg-book-bg-paper/90 px-1 font-mono text-[9px]">
-                  {index + 1}
-                </span>
-              </div>
-              <div className="mt-1 truncate font-mono text-book-text-main">
-                #{image.id}
               </div>
               <div className="truncate text-book-text-muted">
-                {videoFrameImageRoleLabel(role, image.image_type)}
+                {videoFrameImageRoleLabel(role, imageTypeLabel(image.image_type))}
               </div>
             </li>
           );
@@ -378,25 +373,16 @@ export const VideoGenerationWorkspace: React.FC<
   ) => {
     const src = image ? toMediaSrc(image.file_path) : "";
     return (
-      <div className="a4n-stat-tile min-w-0 p-2">
-        <div className="mb-1.5 flex min-w-0 items-center gap-1 text-xs">
+      <div className="min-w-0">
+        <div className="mb-1.5 min-w-0 text-xs">
           <span className="font-medium text-book-text-main">{label}</span>
-          {prompt ? (
-            <span className="pyqt-pill !text-[10px]">
-              帧 {prompt.shot_number}
-            </span>
-          ) : (
-            <span className="pyqt-pill !text-[10px]">无提示词</span>
-          )}
-          {image ? (
-            <span className="pyqt-pill !text-[10px] !text-success">
-              图片 #{image.id}
-            </span>
-          ) : (
-            <span className="pyqt-pill !text-[10px]">未成图</span>
-          )}
+          <div className="mt-0.5 text-[10px] text-book-text-muted">
+            {prompt ? `帧 ${prompt.shot_number}` : "尚无提示词"}
+            <span className="mx-1">·</span>
+            {image ? "已生成" : "等待生成"}
+          </div>
         </div>
-        <div className="flex aspect-video items-center justify-center overflow-hidden rounded bg-book-bg-tertiary text-[11px] text-book-text-muted">
+        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-book-bg-tertiary text-[11px] text-book-text-muted">
           {src ? (
             <img src={src} alt={label} className="h-full w-full object-cover" />
           ) : (
@@ -569,7 +555,7 @@ export const VideoGenerationWorkspace: React.FC<
         ? "当前章节正在生成，不能保存视频提示词"
         : undefined) ??
       (invalidPromptReferenceIds.length > 0
-        ? `当前草稿参考图包含不可用图片 ID：${invalidPromptReferenceIds.join(", ")}`
+        ? `当前草稿中有 ${invalidPromptReferenceIds.length} 张参考图已不可用，请重新选择`
         : undefined) ??
       selectedPromptLockedReason ??
       undefined;
@@ -582,138 +568,92 @@ export const VideoGenerationWorkspace: React.FC<
         ? "当前章节正在生成，不能优化视频提示词"
         : undefined) ??
       undefined;
+    const videoGenerationInFlight =
+      acting === `generate-video-${selectedPrompt.id}`;
+    const selectedGenerateBlockedReason =
+      durationConfigError ??
+      (selectedPrompt.prompt_type !== "video_prompt"
+        ? "当前记录不是视频生成提示词"
+        : undefined) ??
+      (selectedPromptStale
+        ? "当前视频提示词已过期，请重新生成"
+        : undefined) ??
+      (savedReferenceIdsError
+        ? `保存的参考图数据异常：${savedReferenceIdsError}`
+        : undefined) ??
+      (invalidPromptReferenceIds.length > 0
+        ? `当前草稿中有 ${invalidPromptReferenceIds.length} 张参考图已不可用，请重新选择`
+        : undefined) ??
+      (selectedPromptDirty ? "请先保存当前更改" : undefined) ??
+      frameInputMissingMessage ??
+      (selectedPromptRunning ? "当前视频提示词正在运行" : undefined) ??
+      (selectedPromptHasVideo ? "当前视频提示词已生成视频" : undefined) ??
+      (chapterGenerating ? "当前章节正在生成，暂不能生成视频" : undefined) ??
+      (!chapterContentReady ? "当前章节正文为空，不能生成视频" : undefined);
+    const selectedImportBlockedReason =
+      (selectedPrompt.prompt_type !== "video_prompt"
+        ? "当前记录不是视频生成提示词"
+        : undefined) ??
+      (selectedPromptStale
+        ? "当前视频提示词已过期，请重新生成"
+        : undefined) ??
+      (selectedPromptDirty ? "请先保存当前更改" : undefined) ??
+      (selectedPromptRunning ? "当前视频提示词正在运行" : undefined) ??
+      (selectedPromptHasVideo ? "当前视频提示词已关联视频" : undefined) ??
+      (chapterGenerating ? "当前章节正在生成，暂不能导入视频" : undefined) ??
+      (!chapterContentReady ? "当前章节正文为空，不能导入视频" : undefined);
+    const deletePromptBlockedReason =
+      (chapterGenerating ? "当前章节正在生成，暂不能删除提示词" : undefined) ??
+      (selectedPromptRunning ? "当前视频提示词正在运行" : undefined);
+    const savingPrompt = acting === `save-prompt-${selectedPrompt.id}`;
+    const showSavePrimary = savingPrompt || selectedPromptDirty;
+    const showCopyPrimary = !showSavePrimary && chatVideoMode;
+    const showGeneratePrimary =
+      !showSavePrimary &&
+      !chatVideoMode &&
+      (videoGenerationInFlight || selectedGenerateBlockedReason == null);
+    const editorMetadata = [
+      `${selectedPrompt.duration_secs} 秒`,
+      getOperationStatusLabel(selectedPrompt.status),
+      selectedPromptStale ? "正文已变化" : null,
+      selectedPrompt.generated_video_id != null ? "已生成视频" : null,
+      selectedPromptDirty ? "有未保存更改" : null,
+    ].filter((value): value is string => Boolean(value));
     const sections = directorSections(selectedPrompt.metadata_json);
 
     return (
       <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-1 text-xs">
-              <span className="font-mono text-book-text-main">
-                #{selectedPrompt.shot_number}
-              </span>
-              <span className="min-w-0 truncate font-medium text-book-text-main">
-                {promptTitle(selectedPrompt)}
-              </span>
-              <span
-                className={`pyqt-pill !text-[10px] ${statusClass(selectedPrompt.status)}`}
-              >
-                {selectedPrompt.status}
-              </span>
-              <span className="pyqt-pill !text-[10px]">
-                {selectedPrompt.duration_secs}s
-              </span>
-              {selectedPromptStale && (
-                <span className="pyqt-pill !border-error/50 !text-[10px] !text-error">
-                  正文已变化
-                </span>
-              )}
-              {selectedPrompt.generated_video_id != null && (
-                <span className="pyqt-pill !text-[10px] !text-success">
-                  视频 #{selectedPrompt.generated_video_id}
-                </span>
-              )}
-            </div>
-            {selectedPromptStale && (
-              <div className="mt-1 text-[11px] text-error">
-                {staleVideoPromptMessage(frameStageLabel)}。
-              </div>
-            )}
-            {frameInputMissingMessage && (
-              <div className="mt-1 text-[11px] text-warning">
-                {frameInputMissingMessage}
-              </div>
-            )}
-            {selectedPromptLockedReason && (
-              <div className="mt-1 text-[11px] text-warning">
-                {selectedPromptLockedReason}
-              </div>
-            )}
-            {selectedPromptDownstreamNotice && (
-              <div className="mt-1 text-[11px] text-warning">
-                {selectedPromptDownstreamNotice}
-              </div>
-            )}
-            {durationConfigError && (
-              <div className="mt-1 text-[11px] text-error">
-                {durationConfigError}
-              </div>
-            )}
-            {selectedPromptDirty && (
-              <div className="mt-1 text-[11px] text-warning">
-                {savedReferenceIdsError
-                  ? "当前保存的参考图数据异常；预览请求会使用草稿绑定，生成视频前需要先保存当前绑定。"
-                  : "当前编辑内容未保存，预览请求会使用草稿覆盖，生成视频前需要先保存。"}
-              </div>
-            )}
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
-            <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={() => void onSavePrompt()}
-              disabled={
-                acting === `save-prompt-${selectedPrompt.id}` ||
-                selectedPromptRunning ||
-                chapterGenerating ||
-                invalidPromptReferenceIds.length > 0 ||
-                durationConfigError != null
-              }
-              title={saveBlockedReason}
-              className="!min-h-9 !px-3 sm:!min-h-7"
-            >
-              <span className="inline-flex items-center gap-1">
-                {acting === `save-prompt-${selectedPrompt.id}` ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Save size={12} />
-                )}
-                保存
-              </span>
-            </BookButton>
-            <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={() => void onOptimizePrompt(selectedPrompt)}
-              disabled={
-                acting === `optimize-prompt-${selectedPrompt.id}` ||
-                optimizeBlockedReason != null
-              }
-              title={optimizeBlockedReason ?? "按用户要求优化当前视频提示词"}
-              className="!min-h-9 !px-3 sm:!min-h-7"
-            >
-              <span className="inline-flex items-center gap-1">
-                {acting === `optimize-prompt-${selectedPrompt.id}` ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Wand2 size={12} />
-                )}
-                优化
-              </span>
-            </BookButton>
-            {!chatVideoMode && (
+        <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/40 pb-3">
+          <span className="min-w-0 flex-1 text-[11px] text-book-text-muted">
+            {editorMetadata.join(" · ")}
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            {showSavePrimary && (
               <BookButton
-                variant="secondary"
+                variant="primary"
                 size="sm"
-                onClick={() => void onPreviewGenerateVideo()}
+                onClick={() => void onSavePrompt()}
                 disabled={
-                  selectedPrompt.prompt_type !== "video_prompt" ||
-                  invalidPromptReferenceIds.length > 0
+                  savingPrompt ||
+                  selectedPromptRunning ||
+                  chapterGenerating ||
+                  invalidPromptReferenceIds.length > 0 ||
+                  durationConfigError != null
                 }
-                title={
-                  invalidPromptReferenceIds.length > 0
-                    ? `当前草稿参考图包含不可用图片 ID：${invalidPromptReferenceIds.join(", ")}`
-                    : undefined
-                }
+                title={saveBlockedReason}
                 className="!min-h-9 !px-3 sm:!min-h-7"
               >
                 <span className="inline-flex items-center gap-1">
-                  <Eye size={12} />
-                  查看模型请求
+                  {savingPrompt ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Save size={12} />
+                  )}
+                  {savingPrompt ? "保存中" : "保存更改"}
                 </span>
               </BookButton>
             )}
-            {chatVideoMode ? (
+            {showCopyPrimary && (
               <BookButton
                 variant="primary"
                 size="sm"
@@ -726,18 +666,137 @@ export const VideoGenerationWorkspace: React.FC<
                   复制提示词
                 </span>
               </BookButton>
-            ) : null}
+            )}
+            {showGeneratePrimary && (
+              <BookButton
+                variant="primary"
+                size="sm"
+                onClick={() => void onGenerateVideo(selectedPrompt)}
+                disabled={videoGenerationInFlight}
+                title={selectedGenerateBlockedReason}
+                className="!min-h-9 !px-3 sm:!min-h-7"
+              >
+                <span className="inline-flex items-center gap-1">
+                  {videoGenerationInFlight ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Play size={12} />
+                  )}
+                  {videoGenerationInFlight ? "生成中" : "生成视频"}
+                </span>
+              </BookButton>
+            )}
+            <Dropdown
+              items={[
+                {
+                  label:
+                    acting === `optimize-prompt-${selectedPrompt.id}`
+                      ? "正在优化提示词"
+                      : "优化提示词",
+                  icon:
+                    acting === `optimize-prompt-${selectedPrompt.id}`
+                      ? <Loader2 size={13} className="animate-spin" />
+                      : <Wand2 size={13} />,
+                  disabled:
+                    acting === `optimize-prompt-${selectedPrompt.id}` ||
+                    optimizeBlockedReason != null,
+                  onClick: () => void onOptimizePrompt(selectedPrompt),
+                },
+                ...(!chatVideoMode
+                  ? [
+                      {
+                        label: "查看模型请求",
+                        icon: <Eye size={13} />,
+                        disabled:
+                          selectedPrompt.prompt_type !== "video_prompt" ||
+                          invalidPromptReferenceIds.length > 0,
+                        onClick: () => void onPreviewGenerateVideo(),
+                      },
+                      {
+                        label:
+                          acting === `import-video-${selectedPrompt.id}`
+                            ? "正在导入视频"
+                            : "导入外部视频",
+                        icon:
+                          acting === `import-video-${selectedPrompt.id}`
+                            ? <Loader2 size={13} className="animate-spin" />
+                            : <Upload size={13} />,
+                        disabled:
+                          acting === `import-video-${selectedPrompt.id}` ||
+                          selectedImportBlockedReason != null,
+                        onClick: () => void onImportVideo(),
+                      },
+                    ]
+                  : []),
+                ...(deletePromptBlockedReason == null
+                  ? [
+                      { type: "divider" as const },
+                      {
+                        label: "删除视频提示词",
+                        icon: <Trash2 size={13} />,
+                        danger: true,
+                        disabled: acting === `delete-prompt-${selectedPrompt.id}`,
+                        onClick: () => void onDeletePrompt(selectedPrompt),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </div>
         </div>
+        {selectedPromptStale && (
+          <div className="mb-2 text-[11px] text-error">
+            {staleVideoPromptMessage(frameStageLabel)}。
+          </div>
+        )}
+        {frameInputMissingMessage && (
+          <div className="mb-2 text-[11px] text-warning">
+            {frameInputMissingMessage}
+          </div>
+        )}
+        {selectedPromptLockedReason && (
+          <div className="mb-2 text-[11px] text-warning">
+            {selectedPromptLockedReason}
+          </div>
+        )}
+        {selectedPromptDownstreamNotice && (
+          <div className="mb-2 text-[11px] text-warning">
+            {selectedPromptDownstreamNotice}
+          </div>
+        )}
+        {durationConfigError && (
+          <div className="mb-2 text-[11px] text-error">
+            {durationConfigError}
+          </div>
+        )}
+        {selectedPromptDirty && (
+          <div className="mb-2 text-[11px] text-warning">
+            {savedReferenceIdsError
+              ? "当前保存的参考图数据异常；模型请求预览会使用草稿绑定，生成视频前需要先保存当前绑定。"
+              : "当前编辑内容未保存，模型请求预览会使用草稿覆盖，生成视频前需要先保存。"}
+          </div>
+        )}
 
+        {selectedPromptRunning ? (
+          <div className="a4n-flat-surface flex min-h-40 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+            <Loader2 size={18} className="animate-spin text-book-primary" />
+            <div className="text-sm font-medium text-book-text-main">
+              当前提示词正在运行
+            </div>
+            <div className="max-w-md text-[11px] leading-relaxed text-book-text-muted">
+              运行结束后再继续编辑。生成前设置和辅助操作已暂时收起，避免误改当前任务输入。
+            </div>
+          </div>
+        ) : (
+          <>
         {chatVideoMode ? null : firstFrameChainMode ? (
-          <div className="a4n-page-surface mb-3 p-2">
+          <div className="a4n-flat-surface mb-3 p-3">
             <div className="mb-2 flex items-center gap-2">
               <div className="inline-flex items-center gap-1.5 text-xs text-book-text-main">
                 <ImageIcon size={12} className="text-book-primary" />
                 起始帧
-                <span className="font-mono text-book-text-muted">
-                  {Number(Boolean(actualStartFrameImage))}/1
+                <span className="text-[10px] text-book-text-muted">
+                  · {actualStartFrameImage ? "已生成" : "等待生成"}
                 </span>
               </div>
             </div>
@@ -763,21 +822,21 @@ export const VideoGenerationWorkspace: React.FC<
             </div>
           </div>
         ) : storyboardMode ? (
-          <div className="a4n-page-surface mb-3 p-2">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="inline-flex items-center gap-1.5 text-xs text-book-text-main">
-                <ImageIcon size={12} className="text-book-primary" />
-                分镜板
-                <span className="font-mono text-book-text-muted">
-                  {Number(Boolean(generatedStartFrameImage))}/1
-                </span>
+          <div className="a4n-flat-surface mb-3 p-3">
+            <div className="mb-2 flex min-w-0 items-center gap-2">
+              <ImageIcon size={12} className="shrink-0 text-book-primary" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-medium text-book-text-main">分镜板</div>
+                <div className="mt-0.5 text-[10px] text-book-text-muted">
+                  {generatedStartFrameImage ? "已生成" : "等待生成"}
+                </div>
               </div>
               <button
                 type="button"
                 onClick={onOpenFrames}
-                className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] sm:!min-h-[24px]"
+                className="pyqt-btn-secondary !min-h-9 !px-2.5 text-[10px] sm:!min-h-7"
               >
-                分镜生成
+                前往生成
               </button>
             </div>
             {frameInputMissingMessage && (
@@ -795,26 +854,24 @@ export const VideoGenerationWorkspace: React.FC<
             </div>
           </div>
         ) : (
-          <div className="a4n-page-surface mb-3 p-2">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="inline-flex items-center gap-1.5 text-xs text-book-text-main">
-                <PanelTop size={12} className="text-book-primary" />
-                首尾帧
-                <span className="font-mono text-book-text-muted">
-                  {Number(Boolean(generatedStartFrameImage)) +
-                    Number(Boolean(endFrameImage))}
-                  /2
-                </span>
+          <div className="a4n-flat-surface mb-3 p-3">
+            <div className="mb-2 flex min-w-0 items-center gap-2">
+              <PanelTop size={12} className="shrink-0 text-book-primary" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-medium text-book-text-main">首尾帧</div>
+                <div className="mt-0.5 text-[10px] text-book-text-muted">
+                  {Number(Boolean(generatedStartFrameImage)) + Number(Boolean(endFrameImage))} / 2 已生成
+                </div>
               </div>
               <button
                 type="button"
                 onClick={onOpenFrames}
-                className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] sm:!min-h-[24px]"
+                className="pyqt-btn-secondary !min-h-9 !px-2.5 text-[10px] sm:!min-h-7"
               >
-                首尾帧生成
+                前往生成
               </button>
             </div>
-            <div className="grid gap-2 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2">
               {renderBoundaryFrameSlot(
                 "首帧",
                 startFramePrompt,
@@ -825,23 +882,24 @@ export const VideoGenerationWorkspace: React.FC<
           </div>
         )}
 
-        <div className="a4n-page-surface mb-3 p-2">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="inline-flex items-center gap-1.5 text-xs text-book-text-main">
-              <Images size={12} className="text-book-primary" />
-              {chatVideoMode ? "建议上传图片" : "参考图"}
-              <span className="font-mono text-book-text-muted">
-                {boundReferenceImages.length}
-              </span>
+        <div className="a4n-flat-surface mb-3 p-3">
+          <div className="mb-2 flex min-w-0 items-center gap-2">
+            <Images size={12} className="shrink-0 text-book-primary" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-medium text-book-text-main">
+                {chatVideoMode ? "建议上传图片" : "参考图"}
+              </div>
+              <div className="mt-0.5 text-[10px] text-book-text-muted">
+                {boundReferenceImages.length > 0
+                  ? `${boundReferenceImages.length} 张已绑定`
+                  : "尚未绑定图片"}
+              </div>
             </div>
           </div>
           {staleSavedReferenceCount > 0 && (
             <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] text-error">
               <span>
                 已保存参考图里有 {staleSavedReferenceCount} 张失效图片
-                {staleSavedReferenceIds.length > 0
-                  ? `：${staleSavedReferenceIds.join(", ")}`
-                  : ""}
                 。
               </span>
               {invalidPromptReferenceIds.length > 0 ? (
@@ -878,7 +936,7 @@ export const VideoGenerationWorkspace: React.FC<
           {selectedPromptSceneSummary && (
             <label className="flex min-w-0 flex-col gap-1">
               <span className="text-book-text-muted">场景摘要</span>
-              <div className="book-control min-h-[34px] rounded-sm px-2 py-1.5 text-book-text-sub">
+              <div className="min-h-[34px] border-l-2 border-book-border/55 py-1 pl-2.5 leading-relaxed text-book-text-sub">
                 {selectedPromptSceneSummary}
               </div>
             </label>
@@ -901,40 +959,40 @@ export const VideoGenerationWorkspace: React.FC<
         </div>
 
         {sections.length > 0 && (
-          <details className="a4n-page-surface mb-3 p-2">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs text-book-text-main [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex items-center gap-1.5">
+          <details className="a4n-flat-surface mb-3 p-2">
+            <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-xs text-book-text-main [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex min-w-0 items-center gap-1.5">
                 <ListChecks size={12} className="text-book-primary" />
                 导演约束
               </span>
-              <span className="font-mono text-[10px] text-book-text-muted">
-                {sections.length}
+              <span className="text-[10px] text-book-text-muted">
+                {sections.length} 项
               </span>
             </summary>
-            <div className="mt-2 grid gap-2 md:grid-cols-2">
+            <dl className="mt-2 divide-y divide-book-border/40 border-y border-book-border/40">
               {sections.map((section) => (
                 <div
                   key={section.key}
-                  className="a4n-stat-tile min-w-0 px-2 py-1.5"
+                  className="grid min-w-0 gap-1 px-2.5 py-2 md:grid-cols-[110px_minmax(0,1fr)] md:gap-3"
                 >
-                  <div className="mb-1 text-[10px] text-book-text-muted">
+                  <dt className="text-[10px] text-book-text-muted">
                     {section.label}
-                  </div>
-                  <pre className="line-clamp-4 whitespace-pre-wrap break-words font-sans text-[11px] leading-relaxed text-book-text-sub">
+                  </dt>
+                  <dd className="line-clamp-4 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-book-text-sub">
                     {section.text}
-                  </pre>
+                  </dd>
                 </div>
               ))}
-            </div>
+            </dl>
           </details>
         )}
 
         {selectedPromptCharStats && (
-          <div className="a4n-page-surface mb-3 p-2">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-              <span className="font-medium text-book-text-main">字段长度</span>
+          <details className="mb-3 text-[10px] text-book-text-muted">
+            <summary className="w-fit cursor-pointer hover:text-book-text-main">诊断信息</summary>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-l-2 border-book-border/60 pl-2 text-[10px]">
               <span className="text-book-text-muted">
-                {chatVideoMode ? "Chat 提示词" : "Visual"}{" "}
+                {chatVideoMode ? "Chat 提示词" : "画面"}{" "}
                 {promptLengthText(
                   selectedPromptCharStats.visualChars,
                   selectedPromptCharStats.visualBytes,
@@ -942,7 +1000,7 @@ export const VideoGenerationWorkspace: React.FC<
               </span>
               {!chatVideoMode && (
                 <span className="text-book-text-muted">
-                  Motion{" "}
+                  运动{" "}
                   {promptLengthText(
                     selectedPromptCharStats.motionChars,
                     selectedPromptCharStats.motionBytes,
@@ -950,20 +1008,20 @@ export const VideoGenerationWorkspace: React.FC<
                 </span>
               )}
               <span className="text-book-text-muted">
-                Negative{" "}
+                限制{" "}
                 {promptLengthText(
                   selectedPromptCharStats.negativeChars,
                   selectedPromptCharStats.negativeBytes,
                 )}
               </span>
             </div>
-          </div>
+          </details>
         )}
 
         <div className="grid gap-3">
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-xs text-book-text-muted">
-              {chatVideoMode ? "Chat 视频提示词" : "Visual Prompt"}
+              {chatVideoMode ? "Chat 视频提示词" : "画面提示词"}
             </span>
             <textarea
               value={draft.visual_prompt}
@@ -971,13 +1029,13 @@ export const VideoGenerationWorkspace: React.FC<
                 updateDraft({ visual_prompt: event.target.value })
               }
               disabled={selectedPromptRunning || selectedPromptHasVideo}
-              className="book-control min-h-[220px] resize-y rounded-sm p-2 text-xs leading-relaxed"
+              className="book-control min-h-[220px] resize-y p-2 text-xs leading-relaxed"
             />
           </label>
           {!chatVideoMode && (
             <label className="flex min-w-0 flex-col gap-1">
               <span className="text-xs text-book-text-muted">
-                Motion Prompt
+                运动提示词
               </span>
               <textarea
                 value={draft.motion_prompt}
@@ -985,13 +1043,13 @@ export const VideoGenerationWorkspace: React.FC<
                   updateDraft({ motion_prompt: event.target.value })
                 }
                 disabled={selectedPromptRunning || selectedPromptHasVideo}
-                className="book-control min-h-[140px] resize-y rounded-sm p-2 text-xs leading-relaxed"
+                className="book-control min-h-[140px] resize-y p-2 text-xs leading-relaxed"
               />
             </label>
           )}
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-xs text-book-text-muted">
-              {chatVideoMode ? "限制与避免项" : "Negative Prompt"}
+              限制与避免项
             </span>
             <textarea
               value={draft.negative_prompt}
@@ -999,112 +1057,107 @@ export const VideoGenerationWorkspace: React.FC<
                 updateDraft({ negative_prompt: event.target.value })
               }
               disabled={selectedPromptRunning || selectedPromptHasVideo}
-              className="book-control min-h-[96px] resize-y rounded-sm p-2 text-xs leading-relaxed"
+              className="book-control min-h-[96px] resize-y p-2 text-xs leading-relaxed"
             />
           </label>
         </div>
+          </>
+        )}
       </div>
     );
   };
 
   return (
-    <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[320px_minmax(0,1fr)]">
-      <VideoPromptSetupPanel
-        chapter={chapter}
-        prompts={prompts}
-        generationPrompts={generationPrompts}
-        selectedPrompt={selectedPrompt}
-        selectedPromptId={selectedPromptId}
-        workflowMode={workflowMode}
-        providerBackend={providerBackend}
-        providerOptionsJson={providerOptionsJson}
-        pendingVideo={pendingVideo}
-        framePromptCount={framePrompts.length}
-        expectedBoundaryFrameCount={expectedBoundaryFrameCount}
-        expectedVideoPromptCount={expectedVideoPromptCount}
-        totalVideoPromptCount={totalVideoPromptCount}
-        totalVideoChainPromptCount={totalVideoChainPromptCount}
-        options={options}
-        durationLimits={durationLimits}
-        promptInputSelectionError={promptInputSelectionError}
-        loading={loading}
-        acting={acting}
-        chapterGenerating={chapterGenerating}
-        chapterContentReady={chapterContentReady}
-        previewingPromptRequests={previewingPromptRequests}
-        selectedPromptStale={selectedPromptStale}
-        selectedPromptRunning={selectedPromptRunning}
-        selectedPromptDirty={selectedPromptDirty}
-        savedReferenceIdsError={savedReferenceIdsError}
-        invalidPromptReferenceIds={invalidPromptReferenceIds}
-        systemReferenceIds={systemReferenceIds}
-        validPromptReferenceIds={validPromptReferenceIds}
-        selectedPromptFrameInputMissingMessage={
-          selectedPromptFrameInputState?.frameInputMissingMessage ?? null
-        }
-        onLoad={onLoad}
-        onOptionsChange={onOptionsChange}
-        onGeneratePrompts={onGeneratePromptRequests}
-        onPreviewPromptRequests={onPreviewPromptRequests}
-        onSelectPrompt={selectPrompt}
-        onDeletePrompt={onDeletePrompt}
-        onDeleteAllVideoPrompts={onDeleteAllVideoPrompts}
-        onPollPendingVideo={onPollPendingVideo}
-        onGenerateVideo={onGenerateVideo}
-        onGenerateAllVideos={onGenerateAllVideos}
-        onImportVideo={onImportVideo}
-        onCopyPrompt={onCopyPrompt}
-      />
-
-      <BookCard className="flex min-h-0 flex-col p-3">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="inline-flex min-w-0 items-center gap-1.5 text-sm font-semibold text-book-text-main">
-            <Film size={14} className="text-book-primary" />
-            <span>视频结果</span>
-            <span className="pyqt-pill !text-[10px]">{videos.length}</span>
-          </div>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-1 text-[11px] text-book-text-muted">
-            {selectedPrompt && (
-              <span className="pyqt-pill !text-[10px]">
-                镜头 {selectedPrompt.shot_number}
-              </span>
-            )}
-            {selectedVideo && (
-              <span className="pyqt-pill !text-[10px]">
-                视频 #{selectedVideo.id}
-              </span>
-            )}
-          </div>
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="shrink-0 xl:hidden">
+        <SegmentedControl
+          ariaLabel="视频生成移动工作区"
+          value={mobilePane}
+          onChange={setMobilePane}
+          options={[
+            { id: "setup", label: "配置" },
+            {
+              id: "results",
+              label: `成片${videos.length > 0 ? ` ${videos.length}` : ""}`,
+            },
+          ]}
+        />
+      </div>
+      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <div
+          className={`min-h-0 ${mobilePane === "setup" ? "block" : "hidden xl:block"}`}
+        >
+          <VideoPromptSetupPanel
+            chapter={chapter}
+            prompts={prompts}
+            generationPrompts={generationPrompts}
+            selectedPrompt={selectedPrompt}
+            selectedPromptId={selectedPromptId}
+            workflowMode={workflowMode}
+            providerBackend={providerBackend}
+            providerOptionsJson={providerOptionsJson}
+            pendingVideo={pendingVideo}
+            framePromptCount={framePrompts.length}
+            expectedBoundaryFrameCount={expectedBoundaryFrameCount}
+            expectedVideoPromptCount={expectedVideoPromptCount}
+            totalVideoChainPromptCount={totalVideoChainPromptCount}
+            options={options}
+            durationLimits={durationLimits}
+            promptInputSelectionError={promptInputSelectionError}
+            loading={loading}
+            acting={acting}
+            chapterGenerating={chapterGenerating}
+            chapterContentReady={chapterContentReady}
+            previewingPromptRequests={previewingPromptRequests}
+            selectedPromptDirty={selectedPromptDirty}
+            systemReferenceIds={systemReferenceIds}
+            validPromptReferenceIds={validPromptReferenceIds}
+            onLoad={onLoad}
+            onOptionsChange={onOptionsChange}
+            onGeneratePrompts={onGeneratePromptRequests}
+            onPreviewPromptRequests={onPreviewPromptRequests}
+            onSelectPrompt={selectPrompt}
+            onDeletePrompt={onDeletePrompt}
+            onDeleteAllVideoPrompts={onDeleteAllVideoPrompts}
+            onPollPendingVideo={onPollPendingVideo}
+            onGenerateAllVideos={onGenerateAllVideos}
+          />
         </div>
 
-        <VideoResultsPane
-          videos={videos}
-          selectedVideo={selectedVideo}
-          selectedVideoId={selectedVideoId}
-          totalVideoAssetCount={totalVideoAssetCount}
-          selectedVideoPath={selectedVideoPath}
-          trimStart={trimStart}
-          trimEnd={trimEnd}
-          acting={acting}
-          onSelectVideo={selectVideo}
-          onPollVideo={onPollVideo}
-          onPreviewVideoRequest={onPreviewVideoRequest}
-          onToggleVideoFavorite={onToggleVideoFavorite}
-          onUpdateVideo={onUpdateVideo}
-          onDeleteVideo={onDeleteVideo}
-          onDeleteAllVideoAssets={onDeleteAllVideoAssets}
-          onTrimStartChange={onTrimStartChange}
-          onTrimEndChange={onTrimEndChange}
-          onTrim={onTrim}
-        />
-      </BookCard>
+        <section
+          aria-label="视频结果"
+          className={`min-h-0 flex-col ${mobilePane === "results" ? "flex" : "hidden xl:flex"}`}
+        >
+          <VideoResultsPane
+            videos={videos}
+            selectedVideo={selectedVideo}
+            selectedVideoId={selectedVideoId}
+            totalVideoAssetCount={totalVideoAssetCount}
+            selectedVideoPath={selectedVideoPath}
+            trimStart={trimStart}
+            trimEnd={trimEnd}
+            acting={acting}
+            onSelectVideo={selectVideo}
+            onPollVideo={onPollVideo}
+            onPreviewVideoRequest={onPreviewVideoRequest}
+            onToggleVideoFavorite={onToggleVideoFavorite}
+            onUpdateVideo={onUpdateVideo}
+            onDeleteVideo={onDeleteVideo}
+            onDeleteAllVideoAssets={onDeleteAllVideoAssets}
+            onTrimStartChange={onTrimStartChange}
+            onTrimEndChange={onTrimEndChange}
+            onTrim={onTrim}
+            onOpenSetup={() => setMobilePane("setup")}
+          />
+        </section>
+      </div>
 
       <Modal
         isOpen={promptDetailOpen && selectedPrompt != null}
         onClose={() => setPromptDetailOpen(false)}
         title={
           selectedPrompt
-            ? `视频提示词 #${selectedPrompt.shot_number}`
+            ? `镜头 ${selectedPrompt.shot_number} · 视频提示词`
             : "视频提示词"
         }
         subtitle={selectedPrompt ? promptTitle(selectedPrompt) : undefined}

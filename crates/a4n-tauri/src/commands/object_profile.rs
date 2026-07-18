@@ -3,8 +3,8 @@
 pub(crate) mod image_generation;
 
 use a4n_runtime::AppState;
-use a4n_runtime::actions::dependency_conflict::DownstreamConflictStrategy;
-use a4n_runtime::actions::object_profile_records as object_profile_records_actions;
+use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
+use a4n_runtime::host_api::object_profile_records as object_profile_records_actions;
 use object_profile_records_actions::{
     ListObjectProfilesInput, ObjectProfileInput, ObjectProfileSummary,
 };

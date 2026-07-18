@@ -4,7 +4,6 @@ use super::sync::{
 };
 use crate::state::AppState;
 use a4n_core::models::chapter::chapter;
-use sea_orm::*;
 
 pub(crate) async fn ingest_chapters_inner(
     state: &AppState,
@@ -12,12 +11,16 @@ pub(crate) async fn ingest_chapters_inner(
     mut progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
-    let mut sync =
-        RagSyncContext::for_id_prefixes(state, project_id, vec![format!("chapter:{project_id}:")])
-            .await?;
-    let chapters = chapter::Entity::find()
-        .filter(chapter::Column::ProjectId.eq(project_id))
-        .all(state.db.as_ref())
+    let mut sync = RagSyncContext::for_id_prefixes(
+        &state.orchestrator,
+        project_id,
+        vec![format!("chapter:{project_id}:")],
+    )
+    .await
+    .map_err(|error| error.to_string())?;
+    let chapters = state
+        .orchestrator
+        .chapters_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -34,12 +37,14 @@ pub(crate) async fn ingest_chapters_inner(
                 chapter.chapter_number
             ),
         )?;
-        let records =
-            crate::workflow::chapter_rag_records(chapter, state.embedding.as_ref()).await?;
+        let records = state
+            .orchestrator
+            .chapter_rag_records(chapter, super::chapter_rag_chunking_mode())
+            .await?;
         let labeled_records = records
             .into_iter()
             .map(|record| {
-                let label = crate::workflow::chapter_rag_record_label(chapter, &record);
+                let label = a4n_orchestrator::rag::chapter_rag_record_label(chapter, &record);
                 let chunk_id = record.chunk_id.clone();
                 labeled_rag_record(
                     record,

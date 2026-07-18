@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Boxes,
+  ChevronRight,
   Plus,
   Loader2,
   Pencil,
@@ -21,39 +22,25 @@ import {
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
-import { BookCard } from "../../components/ui/BookCard";
+import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
 import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
+import {
+  getObjectProfileImportanceLabel,
+  getObjectProfileTypeLabel,
+  OBJECT_PROFILE_IMPORTANCE_LABELS,
+  OBJECT_PROFILE_TYPE_LABELS,
+} from "../../utils/objectProfilePresentation";
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
 import { EmptyHint } from "./shared";
 import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
 
-const OBJECT_TYPE_LABELS: Record<string, string> = {
-  prop: "道具",
-  tool: "工具",
-  weapon: "武器",
-  token: "信物",
-  vehicle: "载具",
-  clothing: "服装",
-  location_object: "设施",
-  environment_object: "环境物件",
-  other: "其他",
-};
-
-const IMPORTANCE_LABELS: Record<string, string> = {
-  primary: "关键",
-  secondary: "重要",
-  minor: "次要",
-};
-
-const profileInitial = (name: string): string => name.trim().charAt(0).toUpperCase() || "?";
-
 const chapterRangeText = (first: number, last: number): string =>
   first === last ? `第 ${first} 章` : `第 ${first}-${last} 章`;
 
-const OBJECT_TYPE_OPTIONS = Object.keys(OBJECT_TYPE_LABELS);
-const IMPORTANCE_OPTIONS = Object.keys(IMPORTANCE_LABELS);
+const OBJECT_TYPE_OPTIONS = Object.keys(OBJECT_PROFILE_TYPE_LABELS);
+const IMPORTANCE_OPTIONS = Object.keys(OBJECT_PROFILE_IMPORTANCE_LABELS);
 
 interface ObjectProfilesLoadOptions {
   silent?: boolean;
@@ -416,43 +403,47 @@ export const ObjectProfilesTab: React.FC<{
 
   return (
     <div className="content-main flex flex-col gap-4">
-      <BookCard className="p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="inline-flex items-center gap-2 font-serif text-sm text-book-text-main">
-            <Boxes size={14} className="text-book-primary" />
-            物体档案
-            <span className="text-xs text-book-text-muted">
-              （{stats.total} 个 / 关键 {stats.primary} 个 / 素材图 {stats.images} 张）
-            </span>
-          </h3>
-          <div className="flex flex-wrap items-center gap-2">
-            {canEditProfiles && (
-              <button
-                type="button"
+      <section>
+        <header className="mb-3 flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-book-text-main">物体档案</h2>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+              {stats.total > 0
+                ? `共 ${stats.total} 个档案${stats.primary > 0 ? `，${stats.primary} 个关键物体` : ""}${stats.images > 0 ? `，已生成 ${stats.images} 张素材图` : ""}`
+                : "记录会反复出现的道具、线索和环境物件"}
+            </p>
+          </div>
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+            <Dropdown
+              items={[
+                {
+                  label: loading ? "正在刷新…" : "刷新档案",
+                  icon: <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />,
+                  onClick: () => void load({ projectId }),
+                  disabled: loading || busyId != null,
+                },
+              ]}
+            />
+            {canEditProfiles ? (
+              <BookButton
+                variant="primary"
+                size="sm"
                 onClick={() => setEditingProfile("new")}
                 disabled={busyId != null}
-                className="pyqt-btn-secondary !min-h-9 !px-2 text-xs sm:!min-h-[28px]"
-                title="新建物体档案"
+                className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
-                <Plus size={12} />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void load({ projectId })}
-              disabled={loading || busyId != null}
-              className="pyqt-btn-secondary !min-h-9 !px-2 text-xs sm:!min-h-[28px]"
-              title="刷新物体档案"
-            >
-              <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
-            </button>
+                <Plus size={12} /> 新建档案
+              </BookButton>
+            ) : null}
           </div>
-        </div>
+        </header>
 
         {profiles.length === 0 ? (
-          <EmptyHint text="尚未从章节分析中识别出物体档案。" />
+          <div className="a4n-flat-surface p-3">
+            <EmptyHint text="尚未从章节分析中识别出物体档案。" />
+          </div>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
             {profiles.map((profile) => (
               <li
                 key={profile.id}
@@ -465,50 +456,28 @@ export const ObjectProfilesTab: React.FC<{
                     setDetailFor(profile);
                   }
                 }}
-                className="flex cursor-pointer items-start gap-3 rounded-sm border border-book-border bg-book-bg-paper px-3 py-2 transition-colors hover:border-book-primary/60 hover:bg-book-bg-tertiary/40"
+                className="a4n-flat-surface flex min-h-16 cursor-pointer items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
                 title="查看物体详情"
               >
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-sm border border-book-primary/30 bg-book-primary/10 text-xs font-bold text-book-primary">
-                  {profileInitial(profile.name)}
-                </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm font-semibold text-book-text-main">
-                      {profile.name}
-                    </span>
-                    <span className="pyqt-pill !text-[10px]">
-                      {OBJECT_TYPE_LABELS[profile.object_type] ?? profile.object_type}
-                    </span>
-                    <span className="pyqt-pill !text-[10px]">
-                      {IMPORTANCE_LABELS[profile.importance] ?? profile.importance}
-                    </span>
-                    <span className="pyqt-pill !text-[10px]">
-                      {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
-                    </span>
+                  <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
+                  <div className="mt-0.5 text-[10px] text-book-text-muted">
+                    {getObjectProfileTypeLabel(profile.object_type)} · {getObjectProfileImportanceLabel(profile.importance)} · {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-sub">
                     {profile.visual_description || profile.story_usage || "暂无物体摘要。"}
                   </p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-book-text-muted">
-                    <span>
-                      {profile.story_usage || profile.location_context || "未记录叙事用途"}
-                    </span>
-                    {profile.material_and_state ? (
-                      <span className="pyqt-pill !text-[10px]" title={profile.material_and_state}>
-                        材质状态
-                      </span>
-                    ) : null}
-                    <span className="pyqt-pill !text-[10px]">
-                      素材图 {profile.generated_image_count} 张
-                    </span>
+                  <div className="mt-1 truncate text-[10px] text-book-text-muted">
+                    {profile.story_usage || profile.location_context || "未记录叙事用途"}
+                    {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
                   </div>
                 </div>
-                <Sparkles size={13} className="mt-1 shrink-0 text-book-text-muted" />
+                <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
               </li>
             ))}
           </ul>
         )}
-      </BookCard>
+      </section>
 
       <ObjectProfileDetailModal
         profile={detailFor}
@@ -561,84 +530,71 @@ function ObjectProfileDetailModal({
       isOpen={profile != null}
       onClose={onClose}
       title={profile?.name ?? "物体档案"}
-      subtitle={profile ? `${OBJECT_TYPE_LABELS[profile.object_type] ?? profile.object_type} / ${IMPORTANCE_LABELS[profile.importance] ?? profile.importance}` : undefined}
+      subtitle={profile ? `${getObjectProfileTypeLabel(profile.object_type)} · ${getObjectProfileImportanceLabel(profile.importance)}` : undefined}
       icon={<Boxes size={15} />}
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-4 py-4"
     >
       {profile ? (
         <div className="space-y-3 text-xs text-book-text-sub">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {aliases.map((alias) => (
-              <span key={alias} className="pyqt-pill !text-[10px]">
-                {alias}
-              </span>
-            ))}
-            <span className="pyqt-pill !text-[10px]">
-              第 {profile.first_seen_chapter}-{profile.last_seen_chapter} 章
-            </span>
-            <span className="pyqt-pill !text-[10px]">
-              素材图 {profile.generated_image_count} 张
-            </span>
-          </div>
-          <DetailRow label="外观" value={profile.visual_description} />
-          <DetailRow label="材质状态" value={profile.material_and_state} />
-          <DetailRow label="叙事用途" value={profile.story_usage} />
-          <DetailRow label="视觉用途" value={profile.visual_usage} />
-          <DetailRow label="生成用途" value={profile.generation_usage} />
-          <DetailRow label="出现语境" value={profile.location_context ?? "未记录"} />
-          <DetailRow label="提示词种子" value={profile.image_prompt_seed} />
+          <p className="text-[11px] leading-relaxed text-book-text-muted">
+            {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
+            {aliases.length > 0 ? ` · 别名：${aliases.join("、")}` : ""}
+            {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
+          </p>
+          <dl className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
+            <DetailRow label="外观" value={profile.visual_description} />
+            <DetailRow label="材质状态" value={profile.material_and_state} />
+            <DetailRow label="叙事用途" value={profile.story_usage} />
+            <DetailRow label="视觉用途" value={profile.visual_usage} />
+            <DetailRow label="生成用途" value={profile.generation_usage} />
+            <DetailRow label="出现语境" value={profile.location_context ?? "未记录"} />
+            <DetailRow label="图像描述" value={profile.image_prompt_seed} />
+          </dl>
           {evidence.length > 0 ? (
-            <div>
-              <div className="mb-1 text-[11px] font-semibold text-book-text-main">证据</div>
-              <ul className="space-y-1">
+            <details className="a4n-flat-surface overflow-hidden">
+              <summary className="cursor-pointer px-3 py-2.5 text-[11px] font-medium text-book-text-main">
+                依据 · {evidence.length} 条
+              </summary>
+              <ul className="space-y-1 border-t border-book-border/40 px-3 py-2.5">
                 {evidence.map((item, index) => (
                   <li key={`${item}-${index}`} className="border-l border-book-border pl-2">
                     {item}
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           ) : null}
           {canEdit && (
-            <div className="flex flex-wrap justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-1">
+              {busyId == null ? (
+                <Dropdown
+                  items={[
+                    {
+                      label: "编辑档案",
+                      icon: <Pencil size={12} />,
+                      onClick: () => onEdit(profile),
+                    },
+                    { type: "divider" },
+                    {
+                      label: "删除档案",
+                      onClick: () => onDelete(profile),
+                      danger: true,
+                    },
+                  ]}
+                />
+              ) : null}
               <BookButton
                 variant="primary"
                 size="sm"
                 onClick={() => onGenerate(profile)}
                 disabled={busyId != null}
+                className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
                 <span className="inline-flex items-center gap-1">
                   {busyId === profile.id ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                   生成素材图
                 </span>
-              </BookButton>
-              <BookButton
-                variant="secondary"
-                size="sm"
-                onClick={() => onEdit(profile)}
-                disabled={busyId != null}
-                title={
-                  profile.generated_image_count > 0
-                    ? "编辑前会提示处理下游素材图"
-                    : undefined
-                }
-              >
-                <Pencil size={12} />
-                编辑档案
-              </BookButton>
-              <BookButton
-                variant="danger"
-                size="sm"
-                onClick={() => onDelete(profile)}
-                disabled={busyId != null}
-                title={
-                  profile.generated_image_count > 0
-                    ? "删除前会提示处理下游素材图"
-                    : undefined
-                }
-              >
-                删除档案
               </BookButton>
             </div>
           )}
@@ -703,19 +659,14 @@ function ObjectProfileEditModal({
       closeOnBackdrop={!busy && !saving}
       closeOnEscape={!busy && !saving}
       footer={
-        <>
-          <BookButton variant="secondary" onClick={onClose} disabled={saving || busy}>
-            取消
-          </BookButton>
-          <BookButton
-            variant="primary"
-            onClick={() => void submit()}
-            disabled={busy || saving || !draft.name.trim() || !draft.visual_description.trim()}
-          >
-            {saving ? <Loader2 size={12} className="animate-spin" /> : null}
-            保存
-          </BookButton>
-        </>
+        <BookButton
+          variant="primary"
+          onClick={() => void submit()}
+          disabled={busy || saving || !draft.name.trim() || !draft.visual_description.trim()}
+        >
+          {saving ? <Loader2 size={12} className="animate-spin" /> : null}
+          保存
+        </BookButton>
       }
     >
       <fieldset disabled={busy || saving} className="grid gap-3 text-xs disabled:opacity-75">
@@ -725,14 +676,14 @@ function ObjectProfileEditModal({
             label="类型"
             value={draft.object_type}
             options={OBJECT_TYPE_OPTIONS}
-            labels={OBJECT_TYPE_LABELS}
+            labels={OBJECT_PROFILE_TYPE_LABELS}
             onChange={(value) => update("object_type", value)}
           />
           <SelectField
             label="重要性"
             value={draft.importance}
             options={IMPORTANCE_OPTIONS}
-            labels={IMPORTANCE_LABELS}
+            labels={OBJECT_PROFILE_IMPORTANCE_LABELS}
             onChange={(value) => update("importance", value)}
           />
           <TextField
@@ -787,7 +738,7 @@ function ObjectProfileEditModal({
           onChange={(value) => update("evidence", splitLines(value))}
         />
         <TextAreaField
-          label="图片提示词种子"
+          label="图像描述"
           value={draft.image_prompt_seed}
           onChange={(value) => update("image_prompt_seed", value)}
         />
@@ -798,9 +749,9 @@ function ObjectProfileEditModal({
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="mb-1 text-[11px] font-semibold text-book-text-main">{label}</div>
-      <p className="leading-relaxed whitespace-pre-wrap">{value}</p>
+    <div className="px-3 py-2.5 sm:grid sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-3">
+      <dt className="text-[11px] font-medium text-book-text-muted">{label}</dt>
+      <dd className="mt-1 whitespace-pre-wrap leading-relaxed text-book-text-sub sm:mt-0">{value}</dd>
     </div>
   );
 }

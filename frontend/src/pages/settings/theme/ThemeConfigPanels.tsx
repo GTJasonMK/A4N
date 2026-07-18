@@ -1,13 +1,15 @@
 import React from "react";
-import { Loader2, Moon, Plus, Sun, Upload } from "lucide-react";
+import { Loader2, Plus, Upload } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
+import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { type ThemeMode } from "./types";
 
 interface CreateThemePanelProps {
   name: string;
   mode: ThemeMode;
   creating: boolean;
+  disabled: boolean;
   onNameChange: (value: string) => void;
   onModeChange: (mode: ThemeMode) => void;
   onCreate: () => void;
@@ -17,55 +19,60 @@ export const CreateThemePanel: React.FC<CreateThemePanelProps> = ({
   name,
   mode,
   creating,
+  disabled,
   onNameChange,
   onModeChange,
   onCreate,
 }) => (
-  <div className="pyqt-card p-4">
-    <h4 className="text-sm font-serif text-book-text-main mb-3 inline-flex items-center gap-2">
-      <Plus size={14} /> 创建主题
-    </h4>
-    <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-      <BookInput
-        label="主题名称"
-        value={name}
-        onChange={(event) => onNameChange(event.target.value)}
-        placeholder="例如：默认亮色 / 自定义暖色"
-        disabled={creating}
-      />
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => onModeChange("light")}
-          data-active={mode === "light" ? "1" : undefined}
-          className="pyqt-tab"
-          title="基于亮色模板"
-        >
-          <Sun size={14} />
-        </button>
-        <button
-          type="button"
-          onClick={() => onModeChange("dark")}
-          data-active={mode === "dark" ? "1" : undefined}
-          className="pyqt-tab"
-          title="基于暗色模板"
-        >
-          <Moon size={14} />
-        </button>
-        <BookButton variant="primary" onClick={onCreate} disabled={creating}>
-          {creating ? <Loader2 size={14} className="animate-spin" /> : "创建"}
-        </BookButton>
+  <details className="a4n-flat-surface overflow-hidden">
+    <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
+      <Plus size={13} />
+      <span>创建新主题</span>
+      <span className="ml-auto text-[11px] text-book-text-muted">从亮色或暗色模板开始</span>
+    </summary>
+    <div className="border-t border-book-border/35 p-4">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <BookInput
+          label="主题名称"
+          value={name}
+          onChange={(event) => onNameChange(event.target.value)}
+          placeholder="例如：柔和暖色"
+          disabled={disabled}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl
+            ariaLabel="主题明暗模式"
+            value={mode}
+            onChange={onModeChange}
+            options={[
+              { id: "light", label: "亮色", disabled },
+              { id: "dark", label: "暗色", disabled },
+            ]}
+          />
+          <BookButton
+            variant="primary"
+            onClick={onCreate}
+            disabled={disabled || name.trim().length === 0}
+          >
+            {creating ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 size={13} className="animate-spin" /> 创建中…
+              </span>
+            ) : (
+              "创建"
+            )}
+          </BookButton>
+        </div>
       </div>
+      <p className="mt-2 text-[11px] text-book-text-muted">创建后可立即切换使用。</p>
     </div>
-    <p className="text-[11px] text-book-text-muted mt-2">
-      基于当前模板生成；详细颜色 token 编辑功能后续接入。
-    </p>
-  </div>
+  </details>
 );
 
 interface SingleThemeImportPanelProps {
   importText: string;
   importing: boolean;
+  disabled: boolean;
   onImportTextChange: (value: string) => void;
   onImport: () => void;
 }
@@ -73,23 +80,39 @@ interface SingleThemeImportPanelProps {
 export const SingleThemeImportPanel: React.FC<SingleThemeImportPanelProps> = ({
   importText,
   importing,
+  disabled,
   onImportTextChange,
   onImport,
 }) => (
-  <div className="pyqt-card p-4">
-    <h4 className="text-sm font-serif text-book-text-main mb-3 inline-flex items-center gap-2">
-      <Upload size={14} /> 单主题导入
-    </h4>
-    <textarea
-      value={importText}
-      onChange={(event) => onImportTextChange(event.target.value)}
-      placeholder="粘贴 export_theme 生成的 JSON…"
-      className="pyqt-input w-full text-xs font-mono h-24 resize-y"
-    />
-    <div className="flex justify-end mt-2">
-      <BookButton variant="primary" onClick={onImport} disabled={importing}>
-        {importing ? <Loader2 size={12} className="animate-spin" /> : "导入"}
-      </BookButton>
+  <details className="a4n-flat-surface group overflow-hidden">
+    <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
+      <Upload size={13} />
+      <span>导入主题</span>
+      <span className="ml-auto text-[11px] text-book-text-muted">低频工具</span>
+    </summary>
+    <div className="border-t border-book-border/35 p-4">
+      <textarea
+        value={importText}
+        onChange={(event) => onImportTextChange(event.target.value)}
+        disabled={disabled}
+        placeholder="粘贴导出的主题配置…"
+        className="pyqt-input h-24 w-full resize-y text-xs font-mono"
+      />
+      <div className="flex justify-end mt-2">
+        <BookButton
+          variant="primary"
+          onClick={onImport}
+          disabled={disabled || importText.trim().length === 0}
+        >
+          {importing ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Loader2 size={12} className="animate-spin" /> 导入中…
+            </span>
+          ) : (
+            "导入"
+          )}
+        </BookButton>
+      </div>
     </div>
-  </div>
+  </details>
 );

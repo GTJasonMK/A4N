@@ -1,5 +1,20 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { FileText, Loader2, Maximize2, Network, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  FileText,
+  Loader2,
+  Maximize2,
+  Network,
+  RefreshCw,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import {
   getProjectAssetDependencyGraph,
   getProjectAssetDependencyGraphNodeDetail,
@@ -12,9 +27,11 @@ import {
 } from "../../../api/project";
 import { extractErrorMessage } from "../../../api";
 import { Modal } from "../../../components/ui/Modal";
-import { BookButton } from "../../../components/ui/BookButton";
+import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { THEME_APPLIED_EVENT } from "../../../theme/activeTheme";
+import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import {
+  assetTypeLabel,
   buildLayout,
   clamp,
   drawGraph,
@@ -45,11 +62,9 @@ const INLINE_TEXT_MAX_CHARS = 120;
 const AUTO_OPEN_TEXT_MAX_CHARS = 360;
 const AUTO_OPEN_ARRAY_MAX_ITEMS = 4;
 const AUTO_OPEN_OBJECT_MAX_FIELDS = 8;
-export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProps> = ({
-  open,
-  projectId,
-  onClose,
-}) => {
+export const AssetDependencyGraphDialog: React.FC<
+  AssetDependencyGraphDialogProps
+> = ({ open, projectId, onClose }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const networkScrollRef = useRef<HTMLDivElement | null>(null);
   const graphRequestSeqRef = useRef(0);
@@ -59,13 +74,18 @@ export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [nodeDetail, setNodeDetail] = useState<AssetGraphNodeDetail | null>(null);
+  const [nodeDetail, setNodeDetail] = useState<AssetGraphNodeDetail | null>(
+    null,
+  );
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
-  const [promptViewer, setPromptViewer] = useState<InputViewerState | null>(null);
+  const [promptViewer, setPromptViewer] = useState<InputViewerState | null>(
+    null,
+  );
   const [themeVersion, setThemeVersion] = useState(0);
   const [zoom, setZoom] = useState(1);
+  const [mobilePane, setMobilePane] = useState<"graph" | "details">("graph");
 
   const loadGraph = useCallback(async () => {
     if (graphLoadingRef.current) return;
@@ -87,7 +107,8 @@ export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProp
       if (graphRequestSeqRef.current !== requestSeq) return;
       setGraph(next);
       setSelectedId((current) => {
-        if (current && next.nodes.some((node) => node.id === current)) return current;
+        if (current && next.nodes.some((node) => node.id === current))
+          return current;
         return preferredInitialNodeId(next);
       });
     } catch (err) {
@@ -114,6 +135,7 @@ export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProp
     setPromptViewer(null);
     setError(null);
     setLoading(false);
+    setMobilePane("graph");
   }, [open, projectId]);
 
   useEffect(() => {
@@ -129,7 +151,8 @@ export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProp
     if (!open) return undefined;
     const handleThemeApplied = () => setThemeVersion((version) => version + 1);
     window.addEventListener(THEME_APPLIED_EVENT, handleThemeApplied);
-    return () => window.removeEventListener(THEME_APPLIED_EVENT, handleThemeApplied);
+    return () =>
+      window.removeEventListener(THEME_APPLIED_EVENT, handleThemeApplied);
   }, [open]);
 
   const layout = useMemo(() => buildLayout(graph), [graph]);
@@ -138,7 +161,7 @@ export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProp
     layout.nodes.forEach((node) => map.set(node.id, node));
     return map;
   }, [layout.nodes]);
-  const selectedNode = selectedId ? nodeById.get(selectedId) ?? null : null;
+  const selectedNode = selectedId ? (nodeById.get(selectedId) ?? null) : null;
   const summary = useMemo(() => summarizeGraph(graph), [graph]);
   const scaledCanvasWidth = Math.round(layout.width * zoom);
   const scaledCanvasHeight = Math.round(layout.height * zoom);
@@ -176,7 +199,8 @@ export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProp
         if (detailRequestSeqRef.current !== requestSeq) return;
         setNodeDetail(detail);
         setSelectedRecordId((current) => {
-          if (current && detail.records.some((record) => record.id === current)) return current;
+          if (current && detail.records.some((record) => record.id === current))
+            return current;
           return detail.records[0]?.id ?? null;
         });
       })
@@ -227,7 +251,10 @@ export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProp
     const x = ((event.clientX - rect.left) / rect.width) * layout.width;
     const y = ((event.clientY - rect.top) / rect.height) * layout.height;
     const hit = hitTestNode(layout.nodes, x, y);
-    if (hit) setSelectedId(hit.id);
+    if (hit) {
+      setSelectedId(hit.id);
+      setMobilePane("details");
+    }
   };
 
   const handleCanvasMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -236,15 +263,20 @@ export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProp
     const rect = canvas.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * layout.width;
     const y = ((event.clientY - rect.top) / rect.height) * layout.height;
-    canvas.style.cursor = hitTestNode(layout.nodes, x, y) ? "pointer" : "default";
+    canvas.style.cursor = hitTestNode(layout.nodes, x, y)
+      ? "pointer"
+      : "default";
   };
 
-  const updateZoom = useCallback((next: number | ((current: number) => number)) => {
-    setZoom((current) => {
-      const value = typeof next === "function" ? next(current) : next;
-      return Number(clamp(value, MIN_ZOOM, MAX_ZOOM).toFixed(2));
-    });
-  }, []);
+  const updateZoom = useCallback(
+    (next: number | ((current: number) => number)) => {
+      setZoom((current) => {
+        const value = typeof next === "function" ? next(current) : next;
+        return Number(clamp(value, MIN_ZOOM, MAX_ZOOM).toFixed(2));
+      });
+    },
+    [],
+  );
 
   const handleCanvasWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
     if (!event.ctrlKey && !event.metaKey) return;
@@ -253,108 +285,137 @@ export const AssetDependencyGraphDialog: React.FC<AssetDependencyGraphDialogProp
     updateZoom((current) => current + direction * ZOOM_STEP);
   };
 
+  const summaryText = [
+    summary.text > 0 ? `文字 ${summary.text}` : null,
+    summary.image > 0 ? `图片 ${summary.image}` : null,
+    summary.video > 0 ? `视频 ${summary.video}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <Modal
-      isOpen={open}
-      onClose={onClose}
-      title="项目依赖状态"
-      subtitle="从灵感、蓝图、正文、档案到漫画、图片、视频的当前拓扑和下游处理状态。"
-      icon={<Network size={15} />}
-      maxWidthClassName="max-w-[min(1280px,96vw)]"
-      bodyClassName="p-0"
-      headerExtra={
-        <button
-          type="button"
-          onClick={loadGraph}
-          disabled={loading}
-          className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
-          title="刷新依赖图"
-        >
-          {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-        </button>
-      }
-    >
-      <div className="relative grid h-[min(82dvh,760px)] min-h-[360px] grid-rows-[minmax(0,1fr)_minmax(12rem,18rem)] overflow-hidden md:h-[min(74vh,760px)] md:min-h-[520px] md:grid-cols-[minmax(0,1fr)_340px] md:grid-rows-1">
-        <div
-          ref={networkScrollRef}
-          className="relative min-w-0 overflow-auto border-b border-book-border bg-book-bg md:border-b-0 md:border-r custom-scrollbar"
-        >
-          {loading && !graph ? (
-            <div className="flex h-full items-center justify-center text-sm text-book-text-muted">
-              <Loader2 size={18} className="mr-2 animate-spin" />
-              正在加载依赖状态…
-            </div>
-          ) : error ? (
-            <div className="flex h-full items-center justify-center px-6 text-sm text-error">
-              {error}
-            </div>
-          ) : (
-            <>
-              <ZoomControls
-                zoom={zoom}
-                onZoomIn={() => updateZoom((current) => current + ZOOM_STEP)}
-                onZoomOut={() => updateZoom((current) => current - ZOOM_STEP)}
-                onReset={() => updateZoom(1)}
-              />
-              <div className="grid min-h-full min-w-max place-items-center p-4 pt-12">
-                <canvas
-                  ref={canvasRef}
-                  width={layout.width}
-                  height={layout.height}
-                  onClick={handleCanvasClick}
-                  onMouseMove={handleCanvasMove}
-                  onWheel={handleCanvasWheel}
-                  className="block"
-                  style={{ width: scaledCanvasWidth, height: scaledCanvasHeight }}
-                />
-              </div>
-            </>
-          )}
-        </div>
-
-        <aside className="min-w-0 overflow-y-auto bg-book-bg-paper px-3 py-3 custom-scrollbar">
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <Metric label="文字" value={summary.text} />
-            <Metric label="图片" value={summary.image} />
-            <Metric label="视频" value={summary.video} />
-          </div>
-
-          <AssetNodeIndex
-            nodes={layout.nodes}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
-
-          <section className="mt-3">
-            <SelectedAssetDetails
-              node={selectedNode}
-              detail={nodeDetail}
-              loading={detailLoading}
-              error={detailError}
-              selectedRecordId={selectedRecordId}
-              onSelectRecord={setSelectedRecordId}
-              onOpenInputs={(record) => {
-                setPromptViewer({
-                  recordLabel: record.label,
-                  inputs: record.generation_inputs,
-                });
-              }}
+    <>
+      <Modal
+        isOpen={open}
+        onClose={onClose}
+        title="内容关联"
+        subtitle="查看文字、图片和视频的来源与下游关系。"
+        icon={<Network size={15} />}
+        maxWidthClassName="max-w-[min(1280px,96vw)]"
+        bodyClassName="!overflow-hidden p-0"
+        headerExtra={
+          <button
+            type="button"
+            onClick={loadGraph}
+            disabled={loading}
+            className="pyqt-btn-icon !h-9 !w-9 sm:!h-8 sm:!w-8"
+            title="刷新依赖图"
+            aria-label="刷新依赖图"
+          >
+            {loading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+          </button>
+        }
+      >
+        <div className="flex h-[min(82dvh,760px)] min-h-[360px] flex-col overflow-hidden md:h-[min(74vh,760px)] md:min-h-[520px]">
+          <div className="shrink-0 border-b border-book-border/45 bg-book-bg-paper px-3 py-2 md:hidden">
+            <SegmentedControl
+              className="mx-auto"
+              ariaLabel="依赖状态视图"
+              value={mobilePane}
+              onChange={setMobilePane}
+              options={[
+                { id: "graph", label: "关系图" },
+                { id: "details", label: "资产详情" },
+              ]}
             />
-          </section>
-
-          <div className="mt-4 flex justify-end">
-            <BookButton variant="secondary" size="sm" onClick={onClose}>
-              关闭
-            </BookButton>
           </div>
-        </aside>
 
-        <PromptViewerOverlay
-          viewer={promptViewer}
-          onClose={() => setPromptViewer(null)}
-        />
-      </div>
-    </Modal>
+          <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_360px]">
+            <div
+              ref={networkScrollRef}
+              className={`${mobilePane === "graph" ? "block" : "hidden"} relative min-w-0 overflow-auto bg-book-bg md:block md:border-r md:border-book-border/45 custom-scrollbar`}
+            >
+              {loading && !graph ? (
+                <div className="flex h-full items-center justify-center text-sm text-book-text-muted">
+                  <Loader2 size={18} className="mr-2 animate-spin" />
+                  正在加载依赖状态…
+                </div>
+              ) : error ? (
+                <div className="flex h-full items-center justify-center px-6 text-sm text-error">
+                  {error}
+                </div>
+              ) : (
+                <>
+                  <ZoomControls
+                    zoom={zoom}
+                    onZoomIn={() =>
+                      updateZoom((current) => current + ZOOM_STEP)
+                    }
+                    onZoomOut={() =>
+                      updateZoom((current) => current - ZOOM_STEP)
+                    }
+                    onReset={() => updateZoom(1)}
+                  />
+                  <div className="grid min-h-full min-w-max place-items-center p-4 pt-16">
+                    <canvas
+                      ref={canvasRef}
+                      width={layout.width}
+                      height={layout.height}
+                      onClick={handleCanvasClick}
+                      onMouseMove={handleCanvasMove}
+                      onWheel={handleCanvasWheel}
+                      className="block"
+                      style={{
+                        width: scaledCanvasWidth,
+                        height: scaledCanvasHeight,
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <aside
+              className={`${mobilePane === "details" ? "block" : "hidden"} min-w-0 overflow-y-auto bg-book-bg-paper px-3 py-3 md:block md:px-4 md:py-4 custom-scrollbar`}
+            >
+              <p className="text-[11px] leading-relaxed text-book-text-muted">
+                {summaryText || "尚无可展示资产"}
+              </p>
+
+              <AssetNodeIndex
+                nodes={layout.nodes}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+              />
+
+              <SelectedAssetDetails
+                node={selectedNode}
+                detail={nodeDetail}
+                loading={detailLoading}
+                error={detailError}
+                selectedRecordId={selectedRecordId}
+                onSelectRecord={setSelectedRecordId}
+                onOpenInputs={(record) => {
+                  setPromptViewer({
+                    recordLabel: record.label,
+                    inputs: record.generation_inputs,
+                  });
+                }}
+              />
+            </aside>
+          </div>
+        </div>
+      </Modal>
+
+      <PromptViewerModal
+        viewer={promptViewer}
+        onClose={() => setPromptViewer(null)}
+      />
+    </>
   );
 };
 
@@ -364,42 +425,37 @@ const ZoomControls: React.FC<{
   onZoomOut: () => void;
   onReset: () => void;
 }> = ({ zoom, onZoomIn, onZoomOut, onReset }) => (
-  <div className="sticky left-3 top-3 z-10 flex w-max items-center gap-1 rounded-sm border border-book-border bg-book-bg-paper/90 px-1.5 py-1 shadow-sm backdrop-blur">
+  <div className="absolute left-3 top-3 z-10 flex w-max items-center gap-1 rounded-2xl border border-book-border/45 bg-book-bg-paper/90 p-1 shadow-[0_8px_24px_-16px_rgb(0_0_0/0.45)] backdrop-blur-xl">
     <button
       type="button"
       onClick={onZoomOut}
-      className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
+      className="pyqt-btn-icon !h-9 !w-9 !rounded-xl sm:!h-8 sm:!w-8"
       title="缩小"
       aria-label="缩小依赖图"
     >
-      <ZoomOut size={13} />
+      <ZoomOut size={14} />
     </button>
-    <button
-      type="button"
-      onClick={onReset}
-      className="inline-flex h-9 min-w-16 items-center justify-center gap-1 rounded-sm border border-book-border bg-book-bg px-2 font-mono text-[10px] font-semibold text-book-text-muted hover:border-book-primary/50 hover:text-book-primary sm:h-7 sm:min-w-14"
-      title="重置缩放"
-      aria-label="重置依赖图缩放"
-    >
-      <Maximize2 size={11} />
-      {Math.round(zoom * 100)}%
-    </button>
+    {Math.abs(zoom - 1) > 0.01 ? (
+      <button
+        type="button"
+        onClick={onReset}
+        className="inline-flex h-9 min-w-14 items-center justify-center gap-1 rounded-xl px-2 text-[10px] font-medium tabular-nums text-book-text-muted transition hover:bg-book-bg-tertiary hover:text-book-text-main sm:h-8"
+        title="恢复原始大小"
+        aria-label={`恢复原始大小，当前 ${Math.round(zoom * 100)}%`}
+      >
+        <Maximize2 size={12} />
+        {Math.round(zoom * 100)}%
+      </button>
+    ) : null}
     <button
       type="button"
       onClick={onZoomIn}
-      className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
+      className="pyqt-btn-icon !h-9 !w-9 !rounded-xl sm:!h-8 sm:!w-8"
       title="放大"
       aria-label="放大依赖图"
     >
-      <ZoomIn size={13} />
+      <ZoomIn size={14} />
     </button>
-  </div>
-);
-
-const Metric: React.FC<{ label: string; value: number }> = ({ label, value }) => (
-  <div className="rounded-sm border border-book-border bg-book-bg px-2 py-2">
-    <div className="text-base font-semibold text-book-text-main">{value}</div>
-    <div className="mt-0.5 text-[10px] text-book-text-muted">{label}</div>
   </div>
 );
 
@@ -408,20 +464,30 @@ const AssetNodeIndex: React.FC<{
   selectedId: string | null;
   onSelect: (nodeId: string) => void;
 }> = ({ nodes, selectedId, onSelect }) => {
-  const visibleNodes = nodes.filter((node) => node.id !== "project" && node.count > 0);
+  const visibleNodes = nodes.filter(
+    (node) => node.id !== "project" && node.count > 0,
+  );
   const videoNodes = visibleNodes.filter(isVideoChainNode);
-  const primaryNodes = videoNodes.length ? videoNodes : visibleNodes.slice(0, 8);
+  const selectedNode = visibleNodes.find((node) => node.id === selectedId) ?? null;
+  const primaryNodes = videoNodes.length
+    ? [selectedNode, ...videoNodes].filter(
+        (node, index, nodes): node is PositionedNode =>
+          Boolean(node) && nodes.findIndex((item) => item?.id === node?.id) === index,
+      )
+    : visibleNodes.slice(0, 8);
   if (!primaryNodes.length) return null;
 
   return (
-    <section className="mt-3 rounded-sm border border-book-border bg-book-bg px-2.5 py-2">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <div className="text-[11px] font-semibold text-book-text-main">
+    <section className="mt-4">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h3 className="text-xs font-semibold text-book-text-main">
           {videoNodes.length ? "视频链路" : "资产索引"}
-        </div>
-        <div className="font-mono text-[10px] text-book-text-subtle">{primaryNodes.length}</div>
+        </h3>
+        <span className="text-[10px] tabular-nums text-book-text-subtle">
+          {primaryNodes.length} 个节点
+        </span>
       </div>
-      <div className="grid gap-1">
+      <div className="a4n-flat-surface mt-2 divide-y divide-book-border/35 overflow-hidden">
         {primaryNodes.map((node) => {
           const selected = node.id === selectedId;
           return (
@@ -429,16 +495,18 @@ const AssetNodeIndex: React.FC<{
               key={node.id}
               type="button"
               onClick={() => onSelect(node.id)}
-              className={`flex min-w-0 items-center justify-between gap-2 rounded-sm border px-2 py-1.5 text-left transition ${
+              className={`relative grid min-h-10 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition ${
                 selected
-                  ? "border-book-primary bg-book-bg-paper text-book-text-main"
-                  : "border-book-border/70 bg-book-bg-paper/70 text-book-text-muted hover:border-book-primary/50 hover:text-book-primary"
+                  ? "bg-book-primary/8 text-book-text-main shadow-[inset_3px_0_0_rgb(var(--color-primary))]"
+                  : "text-book-text-muted hover:bg-book-bg-tertiary/65 hover:text-book-text-main"
               }`}
-              title={`${node.label} / ${node.asset_type}`}
+              title={node.label}
             >
-              <span className="min-w-0 truncate text-[11px] font-semibold">{node.label}</span>
-              <span className="shrink-0 rounded-sm border border-book-border bg-book-bg px-1.5 py-0.5 font-mono text-[10px]">
-                x{node.count}
+              <span className="min-w-0 truncate text-[11px] font-medium">
+                {node.label}
+              </span>
+              <span className="shrink-0 text-[10px] tabular-nums text-book-text-subtle">
+                {node.count} 项
               </span>
             </button>
           );
@@ -448,14 +516,17 @@ const AssetNodeIndex: React.FC<{
   );
 };
 
-const DetailTerm: React.FC<{ label: string; value: React.ReactNode; title?: string }> = ({
-  label,
-  value,
-  title,
-}) => (
+const DetailTerm: React.FC<{
+  label: string;
+  value: React.ReactNode;
+  title?: string;
+}> = ({ label, value, title }) => (
   <>
     <dt className="text-book-text-subtle">{label}</dt>
-    <dd className="min-w-0 truncate text-right text-book-text-main" title={title}>
+    <dd
+      className="min-w-0 truncate text-right text-book-text-main"
+      title={title}
+    >
       {value}
     </dd>
   </>
@@ -469,77 +540,85 @@ const SelectedAssetDetails: React.FC<{
   selectedRecordId: string | null;
   onSelectRecord: (recordId: string) => void;
   onOpenInputs: (record: AssetLineageRecord) => void;
-}> = ({ node, detail, loading, error, selectedRecordId, onSelectRecord, onOpenInputs }) => {
+}> = ({
+  node,
+  detail,
+  loading,
+  error,
+  selectedRecordId,
+  onSelectRecord,
+  onOpenInputs,
+}) => {
   if (!node) {
     return (
-      <div className="rounded-sm border border-book-border bg-book-bg px-2.5 py-3 text-[11px] text-book-text-subtle">
+      <div className="a4n-flat-surface mt-4 px-3 py-4 text-[11px] text-book-text-subtle">
         在画布中选择一个节点查看信息。
       </div>
     );
   }
 
   const records = detail?.records ?? [];
-  const selectedRecord = records.find((record) => record.id === selectedRecordId) ?? records[0] ?? null;
-  const inputCount = records.reduce((sum, record) => sum + record.generation_inputs.length, 0);
-  const warningCount = (detail?.warnings.length ?? 0)
-    + records.reduce((sum, record) => sum + record.warnings.length, 0);
+  const selectedRecord =
+    records.find((record) => record.id === selectedRecordId) ??
+    records[0] ??
+    null;
+  const inputCount = records.reduce(
+    (sum, record) => sum + record.generation_inputs.length,
+    0,
+  );
+  const warningCount =
+    (detail?.warnings.length ?? 0) +
+    records.reduce((sum, record) => sum + record.warnings.length, 0);
+  const nodeStatus = node.status ? getOperationStatusLabel(node.status) : null;
 
   return (
-    <div className="rounded-sm border border-book-border bg-book-bg px-2.5 py-2.5">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h4 className="truncate text-xs font-semibold text-book-text-main" title={node.label}>
-            选中资产详情
-          </h4>
-          <div className="mt-1 truncate text-[12px] font-semibold text-book-text-main" title={node.label}>
-            {node.label}
-          </div>
-          <div className="mt-0.5 truncate font-mono text-[10px] text-book-text-subtle" title={node.id}>
-            {node.id}
-          </div>
-        </div>
-        <span className="shrink-0 rounded-sm border border-book-border bg-book-bg-paper px-1.5 py-0.5 text-[10px] text-book-text-muted">
-          x{node.count}
-        </span>
+    <section className="a4n-flat-surface mt-4 overflow-hidden">
+      <div className="px-3 py-3">
+        <h3
+          className="truncate text-sm font-semibold text-book-text-main"
+          title={node.label}
+        >
+          {node.label}
+        </h3>
+        <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+          {[
+            kindLabel(node.kind),
+            assetTypeLabel(node.asset_type),
+            nodeStatus,
+            `${node.count} 项`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+        {node.summary ? (
+          <p className="mt-2 text-[11px] leading-relaxed text-book-text-muted">
+            {node.summary}
+          </p>
+        ) : null}
       </div>
 
-      {node.summary ? (
-        <p className="mt-2 rounded-sm border border-book-border/70 bg-book-bg-paper px-2 py-1.5 text-[11px] leading-relaxed text-book-text-muted">
-          {node.summary}
-        </p>
-      ) : null}
-
-      <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[11px]">
-        <DetailTerm
-          label="类型"
-          value={`${kindLabel(node.kind)} / ${node.asset_type}`}
-          title={`${node.kind} / ${node.asset_type}`}
-        />
-        <DetailTerm label="状态" value={node.status ?? "未标记"} title={node.status ?? "未标记"} />
-        <DetailTerm label="记录数" value={detail ? records.length : node.count} />
-        {node.chapter_id != null ? <DetailTerm label="章节" value={node.chapter_id} /> : null}
-        {node.profile_id != null ? <DetailTerm label="档案" value={node.profile_id} /> : null}
-        {node.record_id != null ? <DetailTerm label="记录" value={node.record_id} /> : null}
-      </dl>
-
       {loading ? (
-        <div className="mt-3 flex items-center rounded-sm border border-book-border/70 bg-book-bg-paper px-2 py-2 text-[11px] text-book-text-muted">
+        <div className="flex items-center border-t border-book-border/35 px-3 py-3 text-[11px] text-book-text-muted">
           <Loader2 size={13} className="mr-1.5 animate-spin" />
           正在加载来源记录…
         </div>
       ) : error ? (
-        <div className="mt-3 rounded-sm border border-error/40 bg-book-bg-paper px-2 py-2 text-[11px] leading-relaxed text-error">
+        <div className="border-t border-error/25 bg-error/5 px-3 py-3 text-[11px] leading-relaxed text-error">
           {error}
         </div>
       ) : detail ? (
         <>
-          <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
-            <MiniMetric label="来源记录" value={records.length} />
-            <MiniMetric label="生成输入" value={inputCount} />
-            <MiniMetric label="异常" value={warningCount} />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-book-border/35 px-3 py-2.5 text-[11px] text-book-text-muted">
+            <span>来源 {records.length}</span>
+            {inputCount > 0 ? <span>生成输入 {inputCount}</span> : null}
+            {warningCount > 0 ? (
+              <span className="text-warning">异常 {warningCount}</span>
+            ) : null}
           </div>
 
-          <WarningsBlock warnings={[...detail.warnings, ...(selectedRecord?.warnings ?? [])]} />
+          <WarningsBlock
+            warnings={[...detail.warnings, ...(selectedRecord?.warnings ?? [])]}
+          />
 
           <RecordPicker
             records={records}
@@ -547,31 +626,31 @@ const SelectedAssetDetails: React.FC<{
             onSelectRecord={onSelectRecord}
           />
 
-          <LineageRecordDetails record={selectedRecord} onOpenInputs={onOpenInputs} />
+          <LineageRecordDetails
+            node={node}
+            record={selectedRecord}
+            onOpenInputs={onOpenInputs}
+          />
         </>
       ) : (
-        <div className="mt-3 rounded-sm border border-book-border/70 bg-book-bg-paper px-2 py-2 text-[11px] leading-relaxed text-book-text-subtle">
+        <div className="border-t border-book-border/35 px-3 py-3 text-[11px] leading-relaxed text-book-text-subtle">
           当前节点没有返回来源详情。
         </div>
       )}
-    </div>
+    </section>
   );
 };
-
-const MiniMetric: React.FC<{ label: string; value: number }> = ({ label, value }) => (
-  <div className="rounded-sm border border-book-border bg-book-bg-paper px-1.5 py-1.5">
-    <div className="font-mono text-[12px] font-semibold text-book-text-main">{value}</div>
-    <div className="mt-0.5 text-[10px] text-book-text-subtle">{label}</div>
-  </div>
-);
 
 const WarningsBlock: React.FC<{ warnings: string[] }> = ({ warnings }) => {
   const unique = [...new Set(warnings.filter(Boolean))].slice(0, 4);
   if (!unique.length) return null;
   return (
-    <div className="mt-2 space-y-1 rounded-sm border border-book-border bg-book-bg-paper px-2 py-1.5">
+    <div className="space-y-1 border-t border-warning/20 bg-warning/5 px-3 py-2.5">
       {unique.map((warning) => (
-        <div key={warning} className="text-[11px] leading-relaxed text-book-text-muted">
+        <div
+          key={warning}
+          className="text-[11px] leading-relaxed text-book-text-muted"
+        >
           {warning}
         </div>
       ))}
@@ -586,16 +665,18 @@ const RecordPicker: React.FC<{
 }> = ({ records, selectedRecordId, onSelectRecord }) => {
   if (!records.length) {
     return (
-      <div className="mt-2 rounded-sm border border-book-border/70 bg-book-bg-paper px-2 py-2 text-[11px] text-book-text-subtle">
+      <div className="border-t border-book-border/35 px-3 py-3 text-[11px] text-book-text-subtle">
         没有可展示的具体记录。
       </div>
     );
   }
 
   return (
-    <div className="mt-3">
-      <div className="mb-1.5 text-[11px] font-semibold text-book-text-main">记录</div>
-      <div className="max-h-36 space-y-1 overflow-auto pr-1 custom-scrollbar">
+    <section className="border-t border-book-border/35 px-3 py-3">
+      <div className="text-[11px] font-semibold text-book-text-main">
+        来源记录
+      </div>
+      <div className="mt-2 divide-y divide-book-border/35 border-y border-book-border/35">
         {records.map((record) => {
           const selected = record.id === selectedRecordId;
           return (
@@ -603,82 +684,158 @@ const RecordPicker: React.FC<{
               key={record.id}
               type="button"
               onClick={() => onSelectRecord(record.id)}
-              className={`block w-full rounded-sm border px-2 py-1.5 text-left transition ${
+              className={`block w-full px-3 py-2 text-left transition ${
                 selected
-                  ? "border-book-primary bg-book-bg text-book-text-main"
-                  : "border-book-border bg-book-bg-paper text-book-text-muted hover:border-book-primary/50"
+                  ? "bg-book-primary/8 text-book-text-main shadow-[inset_3px_0_0_rgb(var(--color-primary))]"
+                  : "text-book-text-muted hover:bg-book-bg-tertiary/65"
               }`}
               title={record.label}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-[11px] font-semibold">{record.label}</span>
-                <span className="shrink-0 font-mono text-[10px]">
-                  {record.generation_inputs.length}i
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                <span className="min-w-0 truncate text-[11px] font-semibold">
+                  {record.label}
                 </span>
+                {record.generation_inputs.length > 0 ? (
+                  <span className="shrink-0 text-[10px] text-book-text-subtle">
+                    输入 {record.generation_inputs.length}
+                  </span>
+                ) : null}
               </div>
-              <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px]">
-                <span className="min-w-0 truncate">{originLabel(record.origin)}</span>
-                <span className="shrink-0 truncate">{record.status ?? record.asset_kind}</span>
+              <div className="mt-0.5 truncate text-[10px] text-book-text-subtle">
+                {[
+                  originLabel(record.origin),
+                  record.status ? getOperationStatusLabel(record.status) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </div>
             </button>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 };
 
 const LineageRecordDetails: React.FC<{
+  node: AssetGraphNode;
   record: AssetLineageRecord | null;
   onOpenInputs: (record: AssetLineageRecord) => void;
-}> = ({ record, onOpenInputs }) => {
+}> = ({ node, record, onOpenInputs }) => {
   if (!record) return null;
   return (
-    <div className="mt-3 space-y-2">
+    <section className="border-t border-book-border/35 px-3 py-3">
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[11px]">
-        <DetailTerm label="来源" value={originLabel(record.origin)} title={record.origin} />
-        <DetailTerm label="资产" value={record.asset_kind} title={record.asset_kind} />
-        {record.asset_id != null ? <DetailTerm label="ID" value={record.asset_id} /> : null}
-        <DetailTerm label="状态" value={record.status ?? "未标记"} title={record.status ?? "未标记"} />
+        <DetailTerm label="来源" value={originLabel(record.origin)} />
+        <DetailTerm label="资产" value={assetTypeLabel(record.asset_kind)} />
+        <DetailTerm
+          label="状态"
+          value={
+            record.status ? getOperationStatusLabel(record.status) : "未标记"
+          }
+        />
       </dl>
 
-      <RefList title="上游" refs={record.source_refs} emptyText="没有记录上游来源。" />
-      <GenerationInputAccess record={record} onOpenInputs={onOpenInputs} />
-      <RefList title="媒体引用" refs={record.media_sources} emptyText="没有媒体引用。" />
-
-      <JsonBlock title="结果" value={record.result} defaultOpen />
-
-      {record.request_snapshot ? (
-        <JsonBlock title="请求快照" value={record.request_snapshot} />
-      ) : null}
-    </div>
+      <RefList
+        title="上游"
+        refs={record.source_refs}
+        emptyText="没有记录上游来源。"
+      />
+      <RefList
+        title="媒体引用"
+        refs={record.media_sources}
+        emptyText="没有媒体引用。"
+      />
+      <details className="mt-3 border-t border-book-border/35 pt-1 text-[10px] text-book-text-muted">
+        <summary className="cursor-pointer py-2 hover:text-book-text-main">
+          诊断信息
+        </summary>
+        <div className="space-y-2 border-l border-book-border/35 pl-3">
+          <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 py-1.5">
+            <DetailTerm label="节点标识" value={node.id} title={node.id} />
+            <DetailTerm label="节点类型" value={node.kind} title={node.kind} />
+            <DetailTerm
+              label="节点资产"
+              value={node.asset_type}
+              title={node.asset_type}
+            />
+            {node.chapter_id != null ? (
+              <DetailTerm label="章节编号" value={node.chapter_id} />
+            ) : null}
+            {node.profile_id != null ? (
+              <DetailTerm label="档案编号" value={node.profile_id} />
+            ) : null}
+            {node.record_id != null ? (
+              <DetailTerm label="节点记录" value={node.record_id} />
+            ) : null}
+            <DetailTerm
+              label="变更策略"
+              value={node.mutation_policy}
+              title={node.mutation_policy}
+            />
+            <DetailTerm label="记录标识" value={record.id} title={record.id} />
+            <DetailTerm
+              label="资产类型"
+              value={record.asset_kind}
+              title={record.asset_kind}
+            />
+            {record.asset_id != null ? (
+              <DetailTerm label="资产编号" value={record.asset_id} />
+            ) : null}
+            <DetailTerm
+              label="来源类型"
+              value={record.origin}
+              title={record.origin}
+            />
+            {record.status ? (
+              <DetailTerm
+                label="原始状态"
+                value={record.status}
+                title={record.status}
+              />
+            ) : null}
+          </dl>
+          <GenerationInputAccess record={record} onOpenInputs={onOpenInputs} />
+          <JsonBlock title="结果原始记录" value={record.result} />
+          {record.request_snapshot ? (
+            <JsonBlock title="请求快照" value={record.request_snapshot} />
+          ) : null}
+        </div>
+      </details>
+    </section>
   );
 };
 
-const RefList: React.FC<{ title: string; refs: AssetLineageRef[]; emptyText: string }> = ({
-  title,
-  refs,
-  emptyText,
-}) => (
-  <div className="rounded-sm border border-book-border bg-book-bg-paper">
-    <div className="border-b border-book-border/70 px-2 py-1 text-[11px] font-semibold text-book-text-main">
-      {title}
-    </div>
+const RefList: React.FC<{
+  title: string;
+  refs: AssetLineageRef[];
+  emptyText: string;
+}> = ({ title, refs, emptyText }) => (
+  <section className="mt-3 border-t border-book-border/35 pt-3">
+    <div className="text-[11px] font-semibold text-book-text-main">{title}</div>
     {refs.length ? (
-      <div className="space-y-1 px-2 py-1.5">
+      <div className="mt-1.5 divide-y divide-book-border/30">
         {refs.slice(0, 6).map((ref) => (
-          <div key={ref.id} className="flex min-w-0 items-center justify-between gap-2 text-[11px]">
-            <span className="min-w-0 truncate text-book-text-main" title={ref.label}>
+          <div
+            key={ref.id}
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-[11px]"
+          >
+            <span
+              className="min-w-0 truncate text-book-text-main"
+              title={ref.label}
+            >
               {ref.label}
             </span>
-            <span className="shrink-0 font-mono text-[10px] text-book-text-subtle">{ref.asset_type}</span>
+            <span className="shrink-0 text-[10px] text-book-text-subtle">
+              {assetTypeLabel(ref.asset_type)}
+            </span>
           </div>
         ))}
       </div>
     ) : (
-      <div className="px-2 py-1.5 text-[11px] text-book-text-subtle">{emptyText}</div>
+      <div className="mt-1 text-[11px] text-book-text-subtle">{emptyText}</div>
     )}
-  </div>
+  </section>
 );
 
 const GenerationInputAccess: React.FC<{
@@ -687,25 +844,25 @@ const GenerationInputAccess: React.FC<{
 }> = ({ record, onOpenInputs }) => {
   const inputs = record.generation_inputs;
   return (
-    <div className="rounded-sm border border-book-border bg-book-bg-paper">
-      <div className="flex items-center justify-between gap-2 border-b border-book-border/70 px-2 py-1">
-        <span className="text-[11px] font-semibold text-book-text-main">生成输入</span>
-        <span className="font-mono text-[10px] text-book-text-subtle">{inputStatusLabel(record.input_status)}</span>
-      </div>
+    <div className="border-t border-book-border/30 py-2">
       {inputs.length ? (
-        <div className="px-2 py-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 text-[10px] text-book-text-muted">
+            生成输入 · {inputs.length} 项 ·{" "}
+            {inputStatusLabel(record.input_status)}
+          </div>
           <button
             type="button"
             onClick={() => onOpenInputs(record)}
-            className="inline-flex h-7 w-full items-center justify-center gap-1.5 rounded-sm border border-book-border bg-book-bg px-2 text-[11px] font-semibold text-book-text-muted transition hover:border-book-primary/50 hover:text-book-primary"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-medium text-book-primary transition hover:bg-book-primary/10"
             title="查看生成该资产的完整输入包"
           >
-            <FileText size={12} />
-            查看生成输入
+            <FileText size={11} />
+            查看
           </button>
         </div>
       ) : (
-        <div className="px-2 py-1.5 text-[11px] text-book-text-subtle">
+        <div className="text-[10px] leading-relaxed text-book-text-subtle">
           {generationInputEmptyText(record.input_status)}
         </div>
       )}
@@ -713,68 +870,72 @@ const GenerationInputAccess: React.FC<{
   );
 };
 
-const PromptViewerOverlay: React.FC<{
+const PromptViewerModal: React.FC<{
   viewer: InputViewerState | null;
   onClose: () => void;
 }> = ({ viewer, onClose }) => {
   if (!viewer) return null;
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 p-4">
-      <div className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-sm border border-book-border bg-book-bg-paper shadow-xl">
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-book-border bg-book-bg-tertiary px-3 py-2.5">
-          <div className="min-w-0">
-            <h4 className="truncate text-sm font-semibold text-book-text-main" title={viewer.recordLabel}>
-              生成输入
-            </h4>
-            <div className="mt-0.5 truncate text-[11px] text-book-text-muted" title={viewer.recordLabel}>
-              {viewer.recordLabel}
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="生成输入"
+      subtitle={viewer.recordLabel}
+      icon={<FileText size={15} />}
+      maxWidthClassName="max-w-5xl"
+      bodyClassName="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar"
+      zIndexClassName="z-[70]"
+    >
+      <div className="space-y-3">
+        {groupGenerationInputs(viewer.inputs).map(([group, inputs]) => (
+          <section key={group} className="a4n-flat-surface overflow-hidden">
+            <div className="border-b border-book-border/35 px-3 py-2.5">
+              <div className="text-xs font-semibold text-book-text-main">
+                {inputGroupLabel(group)}
+              </div>
+              <div className="mt-0.5 text-[10px] tabular-nums text-book-text-subtle">
+                {inputs.length} 项
+              </div>
             </div>
-          </div>
-          <BookButton variant="secondary" size="sm" onClick={onClose}>
-            关闭
-          </BookButton>
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto p-3 custom-scrollbar">
-          <div className="space-y-3">
-            {groupGenerationInputs(viewer.inputs).map(([group, inputs]) => (
-              <section key={group} className="rounded-sm border border-book-border bg-book-bg">
-                <div className="border-b border-book-border/70 px-2.5 py-1.5 text-[11px] font-semibold text-book-text-main">
-                  {inputGroupLabel(group)}
-                </div>
-                <div className="space-y-2 p-2">
-                  {inputs.map((input) => (
-                    <GenerationInputCard key={input.id} input={input} />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </div>
+            <div className="divide-y divide-book-border/35">
+              {inputs.map((input) => (
+                <GenerationInputCard key={input.id} input={input} />
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
-    </div>
+    </Modal>
   );
 };
 
-const GenerationInputCard: React.FC<{ input: GenerationInputSource }> = ({ input }) => {
+const GenerationInputCard: React.FC<{ input: GenerationInputSource }> = ({
+  input,
+}) => {
   const title = input.label || inputKindLabel(input.kind);
   return (
-    <div className="overflow-hidden rounded-sm border border-book-border/70 bg-book-bg-paper">
-      <div className="flex items-center justify-between gap-2 border-b border-book-border/70 px-2 py-1">
-        <div className="min-w-0 truncate text-[10px] font-semibold text-book-text-muted" title={title}>
+    <article className="px-3 py-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <h4
+          className="min-w-0 truncate text-[11px] font-semibold text-book-text-main"
+          title={title}
+        >
           {title}
-        </div>
-        <div className="shrink-0 font-mono text-[9px] text-book-text-subtle">
-          {input.content_type}
-        </div>
+        </h4>
+        <span className="shrink-0 text-[10px] text-book-text-subtle">
+          {contentTypeLabel(input.content_type)}
+        </span>
       </div>
-      <div className="max-h-[58vh] overflow-auto px-2 py-2 custom-scrollbar">
+      <div className="mt-2">
         <GenerationInputBody input={input} />
       </div>
-    </div>
+    </article>
   );
 };
 
-const GenerationInputBody: React.FC<{ input: GenerationInputSource }> = ({ input }) => {
+const GenerationInputBody: React.FC<{ input: GenerationInputSource }> = ({
+  input,
+}) => {
   const value = generationInputValue(input);
   if (input.kind === "rendered_messages") {
     return <RenderedMessagesView value={value} />;
@@ -793,14 +954,12 @@ const RenderedMessagesView: React.FC<{ value: unknown }> = ({ value }) => {
     return (
       <div className="space-y-3">
         {value.map((stage, index) => (
-          <section key={`${String(stage.stage ?? index)}-${index}`} className="space-y-1.5">
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-book-text-main">
-              <span className="rounded-sm border border-book-border bg-book-bg px-1.5 py-0.5 font-mono text-[10px] text-book-text-muted">
-                {index + 1}
-              </span>
-              <span className="min-w-0 truncate" title={String(stage.stage ?? "阶段")}>
-                {String(stage.stage ?? "阶段")}
-              </span>
+          <section
+            key={`${String(stage.stage ?? index)}-${index}`}
+            className="space-y-2"
+          >
+            <div className="text-[11px] font-semibold text-book-text-main">
+              第 {index + 1} 阶段
             </div>
             <MessageList value={stage.messages} />
           </section>
@@ -816,33 +975,46 @@ const MessageList: React.FC<{ value: unknown }> = ({ value }) => {
     return <StructuredValueView value={value} />;
   }
   if (!value.length) {
-    return <span className="text-[12px] text-book-text-subtle">空消息列表</span>;
+    return (
+      <span className="text-[12px] text-book-text-subtle">空消息列表</span>
+    );
   }
   return (
-    <div className="space-y-2">
+    <div className="divide-y divide-book-border/30 border-y border-book-border/30">
       {value.map((message, index) => (
-        <MessageBlock key={`${String(message.role ?? "message")}-${index}`} message={message} index={index} />
+        <MessageBlock
+          key={`${String(message.role ?? "message")}-${index}`}
+          message={message}
+          index={index}
+        />
       ))}
     </div>
   );
 };
 
-const MessageBlock: React.FC<{ message: Record<string, unknown>; index: number }> = ({ message, index }) => {
-  const role = typeof message.role === "string" && message.role.trim() ? message.role : "message";
+const MessageBlock: React.FC<{
+  message: Record<string, unknown>;
+  index: number;
+}> = ({ message, index }) => {
+  const role =
+    typeof message.role === "string" && message.role.trim()
+      ? message.role
+      : "message";
   const content = message.content;
-  const extraEntries = Object.entries(message).filter(([key]) => key !== "role" && key !== "content");
+  const extraEntries = Object.entries(message).filter(
+    ([key]) => key !== "role" && key !== "content",
+  );
   return (
-    <article className="overflow-hidden rounded-sm border border-book-border bg-book-bg">
-      <div className="flex items-center justify-between gap-2 border-b border-book-border/70 px-2 py-1">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="rounded-sm border border-book-border bg-book-bg-paper px-1.5 py-0.5 font-mono text-[10px] text-book-text-muted">
-            {index + 1}
-          </span>
-          <span className="truncate text-[11px] font-semibold text-book-text-main">{messageRoleLabel(role)}</span>
-        </div>
-        <span className="shrink-0 font-mono text-[9px] text-book-text-subtle">{role}</span>
+    <article className="py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] font-semibold text-book-text-main">
+          {messageRoleLabel(role)}
+        </span>
+        <span className="text-[10px] tabular-nums text-book-text-subtle">
+          消息 {index + 1}
+        </span>
       </div>
-      <div className="px-2 py-1.5">
+      <div className="mt-2">
         {typeof content === "string" ? (
           <TextBlock text={normalizeDisplayText(content)} />
         ) : (
@@ -864,18 +1036,26 @@ const RenderedPromptsView: React.FC<{ value: unknown }> = ({ value }) => {
   }
   if (Array.isArray(value)) {
     return (
-      <div className="space-y-2">
+      <div className="divide-y divide-book-border/30 border-y border-book-border/30">
         {value.map((item, index) => (
-          <PromptValueBlock key={index} title={`提示词 ${index + 1}`} value={item} />
+          <PromptValueBlock
+            key={index}
+            title={`提示词 ${index + 1}`}
+            value={item}
+          />
         ))}
       </div>
     );
   }
   if (isRecord(value)) {
     return (
-      <div className="space-y-2">
+      <div className="divide-y divide-book-border/30 border-y border-book-border/30">
         {Object.entries(value).map(([key, item]) => (
-          <PromptValueBlock key={key} title={key.replace(/_/g, " ")} value={item} />
+          <PromptValueBlock
+            key={key}
+            title={key.replace(/_/g, " ")}
+            value={item}
+          />
         ))}
       </div>
     );
@@ -883,18 +1063,28 @@ const RenderedPromptsView: React.FC<{ value: unknown }> = ({ value }) => {
   return <StructuredValueView value={value} />;
 };
 
-const PromptValueBlock: React.FC<{ title: string; value: unknown }> = ({ title, value }) => (
-  <section className="overflow-hidden rounded-sm border border-book-border bg-book-bg">
-    <div className="border-b border-book-border/70 px-2 py-1 text-[11px] font-semibold text-book-text-main">
+const PromptValueBlock: React.FC<{ title: string; value: unknown }> = ({
+  title,
+  value,
+}) => (
+  <section className="py-2.5">
+    <div className="text-[11px] font-semibold text-book-text-main">
       {title}
     </div>
-    <div className="px-2 py-1.5">
-      {typeof value === "string" ? <TextBlock text={value} /> : <StructuredValueView value={value} />}
+    <div className="mt-1.5">
+      {typeof value === "string" ? (
+        <TextBlock text={value} />
+      ) : (
+        <StructuredValueView value={value} />
+      )}
     </div>
   </section>
 );
 
-const StructuredValueView: React.FC<{ value: unknown; depth?: number }> = ({ value, depth = 0 }) => {
+const StructuredValueView: React.FC<{ value: unknown; depth?: number }> = ({
+  value,
+  depth = 0,
+}) => {
   if (value == null) {
     return <span className="text-[12px] text-book-text-subtle">null</span>;
   }
@@ -902,7 +1092,11 @@ const StructuredValueView: React.FC<{ value: unknown; depth?: number }> = ({ val
     return <TextBlock text={value} />;
   }
   if (typeof value === "number" || typeof value === "boolean") {
-    return <span className="font-mono text-[12px] text-book-text-main">{String(value)}</span>;
+    return (
+      <span className="font-mono text-[12px] text-book-text-main">
+        {String(value)}
+      </span>
+    );
   }
   if (Array.isArray(value)) {
     if (!value.length) {
@@ -912,50 +1106,61 @@ const StructuredValueView: React.FC<{ value: unknown; depth?: number }> = ({ val
       return <MessageList value={value} />;
     }
     return (
-      <div className="space-y-1.5">
+      <div className="divide-y divide-book-border/25 border-y border-book-border/30">
         {value.map((item, index) => (
-          <StructuredValueItem key={index} title={`#${index + 1}`} value={item} depth={depth} />
+          <StructuredValueItem
+            key={index}
+            title={`#${index + 1}`}
+            value={item}
+            depth={depth}
+          />
         ))}
       </div>
     );
   }
   if (isRecord(value)) {
-    return <StructuredEntriesView entries={Object.entries(value)} depth={depth} />;
+    return (
+      <StructuredEntriesView entries={Object.entries(value)} depth={depth} />
+    );
   }
   return <TextBlock text={String(value)} />;
 };
 
-const StructuredEntriesView: React.FC<{ entries: Array<[string, unknown]>; depth: number }> = ({
-  entries,
-  depth,
-}) => {
+const StructuredEntriesView: React.FC<{
+  entries: Array<[string, unknown]>;
+  depth: number;
+}> = ({ entries, depth }) => {
   if (!entries.length) {
     return <span className="text-[12px] text-book-text-subtle">空对象</span>;
   }
   return (
-    <div className="space-y-1.5">
+    <div className="divide-y divide-book-border/25 border-y border-book-border/30">
       {entries.map(([key, value]) => (
-        <StructuredValueItem key={key} title={key.replace(/_/g, " ")} value={value} depth={depth} />
+        <StructuredValueItem
+          key={key}
+          title={key.replace(/_/g, " ")}
+          value={value}
+          depth={depth}
+        />
       ))}
     </div>
   );
 };
 
-const StructuredValueItem: React.FC<{ title: string; value: unknown; depth: number }> = ({
-  title,
-  value,
-  depth,
-}) => {
+const StructuredValueItem: React.FC<{
+  title: string;
+  value: unknown;
+  depth: number;
+}> = ({ title, value, depth }) => {
   if (typeof value === "string") {
     const parsed = normalizeSerializedValue(value);
     if (typeof parsed !== "string") {
       const parsedSummary = structuredValueSummary(parsed);
       return (
         <details
-          className="overflow-hidden rounded-sm border border-book-border/70 bg-book-bg"
           open={shouldAutoOpenStructuredValue(parsed, depth)}
         >
-          <summary className="cursor-pointer px-2 py-1 text-[11px] font-semibold text-book-text-muted">
+          <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-muted hover:text-book-text-main">
             <span>{title}</span>
             {parsedSummary ? (
               <span className="ml-2 font-mono text-[10px] font-normal text-book-text-subtle">
@@ -963,61 +1168,76 @@ const StructuredValueItem: React.FC<{ title: string; value: unknown; depth: numb
               </span>
             ) : null}
           </summary>
-          <div className="border-t border-book-border/70 px-2 py-1.5">
+          <div className="border-l border-book-border/35 pb-2 pl-3">
             <StructuredValueView value={parsed} depth={depth + 1} />
           </div>
         </details>
       );
     }
     const text = parsed;
-    const compact = !text.includes("\n") && text.length <= INLINE_TEXT_MAX_CHARS;
+    const compact =
+      !text.includes("\n") && text.length <= INLINE_TEXT_MAX_CHARS;
     return compact ? (
-      <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-2 rounded-sm border border-book-border/70 bg-book-bg px-2 py-1 text-[11px]">
-        <div className="truncate font-semibold text-book-text-muted" title={title}>
+      <div className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] gap-2 py-2 text-[11px]">
+        <div
+          className="truncate font-semibold text-book-text-muted"
+          title={title}
+        >
           {title}
         </div>
         <div className="min-w-0 break-words text-book-text-main">{text}</div>
       </div>
     ) : (
       <details
-        className="overflow-hidden rounded-sm border border-book-border/70 bg-book-bg"
         open={text.length <= AUTO_OPEN_TEXT_MAX_CHARS && depth === 0}
       >
-        <summary className="cursor-pointer px-2 py-1 text-[11px] font-semibold text-book-text-muted">
+        <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-muted hover:text-book-text-main">
           <span>{title}</span>
           <span className="ml-2 font-mono text-[10px] font-normal text-book-text-subtle">
             {textSummary(text)}
           </span>
         </summary>
-        <div className="px-2 py-1.5">
+        <div className="border-l border-book-border/35 pb-2 pl-3">
           <TextBlock text={text} />
         </div>
       </details>
     );
   }
-  if (value == null || typeof value === "number" || typeof value === "boolean") {
+  if (
+    value == null ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
     return (
-      <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-2 rounded-sm border border-book-border/70 bg-book-bg px-2 py-1 text-[11px]">
-        <div className="truncate font-semibold text-book-text-muted" title={title}>
+      <div className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] gap-2 py-2 text-[11px]">
+        <div
+          className="truncate font-semibold text-book-text-muted"
+          title={title}
+        >
           {title}
         </div>
-        <div className="min-w-0 break-words font-mono text-book-text-main">{String(value)}</div>
+        <div className="min-w-0 break-words font-mono text-book-text-main">
+          {String(value)}
+        </div>
       </div>
     );
   }
-  if (title === "messages" && Array.isArray(value) && value.every(isChatMessageLike)) {
+  if (
+    title === "messages" &&
+    Array.isArray(value) &&
+    value.every(isChatMessageLike)
+  ) {
     return (
       <details
-        className="overflow-hidden rounded-sm border border-book-border/70 bg-book-bg"
         open={value.length <= AUTO_OPEN_ARRAY_MAX_ITEMS && depth === 0}
       >
-        <summary className="cursor-pointer px-2 py-1 text-[11px] font-semibold text-book-text-muted">
+        <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-muted hover:text-book-text-main">
           <span>{title}</span>
           <span className="ml-2 font-mono text-[10px] font-normal text-book-text-subtle">
             {value.length} 条消息
           </span>
         </summary>
-        <div className="space-y-1.5 border-t border-book-border/70 px-2 py-1.5">
+        <div className="border-l border-book-border/35 pb-2 pl-3">
           <MessageList value={value} />
         </div>
       </details>
@@ -1026,10 +1246,9 @@ const StructuredValueItem: React.FC<{ title: string; value: unknown; depth: numb
   const summary = structuredValueSummary(value);
   return (
     <details
-      className="overflow-hidden rounded-sm border border-book-border/70 bg-book-bg"
       open={shouldAutoOpenStructuredValue(value, depth)}
     >
-      <summary className="cursor-pointer px-2 py-1 text-[11px] font-semibold text-book-text-muted">
+      <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-muted hover:text-book-text-main">
         <span>{title}</span>
         {summary ? (
           <span className="ml-2 font-mono text-[10px] font-normal text-book-text-subtle">
@@ -1037,7 +1256,7 @@ const StructuredValueItem: React.FC<{ title: string; value: unknown; depth: numb
           </span>
         ) : null}
       </summary>
-      <div className="border-t border-book-border/70 px-2 py-1.5">
+      <div className="border-l border-book-border/35 pb-2 pl-3">
         <StructuredValueView value={value} depth={depth + 1} />
       </div>
     </details>
@@ -1047,7 +1266,8 @@ const StructuredValueItem: React.FC<{ title: string; value: unknown; depth: numb
 function shouldAutoOpenStructuredValue(value: unknown, depth: number): boolean {
   if (depth > 0) return false;
   if (Array.isArray(value)) return value.length <= AUTO_OPEN_ARRAY_MAX_ITEMS;
-  if (isRecord(value)) return Object.keys(value).length <= AUTO_OPEN_OBJECT_MAX_FIELDS;
+  if (isRecord(value))
+    return Object.keys(value).length <= AUTO_OPEN_OBJECT_MAX_FIELDS;
   return true;
 }
 
@@ -1059,25 +1279,26 @@ function structuredValueSummary(value: unknown): string | null {
 
 function textSummary(text: string): string {
   const lines = text.split("\n").length;
-  return lines > 1 ? `${text.length} 字符 / ${lines} 行` : `${text.length} 字符`;
+  return lines > 1
+    ? `${text.length} 字符 / ${lines} 行`
+    : `${text.length} 字符`;
 }
 
 const TextBlock: React.FC<{ text: string }> = ({ text }) => (
-  <pre className="m-0 max-h-[44vh] overflow-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-book-text-main custom-scrollbar">
+  <pre className="m-0 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-book-text-main">
     {normalizeDisplayText(text)}
   </pre>
 );
 
-const JsonBlock: React.FC<{ title: string; value: unknown; defaultOpen?: boolean }> = ({
+const JsonBlock: React.FC<{ title: string; value: unknown }> = ({
   title,
   value,
-  defaultOpen,
 }) => (
-  <details className="rounded-sm border border-book-border bg-book-bg-paper" open={defaultOpen}>
-    <summary className="cursor-pointer px-2 py-1 text-[11px] font-semibold text-book-text-main">
+  <details className="border-t border-book-border/30 py-1">
+    <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-main">
       {title}
     </summary>
-    <div className="max-h-[52vh] overflow-auto border-t border-book-border/70 px-2 py-1.5 custom-scrollbar">
+    <div className="border-l border-book-border/35 pb-2 pl-3">
       <StructuredValueView value={normalizeSerializedValue(value)} />
     </div>
   </details>
@@ -1090,7 +1311,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function originLabel(origin: string): string {
   const labels: Record<string, string> = {
     derived_text: "文本派生",
-    llm_generated: "LLM 生成",
+    llm_generated: "模型生成",
     image_generated: "图片生成",
     video_generated: "视频生成",
     uploaded: "用户上传",
@@ -1099,7 +1320,7 @@ function originLabel(origin: string): string {
     extracted_frame: "抽帧生成",
     unknown: "来源不明",
   };
-  return labels[origin] ?? origin;
+  return labels[origin] ?? "其他来源";
 }
 
 function inputStatusLabel(status: string): string {
@@ -1108,18 +1329,29 @@ function inputStatusLabel(status: string): string {
   if (status === "run_without_inputs") return "无快照";
   if (status === "structural") return "结构来源";
   if (status === "not_applicable") return "不适用";
-  return status;
+  return "状态未知";
 }
 
 function generationInputEmptyText(status: string): string {
-  if (status === "structural") return "该记录已有结构化上游，但没有单独的生成输入快照。";
+  if (status === "structural")
+    return "该记录已有结构化上游，但没有单独的生成输入快照。";
   if (status === "not_applicable") return "该记录不需要生成输入快照。";
   if (status === "run_without_inputs") return "生成运行存在，但缺少输入快照。";
   return "缺少生成输入记录。";
 }
 
-function groupGenerationInputs(inputs: GenerationInputSource[]): Array<[string, GenerationInputSource[]]> {
-  const order = ["prompt", "variables", "source_text", "media", "request", "model", "response"];
+function groupGenerationInputs(
+  inputs: GenerationInputSource[],
+): Array<[string, GenerationInputSource[]]> {
+  const order = [
+    "prompt",
+    "variables",
+    "source_text",
+    "media",
+    "request",
+    "model",
+    "response",
+  ];
   const grouped = new Map<string, GenerationInputSource[]>();
   inputs.forEach((input) => {
     const list = grouped.get(input.group) ?? [];
@@ -1143,7 +1375,7 @@ function inputGroupLabel(group: string): string {
     model: "模型配置",
     response: "响应摘要",
   };
-  return labels[group] ?? group.replace(/_/g, " ");
+  return labels[group] ?? "其他输入";
 }
 
 function inputKindLabel(kind: string): string {
@@ -1167,12 +1399,22 @@ function inputKindLabel(kind: string): string {
     video_negative_prompt: "负面提示词",
     video_visual_prompt: "视觉提示词",
   };
-  return labels[kind] ?? kind.replace(/_/g, " ");
+  return labels[kind] ?? "其他输入";
+}
+
+function contentTypeLabel(contentType: string): string {
+  const labels: Record<string, string> = {
+    text: "文本",
+    json: "结构化数据",
+    media_ref: "媒体引用",
+  };
+  return labels[contentType] ?? "其他内容";
 }
 
 function generationInputValue(input: GenerationInputSource): unknown {
   if (input.value != null) return normalizeSerializedValue(input.value);
-  if (input.text != null && input.text.trim()) return normalizeSerializedValue(input.text);
+  if (input.text != null && input.text.trim())
+    return normalizeSerializedValue(input.text);
   return "";
 }
 
@@ -1192,9 +1434,9 @@ function parseJsonLikeString(text: string): unknown | undefined {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
   const startsLikeJson =
-    (trimmed.startsWith("{") && trimmed.endsWith("}"))
-    || (trimmed.startsWith("[") && trimmed.endsWith("]"))
-    || (trimmed.startsWith("\"") && trimmed.endsWith("\""));
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"'));
   if (!startsLikeJson) return undefined;
   try {
     return JSON.parse(trimmed);
@@ -1225,8 +1467,12 @@ function isChatMessageLike(value: unknown): value is Record<string, unknown> {
   return "content" in value || "role" in value;
 }
 
-function isGenerationStageMessages(value: unknown): value is { stage?: unknown; messages: unknown } {
-  return isRecord(value) && "messages" in value && Array.isArray(value.messages);
+function isGenerationStageMessages(
+  value: unknown,
+): value is { stage?: unknown; messages: unknown } {
+  return (
+    isRecord(value) && "messages" in value && Array.isArray(value.messages)
+  );
 }
 
 function messageRoleLabel(role: string): string {
@@ -1237,5 +1483,5 @@ function messageRoleLabel(role: string): string {
     tool: "工具",
     message: "消息",
   };
-  return labels[role] ?? role;
+  return labels[role] ?? "消息";
 }

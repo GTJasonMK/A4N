@@ -1,22 +1,24 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { KeyRound, Loader2, RefreshCw, UserRound } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { useToast } from "../../../components/feedback/Toast";
-import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../../api";
 import {
   changeUserPassword,
   getUser,
   listSessions,
   refreshToken,
-  revokeSession,
   updateUserProfile,
+  type SessionSummary,
 } from "../../../api/auth";
-import { useAuthStore } from "../../../store/auth";
+import { formatUiDateTime } from "../../../utils/dateTime";
 import { nonEmptyText, textInputValue } from "../../../utils/text";
 
-export const ProfileEditor: React.FC<{ userId: number }> = ({ userId }) => {
+export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = ({
+  userId,
+  embedded = false,
+}) => {
   const { addToast } = useToast();
   const [email, setEmail] = useState("");
   const [avatar, setAvatar] = useState("");
@@ -29,6 +31,10 @@ export const ProfileEditor: React.FC<{ userId: number }> = ({ userId }) => {
   const saveSeqRef = useRef(0);
   const editVersionRef = useRef(0);
   const busyRef = useRef(false);
+  const savedProfileRef = useRef({ email: "", avatar: "" });
+  const profileDirty =
+    email !== savedProfileRef.current.email ||
+    avatar !== savedProfileRef.current.avatar;
 
   activeUserIdRef.current = userId;
 
@@ -68,9 +74,13 @@ export const ProfileEditor: React.FC<{ userId: number }> = ({ userId }) => {
       try {
         const user = await getUser(requestUserId);
         if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
+        savedProfileRef.current = {
+          email: textInputValue(user.email),
+          avatar: textInputValue(user.avatar_url),
+        };
         editVersionRef.current += 1;
-        setEmail(textInputValue(user.email));
-        setAvatar(textInputValue(user.avatar_url));
+        setEmail(savedProfileRef.current.email);
+        setAvatar(savedProfileRef.current.avatar);
       } catch (err) {
         if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
         const message = extractErrorMessage(err, "加载资料失败");
@@ -83,7 +93,7 @@ export const ProfileEditor: React.FC<{ userId: number }> = ({ userId }) => {
   }, [addToast, isCurrentUser, userId]);
 
   const handleSave = async () => {
-    if (busyRef.current) return;
+    if (busyRef.current || !profileDirty) return;
     const requestUserId = userId;
     const requestSeq = saveSeqRef.current + 1;
     const requestEditVersion = editVersionRef.current;
@@ -98,10 +108,14 @@ export const ProfileEditor: React.FC<{ userId: number }> = ({ userId }) => {
         avatar_url: nonEmptyText(requestAvatar),
       });
       if (!isCurrentUser(requestUserId) || saveSeqRef.current !== requestSeq) return;
+      savedProfileRef.current = {
+        email: textInputValue(user.email),
+        avatar: textInputValue(user.avatar_url),
+      };
       if (editVersionRef.current === requestEditVersion) {
         editVersionRef.current += 1;
-        setEmail(textInputValue(user.email));
-        setAvatar(textInputValue(user.avatar_url));
+        setEmail(savedProfileRef.current.email);
+        setAvatar(savedProfileRef.current.avatar);
         addToast("已更新资料", "success");
       } else {
         addToast("已保存提交时的资料，当前保留后续编辑内容", "info");
@@ -116,44 +130,64 @@ export const ProfileEditor: React.FC<{ userId: number }> = ({ userId }) => {
   };
 
   return (
-    <div className="mt-5 pyqt-card p-3 space-y-2 text-xs">
-      <div className="font-serif text-sm text-book-text-main">编辑资料</div>
-      {loading ? (
-        <div className="text-book-text-muted inline-flex items-center gap-1.5">
-          <Loader2 size={11} className="animate-spin" /> 加载中…
-        </div>
-      ) : loadError ? (
-        <div className="text-error">{loadError}</div>
-      ) : (
-        <>
-          <BookInput
-            label="邮箱"
-            value={email}
-            onChange={(e) => updateEmail(e.target.value)}
-            placeholder="user@example.com"
-          />
-          <BookInput
-            label="头像 URL"
-            value={avatar}
-            onChange={(e) => updateAvatar(e.target.value)}
-            placeholder="https://…/avatar.png"
-          />
-          <div className="flex justify-end">
-            <BookButton variant="primary" onClick={handleSave} disabled={busy}>
-              {busy ? <Loader2 size={11} className="animate-spin" /> : "保存"}
-            </BookButton>
+    <details
+      className={`${embedded ? "border-t border-book-border/35" : "a4n-flat-surface"} overflow-hidden text-xs`}
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
+        <UserRound size={13} className="text-book-text-muted" />
+        <span className="font-medium text-book-text-main">个人资料</span>
+        <span className="text-[10px] text-book-text-muted">邮箱与头像</span>
+      </summary>
+      <div className="space-y-2 border-t border-book-border/35 p-3">
+        {loading ? (
+          <div className="inline-flex items-center gap-1.5 text-book-text-muted">
+            <Loader2 size={11} className="animate-spin" /> 加载中…
           </div>
-        </>
-      )}
-    </div>
+        ) : loadError ? (
+          <div className="text-error">{loadError}</div>
+        ) : (
+          <>
+            <BookInput
+              label="邮箱"
+              value={email}
+              onChange={(e) => updateEmail(e.target.value)}
+              placeholder="user@example.com"
+            />
+            <BookInput
+              label="头像地址"
+              value={avatar}
+              onChange={(e) => updateAvatar(e.target.value)}
+              placeholder="https://…/avatar.png"
+            />
+            <div className="flex justify-end">
+              <BookButton
+                variant="primary"
+                size="sm"
+                onClick={handleSave}
+                disabled={busy || !profileDirty}
+              >
+                {busy ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Loader2 size={11} className="animate-spin" /> 保存中…
+                  </span>
+                ) : (
+                  "保存资料"
+                )}
+              </BookButton>
+            </div>
+          </>
+        )}
+      </div>
+    </details>
   );
 };
 
-export const PasswordChanger: React.FC = () => {
+export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { addToast } = useToast();
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [busy, setBusy] = useState(false);
+  const passwordReady = oldPwd.length > 0 && newPwd.length > 0;
   const mountedRef = useRef(false);
   const changeSeqRef = useRef(0);
   const editVersionRef = useRef(0);
@@ -212,44 +246,55 @@ export const PasswordChanger: React.FC = () => {
   };
 
   return (
-    <div className="mt-3 pyqt-card p-3 space-y-2 text-xs">
-      <div className="font-serif text-sm text-book-text-main">修改密码</div>
-      <BookInput
-        label="旧密码"
-        type="password"
-        value={oldPwd}
-        onChange={(e) => updateOldPwd(e.target.value)}
-      />
-      <BookInput
-        label="新密码"
-        type="password"
-        value={newPwd}
-        onChange={(e) => updateNewPwd(e.target.value)}
-      />
-      <div className="flex justify-end">
-        <BookButton variant="primary" onClick={handleChange} disabled={busy}>
-          {busy ? <Loader2 size={11} className="animate-spin" /> : "修改密码"}
-        </BookButton>
+    <details
+      className={`${embedded ? "border-t border-book-border/35" : "a4n-flat-surface"} overflow-hidden text-xs`}
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
+        <KeyRound size={13} className="text-book-text-muted" />
+        <span className="font-medium text-book-text-main">修改密码</span>
+      </summary>
+      <div className="space-y-2 border-t border-book-border/35 p-3">
+        <BookInput
+          label="当前密码"
+          type="password"
+          value={oldPwd}
+          onChange={(e) => updateOldPwd(e.target.value)}
+        />
+        <BookInput
+          label="新密码"
+          type="password"
+          value={newPwd}
+          onChange={(e) => updateNewPwd(e.target.value)}
+        />
+        <div className="flex justify-end">
+          <BookButton
+            variant="primary"
+            size="sm"
+            onClick={handleChange}
+            disabled={busy || !passwordReady}
+          >
+            {busy ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 size={11} className="animate-spin" /> 更新中…
+              </span>
+            ) : (
+              "更新密码"
+            )}
+          </BookButton>
+        </div>
       </div>
-    </div>
+    </details>
   );
 };
 
 export const SessionManager: React.FC = () => {
   const { addToast } = useToast();
-  const onUnauthorized = useAuthStore((state) => state.onUnauthorized);
-  const [sessions, setSessions] = useState<unknown[]>([]);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [revoking, setRevoking] = useState(false);
-  const [refreshTokenInput, setRefreshTokenInput] = useState("");
   const [refreshBusy, setRefreshBusy] = useState(false);
-  const [tokenResult, setTokenResult] = useState<string | null>(null);
   const mountedRef = useRef(false);
   const loadSeqRef = useRef(0);
-  const revokeSeqRef = useRef(0);
   const refreshSeqRef = useRef(0);
-  const refreshInputVersionRef = useRef(0);
-  const revokingRef = useRef(false);
   const refreshBusyRef = useRef(false);
 
   useEffect(() => {
@@ -257,9 +302,7 @@ export const SessionManager: React.FC = () => {
     return () => {
       mountedRef.current = false;
       loadSeqRef.current += 1;
-      revokeSeqRef.current += 1;
       refreshSeqRef.current += 1;
-      revokingRef.current = false;
       refreshBusyRef.current = false;
     };
   }, []);
@@ -285,58 +328,16 @@ export const SessionManager: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRevoke = async () => {
-    if (revokingRef.current) return;
-    revokingRef.current = true;
-    const ok = await confirmDialog({
-      title: "撤销当前会话",
-      message: "撤销当前会话？",
-      confirmText: "撤销",
-      dialogType: "warning",
-    });
-    if (!ok) {
-      revokingRef.current = false;
-      return;
-    }
-    const requestSeq = revokeSeqRef.current + 1;
-    revokeSeqRef.current = requestSeq;
-    setRevoking(true);
-    try {
-      await revokeSession();
-      if (!mountedRef.current || revokeSeqRef.current !== requestSeq) return;
-      addToast("已撤销", "success");
-      onUnauthorized();
-    } catch (err) {
-      if (!mountedRef.current || revokeSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "撤销失败"), "error");
-    } finally {
-      if (revokeSeqRef.current === requestSeq) revokingRef.current = false;
-      if (mountedRef.current && revokeSeqRef.current === requestSeq) setRevoking(false);
-    }
-  };
-
   const handleRefresh = async () => {
     if (refreshBusyRef.current) return;
-    const requestInput = refreshTokenInput.trim();
-    if (!requestInput) {
-      addToast("请填写 refresh token", "error");
-      return;
-    }
     const requestSeq = refreshSeqRef.current + 1;
-    const requestInputVersion = refreshInputVersionRef.current;
     refreshSeqRef.current = requestSeq;
     refreshBusyRef.current = true;
     setRefreshBusy(true);
     try {
-      const pair = await refreshToken(requestInput);
+      await refreshToken("");
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      if (refreshInputVersionRef.current === requestInputVersion) {
-        setTokenResult(JSON.stringify(pair, null, 2));
-        addToast("已刷新令牌", "success");
-      } else {
-        setTokenResult(null);
-        addToast("已刷新提交时的令牌，当前输入已变化", "info");
-      }
+      addToast("登录凭证已更新", "success");
     } catch (err) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, "刷新失败"), "error");
@@ -347,57 +348,81 @@ export const SessionManager: React.FC = () => {
   };
 
   return (
-    <div className="mt-3 pyqt-card p-3 space-y-2 text-xs">
-      <div className="font-serif text-sm text-book-text-main inline-flex items-center justify-between w-full">
-        会话管理
-        <span className="pyqt-pill !text-[10px]">{sessions.length} 个</span>
+    <section className="space-y-2 text-xs">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-medium text-book-text-main">登录设备</h3>
+          <p className="mt-0.5 text-[10px] text-book-text-muted">
+            {loading ? "正在检查会话…" : `${sessions.length} 个会话`}
+          </p>
+        </div>
       </div>
       {loading ? (
-        <div className="text-book-text-muted inline-flex items-center gap-1.5">
+        <div className="a4n-flat-surface flex items-center gap-1.5 p-3 text-book-text-muted">
           <Loader2 size={11} className="animate-spin" /> 加载…
         </div>
       ) : sessions.length === 0 ? (
-        <div className="text-book-text-muted italic">（无活动会话）</div>
+        <div className="a4n-flat-surface p-3 text-book-text-muted">没有其他活动会话。</div>
       ) : (
-        <ul className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
-          {sessions.map((session, index) => (
-            <li
-              key={index}
-              className="a4n-stat-tile p-1.5 font-mono text-[10px] break-all"
-            >
-              {JSON.stringify(session)}
-            </li>
+        <ul className="grid items-start gap-2 sm:grid-cols-2">
+          {sessions.map((session) => (
+            <SessionRow key={session.id} session={session} />
           ))}
         </ul>
       )}
-      <div className="flex justify-end">
-        <BookButton variant="secondary" onClick={handleRevoke} disabled={revoking}>
-          {revoking ? <Loader2 size={11} className="animate-spin" /> : "撤销当前会话"}
-        </BookButton>
-      </div>
-      <div className="border-t border-book-border/30 pt-2">
-        <div className="text-book-text-muted mb-1">刷新令牌</div>
-        <div className="flex items-center gap-1.5">
-          <input
-            value={refreshTokenInput}
-            onChange={(e) => {
-              refreshInputVersionRef.current += 1;
-              setRefreshTokenInput(e.target.value);
-              setTokenResult(null);
-            }}
-            placeholder="粘贴 refresh_token"
-            className="pyqt-input !py-1 flex-1 text-[11px] font-mono"
-          />
-          <BookButton variant="secondary" onClick={handleRefresh} disabled={refreshBusy}>
-            {refreshBusy ? <Loader2 size={11} className="animate-spin" /> : "刷新"}
+      <details className="a4n-flat-surface overflow-hidden text-[11px] text-book-text-muted">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
+          <RefreshCw size={11} className="shrink-0" />
+          <span className="font-medium text-book-text-main">登录修复</span>
+          <span className="text-[10px]">凭证异常时使用</span>
+        </summary>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-book-border/35 p-3">
+          <p className="min-w-0 flex-1 leading-relaxed">
+            如果登录状态异常，可使用本机已保存的凭证重新建立会话。
+          </p>
+          <BookButton variant="secondary" size="sm" onClick={handleRefresh} disabled={refreshBusy}>
+            {refreshBusy ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : (
+              <RefreshCw size={11} />
+            )}
+            重新获取凭证
           </BookButton>
         </div>
-        {tokenResult && (
-          <pre className="mt-1 rounded border border-book-border/40 bg-book-bg-tertiary/40 p-2 text-[10px] font-mono whitespace-pre-wrap break-words max-h-32 overflow-y-auto custom-scrollbar">
-            {tokenResult}
-          </pre>
-        )}
-      </div>
-    </div>
+      </details>
+    </section>
   );
 };
+
+const SessionRow: React.FC<{ session: SessionSummary }> = ({ session }) => {
+  const expiresAt = session.expires_at ? new Date(session.expires_at) : null;
+  const expired = Boolean(expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt <= new Date());
+  const status = session.is_revoked ? "已撤销" : expired ? "已过期" : "活跃";
+  return (
+    <li className="a4n-flat-surface p-3 text-[11px]">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium text-book-text-main" title={session.user_agent ?? ""}>
+            {session.user_agent || "未知设备"}
+          </div>
+          <div className="mt-0.5 text-book-text-muted">
+            <span className={status === "活跃" ? "text-success" : undefined}>{status}</span>
+            {` · 最近使用 ${formatSessionDate(session.last_used_at ?? session.created_at)}`}
+          </div>
+        </div>
+      </div>
+      <details className="mt-1 text-[10px] text-book-text-muted">
+        <summary className="w-fit cursor-pointer hover:text-book-text-main">诊断信息</summary>
+        <div className="mt-1 grid gap-0.5 break-all font-mono">
+          <span>会话 {session.id}</span>
+          <span>创建 {formatSessionDate(session.created_at)}</span>
+          <span>到期 {formatSessionDate(session.expires_at)}</span>
+        </div>
+      </details>
+    </li>
+  );
+};
+
+function formatSessionDate(value: string | null): string {
+  return formatUiDateTime(value, "未知");
+}

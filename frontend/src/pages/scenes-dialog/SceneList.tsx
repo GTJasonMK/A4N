@@ -5,10 +5,11 @@ import {
   ChevronsDown,
   ChevronsUp,
   Loader2,
+  Pencil,
   Trash2,
 } from "lucide-react";
-import { BookButton } from "../../components/ui/BookButton";
 import type { ChapterScene } from "../../api/chapter";
+import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { nonEmptyText } from "../../utils/text";
 import { SceneEditForm } from "./SceneEditForm";
 import type { SceneEditForm as SceneEditFormState } from "./scenesDialogUtils";
@@ -58,7 +59,7 @@ export const SceneList: React.FC<SceneListProps> = ({
 
   if (loadError) {
     return (
-      <div className="rounded-sm border border-error/35 bg-error-bg/40 px-3 py-4 text-center text-xs leading-relaxed text-error">
+      <div className="border-l-2 border-error/55 py-2 pl-3 text-xs leading-relaxed text-error">
         {loadError}
       </div>
     );
@@ -67,13 +68,13 @@ export const SceneList: React.FC<SceneListProps> = ({
   if (scenes.length === 0) {
     return (
       <div className="py-8 text-center text-sm text-book-text-muted">
-        本章尚无场景。点击「生成下一场景」开始拆解。
+        本章尚未拆分场景。
       </div>
     );
   }
 
   return (
-    <ul className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+    <ul className="a4n-flat-surface divide-y divide-book-border/35">
       {scenes.map((scene, index) => (
         <SceneListItem
           key={scene.id}
@@ -132,106 +133,119 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
   onSave,
   onMove,
   onDelete,
-}) => (
-  <li className="pyqt-card p-3">
-    <div className="flex items-start gap-2">
-      <button
-        type="button"
-        onClick={() => onToggleExpand(scene.id)}
-        className="mt-0.5 shrink-0 text-book-text-muted hover:text-book-text-main"
-      >
-        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-      </button>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-          <span className="pyqt-pill !text-[10px] font-mono">#{scene.scene_number}</span>
-          {scene.scene_type && <span className="pyqt-pill !text-[10px]">{scene.scene_type}</span>}
-          {scene.word_count > 0 && (
-            <span className="text-[10px] text-book-text-muted">
-              {scene.word_count.toLocaleString()} 字
-            </span>
-          )}
-          {scene.location && (
-            <span className="text-[10px] text-book-text-muted">· {scene.location}</span>
-          )}
-        </div>
-        <div className="text-sm font-semibold text-book-text-main truncate">
-          {nonEmptyText(scene.title) ?? `场景 #${scene.scene_number}`}
-        </div>
-        {!isExpanded && scene.summary && (
-          <div className="text-xs text-book-text-muted line-clamp-1 mt-0.5">
-            {scene.summary}
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          type="button"
-          onClick={() => onMove(scene, -1)}
-          disabled={isFirst || actingKeys.has(`move-${scene.id}`)}
-          title="上移"
-          className="p-1 rounded text-book-text-muted hover:text-book-text-main hover:bg-book-bg-tertiary disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <ChevronsUp size={12} />
-        </button>
-        <button
-          type="button"
-          onClick={() => onMove(scene, 1)}
-          disabled={isLast || actingKeys.has(`move-${scene.id}`)}
-          title="下移"
-          className="p-1 rounded text-book-text-muted hover:text-book-text-main hover:bg-book-bg-tertiary disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <ChevronsDown size={12} />
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(scene)}
-          disabled={actingKeys.has(`del-${scene.id}`)}
-          title="删除"
-          className="p-1 rounded text-error hover:bg-error-bg disabled:opacity-40"
-        >
-          {actingKeys.has(`del-${scene.id}`) ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <Trash2 size={12} />
-          )}
-        </button>
-      </div>
-    </div>
+}) => {
+  const actionBusy = actingKeys.has(`move-${scene.id}`) || actingKeys.has(`del-${scene.id}`);
+  const actionItems: DropdownItem[] = [];
 
-    {isExpanded && (
-      <div className="mt-3 pt-3 border-t border-book-border/30">
-        {!isEditing ? (
-          <>
-            {scene.summary && (
-              <div className="text-xs text-book-text-sub mb-2 leading-relaxed">
-                <span className="text-book-text-muted">摘要：</span>
-                {scene.summary}
-              </div>
-            )}
-            {scene.content?.trim() ? (
-              <pre className="text-xs whitespace-pre-wrap font-serif text-book-text-main leading-relaxed max-h-48 overflow-y-auto custom-scrollbar">
-                {scene.content}
-              </pre>
-            ) : (
-              <div className="text-xs text-error">场景正文缺失</div>
-            )}
-            <div className="mt-2 text-right">
-              <BookButton variant="secondary" onClick={() => onStartEdit(scene)}>
-                编辑
-              </BookButton>
+  if (!isFirst) {
+    actionItems.push({
+      label: "上移场景",
+      icon: <ChevronsUp size={12} />,
+      onClick: () => onMove(scene, -1),
+    });
+  }
+  if (!isLast) {
+    actionItems.push({
+      label: "下移场景",
+      icon: <ChevronsDown size={12} />,
+      onClick: () => onMove(scene, 1),
+    });
+  }
+  actionItems.push({
+    label: "编辑场景",
+    icon: <Pencil size={12} />,
+    onClick: () => onStartEdit(scene),
+  });
+  actionItems.push({ type: "divider" });
+  actionItems.push({
+    label: "删除场景",
+    icon: <Trash2 size={12} />,
+    danger: true,
+    onClick: () => onDelete(scene),
+  });
+
+  return (
+    <li className="p-3">
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          onClick={() => onToggleExpand(scene.id)}
+          className="mt-0.5 shrink-0 text-book-text-muted hover:text-book-text-main"
+        >
+          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-book-text-main">
+            {nonEmptyText(scene.title) ?? "未命名场景"}
+          </div>
+          <div className="mt-0.5 truncate text-[10px] text-book-text-muted">
+            {[
+              `场景 ${scene.scene_number}`,
+              scene.scene_type ? sceneTypeLabel(scene.scene_type) : null,
+              scene.word_count > 0 ? `${scene.word_count.toLocaleString()} 字` : null,
+              scene.location || null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+          {!isExpanded && scene.summary && (
+            <div className="mt-0.5 line-clamp-1 text-xs text-book-text-muted">
+              {scene.summary}
             </div>
-          </>
-        ) : (
-          <SceneEditForm
-            form={editForm}
-            saving={saving}
-            onChange={onEditFormChange}
-            onCancel={onCancelEdit}
-            onSave={onSave}
-          />
-        )}
+          )}
+        </div>
+        <div className="shrink-0">
+          {actionBusy ? (
+            <span className="inline-flex h-9 w-9 items-center justify-center text-book-text-muted sm:h-8 sm:w-8">
+              <Loader2 size={12} className="animate-spin" />
+            </span>
+          ) : isEditing ? null : (
+            <Dropdown items={actionItems} />
+          )}
+        </div>
       </div>
-    )}
-  </li>
-);
+
+      {isExpanded && (
+        <div className="mt-3 border-t border-book-border/30 pt-3">
+          {!isEditing ? (
+            <>
+              {scene.summary && (
+                <div className="mb-2 text-xs leading-relaxed text-book-text-sub">
+                  <span className="text-book-text-muted">摘要：</span>
+                  {scene.summary}
+                </div>
+              )}
+              {scene.content?.trim() ? (
+                <pre className="whitespace-pre-wrap font-serif text-xs leading-relaxed text-book-text-main">
+                  {scene.content}
+                </pre>
+              ) : (
+                <div className="text-xs text-error">场景正文缺失</div>
+              )}
+            </>
+          ) : (
+            <SceneEditForm
+              form={editForm}
+              saving={saving}
+              onChange={onEditFormChange}
+              onCancel={onCancelEdit}
+              onSave={onSave}
+            />
+          )}
+        </div>
+      )}
+    </li>
+  );
+};
+
+const SCENE_TYPE_LABELS: Record<string, string> = {
+  dialog: "对话",
+  action: "行动",
+  introspection: "内心",
+  exposition: "叙述",
+  transition: "过渡",
+  climax: "高潮",
+};
+
+const sceneTypeLabel = (value: string): string =>
+  SCENE_TYPE_LABELS[value.trim().toLowerCase()] ?? "其他场景";

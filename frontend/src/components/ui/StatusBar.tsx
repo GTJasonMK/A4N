@@ -3,7 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 /**
  * 应用底部状态栏。
  *
- * - 固定底部 22px 高
+ * - 固定底部 24px 高
  * - 左侧 message（普通文本提示，如"就绪"/"加载中"/"已保存"）
  * - 右侧 permanentWidgets（持续显示：用户名、连接状态、字符数等）
  * - 应用层通过 useStatusBar() 推送临时消息：会在 timeout 后恢复默认消息
@@ -81,21 +81,35 @@ export const useStatusBarPermanent = (id: string, content: React.ReactNode): voi
   }, [id, content, addPermanent, removePermanent]);
 };
 
-export const StatusBar: React.FC = () => {
+interface StatusBarProps {
+  actions?: React.ReactNode;
+}
+
+export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
   const ctx = useContext(StatusBarContext);
   if (!ctx) return null;
   const { message, permanent } = ctx;
   return (
-    <div className="h-[22px] flex items-center gap-2 px-2 border-t border-book-border bg-book-bg-tertiary text-[11px] text-book-text-sub select-none shrink-0">
-      <span className="truncate flex-1">{message}</span>
-      {permanent.map((w) => (
-        <span
-          key={w.id}
-          className="px-2 border-l border-book-border h-full inline-flex items-center text-book-text-muted"
-        >
-          {w.content}
-        </span>
-      ))}
+    <div className="flex h-6 shrink-0 select-none items-center justify-between gap-2 border-t border-book-border/70 bg-book-bg-tertiary/80 px-2">
+      <div className="flex min-w-0 items-center gap-2" role="status" aria-live="polite">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" aria-hidden="true" />
+        <span className="truncate text-[11px] text-book-text-sub">{message}</span>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {actions != null ? (
+          <div className="inline-flex items-center gap-1 border-l border-book-border/70 pl-2">
+            {actions}
+          </div>
+        ) : null}
+        {permanent.map((w) => (
+          <span
+            key={w.id}
+            className="inline-flex max-w-[40vw] items-center truncate border-l border-book-border/70 px-2 text-[11px] text-book-text-muted"
+          >
+            {w.content}
+          </span>
+        ))}
+      </div>
     </div>
   );
 };

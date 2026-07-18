@@ -1,10 +1,10 @@
 //! 角色属性事件命令。
 //!
 //! Tauri 层只保留 command 签名；属性事件写入、历史查询和 RAG 同步统一在
-//! `a4n_runtime::actions::character_records`。
+//! `a4n_runtime::host_api::character_records`。
 
 use a4n_runtime::AppState;
-use a4n_runtime::actions::character_records as character_records_actions;
+use a4n_runtime::host_api::character_records as character_records_actions;
 use character_records_actions::{
     AddProfileAttributeInput, AttributeEventSummary, AttributeHistoryInput,
     AttributeMutationResultSummary, ModifyProfileAttributeInput,

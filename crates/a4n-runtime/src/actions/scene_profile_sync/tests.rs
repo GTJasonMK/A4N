@@ -1,5 +1,13 @@
-use super::*;
-use a4n_services::chapter::source_spans::source_spans_for_chapters;
+use super::parsing::parse_scene_profile_sync_content;
+use super::types::{
+    SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_OCCURRENCE_COVERAGE_RULE,
+    SceneProfileSyncRequestContext,
+};
+use a4n_core::models::chapter::chapter;
+use a4n_core::models::project::text_anchor;
+use a4n_core::source_spans::source_spans_for_chapters;
+use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet};
 
 fn chapter_for_test() -> chapter::Model {
     let now = chrono::Utc::now().naive_utc();

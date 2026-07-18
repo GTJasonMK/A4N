@@ -6,7 +6,7 @@ use sea_orm_migration::prelude::*;
 
 pub struct Migrator;
 
-#[async_trait::async_trait]
+#[sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         vec![
@@ -40,6 +40,12 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::galgame_media_binding_contract::Migration),
             Box::new(crate::migrations::media_asset_generation_ref_contract::Migration),
             Box::new(crate::migrations::galgame_target_reverse_integrity_contract::Migration),
+            Box::new(crate::migrations::cleanup_outbox::Migration),
+            Box::new(crate::migrations::directing_workflow_v2::Migration),
+            Box::new(crate::migrations::chapter_shooting_script::Migration),
+            Box::new(crate::migrations::shooting_script_narrative_units::Migration),
+            Box::new(crate::migrations::shooting_script_staged_generation::Migration),
+            Box::new(crate::migrations::video_execution_contract_v5_reset::Migration),
         ]
     }
 }
@@ -51,6 +57,7 @@ pub async fn run_migrations(db: &sea_orm::DatabaseConnection) -> Result<(), sea_
 #[cfg(test)]
 mod tests {
     use super::Migrator;
+    use a4n_core::schema::REQUIRED_SCHEMA_MIGRATION;
     use sea_orm_migration::prelude::MigratorTrait;
 
     #[test]
@@ -63,6 +70,31 @@ mod tests {
         assert!(
             names.iter().any(|name| name == "user_default_ai_config"),
             "deployed databases may already record user_default_ai_config"
+        );
+        assert!(
+            names.iter().any(|name| name == "cleanup_outbox"),
+            "project deletion cleanup outbox migration must remain registered"
+        );
+        assert!(
+            names.iter().any(|name| name == "directing_workflow_v2"),
+            "shared directing workflow migration must remain registered"
+        );
+        let cleanup_outbox_index = names
+            .iter()
+            .position(|name| name == "cleanup_outbox")
+            .expect("cleanup_outbox migration must be registered");
+        let directing_workflow_index = names
+            .iter()
+            .position(|name| name == "directing_workflow_v2")
+            .expect("directing_workflow_v2 migration must be registered");
+        assert!(
+            cleanup_outbox_index < directing_workflow_index,
+            "directing workflow migration enqueues cleanup intents and must run after cleanup_outbox"
+        );
+        assert_eq!(
+            names.last().map(String::as_str),
+            Some(REQUIRED_SCHEMA_MIGRATION),
+            "runtime schema requirement must match the last registered migration"
         );
     }
 }

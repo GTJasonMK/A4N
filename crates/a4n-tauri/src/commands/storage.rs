@@ -1,4 +1,4 @@
-use a4n_runtime::actions::storage_paths;
+use a4n_runtime::host_api::storage_paths;
 use storage_paths::{
     CleanupOrphanProjectDataDirsInput, OrphanProjectDataDirsSummary, StoragePathsSummary,
 };

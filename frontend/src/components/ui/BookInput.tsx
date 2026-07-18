@@ -1,11 +1,10 @@
 import React, { forwardRef } from 'react';
 
 /**
- * A4N 桌面输入框
+ * A4N 输入框（iOS 填充底 + soft ring focus）
  *
- * - 4px 圆角
- * - 1px 实边框，hover 边框变 primary
- * - focus 时 border + 1px 内描边模拟焦点环
+ * - 圆角与 pyqt-input 全局 token 一致
+ * - 默认弱边/填充底，focus 时 soft ring
  */
 
 interface BookInputProps extends React.InputHTMLAttributes<HTMLInputElement> {

@@ -92,6 +92,7 @@ pub mod chapter {
     pub mod chapter_manga_prompt;
     pub mod chapter_outline;
     pub mod chapter_scene;
+    pub mod chapter_shooting_script;
     pub mod chapter_video_prompt;
     pub mod part_outline;
 }
@@ -120,6 +121,7 @@ pub mod scene {
 }
 
 pub mod task {
+    pub mod cleanup_outbox;
     pub mod task_dependency;
     pub mod task_queue;
 }

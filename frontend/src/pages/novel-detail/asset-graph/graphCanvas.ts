@@ -58,7 +58,7 @@ interface GraphTheme {
 }
 
 const NODE_WIDTH = 158;
-const NODE_HEIGHT = 52;
+const NODE_HEIGHT = 60;
 const NETWORK_PADDING = 40;
 const NETWORK_MIN_WIDTH = 820;
 const NETWORK_MIN_HEIGHT = 560;
@@ -695,9 +695,9 @@ function drawNode(
 ) {
   const accent = kindAccent(node.kind, theme);
   const status = node.mutable
-    ? { text: "叶子可改", color: theme.success }
+    ? { text: "可编辑", color: theme.success }
     : node.downstream_count > 0
-      ? { text: `需确认 ${node.downstream_count}`, color: theme.warning }
+      ? { text: `影响 ${node.downstream_count} 项`, color: theme.warning }
       : { text: "只读", color: theme.muted };
 
   ctx.save();
@@ -723,7 +723,13 @@ function drawNode(
 
   ctx.font = "500 10px 'JetBrains Mono', 'Noto Sans SC', monospace";
   ctx.fillStyle = rgb(theme.muted);
-  drawText(ctx, `${kindLabel(node.kind)} · ${node.asset_type}`, node.x + 16, node.y + 38, node.width - 34);
+  drawText(
+    ctx,
+    `${kindLabel(node.kind)} · ${assetTypeLabel(node.asset_type)}`,
+    node.x + 16,
+    node.y + 38,
+    node.width - 34,
+  );
 
   drawStatusPill(ctx, node.x + 16, node.y + 50, status.text, status.color, theme);
   if (node.needs_visualization) {
@@ -876,7 +882,40 @@ export function kindLabel(kind: string): string {
   if (kind === "image") return "图片";
   if (kind === "video") return "视频";
   if (kind === "media") return "媒体";
-  return kind;
+  if (kind === "profile") return "档案";
+  if (kind === "task") return "任务";
+  return "资产";
+}
+
+const ASSET_TYPE_LABELS: Record<string, string> = {
+  project: "项目",
+  inspiration_conversation: "灵感对话",
+  novel_blueprint: "故事蓝图",
+  blueprint_version: "蓝图版本",
+  part_outline: "分部大纲",
+  chapter_outline: "章节大纲",
+  chapter_content: "章节正文",
+  chapter_analysis: "章节分析",
+  character_profile: "角色档案",
+  object_profile: "物体档案",
+  scene_profile: "场景档案",
+  chapter_manga_prompt: "漫画提示词",
+  manga_page_image: "漫画成图",
+  chapter_shooting_script: "章节拍摄剧本",
+  video_segment_plan: "视频分段规划",
+  video_frame_prompt: "首尾帧提示词",
+  video_frame_image: "首尾帧图片",
+  chapter_video_prompt: "视频生成提示词",
+  generated_video: "生成视频",
+  generation_spec: "生成规格",
+  prompt_artifact: "提示词产物",
+  media_asset: "媒体资产",
+  derived_project: "派生项目",
+};
+
+export function assetTypeLabel(value: string | null | undefined): string {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ASSET_TYPE_LABELS[normalized] ?? "相关资产";
 }
 
 export function isVideoChainNode(node: AssetGraphNode): boolean {
@@ -906,7 +945,7 @@ export function summarizeGraph(graph: AssetDependencyGraph | null): { text: numb
 export function preferredInitialNodeId(graph: AssetDependencyGraph): string | null {
   const visibleNodes = graph.nodes.filter((node) => node.id === "project" || node.count > 0);
   return (
-    visibleNodes.find((node) => node.id === "video_shot_analysis")?.id ??
+    visibleNodes.find((node) => node.id === "chapter_shooting_script")?.id ??
     visibleNodes.find((node) => isVideoChainNode(node))?.id ??
     visibleNodes.find((node) => node.id !== "project" && node.needs_visualization && !node.visualized)?.id ??
     visibleNodes.find((node) => node.id !== "project")?.id ??

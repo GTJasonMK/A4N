@@ -4,7 +4,7 @@
 
 use crate::commands::request_preview::ModelRequestPreview;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::import_analysis::ImportProjectAnalysisSummary;
+use a4n_runtime::host_api::import_analysis::ImportProjectAnalysisSummary;
 use serde_json::Value;
 use tauri::State;
 
@@ -15,7 +15,7 @@ pub async fn get_project_import_analysis_progress(
     user_id: i64,
     project_id: i64,
 ) -> Result<Option<Value>, String> {
-    a4n_runtime::actions::import_analysis::get_project_import_analysis_progress(
+    a4n_runtime::host_api::import_analysis::get_project_import_analysis_progress(
         state.inner(),
         user_id,
         project_id,
@@ -30,7 +30,7 @@ pub async fn run_import_project_analysis(
     user_id: i64,
     project_id: i64,
 ) -> Result<ImportProjectAnalysisSummary, String> {
-    a4n_runtime::actions::import_analysis::run_import_project_analysis(
+    a4n_runtime::host_api::import_analysis::run_import_project_analysis(
         state.inner(),
         user_id,
         project_id,
@@ -44,7 +44,7 @@ pub async fn preview_import_project_analysis_request(
     user_id: i64,
     project_id: i64,
 ) -> Result<ModelRequestPreview, String> {
-    a4n_runtime::actions::import_analysis::preview_import_project_analysis_request(
+    a4n_runtime::host_api::import_analysis::preview_import_project_analysis_request(
         state.inner(),
         user_id,
         project_id,
@@ -59,7 +59,7 @@ pub async fn cancel_import_analysis(
     user_id: i64,
     project_id: i64,
 ) -> Result<u64, String> {
-    a4n_runtime::actions::import_analysis::cancel_import_analysis(
+    a4n_runtime::host_api::import_analysis::cancel_import_analysis(
         state.inner(),
         user_id,
         project_id,

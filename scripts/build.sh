@@ -9,6 +9,8 @@
 #   ./scripts/build.sh --frontend   # 仅构建前端
 #   ./scripts/build.sh --backend    # 仅构建后端（Debug）
 #   ./scripts/build.sh -p a4n-server # 仅构建指定 Rust package 及其依赖
+#   ./scripts/build.sh -p a4n-server --no-default-features # 使用 minimal host feature 集检查/构建
+#   ./scripts/build.sh -p a4n-server --features embedded-capabilities # 检查/构建 full host
 #   ./scripts/build.sh --all         # 构建整个 Rust workspace
 #   ./scripts/build.sh --check      # 仅检查编译（不输出二进制）
 #   ./scripts/build.sh -c           # 仅检查编译（简写）
@@ -33,6 +35,8 @@ SHOW_WARNINGS=false
 FRONTEND_ONLY=false
 BACKEND_ONLY=false
 BUILD_ALL=false
+NO_DEFAULT_FEATURES=false
+FEATURES=""
 
 # —— 解析参数 ——
 while [[ $# -gt 0 ]]; do
@@ -68,6 +72,17 @@ while [[ $# -gt 0 ]]; do
             SHOW_WARNINGS=true
             shift
             ;;
+        --no-default-features)
+            NO_DEFAULT_FEATURES=true
+            shift
+            ;;
+        --features)
+            if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                die "--features 需要提供 Cargo feature 列表"
+            fi
+            FEATURES="$2"
+            shift 2
+            ;;
         --help|-h)
             print_script_usage "$0" 16
             exit 0
@@ -90,10 +105,22 @@ should_build_frontend() {
 
 cargo_target_args() {
     if $BUILD_ALL; then
+        if $NO_DEFAULT_FEATURES; then
+            printf '%s\n' "--no-default-features"
+        fi
+        if [[ -n "$FEATURES" ]]; then
+            printf '%s\n' "--features" "$FEATURES"
+        fi
         return 0
     fi
 
     printf '%s\n' "-p" "$TARGET_CRATE"
+    if $NO_DEFAULT_FEATURES; then
+        printf '%s\n' "--no-default-features"
+    fi
+    if [[ -n "$FEATURES" ]]; then
+        printf '%s\n' "--features" "$FEATURES"
+    fi
 }
 
 run_cargo_capture() {
@@ -128,6 +155,11 @@ check_prerequisites() {
     local rust_ver
     rust_ver=$(rustc --version | cut -d' ' -f2)
     echo -e "${GREEN}✓ rustc ${rust_ver}${NC}"
+
+    if ! $FRONTEND_ONLY; then
+        require_onnxruntime
+        echo -e "${GREEN}✓ ONNX Runtime 1.24.2 ($A4N_ONNXRUNTIME_ROOT)${NC}"
+    fi
 
     # Node.js（前端构建必需）
     if should_build_frontend; then
@@ -305,6 +337,8 @@ if $FRONTEND_ONLY; then
     echo -e "${GREEN}${BOLD}前端构建完成${NC}"
     exit 0
 fi
+
+guard_build_cache
 
 if $BACKEND_ONLY; then
     do_build

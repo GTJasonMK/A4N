@@ -67,6 +67,7 @@ export interface PreparedClientRagIngestRecord {
 
 export interface ClientRagIngestPrepareOutput {
   project_id: number;
+  operation_trace_id: string;
   embedding_identity: {
     backend: string;
     model: string;

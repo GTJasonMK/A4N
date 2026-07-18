@@ -1,0 +1,71 @@
+use a4n_core::models::character::{attribute_event, character_state_index, foreshadowing_index};
+
+use super::{
+    attributes::character_attribute_event_rag_record, foreshadowing::foreshadowing_rag_record,
+    state::character_state_rag_record,
+};
+use crate::{OrchestratorContext, rag::RagRecord, rag::RagSyncContext};
+
+impl OrchestratorContext {
+    pub async fn sync_character_state_rag(
+        &self,
+        project_id: i64,
+        state_index: &character_state_index::Model,
+        character_name: &str,
+    ) -> Result<(), String> {
+        let record = character_state_rag_record(project_id, state_index, character_name)?;
+        self.sync_single_rag_record(project_id, &record).await
+    }
+
+    pub async fn sync_character_attribute_event_rag(
+        &self,
+        project_id: i64,
+        event: &attribute_event::Model,
+        character_name: &str,
+    ) -> Result<(), String> {
+        let record = character_attribute_event_rag_record(project_id, event, character_name)?;
+        self.sync_single_rag_record(project_id, &record).await
+    }
+
+    pub async fn sync_foreshadowing_rag(
+        &self,
+        project_id: i64,
+        item: &foreshadowing_index::Model,
+    ) -> Result<(), String> {
+        let record = foreshadowing_rag_record(project_id, item)?;
+        self.sync_single_rag_record(project_id, &record).await
+    }
+
+    pub async fn reingest_foreshadowing_rag_by_ids(
+        &self,
+        project_id: i64,
+        foreshadowing_ids: &[i64],
+    ) -> Result<(), String> {
+        if foreshadowing_ids.is_empty() {
+            return Ok(());
+        }
+        let items = self
+            .foreshadowing_items_by_ids(project_id, foreshadowing_ids)
+            .await
+            .map_err(|error| format!("查询需更新的伏笔 RAG 失败: {error}"))?;
+        for item in &items {
+            self.sync_foreshadowing_rag(project_id, item).await?;
+        }
+        Ok(())
+    }
+
+    async fn sync_single_rag_record(
+        &self,
+        project_id: i64,
+        record: &RagRecord,
+    ) -> Result<(), String> {
+        let mut sync =
+            RagSyncContext::for_ids(self, project_id, std::slice::from_ref(&record.chunk_id))
+                .await
+                .map_err(|error| error.to_string())?;
+        sync.sync_record(self, record)
+            .await
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+}

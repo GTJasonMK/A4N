@@ -162,7 +162,6 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
         analyzedChapters={analyzedChapters}
         totalChapters={displayChapters.length}
         eventCount={allEvents.length}
-        characterCount={filterOptions.characters.length}
         foreshadowingCount={totalForeshadowing}
         loading={loading}
         onRefresh={() => void load()}

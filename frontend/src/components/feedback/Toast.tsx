@@ -104,21 +104,22 @@ export function ToastContainer() {
   } satisfies Record<ToastType, string>;
 
   return (
-    <div className="pointer-events-none fixed right-3 top-3 z-[140] flex w-[min(92vw,22rem)] flex-col gap-2">
+    <div aria-live="polite" aria-relevant="additions removals" className="pointer-events-none fixed inset-x-3 top-3 z-[140] flex flex-col items-end gap-2 sm:left-auto sm:w-[min(92vw,23rem)]">
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`toast-enter pointer-events-auto rounded-sm border px-3 py-2 ${toneClasses[toast.type]}`}
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          className={`toast-enter pointer-events-auto w-full rounded-[var(--pyqt-radius-lg)] border px-3 py-2.5 shadow-[var(--shadow-overlay)] ${toneClasses[toast.type]}`}
         >
           <div className="flex items-start gap-2">
             <span className="mt-0.5 shrink-0">{iconMap[toast.type]}</span>
-            <p className="min-w-0 flex-1 text-xs leading-relaxed text-book-text-main">
+            <p className="min-w-0 flex-1 break-words text-xs leading-relaxed text-book-text-main">
               {toast.message}
             </p>
             <button
               type="button"
               aria-label="关闭提示"
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-book-text-muted hover:bg-book-bg-tertiary hover:text-book-text-main sm:h-5 sm:w-5"
+              className="-mr-1 -mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main sm:h-7 sm:w-7"
               onClick={() => removeToast(toast.id)}
             >
               <X size={12} />

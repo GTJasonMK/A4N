@@ -3,12 +3,16 @@ name = "a4n-server"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+embedded-capabilities = [
+    "a4n-runtime/migration",
+    "a4n-runtime/embedded-capabilities",
+]
+
 [dependencies]
 a4n-core = { path = "../a4n-core" }
-a4n-engine = { path = "../a4n-engine" }
-a4n-services = { path = "../a4n-services" }
-a4n-migration = { path = "../a4n-migration" }
-a4n-runtime = { path = "../a4n-runtime" }
+a4n-runtime = { path = "../a4n-runtime", default-features = false }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -16,7 +20,6 @@ base64 = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
 parking_lot = { workspace = true }
-sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

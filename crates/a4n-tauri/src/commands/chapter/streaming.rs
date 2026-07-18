@@ -1,7 +1,7 @@
 use crate::progress_task::WorkflowProgressTask;
 use a4n_core::event::channel::TaskType;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::chapter_generation::{
+use a4n_runtime::host_api::chapter_generation::{
     GenerateChapterStreamInput, chapter_stream_task_id,
     generate_chapter_stream as run_generate_chapter_stream, generate_chapter_stream_task_scope,
 };

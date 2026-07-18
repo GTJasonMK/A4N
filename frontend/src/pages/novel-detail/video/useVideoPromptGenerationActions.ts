@@ -7,7 +7,6 @@ import {
   generateChapterVideoFramePrompts,
   generateChapterVideoPrompts,
   generateChapterVideoSegmentPlan,
-  generateChapterVideoShotAnalysis,
   type ChapterVideoPrompt,
   type VideoWorkflowMode,
 } from "../../../api/video";
@@ -45,6 +44,7 @@ import {
   referenceLabelOrderError,
   shiftReferenceLabels,
   videoWorkflowModeOfPrompt,
+  videoExecutionIdentityMatches,
   videoFrameImageMetadata,
   videoImageTypeForFrameRole,
   type VideoFrameImageRole,
@@ -80,7 +80,6 @@ interface UseVideoPromptGenerationActionsParams {
   referenceIds: number[];
   videoLibraryImageIds: number[];
   frameImages: GeneratedImage[];
-  shotAnalysisPrompt: ChapterVideoPrompt | null;
   segmentPlanPrompt: ChapterVideoPrompt | null;
   framePrompts: ChapterVideoPrompt[];
   finalVideoPrompts: ChapterVideoPrompt[];
@@ -106,7 +105,6 @@ export function useVideoPromptGenerationActions({
   referenceIds,
   videoLibraryImageIds,
   frameImages,
-  shotAnalysisPrompt,
   segmentPlanPrompt,
   framePrompts,
   finalVideoPrompts,
@@ -443,6 +441,7 @@ export function useVideoPromptGenerationActions({
       videoWorkflowModeOfPrompt(prompt) === promptOptions.workflowMode &&
       promptHasVideoWorkflowContract(prompt, contractVersion) &&
       promptSourcePromptType(prompt) === VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE &&
+      videoExecutionIdentityMatches(prompt, segmentPlanPrompt) &&
       promptOutputLanguageOfPrompt(prompt) === promptOptions.promptOutputLanguage &&
       (prompt.style ?? "") === promptOptions.style &&
       prompt.aspect_ratio === promptOptions.aspectRatio &&
@@ -492,7 +491,8 @@ export function useVideoPromptGenerationActions({
             row.prompt_type === promptType &&
             videoWorkflowModeOfPrompt(row) === workflowMode &&
             promptHasVideoWorkflowContract(row, contractVersion) &&
-            promptSourcePromptType(row) === VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE,
+            promptSourcePromptType(row) === VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE &&
+            videoExecutionIdentityMatches(row, segmentPlanPrompt),
         )
         .map((row) => row.shot_number),
     );
@@ -650,7 +650,7 @@ export function useVideoPromptGenerationActions({
           errorMessage: `${operationLabel}失败`,
           total: 100,
           taskId,
-          showStream: false,
+          showStream: true,
         },
         async () => {
           if (runUntilComplete && expectedFrameCount != null && framePromptType) {
@@ -807,7 +807,7 @@ export function useVideoPromptGenerationActions({
           errorMessage: `${regenerateExisting ? "重新生成" : "生成"}${label}失败`,
           total: 100,
           taskId,
-          showStream: false,
+          showStream: true,
         },
         async () => {
           await generateChapterVideoSegmentPlan(
@@ -824,85 +824,6 @@ export function useVideoPromptGenerationActions({
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       const message = extractErrorMessage(err, `${regenerateExisting ? "重新生成" : "生成"}${label}失败`);
-      if (!isCancelledOperation(message)) addToast(message, "error");
-    } finally {
-      if (isCurrentActionScope(requestScope)) {
-        setVideoTaskId(null);
-      }
-      finishAction(actionKey, requestScope);
-    }
-  };
-
-  const handleGenerateShotAnalysis = async (
-    requestOptions: PromptGenerationRequestOptions = {},
-  ) => {
-    if (!chapter) return;
-    if (
-      workflowMode !== "boundary_frames" &&
-      workflowMode !== "first_frame_chain" &&
-      workflowMode !== "storyboard" &&
-      workflowMode !== "chat_video"
-    ) {
-      addToast("当前模式不能生成镜头分析", "error");
-      return;
-    }
-    const regenerateExisting = requestOptions.regenerateExisting ?? false;
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, `${regenerateExisting ? "重新生成" : "生成"}镜头分析`), "error");
-      return;
-    }
-    if (segmentPlanPrompt && regenerateExisting) {
-      addToast("已存在后续片段规划，不能重新生成镜头分析；请先删除片段规划", "error");
-      return;
-    }
-    const promptOptions = validatedPromptOptions("镜头分析");
-    if (!promptOptions) return;
-    const requestScope = actionScopeKey;
-    const actionKey = "generate-shot-analysis";
-    if (!beginAction(actionKey)) return;
-    if (regenerateExisting && shotAnalysisPrompt) {
-      const ok = await confirmDialog({
-        title: "重新生成镜头分析",
-        message: "将重新生成当前章节镜头语言分析。若已存在片段规划，请先删除或处理后续片段规划。",
-        confirmText: "重新生成",
-      });
-      if (!ok) {
-        finishAction(actionKey, requestScope);
-        return;
-      }
-      if (!isCurrentActionScope(requestScope)) {
-        finishAction(actionKey, requestScope);
-        return;
-      }
-    }
-    const taskId = createProgressTaskId("video-shot-analysis", projectId);
-    setVideoTaskId(taskId);
-    try {
-      await runProgressTask(
-        {
-          title: `${regenerateExisting ? "重新生成" : "生成"}镜头分析`,
-          startMessage: `正在准备${regenerateExisting ? "重新生成" : "生成"}镜头分析`,
-          successMessage: `已${regenerateExisting ? "重新生成" : "生成"}镜头分析`,
-          errorMessage: `${regenerateExisting ? "重新生成" : "生成"}镜头分析失败`,
-          total: 100,
-          taskId,
-          showStream: false,
-        },
-        async () => {
-          await generateChapterVideoShotAnalysis(
-            projectId,
-            chapter.id,
-            promptGenerationOptions(promptOptions, requestOptions),
-            taskId,
-          );
-        },
-      );
-      if (!isCurrentActionScope(requestScope)) return;
-      addToast(`已${regenerateExisting ? "重新生成" : "生成"}镜头分析`, "success");
-      await loadAll();
-    } catch (err) {
-      if (!isCurrentActionScope(requestScope)) return;
-      const message = extractErrorMessage(err, `${regenerateExisting ? "重新生成" : "生成"}镜头分析失败`);
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       if (isCurrentActionScope(requestScope)) {
@@ -1023,7 +944,7 @@ export function useVideoPromptGenerationActions({
           errorMessage: `${regenerateExisting ? "重新生成" : "生成"}${promptLabel}失败`,
           total: 100,
           taskId,
-          showStream: false,
+          showStream: true,
         },
         async () => {
           await generateChapterVideoPrompts(
@@ -1317,7 +1238,6 @@ export function useVideoPromptGenerationActions({
   };
 
   return {
-    handleGenerateShotAnalysis,
     handleGenerateSegmentPlan,
     handleGenerateFramePrompts,
     handleGenerateVideoPrompts,

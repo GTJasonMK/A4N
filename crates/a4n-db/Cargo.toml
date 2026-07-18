@@ -1,0 +1,24 @@
+[package]
+name = "a4n-db"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+a4n-queue = { path = "../a4n-queue" }
+
+anyhow = { workspace = true }
+argon2 = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+a4n-migration = { path = "../a4n-migration" }
+a4n-test-support = { path = "../a4n-test-support" }
+tokio = { workspace = true }

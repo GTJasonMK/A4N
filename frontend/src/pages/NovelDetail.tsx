@@ -1,23 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Camera,
   ArrowLeft,
-  BookOpen,
-  Boxes,
   Database,
   Edit2,
   FileText,
   GitBranch,
-  Globe,
-  ListTree,
   Loader2,
-  Map,
-  Milestone,
   MoreHorizontal,
   Network,
   Sparkles,
-  Upload,
   Users,
   Wand2,
 } from "lucide-react";
@@ -49,10 +41,16 @@ import { StatusMachineDialog } from "./StatusMachineDialog";
 import { BackButton } from "../components/ui/BackButton";
 import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
+import { PageHeader } from "../components/shell/PageHeader";
 import { createProgressTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
-import { getProjectHomeEntryLabel, getProjectHomeEntryRoute } from "../utils/projectRouting";
+import {
+  getProjectHomeEntryLabel,
+  getProjectHomeEntryRoute,
+  getProjectWorkspaceLabel,
+  getProjectWorkspaceRoute,
+} from "../utils/projectRouting";
 
 /**
  * 项目详情页
@@ -75,18 +73,18 @@ type Tab =
   | "chapters";
 
 // 详情页固定 Tab 顺序
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "overview", label: "概览", icon: <BookOpen size={14} /> },
-  { id: "world", label: "世界观", icon: <Globe size={14} /> },
-  { id: "characters", label: "角色", icon: <Users size={14} /> },
-  { id: "object_profiles", label: "物体档案", icon: <Boxes size={14} /> },
-  { id: "scene_profiles", label: "场景档案", icon: <Map size={14} /> },
-  { id: "relationships", label: "关系", icon: <Network size={14} /> },
-  { id: "story_events", label: "事件脉络", icon: <Milestone size={14} /> },
-  { id: "chapter_outline", label: "章节大纲", icon: <ListTree size={14} /> },
-  { id: "images", label: "图像", icon: <Camera size={14} /> },
-  { id: "imports", label: "导入", icon: <Upload size={14} /> },
-  { id: "chapters", label: "已生成章节", icon: <FileText size={14} /> },
+const TABS: { id: Tab; label: string; accessibleLabel: string }[] = [
+  { id: "overview", label: "概览", accessibleLabel: "项目概览" },
+  { id: "world", label: "世界观", accessibleLabel: "世界观" },
+  { id: "characters", label: "角色", accessibleLabel: "角色档案" },
+  { id: "object_profiles", label: "物体", accessibleLabel: "物体档案" },
+  { id: "scene_profiles", label: "场景", accessibleLabel: "场景档案" },
+  { id: "relationships", label: "关系", accessibleLabel: "角色关系" },
+  { id: "story_events", label: "事件", accessibleLabel: "事件脉络" },
+  { id: "chapter_outline", label: "大纲", accessibleLabel: "章节大纲" },
+  { id: "images", label: "图像", accessibleLabel: "项目图像" },
+  { id: "imports", label: "导入", accessibleLabel: "内容导入" },
+  { id: "chapters", label: "章节", accessibleLabel: "已生成章节" },
 ];
 const TAB_IDS = TABS.map((t) => t.id) as readonly Tab[];
 
@@ -112,6 +110,7 @@ export const NovelDetail: React.FC = () => {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [collaborationOpen, setCollaborationOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   const refreshSeqRef = useRef(0);
@@ -121,6 +120,7 @@ export const NovelDetail: React.FC = () => {
   const ragActionBusyRef = useRef(false);
   const refineActionBusyRef = useRef(false);
   const titleActionBusyRef = useRef(false);
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
   const canEditCurrentProject =
     project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
 
@@ -194,6 +194,7 @@ export const NovelDetail: React.FC = () => {
     setActionsOpen(false);
     setCollaborationOpen(false);
     setExportOpen(false);
+    setExportBusy(false);
     void refresh(projectId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
@@ -204,10 +205,22 @@ export const NovelDetail: React.FC = () => {
     setTab("overview");
   }, [canEditCurrentProject, project, setTab, tab]);
 
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    const frame = window.requestAnimationFrame(() => {
+      activeTabRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [project?.id, tab]);
+
   // 状态栏右侧：当前项目 + 当前 Tab
   useStatusBarPermanent(
     "novel-detail",
-    `项目 #${projectId}${project ? ` · ${project.title}` : ""} · ${TABS.find((t) => t.id === tab)?.label || tab}`,
+    `${project?.title || "项目"} · ${TABS.find((t) => t.id === tab)?.label || tab}`,
   );
 
   if (loading) {
@@ -219,7 +232,6 @@ export const NovelDetail: React.FC = () => {
   }
   if (!project) return null;
 
-  const initial = (project.title || "?").trim().charAt(0).toUpperCase();
   const homeEntryRoute = getProjectHomeEntryRoute(project);
   const homeEntryLabel = getProjectHomeEntryLabel(project);
   const canEditProject =
@@ -230,7 +242,12 @@ export const NovelDetail: React.FC = () => {
     : TABS.filter(
         (item) => item.id !== "characters" && item.id !== "relationships" && item.id !== "imports",
       );
-  const showHomeEntryButton = canEditProject && homeEntryRoute !== `/novel/${projectId}`;
+  const workspaceRoute = getProjectWorkspaceRoute(project);
+  const workspaceLabel = getProjectWorkspaceLabel(project) ?? "进入写作桌";
+  const showHomeEntryButton =
+    canEditProject &&
+    homeEntryRoute !== `/novel/${projectId}` &&
+    homeEntryRoute !== workspaceRoute;
   const statusMachineDescription = canOwnProject
     ? "查看状态历史，推进或回滚项目阶段。"
     : canEditProject
@@ -248,8 +265,8 @@ export const NovelDetail: React.FC = () => {
     let requestSeq: number | null = null;
     try {
       const ok = await confirmDialog({
-        title: "同步 RAG 向量库",
-        message: "将所有章节、分析数据、大纲、蓝图、世界观、角色档案和关系增量同步入 RAG 向量库？未变化的记录会按内容哈希跳过，只清理已不存在的过期记录。",
+        title: "同步资料索引",
+        message: "将章节、分析数据、大纲、蓝图、世界观和角色档案同步到资料检索索引？未变化的内容会自动跳过，并清理已不存在的记录。",
         confirmText: "开始同步",
         dialogType: "warning",
       });
@@ -262,44 +279,44 @@ export const NovelDetail: React.FC = () => {
       setRagSyncing(true);
       const result = await runProgressTask(
         {
-          title: "同步 RAG 向量库",
-          startMessage: "正在统计待同步 RAG 记录…",
-          successMessage: "RAG 增量同步完成",
-          errorMessage: "RAG 同步失败",
+          title: "同步资料索引",
+          startMessage: "正在统计待同步内容…",
+          successMessage: "资料索引同步完成",
+          errorMessage: "资料索引同步失败",
           total: 1,
           taskId,
           cancelLabel: "停止同步",
-          runningHint: "RAG 同步过程中请保持当前窗口打开",
+          runningHint: "同步过程中请保持当前窗口打开",
           formatProgress: formatRagProgress,
         },
         async ({ setProgress }) => {
           if (!isCurrentAction(requestProjectId, ragSeqRef, activeRequestSeq)) {
             throw new Error("任务已停止");
           }
-          setProgress("正在统计待同步 RAG 记录…", 0, 1);
+          setProgress("正在统计待同步内容…", 0, 1);
           const res = await ragIngestAll(requestProjectId, taskId);
-          setProgress(`RAG 增量同步完成：${formatRagIngestResultSummary(res)}`, 1, 1);
+          setProgress(`资料索引同步完成：${formatRagIngestResultSummary(res)}`, 1, 1);
           return res;
         },
       );
       if (!isCurrentAction(requestProjectId, ragSeqRef, activeRequestSeq)) return;
       addToast(
         result.success === false
-          ? `RAG 增量同步完成但有 ${result.errors.length} 个问题：${formatRagIngestResultSummary(result)}`
-          : `RAG 增量同步完成：${formatRagIngestResultSummary(result)}`,
+          ? `资料索引同步完成，但有 ${result.errors.length} 个问题：${formatRagIngestResultSummary(result)}`
+          : `资料索引同步完成：${formatRagIngestResultSummary(result)}`,
         result.success === false ? "error" : "success",
       );
     } catch (err) {
       if (requestSeq == null) {
         if (isCurrentProject(requestProjectId)) {
-          addToast(extractErrorMessage(err, "RAG 同步失败"), "error");
+          addToast(extractErrorMessage(err, "资料索引同步失败"), "error");
         }
         return;
       }
       if (!isCurrentAction(requestProjectId, ragSeqRef, requestSeq)) return;
-      const message = extractErrorMessage(err, "RAG 同步失败");
+      const message = extractErrorMessage(err, "资料索引同步失败");
       if (isCancelledOperation(message)) {
-        addToast("RAG 同步已停止", "info");
+        addToast("资料索引同步已停止", "info");
       } else {
         addToast(message, "error");
       }
@@ -420,74 +437,65 @@ export const NovelDetail: React.FC = () => {
       return;
     }
     setActionsOpen(false);
+    setExportBusy(false);
     setExportOpen(true);
   };
 
   return (
     <div className="h-full w-full flex flex-col bg-book-bg">
-      <header className="a4n-page-header h-auto min-h-12 shrink-0 flex-wrap py-2 sm:h-12 sm:flex-nowrap sm:py-0">
-        <BackButton iconOnly title="返回上一页（HOME / 灵感 / 写作台）" />
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div
-            className="shrink-0 w-8 h-8 border border-book-border bg-book-bg-paper flex items-center justify-center text-sm font-bold font-serif text-book-primary rounded-sm"
-            title="项目"
-          >
-            {initial}
-          </div>
-
-          <h2 className="text-sm font-serif font-semibold text-book-text-main truncate">
-            {project.title}
-          </h2>
-          {canEditProject && (
-            <button
-              type="button"
-              onClick={handleEditTitle}
-              disabled={saving}
-              className="pyqt-btn-icon !h-9 !w-9 sm:!h-6 sm:!w-6"
-              title="编辑标题"
+      {/* 项目身份、当前进度和高频入口；维护操作统一收进更多菜单。 */}
+      <PageHeader
+        className="a4n-app-page-header--detail h-auto shrink-0 py-2 sm:flex-nowrap sm:py-0"
+        leading={<BackButton iconOnly title="返回上一页" />}
+        title={project.title}
+        subtitle={getProjectProgressText(project)}
+        actions={
+          <>
+            {showHomeEntryButton && (
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate(homeEntryRoute)}
+                title={homeEntryLabel}
+                className="!min-h-8 !px-2.5 !text-xs"
+              >
+                <ArrowLeft size={12} />
+                {homeEntryLabel}
+              </BookButton>
+            )}
+            {workspaceRoute && canEditProject && (
+              <BookButton
+                variant="primary"
+                size="sm"
+                onClick={() => navigate(workspaceRoute)}
+                title={workspaceLabel}
+                className="!min-h-8 !px-3 !text-xs"
+              >
+                {workspaceLabel}
+              </BookButton>
+            )}
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={() => setActionsOpen(true)}
+              title="更多项目操作"
+              className="!min-h-8 !w-8 !px-0"
+              aria-label="更多"
             >
-              {saving ? <Loader2 size={11} className="animate-spin" /> : <Edit2 size={11} />}
-            </button>
-          )}
-          <span className="hidden pyqt-pill !text-[10px] sm:inline-flex">{project.project_type}</span>
-          <span className="pyqt-pill !text-[10px]">{getProjectProgressText(project)}</span>
-          <span className="hidden truncate text-[10px] text-book-text-muted md:inline">
-            {project.updated_at ? new Date(project.updated_at).toLocaleString() : ""}
-          </span>
-        </div>
-
-        {/* 高频操作留在顶栏，其余操作收进弹窗，避免详情页顶栏过载。 */}
-        <div className="ml-auto flex shrink-0 items-center gap-1">
-          {showHomeEntryButton && (
-            <button
-              type="button"
-              onClick={() => navigate(homeEntryRoute)}
-              className="pyqt-btn-secondary !min-h-9 !px-3 text-xs inline-flex items-center gap-1 sm:!min-h-[26px]"
-              title={homeEntryLabel}
-            >
-              <ArrowLeft size={11} />
-              {homeEntryLabel}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setActionsOpen(true)}
-            className="pyqt-btn-secondary !min-h-9 !px-3 text-xs inline-flex items-center gap-1 sm:!min-h-[26px]"
-            title="更多项目操作"
-          >
-            <MoreHorizontal size={12} />
-            更多
-          </button>
-        </div>
-      </header>
+              <MoreHorizontal size={14} />
+            </BookButton>
+          </>
+        }
+      />
 
       <nav
-        className="tab-bar px-2 border-b border-book-border bg-book-bg-paper shrink-0"
+        className="tab-bar a4n-mobile-scroll-rail shrink-0 scroll-px-[var(--a4n-content-gutter)] border-b border-book-border/80 bg-book-bg-paper/90 px-[var(--a4n-content-gutter)]"
         role="tablist"
         aria-label="项目详情栏目"
       >
         {visibleTabs.map((t) => (
           <button
+            ref={tab === t.id ? activeTabRef : undefined}
             key={t.id}
             type="button"
             role="tab"
@@ -495,14 +503,15 @@ export const NovelDetail: React.FC = () => {
             onClick={() => setTab(t.id)}
             data-active={tab === t.id ? "1" : undefined}
             className="pyqt-tab"
+            aria-label={t.accessibleLabel}
+            title={t.accessibleLabel}
           >
-            {t.icon}
             {t.label}
           </button>
         ))}
       </nav>
 
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 lg:p-5">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 sm:p-4 lg:p-5">
         {tab === "overview" && <OverviewTab project={project} onRefresh={refresh} />}
         {tab === "world" && <WorldTab projectId={projectId} canEditWorld={canEditProject} />}
         {tab === "characters" && canEditProject && <CharactersTab projectId={projectId} />}
@@ -538,31 +547,64 @@ export const NovelDetail: React.FC = () => {
         isOpen={actionsOpen}
         onClose={() => setActionsOpen(false)}
         title="项目操作"
-        subtitle="低频操作统一收纳在这里，主界面只保留当前阶段的核心信息。"
+        subtitle="管理项目内容、协作和维护操作。"
         icon={<MoreHorizontal size={15} />}
         maxWidthClassName="max-w-2xl"
         bodyClassName="px-4 py-4"
       >
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {project.status === "draft" && canEditProject && (
+        <div className="space-y-4">
+          <ProjectActionGroup title="项目管理">
+            {canEditProject ? (
+              <ProjectActionButton
+                icon={saving ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
+                title="修改标题"
+                description="调整项目在列表、写作台和导出文件中显示的名称。"
+                disabled={saving}
+                onClick={() => {
+                  setActionsOpen(false);
+                  void handleEditTitle();
+                }}
+              />
+            ) : null}
             <ProjectActionButton
-              icon={<Sparkles size={14} />}
-              title="灵感对话"
-              description="继续补充灵感，生成或调整首版蓝图。"
+              icon={<Users size={14} />}
+              title="协作成员"
+              description="邀请协作者，调整成员权限或管理待处理邀请。"
               onClick={() => {
                 setActionsOpen(false);
-                navigate(`/inspiration/${projectId}`);
+                setCollaborationOpen(true);
               }}
             />
-          )}
-          {canEditProject && (
-            <>
+            <ProjectActionButton
+              icon={<GitBranch size={14} />}
+              title="项目阶段"
+              description={statusMachineDescription}
+              onClick={() => {
+                setActionsOpen(false);
+                setStateMachineOpen(true);
+              }}
+            />
+          </ProjectActionGroup>
+
+          {canEditProject ? (
+            <ProjectActionGroup title="内容维护">
+              {project.status === "draft" ? (
+                <ProjectActionButton
+                  icon={<Sparkles size={14} />}
+                  title="灵感对话"
+                  description="继续补充灵感，生成或调整首版蓝图。"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    navigate(`/inspiration/${projectId}`);
+                  }}
+                />
+              ) : null}
               <ProjectActionButton
                 icon={
                   ragSyncing ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />
                 }
-                title="同步 RAG"
-                description="按内容哈希增量同步章节、大纲、蓝图和角色档案。"
+                title="同步资料索引"
+                description="更新资料检索所使用的章节、大纲、蓝图和角色档案。"
                 disabled={ragSyncing}
                 onClick={handleRagSync}
               />
@@ -575,46 +617,28 @@ export const NovelDetail: React.FC = () => {
                 disabled={refining}
                 onClick={handleRefineBlueprint}
               />
+            </ProjectActionGroup>
+          ) : null}
+
+          <ProjectActionGroup title="输出与查看">
+            {canEditProject ? (
               <ProjectActionButton
                 icon={<FileText size={14} />}
                 title="导出小说"
                 description="导出正文、章节大纲和角色结构数据。"
                 onClick={handleOpenExport}
               />
-            </>
-          )}
-          <ProjectActionButton
-            icon={<Users size={14} />}
-            title="协作成员"
-            description="邀请协作者，调整成员权限或管理待处理邀请。"
-            onClick={() => {
-              setActionsOpen(false);
-              setCollaborationOpen(true);
-            }}
-          />
-          <ProjectActionButton
-            icon={<GitBranch size={14} />}
-            title="状态机"
-            description={statusMachineDescription}
-            onClick={() => {
-              setActionsOpen(false);
-              setStateMachineOpen(true);
-            }}
-          />
-          <ProjectActionButton
-            icon={<Network size={14} />}
-            title="依赖状态"
-            description="查看文字、图片、视频资产的派生拓扑和下游处理状态。"
-            onClick={() => {
-              setActionsOpen(false);
-              setAssetGraphOpen(true);
-            }}
-          />
-        </div>
-        <div className="mt-3 flex justify-end">
-          <BookButton variant="secondary" size="sm" onClick={() => setActionsOpen(false)}>
-            关闭
-          </BookButton>
+            ) : null}
+            <ProjectActionButton
+              icon={<Network size={14} />}
+              title="内容关联"
+              description="查看文字、图片和视频之间的来源与下游关系。"
+              onClick={() => {
+                setActionsOpen(false);
+                setAssetGraphOpen(true);
+              }}
+            />
+          </ProjectActionGroup>
         </div>
       </Modal>
 
@@ -632,14 +656,19 @@ export const NovelDetail: React.FC = () => {
 
       <Modal
         isOpen={exportOpen}
-        onClose={() => setExportOpen(false)}
+        onClose={() => {
+          if (!exportBusy) setExportOpen(false);
+        }}
         title="导出小说"
         subtitle="这里导出正文和结构数据；漫画页与视频请在对应工作区导出。"
         icon={<FileText size={15} />}
         maxWidthClassName="max-w-4xl"
         bodyClassName="px-4 py-4"
+        closeOnBackdrop={!exportBusy}
+        closeOnEscape={!exportBusy}
+        showCloseButton={!exportBusy}
       >
-        <ExportPanel project={project} />
+        <ExportPanel project={project} onBusyChange={setExportBusy} />
       </Modal>
 
       <AssetDependencyGraphDialog
@@ -655,6 +684,18 @@ function formatRagProgress(current: number, total: number, percent: number): Rea
   return `${current}/${total} 条 (${percent}%)`;
 }
 
+const ProjectActionGroup: React.FC<{
+  title: string;
+  children: React.ReactNode;
+}> = ({ title, children }) => (
+  <section>
+    <h3 className="mb-1.5 px-1 text-[11px] font-semibold text-book-text-muted">{title}</h3>
+    <div className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
+      {children}
+    </div>
+  </section>
+);
+
 const ProjectActionButton: React.FC<{
   icon: React.ReactNode;
   title: string;
@@ -666,9 +707,9 @@ const ProjectActionButton: React.FC<{
     type="button"
     disabled={disabled}
     onClick={onClick}
-    className="a4n-interactive-row flex min-h-[74px] items-start gap-3 px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
+    className="flex min-h-16 w-full items-start gap-3 px-1 py-3 text-left transition-colors hover:bg-book-bg-tertiary/30 disabled:cursor-not-allowed disabled:opacity-60"
   >
-    <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-book-primary/30 bg-book-primary/10 text-book-primary">
+    <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center text-book-primary">
       {icon}
     </span>
     <span className="min-w-0">

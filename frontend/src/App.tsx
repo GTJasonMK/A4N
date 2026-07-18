@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, Suspense, lazy } from "react";
+import { useCallback, useEffect, useState, Suspense, lazy } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Loader2, Moon, Network, Sun } from "lucide-react";
 import { ToastContainer } from "./components/feedback/Toast";
@@ -46,52 +46,15 @@ const SettingsPage = lazy(() =>
   import("./pages/settings").then((m) => ({ default: m.SettingsPage })),
 );
 
-const CLICKABLE_ELEMENT_SELECTOR = [
-  "a[href]",
-  "button",
-  "input",
-  "select",
-  "textarea",
-  "summary",
-  "[role='button']",
-  "[role='link']",
-  "[tabindex]:not([tabindex='-1'])",
-].join(",");
-
-function canReceivePointer(element: HTMLElement) {
-  if (element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true") {
-    return false;
-  }
-  const rect = element.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) {
-    return false;
-  }
-  const style = window.getComputedStyle(element);
-  return style.display !== "none" && style.visibility !== "hidden" && style.pointerEvents !== "none";
-}
-
-function isPointInside(rect: DOMRect, x: number, y: number) {
-  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-}
-
-function findClickableElementUnder(button: HTMLButtonElement, x: number, y: number) {
-  const previousPointerEvents = button.style.pointerEvents;
-  button.style.pointerEvents = "none";
-  const hit = document.elementFromPoint(x, y);
-  button.style.pointerEvents = previousPointerEvents;
-
-  if (!(hit instanceof Element)) return null;
-  const target = hit.closest<HTMLElement>(CLICKABLE_ELEMENT_SELECTOR);
-  if (!target || target === button || button.contains(target)) return null;
-  return canReceivePointer(target) ? target : null;
-}
-
 function RouteFallback() {
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex items-center gap-2 text-xs text-book-text-muted bg-book-bg-paper border border-book-border rounded-sm px-3 py-2">
-        <Loader2 size={14} className="animate-spin" />
-        加载中…
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/25 p-4 backdrop-blur-[2px]">
+      <div className="a4n-flat-surface flex w-full max-w-xs items-center gap-3 px-4 py-3 shadow-[var(--shadow-overlay)]">
+        <Loader2 size={16} className="shrink-0 animate-spin text-book-primary" />
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-book-text-main">正在打开页面</div>
+          <div className="mt-0.5 text-xs text-book-text-muted">内容准备好后会自动显示</div>
+        </div>
       </div>
     </div>
   );
@@ -100,7 +63,7 @@ function RouteFallback() {
 /** 在状态栏右侧显示当前用户名 */
 const StatusBarUserWidget: React.FC = () => {
   const { user } = useAuthStore();
-  useStatusBarPermanent("user", user ? `${user.username}${user.role === "admin" ? " (admin)" : ""}` : "未登录");
+  useStatusBarPermanent("user", user ? `${user.username}${user.role === "admin" ? " · 管理员" : ""}` : "未登录");
   return null;
 };
 
@@ -111,98 +74,13 @@ function currentProjectIdFromPath(pathname: string): number | null {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
-const FloatingDependencyGraphLauncher: React.FC = () => {
-  const location = useLocation();
-  const projectId = currentProjectIdFromPath(location.pathname);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (projectId == null) setOpen(false);
-  }, [projectId]);
-
-  if (/^\/video-project\/\d+\/studio(?:\/|$)/.test(location.pathname)) return null;
-
-  if (projectId == null) return null;
-
-  return (
-    <>
-      <div className="pointer-events-none fixed bottom-[4.25rem] right-3 z-[100]">
-        <button
-          type="button"
-          aria-label="查看项目依赖状态"
-          title="查看项目依赖状态"
-          onClick={() => setOpen(true)}
-          className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded border border-book-border bg-book-bg-paper/90 text-book-text-sub shadow-sm backdrop-blur transition hover:border-book-primary/60 hover:bg-book-primary/10 hover:text-book-primary focus-visible:outline-2 focus-visible:outline-book-primary"
-        >
-          <Network size={14} />
-        </button>
-      </div>
-      <AssetDependencyGraphDialog
-        open={open}
-        projectId={projectId}
-        onClose={() => setOpen(false)}
-      />
-    </>
-  );
-};
-
-const FloatingThemeToggle: React.FC<{ isDark: boolean; onToggle: () => void }> = ({
-  isDark,
-  onToggle,
-}) => {
-  const location = useLocation();
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [passesThrough, setPassesThrough] = useState(false);
-  const label = isDark ? "切换到亮色模式" : "切换到暗色模式";
-  const updatePassThrough = useCallback((x: number, y: number) => {
-    const button = buttonRef.current;
-    if (!button) return;
-    setPassesThrough(findClickableElementUnder(button, x, y) !== null);
-  }, []);
-
-  useEffect(() => {
-    if (!passesThrough) return undefined;
-    const handlePointerMove = (event: PointerEvent) => {
-      const button = buttonRef.current;
-      if (!button) return;
-      const rect = button.getBoundingClientRect();
-      if (!isPointInside(rect, event.clientX, event.clientY)) {
-        setPassesThrough(false);
-        return;
-      }
-      setPassesThrough(findClickableElementUnder(button, event.clientX, event.clientY) !== null);
-    };
-    window.addEventListener("pointermove", handlePointerMove);
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-    };
-  }, [passesThrough]);
-
-  if (/^\/video-project\/\d+\/studio(?:\/|$)/.test(location.pathname)) return null;
-
-  return (
-    <div className="pointer-events-none fixed bottom-7 right-3 z-[100]">
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-label={label}
-        tabIndex={passesThrough ? -1 : undefined}
-        title={label}
-        onClick={onToggle}
-        onPointerEnter={(event) => updatePassThrough(event.clientX, event.clientY)}
-        onPointerMove={(event) => updatePassThrough(event.clientX, event.clientY)}
-        className={`inline-flex h-8 w-8 items-center justify-center rounded border border-book-border bg-book-bg-paper/80 text-book-text-sub shadow-sm backdrop-blur transition hover:bg-book-bg-paper hover:text-book-primary focus-visible:outline-2 focus-visible:outline-book-primary ${
-          passesThrough ? "pointer-events-none opacity-20" : "pointer-events-auto opacity-45 hover:opacity-100"
-        }`}
-      >
-        {isDark ? <Sun size={14} /> : <Moon size={14} />}
-      </button>
-    </div>
-  );
-};
-
 function Layout({ children }: { children: (ctx: { isDark: boolean }) => React.ReactNode }) {
   const { initialized, user } = useAuthStore();
+  const location = useLocation();
+  const projectId = currentProjectIdFromPath(location.pathname);
+  const dependencyGraphAvailable =
+    projectId != null && !/^\/video-project\/\d+\/studio(?:\/|$)/.test(location.pathname);
+  const [dependencyGraphOpen, setDependencyGraphOpen] = useState(false);
   const [isDark, setIsDark] = usePersistedState<boolean>("a4n-theme-mode", false, {
     parse: (raw) => String(raw).trim().toLowerCase() === "dark",
     serialize: (value) => (value ? "dark" : "light"),
@@ -210,6 +88,10 @@ function Layout({ children }: { children: (ctx: { isDark: boolean }) => React.Re
   const toggleTheme = useCallback(() => {
     setIsDark((prev) => !prev);
   }, [setIsDark]);
+
+  useEffect(() => {
+    if (!dependencyGraphAvailable) setDependencyGraphOpen(false);
+  }, [dependencyGraphAvailable, projectId]);
 
   useEffect(() => {
     // 主题切换 fade 过渡：临时添加 theme-switching 类触发全局 200ms 色彩过渡
@@ -267,9 +149,39 @@ function Layout({ children }: { children: (ctx: { isDark: boolean }) => React.Re
         {children({ isDark })}
       </main>
 
-      <StatusBar />
-      <FloatingDependencyGraphLauncher />
-      <FloatingThemeToggle isDark={isDark} onToggle={toggleTheme} />
+      <StatusBar
+        actions={
+          <>
+            {dependencyGraphAvailable ? (
+              <button
+                type="button"
+                aria-label="查看项目依赖状态"
+                title="查看项目依赖状态"
+                onClick={() => setDependencyGraphOpen(true)}
+                className="a4n-status-bar-action"
+              >
+                <Network size={12} />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              aria-label={isDark ? "切换到亮色模式" : "切换到暗色模式"}
+              title={isDark ? "切换到亮色模式" : "切换到暗色模式"}
+              onClick={toggleTheme}
+              className="a4n-status-bar-action"
+            >
+              {isDark ? <Sun size={12} /> : <Moon size={12} />}
+            </button>
+          </>
+        }
+      />
+      {dependencyGraphAvailable && projectId != null ? (
+        <AssetDependencyGraphDialog
+          open={dependencyGraphOpen}
+          projectId={projectId}
+          onClose={() => setDependencyGraphOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

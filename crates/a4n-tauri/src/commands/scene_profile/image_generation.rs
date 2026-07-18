@@ -1,5 +1,5 @@
 use a4n_runtime::AppState;
-use a4n_runtime::actions::image_generation as image_generation_actions;
+use a4n_runtime::host_api::image_generation as image_generation_actions;
 use image_generation_actions::{
     GeneratedImageSummary, SceneProfileImageInput, SceneProfileImagePromptOutput,
 };

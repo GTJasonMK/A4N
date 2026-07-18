@@ -1,4 +1,4 @@
-use a4n_runtime::actions::config_records::{
+use a4n_runtime::host_api::config_records::{
     self as config_records_actions, ModelDiscoveryInput, ModelDiscoveryResult,
     UpdateVideoConfigInput, VideoConfigInput, VideoConfigSummary,
 };

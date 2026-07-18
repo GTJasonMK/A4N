@@ -1,7 +1,7 @@
 import React from "react";
-import { ArrowRight, History, Loader2 } from "lucide-react";
+import { ChevronRight, History, Loader2 } from "lucide-react";
 import type { ProjectStatusHistory } from "../../api/project";
-import { statusLabel } from "./statusMachineUtils";
+import { ProjectStatusHistoryList } from "../../components/ProjectStatusHistoryList";
 
 interface StatusHistoryPanelProps {
   history: ProjectStatusHistory[];
@@ -13,42 +13,33 @@ export const StatusHistoryPanel: React.FC<StatusHistoryPanelProps> = ({
   loading,
 }) => {
   return (
-    <div className="pyqt-card p-3">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs text-book-text-muted inline-flex items-center gap-1.5">
-          <History size={12} /> 状态变更历史
-        </div>
-        {loading && <Loader2 size={11} className="animate-spin" />}
+    <details className="group border-t border-book-border/35 pt-2">
+      <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-xs text-book-text-sub [&::-webkit-details-marker]:hidden">
+        <History size={12} className="shrink-0 text-book-text-muted" />
+        <span className="font-medium">状态变更历史</span>
+        <span className="text-[10px] text-book-text-muted">
+          {loading ? "加载中…" : history.length > 0 ? `${history.length} 条记录` : "暂无记录"}
+        </span>
+        <span className="ml-auto inline-flex items-center gap-1 text-book-text-muted">
+          {loading ? <Loader2 size={10} className="animate-spin" /> : null}
+          <ChevronRight
+            size={11}
+            className="transition-transform duration-200 group-open:rotate-90"
+          />
+        </span>
+      </summary>
+      <div className="mt-2 sm:pl-5">
+        {loading ? (
+          <div className="inline-flex items-center gap-1.5 py-2 text-xs text-book-text-muted">
+            <Loader2 size={11} className="animate-spin" />
+            正在加载历史记录…
+          </div>
+        ) : history.length === 0 ? (
+          <div className="py-2 text-xs text-book-text-muted">暂无阶段变更记录。</div>
+        ) : (
+          <ProjectStatusHistoryList history={history} className="border-y border-book-border/35" />
+        )}
       </div>
-      {loading ? (
-        <div className="inline-flex items-center gap-1.5 text-xs text-book-text-muted">
-          <Loader2 size={11} className="animate-spin" />
-          正在加载历史记录…
-        </div>
-      ) : history.length === 0 ? (
-        <div className="text-xs text-book-text-muted">无历史记录</div>
-      ) : (
-        <ul className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
-          {history.map((item) => (
-            <li
-              key={item.id}
-              className="text-xs text-book-text-sub flex items-center gap-2 px-2 py-1 rounded hover:bg-book-bg-tertiary/40"
-            >
-              <span className="text-book-text-muted shrink-0 font-mono text-[10px]">
-                {item.created_at ? new Date(item.created_at).toLocaleString() : "—"}
-              </span>
-              <span>{statusLabel(item.from_status)}</span>
-              <ArrowRight size={10} className="text-book-text-muted" />
-              <span className="font-semibold text-book-text-main">
-                {statusLabel(item.to_status)}
-              </span>
-              {item.reason && (
-                <span className="text-book-text-muted truncate">· {item.reason}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    </details>
   );
 };

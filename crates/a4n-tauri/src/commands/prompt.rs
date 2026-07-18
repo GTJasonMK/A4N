@@ -3,7 +3,7 @@
 //! 保持 `commands::prompt::*` 的 Tauri 命令入口稳定，具体实现委托 runtime actions。
 
 use a4n_runtime::AppState;
-use a4n_runtime::actions::prompt_records::{
+use a4n_runtime::host_api::prompt_records::{
     self as prompt_records_actions, AbRenderInput, AbRenderResult, CategoryInfo,
     DependencyGraphOutput, ProjectPromptOverrideSummary, PromptEntrySummary, PromptVersionSummary,
     RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput, ValidateVarsInput,
@@ -21,8 +21,8 @@ pub async fn prompt_render(
 }
 
 #[tauri::command]
-pub fn prompt_list(state: State<'_, AppState>) -> Result<Vec<PromptEntrySummary>, String> {
-    Ok(prompt_records_actions::prompt_list(&state))
+pub async fn prompt_list(state: State<'_, AppState>) -> Result<Vec<PromptEntrySummary>, String> {
+    prompt_records_actions::prompt_list(&state).await
 }
 
 #[tauri::command]
@@ -44,11 +44,11 @@ pub async fn prompt_reset(state: State<'_, AppState>, name: String) -> Result<()
 }
 
 #[tauri::command]
-pub fn prompt_version_history(
+pub async fn prompt_version_history(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<Vec<PromptVersionSummary>, String> {
-    prompt_records_actions::prompt_version_history(&state, &name)
+    prompt_records_actions::prompt_version_history(&state, &name).await
 }
 
 #[tauri::command]
@@ -70,26 +70,26 @@ pub async fn prompt_remove_project_override(
 }
 
 #[tauri::command]
-pub fn prompt_version_diff(
+pub async fn prompt_version_diff(
     state: State<'_, AppState>,
     input: VersionDiffInput,
 ) -> Result<String, String> {
-    prompt_records_actions::prompt_version_diff(&state, input)
+    prompt_records_actions::prompt_version_diff(&state, input).await
 }
 
 #[tauri::command]
-pub fn prompt_validate_variables(
+pub async fn prompt_validate_variables(
     state: State<'_, AppState>,
     input: ValidateVarsInput,
 ) -> Result<Vec<String>, String> {
-    prompt_records_actions::prompt_validate_variables(&state, input)
+    prompt_records_actions::prompt_validate_variables(&state, input).await
 }
 
 #[tauri::command]
-pub fn prompt_dependency_graph(
+pub async fn prompt_dependency_graph(
     state: State<'_, AppState>,
 ) -> Result<DependencyGraphOutput, String> {
-    Ok(prompt_records_actions::prompt_dependency_graph(&state))
+    prompt_records_actions::prompt_dependency_graph(&state).await
 }
 
 #[tauri::command]
@@ -102,19 +102,19 @@ pub async fn prompt_render_ab(
 }
 
 #[tauri::command]
-pub fn prompt_get_dependencies(
+pub async fn prompt_get_dependencies(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<Vec<String>, String> {
-    prompt_records_actions::prompt_get_dependencies(&state, &name)
+    prompt_records_actions::prompt_get_dependencies(&state, &name).await
 }
 
 #[tauri::command]
-pub fn prompt_get_reverse_dependencies(
+pub async fn prompt_get_reverse_dependencies(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<Vec<String>, String> {
-    prompt_records_actions::prompt_get_reverse_dependencies(&state, &name)
+    prompt_records_actions::prompt_get_reverse_dependencies(&state, &name).await
 }
 
 #[tauri::command]
@@ -127,6 +127,8 @@ pub async fn prompt_list_project_overrides(
 }
 
 #[tauri::command]
-pub fn prompt_list_categories(state: State<'_, AppState>) -> Result<Vec<CategoryInfo>, String> {
-    prompt_records_actions::prompt_list_categories(&state)
+pub async fn prompt_list_categories(
+    state: State<'_, AppState>,
+) -> Result<Vec<CategoryInfo>, String> {
+    prompt_records_actions::prompt_list_categories(&state).await
 }

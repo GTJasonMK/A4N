@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { CharacterProfile } from "../../../api/character";
-import { BookCard } from "../../../components/ui/BookCard";
 import { CharacterDetailDialog } from "../../CharacterDetailDialog";
 import {
   characterAttributeEntries,
   characterAttributeValueText,
 } from "../../../utils/characterAttributes";
+import { attributeKeyLabel } from "../../character-detail-dialog/manageViewUtils";
 import { EmptyHint } from "../shared";
 
 const profileDescription = (profile: CharacterProfile): string =>
@@ -14,11 +14,8 @@ const profileDescription = (profile: CharacterProfile): string =>
     .map((value) => value?.trim())
     .find((value): value is string => !!value) ?? "暂无角色摘要。";
 
-const attributeCountText = (profile: CharacterProfile): string =>
-  `显性 ${profile.attribute_counts.explicit} / 隐性 ${profile.attribute_counts.implicit} / 社会关系 ${profile.attribute_counts.social}`;
-
 const syncedChapterText = (chapter: number): string =>
-  chapter > 0 ? `已同步第 ${chapter} 章` : "未同步";
+  chapter > 0 ? `同步至第 ${chapter} 章` : "未同步";
 
 const visibleAttributeEntries = (profile: CharacterProfile): Array<[string, string]> =>
   [
@@ -26,10 +23,13 @@ const visibleAttributeEntries = (profile: CharacterProfile): Array<[string, stri
     ...characterAttributeEntries(profile, "implicit"),
     ...characterAttributeEntries(profile, "social"),
   ]
-    .map(([key, value]) => [key, characterAttributeValueText(value)] as [string, string])
-    .filter(([, value]) => value)
-    .slice(0, 4);
+    .map(([key, value]) => [attributeKeyLabel(key), characterAttributeValueText(value)] as [string, string])
+    .filter(([, value]) => value && !value.trim().startsWith("{") && !value.trim().startsWith("["))
+    .slice(0, 3);
 
+/**
+ * 角色档案：每个角色保持独立边界，点击卡片进入详情。
+ */
 export const CharacterProfilesPanel: React.FC<{
   projectId: number;
   profiles: CharacterProfile[];
@@ -44,70 +44,68 @@ export const CharacterProfilesPanel: React.FC<{
     });
   }, [profiles]);
 
+  if (profiles.length === 0) {
+    return <EmptyHint text="尚未从正文分析出角色档案。" />;
+  }
+
+  const latestSyncedChapter = profiles.reduce(
+    (latest, profile) => Math.max(latest, profile.last_synced_chapter),
+    0,
+  );
+
   return (
     <>
-      <BookCard className="p-5">
-        <h3 className="mb-3 font-serif text-sm text-book-text-main">
-          角色档案 <span className="text-xs text-book-text-muted">({profiles.length})</span>
-        </h3>
-        {profiles.length === 0 ? (
-          <EmptyHint text="尚未从正文分析出角色档案。" />
-        ) : (
-          <ul className="space-y-1.5">
-            {profiles.map((profile) => {
-              const attributes = visibleAttributeEntries(profile);
-              return (
-                <li
-                  key={profile.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setDetailFor(profile)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setDetailFor(profile);
-                    }
-                  }}
-                  className="flex cursor-pointer items-start gap-3 rounded-sm border border-book-border bg-book-bg-paper px-3 py-2 transition-colors hover:border-book-primary/60 hover:bg-book-bg-tertiary/40"
-                  title="查看角色详情"
-                >
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-sm border border-book-primary/30 bg-book-primary/10 text-xs font-bold text-book-primary">
-                    {profile.name.trim().charAt(0).toUpperCase() || "?"}
+      <section>
+        <header className="mb-3 px-1">
+          <h2 className="text-sm font-semibold text-book-text-main">角色档案</h2>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+            共 {profiles.length} 位角色
+            {latestSyncedChapter > 0 ? `，最新同步至第 ${latestSyncedChapter} 章` : ""}
+          </p>
+        </header>
+        <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
+          {profiles.map((profile) => {
+            const attributes = visibleAttributeEntries(profile);
+            return (
+              <li
+                key={profile.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setDetailFor(profile)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setDetailFor(profile);
+                  }
+                }}
+                className="a4n-flat-surface flex min-h-20 cursor-pointer items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
+                title="查看角色详情"
+              >
+                <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-book-primary/10 text-xs font-semibold text-book-primary">
+                  {profile.name.trim().charAt(0).toUpperCase() || "?"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
+                  <div className="mt-0.5 text-[10px] text-book-text-muted">
+                    {[profile.gender, profile.age, syncedChapterText(profile.last_synced_chapter)]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-sm font-semibold text-book-text-main">
-                        {profile.name}
-                      </span>
-                      {profile.gender ? (
-                        <span className="pyqt-pill !text-[10px]">{profile.gender}</span>
-                      ) : null}
-                      {profile.age ? (
-                        <span className="pyqt-pill !text-[10px]">{profile.age}</span>
-                      ) : null}
-                      <span className="pyqt-pill !text-[10px]">
-                        {syncedChapterText(profile.last_synced_chapter)}
-                      </span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
-                      {profileDescription(profile)}
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-sub">
+                    {profileDescription(profile)}
+                  </p>
+                  {attributes.length > 0 ? (
+                    <p className="mt-1 truncate text-[10px] text-book-text-muted">
+                      {attributes.map(([key, value]) => `${key}：${value}`).join(" · ")}
                     </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-book-text-muted">
-                      <span>{attributeCountText(profile)}</span>
-                      {attributes.map(([key, value]) => (
-                        <span key={key} className="pyqt-pill !text-[10px]" title={value}>
-                          {key}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <Sparkles size={13} className="mt-1 shrink-0 text-book-text-muted" />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </BookCard>
+                  ) : null}
+                </div>
+                <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
       <CharacterDetailDialog
         open={detailFor != null}

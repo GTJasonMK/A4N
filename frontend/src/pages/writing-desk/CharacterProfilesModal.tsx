@@ -497,7 +497,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         closeOnEscape={!childModalOpen && !saving && !discovering && !syncingAll}
         showCloseButton={!saving && !childModalOpen && !discovering && !syncingAll}
       >
-        <div className="grid min-h-[70dvh] grid-rows-[auto_minmax(0,1fr)] md:min-h-[560px] md:grid-cols-[260px_1fr] md:grid-rows-1">
+        <div className="grid min-h-[70dvh] min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-x-hidden md:min-h-[560px] md:grid-cols-[260px_minmax(0,1fr)] md:grid-rows-1">
           <CharacterProfileList
             profiles={profiles}
             selectedId={selectedProfile?.id ?? null}

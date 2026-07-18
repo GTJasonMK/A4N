@@ -1,5 +1,5 @@
 use a4n_runtime::AppState;
-use a4n_runtime::actions::chapter_content as chapter_content_actions;
+use a4n_runtime::host_api::chapter_content as chapter_content_actions;
 use chapter_content_actions::{ChapterSummary, ImportChapterInput, UpdateChapterContentInput};
 use tauri::State;
 

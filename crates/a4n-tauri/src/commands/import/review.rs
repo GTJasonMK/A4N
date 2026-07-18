@@ -1,9 +1,8 @@
 use a4n_runtime::AppState;
-use a4n_runtime::actions::import_review;
-use a4n_services::import::ModifyImportReviewInput;
+use a4n_runtime::host_api::import_review;
 use import_review::{
     BatchAcceptImportReviewsInput as BatchAcceptInput, CheckImportDedupInput, DedupResult,
-    ImportReviewSummary,
+    ImportReviewSummary, ModifyImportReviewInput,
 };
 use tauri::State;
 

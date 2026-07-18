@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, Loader2 } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { useToast } from "../../../components/feedback/Toast";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
@@ -20,6 +21,7 @@ import {
   previewRegeneratePartsRequest,
   regeneratePartOutline,
   regenerateParts,
+  type ChapterOutlinePacing,
   type GenerationProgress,
   type PartOutline,
 } from "../../../api/outline";
@@ -44,8 +46,131 @@ interface OutlineAdvancedPanelProps {
 
 const partOptionLabel = (part: PartOutline): string => {
   const title = nonEmptyText(part.title);
-  return title ? `#${part.part_number} ${title}` : `#${part.part_number}`;
+  return title ? `第 ${part.part_number} 部 · ${title}` : `第 ${part.part_number} 部`;
 };
+
+const CompletionRow: React.FC<{ label: string; current: number; total: number }> = ({
+  label,
+  current,
+  total,
+}) => {
+  const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-2 text-[11px]">
+        <span className="font-medium text-book-text-sub">{label}</span>
+        <span className="ml-auto tabular-nums text-book-text-muted">
+          {current} / {total}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-book-bg-tertiary">
+        <div
+          className="h-full rounded-full bg-book-primary/75 transition-[width] duration-300"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+const PacingSummary: React.FC<{ data: ChapterOutlinePacing }> = ({ data }) => (
+  <div className="space-y-2">
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px]">
+      <span className="font-medium text-book-text-main">{data.summary || "暂无节奏结论"}</span>
+      <span className="text-book-text-muted">
+        {data.chapter_count} 章 · 平均节奏 {data.pacing_score.toFixed(2)}
+      </span>
+    </div>
+    {data.analysis.length > 0 ? (
+      <div className="divide-y divide-book-border/35">
+        {data.analysis.map((item) => (
+          <div key={item.chapter_number} className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-2 py-1.5 text-[11px]">
+            <span className="min-w-0 truncate text-book-text-sub">
+              第 {item.chapter_number} 章{item.title ? ` · ${item.title}` : ""}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-book-bg-tertiary">
+                <div
+                  className="h-full rounded-full bg-book-primary/70"
+                  style={{ width: `${Math.min(100, Math.max(0, item.pacing_score * 100))}%` }}
+                />
+              </div>
+              <span className="w-6 text-right tabular-nums text-book-text-muted">
+                {item.pacing_score.toFixed(1)}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="text-[11px] text-book-text-muted">暂无章节节奏数据</div>
+    )}
+  </div>
+);
+
+function AdvancedActionRow({
+  title,
+  description,
+  actionLabel,
+  actionBusyLabel,
+  busy,
+  disabled,
+  warning = false,
+  standalone = false,
+  onPreview,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel: string;
+  actionBusyLabel: string;
+  busy: boolean;
+  disabled: boolean;
+  warning?: boolean;
+  standalone?: boolean;
+  onPreview: () => void;
+  onAction: () => void;
+}) {
+  return (
+    <div
+      className={`${standalone ? "a4n-flat-surface " : ""}flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center`}
+    >
+      <div className="min-w-0 flex-1">
+        <h5 className="text-xs font-medium text-book-text-main">{title}</h5>
+        <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">{description}</p>
+      </div>
+      <div className="flex items-center justify-end gap-2 sm:shrink-0">
+        {!busy ? (
+          <Dropdown
+            items={[
+              {
+                label: "查看模型请求",
+                icon: <Eye size={12} />,
+                onClick: onPreview,
+                disabled,
+              },
+            ]}
+          />
+        ) : null}
+        <BookButton
+          variant={warning ? "warning" : "secondary"}
+          size="sm"
+          onClick={onAction}
+          disabled={disabled}
+          className="min-w-0 flex-1 !text-xs sm:flex-none"
+        >
+          {busy ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Loader2 size={11} className="animate-spin" /> {actionBusyLabel}
+            </span>
+          ) : (
+            actionLabel
+          )}
+        </BookButton>
+      </div>
+    </div>
+  );
+}
 
 export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   projectId,
@@ -63,7 +188,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   const [progressLoading, setProgressLoading] = useState(false);
   const [autoPoll, setAutoPoll] = useState(false);
 
-  const [pacing, setPacing] = useState<unknown>(null);
+  const [pacing, setPacing] = useState<ChapterOutlinePacing | null>(null);
   const [pacingLoading, setPacingLoading] = useState(false);
 
   const [beatJson, setBeatJson] = useState<string>(
@@ -463,16 +588,16 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       const taskId = createProgressTaskId("outline-part-chapters", requestProjectId);
       await runProgressTask(
         {
-          title: `生成部 #${requestPart.part_number} 章纲`,
+          title: `生成第 ${requestPart.part_number} 部章纲`,
           startMessage: "准备调用模型生成本部章纲…",
-          successMessage: `已为部 #${requestPart.part_number} 生成章纲`,
+          successMessage: `已为第 ${requestPart.part_number} 部生成章纲`,
           errorMessage: "生成失败",
           total: 3,
           taskId,
         },
         async ({ setProgress }) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress(`模型正在为部 #${requestPart.part_number} 生成章纲…`, 1);
+          setProgress(`模型正在为第 ${requestPart.part_number} 部生成章纲…`, 1);
           await generatePartChapterOutlines({
             project_id: requestProjectId,
             part_id: requestPart.id,
@@ -485,7 +610,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast(`已为部 #${requestPart.part_number} 生成章纲`, "success");
+      addToast(`已为第 ${requestPart.part_number} 部生成章纲`, "success");
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
@@ -601,7 +726,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       const taskId = createProgressTaskId("outline-regenerate-part", requestProjectId);
       await runProgressTask(
         {
-          title: `重新生成部 #${requestPart.part_number}`,
+          title: `重新生成第 ${requestPart.part_number} 部`,
           startMessage: "准备调用模型重写部大纲…",
           successMessage: "已重新生成部大纲",
           errorMessage: "重新生成失败",
@@ -610,7 +735,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
         async ({ setProgress }) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress(`模型正在重写部 #${requestPart.part_number} 大纲…`, 1);
+          setProgress(`模型正在重写第 ${requestPart.part_number} 部大纲…`, 1);
           await regeneratePartOutline({
             project_id: requestProjectId,
             part_id: requestPart.id,
@@ -836,192 +961,248 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section className="rounded-sm border border-book-border/40 bg-book-bg-paper/25 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-serif text-book-text-main">生成进度</h4>
-            <div className="inline-flex items-center gap-2 text-[10px] text-book-text-muted">
-              <label className="inline-flex items-center gap-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoPoll}
-                  disabled={disabled}
-                  onChange={(e) => setAutoPoll(e.target.checked)}
-                  className="accent-book-primary"
-                />
-                每 3s 刷新
-              </label>
-              <BookButton
-                variant="secondary"
-                onClick={loadProgress}
-                disabled={disabled || progressLoading}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <section className="a4n-flat-surface p-3">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h4 className="text-sm font-medium text-book-text-main">生成进度</h4>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoPoll}
+              onClick={() => setAutoPoll((current) => !current)}
+              disabled={controlsDisabled}
+              className="ml-auto inline-flex items-center gap-2 text-[11px] text-book-text-muted disabled:cursor-not-allowed disabled:opacity-50"
+              title={autoPoll ? "关闭自动刷新" : "开启自动刷新"}
+            >
+              <span>自动刷新</span>
+              <span
+                className={`relative inline-flex h-[18px] w-8 shrink-0 rounded-full transition-colors ${
+                  autoPoll ? "bg-book-primary" : "bg-book-text-muted/25"
+                }`}
               >
-                {progressLoading ? <Loader2 size={11} className="animate-spin" /> : "查询"}
-              </BookButton>
-            </div>
+                <span
+                  className={`absolute top-[2px] h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
+                    autoPoll ? "translate-x-4" : "translate-x-[2px]"
+                  }`}
+                />
+              </span>
+            </button>
+            <BookButton
+              variant="ghost"
+              size="sm"
+              onClick={loadProgress}
+              disabled={disabled || progressLoading}
+              className="!px-2 !text-[11px]"
+            >
+              {progressLoading ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 size={11} className="animate-spin" /> 刷新中…
+                </span>
+              ) : (
+                "刷新"
+              )}
+            </BookButton>
           </div>
           {progress ? (
-            <pre className="text-[10px] font-mono whitespace-pre-wrap break-words max-h-32 overflow-y-auto custom-scrollbar bg-book-bg-tertiary/40 p-2 rounded">
-              {JSON.stringify(progress, null, 2)}
-            </pre>
+            <div className="space-y-3">
+              <CompletionRow label="分部大纲" current={progress.completed_parts} total={progress.total_parts} />
+              <CompletionRow
+                label="章节大纲"
+                current={progress.completed_chapter_outlines}
+                total={progress.total_chapter_outlines}
+              />
+            </div>
           ) : (
-            <div className="text-[10px] text-book-text-muted italic">点击"查询"加载进度</div>
+            <p className="text-[11px] text-book-text-muted">尚未查询生成进度。</p>
           )}
         </section>
 
-        <section className="rounded-sm border border-book-border/40 bg-book-bg-paper/25 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-serif text-book-text-main">章纲节奏分析</h4>
-            <BookButton
-              variant="secondary"
-              onClick={loadPacing}
-              disabled={disabled || pacingLoading}
-            >
-              {pacingLoading ? <Loader2 size={11} className="animate-spin" /> : "分析"}
-            </BookButton>
-          </div>
-          {pacing ? (
-            <pre className="text-[10px] font-mono whitespace-pre-wrap break-words max-h-32 overflow-y-auto custom-scrollbar bg-book-bg-tertiary/40 p-2 rounded">
-              {JSON.stringify(pacing, null, 2)}
-            </pre>
-          ) : (
-            <div className="text-[10px] text-book-text-muted italic">
-              统计每章节奏（高潮/平缓/转折）的分布
+        <section className="a4n-flat-surface p-3">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <h4 className="text-sm font-medium text-book-text-main">章纲节奏分析</h4>
+              {!pacing ? (
+                <p className="mt-0.5 text-[11px] text-book-text-muted">检查高潮、平缓和转折的章节分布。</p>
+              ) : null}
             </div>
-          )}
+            {pacingLoading ? (
+              <span
+                role="status"
+                className="inline-flex min-h-8 shrink-0 items-center gap-1.5 text-[11px] text-book-text-muted"
+                title="正在分析章纲节奏"
+              >
+                <Loader2 size={11} className="animate-spin" /> 分析中…
+              </span>
+            ) : pacing ? (
+              <Dropdown
+                items={[
+                  {
+                    label: "重新分析章纲节奏",
+                    onClick: loadPacing,
+                    disabled,
+                  },
+                ]}
+              />
+            ) : (
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={loadPacing}
+                disabled={disabled}
+                className="!text-xs"
+              >
+                开始分析
+              </BookButton>
+            )}
+          </div>
+          {pacing ? <PacingSummary data={pacing} /> : null}
         </section>
       </div>
 
-      <section className="border-t border-book-border/40 pt-4 space-y-2 text-xs">
-        <h4 className="font-serif text-sm text-book-text-main">部级章纲生成</h4>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-book-text-muted shrink-0">选择部</span>
-          <select
-            value={selectedPartId}
-            onChange={(e) => setSelectedPartId(e.target.value ? Number(e.target.value) : "")}
-            disabled={controlsDisabled}
-            className="pyqt-input !py-1 !px-2"
-          >
-            <option value="">选择部</option>
-            {parts.map((part) => (
-              <option key={part.id} value={part.id}>
-                {partOptionLabel(part)}
-              </option>
-            ))}
-          </select>
-          <BookButton
-            variant="secondary"
-            onClick={handlePreviewGeneratePartChapters}
+      <section className="space-y-2">
+        <div>
+          <h4 className="text-sm font-medium text-book-text-main">选中分部</h4>
+          <p className="mt-0.5 text-[11px] text-book-text-muted">为一个分部补齐对应的章节大纲。</p>
+        </div>
+        <select
+          value={selectedPartId}
+          onChange={(event) => setSelectedPartId(event.target.value ? Number(event.target.value) : "")}
+          disabled={controlsDisabled}
+          className="pyqt-input w-full"
+        >
+          <option value="">选择分部</option>
+          {parts.map((part) => (
+            <option key={part.id} value={part.id}>
+              {partOptionLabel(part)}
+            </option>
+          ))}
+        </select>
+        <div>
+          <AdvancedActionRow
+            title="生成本部章纲"
+            description="根据选中分部的目标和章节范围，生成该部对应的章节大纲。"
+            actionLabel="生成本部章纲"
+            actionBusyLabel="生成中…"
+            busy={partGenBusy}
             disabled={controlsDisabled || selectedPartId === ""}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <Eye size={12} /> 预览本部章纲
-            </span>
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={handleGeneratePartChapters}
-            disabled={controlsDisabled || selectedPartId === ""}
-          >
-            {partGenBusy ? <Loader2 size={11} className="animate-spin" /> : "生成本部章纲"}
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={handlePreviewRegenPartOutline}
-            disabled={controlsDisabled || selectedPartId === ""}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <Eye size={12} /> 预览重生成本部
-            </span>
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={handleRegenPartOutline}
-            disabled={controlsDisabled || selectedPartId === ""}
-          >
-            {partRegenBusy ? <Loader2 size={11} className="animate-spin" /> : "重新生成本部"}
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={handlePreviewBatchPartOutlines}
-            disabled={controlsDisabled}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <Eye size={12} /> 预览批量章纲
-            </span>
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={handleBatchPartOutlines}
-            disabled={controlsDisabled}
-          >
-            {batchBusy ? <Loader2 size={11} className="animate-spin" /> : "批量生成各部章纲"}
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={handlePreviewContinue}
-            disabled={controlsDisabled}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <Eye size={12} /> 预览续作
-            </span>
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={handleContinue}
-            disabled={controlsDisabled}
-          >
-            {continueBusy ? <Loader2 size={11} className="animate-spin" /> : "续作分部"}
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={handlePreviewRegenAllParts}
-            disabled={controlsDisabled}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <Eye size={12} /> 预览重生成所有部
-            </span>
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={handleRegenAllParts}
-            disabled={controlsDisabled}
-          >
-            {regenPartsBusy ? <Loader2 size={11} className="animate-spin" /> : "重新生成所有部"}
-          </BookButton>
+            onPreview={handlePreviewGeneratePartChapters}
+            onAction={handleGeneratePartChapters}
+            standalone
+          />
         </div>
       </section>
 
-      <section className="border-t border-book-border/40 pt-4 space-y-2 text-xs">
-        <h4 className="font-serif text-sm text-book-text-main">节拍映射（Beat → Chapter）</h4>
-        <div className="text-book-text-muted">
-          通过 JSON 描述节拍点（起承转合 / 三幕结构）到章节的映射，应用后用于生成时引导。
+      <section className="space-y-2">
+        <div>
+          <h4 className="text-sm font-medium text-book-text-main">全部分部</h4>
+          <p className="mt-0.5 text-[11px] text-book-text-muted">批量补齐现有章纲，或沿用当前结构续作下一部。</p>
         </div>
-        <textarea
-          value={beatJson}
-          onChange={(e) => setBeatJson(e.target.value)}
-          disabled={controlsDisabled}
-          className="pyqt-input w-full font-mono text-[11px] h-24 resize-y"
-        />
-        <div className="flex justify-end gap-2">
-          <BookButton
-            variant="secondary"
-            onClick={handlePreviewBeatMap}
-            disabled={controlsDisabled || selectedPartId === ""}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <Eye size={12} /> 预览提示词
-            </span>
-          </BookButton>
-          <BookButton
-            variant="primary"
-            onClick={handleBeatMap}
-            disabled={controlsDisabled || selectedPartId === ""}
-          >
-            {beatBusy ? <Loader2 size={11} className="animate-spin" /> : "应用节拍"}
-          </BookButton>
+        <div className="grid gap-2">
+          <AdvancedActionRow
+            title="批量生成各部章纲"
+            description="为当前所有分部补齐对应的章节大纲。"
+            actionLabel="批量生成"
+            actionBusyLabel="生成中…"
+            busy={batchBusy}
+            disabled={controlsDisabled || parts.length === 0}
+            onPreview={handlePreviewBatchPartOutlines}
+            onAction={handleBatchPartOutlines}
+            standalone
+          />
+          <AdvancedActionRow
+            title="续作下一部"
+            description="沿用最后一部的章节跨度，继续规划新的故事阶段。"
+            actionLabel="续作下一部"
+            actionBusyLabel="续作中…"
+            busy={continueBusy}
+            disabled={controlsDisabled || parts.length === 0}
+            onPreview={handlePreviewContinue}
+            onAction={handleContinue}
+            standalone
+          />
         </div>
       </section>
+
+      <details className="group">
+        <summary className="a4n-flat-surface flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
+          <span className="font-medium text-book-text-main">覆盖性重写</span>
+          <span className="min-w-0 flex-1 truncate text-right text-[11px] text-book-text-muted">
+            重写选中分部或完整分部结构
+          </span>
+        </summary>
+        <div className="mt-2 grid gap-2">
+          <AdvancedActionRow
+            title="重写选中分部"
+            description="覆盖当前选择的阶段规划，其他分部保持不变。"
+            actionLabel="重写本部"
+            actionBusyLabel="重写中…"
+            busy={partRegenBusy}
+            disabled={controlsDisabled || selectedPartId === ""}
+            warning
+            onPreview={handlePreviewRegenPartOutline}
+            onAction={handleRegenPartOutline}
+            standalone
+          />
+          <AdvancedActionRow
+            title="重新生成所有分部"
+            description="覆盖全部分部规划，执行前会再次确认。"
+            actionLabel="重新规划"
+            actionBusyLabel="规划中…"
+            busy={regenPartsBusy}
+            disabled={controlsDisabled}
+            warning
+            onPreview={handlePreviewRegenAllParts}
+            onAction={handleRegenAllParts}
+            standalone
+          />
+        </div>
+      </details>
+
+      <details className="a4n-flat-surface overflow-hidden">
+        <summary className="cursor-pointer px-3 py-3 text-sm font-medium text-book-text-main">
+          节拍映射
+        </summary>
+        <div className="space-y-3 border-t border-book-border/40 p-3 text-xs">
+          <p className="text-[11px] leading-relaxed text-book-text-muted">
+            使用 JSON 描述故事节拍到章节的映射。该设置面向高级工作流，默认不影响普通大纲生成。
+          </p>
+          <textarea
+            value={beatJson}
+            onChange={(event) => setBeatJson(event.target.value)}
+            disabled={controlsDisabled}
+            className="pyqt-input h-24 w-full resize-y font-mono text-[11px]"
+          />
+          <div className="flex items-center justify-end gap-2">
+            {!beatBusy ? (
+              <Dropdown
+                items={[
+                  {
+                    label: "查看模型请求",
+                    icon: <Eye size={12} />,
+                    onClick: handlePreviewBeatMap,
+                    disabled: controlsDisabled || selectedPartId === "",
+                  },
+                ]}
+              />
+            ) : null}
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={handleBeatMap}
+              disabled={controlsDisabled || selectedPartId === ""}
+              className="min-w-0 flex-1 !text-xs sm:flex-none"
+            >
+              {beatBusy ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 size={11} className="animate-spin" /> 应用中…
+                </span>
+              ) : (
+                "应用节拍"
+              )}
+            </BookButton>
+          </div>
+        </div>
+      </details>
       <RequestPreviewModal
         open={requestPreviewOpen}
         loading={requestPreviewLoading}

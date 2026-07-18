@@ -45,6 +45,7 @@ pub mod analysis;
 pub mod content;
 pub mod preview;
 mod scene;
+pub mod shooting_script;
 mod streaming;
 
 pub use self::content::*;

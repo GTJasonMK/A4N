@@ -2,6 +2,7 @@ import React from "react";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
 import { detectLlmConfigModels, detectServerLlmConfigModels } from "../../../api/config";
 import { FormField } from "../ConfigListPanel";
+import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import { LLM_PROVIDERS } from "./llmConfigUtils";
 import type { LlmForm } from "./types";
@@ -39,7 +40,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
       </FormField>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <FormField label="Provider">
+        <FormField label="服务商">
           <select
             value={form.provider}
             onChange={(event) => setForm({ ...form, provider: event.target.value })}
@@ -89,7 +90,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField label="API Base URL" required>
+      <FormField label="接口地址" required>
         <BookInput
           value={form.api_base_url}
           onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
@@ -99,10 +100,10 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
       </FormField>
 
       <FormField
-        label="API Key"
+        label="访问密钥"
         hint={
           templateLocked
-            ? "只保存为你的个人密钥；系统默认模板不会共享管理员 API Key"
+            ? "只保存为你的个人密钥；系统默认模板不会共享管理员密钥"
             : "存储于本地数据库，不会上传到任何外部服务"
         }
       >
@@ -116,53 +117,51 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           autoComplete="off"
           disabled={apiKeyInputDisabled || readonly}
         />
-        {form.has_api_key ? (
-          <label className="mt-2 flex items-center gap-2 text-xs text-book-text-muted">
-            <input
-              type="checkbox"
-              checked={form.clear_api_key}
-              disabled={readonly}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  api_key: event.target.checked ? "" : form.api_key,
-                  clear_api_key: event.target.checked,
-                })
-              }
-            />
-            清空已保存 API Key
-          </label>
-        ) : null}
       </FormField>
-
-      <FormField
-        label="并发上限"
-        hint="该配置同时允许的最大 LLM 请求数；超过则进入任务队列等待"
-      >
-        <BookInput
-          type="number"
-          min={1}
-          max={32}
-          step={1}
-          value={String(form.max_concurrent)}
-          onChange={(event) =>
-            setForm({ ...form, max_concurrent: Number(event.target.value) })
+      {form.has_api_key ? (
+        <ClearSavedApiKeySwitch
+          checked={form.clear_api_key}
+          disabled={readonly}
+          onChange={(checked) =>
+            setForm({
+              ...form,
+              api_key: checked ? "" : form.api_key,
+              clear_api_key: checked,
+            })
           }
-          disabled={structureDisabled}
         />
-      </FormField>
+      ) : null}
 
-      <FormField label="超时时间（秒）" hint="单次 LLM 请求等待响应的最长秒数；视频、漫画等长结构化任务建议不少于 300 秒">
-        <BookInput
-          type="number"
-          min={1}
-          max={1800}
-          step={1}
-          value={String(form.timeout_secs)}
-          onChange={(event) => setForm({ ...form, timeout_secs: Number(event.target.value) })}
-          disabled={structureDisabled}
-        />
-      </FormField>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FormField
+          label="并发上限"
+          hint="该配置同时允许的最大 LLM 请求数；超过则进入任务队列等待"
+        >
+          <BookInput
+            type="number"
+            min={1}
+            max={32}
+            step={1}
+            value={String(form.max_concurrent)}
+            onChange={(event) =>
+              setForm({ ...form, max_concurrent: Number(event.target.value) })
+            }
+            disabled={structureDisabled}
+          />
+        </FormField>
+
+        <FormField label="超时时间（秒）" hint="单次 LLM 请求等待响应的最长秒数；视频、漫画等长结构化任务建议不少于 300 秒">
+          <BookInput
+            type="number"
+            min={1}
+            max={1800}
+            step={1}
+            value={String(form.timeout_secs)}
+            onChange={(event) => setForm({ ...form, timeout_secs: Number(event.target.value) })}
+            disabled={structureDisabled}
+          />
+        </FormField>
+      </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FormField
@@ -200,8 +199,8 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
       </div>
 
       <FormField
-        label="高级请求参数 JSON"
-        hint="仅填写 provider 扩展字段；model、messages、stream、max_tokens 等系统字段会被拒绝"
+        label="高级请求参数"
+        hint="仅填写服务商扩展字段；模型、消息、流式开关和输出上限等系统字段会被拒绝"
       >
         <BookTextarea
           rows={6}

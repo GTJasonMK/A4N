@@ -3,7 +3,6 @@ import {
   BadgeCheck,
   Box,
   Clipboard,
-  ImagePlus,
   Loader2,
   MapPinned,
   RefreshCw,
@@ -39,6 +38,8 @@ import {
   generateSceneProfileImagePrompt,
 } from "../../../api/sceneProfiles";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
+import { Dropdown } from "../../../components/ui/Dropdown";
+import { Modal } from "../../../components/ui/Modal";
 import { createProgressTaskId, type RunProgressTask } from "../../../hooks/useProgressTask";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import {
@@ -97,15 +98,27 @@ const MATERIAL_KIND_LABELS: Record<ProfileMaterialKind, string> = {
 };
 
 const IMPORTANCE_LABELS: Record<string, string> = {
-  primary: "主要",
-  secondary: "次要",
+  primary: "关键",
+  secondary: "重要",
+  minor: "次要",
+  major: "主要",
+  supporting: "辅助",
   background: "背景",
   high: "高",
   medium: "中",
   low: "低",
+  normal: "普通",
+  critical: "关键",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
+  room: "房间",
+  building: "建筑",
+  street: "街道",
+  city: "城市",
+  wilderness: "荒野",
+  route: "路线",
+  landmark: "地标",
   location: "地点",
   interior: "室内",
   exterior: "室外",
@@ -114,13 +127,20 @@ const CATEGORY_LABELS: Record<string, string> = {
   organization: "组织空间",
   weapon: "武器",
   prop: "道具",
+  tool: "工具",
   token: "信物",
   document: "文书",
   vehicle: "载具",
+  clothing: "服装",
+  location_object: "设施",
+  environment_object: "环境物件",
   artifact: "器物",
   consumable: "消耗品",
   other: "其他",
 };
+
+const categoryLabel = (value: string): string => CATEGORY_LABELS[value] ?? "未分类";
+const importanceLabel = (value: string): string => IMPORTANCE_LABELS[value] ?? "未标注";
 
 const chapterRangeText = (first: number, last: number): string => {
   if (first === last) return `第 ${first} 章`;
@@ -286,19 +306,15 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   }, [currentImageById, groups]);
 
   const stats = useMemo(() => {
-    let sceneCount = 0;
-    let objectCount = 0;
     let imageCount = 0;
     let missingCount = 0;
     let staleCount = 0;
     for (const group of groups) {
-      if (group.kind === "scene") sceneCount += 1;
-      if (group.kind === "object") objectCount += 1;
       imageCount += group.image_count;
       if (group.material_state === "missing") missingCount += 1;
       if (group.material_state === "stale") staleCount += 1;
     }
-    return { sceneCount, objectCount, imageCount, missingCount, staleCount };
+    return { imageCount, missingCount, staleCount };
   }, [groups]);
 
   const applyStyleTemplate = (templateId: string) => {
@@ -592,7 +608,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     try {
       const ok = await confirmDialog({
         title: "删除素材图",
-        message: `删除素材图 #${image.id}？相关视频参考图会同步解除关联。`,
+        message: "删除这张素材图？相关视频参考图会同步解除关联。",
         confirmText: "删除",
         dialogType: "danger",
       });
@@ -640,21 +656,18 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="shrink-0 rounded border border-book-border/50 bg-book-bg-paper/45 px-3 py-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <div className="inline-flex min-w-0 shrink-0 items-center gap-2">
-            <ImagePlus size={16} className="text-book-primary" />
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-book-text-main">项目级素材管理</div>
-              <div className="mt-1 flex flex-wrap items-center gap-1">
-                <span className="pyqt-pill !text-[10px]">场景 {stats.sceneCount}</span>
-                <span className="pyqt-pill !text-[10px]">物品 {stats.objectCount}</span>
-                <span className="pyqt-pill !text-[10px]">素材图 {stats.imageCount}</span>
-                <span className="pyqt-pill !text-[10px]">缺失 {stats.missingCount}</span>
-                <span className="pyqt-pill !text-[10px]">过期 {stats.staleCount}</span>
-              </div>
-            </div>
-          </div>
+      <section className="a4n-flat-surface shrink-0 overflow-hidden">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 p-3">
+          <label className="flex min-h-9 min-w-[180px] flex-1 items-center gap-2 rounded-xl border border-book-border/60 bg-book-bg-paper/60 px-3 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper sm:max-w-sm">
+            <Search size={13} className="shrink-0 text-book-text-muted" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              disabled={loading || busyKey != null || batchBusy}
+              className="min-w-0 flex-1 bg-transparent text-book-text-main outline-none placeholder:text-book-text-muted"
+              placeholder="搜索场景或物品"
+            />
+          </label>
           <ToolbarSelect
             label="类型"
             value={kindFilter}
@@ -676,86 +689,97 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
             disabled={loading || busyKey != null || batchBusy}
             onChange={(value) => setSort(value as MaterialSort)}
           />
-          <label className="flex min-h-[30px] min-w-[180px] flex-1 items-center gap-1.5 rounded border border-book-border/60 bg-book-bg-paper/70 px-2 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper sm:max-w-xs">
-            <Search size={12} className="shrink-0 text-book-text-muted" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              disabled={loading || busyKey != null || batchBusy}
-              className="min-w-0 flex-1 bg-transparent text-book-text-main outline-none placeholder:text-book-text-muted"
-              placeholder="搜索档案"
-            />
-          </label>
           <button
             type="button"
             onClick={() => void loadMaterials()}
             disabled={loading || busyKey != null || batchBusy}
-            className="pyqt-btn-secondary inline-flex min-h-[28px] items-center gap-1.5 px-2.5 text-xs"
+            className="pyqt-btn-icon !h-9 !w-9"
             title="刷新素材管理数据"
+            aria-label="刷新素材管理数据"
           >
             {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            刷新
           </button>
         </div>
-        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-          <ToolbarSelect
-            label="模板"
-            value={selectedStyleTemplate?.id ?? CUSTOM_STYLE_VALUE}
-            options={[
-              ...IMAGE_STYLE_TEMPLATES.map((template) => ({
-                value: template.id,
-                label: template.name,
-              })),
-              { value: CUSTOM_STYLE_VALUE, label: "自定义/后端默认" },
-            ]}
-            disabled={busyKey != null || batchBusy}
-            onChange={applyStyleTemplate}
-            wide
-          />
-          <label className="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded border border-book-border/60 bg-book-bg-paper/70 px-2 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper sm:min-h-[30px] sm:min-w-[260px] sm:max-w-xl">
-            <span className="shrink-0 text-book-text-muted">补充</span>
-            <input
-              value={selectedStyleTemplate ? "" : customStyle}
-              onChange={(event) => setCustomStyle(event.target.value)}
-              disabled={busyKey != null || batchBusy || selectedStyleTemplate != null}
-              className="min-w-0 flex-1 bg-transparent text-book-text-main outline-none placeholder:text-book-text-muted"
-              placeholder={
-                selectedStyleTemplate
-                  ? selectedStyleTemplate.summary
-                  : "输入自定义风格；清空则使用后端默认"
-              }
+        <div className="border-t border-book-border/35 px-3 py-2 text-[11px] leading-relaxed text-book-text-muted">
+          当前 {groups.length} 个档案 · {stats.imageCount} 张素材图
+          {stats.missingCount > 0 ? ` · ${stats.missingCount} 项待补齐` : ""}
+          {stats.staleCount > 0 ? ` · ${stats.staleCount} 项需更新` : ""}
+        </div>
+        <details className="group border-t border-book-border/35">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center gap-3 px-3 py-2 text-xs [&::-webkit-details-marker]:hidden">
+            <span className="font-medium text-book-text-main">生成设置</span>
+            <span className="min-w-0 flex-1 truncate text-right text-[10px] text-book-text-muted">
+              {selectedStyleTemplate?.name ?? "自定义风格"}
+            </span>
+          </summary>
+          <div className="grid min-w-0 grid-cols-1 gap-2 border-t border-book-border/25 px-3 pb-3 pt-2 sm:grid-cols-2">
+            <ToolbarSelect
+              label="风格模板"
+              value={selectedStyleTemplate?.id ?? CUSTOM_STYLE_VALUE}
+              options={[
+                ...IMAGE_STYLE_TEMPLATES.map((template) => ({
+                  value: template.id,
+                  label: template.name,
+                })),
+                { value: CUSTOM_STYLE_VALUE, label: "自定义/后端默认" },
+              ]}
+              disabled={busyKey != null || batchBusy}
+              onChange={applyStyleTemplate}
+              wide
             />
-          </label>
-          <button
-            type="button"
-            onClick={() => void batchGenerate("missing")}
-            disabled={loading || busyKey != null || batchBusy}
-            className="pyqt-btn-secondary inline-flex min-h-[28px] items-center gap-1.5 px-2.5 text-xs"
-            title="为当前筛选结果中的缺失档案生成素材图"
-          >
-            {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-            补齐缺失
-          </button>
-          <button
-            type="button"
-            onClick={() => void batchGenerate("stale")}
-            disabled={loading || busyKey != null || batchBusy}
-            className="pyqt-btn-secondary inline-flex min-h-[28px] items-center gap-1.5 px-2.5 text-xs"
-            title="为当前筛选结果中的过期档案重新生成素材图"
-          >
-            <RefreshCw size={13} />
-            重生成过期
-          </button>
-        </div>
-      </div>
+            <label className="flex min-h-9 min-w-0 items-center gap-2 rounded-xl border border-book-border/60 bg-book-bg-paper/60 px-3 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper">
+              <span className="shrink-0 text-book-text-muted">补充</span>
+              <input
+                value={selectedStyleTemplate ? "" : customStyle}
+                onChange={(event) => setCustomStyle(event.target.value)}
+                disabled={busyKey != null || batchBusy || selectedStyleTemplate != null}
+                className="min-w-0 flex-1 bg-transparent text-book-text-main outline-none placeholder:text-book-text-muted"
+                placeholder={
+                  selectedStyleTemplate
+                    ? selectedStyleTemplate.summary
+                    : "输入自定义风格；清空则使用后端默认"
+                }
+              />
+            </label>
+            {(stats.missingCount > 0 || stats.staleCount > 0) && (
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:col-span-2">
+                {stats.missingCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void batchGenerate("missing")}
+                    disabled={loading || busyKey != null || batchBusy}
+                    className="pyqt-btn-primary inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 px-3 text-xs sm:flex-none"
+                    title="为当前筛选结果中的缺失档案生成素材图"
+                  >
+                    {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                    补齐 {stats.missingCount} 项缺失
+                  </button>
+                )}
+                {stats.staleCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void batchGenerate("stale")}
+                    disabled={loading || busyKey != null || batchBusy}
+                    className="pyqt-btn-secondary inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 px-3 text-xs sm:flex-none"
+                    title="为当前筛选结果中的过期档案重新生成素材图"
+                  >
+                    <RefreshCw size={13} />
+                    更新 {stats.staleCount} 项过期素材
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </details>
+      </section>
 
       <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
         {groups.length === 0 ? (
-          <div className="flex h-full min-h-[180px] items-center justify-center rounded border border-dashed border-book-border/50 bg-book-bg-paper/30 text-xs text-book-text-muted">
+          <div className="flex h-full min-h-[180px] items-center justify-center rounded-2xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-xs text-book-text-muted">
             {loading ? "正在加载素材..." : "当前筛选条件下没有素材档案。"}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 items-start gap-2 lg:grid-cols-2 xl:grid-cols-3">
             {groups.map((group) => (
               <MaterialCard
                 key={groupKey(group)}
@@ -827,35 +851,68 @@ function MaterialCard({
   const candidateImages = hero
     ? group.images.filter((item) => item.image.id !== hero.image.id)
     : group.images;
+  const stateTone =
+    group.material_state === "ready"
+      ? "text-success"
+      : group.material_state === "missing" || group.material_state === "stale"
+        ? "text-warning"
+        : "text-book-text-muted";
+  const missingMaterial = group.material_state === "missing" || group.image_count === 0;
+  const staleMaterial = group.material_state === "stale" && group.image_count > 0;
+  const directGenerate = missingMaterial || staleMaterial;
+  const menuItems: React.ComponentProps<typeof Dropdown>["items"] = [
+    ...(!directGenerate
+      ? [
+          {
+            label: "重新生成素材图",
+            icon: <Sparkles size={13} />,
+            disabled,
+            onClick: onGenerate,
+          },
+          { type: "divider" as const },
+        ]
+      : []),
+    {
+      label: "复制素材提示词",
+      icon: <Clipboard size={13} />,
+      disabled,
+      onClick: onCopyPrompt,
+    },
+    {
+      label: "上传素材图",
+      icon: <Upload size={13} />,
+      disabled,
+      onClick: onUpload,
+    },
+    ...(group.primary_image_id != null
+      ? [
+          { type: "divider" as const },
+          {
+            label: "取消主素材",
+            disabled,
+            onClick: () => onSetPrimary(null),
+          },
+        ]
+      : []),
+  ];
   return (
     <article
-      className="flex min-h-[300px] min-w-0 flex-col rounded border border-book-border/50 bg-book-bg-paper/45 p-3"
+      className="a4n-flat-surface flex min-w-0 flex-col p-3"
       data-state={group.material_state}
     >
-      <div className="mb-2 flex min-w-0 items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="inline-flex max-w-full items-center gap-1.5 text-sm font-semibold text-book-text-main">
-            <span className="shrink-0 text-book-primary">{icon}</span>
-            <span className="truncate">{group.profile.name}</span>
-          </div>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-            <span className="pyqt-pill !text-[10px]">{MATERIAL_KIND_LABELS[group.kind]}</span>
-            <span className="pyqt-pill !text-[10px]">
-              {CATEGORY_LABELS[group.profile.category] ?? group.profile.category}
-            </span>
-            <span className="pyqt-pill !text-[10px]">
-              {IMPORTANCE_LABELS[group.profile.importance] ?? group.profile.importance}
-            </span>
-            <span className="pyqt-pill !text-[10px]">
-              {chapterRangeText(group.profile.first_seen_chapter, group.profile.last_seen_chapter)}
-            </span>
-          </div>
+      <div className="mb-3 flex min-w-0 items-start gap-2.5">
+        <span className="mt-0.5 shrink-0 text-book-primary">{icon}</span>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-medium text-book-text-main">
+            {group.profile.name}
+          </h3>
+          <p className="mt-1 truncate text-[10px] text-book-text-muted">
+            {MATERIAL_KIND_LABELS[group.kind]} · {categoryLabel(group.profile.category)} · {importanceLabel(group.profile.importance)} · {chapterRangeText(group.profile.first_seen_chapter, group.profile.last_seen_chapter)}
+          </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="rounded border border-book-border/50 bg-book-bg-tertiary px-2 py-1 text-[10px] text-book-text-sub">
-            {MATERIAL_STATE_LABELS[group.material_state]}
-          </span>
-          <span className="font-mono text-[10px] text-book-text-muted">图 {group.image_count}</span>
+        <div className="shrink-0 text-right text-[10px] leading-relaxed">
+          <div className={stateTone}>{MATERIAL_STATE_LABELS[group.material_state]}</div>
+          <div className="text-book-text-muted">{group.image_count} 张</div>
         </div>
       </div>
 
@@ -863,8 +920,8 @@ function MaterialCard({
         type="button"
         disabled={!hero}
         onClick={() => hero && onOpenImage(hero.image)}
-        className="relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-sm border border-book-border/45 bg-book-bg-tertiary text-xs text-book-text-muted disabled:cursor-default"
-        title={hero ? `打开素材图 #${hero.image.id}` : "暂无素材图"}
+        className="relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-2xl border border-book-border/45 bg-book-bg-tertiary text-xs text-book-text-muted disabled:cursor-default"
+        title={hero ? "打开素材图" : "暂无素材图"}
       >
         {heroSrc ? (
           <img
@@ -876,17 +933,23 @@ function MaterialCard({
           "暂无素材图"
         )}
         {hero ? (
-          <div className="absolute left-1.5 top-1.5 flex gap-1">
+          <div className="absolute left-2 top-2 flex gap-1.5 text-white">
             {hero.is_primary ? (
-              <span className="inline-flex items-center gap-0.5 rounded bg-book-bg-paper/90 px-1.5 py-0.5 text-[10px] text-book-primary">
-                <BadgeCheck size={10} />
-                主素材
+              <span
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-black/35 backdrop-blur-md"
+                title="主素材"
+                aria-label="主素材"
+              >
+                <BadgeCheck size={13} />
               </span>
             ) : null}
             {hero.image.is_favorite ? (
-              <span className="inline-flex items-center gap-0.5 rounded bg-book-bg-paper/90 px-1.5 py-0.5 text-[10px] text-book-primary">
-                <Star size={10} fill="currentColor" />
-                收藏
+              <span
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-black/35 backdrop-blur-md"
+                title="已收藏"
+                aria-label="已收藏"
+              >
+                <Star size={13} fill="currentColor" />
               </span>
             ) : null}
           </div>
@@ -900,35 +963,37 @@ function MaterialCard({
         {group.profile.secondary_text || "未记录补充信息。"}
       </p>
 
-      <div className="mt-2 grid grid-cols-6 gap-1.5">
+      <div className="mt-2 flex min-h-14 gap-2 overflow-x-auto pb-1 custom-scrollbar">
         {candidateImages.length > 0 ? (
           candidateImages.slice(0, 12).map((item) => {
             const src = toMediaSrc(item.image.file_path);
             return (
-              <div key={item.image.id} className="group/thumb relative min-w-0">
+              <div key={item.image.id} className="group/thumb relative h-14 w-14 shrink-0">
                 <button
                   type="button"
                   onClick={() => onOpenImage(item.image)}
-                  className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-sm border bg-book-bg-tertiary text-[10px] text-book-text-muted ${
+                  className={`relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border bg-book-bg-tertiary text-[10px] text-book-text-muted ${
                     item.is_primary
                       ? "border-book-primary/80"
                       : "border-book-border/45"
                   }`}
-                  title={`素材图 #${item.image.id}`}
+                  title="素材图"
                 >
                   {src ? (
                     <img
                       src={src}
-                      alt={`${group.profile.name} 素材图 ${item.image.id}`}
+                      alt={`${group.profile.name} 候选素材图`}
                       className="h-full w-full object-cover"
                     />
                   ) : (
                     "无图"
                   )}
                   {item.staleness === "stale" ? (
-                    <span className="absolute right-0.5 top-0.5 rounded bg-warning/90 px-1 text-[9px] text-white">
-                      旧
-                    </span>
+                    <span
+                      className="absolute right-1 top-1 h-2 w-2 rounded-full bg-warning ring-2 ring-black/25"
+                      title="素材已过期"
+                      aria-label="素材已过期"
+                    />
                   ) : null}
                   {item.is_primary ? (
                     <BadgeCheck
@@ -943,66 +1008,50 @@ function MaterialCard({
                     type="button"
                     onClick={() => onSetPrimary(item.image.id)}
                     disabled={disabled}
-                    className="absolute bottom-0.5 right-0.5 hidden rounded bg-book-bg-paper/95 px-1 py-0.5 text-[9px] text-book-text-main shadow group-hover/thumb:block disabled:opacity-60"
+                    className="absolute bottom-1 right-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/25 bg-black/40 text-white opacity-80 backdrop-blur-sm transition-opacity sm:opacity-0 sm:group-hover/thumb:opacity-100 sm:focus-visible:opacity-100 disabled:opacity-40"
                     title="设为主素材"
+                    aria-label="设为主素材"
                   >
-                    设主
+                    <BadgeCheck size={12} />
                   </button>
                 ) : null}
               </div>
             );
           })
         ) : hero ? (
-          <div className="col-span-6 flex h-10 items-center justify-center rounded-sm border border-dashed border-book-border/50 bg-book-bg-paper/30 text-[11px] text-book-text-muted">
+          <div className="flex h-14 w-full items-center justify-center rounded-xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-[11px] text-book-text-muted">
             暂无其他候选素材
           </div>
         ) : (
-          <div className="col-span-6 flex h-14 items-center justify-center rounded-sm border border-dashed border-book-border/50 bg-book-bg-paper/30 text-[11px] text-book-text-muted">
+          <div className="flex h-14 w-full items-center justify-center rounded-xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-[11px] text-book-text-muted">
             缺失素材图
           </div>
         )}
       </div>
 
-      <div className="mt-auto grid grid-cols-1 gap-1.5 pt-3 sm:grid-cols-2">
-        <button
-          type="button"
-          onClick={onCopyPrompt}
-          disabled={disabled}
-          className="pyqt-btn-secondary inline-flex min-h-[30px] items-center justify-center gap-1.5 px-2 text-xs"
-          title="复制当前档案素材图提示词"
-        >
-          <Clipboard size={13} />
-          复制提示词
-        </button>
-        <button
-          type="button"
-          onClick={onUpload}
-          disabled={disabled}
-          className="pyqt-btn-secondary inline-flex min-h-[30px] items-center justify-center gap-1.5 px-2 text-xs"
-          title="上传本地图片作为项目级可复用素材图"
-        >
-          <Upload size={13} />
-          上传素材图
-        </button>
-        <button
-          type="button"
-          onClick={() => onSetPrimary(null)}
-          disabled={disabled || group.primary_image_id == null}
-          className="pyqt-btn-secondary inline-flex min-h-[30px] items-center justify-center gap-1.5 px-2 text-xs"
-          title="取消当前档案主素材"
-        >
-          取消主素材
-        </button>
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={disabled}
-          className="pyqt-btn-primary inline-flex min-h-[30px] items-center justify-center gap-1.5 px-2 text-xs"
-          title="生成项目级可复用素材图"
-        >
-          {busy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-          {group.image_count > 0 ? "重新生成" : "生成素材图"}
-        </button>
+      <div className="mt-auto flex items-center gap-2 pt-3">
+        {busy ? (
+          <span
+            role="status"
+            className="inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 text-xs text-book-text-muted"
+          >
+            <Loader2 size={13} className="animate-spin" /> 正在生成
+          </span>
+        ) : directGenerate ? (
+          <button
+            type="button"
+            onClick={onGenerate}
+            disabled={disabled}
+            className={`${missingMaterial ? "pyqt-btn-primary" : "pyqt-btn-secondary"} inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 px-3 text-xs`}
+            title={missingMaterial ? "生成项目级可复用素材图" : "更新已过期的素材图"}
+          >
+            {staleMaterial ? <RefreshCw size={13} /> : <Sparkles size={13} />}
+            {staleMaterial ? "更新素材图" : "生成素材图"}
+          </button>
+        ) : (
+          <span className="min-w-0 flex-1" aria-hidden="true" />
+        )}
+        <Dropdown items={menuItems} />
       </div>
     </article>
   );
@@ -1025,8 +1074,8 @@ function ToolbarSelect({
 }) {
   return (
     <label
-      className={`flex min-h-9 min-w-0 items-center gap-2 rounded border border-book-border/60 bg-book-bg-paper/70 px-2 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper sm:min-h-[30px] ${
-        wide ? "flex-1 sm:min-w-[210px]" : "sm:min-w-[130px]"
+      className={`flex min-h-9 min-w-0 items-center gap-2 rounded-xl border border-book-border/60 bg-book-bg-paper/60 px-3 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper ${
+        wide ? "w-full sm:col-span-2 sm:flex-1 sm:min-w-[210px]" : "sm:min-w-[130px]"
       }`}
     >
       <span className="shrink-0 text-book-text-muted">{label}</span>
@@ -1065,70 +1114,92 @@ function ProfileMaterialUploadDialog({
 }) {
   if (!group) return null;
   return (
-    <div className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="dialog-panel w-full max-w-md p-4">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-book-text-main">上传素材图</div>
-            <div className="mt-1 truncate text-xs text-book-text-muted">
-              {MATERIAL_KIND_LABELS[group.kind]} · {group.profile.name}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="pyqt-btn-secondary min-h-[28px] px-2 text-xs"
+    <Modal
+      isOpen
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+      title="上传素材图"
+      subtitle={`${MATERIAL_KIND_LABELS[group.kind]} · ${group.profile.name}`}
+      icon={<Upload size={15} />}
+      maxWidthClassName="max-w-md"
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
+    >
+      <div className="space-y-4">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={setPrimary}
+          disabled={busy}
+          onClick={() => onSetPrimaryChange(!setPrimary)}
+          className="flex w-full items-center justify-between gap-3 border-b border-book-border/35 pb-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-medium text-book-text-main">
+              上传后设为主素材
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-relaxed text-book-text-muted">
+              在项目素材和后续生成中优先使用这张图片
+            </span>
+          </span>
+          <span
+            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+              setPrimary ? "bg-book-primary" : "bg-book-text-muted/25"
+            }`}
+            aria-hidden="true"
           >
-            关闭
-          </button>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          <label className="flex items-center gap-2 text-xs text-book-text-main">
-            <input
-              type="checkbox"
-              checked={setPrimary}
-              disabled={busy}
-              onChange={(event) => onSetPrimaryChange(event.target.checked)}
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                setPrimary ? "translate-x-[22px]" : "translate-x-0.5"
+              }`}
             />
-            上传后设为主素材
-          </label>
+          </span>
+        </button>
 
-          <div className="rounded border border-dashed border-book-border/70 bg-book-bg-tertiary/45 p-3">
+        <div className="rounded-2xl border border-dashed border-book-border/70 bg-book-bg-tertiary/35 p-4">
+          <label
+            className={`inline-flex min-h-10 items-center gap-2 rounded-xl bg-book-primary px-3.5 text-xs font-medium text-white transition-colors hover:bg-book-primary/90 ${
+              busy ? "pointer-events-none opacity-60" : "cursor-pointer"
+            }`}
+          >
+            <Upload size={14} />
+            选择图片
             <input
               type="file"
               accept={supportedImageAccept()}
               disabled={busy}
-              className="w-full text-xs text-book-text-sub file:mr-3 file:rounded file:border-0 file:bg-book-primary file:px-3 file:py-1.5 file:text-xs file:text-white disabled:opacity-60"
+              className="sr-only"
               onChange={(event) => {
                 const file = event.target.files?.[0] ?? null;
                 event.currentTarget.value = "";
                 if (file) onUpload(file);
               }}
             />
-            <div className="mt-2 text-[11px] text-book-text-muted">PNG/JPEG/WebP，≤20MB</div>
+          </label>
+          <div className="mt-2 text-[11px] text-book-text-muted">
+            支持 PNG、JPEG、WebP，文件不超过 20MB。
           </div>
         </div>
 
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="flex min-w-0 items-center justify-between gap-3">
           <button
             type="button"
             onClick={onCopyPrompt}
             disabled={busy}
-            className="pyqt-btn-secondary inline-flex min-h-[30px] items-center gap-1.5 px-3 text-xs"
+            className="inline-flex min-h-9 items-center gap-1.5 text-xs text-book-text-sub transition-colors hover:text-book-text-main disabled:opacity-50"
           >
             <Clipboard size={13} />
             复制当前提示词
           </button>
           {busy ? (
-            <span className="inline-flex min-h-[30px] items-center gap-1.5 px-2 text-xs text-book-text-muted">
+            <span role="status" className="inline-flex items-center gap-1.5 text-xs text-book-text-muted">
               <Loader2 size={13} className="animate-spin" />
-              上传中
+              正在上传
             </span>
           ) : null}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,8 +1,8 @@
 //! 主题配置命令
 
 use a4n_runtime::AppState;
-use a4n_runtime::actions::theme as theme_actions;
-use a4n_runtime::actions::theme::{
+use a4n_runtime::host_api::theme as theme_actions;
+use a4n_runtime::host_api::theme::{
     CreateThemeInput, ImportThemeInput, ThemeSummary, UpdateThemeInput,
 };
 use tauri::State;

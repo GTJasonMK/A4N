@@ -1,0 +1,64 @@
+use a4n_core::blueprint::BLUEPRINT_STAGE_SYSTEM_PROMPT;
+
+use super::*;
+
+pub async fn build_blueprint_stage_request(
+    input: BlueprintStageRequestInput<'_>,
+) -> Result<ChatRequest, AppError> {
+    let BlueprintStageRequestInput {
+        prompt_renderer,
+        project_id,
+        base_prompt,
+        user_payload_json,
+        stage_key,
+        stage_name,
+        output_schema,
+        previous_context,
+    } = input;
+    let user_content = build_blueprint_stage_manifest_user_message(
+        prompt_renderer,
+        Some(project_id),
+        stage_key,
+        stage_name,
+        output_schema,
+    )
+    .await?;
+    let system_content = prompt_renderer
+        .render_prompt(
+            BLUEPRINT_STAGE_SYSTEM_PROMPT,
+            &HashMap::from([
+                ("base_prompt".to_string(), json!(base_prompt)),
+                ("stage_name".to_string(), json!(stage_name)),
+            ]),
+            Some(project_id),
+        )
+        .await?;
+    let manifest = build_blueprint_stage_context_manifest(
+        user_payload_json,
+        previous_context,
+        user_content,
+        stage_key,
+        stage_name,
+        output_schema,
+    )?;
+    Ok(context_aware_system_user_request(
+        system_content,
+        manifest,
+        Some(0.7),
+        None,
+        Some(llm_token_profiles::BLUEPRINT.into()),
+    )?
+    .with_json_response_format()
+    .with_trace_context(LlmTraceContext {
+        project_id: Some(project_id),
+        root_project_id: None,
+        workflow: "blueprint_generation".to_string(),
+        step_key: stage_key.to_string(),
+        generation_run_id: None,
+        workflow_run_id: None,
+        call_key: Some(stage_key.to_string()),
+        input_fingerprint_sha256: None,
+        context_plan_json: None,
+        context_pack_refs_json: None,
+    }))
+}

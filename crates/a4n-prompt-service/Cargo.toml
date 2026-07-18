@@ -1,0 +1,18 @@
+[package]
+name = "a4n-prompt-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+a4n-prompt = { path = "../a4n-prompt" }
+a4n-prompt-git = { path = "../a4n-prompt-git" }
+a4n-sidecar-bootstrap = { path = "../a4n-sidecar-bootstrap" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+
+anyhow = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

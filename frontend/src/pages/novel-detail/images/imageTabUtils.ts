@@ -15,7 +15,26 @@ const IMAGE_TYPE_LABELS: Record<string, string> = {
   portrait: "立绘",
   cover: "封面",
   illustration: "插图",
+  scene_material: "场景素材",
+  object_material: "物品素材",
+  video_key_frame: "视频关键帧",
+  video_start_frame: "视频首帧",
+  video_storyboard_frame: "视频分镜板",
+  video_end_frame: "视频尾帧",
+  video_tail_frame: "视频续接帧",
+  canvas_image: "画布图片",
+  canvas_frame: "画布帧",
+  portrait_reference: "立绘参考",
+  chapter_reference: "章节参考",
+  project_reference: "项目参考",
+  galgame_background: "Galgame 背景",
+  galgame_cg: "Galgame CG",
 };
+
+export function imageTypeLabel(value: string | null | undefined): string {
+  const normalized = String(value ?? "").trim();
+  return normalized ? IMAGE_TYPE_LABELS[normalized] ?? "其他素材" : "其他素材";
+}
 
 function numberOrNull(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -49,30 +68,35 @@ function getImageType(img: GeneratedImage): string | null {
 
 export function getImageGroupKey(img: GeneratedImage, chapterScoped: boolean): string {
   const imageType = getImageType(img);
-  if (!chapterScoped) return imageType ? `type:${imageType}` : `image:${img.id}`;
-  if (img.panel_id?.trim()) return `panel:${img.panel_id.trim()}`;
+  if (!chapterScoped) return `type:${imageType ?? "other"}`;
+
+  const panelId = img.panel_id?.trim() ?? "";
+  const pageMatch = /^page[-_ ]?(\d+)$/i.exec(panelId);
+  if (pageMatch) return `page:${pageMatch[1]}`;
+  const panelMatch = /^panel[-_ ]?(\d+)$/i.exec(panelId);
+  if (panelMatch) return `panel:${panelMatch[1]}`;
+
   const pageNumber = getImagePageNumber(img.metadata_json);
-  if (pageNumber != null) return `panel:page${pageNumber}`;
-  return imageType ? `type:${imageType}` : `image:${img.id}`;
+  if (pageNumber != null) return `page:${pageNumber}`;
+  return `type:${imageType ?? "other"}`;
 }
 
 export function getImageGroupTitle(key: string, count: number): string {
-  if (key.startsWith("panel:page")) {
-    const page = key.slice("panel:page".length);
-    return `第 ${page} 页 · ${count} 张`;
-  }
-  if (key.startsWith("panel:")) return `${key.slice("panel:".length)} · ${count} 张`;
-  if (key.startsWith("image:")) return `图片 #${key.slice("image:".length)} · ${count} 张`;
+  if (key.startsWith("page:")) return `第 ${key.slice("page:".length)} 页 · ${count} 张`;
+  if (key.startsWith("panel:")) return `第 ${key.slice("panel:".length)} 格 · ${count} 张`;
   const type = key.slice("type:".length);
-  return `${IMAGE_TYPE_LABELS[type] || type} · ${count} 张`;
+  return `${imageTypeLabel(type)} · ${count} 张`;
 }
 
 function groupSortKey(key: string): [number, number, string] {
-  if (key.startsWith("panel:page")) {
-    const page = Number(key.slice("panel:page".length));
+  if (key.startsWith("page:")) {
+    const page = Number(key.slice("page:".length));
     return [0, Number.isFinite(page) ? page : 999999, key];
   }
-  if (key.startsWith("panel:")) return [1, 0, key];
+  if (key.startsWith("panel:")) {
+    const panel = Number(key.slice("panel:".length));
+    return [1, Number.isFinite(panel) ? panel : 999999, key];
+  }
   return [2, 0, key];
 }
 

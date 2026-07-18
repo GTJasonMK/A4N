@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { formatConfigTestTime } from "./testResultUtils";
 import type { ConfigItem, ConfigItemMeta, ConfigTestResult } from "./types";
@@ -6,6 +7,7 @@ interface ConfigListSidebarProps<C> {
   title: string;
   items: ConfigItem<C>[];
   loading: boolean;
+  busy: boolean;
   selectedId: number | null;
   creating: boolean;
   formatItem: (config: C, isActive: boolean) => ConfigItemMeta;
@@ -18,6 +20,7 @@ export function ConfigListSidebar<C>({
   title,
   items,
   loading,
+  busy,
   selectedId,
   creating,
   formatItem,
@@ -25,20 +28,35 @@ export function ConfigListSidebar<C>({
   activeLabel,
   onSelect,
 }: ConfigListSidebarProps<C>) {
+  const selectedRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (creating || selectedId == null) return;
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    const frame = window.requestAnimationFrame(() => {
+      selectedRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [creating, items.length, selectedId]);
+
   return (
-    <aside className="pyqt-card max-h-48 overflow-x-auto p-1 md:max-h-none md:overflow-y-auto custom-scrollbar">
+    <aside className="a4n-mobile-scroll-rail max-h-48 overflow-x-auto md:max-h-none md:overflow-y-auto custom-scrollbar">
       {loading && items.length === 0 ? (
         <div className="flex items-center justify-center h-20 text-xs text-book-text-muted">
           <Loader2 size={14} className="animate-spin mr-2" /> 加载…
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center text-xs text-book-text-muted py-6 px-4 leading-relaxed">
+        <div className="a4n-empty-state a4n-empty-state--compact text-xs leading-relaxed">
           尚未配置任何 {title}。
           <br />
           点击左上角"新增"开始。
         </div>
       ) : (
-        <ul className="flex min-w-max gap-1 md:block md:min-w-0 md:space-y-0.5">
+        <ul className="flex min-w-max gap-2 p-px md:grid md:min-w-0 md:auto-rows-max md:content-start md:gap-2">
           {items.map((item) => {
             const meta = formatItem(item.config, item.isActive);
             const selected = item.id === selectedId && !creating;
@@ -47,22 +65,25 @@ export function ConfigListSidebar<C>({
             return (
               <li key={item.id}>
                 <button
+                  ref={selected ? selectedRef : undefined}
                   type="button"
                   onClick={() => onSelect(item.id)}
-                  className={`group min-w-[13rem] rounded border px-3 py-2 text-left transition-colors md:w-full md:min-w-0 ${
+                  disabled={busy}
+                  aria-current={selected ? "true" : undefined}
+                  className={`group min-w-[13rem] rounded-xl border bg-book-bg-paper px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 md:w-full md:min-w-0 ${
                     selected
-                      ? "bg-book-primary/10 border-book-primary"
-                      : "border-transparent hover:bg-book-bg-tertiary"
+                      ? "border-book-primary/55 bg-book-primary/10 shadow-[inset_3px_0_0_var(--color-book-primary)]"
+                      : "border-book-border/40 hover:border-book-primary/35 hover:bg-book-bg-tertiary"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className="text-sm font-semibold text-book-text-main truncate">
+                  <div className="mb-0.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-book-text-main">
                       {meta.primary}
                     </span>
-                    <span className="flex shrink-0 items-center gap-1">
+                    <span className="flex shrink-0 items-center gap-1 text-[10px]">
                       {testResult ? (
                         <span
-                          className={`inline-flex items-center gap-0.5 text-[10px] ${
+                          className={`inline-flex items-center gap-0.5 text-[11px] ${
                             testResult.status === "success"
                               ? "text-success"
                               : "text-error"
@@ -78,14 +99,12 @@ export function ConfigListSidebar<C>({
                         </span>
                       ) : null}
                       {item.isActive && (
-                        <span className="pyqt-pill !text-[10px] !py-0 !px-1.5 border-book-primary/40 bg-book-primary/10 text-book-primary">
+                        <span className="text-book-primary">
                           {activeLabel}
                         </span>
                       )}
                       {item.readonly && !item.isActive ? (
-                        <span className="pyqt-pill !text-[10px] !py-0 !px-1.5">
-                          只读
-                        </span>
+                        <span className="text-book-text-muted">只读</span>
                       ) : null}
                     </span>
                   </div>

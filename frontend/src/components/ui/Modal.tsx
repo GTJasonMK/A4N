@@ -60,7 +60,7 @@ export const Modal: React.FC<ModalProps> = ({
   headerExtra,
   maxWidthClassName = 'max-w-lg',
   className = '',
-  bodyClassName = 'min-h-0 flex-1 overflow-y-auto custom-scrollbar px-5 py-5 sm:px-7 sm:py-6',
+  bodyClassName = 'min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4',
   zIndexClassName = 'z-50',
   closeOnBackdrop = true,
   closeOnEscape = true,
@@ -100,6 +100,7 @@ export const Modal: React.FC<ModalProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         if (!closeOnEscape) return;
+        if (document.querySelector('[role="menu"]')) return;
         event.preventDefault();
         onClose();
         return;
@@ -175,23 +176,23 @@ export const Modal: React.FC<ModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`dialog-panel relative z-10 flex max-h-[calc(100dvh-0.75rem)] w-full flex-col overflow-hidden rounded-b-none sm:max-h-[90vh] sm:rounded-sm ${maxWidthClassName} ${className}`}
+        className={`dialog-panel relative z-10 flex max-h-[calc(100dvh-0.75rem)] w-full flex-col overflow-hidden rounded-b-none sm:max-h-[90vh] sm:rounded-[var(--pyqt-radius-xl)] ${maxWidthClassName} ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`h-1 shrink-0 ${toneClass.accent}`} />
+        {tone !== 'default' ? <div className={`h-0.5 shrink-0 ${toneClass.accent}`} /> : null}
 
-        <div className="flex items-start justify-between gap-3 border-b border-book-border bg-book-bg-tertiary px-3 py-2.5 shrink-0">
+        <div className="flex shrink-0 items-start gap-3 border-b border-book-border/55 bg-book-bg-paper/95 px-4 py-3 sm:px-5">
           <div className="flex min-w-0 flex-1 items-start gap-2.5">
             {icon ? (
               <span
-                className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border ${toneClass.icon}`}
+                className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border ${toneClass.icon}`}
                 aria-hidden="true"
               >
                 {icon}
               </span>
             ) : null}
             <div className="min-w-0 flex-1">
-              <h3 id={titleId} className="font-serif text-sm font-semibold text-book-text-main truncate">
+              <h3 id={titleId} className="truncate font-serif text-base font-semibold leading-tight text-book-text-main">
                 {title}
               </h3>
               {subtitle ? (
@@ -205,7 +206,7 @@ export const Modal: React.FC<ModalProps> = ({
           {showCloseButton ? (
             <button
               onClick={onClose}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm text-book-text-muted hover:text-book-text-main hover:bg-book-bg-tertiary focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:h-7 sm:w-7"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted hover:bg-book-bg-tertiary hover:text-book-text-main focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:h-8 sm:w-8"
               aria-label="关闭弹窗"
               title="关闭 (Esc)"
             >
@@ -219,7 +220,7 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {footer ? (
-          <div className="shrink-0 border-t border-book-border bg-book-bg-tertiary px-3 py-2">
+          <div className="shrink-0 border-t border-book-border/55 bg-book-bg-paper/95 px-4 py-3 sm:px-5">
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               {footer}
             </div>

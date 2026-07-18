@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Loader2 } from "lucide-react";
+import { Eye, Loader2, RefreshCw } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import {
   applyImplicitUpdateDecision,
@@ -13,8 +13,15 @@ import {
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
-import { BookButton } from "../../components/ui/BookButton";
-import { jsonPreview, listPreview } from "./manageViewUtils";
+import { BookButton, BookIconButton } from "../../components/ui/BookButton";
+import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
+import {
+  attributeKeyLabel,
+  behaviorTypeLabel,
+  decisionLabel,
+  jsonPreview,
+  listPreview,
+} from "./manageViewUtils";
 
 const formatPercent = (value: number): string => {
   if (!Number.isFinite(value)) {
@@ -351,57 +358,91 @@ export const ImplicitReviewManager: React.FC<{
     }
   };
 
+  const reviewOperationBusy =
+    loading ||
+    decidingKey != null ||
+    applyingKey != null ||
+    requestPreviewLoading;
+
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-xs flex-wrap">
-        <label className="flex items-center gap-1 text-book-text-muted">
-          窗口
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={windowChapters}
-            onChange={(event) => {
-              const parsed = Number(event.target.value);
-              if (Number.isFinite(parsed) && parsed > 0) {
-                const nextValue = Math.max(1, Math.min(50, Math.floor(parsed)));
-                if (windowChaptersRef.current !== nextValue) invalidateReviewScope();
-                setWindowChapters(nextValue);
-              }
-            }}
-            className="pyqt-input !py-1 !px-2 w-16"
-          />
-        </label>
-        <label className="flex items-center gap-1 text-book-text-muted">
-          阈值
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={threshold}
-            onChange={(event) => {
-              const parsed = Number(event.target.value);
-              if (Number.isFinite(parsed) && parsed > 0) {
-                const nextValue = Math.max(1, Math.min(50, Math.floor(parsed)));
-                if (thresholdRef.current !== nextValue) invalidateReviewScope();
-                setThreshold(nextValue);
-              }
-            }}
-            className="pyqt-input !py-1 !px-2 w-16"
-          />
-        </label>
-        <BookButton variant="secondary" onClick={load} disabled={loading}>
-          {loading ? <Loader2 size={11} className="animate-spin" /> : "刷新"}
-        </BookButton>
-        <div className="flex-1" />
-        {review && (
-          <span className="text-[11px] text-book-text-muted">
-            {needsReview.length > 0
+      <div className="flex items-center gap-2 text-[11px] text-book-text-muted">
+        <span className="min-w-0 flex-1">
+          {review
+            ? needsReview.length > 0
               ? `${needsReview.length} 个属性需要复审`
-              : "暂无达到阈值的隐性属性"}
-          </span>
-        )}
+              : "当前没有需要复审的属性"
+            : "检查隐性属性是否仍符合近期行为"}
+        </span>
+        <BookIconButton
+          label="刷新复审结果"
+          onClick={load}
+          variant="secondary"
+          size="sm"
+          disabled={reviewOperationBusy}
+        >
+          <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+        </BookIconButton>
       </div>
+      <details className="text-[11px] text-book-text-muted">
+        <summary className="w-fit cursor-pointer select-none py-1 hover:text-book-text-main">
+          复审范围 · 最近 {windowChapters} 章 · 连续 {threshold} 次后提醒
+        </summary>
+        <div className="mt-1.5 flex flex-wrap items-end gap-2 rounded-xl bg-book-bg-tertiary/40 p-2.5">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px]">检查章节数</span>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={windowChapters}
+              disabled={reviewOperationBusy}
+              onChange={(event) => {
+                const parsed = Number(event.target.value);
+                if (Number.isFinite(parsed) && parsed > 0) {
+                  const nextValue = Math.max(1, Math.min(50, Math.floor(parsed)));
+                  if (windowChaptersRef.current !== nextValue) invalidateReviewScope();
+                  setWindowChapters(nextValue);
+                }
+              }}
+              className="pyqt-input h-8 w-24 !px-2 !py-1"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px]">提醒阈值</span>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={threshold}
+              disabled={reviewOperationBusy}
+              onChange={(event) => {
+                const parsed = Number(event.target.value);
+                if (Number.isFinite(parsed) && parsed > 0) {
+                  const nextValue = Math.max(1, Math.min(50, Math.floor(parsed)));
+                  if (thresholdRef.current !== nextValue) invalidateReviewScope();
+                  setThreshold(nextValue);
+                }
+              }}
+              className="pyqt-input h-8 w-24 !px-2 !py-1"
+            />
+          </label>
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={load}
+            disabled={reviewOperationBusy}
+          >
+            {loading ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 size={11} className="animate-spin" /> 更新中…
+              </span>
+            ) : (
+              "更新结果"
+            )}
+          </BookButton>
+        </div>
+      </details>
       {loading ? (
         <div className="text-[11px] text-book-text-muted">加载…</div>
       ) : !hasCurrentReview ? (
@@ -411,7 +452,7 @@ export const ImplicitReviewManager: React.FC<{
           尚无隐性属性或行为分类记录
         </div>
       ) : (
-        <ul className="space-y-1 max-h-72 overflow-y-auto custom-scrollbar">
+        <ul className="grid gap-2">
           {attrs.map((attr) => (
             <ImplicitReviewItem
               key={attr.attribute_key}
@@ -419,10 +460,7 @@ export const ImplicitReviewManager: React.FC<{
               decision={decisions[attr.attribute_key]}
               deciding={decidingKey === attr.attribute_key}
               applying={applyingKey === attr.attribute_key}
-              actionsDisabled={
-                (decidingKey != null && decidingKey !== attr.attribute_key) ||
-                (applyingKey != null && applyingKey !== attr.attribute_key)
-              }
+              actionsDisabled={reviewOperationBusy}
               expanded={expanded === attr.attribute_key}
               onPreviewCheck={() => void handlePreviewCheck(attr.attribute_key)}
               onCheck={() => void handleCheck(attr.attribute_key)}
@@ -476,114 +514,131 @@ const ImplicitReviewItem: React.FC<{
   onCheck,
   onApply,
   onToggle,
-}) => (
-  <li
-    className={`a4n-stat-tile px-2 py-1.5 text-[11px] ${
-      attr.threshold_reached ? "border-warning/40 bg-warning-bg/40" : ""
-    }`}
-  >
-    <button
-      type="button"
-      onClick={onToggle}
-      className="w-full text-left flex items-center gap-2"
+}) => {
+  const hasEvidence = attr.evidence.length > 0;
+  const menuItems: DropdownItem[] = [];
+  if (hasEvidence) {
+    menuItems.push({
+      label: "查看模型请求",
+      icon: <Eye size={12} />,
+      disabled: actionsDisabled || deciding || applying,
+      onClick: onPreviewCheck,
+    });
+    if (decision) {
+      menuItems.push({
+        label: "重新生成建议",
+        icon: <RefreshCw size={12} />,
+        disabled: actionsDisabled || deciding || applying,
+        onClick: onCheck,
+      });
+    }
+  }
+
+  return (
+    <li
+      className={`a4n-flat-surface overflow-hidden px-3 py-2.5 text-[11px] ${
+        attr.threshold_reached ? "bg-warning-bg/25" : ""
+      }`}
     >
-      <span className="pyqt-pill !text-[10px] font-mono shrink-0">
-        {attr.attribute_key}
-      </span>
-      <span className="text-book-text-sub truncate flex-1">
-        {jsonPreview(attr.current_value)}
-      </span>
-      <span className="text-book-text-muted shrink-0">
-        符合 {attr.conform_count} / 不符合 {attr.non_conform_count}
-      </span>
-      <span className="pyqt-pill !text-[10px] shrink-0">
-        {formatPercent(attr.conform_rate)}
-      </span>
-      {attr.threshold_reached && (
-        <span className="pyqt-pill !text-[10px] !border-warning/50 !text-warning shrink-0">
-          需复审
-        </span>
-      )}
-    </button>
-    {expanded && (
-      <div className="mt-2 space-y-1">
-        <div className="flex items-center gap-2">
-          <BookButton
-            variant="secondary"
-            onClick={onPreviewCheck}
-            disabled={actionsDisabled || deciding || applying || attr.evidence.length === 0}
-          >
-            <span className="inline-flex items-center gap-1">
-              <Eye size={11} />
-              预览请求
-            </span>
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={onCheck}
-            disabled={actionsDisabled || deciding || applying || attr.evidence.length === 0}
-          >
-            {deciding ? <Loader2 size={11} className="animate-spin" /> : "生成复审建议"}
-          </BookButton>
-          {decision && decision.decision !== "keep" && (
-            <BookButton
-              variant="secondary"
-              onClick={onApply}
-              disabled={actionsDisabled || applying}
-            >
-              {applying ? <Loader2 size={11} className="animate-spin" /> : "应用建议"}
-            </BookButton>
-          )}
-          {attr.evidence.length === 0 && (
-            <span className="text-[10px] text-book-text-muted">需要先有行为证据</span>
-          )}
+      <button type="button" onClick={onToggle} className="w-full text-left">
+        <div className="flex min-w-0 items-start gap-2">
+          <span className="min-w-0 flex-1 font-medium text-book-text-main">
+            {attributeKeyLabel(attr.attribute_key)}
+          </span>
+          <span className="shrink-0 text-book-text-sub">{formatPercent(attr.conform_rate)} 符合</span>
         </div>
-        {decision && (
-          <div className="a4n-stat-tile border-book-primary/30 bg-book-primary/5 px-2 py-1.5 text-[10px] leading-relaxed">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="pyqt-pill !text-[10px]">建议：{decision.decision}</span>
-              {decision.suggested_new_value != null && (
-                <span className="font-mono text-book-text-sub truncate">
-                  新值：{jsonPreview(decision.suggested_new_value)}
-                </span>
-              )}
+        <div className="mt-0.5 truncate text-book-text-sub">{jsonPreview(attr.current_value)}</div>
+        <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[10px] text-book-text-muted">
+          <span>{attr.conform_count} 条符合</span>
+          <span aria-hidden="true">·</span>
+          <span>{attr.non_conform_count} 条不符合</span>
+          {attr.threshold_reached ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="text-warning">需要复审</span>
+            </>
+          ) : null}
+        </div>
+      </button>
+      {expanded ? (
+        <div className="mt-2.5 space-y-2 border-t border-book-border/30 pt-2.5">
+          {hasEvidence ? (
+            <div className="flex items-center justify-end gap-2">
+              {menuItems.length > 0 ? <Dropdown items={menuItems} /> : null}
+              {!decision ? (
+                <BookButton
+                  onClick={onCheck}
+                  disabled={actionsDisabled || deciding || applying}
+                >
+                  {deciding ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Loader2 size={11} className="animate-spin" /> 生成中…
+                    </span>
+                  ) : (
+                    "生成复审建议"
+                  )}
+                </BookButton>
+              ) : decision.decision !== "keep" ? (
+                <BookButton onClick={onApply} disabled={actionsDisabled || applying}>
+                  {applying ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Loader2 size={11} className="animate-spin" /> 应用中…
+                    </span>
+                  ) : (
+                    "应用建议"
+                  )}
+                </BookButton>
+              ) : null}
             </div>
-            <div className="text-book-text-sub">{decision.reasoning}</div>
-            {decision.evidence_summary && (
-              <div className="mt-0.5 text-book-text-muted">
-                证据：{decision.evidence_summary}
+          ) : (
+            <div className="text-[10px] text-book-text-muted">暂无行为证据，暂时无法复审</div>
+          )}
+          {decision ? (
+            <div className="rounded-xl border-l-2 border-book-primary/55 bg-book-primary/5 px-3 py-2.5 text-[10px] leading-relaxed">
+              <div className="font-medium text-book-text-main">
+                建议{decisionLabel(decision.decision)}
+                {decision.suggested_new_value != null
+                  ? ` · 新值：${jsonPreview(decision.suggested_new_value)}`
+                  : ""}
               </div>
-            )}
-          </div>
-        )}
-        {attr.evidence.length === 0 ? (
-          <div className="text-[10px] text-book-text-muted italic">暂无行为证据</div>
-        ) : (
-          attr.evidence.map((item) => (
-            <div
-              key={item.behavior_id}
-              className="a4n-stat-tile bg-book-bg-tertiary/45 px-2 py-1 text-[10px] leading-relaxed"
-            >
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="pyqt-pill !text-[10px]">第{item.chapter_number}章</span>
-                <span className="pyqt-pill !text-[10px]">{item.behavior_type}</span>
-                <span className="font-mono text-book-text-muted">
-                  {jsonPreview(item.classification)}
-                </span>
-              </div>
-              <div className="text-book-text-sub">{item.behavior_description}</div>
-              {item.original_text && (
-                <div className="mt-0.5 text-book-text-muted">原文：{item.original_text}</div>
-              )}
-              {listPreview(item.behavior_tags) && (
-                <div className="mt-0.5 text-book-text-muted">
-                  标签：{listPreview(item.behavior_tags)}
-                </div>
-              )}
+              <div className="mt-1 text-book-text-sub">{decision.reasoning}</div>
+              {decision.evidence_summary ? (
+                <div className="mt-1 text-book-text-muted">证据：{decision.evidence_summary}</div>
+              ) : null}
             </div>
-          ))
-        )}
-      </div>
-    )}
-  </li>
-);
+          ) : null}
+          {hasEvidence ? (
+            <ol className="divide-y divide-book-border/25 rounded-xl bg-book-bg-tertiary/35 px-3">
+              {attr.evidence.map((item) => (
+                <li key={item.behavior_id} className="py-2.5 text-[10px] leading-relaxed">
+                  <div className="text-book-text-muted">
+                    第 {item.chapter_number} 章 · {behaviorTypeLabel(item.behavior_type)}
+                  </div>
+                  <div className="mt-0.5 text-book-text-sub">{item.behavior_description}</div>
+                  {item.original_text ? (
+                    <div className="mt-0.5 text-book-text-muted">原文：{item.original_text}</div>
+                  ) : null}
+                  {listPreview(item.behavior_tags) ? (
+                    <div className="mt-0.5 text-book-text-muted">
+                      标签：{listPreview(item.behavior_tags)}
+                    </div>
+                  ) : null}
+                  {jsonPreview(item.classification) ? (
+                    <details className="mt-1 text-book-text-muted">
+                      <summary className="w-fit cursor-pointer hover:text-book-text-main">
+                        诊断信息
+                      </summary>
+                      <div className="mt-1 break-words font-mono">
+                        {jsonPreview(item.classification)}
+                      </div>
+                    </details>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </div>
+      ) : null}
+    </li>
+  );
+};

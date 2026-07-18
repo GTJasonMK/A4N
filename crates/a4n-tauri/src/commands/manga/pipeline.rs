@@ -1,8 +1,9 @@
 use crate::commands::request_preview::ModelRequestPreview;
 use a4n_core::event::sse::{ProgressMeta, ProgressPhaseKind, ProgressTaskKind};
 use a4n_runtime::AppState;
-use a4n_runtime::actions::manga_pipeline as manga_pipeline_actions;
-use a4n_services::manga::MangaPipelineStartStage;
+use a4n_runtime::host_api::manga_pipeline::{
+    self as manga_pipeline_actions, MangaPipelineStartStage,
+};
 use tauri::{State, Window};
 
 #[tauri::command]

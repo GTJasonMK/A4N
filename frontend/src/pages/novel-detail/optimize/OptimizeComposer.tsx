@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef } from "react";
 import { Eye, Loader2, Search, Send, ShieldCheck, Square, Wand2 } from "lucide-react";
 import type { ChapterData } from "../../../api/chapter";
 import type { ProposeOptimizationPatchesResponse } from "../../../api/optimize";
+import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
+import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { isImeCompositionActive } from "../../../utils/ime";
 import { PendingPatchProposalPanel } from "./PendingPatchProposalPanel";
 
@@ -67,6 +69,40 @@ export function OptimizeComposer({
   const hasInstruction = input.trim().length > 0;
   const canSubmitInstruction = hasInstruction && !taskRunning && !!activeChapter;
   const canUsePatches = canSubmitInstruction && canProposePatches;
+  const toolItems: DropdownItem[] = [
+    {
+      label: "分析当前要求",
+      icon: <Search size={12} />,
+      onClick: onAnalyze,
+      disabled: !canSubmitInstruction,
+    },
+    {
+      label: "生成局部补丁",
+      icon: <Wand2 size={12} />,
+      onClick: onProposePatches,
+      disabled: !canUsePatches,
+    },
+    { type: "divider" },
+    {
+      label: "查看对话请求",
+      icon: <Eye size={12} />,
+      onClick: onPreviewMessage,
+      disabled: !canSubmitInstruction,
+    },
+    {
+      label: "查看分析请求",
+      icon: <Eye size={12} />,
+      onClick: onPreviewAnalyze,
+      disabled: !canSubmitInstruction,
+    },
+    {
+      label: "查看补丁请求",
+      icon: <Eye size={12} />,
+      onClick: onPreviewProposePatches,
+      disabled: !canUsePatches,
+    },
+  ];
+  const showReviewMode = canProposePatches && pendingPatchProposal == null;
 
   return (
     <form
@@ -97,60 +133,31 @@ export function OptimizeComposer({
         }
       }}
     >
-      <div className="mb-2 flex min-w-0 flex-wrap gap-1.5">
-        <button
-          type="button"
-          onClick={onToggleAutomaticWriteback}
-          disabled={taskRunning || !activeChapter}
-          className={`inline-flex h-9 min-w-0 items-center gap-1.5 rounded border px-2 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50 sm:h-7 ${
-            automaticWriteback
-              ? "border-warning bg-warning-bg text-warning"
-              : "border-book-border bg-book-bg-tertiary text-book-text-sub hover:bg-book-bg-paper hover:text-book-text-main"
-          }`}
-          title={automaticWriteback ? "Agent 完成后批量审阅补丁" : "Agent 每处补丁逐条审阅"}
-        >
-          <ShieldCheck size={12} />
-          {automaticWriteback ? "自动模式已开启" : "自动模式"}
-        </button>
-        <button
-          type="button"
-          onClick={onAnalyze}
-          disabled={!canSubmitInstruction}
-          className="inline-flex h-9 min-w-0 items-center gap-1.5 rounded border border-book-border bg-book-bg-paper px-2 text-[11px] font-semibold text-book-text-sub hover:bg-book-bg-tertiary hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-50 sm:h-7"
-          title="执行内容优化分析"
-        >
-          <Search size={12} />
-          分析
-        </button>
-        <button
-          type="button"
-          onClick={onPreviewAnalyze}
-          disabled={!canSubmitInstruction}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded border border-book-border bg-book-bg-paper text-book-text-sub hover:bg-book-bg-tertiary hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-50 sm:h-7 sm:w-7"
-          title="预览分析模型请求"
-        >
-          <Eye size={12} />
-        </button>
-        <button
-          type="button"
-          onClick={onProposePatches}
-          disabled={!canUsePatches}
-          className="inline-flex h-9 min-w-0 items-center gap-1.5 rounded border border-book-border bg-book-bg-paper px-2 text-[11px] font-semibold text-book-text-sub hover:bg-book-bg-tertiary hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-50 sm:h-7"
-          title="根据分析问题生成局部修复补丁"
-        >
-          <Wand2 size={12} />
-          补丁
-        </button>
-        <button
-          type="button"
-          onClick={onPreviewProposePatches}
-          disabled={!canUsePatches}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded border border-book-border bg-book-bg-paper text-book-text-sub hover:bg-book-bg-tertiary hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-50 sm:h-7 sm:w-7"
-          title="预览局部补丁模型请求"
-        >
-          <Eye size={12} />
-        </button>
-      </div>
+      {showReviewMode ? (
+        <div className="mb-2 flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 text-[11px] text-book-text-muted">补丁处理方式</span>
+          <SegmentedControl
+            ariaLabel="补丁审阅方式"
+            value={automaticWriteback ? "batch" : "single"}
+            onChange={(mode) => {
+              if ((mode === "batch") !== automaticWriteback) onToggleAutomaticWriteback();
+            }}
+            options={[
+              {
+                id: "single",
+                label: "逐条审阅",
+                icon: <ShieldCheck size={11} />,
+                disabled: taskRunning || !activeChapter,
+              },
+              {
+                id: "batch",
+                label: "批量审阅",
+                disabled: taskRunning || !activeChapter,
+              },
+            ]}
+          />
+        </div>
+      ) : null}
 
       {pendingPatchProposal ? (
         <PendingPatchProposalPanel
@@ -164,6 +171,7 @@ export function OptimizeComposer({
       ) : null}
 
       <div className="flex min-w-0 items-end gap-2">
+        <Dropdown label="工具" items={toolItems} />
         <textarea
           ref={inputRef}
           value={input}
@@ -189,7 +197,7 @@ export function OptimizeComposer({
             type="button"
             onClick={onCancelTask}
             disabled={cancellingOptimize}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border border-warning bg-warning-bg text-warning hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:w-8"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-warning/55 bg-warning-bg text-warning transition-[transform,filter] active:scale-[0.96] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:w-8"
             title={cancellingOptimize ? "正在停止" : "停止当前 Agent 任务"}
           >
             {cancellingOptimize ? (
@@ -199,26 +207,15 @@ export function OptimizeComposer({
             )}
           </button>
         ) : (
-          <>
-            <button
-              type="button"
-              onClick={onPreviewMessage}
-              disabled={!canSubmitInstruction}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border border-book-border bg-book-bg-paper text-book-text-sub hover:bg-book-bg-tertiary hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:w-8"
-              title="预览对话模型请求"
-            >
-              <Eye size={14} />
-            </button>
-            <button
-              type="submit"
-              data-optimize-submit="send"
-              disabled={!canSubmitInstruction}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border border-book-primary bg-book-primary text-white hover:brightness-95 disabled:cursor-not-allowed disabled:border-book-border disabled:bg-book-bg-tertiary disabled:text-book-text-muted sm:h-8 sm:w-8"
-              title="发送给内容优化 Agent"
-            >
-              <Send size={15} />
-            </button>
-          </>
+          <button
+            type="submit"
+            data-optimize-submit="send"
+            disabled={!canSubmitInstruction}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-book-primary bg-book-primary text-white shadow-[var(--shadow-soft)] transition-[transform,filter] active:scale-[0.96] hover:brightness-95 disabled:cursor-not-allowed disabled:border-book-border disabled:bg-book-bg-tertiary disabled:text-book-text-muted disabled:shadow-none sm:h-8 sm:w-8"
+            title="发送给内容优化"
+          >
+            <Send size={15} />
+          </button>
         )}
       </div>
     </form>

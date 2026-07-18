@@ -38,9 +38,15 @@ pub async fn rag_ingest_all(
         let reporter: RagProgressReporter<'_> = task_id
             .as_ref()
             .map(|_| &report_progress as &(dyn Fn(u32, u32, &str) + Send + Sync));
-        let mut progress =
-            RagIngestProgress::new(scope.expected_records, reporter, cancel_token.as_ref());
-        rag_ingest::rag_ingest_all(state.inner(), user_id, project_id, Some(&mut progress)).await
+        let mut progress = RagIngestProgress::new(scope.total, reporter, cancel_token.as_ref());
+        rag_ingest::rag_ingest_all(
+            state.inner(),
+            user_id,
+            project_id,
+            task_id.as_deref(),
+            Some(&mut progress),
+        )
+        .await
     };
 
     progress_task.finish_result(state.inner(), &result, "rag_ingest_failed", |value| {

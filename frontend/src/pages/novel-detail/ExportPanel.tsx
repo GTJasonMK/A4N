@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { CheckCircle2, Download, Loader2 } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import {
   exportBatchData,
@@ -18,11 +18,51 @@ import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTa
 import { isCancelledOperation } from "../../utils/cancellation";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
 
-const downloadExportFiles = (files: ExportFileData[]): string => {
+type ExportFormat = "txt" | "markdown" | "epub" | "pdf" | "batch";
+
+const EXPORT_FORMATS: Array<{
+  value: ExportFormat;
+  label: string;
+  description: string;
+  requiresMetadata: boolean;
+}> = [
+  {
+    value: "txt",
+    label: "TXT 纯文本",
+    description: "适合阅读、归档和在其他写作工具中继续编辑。",
+    requiresMetadata: false,
+  },
+  {
+    value: "markdown",
+    label: "Markdown",
+    description: "保留章节层级，适合版本管理和二次排版。",
+    requiresMetadata: true,
+  },
+  {
+    value: "epub",
+    label: "EPUB 电子书",
+    description: "适合电子书阅读器，需要填写书名和作者。",
+    requiresMetadata: true,
+  },
+  {
+    value: "pdf",
+    label: "PDF",
+    description: "生成固定版式文档，便于分享和打印。",
+    requiresMetadata: false,
+  },
+  {
+    value: "batch",
+    label: "TXT + Markdown",
+    description: "一次下载纯文本和 Markdown 两种文件。",
+    requiresMetadata: true,
+  },
+];
+
+const downloadExportFiles = (files: ExportFileData[]): string[] => {
   for (const file of files) {
     downloadBase64ExportFile(file);
   }
-  return files.map((file) => file.file_name).join("\n");
+  return files.map((file) => file.file_name);
 };
 
 const exportMetadata = (
@@ -30,16 +70,14 @@ const exportMetadata = (
 ): { title: string; author: string } | null => {
   const title = meta.title.trim();
   const author = meta.author.trim();
-  if (!title) {
-    return null;
-  }
-  if (!author) {
-    return null;
-  }
+  if (!title || !author) return null;
   return { title, author };
 };
 
-export const ExportPanel: React.FC<{ project: NovelProject }> = ({ project }) => {
+export const ExportPanel: React.FC<{
+  project: NovelProject;
+  onBusyChange?: (busy: boolean) => void;
+}> = ({ project, onBusyChange }) => {
   const { addToast } = useToast();
   const { runProgressTask } = useProgressTask();
   const [acting, setActing] = useState<string | null>(null);
@@ -51,8 +89,15 @@ export const ExportPanel: React.FC<{ project: NovelProject }> = ({ project }) =>
     title: project.title,
     author: "",
   });
-  const [lastResult, setLastResult] = useState<string | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("txt");
+  const [lastResult, setLastResult] = useState<string[] | null>(null);
   const exportBusy = acting !== null;
+  const selectedFormatOption =
+    EXPORT_FORMATS.find((format) => format.value === selectedFormat) ??
+    EXPORT_FORMATS[0];
+  const selectedMetadata = exportMetadata(meta);
+  const selectedExportReady =
+    !selectedFormatOption.requiresMetadata || selectedMetadata != null;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -64,6 +109,10 @@ export const ExportPanel: React.FC<{ project: NovelProject }> = ({ project }) =>
   }, []);
 
   useEffect(() => {
+    onBusyChange?.(exportBusy);
+  }, [exportBusy, onBusyChange]);
+
+  useEffect(() => {
     activeProjectIdRef.current = project.id;
     exportSeqRef.current += 1;
     exportBusyRef.current = false;
@@ -73,7 +122,8 @@ export const ExportPanel: React.FC<{ project: NovelProject }> = ({ project }) =>
       title: project.title,
       author: "",
     });
-  }, [project.id]);
+    setSelectedFormat("txt");
+  }, [project.id, project.title]);
 
   const isCurrentExport = (requestProjectId: number, requestSeq: number) =>
     mountedRef.current &&
@@ -116,7 +166,7 @@ export const ExportPanel: React.FC<{ project: NovelProject }> = ({ project }) =>
       const files = Array.isArray(r) ? r : [r];
       const fileNames = downloadExportFiles(files);
       setLastResult(fileNames);
-      addToast("导出完成", "success");
+      addToast(files.length > 1 ? `已下载 ${files.length} 个文件` : "下载完成", "success");
     } catch (err) {
       if (!isCurrentExport(requestProjectId, requestSeq)) return;
       const message = extractErrorMessage(err, "导出失败");
@@ -131,87 +181,164 @@ export const ExportPanel: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   };
 
-  const requireMetadata = (formatLabel: string) => {
-    const normalized = exportMetadata(meta);
-    if (!normalized) {
-      addToast(`${formatLabel} 导出需要填写标题和作者`, "error");
+  const runSelectedExport = () => {
+    if (!selectedExportReady) return;
+    switch (selectedFormat) {
+      case "txt":
+        void wrap("txt", "TXT", (taskId) => exportTxtData(project.id, taskId));
+        return;
+      case "markdown": {
+        const metadata = selectedMetadata;
+        if (!metadata) return;
+        void wrap("markdown", "Markdown", (taskId) =>
+          exportMarkdownData(project.id, metadata, taskId),
+        );
+        return;
+      }
+      case "epub": {
+        const metadata = selectedMetadata;
+        if (!metadata) return;
+        void wrap("epub", "EPUB", (taskId) =>
+          exportEpubData(
+            project.id,
+            metadata.title,
+            metadata.author,
+            taskId,
+          ),
+        );
+        return;
+      }
+      case "pdf":
+        void wrap("pdf", "PDF", (taskId) => exportPdfData(project.id, taskId));
+        return;
+      case "batch": {
+        const metadata = selectedMetadata;
+        if (!metadata) return;
+        void wrap("batch", "TXT + Markdown", (taskId) =>
+          exportBatchData(
+            {
+              project_id: project.id,
+              formats: ["txt", "markdown"],
+              title: metadata.title,
+              author: metadata.author,
+            },
+            taskId,
+          ),
+        );
+      }
     }
-    return normalized;
   };
+
+  const spin = (key: string) =>
+    acting === key ? <Loader2 size={12} className="animate-spin" /> : null;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] text-book-text-muted">标题（Markdown/EPUB 元数据）</span>
-          <input
-            type="text"
-            value={meta.title}
-            onChange={(e) => setMeta({ ...meta, title: e.target.value })}
-            className="pyqt-input !py-1 text-xs"
-            disabled={exportBusy}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] text-book-text-muted">作者</span>
-          <input
-            type="text"
-            value={meta.author}
-            onChange={(e) => setMeta({ ...meta, author: e.target.value })}
-            className="pyqt-input !py-1 text-xs"
-            disabled={exportBusy}
-          />
-        </label>
+      <label className="flex min-w-0 flex-col gap-1">
+        <span className="text-[11px] text-book-text-muted">导出格式</span>
+        <select
+          value={selectedFormat}
+          onChange={(event) =>
+            setSelectedFormat(event.target.value as ExportFormat)
+          }
+          className="pyqt-input w-full !py-1.5 text-xs"
+          disabled={exportBusy}
+        >
+          {EXPORT_FORMATS.map((format) => (
+            <option key={format.value} value={format.value}>
+              {format.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <p className="text-[11px] leading-relaxed text-book-text-muted">
+        {selectedFormatOption.description}
+      </p>
+
+      {selectedFormatOption.requiresMetadata ? (
+        <section className="border-y border-book-border/45 py-3">
+          <div className="mb-2 text-xs font-semibold text-book-text-main">
+            作品信息
+          </div>
+          <p className="mb-2 text-[11px] leading-relaxed text-book-text-muted">
+            书名和作者会写入导出文件，均为必填。
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-book-text-muted">书名</span>
+              <input
+                type="text"
+                value={meta.title}
+                onChange={(event) =>
+                  setMeta({ ...meta, title: event.target.value })
+                }
+                className="pyqt-input !py-1.5 text-xs"
+                disabled={exportBusy}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-book-text-muted">作者</span>
+              <input
+                type="text"
+                value={meta.author}
+                onChange={(event) =>
+                  setMeta({ ...meta, author: event.target.value })
+                }
+                className="pyqt-input !py-1.5 text-xs"
+                disabled={exportBusy}
+                placeholder="输入作者名"
+              />
+            </label>
+          </div>
+        </section>
+      ) : null}
+
+      <div className="flex justify-end">
+        <BookButton
+          variant="primary"
+          size="sm"
+          className="w-full sm:w-auto"
+          disabled={exportBusy || !selectedExportReady}
+          onClick={runSelectedExport}
+        >
+          {exportBusy ? (
+            <Loader2 size={13} className="animate-spin" />
+          ) : (
+            <Download size={13} />
+          )}
+          {exportBusy
+            ? `正在导出 ${selectedFormatOption.label}…`
+            : `下载 ${selectedFormatOption.label}`}
+        </BookButton>
       </div>
 
-      <div className="space-y-2 text-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="w-10 shrink-0 text-[10px] font-semibold text-book-text-muted">文档</span>
-          <BookButton
-            variant="primary"
-            onClick={() => void wrap("txt", "TXT", (taskId) => exportTxtData(project.id, taskId))}
-            disabled={exportBusy}
-          >
-            {acting === "txt" ? <Loader2 size={12} className="animate-spin" /> : "TXT"}
-          </BookButton>
-          <BookButton
-            variant="primary"
-            onClick={() => {
-              const metadata = requireMetadata("Markdown");
-              if (!metadata) return;
-              void wrap("md", "Markdown", (taskId) =>
-                exportMarkdownData(project.id, metadata, taskId),
-              );
-            }}
-            disabled={exportBusy}
-          >
-            {acting === "md" ? <Loader2 size={12} className="animate-spin" /> : "Markdown"}
-          </BookButton>
-          <BookButton
-            variant="primary"
-            onClick={() => {
-              const metadata = requireMetadata("EPUB");
-              if (!metadata) return;
-              void wrap("epub", "EPUB", (taskId) =>
-                exportEpubData(project.id, metadata.title, metadata.author, taskId),
-              );
-            }}
-            disabled={exportBusy}
-          >
-            {acting === "epub" ? <Loader2 size={12} className="animate-spin" /> : "EPUB"}
-          </BookButton>
-          <BookButton
-            variant="secondary"
-            onClick={() => void wrap("pdf", "PDF", (taskId) => exportPdfData(project.id, taskId))}
-            disabled={exportBusy}
-          >
-            {acting === "pdf" ? <Loader2 size={12} className="animate-spin" /> : "PDF"}
-          </BookButton>
+      {lastResult ? (
+        <div className="flex items-start gap-2 rounded-xl bg-success-bg/55 px-3 py-2.5 text-[11px] text-book-text-sub">
+          <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success" />
+          <div className="min-w-0">
+            <div className="font-medium text-book-text-main">
+              {lastResult.length > 1
+                ? `已下载 ${lastResult.length} 个文件`
+                : "下载完成"}
+            </div>
+            <div className="mt-0.5 break-all text-book-text-muted">
+              {lastResult.join("、")}
+            </div>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="w-10 shrink-0 text-[10px] font-semibold text-book-text-muted">数据</span>
+      ) : null}
+
+      <details className="a4n-flat-surface overflow-hidden">
+        <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-xs font-semibold text-book-text-main">
+          <span>结构数据</span>
+          <span className="text-[10px] font-normal text-book-text-muted">大纲与角色 JSON</span>
+        </summary>
+        <div className="grid grid-cols-2 gap-2 border-t border-book-border/45 p-3">
           <BookButton
             variant="secondary"
+            size="sm"
+            className="!justify-start !text-xs"
             onClick={() =>
               void wrap("outline", "大纲 JSON", (taskId) =>
                 exportOutlineJsonData(project.id, taskId),
@@ -219,10 +346,12 @@ export const ExportPanel: React.FC<{ project: NovelProject }> = ({ project }) =>
             }
             disabled={exportBusy}
           >
-            {acting === "outline" ? <Loader2 size={12} className="animate-spin" /> : "大纲 JSON"}
+            {spin("outline")} 大纲 JSON
           </BookButton>
           <BookButton
             variant="secondary"
+            size="sm"
+            className="!justify-start !text-xs"
             onClick={() =>
               void wrap("characters", "角色 JSON", (taskId) =>
                 exportCharactersJsonData(project.id, taskId),
@@ -230,51 +359,10 @@ export const ExportPanel: React.FC<{ project: NovelProject }> = ({ project }) =>
             }
             disabled={exportBusy}
           >
-            {acting === "characters" ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              "角色 JSON"
-            )}
+            {spin("characters")} 角色 JSON
           </BookButton>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="w-10 shrink-0 text-[10px] font-semibold text-book-text-muted">批量</span>
-          <BookButton
-            variant="secondary"
-            onClick={() => {
-              const metadata = requireMetadata("批量文件");
-              if (!metadata) return;
-              void wrap("batch", "批量文件", (taskId) =>
-                exportBatchData(
-                  {
-                    project_id: project.id,
-                    formats: ["txt", "markdown"],
-                    title: metadata.title,
-                    author: metadata.author,
-                  },
-                  taskId,
-                ),
-              );
-            }}
-            disabled={exportBusy}
-          >
-            {acting === "batch" ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              "小说批量（txt+md）"
-            )}
-          </BookButton>
-        </div>
-      </div>
-
-      {lastResult != null && (
-        <pre className="mt-3 max-h-44 overflow-y-auto whitespace-pre-wrap break-words rounded border border-book-border/40 bg-book-bg-tertiary/40 p-3 font-mono text-[10px] custom-scrollbar">
-          已下载文件：
-          {"\n"}
-          {lastResult}
-        </pre>
-      )}
-
+      </details>
     </div>
   );
 };

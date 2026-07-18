@@ -1,7 +1,8 @@
 import React from "react";
 import { DownloadCloud, Loader2, RotateCcw, Search } from "lucide-react";
-import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { BookIconButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
+import { Dropdown } from "../../../components/ui/Dropdown";
 
 interface PromptToolbarProps {
   keyword: string;
@@ -33,31 +34,32 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
         className="!pl-8"
       />
     </div>
-    <BookButton
-      variant="secondary"
-      onClick={onLoadDefaults}
-      disabled={reloadingDefaults}
-      title="从 prompts/ 目录补全缺失的默认模板，不覆盖已修改项"
-    >
-      {reloadingDefaults ? (
-        <span className="inline-flex items-center gap-2">
-          <Loader2 size={14} className="animate-spin" /> 载入中…
-        </span>
-      ) : (
-        <span className="inline-flex items-center gap-2">
-          <DownloadCloud size={14} /> 载入默认
-        </span>
-      )}
-    </BookButton>
     <BookIconButton
-      label="刷新"
+      label="刷新提示词"
       onClick={onRefresh}
-      variant="secondary"
       size="sm"
       disabled={loading}
     >
       <Loader2 size={14} className={loading ? "animate-spin" : "hidden"} />
       {!loading && <RotateCcw size={14} />}
     </BookIconButton>
+    {reloadingDefaults ? (
+      <span
+        className="inline-flex h-10 w-10 items-center justify-center text-book-text-muted sm:h-8 sm:w-8"
+        title="正在载入默认提示词"
+      >
+        <Loader2 size={14} className="animate-spin" />
+      </span>
+    ) : (
+      <Dropdown
+        items={[
+          {
+            label: "载入默认提示词",
+            icon: <DownloadCloud size={12} />,
+            onClick: onLoadDefaults,
+          },
+        ]}
+      />
+    )}
   </div>
 );

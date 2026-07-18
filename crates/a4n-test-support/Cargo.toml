@@ -1,0 +1,22 @@
+[package]
+name = "a4n-test-support"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+a4n-capabilities = { path = "../a4n-capabilities" }
+a4n-core = { path = "../a4n-core" }
+a4n-embedding = { path = "../a4n-embedding" }
+a4n-export-core = { path = "../a4n-export-core" }
+a4n-llm = { path = "../a4n-llm" }
+a4n-rag-core = { path = "../a4n-rag-core" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }

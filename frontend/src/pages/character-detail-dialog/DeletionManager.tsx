@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import {
   executeAttributeDeletion,
@@ -11,7 +11,13 @@ import {
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
-import { ATTRIBUTE_CATEGORY_OPTIONS } from "./manageViewUtils";
+import { Dropdown } from "../../components/ui/Dropdown";
+import {
+  ATTRIBUTE_CATEGORY_OPTIONS,
+  attributeKeyLabel,
+  categoryLabel,
+} from "./manageViewUtils";
+import { formatUiDateTime } from "../../utils/dateTime";
 
 type DeletionMarkStatusFilter = "all" | "pending" | "ready" | "executed";
 
@@ -169,7 +175,7 @@ export const DeletionManager: React.FC<{
     setResettingKey(resetKey);
     const ok = await confirmDialog({
       title: "重置删除标记",
-      message: `重置 ${category}.${key} 的未执行删除标记？该操作只影响删除保护计数。`,
+      message: `重置${categoryLabel(category)}中的“${attributeKeyLabel(key)}”删除标记？该操作只影响删除保护计数。`,
       confirmText: "重置",
       dialogType: "warning",
     });
@@ -189,7 +195,7 @@ export const DeletionManager: React.FC<{
     try {
       const r = await resetDeletionMarks(requestProfileId, category, key);
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
-      addToast(`已重置 ${category}.${key} 的 ${r.deleted_marks} 个标记`, "success");
+      addToast(`已重置“${attributeKeyLabel(key)}”的 ${r.deleted_marks} 个标记`, "success");
       await load();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
@@ -208,7 +214,7 @@ export const DeletionManager: React.FC<{
     const deletionReason = reason.trim();
     const deletionEvidence = evidence.trim();
     if (!attrKey || !deletionReason || !deletionEvidence) {
-      addToast("属性 key、删除原因和证据不能为空", "error");
+      addToast("属性名称、删除原因和证据不能为空", "error");
       return;
     }
     requestingRef.current = true;
@@ -261,7 +267,7 @@ export const DeletionManager: React.FC<{
     executingRef.current = true;
     const ok = await confirmDialog({
       title: "执行属性删除",
-      message: `确认删除 ${mark.category}.${mark.key}？这会写入 delete 属性事件，并从当前角色状态中移除该属性。`,
+      message: `确认删除${categoryLabel(mark.category)}中的“${attributeKeyLabel(mark.key)}”？这会记录属性删除事件，并从当前角色状态中移除该属性。`,
       confirmText: "执行删除",
       dialogType: "danger",
     });
@@ -291,7 +297,7 @@ export const DeletionManager: React.FC<{
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
       addToast(
-        `已删除 ${result.event.category}.${result.event.key}，连续标记 ${result.consecutive_count}/${result.threshold}`,
+        `已删除“${attributeKeyLabel(result.event.key)}”，连续标记 ${result.consecutive_count}/${result.threshold}`,
         "success",
       );
       await load();
@@ -310,12 +316,17 @@ export const DeletionManager: React.FC<{
     }
   };
 
+  const deletionRequestReady =
+    key.trim().length > 0 &&
+    reason.trim().length > 0 &&
+    evidence.trim().length > 0;
+
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-[10px] text-book-text-muted">
-        删除标记用于保护角色属性，连续达到阈值后才允许真正删除。
+      <div className="text-[11px] leading-relaxed text-book-text-muted">
+        属性需要连续多次被标记为不再适用，达到保护阈值后才能删除。
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+      <div className="flex flex-wrap items-end gap-2 text-[11px]">
         <label className="flex items-center gap-1 text-book-text-muted">
           类别
           <select
@@ -359,24 +370,23 @@ export const DeletionManager: React.FC<{
             ))}
           </select>
         </label>
-        <BookButton variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-          {loading ? <Loader2 size={11} className="animate-spin" /> : "刷新"}
-        </BookButton>
-        <span className="text-[10px] text-book-text-muted">
-          当前 {hasCurrentMarks ? marks.length : 0} 条
-        </span>
+        {loading ? <Loader2 size={12} className="animate-spin text-book-text-muted" /> : null}
+        {hasCurrentMarks && marks.length > 0 ? (
+          <span className="text-[10px] text-book-text-muted">共 {marks.length} 条</span>
+        ) : null}
       </div>
-      <details className="a4n-page-surface px-2 py-1.5">
-        <summary className="cursor-pointer text-[11px] font-medium text-book-text-main">
+      <details className="text-[11px] text-book-text-muted">
+        <summary className="w-fit cursor-pointer select-none py-1 font-medium text-book-text-main">
           请求删除属性
         </summary>
-        <div className="mt-2 grid gap-2 text-[11px] md:grid-cols-6">
+        <div className="mt-1.5 grid gap-2 rounded-xl bg-book-bg-tertiary/40 p-3 text-[11px] md:grid-cols-6">
           <label className="flex flex-col gap-1">
             <span className="text-[10px] text-book-text-muted">章节</span>
             <input
               type="number"
               min={1}
               value={chapterNumber}
+              disabled={requesting}
               onChange={(event) => {
                 const parsed = Number(event.target.value);
                 if (Number.isFinite(parsed) && parsed > 0) {
@@ -391,6 +401,7 @@ export const DeletionManager: React.FC<{
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
+              disabled={requesting}
               className="pyqt-input !px-2 !py-1"
             >
               {ATTRIBUTE_CATEGORY_OPTIONS.map((option) => (
@@ -401,12 +412,13 @@ export const DeletionManager: React.FC<{
             </select>
           </label>
           <label className="flex flex-col gap-1 md:col-span-4">
-            <span className="text-[10px] text-book-text-muted">属性 key</span>
+            <span className="text-[10px] text-book-text-muted">属性名称</span>
             <input
               value={key}
               onChange={(event) => setKey(event.target.value)}
+              disabled={requesting}
               className="pyqt-input !px-2 !py-1"
-              placeholder="例如 old_identity"
+              placeholder="例如：旧身份"
             />
           </label>
           <label className="flex flex-col gap-1 md:col-span-3">
@@ -414,6 +426,7 @@ export const DeletionManager: React.FC<{
             <textarea
               value={reason}
               onChange={(event) => setReason(event.target.value)}
+              disabled={requesting}
               className="pyqt-input min-h-[58px] !px-2 !py-1 text-[11px]"
               placeholder="说明为什么该属性应被删除"
             />
@@ -423,6 +436,7 @@ export const DeletionManager: React.FC<{
             <textarea
               value={evidence}
               onChange={(event) => setEvidence(event.target.value)}
+              disabled={requesting}
               className="pyqt-input min-h-[58px] !px-2 !py-1 text-[11px]"
               placeholder="引用章节原文或明确来源"
             />
@@ -430,11 +444,16 @@ export const DeletionManager: React.FC<{
           <div className="md:col-span-6 flex justify-end">
             <BookButton
               size="sm"
-              variant="secondary"
               onClick={handleRequestDeletion}
-              disabled={requesting}
+              disabled={requesting || !deletionRequestReady}
             >
-              {requesting ? <Loader2 size={12} className="animate-spin" /> : "记录删除标记"}
+              {requesting ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> 记录中…
+                </span>
+              ) : (
+                "记录删除标记"
+              )}
             </BookButton>
           </div>
         </div>
@@ -446,65 +465,68 @@ export const DeletionManager: React.FC<{
       ) : marks.length === 0 ? (
         <div className="text-[11px] text-book-text-muted italic">尚无删除标记</div>
       ) : (
-        <ul className="space-y-0.5 max-h-40 overflow-y-auto custom-scrollbar">
+        <ul className="a4n-flat-surface divide-y divide-book-border/45 overflow-hidden">
           {marks.map((m) => {
             const markResetKey = `${m.category}:${m.key}`;
             const resettingThis = resettingKey === markResetKey;
+            const executingThis = executingId === m.id;
+            const actionItems: React.ComponentProps<typeof Dropdown>["items"] = [
+              ...(m.consecutive_count >= m.threshold
+                ? [
+                    {
+                      label: "执行属性删除",
+                      icon: <Trash2 size={12} />,
+                      danger: true,
+                      onClick: () => void handleExecute(m),
+                    },
+                    { type: "divider" as const },
+                  ]
+                : []),
+              {
+                label: "重置删除标记",
+                icon: <RotateCcw size={12} />,
+                onClick: () => void handleReset(m.category, m.key),
+              },
+            ];
             return (
               <li
                 key={m.id}
-                className="a4n-stat-tile flex items-center gap-2 px-2 py-1 text-[11px]"
+                className="px-3 py-2.5 text-[11px]"
               >
-                <span className="font-mono text-book-text-muted shrink-0">#{m.id}</span>
-                <span className="text-book-text-muted text-[10px] shrink-0">
-                  创建 {m.created_at}
-                </span>
-                <span className="pyqt-pill !text-[10px] shrink-0">
-                  {m.category}.{m.key}
-                </span>
-                <span className="pyqt-pill !text-[10px] shrink-0">
-                  首次第{m.chapter_number}章
-                </span>
-                <span className="pyqt-pill !text-[10px] shrink-0">
-                  最近第{m.last_marked_chapter}章
-                </span>
-                <span className="text-book-text-muted text-[10px] shrink-0">
-                  连续 {m.consecutive_count}/{m.threshold}
-                </span>
-                {m.is_executed && (
-                  <span className="pyqt-pill !border-success/40 !text-[10px] !text-success shrink-0">
-                    已执行
+                <div className="flex min-w-0 items-start gap-2">
+                  <span className="min-w-0 flex-1 font-medium text-book-text-main">
+                    {categoryLabel(m.category)} · {attributeKeyLabel(m.key)}
                   </span>
-                )}
-                {!m.is_executed && m.consecutive_count >= m.threshold && (
-                  <span className="pyqt-pill !border-error/40 !text-[10px] !text-error shrink-0">
-                    可执行
-                  </span>
-                )}
-                {!m.is_executed && m.consecutive_count < m.threshold && (
-                  <span className="pyqt-pill !text-[10px] shrink-0">保护中</span>
-                )}
-                <span className="text-book-text-sub truncate flex-1">{m.reason}</span>
-                {!m.is_executed && (
-                  <div className="flex shrink-0 flex-wrap items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => void handleExecute(m)}
-                      disabled={m.consecutive_count < m.threshold || executingId != null}
-                      className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] disabled:opacity-50 sm:!min-h-[22px] sm:!px-1.5"
-                    >
-                      {executingId === m.id ? "执行中" : "执行"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleReset(m.category, m.key)}
-                      disabled={resettingKey != null}
-                      className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] sm:!min-h-[22px] sm:!px-1.5"
-                    >
-                      {resettingThis ? "重置中" : "重置"}
-                    </button>
+                  {!m.is_executed ? (
+                    <div className="flex shrink-0 items-center justify-end">
+                      {executingThis || resettingThis ? (
+                        <span
+                          className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted"
+                          title={executingThis ? "正在执行属性删除" : "正在重置删除标记"}
+                        >
+                          <Loader2 size={12} className="animate-spin" />
+                        </span>
+                      ) : executingId == null && resettingKey == null ? (
+                        <Dropdown items={actionItems} />
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[10px] text-book-text-muted">
+                  <span>第 {m.last_marked_chapter} 章</span>
+                  <span aria-hidden="true">·</span>
+                  <span>连续 {m.consecutive_count}/{m.threshold}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className={deletionStatusTone(m)}>{deletionStatusLabel(m)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{formatUiDateTime(m.created_at)}</span>
+                </div>
+                <div className="mt-1.5 text-book-text-sub">{m.reason}</div>
+                {m.evidence ? (
+                  <div className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-book-text-muted">
+                    证据：{m.evidence}
                   </div>
-                )}
+                ) : null}
               </li>
             );
           })}
@@ -513,3 +535,15 @@ export const DeletionManager: React.FC<{
     </div>
   );
 };
+
+function deletionStatusLabel(mark: DeletionMark): string {
+  if (mark.is_executed) return "已执行";
+  if (mark.consecutive_count >= mark.threshold) return "可以删除";
+  return "保护中";
+}
+
+function deletionStatusTone(mark: DeletionMark): string {
+  if (mark.is_executed) return "text-success";
+  if (mark.consecutive_count >= mark.threshold) return "text-error";
+  return "text-book-text-muted";
+}

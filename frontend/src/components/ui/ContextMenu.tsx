@@ -100,7 +100,7 @@ export const ContextMenuHost: React.FC = () => {
 
   // 位置纠偏：避免超出视窗
   const estW = 200;
-  const estH = menu.items.length * 26 + 8;
+  const estH = menu.items.length * 36 + 12;
   const x = Math.min(menu.x, window.innerWidth - estW - 4);
   const y = Math.min(menu.y, window.innerHeight - estH - 4);
 
@@ -108,7 +108,7 @@ export const ContextMenuHost: React.FC = () => {
     <div
       ref={menuRef}
       role="menu"
-      className="fixed z-[200] min-w-[10rem] border border-book-border bg-book-bg-paper py-1 shadow-md rounded-sm select-none"
+      className="fixed z-[200] min-w-[10rem] select-none rounded-xl border border-book-border/70 bg-book-bg-paper/95 p-1.5 shadow-[var(--shadow-overlay)] backdrop-blur-xl"
       style={{ left: x, top: y }}
     >
       {menu.items.map((it, i) => {
@@ -124,7 +124,7 @@ export const ContextMenuHost: React.FC = () => {
               setMenu(null);
               if (!it.disabled) it.onClick();
             }}
-            className={`flex w-full items-center gap-2 px-3 h-7 text-left text-xs ${
+            className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ${
               it.disabled
                 ? "text-book-text-muted opacity-50 cursor-not-allowed"
                 : it.danger

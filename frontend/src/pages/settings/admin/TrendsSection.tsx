@@ -51,59 +51,57 @@ export const TrendsSection: React.FC<{ callerUserId: number }> = ({ callerUserId
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="text-sm font-serif text-book-text-main">最近 {days} 天用量</h4>
-        <div className="flex items-center gap-2 text-xs">
-          <label className="text-book-text-muted">天数</label>
+      <div className="flex min-h-8 items-center gap-2 text-xs">
+        <label className="inline-flex items-center gap-2 text-book-text-muted">
+          统计范围
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="pyqt-input !py-1 !px-2 w-20"
+            className="pyqt-input w-24 !px-2 !py-1"
+            aria-label="用量趋势统计范围"
           >
-            <option value={7}>7</option>
-            <option value={14}>14</option>
-            <option value={30}>30</option>
-            <option value={90}>90</option>
+            <option value={7}>最近 7 天</option>
+            <option value={14}>最近 14 天</option>
+            <option value={30}>最近 30 天</option>
+            <option value={90}>最近 90 天</option>
           </select>
-          <BookIconButton label="刷新" onClick={load} variant="secondary" size="sm" disabled={loading}>
-            <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
-          </BookIconButton>
-        </div>
+        </label>
+        <span className="flex-1" />
+        <BookIconButton label="刷新用量趋势" onClick={load} size="sm" disabled={loading}>
+          <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
+        </BookIconButton>
       </div>
       {displayLoading ? (
-        <div className="flex items-center justify-center gap-2 py-4 text-xs text-book-text-muted pyqt-card">
+        <div className="a4n-empty-state a4n-empty-state--compact inline-flex items-center justify-center gap-2 text-xs">
           <Loader2 size={14} className="animate-spin" />
           加载用量趋势…
         </div>
       ) : displayTrends.length === 0 ? (
-        <div className="text-xs text-book-text-muted py-4 text-center pyqt-card">
+        <div className="a4n-empty-state a4n-empty-state--compact text-xs">
           无数据
         </div>
       ) : (
-        <div className="pyqt-card p-3">
-          <ul className="space-y-1">
+        <div className="a4n-flat-surface overflow-hidden">
+          <ul className="divide-y divide-book-border/30">
             {displayTrends.map((t) => (
-              <li key={t.date} className="flex items-center gap-2 text-xs">
-                <span className="font-mono text-[10px] text-book-text-muted shrink-0 w-20">
-                  {t.date}
-                </span>
-                <div className="flex-1 h-3 bg-book-bg-tertiary rounded overflow-hidden">
-                  <div
-                    className="h-full bg-book-primary"
-                    style={{ width: `${(t.total_calls / callScaleMax) * 100}%` }}
-                  />
+              <li key={t.date} className="grid gap-1.5 px-3 py-2.5 text-xs sm:grid-cols-[82px_minmax(0,1fr)_auto] sm:items-center sm:gap-3">
+                <span className="font-mono text-[11px] text-book-text-muted">{t.date}</span>
+                <div className="min-w-0">
+                  <div className="h-2 overflow-hidden rounded-full bg-book-bg-tertiary">
+                    <div
+                      className="h-full rounded-full bg-book-primary transition-[width]"
+                      style={{ width: `${(t.total_calls / callScaleMax) * 100}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-book-text-muted">
+                    <span>令牌 {t.total_tokens.toLocaleString()}</span>
+                    {t.success_count > 0 ? <span className="text-success">成功 {t.success_count}</span> : null}
+                    {t.fail_count > 0 ? <span className="text-error">失败 {t.fail_count}</span> : null}
+                  </div>
                 </div>
-                <span className="text-book-text-sub shrink-0 w-12 text-right">
-                  {t.total_calls}
-                </span>
-                <span className="text-book-text-muted shrink-0 w-16 text-right">
-                  {t.total_tokens.toLocaleString()} tok
-                </span>
-                <span className="text-success shrink-0 w-8 text-right">
-                  ✓{t.success_count}
-                </span>
-                <span className="text-error shrink-0 w-8 text-right">
-                  ✗{t.fail_count}
+                <span className="text-book-text-sub sm:text-right">
+                  <b className="font-mono text-sm font-semibold text-book-text-main">{t.total_calls}</b>
+                  <span className="ml-1 text-[10px] text-book-text-muted">次调用</span>
                 </span>
               </li>
             ))}

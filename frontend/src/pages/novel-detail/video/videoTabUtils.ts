@@ -98,22 +98,21 @@ export const PROMPT_OUTPUT_LANGUAGE_LABELS: Record<
 };
 export const MAX_VIDEO_DURATION_OPTION_COUNT = 12;
 export const VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE = "frame_segment_plan";
-export const VIDEO_FRAME_SHOT_ANALYSIS_PROMPT_TYPE = "frame_shot_analysis";
 export const VIDEO_FRAME_PROMPT_TYPE = "frame_prompt";
 export const VIDEO_FIRST_FRAME_PROMPT_TYPE = "first_frame_prompt";
 export const VIDEO_CHAT_FRAME_PROMPT_TYPE = "chat_video_frame_prompt";
 export const VIDEO_STORYBOARD_PROMPT_TYPE = "storyboard_prompt";
 export const VIDEO_FINAL_PROMPT_TYPE = "video_prompt";
-export const VIDEO_SHOT_ANALYSIS_CONTRACT_VERSION = "shot_language_analysis_v3";
 export const VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION =
-  "director_continuity_v4";
+  "video_execution_contract_v5";
 export const VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION =
-  "boundary_frame_unit_anchors_v2";
-export const VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION = "first_frame_chain_units_v3";
-export const VIDEO_CHAT_VIDEO_CONTRACT_VERSION = "chat_video_units_v3";
-export const VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION = "storyboard_panel_sheet_v1";
+  "boundary_frame_shared_chain_v3";
+export const VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION = "first_frame_chain_execution_v4";
+export const VIDEO_CHAT_VIDEO_CONTRACT_VERSION = "chat_video_execution_v4";
+export const VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION = "storyboard_execution_unit_v2";
 export const VIDEO_STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION =
-  "storyboard_panel_video_v1";
+  "storyboard_execution_video_v2";
+export const VIDEO_EXECUTION_CONTRACT_EPOCH = 5;
 const VIDEO_FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT = 1;
 export const VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS = 80;
 
@@ -168,7 +167,7 @@ export const VIDEO_WORKFLOW_MODE_LABELS: Record<ChapterVideoWorkflowMode, string
 
 export const VIDEO_WORKFLOW_MODE_SUMMARIES: Record<ChapterVideoWorkflowMode, string> =
   {
-    boundary_frames: "每个片段生成独立首尾帧，再按内容和过渡视频单元生成视频。",
+    boundary_frames: "相邻视频执行单元共享边界帧；U 个单元生成 U+1 张边界帧和 U 条视频。",
     first_frame_chain: "只生成首帧，后续片段使用上一段视频尾帧续接。",
     storyboard: "每个视频单元生成一张动态多格分镜板，再把分镜板和参考图作为视频参考输入。",
     chat_video: "生成可复制提示词和建议上传图片，外部 Chat 生成后导入项目。",
@@ -253,6 +252,11 @@ export const videoProviderRequestPreviewBlockedReason = (
   ) {
     if (video.video_type !== "chapter_video") {
       return "裁剪片段没有独立的视频模型 provider 请求";
+    }
+    const snapshot = videoProviderRequestSnapshotFromRecord(video);
+    const identity = asRecord(snapshot?.video_execution_identity);
+    if (identity?.contract_epoch !== VIDEO_EXECUTION_CONTRACT_EPOCH) {
+      return "视频记录缺少当前 v5 视频执行身份，不能按旧请求快照继续生成或预览";
     }
     return null;
   }
@@ -620,15 +624,49 @@ export function promptHasVideoWorkflowContract(
   return asRecord(prompt.metadata_json)?.contract_version === contractVersion;
 }
 
-export function promptMatchesSharedShotAnalysisContext(
-  prompt: ChapterVideoPrompt,
-  currentContentHash: string | null,
+const VIDEO_EXECUTION_BASE_IDENTITY_FIELDS = [
+  "shooting_script_identity",
+  "projection_sha256",
+  "segment_plan_sha256",
+  "unit_plan_sha256",
+  "source_content_sha256",
+  "style_sha256",
+  "duration_secs",
+  "aspect_ratio",
+] as const;
+
+export function videoExecutionIdentityOfPrompt(
+  prompt: ChapterVideoPrompt | null | undefined,
+): Record<string, unknown> | null {
+  const identity = asRecord(asRecord(prompt?.metadata_json)?.video_execution_identity);
+  if (identity?.contract_epoch !== VIDEO_EXECUTION_CONTRACT_EPOCH) return null;
+  return identity;
+}
+
+export function videoExecutionIdentityMatches(
+  prompt: ChapterVideoPrompt | null | undefined,
+  segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
 ): boolean {
-  if (currentContentHash) {
-    const sourceHash = extractPromptSourceHash(prompt.metadata_json);
-    if (sourceHash !== currentContentHash) return false;
-  }
-  return true;
+  const actual = videoExecutionIdentityOfPrompt(prompt);
+  const expected = videoExecutionIdentityOfPrompt(segmentPlanPrompt);
+  if (!actual || !expected) return false;
+  return VIDEO_EXECUTION_BASE_IDENTITY_FIELDS.every(
+    (field) => JSON.stringify(actual[field]) === JSON.stringify(expected[field]),
+  );
+}
+
+export function finalVideoExecutionIdentityIsComplete(
+  prompt: ChapterVideoPrompt | null | undefined,
+): boolean {
+  const identity = videoExecutionIdentityOfPrompt(prompt);
+  if (!identity) return false;
+  return (
+    typeof identity.frame_set_sha256 === "string" &&
+    identity.frame_set_sha256.trim().length > 0 &&
+    typeof identity.prompt_output_language === "string" &&
+    identity.prompt_output_language.trim().length > 0 &&
+    asRecord(identity.generation_asset_fingerprint) != null
+  );
 }
 
 export function expectedFrameCountFromSegmentPlanPrompt(
@@ -642,8 +680,9 @@ export function expectedFrameCountFromSegmentPlanPrompt(
   if (workflowMode === "first_frame_chain") {
     return VIDEO_FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT;
   }
-  if (workflowMode === "storyboard") return Math.max(0, segments.length * 2 - 1);
-  return segments.length * 2;
+  const unitCount = videoExecutionUnitCount(segments);
+  if (workflowMode === "storyboard") return unitCount;
+  return unitCount === 0 ? 0 : unitCount + 1;
 }
 
 export function expectedVideoPromptCountFromSegmentPlanPrompt(
@@ -653,7 +692,19 @@ export function expectedVideoPromptCountFromSegmentPlanPrompt(
   if (!metadata) return null;
   const segments = Array.isArray(metadata.segments) ? metadata.segments : null;
   if (!segments) return null;
-  return Math.max(0, segments.length * 2 - 1);
+  return videoExecutionUnitCount(segments);
+}
+
+function videoExecutionUnitCount(segments: unknown[]): number {
+  let actionBridgeCount = 0;
+  for (let index = 0; index + 1 < segments.length; index += 1) {
+    const transition = asRecord(asRecord(segments[index])?.transition_to_next);
+    const preservedAction = transition?.preserved_action;
+    if (typeof preservedAction === "string" && trimmedText(preservedAction)) {
+      actionBridgeCount += 1;
+    }
+  }
+  return segments.length + actionBridgeCount;
 }
 
 export function videoPromptUnitFrameNumbers(

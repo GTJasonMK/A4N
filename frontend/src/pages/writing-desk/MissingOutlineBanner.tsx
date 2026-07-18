@@ -1,27 +1,31 @@
 import React from "react";
-import { type NovelProject } from "../../api/project";
-import { getProjectStatusText } from "../../utils/projectStatus";
+import { BookButton } from "../../components/ui/BookButton";
 
 interface MissingOutlineBannerProps {
-  project: NovelProject;
   onOpenProjectDetail: () => void | Promise<void>;
 }
 
+/** 没有大纲时只保留原因与唯一恢复路径。 */
 export const MissingOutlineBanner: React.FC<MissingOutlineBannerProps> = ({
-  project,
   onOpenProjectDetail,
 }) => (
-  <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-warning/40 bg-warning-bg px-3 py-1.5 text-xs text-warning">
-    <span className="min-w-0 flex-1 basis-60">
-      ⚠ 本项目还没有章节大纲，建议先回项目详情页生成"章节大纲"再开始写作（status:{" "}
-      <code className="font-mono">{getProjectStatusText(project.status)}</code>）
-    </span>
-    <button
-      type="button"
+  <div
+    className="flex shrink-0 flex-col gap-2 border-b border-warning/30 bg-warning-bg px-3 py-2.5 sm:flex-row sm:items-center"
+    role="status"
+  >
+    <div className="min-w-0 flex-1">
+      <div className="text-xs font-semibold text-warning">还没有章节大纲</div>
+      <div className="mt-0.5 text-[11px] leading-relaxed text-warning/90">
+        请先生成章节大纲，再进入写作流程。
+      </div>
+    </div>
+    <BookButton
+      variant="primary"
+      size="sm"
       onClick={() => void onOpenProjectDetail()}
-      className="pyqt-btn-secondary !min-h-9 !px-2 text-[11px] sm:!min-h-[22px]"
+      className="w-full sm:w-auto"
     >
-      返回详情页
-    </button>
+      去生成大纲
+    </BookButton>
   </div>
 );

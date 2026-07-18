@@ -103,7 +103,7 @@ export function PromptDialogHost() {
     submit(value);
   };
 
-  const commonClassName = "pyqt-input w-full text-sm";
+  const commonClassName = "pyqt-input w-full text-sm leading-relaxed";
 
   return (
     <Modal
@@ -115,86 +115,91 @@ export function PromptDialogHost() {
       tone="default"
       maxWidthClassName={current.multiline ? "max-w-2xl" : "max-w-lg"}
       zIndexClassName="z-[121]"
-      closeOnBackdrop={false}
       footer={
-        <>
-          <BookButton variant="secondary" onClick={cancel}>
-            {current.cancelText}
-          </BookButton>
-          <BookButton variant="primary" onClick={handleSubmit} disabled={disabled}>
-            {current.confirmText}
-          </BookButton>
-        </>
+        <BookButton
+          variant="primary"
+          size="sm"
+          onClick={handleSubmit}
+          disabled={disabled}
+          className="!min-h-8 !text-xs"
+        >
+          {current.confirmText}
+        </BookButton>
       }
     >
-      {current.multiline ? (
-        <textarea
-          ref={(node) => {
-            inputRef.current = node;
-          }}
-          value={value}
-          onCompositionStart={() => {
-            composingRef.current = true;
-          }}
-          onCompositionEnd={(e) => {
-            lastCompositionEndRef.current = Date.now();
-            setValue(e.currentTarget.value);
-            window.setTimeout(() => {
-              composingRef.current = false;
-            }, 0);
-          }}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (
-              (e.ctrlKey || e.metaKey) &&
-              e.key === "Enter" &&
-              !isImeCompositionActive(
-                e.nativeEvent,
-                composingRef.current,
-                lastCompositionEndRef.current,
-              )
-            ) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
-          placeholder={current.placeholder}
-          className={`${commonClassName} min-h-[120px] resize-y`}
-        />
-      ) : (
-        <input
-          ref={(node) => {
-            inputRef.current = node;
-          }}
-          value={value}
-          onCompositionStart={() => {
-            composingRef.current = true;
-          }}
-          onCompositionEnd={(e) => {
-            lastCompositionEndRef.current = Date.now();
-            setValue(e.currentTarget.value);
-            window.setTimeout(() => {
-              composingRef.current = false;
-            }, 0);
-          }}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (
-              e.key === "Enter" &&
-              !isImeCompositionActive(
-                e.nativeEvent,
-                composingRef.current,
-                lastCompositionEndRef.current,
-              )
-            ) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
-          placeholder={current.placeholder}
-          className={commonClassName}
-        />
-      )}
+      <div className="space-y-2">
+        {current.multiline ? (
+          <textarea
+            ref={(node) => {
+              inputRef.current = node;
+            }}
+            value={value}
+            onCompositionStart={() => {
+              composingRef.current = true;
+            }}
+            onCompositionEnd={(e) => {
+              lastCompositionEndRef.current = Date.now();
+              setValue(e.currentTarget.value);
+              window.setTimeout(() => {
+                composingRef.current = false;
+              }, 0);
+            }}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (
+                (e.ctrlKey || e.metaKey) &&
+                e.key === "Enter" &&
+                !isImeCompositionActive(
+                  e.nativeEvent,
+                  composingRef.current,
+                  lastCompositionEndRef.current,
+                )
+              ) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+            placeholder={current.placeholder}
+            className={`${commonClassName} min-h-[144px] resize-y`}
+          />
+        ) : (
+          <input
+            ref={(node) => {
+              inputRef.current = node;
+            }}
+            value={value}
+            onCompositionStart={() => {
+              composingRef.current = true;
+            }}
+            onCompositionEnd={(e) => {
+              lastCompositionEndRef.current = Date.now();
+              setValue(e.currentTarget.value);
+              window.setTimeout(() => {
+                composingRef.current = false;
+              }, 0);
+            }}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" &&
+                !isImeCompositionActive(
+                  e.nativeEvent,
+                  composingRef.current,
+                  lastCompositionEndRef.current,
+                )
+              ) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+            placeholder={current.placeholder}
+            className={commonClassName}
+          />
+        )}
+        <p className="text-[11px] text-book-text-muted">
+          {current.multiline ? "按 Ctrl/⌘ + Enter 提交" : "按 Enter 提交"}
+        </p>
+      </div>
     </Modal>
   );
 }

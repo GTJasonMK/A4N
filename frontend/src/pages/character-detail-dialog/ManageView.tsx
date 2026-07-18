@@ -8,12 +8,12 @@ import { SnapshotManager } from "./SnapshotManager";
 
 type ManageSection = "behavior" | "implicit" | "event" | "snapshot" | "deletion";
 
-const MANAGE_SECTIONS: { id: ManageSection; label: string }[] = [
-  { id: "behavior", label: "行为记录" },
-  { id: "implicit", label: "隐性复审" },
-  { id: "event", label: "属性事件" },
-  { id: "snapshot", label: "快照" },
-  { id: "deletion", label: "删除标记" },
+const MANAGE_SECTIONS: { id: ManageSection; label: string; shortLabel: string }[] = [
+  { id: "behavior", label: "行为记录", shortLabel: "行为" },
+  { id: "implicit", label: "隐性复审", shortLabel: "复审" },
+  { id: "event", label: "属性事件", shortLabel: "属性" },
+  { id: "snapshot", label: "角色快照", shortLabel: "快照" },
+  { id: "deletion", label: "删除标记", shortLabel: "删除" },
 ];
 
 export const ManageView: React.FC<{
@@ -31,16 +31,18 @@ export const ManageView: React.FC<{
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-1 flex-wrap shrink-0">
+      <div className="flex min-w-0 shrink-0 items-center gap-1 border-b border-book-border/40">
         {MANAGE_SECTIONS.map((s) => (
           <button
             key={s.id}
             type="button"
             onClick={() => setSec(s.id)}
             data-active={sec === s.id ? "1" : undefined}
-            className="pyqt-tab !text-[10px]"
+            className="pyqt-tab shrink-0 !text-[10px]"
+            title={s.label}
+            aria-label={s.label}
           >
-            {s.label}
+            {s.shortLabel}
           </button>
         ))}
       </div>

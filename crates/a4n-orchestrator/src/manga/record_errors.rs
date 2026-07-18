@@ -1,0 +1,16 @@
+use a4n_core::error::AppError;
+
+use super::MangaPromptRecordError;
+
+pub(super) fn manga_prompt_record_error(error: MangaPromptRecordError) -> AppError {
+    match error {
+        MangaPromptRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
+        MangaPromptRecordError::NotFound(message) => AppError::NotFound(message),
+        MangaPromptRecordError::Conflict(message) => AppError::InvalidState {
+            current: message,
+            operation: "创建漫画提示词".to_string(),
+        },
+        MangaPromptRecordError::Database { source, .. } => AppError::Database(source),
+        MangaPromptRecordError::Generation(error) => crate::generation::generation_error(error),
+    }
+}

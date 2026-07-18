@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import {
   ArrowLeft,
   Clapperboard,
+  ChevronRight,
   Film,
   Image,
   ImagePlus,
@@ -49,7 +50,6 @@ import { VideoFrameWorkspace } from "./video/VideoFrameWorkspace";
 import { VideoGenerationWorkspace } from "./video/VideoGenerationWorkspace";
 import { VideoMaterialWorkspace } from "./video/VideoMaterialWorkspace";
 import { VideoPostProcessWorkspace } from "./video/VideoPostProcessWorkspace";
-import { VideoShotAnalysisWorkspace } from "./video/VideoShotAnalysisWorkspace";
 import {
   buildReferenceMediaPrompt,
   clearReferenceMediaDraftStorageError,
@@ -107,7 +107,6 @@ import {
   serializeVideoWorkflowMode,
   shiftReferenceLabels,
   VIDEO_CHAT_FRAME_PROMPT_TYPE,
-  VIDEO_FINAL_PROMPT_TYPE,
   VIDEO_FIRST_FRAME_PROMPT_TYPE,
   VIDEO_FRAME_PROMPT_TYPE,
   VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
@@ -140,7 +139,6 @@ interface VideoTabProps {
 
 type VideoWorkspaceTab =
   | "materials"
-  | "analysis"
   | "frames"
   | "video"
   | "assembly"
@@ -152,7 +150,6 @@ const VIDEO_WORKSPACE_TABS: Array<{
   icon: React.ReactNode;
 }> = [
   { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-  { id: "analysis", label: "镜头分析", icon: <Clapperboard size={13} /> },
   { id: "frames", label: "首尾帧生成", icon: <PanelTop size={13} /> },
   { id: "video", label: "视频生成", icon: <Film size={13} /> },
   { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
@@ -238,11 +235,11 @@ const serializePersistedNullableIdState = (state: PersistedNullableIdState): str
   serializeNullableNumber(state.id);
 
 const WORKFLOW_MODE_ICONS: Record<(typeof VIDEO_WORKFLOW_MODES)[number], React.ReactNode> = {
-  boundary_frames: <PanelTop size={13} />,
-  first_frame_chain: <PlaySquare size={13} />,
-  storyboard: <Clapperboard size={13} />,
-  chat_video: <MessageSquare size={13} />,
-  reference_media: <Images size={13} />,
+  boundary_frames: <PanelTop size={16} />,
+  first_frame_chain: <PlaySquare size={16} />,
+  storyboard: <Clapperboard size={16} />,
+  chat_video: <MessageSquare size={16} />,
+  reference_media: <Images size={16} />,
 };
 
 const videoWorkspaceTabsForMode = (
@@ -258,7 +255,6 @@ const videoWorkspaceTabsForMode = (
   if (mode === "first_frame_chain") {
     return [
       { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-      { id: "analysis", label: "镜头分析", icon: <Clapperboard size={13} /> },
       { id: "frames", label: "首帧生成", icon: <Image size={13} /> },
       { id: "video", label: "视频生成", icon: <Film size={13} /> },
       { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
@@ -268,7 +264,6 @@ const videoWorkspaceTabsForMode = (
   if (mode === "storyboard") {
     return [
       { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-      { id: "analysis", label: "镜头分析", icon: <Clapperboard size={13} /> },
       { id: "frames", label: "分镜生成", icon: <Image size={13} /> },
       { id: "video", label: "视频生成", icon: <Film size={13} /> },
       { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
@@ -284,7 +279,6 @@ const videoWorkspaceTabsForMode = (
   if (mode === "chat_video") {
     return [
       { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-      { id: "analysis", label: "镜头分析", icon: <Clapperboard size={13} /> },
       { id: "frames", label: "首尾帧生成", icon: <PanelTop size={13} /> },
       { id: "video", label: "Chat 生视频", icon: <MessageSquare size={13} /> },
       { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
@@ -304,51 +298,103 @@ const VideoWorkspaceHeader: React.FC<{
   activeTab: VideoWorkspaceTab;
   onTabChange: (tab: VideoWorkspaceTab) => void;
   children: React.ReactNode;
-}> = ({ tabs, activeTab, onTabChange, children }) => (
-  <div className="flex shrink-0 flex-col gap-2 border-b border-book-border/60 pb-2 sm:flex-row sm:items-center">
-    <div className="tab-bar min-w-0 flex-1">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onTabChange(tab.id)}
-          data-active={activeTab === tab.id ? "1" : undefined}
-          className="pyqt-tab inline-flex items-center gap-1.5"
-        >
-          {tab.icon}
-          {tab.label}
-        </button>
-      ))}
+}> = ({ tabs, activeTab, onTabChange, children }) => {
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      activeTabRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab, tabs]);
+
+  return (
+    <div className="grid min-w-0 shrink-0 gap-2 border-b border-book-border/60 pb-2 sm:flex sm:items-center">
+      <div
+        role="tablist"
+        aria-label="视频工作区阶段"
+        className="tab-bar a4n-mobile-scroll-rail min-w-0 w-full flex-1 scroll-px-3"
+      >
+        {tabs.map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              ref={active ? activeTabRef : undefined}
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onTabChange(tab.id)}
+              data-active={active ? "1" : undefined}
+              className="pyqt-tab inline-flex shrink-0 items-center gap-1.5 !px-2"
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex min-w-0 items-center justify-end gap-2 text-[11px] text-book-text-muted sm:shrink-0">
+        {children}
+      </div>
     </div>
-    <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-book-text-muted sm:shrink-0 sm:justify-end">
-      {children}
-    </div>
-  </div>
-);
+  );
+};
 
 const VideoWorkflowModeSelector: React.FC<{
   value: ChapterVideoWorkflowMode | null;
   onChange: (mode: ChapterVideoWorkflowMode) => void;
   className?: string;
 }> = ({ value, onChange, className = "" }) => (
-  <div className={`flex shrink-0 flex-wrap items-center justify-center gap-2 ${className}`}>
-    {VIDEO_WORKFLOW_MODES.map((mode) => {
+  <div
+    role="radiogroup"
+    aria-label="视频生成模式"
+    className={`grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-6 ${className}`}
+  >
+    {VIDEO_WORKFLOW_MODES.map((mode, index) => {
       const active = value === mode;
       return (
         <button
           key={mode}
           type="button"
+          role="radio"
+          aria-checked={active}
           onClick={() => onChange(mode)}
           className={[
-            "inline-flex min-h-[34px] min-w-[128px] items-center justify-center gap-1.5 rounded border px-3 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-book-primary",
+            "group flex min-h-[88px] w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition-[border-color,background-color,box-shadow,transform] active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-book-primary sm:px-4 xl:col-span-2",
+            index === 3 ? "xl:col-start-2" : "",
             active
-              ? "border-book-primary bg-book-primary/10 text-book-primary"
-              : "border-book-border/70 bg-book-bg-paper/80 text-book-text-sub hover:border-book-primary/60 hover:bg-book-primary/10 hover:text-book-text-main",
+              ? "border-book-primary/60 bg-book-primary/10 shadow-[var(--shadow-soft)]"
+              : "border-book-border/60 bg-book-bg-paper/55 hover:border-book-primary/40 hover:bg-book-bg-paper/90 hover:shadow-[var(--shadow-soft)]",
           ].join(" ")}
           title={VIDEO_WORKFLOW_MODE_SUMMARIES[mode]}
         >
-          {WORKFLOW_MODE_ICONS[mode]}
-          <span>{VIDEO_WORKFLOW_MODE_LABELS[mode]}</span>
+          <span
+            className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
+              active
+                ? "bg-book-primary text-white"
+                : "bg-book-primary/10 text-book-primary group-hover:bg-book-primary/15"
+            }`}
+          >
+            {WORKFLOW_MODE_ICONS[mode]}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-semibold text-book-text-main">
+              {VIDEO_WORKFLOW_MODE_LABELS[mode]}
+            </span>
+            <span className="mt-1 block text-[11px] leading-relaxed text-book-text-muted">
+              {VIDEO_WORKFLOW_MODE_SUMMARIES[mode]}
+            </span>
+          </span>
+          <ChevronRight
+            size={14}
+            className="mt-2.5 shrink-0 text-book-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-book-primary"
+            aria-hidden
+          />
         </button>
       );
     })}
@@ -366,10 +412,10 @@ const VideoModeReturnButton: React.FC<{
     onClick={onClick}
     disabled={disabled}
     className={`pyqt-btn-secondary inline-flex min-h-[28px] items-center gap-1.5 px-2.5 text-xs ${className}`}
-    title={title ?? "返回最开始的模式选择"}
+    title={title ?? "切换视频生成模式"}
   >
     <ArrowLeft size={13} />
-    返回模式选择
+    切换模式
   </button>
 );
 
@@ -616,7 +662,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     finalVideoPrompts,
     currentLanguageFinalVideoPrompts,
     selectedPrompt,
-    shotAnalysisPrompt,
     frameSegmentPlanPrompt,
     framePrompts,
     currentLanguageFramePrompts,
@@ -634,7 +679,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     systemPromptReferenceIds,
     validPromptReferenceIds,
     staleSavedReferenceCount,
-    staleSavedReferenceIds,
     savedReferenceIdsError,
     boundReferenceImages,
     videoFrameImages,
@@ -664,11 +708,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     workflowMode && visibleWorkspaceTabs.some((tab) => tab.id === workspaceTab)
       ? workspaceTab
       : defaultWorkspaceTabForMode(workflowMode);
-  const workflowPromptCount =
-    finalVideoPrompts.length +
-    framePrompts.length +
-    (shotAnalysisPrompt ? 1 : 0) +
-    (frameSegmentPlanPrompt ? 1 : 0);
   const currentFramePromptRecordType =
     workflowMode === "chat_video"
       ? VIDEO_CHAT_FRAME_PROMPT_TYPE
@@ -681,14 +720,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         : null;
   const {
     chapterVideoAssetCount,
-    chapterVideoPromptCount,
     chapterVideoChainPromptCount,
     chapterFramePromptRecordCount,
   } = useMemo(() => {
     if (!chapter) {
       return {
         chapterVideoAssetCount: 0,
-        chapterVideoPromptCount: 0,
         chapterVideoChainPromptCount: 0,
         chapterFramePromptRecordCount: 0,
       };
@@ -699,15 +736,11 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       if (video.chapter_id === chapter.id) chapterVideoAssetCount += 1;
     }
 
-    let chapterVideoPromptCount = 0;
     let chapterVideoChainPromptCount = 0;
     let chapterFramePromptRecordCount = 0;
     for (const prompt of prompts) {
       if (prompt.chapter_id !== chapter.id) continue;
       chapterVideoChainPromptCount += 1;
-      if (prompt.prompt_type === VIDEO_FINAL_PROMPT_TYPE) {
-        chapterVideoPromptCount += 1;
-      }
       if (
         currentFramePromptRecordType != null &&
         prompt.prompt_type === currentFramePromptRecordType &&
@@ -719,7 +752,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 
     return {
       chapterVideoAssetCount,
-      chapterVideoPromptCount,
       chapterVideoChainPromptCount,
       chapterFramePromptRecordCount,
     };
@@ -750,10 +782,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     generationReferenceSelection.storageError ??
     videoLibraryImageSelection.storageError ??
     (invalidGenerationReferenceIds.length > 0
-      ? `生成参考图片选择包含不可用图片 ID：${invalidGenerationReferenceIds.join(", ")}`
+      ? `生成参考图中有 ${invalidGenerationReferenceIds.length} 张已不可用，请清除后重选`
       : null) ??
     (invalidVideoLibraryImageIds.length > 0
-      ? `视频素材库图片选择包含不可用图片 ID：${invalidVideoLibraryImageIds.join(", ")}`
+      ? `视频素材库中有 ${invalidVideoLibraryImageIds.length} 张图片已不可用，请清除后重选`
       : null);
   const videoOptionsStateError =
     options.storageError ??
@@ -1054,7 +1086,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   });
 
   const {
-    handleGenerateShotAnalysis,
     handleGenerateSegmentPlan,
     handleGenerateFramePrompts,
     handleGenerateVideoPrompts,
@@ -1071,7 +1102,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     referenceIds: generationReferenceIds,
     videoLibraryImageIds,
     frameImages: videoFrameImages,
-    shotAnalysisPrompt,
     segmentPlanPrompt: frameSegmentPlanPrompt,
     framePrompts: currentLanguageFramePrompts,
     finalVideoPrompts: currentLanguageFinalVideoPrompts,
@@ -1302,7 +1332,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const dynamicTailCount = missingPrompts.length - 1;
     const extraPreviewNote =
       dynamicTailCount > 0
-        ? `边界帧图片会顺序生成；当前只预览第 ${firstMissing.shot_number} 张缺失图片请求。后续 ${dynamicTailCount} 张请求依赖本次生成的新图片 ID，不能在生成前完整预览。`
+        ? `边界帧图片会顺序生成；当前只预览第 ${firstMissing.shot_number} 张缺失图片请求。后续 ${dynamicTailCount} 张请求依赖本次新生成的图片，暂时无法完整预览。`
         : null;
     return [buildFrameImageGenerationInput(firstMissing, extraPreviewNote)];
   };
@@ -1606,9 +1636,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 
   const modeReturnBlockedReason =
     acting || videoTaskId
-      ? "当前视频任务正在运行，完成或停止后再返回模式选择"
+      ? "当前视频任务正在运行，完成或停止后再切换模式"
       : promptRequestPreviewLoading || imageRequestPreviewLoading
-        ? "正在构造模型请求预览，请等待完成后再返回模式选择"
+        ? "正在构造模型请求预览，请等待完成后再切换模式"
         : null;
 
   if (!chapter) {
@@ -1619,17 +1649,26 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     <>
       <div className="flex h-full min-h-0 flex-col gap-3">
         {videoPersistedStateError && (
-          <div className="shrink-0 rounded border border-error/40 bg-error/10 px-3 py-2 text-xs leading-relaxed text-error">
+          <div role="alert" className="shrink-0 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-xs leading-relaxed text-error">
             {videoPersistedStateError}；请重新选择当前视频生成模式、工作区或条目后继续。
           </div>
         )}
         {!workflowMode ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center rounded border border-book-border/50 bg-book-bg-paper/30 p-4">
-            <VideoWorkflowModeSelector
-              value={workflowMode}
-              onChange={setWorkflowMode}
-              className="max-w-3xl"
-            />
+          <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-1 py-4 custom-scrollbar sm:items-center sm:px-4 sm:py-6">
+            <section aria-labelledby="video-mode-title" className="w-full max-w-5xl">
+              <div className="mb-4 px-1 text-left sm:mb-5 sm:text-center">
+                <h2 id="video-mode-title" className="font-serif text-lg font-semibold text-book-text-main">
+                  选择视频生成方式
+                </h2>
+                <p className="mx-auto mt-1 max-w-2xl text-xs leading-relaxed text-book-text-muted">
+                  每种方式对应独立的素材和生成流程。进入后仍可随时切换。
+                </p>
+              </div>
+              <VideoWorkflowModeSelector
+                value={workflowMode}
+                onChange={setWorkflowMode}
+              />
+            </section>
           </div>
         ) : workflowMode === "reference_media" ? (
           <>
@@ -1638,8 +1677,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               activeTab={activeWorkspaceTab}
               onTabChange={setWorkspaceTab}
             >
-              <span className="pyqt-pill !text-[10px]">素材 {selectableReferenceImages.length}</span>
-              <span className="pyqt-pill !text-[10px]">视频 {workflowVideos.length}</span>
               <VideoModeReturnButton
                 onClick={handleReturnToModeSelection}
                 disabled={modeReturnBlockedReason != null}
@@ -1733,8 +1770,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 onClearInvalidGenerationReferences={clearInvalidGenerationReferences}
                 onClearInvalidVideoLibraryImages={clearInvalidVideoLibraryImages}
               />
-              <span className="pyqt-pill !text-[10px]">提示词 {workflowPromptCount}</span>
-              <span className="pyqt-pill !text-[10px]">视频 {workflowVideos.length}</span>
               <VideoModeReturnButton
                 onClick={handleReturnToModeSelection}
                 disabled={modeReturnBlockedReason != null}
@@ -1751,17 +1786,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                   onRefreshVideoData={loadAll}
                 />
               </div>
-            ) : activeWorkspaceTab === "analysis" ? (
-              <VideoShotAnalysisWorkspace
-                prompt={shotAnalysisPrompt}
-                segmentPlanPrompt={frameSegmentPlanPrompt}
-                workflowMode={workflowMode}
-                options={options}
-                acting={acting}
-                chapterGenerating={chapterGenerating}
-                onGenerate={(requestOptions) => void handleGenerateShotAnalysis(requestOptions)}
-                onDeletePrompt={(prompt) => void handleDeletePromptRow(prompt)}
-              />
             ) : activeWorkspaceTab === "frames" ? (
               <VideoFrameWorkspace
                 key={`frames:${workflowMode}`}
@@ -1843,7 +1867,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 selectedPromptRunning={selectedPromptRunning}
                 selectedPromptDirty={selectedPromptDirty}
                 staleSavedReferenceCount={staleSavedReferenceCount}
-                staleSavedReferenceIds={staleSavedReferenceIds}
                 savedReferenceIdsError={savedReferenceIdsError}
                 invalidPromptReferenceIds={invalidPromptReferenceIds}
                 systemReferenceIds={systemPromptReferenceIds}
@@ -1853,7 +1876,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 frameImages={videoFrameImages}
                 videos={workflowVideos}
                 totalVideoAssetCount={chapterVideoAssetCount}
-                totalVideoPromptCount={chapterVideoPromptCount}
                 totalVideoChainPromptCount={chapterVideoChainPromptCount}
                 selectedVideo={selectedVideo}
                 selectedVideoId={selectedVideo?.id ?? selectedVideoId}

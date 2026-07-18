@@ -1,0 +1,261 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { Loader2, RefreshCw, Save, Wand2 } from "lucide-react";
+
+import { extractErrorMessage } from "../../api";
+import type { ChapterData } from "../../api/chapter";
+import {
+  editChapterShootingScript,
+  generateChapterShootingScript,
+  getChapterShootingScript,
+  type ChapterShootingScript,
+  type ChapterShootingScriptView,
+} from "../../api/shootingScript";
+import { useToast } from "../../components/feedback/Toast";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { BookButton } from "../../components/ui/BookButton";
+import { Dropdown } from "../../components/ui/Dropdown";
+import {
+  createProgressTaskId,
+  useProgressTask,
+} from "../../hooks/useProgressTask";
+import { ScriptContent } from "./shooting-script/ScriptContent";
+import { StructuredScriptEditor } from "./shooting-script/StructuredScriptEditor";
+import { EmptyHint } from "./shared";
+
+interface ShootingScriptTabProps {
+  projectId: number;
+  canEdit: boolean;
+  chapter: ChapterData | null;
+}
+
+export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
+  projectId,
+  canEdit,
+  chapter,
+}) => {
+  const { addToast } = useToast();
+  const { runProgressTask } = useProgressTask();
+  const chapterId = chapter?.id ?? null;
+  const [view, setView] = useState<ChapterShootingScriptView | null>(null);
+  const [scriptLoading, setScriptLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<ChapterShootingScript | null>(null);
+  const [invalidatedProjectIds, setInvalidatedProjectIds] = useState<number[]>(
+    [],
+  );
+  const isDirty = useMemo(
+    () =>
+      view != null &&
+      draft != null &&
+      JSON.stringify(view.script) !== JSON.stringify(draft),
+    [draft, view],
+  );
+
+  useEffect(() => {
+    if (chapterId == null) {
+      setView(null);
+      setDraft(null);
+      setInvalidatedProjectIds([]);
+      setScriptLoading(false);
+      return;
+    }
+    let active = true;
+    setView(null);
+    setScriptLoading(true);
+    void getChapterShootingScript(projectId, chapterId)
+      .then((value) => {
+        if (!active) return;
+        setView(value);
+        setDraft(value ? structuredClone(value.script) : null);
+        setInvalidatedProjectIds([]);
+      })
+      .catch((error) => {
+        if (active) {
+          addToast(extractErrorMessage(error, "加载拍摄剧本失败"), "error");
+        }
+      })
+      .finally(() => {
+        if (active) setScriptLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [addToast, chapterId, projectId]);
+
+  const generate = async () => {
+    if (chapterId == null || generating || saving || scriptLoading) return;
+    if (view) {
+      const confirmed = await confirmDialog({
+        title: "重新生成拍摄剧本",
+        message: isDirty
+          ? "重新生成会覆盖当前拍摄剧本，你尚未保存的改编也会丢失。是否继续？"
+          : "重新生成会覆盖当前拍摄剧本，并可能使依赖它的下游内容需要重新生成。是否继续？",
+        confirmText: "重新生成",
+        dialogType: "warning",
+      });
+      if (!confirmed) return;
+    }
+    setGenerating(true);
+    try {
+      const taskId = createProgressTaskId("chapter-shooting-script", projectId);
+      const generated = await runProgressTask(
+        {
+          title: "生成结构化拍摄剧本",
+          startMessage: "正在准备剧本改编",
+          successMessage: "结构化拍摄剧本生成完成",
+          errorMessage: "结构化拍摄剧本生成失败",
+          total: 100,
+          taskId,
+          cancelLabel: "停止生成",
+          runningHint: "生成过程中会保留已完成的阶段，可在下次继续恢复",
+        },
+        () => generateChapterShootingScript(projectId, chapterId, taskId),
+      );
+      setView(generated);
+      setDraft(structuredClone(generated.script));
+      setInvalidatedProjectIds([]);
+      addToast("拍摄剧本生成完成", "success");
+    } catch (error) {
+      addToast(extractErrorMessage(error, "生成拍摄剧本失败"), "error");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const save = async () => {
+    if (!view || !draft || chapterId == null || saving || generating || scriptLoading) return;
+    setSaving(true);
+    try {
+      const result = await editChapterShootingScript(
+        projectId,
+        chapterId,
+        view,
+        draft,
+      );
+      setView(result.shooting_script);
+      setDraft(structuredClone(result.shooting_script.script));
+      setInvalidatedProjectIds(result.invalidated_project_ids);
+      addToast(
+        result.invalidated_project_ids.length > 0
+          ? `拍摄剧本已保存，${result.invalidated_project_ids.length} 个下游项目已失效`
+          : "拍摄剧本已保存",
+        "success",
+      );
+    } catch (error) {
+      addToast(extractErrorMessage(error, "保存拍摄剧本失败"), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!chapter) {
+    return <EmptyHint text="请先选择已生成的章节，再进行剧本改编。" />;
+  }
+
+  const actionsDisabled = generating || saving || scriptLoading;
+
+  return (
+    <section className="min-w-0 space-y-3">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
+        <div className="text-[11px] text-book-text-muted">
+          {scriptLoading
+            ? "正在加载拍摄剧本…"
+            : generating
+              ? view
+                ? "正在重新生成拍摄剧本…"
+                : "正在生成拍摄剧本…"
+              : saving
+                ? "正在保存拍摄剧本…"
+                : view
+                  ? `拍摄剧本 · 第 ${view.record.revision} 版${isDirty ? " · 有未保存修改" : ""}`
+                  : "当前章节尚未生成拍摄剧本"}
+        </div>
+        {canEdit ? (
+          <div className="ml-auto flex items-center gap-2">
+            {view && draft ? (
+              <>
+                <Dropdown
+                  items={[
+                    {
+                      label: generating ? "正在重新生成拍摄剧本…" : "重新生成拍摄剧本",
+                      onClick: () => void generate(),
+                      disabled: actionsDisabled,
+                      icon: generating ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={12} />
+                      ),
+                    },
+                  ]}
+                />
+                <BookButton
+                  size="sm"
+                  onClick={() => void save()}
+                  disabled={actionsDisabled || !isDirty}
+                >
+                  {saving ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Save size={13} />
+                  )}
+                  {saving ? "保存中…" : "保存改编"}
+                </BookButton>
+              </>
+            ) : (
+              <BookButton
+                size="sm"
+                onClick={() => void generate()}
+                disabled={actionsDisabled}
+              >
+                {generating ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Wand2 size={13} />
+                )}
+                {generating ? "生成中…" : "生成拍摄剧本"}
+              </BookButton>
+            )}
+          </div>
+        ) : null}
+      </div>
+      {scriptLoading ? (
+        <div className="a4n-flat-surface py-12 text-center text-xs text-book-text-muted">
+          <Loader2 className="mx-auto mb-2 animate-spin" size={16} />
+          加载拍摄剧本…
+        </div>
+      ) : !view ? (
+        <div className="a4n-flat-surface p-3 sm:p-4">
+          <EmptyHint text="生成后可按场景编辑导演意图、镜头设计与表演节拍。" />
+        </div>
+      ) : (
+        <>
+          {canEdit && draft ? (
+            <StructuredScriptEditor
+              script={draft}
+              onChange={setDraft}
+              disabled={actionsDisabled}
+            />
+          ) : (
+            <ScriptContent view={view} />
+          )}
+          {invalidatedProjectIds.length > 0 ? (
+            <div className="px-1 text-[11px] leading-relaxed text-book-text-muted">
+              <p>
+                保存后有 {invalidatedProjectIds.length} 个下游项目需要重新生成。
+              </p>
+              <details className="mt-1">
+                <summary className="w-fit cursor-pointer hover:text-book-text-main">
+                  诊断信息
+                </summary>
+                <p className="mt-1 break-all font-mono text-[10px]">
+                  下游项目 ID：{invalidatedProjectIds.join("、")}
+                </p>
+              </details>
+            </div>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+};

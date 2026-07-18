@@ -3,14 +3,17 @@ import type { ChapterData } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { ChapterRow } from "../novel-detail/shared";
 import { ImagesTab } from "../novel-detail/ImagesTab";
+import { ShootingScriptTab } from "../novel-detail/ShootingScriptTab";
 import { AnalysisSubTab } from "./AnalysisSubTab";
 import { InlineOptimizationPatchPreview } from "./InlineOptimizationPatchPreview";
 import type { OptimizationPatchPreviewController } from "../novel-detail/optimize/patchPreviewTypes";
+import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
 export type BottomTab =
   | "content"
   | "analysis"
-  | "images";
+  | "images"
+  | "shooting_script";
 
 interface ChapterWorkspaceProps {
   projectId: number;
@@ -32,12 +35,14 @@ interface ChapterWorkspaceProps {
   onPreviewGenerateAnalysis: () => void | Promise<void>;
   onResumeAnalysisSync: () => void | Promise<void>;
   onPreviewResumeAnalysisSync: () => void | Promise<void>;
+  canEdit: boolean;
 }
 
 const TABS: ReadonlyArray<readonly [BottomTab, string]> = [
   ["content", "正文"],
   ["analysis", "分析"],
   ["images", "图像"],
+  ["shooting_script", "剧本改编"],
 ];
 
 const selectedChapterTitle = (
@@ -73,6 +78,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   onPreviewGenerateAnalysis,
   onResumeAnalysisSync,
   onPreviewResumeAnalysisSync,
+  canEdit,
 }) => {
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -118,32 +124,29 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   }, [autoScrollEditorContent, bottomTab, editorContent]);
 
   return (
-    <main className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-book-bg p-3">
+    <section aria-label="章节编辑区" className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-book-bg p-2.5 sm:p-3">
       {activeChapter == null && activeOutline == null ? (
-        <div className="m-auto text-center text-book-text-muted text-sm">
+        <div className="a4n-empty-state a4n-empty-state--compact m-auto text-sm">
           请从左侧选择一章
         </div>
       ) : (
         <>
-          <div className="mb-2 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
-            <input
-              type="text"
-              value={selectedChapterTitle(activeChapter, activeOutline)}
-              readOnly
-              className="book-control min-w-0 flex-1 rounded-sm px-2 py-1 text-sm font-serif"
-            />
+          <div className="mb-2.5 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
+            <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-[15px] font-semibold text-book-text-main">
+              {selectedChapterTitle(activeChapter, activeOutline) || `第 ${activeChapter?.chapter_number ?? activeOutline?.chapter_number ?? "—"} 章`}
+            </h2>
             <div className="flex min-w-0 shrink-0 items-center gap-2">
               <span className="text-[11px] text-book-text-muted">
                 {wordCount.toLocaleString()} 字
+                {activeChapter?.status
+                  ? ` · ${getOperationStatusLabel(activeChapter.status)}`
+                  : ""}
               </span>
-              {activeChapter?.status && (
-                <span className="pyqt-pill !text-[10px]">{activeChapter.status}</span>
-              )}
             </div>
           </div>
 
           <div
-            className="tab-bar flex min-w-0 shrink-0 flex-wrap border-b border-book-border bg-book-bg-paper"
+            className="tab-bar flex min-w-0 shrink-0 flex-wrap border-b border-book-border/80 bg-book-bg-paper/70"
             role="tablist"
             aria-label="章节工作区"
           >
@@ -179,9 +182,10 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                   placeholder={
                     activeChapter
                       ? "开始写作…"
-                      : "本章尚未生成。点击右侧『RAG 查询』/『正文优化』，或在此输入正文。"
+                      : "本章尚未生成。可打开右侧『资料检索』或『正文优化』，也可以直接输入正文。"
                   }
-                  className="book-control block mx-auto w-full max-w-3xl h-full rounded-sm p-3 text-sm font-serif leading-loose resize-none"
+                  aria-label="章节正文"
+                  className="book-control block h-full w-full resize-none rounded-xl px-4 py-3 font-serif text-sm leading-[2] !shadow-none sm:px-5 sm:py-4"
                 />
               )
             )}
@@ -214,14 +218,23 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                 <ImagesTab projectId={projectId} fixedChapter={activeChapterContext} />
               </div>
             )}
+            {bottomTab === "shooting_script" && (
+              <div className="h-full min-h-0 overflow-y-auto custom-scrollbar">
+                <ShootingScriptTab
+                  projectId={projectId}
+                  canEdit={canEdit}
+                  chapter={activeChapter}
+                />
+              </div>
+            )}
             {bottomTab === "analysis" && !activeChapter && (
-              <div className="m-auto text-center text-book-text-muted text-xs">
+              <div className="a4n-empty-state a4n-empty-state--compact m-auto text-xs">
                 请先选择已生成的章节
               </div>
             )}
           </div>
         </>
       )}
-    </main>
+    </section>
   );
 };

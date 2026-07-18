@@ -28,7 +28,6 @@ pub(crate) mod llm_request;
 pub mod logging;
 pub mod manga_pipeline;
 pub mod manga_records;
-pub mod manga_source;
 pub mod oauth;
 pub mod object_discovery;
 pub mod object_profile_records;
@@ -43,12 +42,12 @@ pub mod project_records;
 pub mod project_status;
 pub mod project_transfer;
 pub mod prompt_records;
-pub(crate) mod rag_fusion;
 pub mod rag_search;
 pub mod request_preview;
 pub mod scene_profile_records;
 pub mod scene_profile_sync;
 pub mod settings_all;
+pub mod shooting_script_records;
 pub mod source_sync;
 pub mod storage_paths;
 pub mod task_records;
@@ -61,3 +60,42 @@ pub(crate) mod video_prompt_text;
 pub mod video_prompts;
 pub mod video_records;
 pub(crate) mod workflow_checkpoint;
+
+use a4n_core::error::AppError;
+use std::fmt::Display;
+
+pub(crate) fn app_error_message(error: AppError) -> String {
+    error.to_string()
+}
+
+pub(crate) fn workflow_status_write_error(
+    primary: &impl Display,
+    status_error: &impl Display,
+) -> String {
+    format!("{primary}；工作流失败状态写入失败: {status_error}")
+}
+
+pub(crate) fn workflow_status_write_app_error(
+    primary: &AppError,
+    status_error: &AppError,
+) -> AppError {
+    AppError::Internal(anyhow::anyhow!(workflow_status_write_error(
+        primary,
+        status_error
+    )))
+}
+
+pub(crate) async fn sidecar_root_project_id(
+    state: &crate::AppState,
+    project_id: i64,
+) -> Result<Option<i64>, String> {
+    if !state.runtime_profile.uses_sidecars() {
+        return Ok(None);
+    }
+    state
+        .orchestrator
+        .collaboration_root_project(project_id)
+        .await
+        .map(|root| Some(root.id))
+        .map_err(app_error_message)
+}

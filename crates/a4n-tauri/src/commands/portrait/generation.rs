@@ -3,7 +3,7 @@ use crate::progress_task::WorkflowProgressTask;
 use a4n_core::error::AppError;
 use a4n_core::event::channel::TaskType;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::portrait_generation::{self as portrait_actions, PortraitSummary};
+use a4n_runtime::host_api::portrait_generation::{self as portrait_actions, PortraitSummary};
 use tauri::{State, Window};
 
 const IMAGE_CANCELLED_MESSAGE: &str = "图片生成已停止";

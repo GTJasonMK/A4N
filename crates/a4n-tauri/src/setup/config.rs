@@ -1,7 +1,14 @@
-use a4n_core::config::app_config::{AppConfig, portable_home_dir, resolve_path_in_portable_home};
+mod environment;
+mod file_io;
+
+use self::environment::apply_env_overrides;
+#[cfg(test)]
+use self::environment::validate_env_value;
+#[cfg(test)]
+use self::file_io::write_config_file;
+use self::file_io::{config_file_path, load_config_from_file, validate_postgres_database_url};
+use a4n_core::config::app_config::{AppConfig, portable_home_dir};
 use a4n_core::error::AppError;
-use std::env::VarError;
-use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
 pub(super) fn load_config(_app: &AppHandle) -> Result<AppConfig, AppError> {
@@ -15,167 +22,10 @@ pub(super) fn load_config(_app: &AppHandle) -> Result<AppConfig, AppError> {
     Ok(config)
 }
 
-fn load_config_from_file(
-    default_config: AppConfig,
-    config_path: &Path,
-    portable_home: &Path,
-) -> Result<AppConfig, AppError> {
-    if config_path.exists() {
-        let content = std::fs::read_to_string(config_path).map_err(AppError::Io)?;
-        let mut config: AppConfig = toml::from_str(&content)
-            .map_err(|e| AppError::ConfigError(format!("配置文件解析失败：{e}")))?;
-        normalize_storage_paths(&mut config, portable_home)?;
-
-        Ok(config)
-    } else {
-        tracing::info!("配置文件不存在，使用默认配置：{config_path:?}");
-        write_config_file(config_path, &default_config)?;
-        Ok(default_config)
-    }
-}
-
-fn config_file_path(default_config: &AppConfig, portable_home: &Path) -> Result<PathBuf, AppError> {
-    let data_dir =
-        env_path("A4N_DATA_DIR", portable_home)?.unwrap_or_else(|| default_config.data_dir.clone());
-    Ok(data_dir.join("config.toml"))
-}
-
-fn normalize_storage_paths(config: &mut AppConfig, portable_home: &Path) -> Result<(), AppError> {
-    config.data_dir = resolve_path_in_portable_home(&config.data_dir, portable_home);
-    config.cache_dir = resolve_path_in_portable_home(&config.cache_dir, portable_home);
-    config.temp_dir = resolve_path_in_portable_home(&config.temp_dir, portable_home);
-    config.log_dir = resolve_path_in_portable_home(&config.log_dir, portable_home);
-    if let Some(path) = config.embedding.local_model_path.take() {
-        config.embedding.local_model_path =
-            Some(resolve_path_in_portable_home(path, portable_home));
-    }
-    Ok(())
-}
-
-fn validate_postgres_database_url(url: &str) -> Result<(), AppError> {
-    let url = url.trim();
-    if url.starts_with("postgres://") || url.starts_with("postgresql://") {
-        return Ok(());
-    }
-    Err(AppError::ConfigError(
-        "A4N_DATABASE_URL 必须是 postgres:// 或 postgresql:// 连接串".to_string(),
-    ))
-}
-
-fn write_config_file(path: &Path, config: &AppConfig) -> Result<(), AppError> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(AppError::Io)?;
-    }
-    let content = toml::to_string_pretty(config)
-        .map_err(|e| AppError::ConfigError(format!("配置文件序列化失败：{e}")))?;
-    let temp_path = path.with_extension("toml.tmp");
-    std::fs::write(&temp_path, content).map_err(AppError::Io)?;
-    replace_file_with_backup(path, &temp_path)?;
-    Ok(())
-}
-
-fn replace_file_with_backup(path: &Path, temp_path: &Path) -> Result<(), AppError> {
-    if !path.exists() {
-        std::fs::rename(temp_path, path).map_err(AppError::Io)?;
-        return Ok(());
-    }
-
-    let backup_path = path.with_extension("toml.bak");
-    if backup_path.exists() {
-        std::fs::remove_file(&backup_path).map_err(AppError::Io)?;
-    }
-    std::fs::rename(path, &backup_path).map_err(AppError::Io)?;
-    match std::fs::rename(temp_path, path) {
-        Ok(()) => {
-            let _ = std::fs::remove_file(&backup_path);
-            Ok(())
-        }
-        Err(replace_err) => match std::fs::rename(&backup_path, path) {
-            Ok(()) => Err(AppError::Io(replace_err)),
-            Err(restore_err) => Err(AppError::ConfigError(format!(
-                "配置文件替换失败：{replace_err}；旧配置恢复失败：{restore_err}"
-            ))),
-        },
-    }
-}
-
-fn apply_env_overrides(config: &mut AppConfig, portable_home: &Path) -> Result<(), AppError> {
-    let mut data_dir_overridden = false;
-    let data_dir = env_path("A4N_DATA_DIR", portable_home)?;
-    let cache_dir = env_path("A4N_CACHE_DIR", portable_home)?;
-    let temp_dir = env_path("A4N_TEMP_DIR", portable_home)?;
-    let log_dir = env_path("A4N_LOG_DIR", portable_home)?;
-    let database_url = env_string("A4N_DATABASE_URL")?;
-    let jwt_secret = env_string("A4N_JWT_SECRET")?;
-    let openai_api_key = env_string("A4N_OPENAI_API_KEY")?;
-    let openai_base_url = env_string("A4N_OPENAI_BASE_URL")?;
-
-    if let Some(data_dir) = data_dir {
-        config.data_dir = data_dir;
-        data_dir_overridden = true;
-    }
-    if let Some(cache_dir) = cache_dir.clone() {
-        config.cache_dir = cache_dir;
-    }
-    if let Some(temp_dir) = temp_dir.clone() {
-        config.temp_dir = temp_dir;
-    }
-    if let Some(log_dir) = log_dir.clone() {
-        config.log_dir = log_dir;
-    }
-    if let Some(db_url) = database_url {
-        validate_postgres_database_url(&db_url)?;
-        config.database_url = db_url;
-    }
-    if let Some(jwt_secret) = jwt_secret {
-        config.security.jwt_secret = Some(jwt_secret);
-    }
-    if data_dir_overridden && cache_dir.is_none() {
-        config.cache_dir = config.data_dir.join("cache");
-    }
-    if data_dir_overridden && temp_dir.is_none() {
-        config.temp_dir = config.data_dir.join("tmp");
-    }
-    if data_dir_overridden && log_dir.is_none() {
-        config.log_dir = config.data_dir.join("logs");
-    }
-    if let Some(api_key) = openai_api_key {
-        config.llm.api_key = Some(api_key);
-        config.embedding.api_key = config.llm.api_key.clone();
-    }
-    if let Some(base_url) = openai_base_url {
-        config.llm.base_url = base_url;
-    }
-    Ok(())
-}
-
-fn env_string(key: &str) -> Result<Option<String>, AppError> {
-    match std::env::var(key) {
-        Ok(value) => Ok(Some(validate_env_value(key, value)?)),
-        Err(VarError::NotPresent) => Ok(None),
-        Err(VarError::NotUnicode(_)) => Err(AppError::ConfigError(format!(
-            "{key} 必须是有效 Unicode 字符串"
-        ))),
-    }
-}
-
-fn validate_env_value(key: &str, value: String) -> Result<String, AppError> {
-    let value = value.trim().to_string();
-    if value.is_empty() {
-        return Err(AppError::ConfigError(format!("{key} 不能为空")));
-    }
-    Ok(value)
-}
-
-fn env_path(key: &str, portable_home: &Path) -> Result<Option<PathBuf>, AppError> {
-    env_string(key).map(|value| {
-        value.map(|path| resolve_path_in_portable_home(PathBuf::from(path), portable_home))
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::{Path, PathBuf};
 
     fn unique_temp_dir(prefix: &str) -> PathBuf {
         std::env::temp_dir().join(format!(

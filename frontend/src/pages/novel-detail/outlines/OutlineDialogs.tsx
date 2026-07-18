@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Eye, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal";
 import { nonEmptyText } from "../../../utils/text";
 import {
@@ -65,6 +65,7 @@ interface ChapterOutlineActionDialogProps {
   delActing: string | null;
   disabled?: boolean;
   onClose: () => void;
+  onEdit: (outline: ChapterOutline) => void;
   onRegenerate: (outline: ChapterOutline) => Promise<void>;
   onPreviewRegenerate: (outline: ChapterOutline) => void;
   onDelete: (outline: ChapterOutline) => Promise<void>;
@@ -76,6 +77,7 @@ export function ChapterOutlineActionDialog({
   delActing,
   disabled = false,
   onClose,
+  onEdit,
   onRegenerate,
   onPreviewRegenerate,
   onDelete,
@@ -100,7 +102,17 @@ export function ChapterOutlineActionDialog({
       closeOnEscape={!busy}
       showCloseButton={!busy}
     >
-      <div className="space-y-3">
+      <div className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
+        <OutlineActionButton
+          icon={<Pencil size={14} />}
+          title="编辑章纲"
+          description="修改本章标题和摘要。"
+          disabled={busy}
+          onClick={() => {
+            onClose();
+            onEdit(outline);
+          }}
+        />
         <OutlineActionButton
           icon={<Eye size={14} />}
           title="预览重生成提示词"
@@ -159,17 +171,17 @@ function OutlineActionButton({
       type="button"
       disabled={disabled}
       onClick={() => void onClick()}
-      className={`flex w-full items-start gap-3 rounded-sm border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
+      className={`flex w-full items-start gap-3 px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
         tone === "danger"
-          ? "border-error/50 bg-error-bg/40 text-error hover:bg-error-bg dark:hover:bg-error-bg"
-          : "border-book-border bg-book-bg-paper/40 hover:border-book-primary/60 hover:bg-book-bg-tertiary/45"
+          ? "text-error hover:bg-error-bg/55"
+          : "text-book-text-main hover:bg-book-bg-tertiary/45"
       }`}
     >
       <span
-        className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border ${
+        className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${
           tone === "danger"
-            ? "border-error/40 bg-error/10 text-error"
-            : "border-book-primary/30 bg-book-primary/10 text-book-primary"
+            ? "bg-error/10 text-error"
+            : "bg-book-primary/10 text-book-primary"
         }`}
       >
         {icon}

@@ -77,21 +77,6 @@ export async function generateChapterVideoSegmentPlan(
   });
 }
 
-export async function generateChapterVideoShotAnalysis(
-  projectId: Id,
-  chapterId: Id,
-  options: GeneratePromptOptions,
-  taskId?: string | null,
-): Promise<ChapterVideoPrompt[]> {
-  return apiInvoke<ChapterVideoPrompt[]>("generate_chapter_video_shot_analysis", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    options,
-    taskId: taskId ?? null,
-  });
-}
-
 export async function generateChapterVideoPrompts(
   projectId: Id,
   chapterId: Id,

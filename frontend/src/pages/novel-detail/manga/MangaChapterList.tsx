@@ -1,7 +1,6 @@
 import React from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Frame, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Loader2 } from "lucide-react";
 import type { PipelineStatus } from "../../../api/manga";
-import { BookCard } from "../../../components/ui/BookCard";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { mangaStageLabel } from "./mangaTabUtils";
@@ -33,15 +32,22 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
   statuses,
   selectedChapter,
   onSelect,
-}) => (
-  <BookCard className="flex max-h-72 min-h-0 flex-col p-3 lg:h-[calc(100vh-260px)] lg:max-h-none">
-    <h3 className="mb-2 inline-flex shrink-0 items-center gap-2 font-serif text-sm text-book-text-main">
-      <Frame size={14} className="text-book-primary" /> 章节漫画
-    </h3>
-    {chapters.length === 0 ? (
-      <EmptyHint text="项目还没有章节。先生成章节，再来这里启动漫画流水线。" />
-    ) : (
-      <ul className="flex min-w-max gap-1 overflow-x-auto lg:block lg:min-w-0 lg:flex-1 lg:space-y-1 lg:overflow-y-auto custom-scrollbar">
+}) => {
+  if (chapters.length === 0) {
+    return (
+      <div className="a4n-flat-surface p-3">
+        <EmptyHint text="项目还没有章节。先生成章节，再来这里启动漫画流水线。" />
+      </div>
+    );
+  }
+
+  return (
+    <nav aria-label="漫画章节" className="flex min-h-0 flex-col">
+      <div className="mb-2 flex shrink-0 items-baseline gap-2 px-1">
+        <h2 className="text-xs font-semibold text-book-text-main">章节</h2>
+        <span className="text-[11px] text-book-text-muted">{chapters.length} 章</span>
+      </div>
+      <ul className="flex w-full min-w-0 gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-1 lg:flex-col lg:gap-0 lg:overflow-x-hidden lg:overflow-y-auto lg:rounded-xl lg:border lg:border-book-border/50 lg:bg-book-bg-paper/30">
         {chapters.map((chapter) => {
           const status = statuses[chapter.id];
           const total =
@@ -57,20 +63,19 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
               <button
                 type="button"
                 onClick={() => onSelect(chapter)}
-                className={`min-w-[11rem] rounded border px-2.5 py-2 text-left text-xs transition-colors lg:w-full lg:min-w-0 ${
+                aria-current={isSelected ? "true" : undefined}
+                className={`min-w-[12rem] rounded-xl border px-3 py-2.5 text-left text-xs transition-colors lg:w-full lg:min-w-0 lg:rounded-none lg:border-0 ${
                   isSelected
-                    ? "border-book-primary bg-book-primary/10 text-book-primary"
-                    : "border-transparent text-book-text-sub hover:bg-book-bg-tertiary hover:text-book-text-main"
+                    ? "border-book-primary/55 bg-book-primary/10 text-book-primary lg:shadow-[inset_2px_0_0_rgb(var(--color-primary))]"
+                    : "border-book-border/50 bg-book-bg-paper/45 text-book-text-sub hover:border-book-primary/35 hover:bg-book-bg-tertiary hover:text-book-text-main lg:border-transparent lg:bg-transparent"
                 }`}
               >
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="shrink-0 font-mono">#{chapter.chapter_number}</span>
-                  <span className="min-w-0 flex-1 truncate text-right">
-                    {nonEmptyText(chapter.title) ?? `第 ${chapter.chapter_number} 章`}
-                  </span>
+                <div className="mb-1 truncate font-medium text-book-text-main">
+                  第 {chapter.chapter_number} 章
+                  {nonEmptyText(chapter.title) ? ` · ${nonEmptyText(chapter.title)}` : ""}
                 </div>
                 <div
-                  className={`mb-1 flex items-center justify-between gap-2 text-[10px] ${
+                  className={`mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-[11px] ${
                     isSelected ? "text-book-primary" : chapterPipelineTone(status)
                   }`}
                 >
@@ -90,7 +95,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                 </div>
                 {total > 0 ? (
                   <div
-                    className={`flex h-1 overflow-hidden rounded-sm ${
+                    className={`flex h-1 overflow-hidden rounded-full ${
                       isSelected ? "bg-book-primary/15" : "bg-book-bg-tertiary"
                     }`}
                   >
@@ -109,7 +114,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                   </div>
                 ) : status?.message ? (
                   <div
-                    className={`truncate text-[10px] ${
+                    className={`truncate text-[11px] ${
                       isSelected ? "text-book-primary" : "text-book-text-muted"
                     }`}
                   >
@@ -121,6 +126,6 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
           );
         })}
       </ul>
-    )}
-  </BookCard>
-);
+    </nav>
+  );
+};

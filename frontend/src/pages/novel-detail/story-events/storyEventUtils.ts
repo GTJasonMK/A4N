@@ -4,6 +4,11 @@ import {
   analysisTextValue,
   firstAnalysisText,
 } from "../../../utils/chapterAnalysisText";
+import {
+  chapterEventImportanceLabel,
+  chapterEventImportanceRank,
+  chapterEventTypeLabel,
+} from "../../../utils/chapterAnalysisPresentation";
 import { asArray, asJsonRecord as asRecord, type JsonRecord } from "../../../utils/jsonRecord";
 import type {
   ChapterStorySection,
@@ -23,8 +28,6 @@ export const DEFAULT_STORY_EVENT_FILTERS: StoryEventFilters = {
 
 const textList = (value: unknown, limit = 32): string[] =>
   analysisTextList(value, { limit, unique: true });
-
-const normalizeLabel = (value: string): string => value.trim() || "未分类";
 
 const eventDescription = (raw: unknown): string => {
   if (typeof raw === "string") return analysisTextValue(raw);
@@ -83,8 +86,13 @@ export const extractChapterStorySection = (chapter: ChapterData): ChapterStorySe
         chapterNumber: chapter.chapter_number,
         chapterTitle: title,
         description,
-        type: normalizeLabel(firstAnalysisText(record, ["type"])),
-        importance: normalizeLabel(firstAnalysisText(record, ["importance", "priority"])),
+        type:
+          chapterEventTypeLabel(firstAnalysisText(record, ["type"])) ??
+          "其他事件",
+        importance:
+          chapterEventImportanceLabel(
+            firstAnalysisText(record, ["importance", "priority"]),
+          ) ?? "未标注",
         involvedCharacters: textList(record?.involved_characters, 12),
       };
     })
@@ -108,11 +116,7 @@ export const extractChapterStorySection = (chapter: ChapterData): ChapterStorySe
 };
 
 export const importanceRank = (importance: string): number => {
-  const value = importance.toLowerCase();
-  if (["critical", "high", "major", "核心", "高"].includes(value)) return 3;
-  if (["medium", "moderate", "中"].includes(value)) return 2;
-  if (["low", "minor", "低"].includes(value)) return 1;
-  return 0;
+  return chapterEventImportanceRank(importance);
 };
 
 export const getStoryEventFilterOptions = (

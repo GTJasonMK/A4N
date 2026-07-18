@@ -1,7 +1,6 @@
 use super::super::*;
 use a4n_core::models::project::text_anchor;
-use a4n_services::chapter::source_spans::source_spans_for_chapters;
-use a4n_services::text_anchor::text_anchor_prompt_values;
+use a4n_core::source_spans::{source_spans_for_chapters, text_anchor_prompt_values};
 
 pub(super) fn discovery_chapter(
     chapter_number: i32,

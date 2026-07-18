@@ -1,0 +1,34 @@
+use a4n_core::models::{
+    character::protagonist_profile,
+    project::{blueprint_character, blueprint_relationship, novel_blueprint},
+};
+use sea_orm::DbErr;
+use serde_json::Value;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProjectChapterContextError {
+    #[error("{0}")]
+    InvalidArgument(String),
+    #[error("{0}")]
+    NotFound(String),
+    #[error(transparent)]
+    Database(#[from] DbErr),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ChapterGenerationReferenceContextRows {
+    pub blueprint: Option<novel_blueprint::Model>,
+    pub characters: Vec<blueprint_character::Model>,
+    pub relationships: Vec<blueprint_relationship::Model>,
+    pub protagonist_profiles: Vec<protagonist_profile::Model>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProtagonistProfileCurrentStateUpdate {
+    pub gender: Option<String>,
+    pub age: Option<String>,
+    pub appearance: Option<String>,
+    pub background: Option<String>,
+    pub personality: Option<String>,
+    pub current_state: Value,
+}

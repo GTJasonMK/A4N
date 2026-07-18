@@ -3,6 +3,8 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { listAllProjects, type AdminProject } from "../../../api/admin";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
+import { getProjectTypeLabel } from "../../../utils/projectRouting";
+import { getProjectStatusText } from "../../../utils/projectStatus";
 
 export const ProjectsSection: React.FC<{ callerUserId: number }> = ({ callerUserId }) => {
   const [projects, setProjects] = useState<AdminProject[]>([]);
@@ -48,33 +50,46 @@ export const ProjectsSection: React.FC<{ callerUserId: number }> = ({ callerUser
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-serif text-book-text-main">全部项目（{projects.length}）</h4>
-        <BookIconButton label="刷新" onClick={load} variant="secondary" size="sm" disabled={loading}>
+      <div className="flex min-h-8 items-center gap-2 text-xs text-book-text-muted">
+        <span>{projects.length} 个项目</span>
+        <span className="flex-1" />
+        <BookIconButton label="刷新项目" onClick={load} size="sm" disabled={loading}>
           <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
         </BookIconButton>
       </div>
       {loading && projects.length === 0 ? (
-        <div className="inline-flex items-center justify-center gap-1.5 py-4 text-xs text-book-text-muted pyqt-card">
+        <div className="a4n-empty-state a4n-empty-state--compact inline-flex items-center justify-center gap-1.5 text-xs">
           <Loader2 size={12} className="animate-spin" />
           正在加载项目…
         </div>
       ) : projects.length === 0 ? (
-        <div className="text-xs text-book-text-muted py-4 text-center pyqt-card">
+        <div className="a4n-empty-state a4n-empty-state--compact text-xs">
           暂无项目
         </div>
       ) : (
-        <ul className="pyqt-card divide-y divide-book-border/30">
+        <ul className="space-y-2.5">
           {projects.map((p) => (
-            <li key={p.id} className="p-2.5 flex items-center gap-2 text-xs">
-              <span className="font-mono text-book-text-muted shrink-0 w-10">#{p.id}</span>
-              <span className="font-semibold text-book-text-main truncate flex-1">{p.title}</span>
-              <span className="pyqt-pill !text-[10px] shrink-0">{p.project_type}</span>
-              <span className="pyqt-pill !text-[10px] shrink-0">{p.status}</span>
-              <span className="text-book-text-muted shrink-0">
-                {p.current_chapter} / {p.total_chapters ?? p.target_chapters}
-              </span>
-              <span className="text-book-text-muted shrink-0">user #{p.user_id}</span>
+            <li key={p.id} className="a4n-flat-surface p-3 text-xs">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-book-text-main">{p.title}</div>
+                  <div className="mt-1 truncate text-[11px] text-book-text-muted">
+                    {getProjectTypeLabel(p.project_type)} · {getProjectStatusText(p.status)}
+                  </div>
+                </div>
+                {(p.total_chapters ?? p.target_chapters) > 0 ? (
+                  <span className="shrink-0 tabular-nums text-book-text-sub">
+                    {p.current_chapter} / {p.total_chapters ?? p.target_chapters} 章
+                  </span>
+                ) : null}
+              </div>
+              <details className="mt-1 text-[10px] text-book-text-muted">
+                <summary className="cursor-pointer">诊断信息</summary>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono">
+                  <span>项目编号 {p.id}</span>
+                  <span>用户编号 {p.user_id}</span>
+                </div>
+              </details>
             </li>
           ))}
         </ul>

@@ -52,7 +52,8 @@ const snapshotLoadKey = (
   profileId: number,
   startChapter: number | "",
   endChapter: number | "",
-): string => `${profileId}:${startChapter === "" ? "all" : startChapter}:${endChapter === "" ? "all" : endChapter}`;
+): string =>
+  `${profileId}:${startChapter === "" ? "all" : startChapter}:${endChapter === "" ? "all" : endChapter}`;
 
 export const SnapshotManager: React.FC<{
   profileId: number;
@@ -65,12 +66,16 @@ export const SnapshotManager: React.FC<{
   const [diffing, setDiffing] = useState(false);
   const [rollingBack, setRollingBack] = useState(false);
   const [snapshotData, setSnapshotData] = useState<Snapshot | null>(null);
-  const [chapterState, setChapterState] = useState<ProfileChapterState | null>(null);
+  const [chapterState, setChapterState] = useState<ProfileChapterState | null>(
+    null,
+  );
   const [delta, setDelta] = useState<SnapshotDelta | null>(null);
   const [diffFromChapter, setDiffFromChapter] = useState(0);
   const [diffToChapter, setDiffToChapter] = useState<number | null>(null);
   const [rollbackChapter, setRollbackChapter] = useState<number | null>(null);
-  const [snapshotStartChapter, setSnapshotStartChapter] = useState<number | "">("");
+  const [snapshotStartChapter, setSnapshotStartChapter] = useState<number | "">(
+    "",
+  );
   const [snapshotEndChapter, setSnapshotEndChapter] = useState<number | "">("");
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
   const mountedRef = useRef(true);
@@ -154,7 +159,11 @@ export const SnapshotManager: React.FC<{
     const requestSeq = loadSeqRef.current + 1;
     const requestStartChapter = snapshotStartChapter;
     const requestEndChapter = snapshotEndChapter;
-    const requestKey = snapshotLoadKey(requestProfileId, requestStartChapter, requestEndChapter);
+    const requestKey = snapshotLoadKey(
+      requestProfileId,
+      requestStartChapter,
+      requestEndChapter,
+    );
     loadSeqRef.current = requestSeq;
     loadingRef.current = true;
     setLoading(true);
@@ -164,53 +173,77 @@ export const SnapshotManager: React.FC<{
     try {
       const [nextSnapshots, nextConflict] = await Promise.all([
         listSnapshots(requestProfileId, {
-          start_chapter: requestStartChapter === "" ? null : requestStartChapter,
+          start_chapter:
+            requestStartChapter === "" ? null : requestStartChapter,
           end_chapter: requestEndChapter === "" ? null : requestEndChapter,
         }),
         checkProfileSyncConflict(requestProfileId),
       ]);
-      if (!isCurrentLoad(
-        requestProfileId,
-        requestStartChapter,
-        requestEndChapter,
-        requestSeq,
-      )) return;
+      if (
+        !isCurrentLoad(
+          requestProfileId,
+          requestStartChapter,
+          requestEndChapter,
+          requestSeq,
+        )
+      )
+        return;
       setSnapshots(nextSnapshots);
       setConflict(nextConflict);
       setLoadedScopeKey(requestKey);
-      const snapshotChapters = nextSnapshots.map((snapshot) => snapshot.chapter_number);
-      const latestDiffChapter = snapshotChapters[snapshotChapters.length - 1] ?? null;
+      const snapshotChapters = nextSnapshots.map(
+        (snapshot) => snapshot.chapter_number,
+      );
+      const latestDiffChapter =
+        snapshotChapters[snapshotChapters.length - 1] ?? null;
       const previousDiffChapter =
-        snapshotChapters.length > 1 ? snapshotChapters[snapshotChapters.length - 2] : 0;
+        snapshotChapters.length > 1
+          ? snapshotChapters[snapshotChapters.length - 2]
+          : 0;
       setDiffToChapter((current) =>
-        current != null && snapshotChapters.includes(current) ? current : latestDiffChapter,
+        current != null && snapshotChapters.includes(current)
+          ? current
+          : latestDiffChapter,
       );
       setDiffFromChapter((current) =>
-        current === 0 || snapshotChapters.includes(current) ? current : previousDiffChapter,
+        current === 0 || snapshotChapters.includes(current)
+          ? current
+          : previousDiffChapter,
       );
-      const availableChapters = rollbackChapterOptions(nextConflict, nextSnapshots);
-      const latestRollbackChapter = availableChapters[availableChapters.length - 1] ?? null;
+      const availableChapters = rollbackChapterOptions(
+        nextConflict,
+        nextSnapshots,
+      );
+      const latestRollbackChapter =
+        availableChapters[availableChapters.length - 1] ?? null;
       setRollbackChapter((current) => {
         if (availableChapters.length === 0) return null;
         if (nextConflict.has_conflict) return latestRollbackChapter;
-        if (current != null && availableChapters.includes(current)) return current;
+        if (current != null && availableChapters.includes(current))
+          return current;
         return latestRollbackChapter;
       });
     } catch (err) {
-      if (!isCurrentLoad(
-        requestProfileId,
-        requestStartChapter,
-        requestEndChapter,
-        requestSeq,
-      )) return;
+      if (
+        !isCurrentLoad(
+          requestProfileId,
+          requestStartChapter,
+          requestEndChapter,
+          requestSeq,
+        )
+      )
+        return;
       addToast(extractErrorMessage(err, "加载快照失败"), "error");
     } finally {
-      if (isCurrentLoad(
-        requestProfileId,
-        requestStartChapter,
-        requestEndChapter,
-        requestSeq,
-      )) setLoading(false);
+      if (
+        isCurrentLoad(
+          requestProfileId,
+          requestStartChapter,
+          requestEndChapter,
+          requestSeq,
+        )
+      )
+        setLoading(false);
       if (loadSeqRef.current === requestSeq) {
         loadingRef.current = false;
       }
@@ -248,12 +281,19 @@ export const SnapshotManager: React.FC<{
     const requestProfileId = profileId;
     const requestSeq = snapshotViewSeqRef.current + 1;
     snapshotViewSeqRef.current = requestSeq;
+    chapterStateSeqRef.current += 1;
+    diffSeqRef.current += 1;
+    setSnapshotData(null);
+    setChapterState(null);
+    setDelta(null);
     try {
       const nextSnapshot = await getSnapshot(hash);
-      if (!isCurrentRequest(requestProfileId, snapshotViewSeqRef, requestSeq)) return;
+      if (!isCurrentRequest(requestProfileId, snapshotViewSeqRef, requestSeq))
+        return;
       setSnapshotData(nextSnapshot);
     } catch (err) {
-      if (!isCurrentRequest(requestProfileId, snapshotViewSeqRef, requestSeq)) return;
+      if (!isCurrentRequest(requestProfileId, snapshotViewSeqRef, requestSeq))
+        return;
       addToast(extractErrorMessage(err, "加载快照失败"), "error");
     }
   };
@@ -262,12 +302,22 @@ export const SnapshotManager: React.FC<{
     const requestProfileId = profileId;
     const requestSeq = chapterStateSeqRef.current + 1;
     chapterStateSeqRef.current = requestSeq;
+    snapshotViewSeqRef.current += 1;
+    diffSeqRef.current += 1;
+    setSnapshotData(null);
+    setChapterState(null);
+    setDelta(null);
     try {
-      const nextState = await getProfileStateAtChapter(requestProfileId, chapterNumber);
-      if (!isCurrentRequest(requestProfileId, chapterStateSeqRef, requestSeq)) return;
+      const nextState = await getProfileStateAtChapter(
+        requestProfileId,
+        chapterNumber,
+      );
+      if (!isCurrentRequest(requestProfileId, chapterStateSeqRef, requestSeq))
+        return;
       setChapterState(nextState);
     } catch (err) {
-      if (!isCurrentRequest(requestProfileId, chapterStateSeqRef, requestSeq)) return;
+      if (!isCurrentRequest(requestProfileId, chapterStateSeqRef, requestSeq))
+        return;
       addToast(extractErrorMessage(err, "加载章节状态失败"), "error");
     }
   };
@@ -281,6 +331,11 @@ export const SnapshotManager: React.FC<{
     const requestToChapter = diffToChapter;
     const requestSeq = diffSeqRef.current + 1;
     diffSeqRef.current = requestSeq;
+    snapshotViewSeqRef.current += 1;
+    chapterStateSeqRef.current += 1;
+    setSnapshotData(null);
+    setChapterState(null);
+    setDelta(null);
     setDiffing(true);
     try {
       const nextDelta = await diffProfileChapters(
@@ -331,17 +386,23 @@ export const SnapshotManager: React.FC<{
     rollbackSeqRef.current = requestSeq;
     setRollingBack(true);
     try {
-      const r = await rollbackToChapter(requestProfileId, requestRollbackChapter);
-      if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq)) return;
+      const r = await rollbackToChapter(
+        requestProfileId,
+        requestRollbackChapter,
+      );
+      if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
+        return;
       addToast(
         `已删除 ${r.deleted_events} 个事件 / ${r.deleted_behaviors} 条行为 / ${r.deleted_state_indexes} 个状态索引 / ${r.deleted_state_rag} 条状态 RAG / ${r.deleted_attribute_event_rag} 条属性事件 RAG / ${r.deleted_snapshots} 个快照引用；删除标记 ${r.deleted_deletion_marks} 个删除 / ${r.rewound_deletion_marks} 个截断`,
         "success",
       );
       await load();
-      if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq)) return;
+      if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
+        return;
       await onChanged?.();
     } catch (err) {
-      if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq)) return;
+      if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
+        return;
       addToast(extractErrorMessage(err, "回滚失败"), "error");
     } finally {
       if (isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq)) {
@@ -354,216 +415,248 @@ export const SnapshotManager: React.FC<{
   };
 
   const rollbackChapters = rollbackChapterOptions(conflict, snapshots);
-  const canRollback = rollbackChapter != null && rollbackChapters.includes(rollbackChapter);
+  const canRollback =
+    rollbackChapter != null && rollbackChapters.includes(rollbackChapter);
   const snapshotChapters = snapshots.map((snapshot) => snapshot.chapter_number);
-  const canDiffChapters = diffToChapter != null && diffFromChapter <= diffToChapter;
+  const canDiffChapters =
+    diffToChapter != null && diffFromChapter <= diffToChapter;
   const diffToChapterValue = diffToChapter === null ? "" : diffToChapter;
   const rollbackChapterValue = rollbackChapter === null ? "" : rollbackChapter;
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-xs flex-wrap">
-        <label className="flex items-center gap-1 text-book-text-muted">
-          快照范围
+      <div className="flex flex-wrap items-end gap-2 text-xs">
+        <label className="flex flex-col gap-1 text-book-text-muted">
+          起始章
           <input
             type="number"
             min={1}
             value={snapshotStartChapter}
+            disabled={loading}
             onChange={(event) => {
               const parsed = parsePositiveInput(event.target.value);
               if (parsed !== null) {
-                if (snapshotStartChapterRef.current !== parsed) {
+                if (snapshotStartChapterRef.current !== parsed)
                   invalidateSnapshotScope();
-                }
                 setSnapshotStartChapter(parsed);
               }
             }}
-            className="pyqt-input !py-1 !px-2 w-20"
-            placeholder="起"
+            className="pyqt-input !w-20 !px-2 !py-1"
+            placeholder="全部"
           />
         </label>
-        <input
-          type="number"
-          min={1}
-          value={snapshotEndChapter}
-          onChange={(event) => {
-            const parsed = parsePositiveInput(event.target.value);
-            if (parsed !== null) {
-              if (snapshotEndChapterRef.current !== parsed) {
-                invalidateSnapshotScope();
+        <label className="flex flex-col gap-1 text-book-text-muted">
+          结束章
+          <input
+            type="number"
+            min={1}
+            value={snapshotEndChapter}
+            disabled={loading}
+            onChange={(event) => {
+              const parsed = parsePositiveInput(event.target.value);
+              if (parsed !== null) {
+                if (snapshotEndChapterRef.current !== parsed)
+                  invalidateSnapshotScope();
+                setSnapshotEndChapter(parsed);
               }
-              setSnapshotEndChapter(parsed);
-            }
-          }}
-          className="pyqt-input !py-1 !px-2 w-20"
-          placeholder="止"
-        />
-        <BookButton variant="secondary" size="sm" onClick={handleReload} disabled={loading}>
-          {loading ? <Loader2 size={11} className="animate-spin" /> : "刷新"}
-        </BookButton>
-        <label className="text-book-text-muted">状态差异</label>
-        <select
-          value={diffFromChapter}
-          onChange={(event) => {
-            const parsed = Number(event.target.value);
-            if (Number.isFinite(parsed) && parsed >= 0) {
-              setDiffFromChapter(parsed);
-            }
-          }}
-          disabled={snapshotChapters.length === 0}
-          className="pyqt-input !py-1 !px-2 w-24"
-        >
-          <option value={0}>初始</option>
-          {snapshotChapters.map((chapter) => (
-            <option key={chapter} value={chapter}>
-              第{chapter}章
-            </option>
-          ))}
-        </select>
-        <span className="text-book-text-muted">→</span>
-        <select
-          value={diffToChapterValue}
-          onChange={(event) => {
-            const value = Number(event.target.value);
-            setDiffToChapter(Number.isFinite(value) ? value : null);
-          }}
-          disabled={snapshotChapters.length === 0}
-          className="pyqt-input !py-1 !px-2 w-24"
-        >
-          {snapshotChapters.length === 0 ? (
-            <option value="">无快照</option>
-          ) : (
-            snapshotChapters.map((chapter) => (
-              <option key={chapter} value={chapter}>
-                第{chapter}章
-              </option>
-            ))
-          )}
-        </select>
+            }}
+            className="pyqt-input !w-20 !px-2 !py-1"
+            placeholder="全部"
+          />
+        </label>
         <BookButton
           variant="secondary"
           size="sm"
-          onClick={handleChapterDiff}
-          disabled={!canDiffChapters || diffing}
+          onClick={handleReload}
+          disabled={loading}
         >
-          {diffing ? "生成中" : "生成 Diff"}
-        </BookButton>
-        <div className="flex-1" />
-        <label className="text-book-text-muted">回滚快照</label>
-        <select
-          value={rollbackChapterValue}
-          onChange={(event) => {
-            if (!event.target.value) {
-              setRollbackChapter(null);
-              return;
-            }
-            const value = Number(event.target.value);
-            setRollbackChapter(Number.isFinite(value) ? value : null);
-          }}
-          disabled={rollbackChapters.length === 0}
-          className="pyqt-input !py-1 !px-2 w-24"
-        >
-          {rollbackChapters.length === 0 ? (
-            <option value="">无快照</option>
+          {loading ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Loader2 size={11} className="animate-spin" /> 刷新中…
+            </span>
           ) : (
-            rollbackChapters.map((chapter) => (
-              <option key={chapter} value={chapter}>
-                {rollbackChapterLabel(chapter)}
-              </option>
-            ))
+            "刷新"
           )}
-        </select>
-        <button
-          type="button"
-          onClick={handleRollback}
-          disabled={!canRollback || rollingBack}
-          className="pyqt-btn-secondary !min-h-9 !px-2 text-[11px] !border-error/50 !text-error hover:!bg-error-bg sm:!min-h-[26px]"
-        >
-          {rollingBack ? "回滚中" : "回滚"}
-        </button>
+        </BookButton>
+        {hasCurrentSnapshots && snapshots.length > 0 ? (
+          <span className="pb-1 text-[10px] text-book-text-muted">
+            {snapshots.length} 个快照
+          </span>
+        ) : null}
       </div>
+      <details className="a4n-flat-surface px-3 py-2">
+        <summary className="cursor-pointer text-[11px] font-medium text-book-text-main">
+          比较与回滚
+        </summary>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <section>
+            <div className="mb-1.5 text-[10px] font-medium text-book-text-muted">
+              比较章节状态
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={diffFromChapter}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (Number.isFinite(parsed) && parsed >= 0)
+                    setDiffFromChapter(parsed);
+                }}
+                disabled={snapshotChapters.length === 0}
+                className="pyqt-input !w-24 !px-2 !py-1"
+              >
+                <option value={0}>初始</option>
+                {snapshotChapters.map((chapter) => (
+                  <option key={chapter} value={chapter}>
+                    第{chapter}章
+                  </option>
+                ))}
+              </select>
+              <span className="text-book-text-muted">→</span>
+              <select
+                value={diffToChapterValue}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setDiffToChapter(Number.isFinite(value) ? value : null);
+                }}
+                disabled={snapshotChapters.length === 0}
+                className="pyqt-input !w-24 !px-2 !py-1"
+              >
+                {snapshotChapters.length === 0 ? (
+                  <option value="">无快照</option>
+                ) : (
+                  snapshotChapters.map((chapter) => (
+                    <option key={chapter} value={chapter}>
+                      第{chapter}章
+                    </option>
+                  ))
+                )}
+              </select>
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={handleChapterDiff}
+                disabled={!canDiffChapters || diffing}
+              >
+                {diffing ? "生成中" : "生成差异"}
+              </BookButton>
+            </div>
+          </section>
+          <section className="border-l-2 border-error/35 pl-3">
+            <div className="mb-1.5 text-[10px] font-medium text-book-text-muted">
+              回滚角色状态
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={rollbackChapterValue}
+                onChange={(event) => {
+                  if (!event.target.value) {
+                    setRollbackChapter(null);
+                    return;
+                  }
+                  const value = Number(event.target.value);
+                  setRollbackChapter(Number.isFinite(value) ? value : null);
+                }}
+                disabled={rollbackChapters.length === 0}
+                className="pyqt-input !w-28 !px-2 !py-1"
+              >
+                {rollbackChapters.length === 0 ? (
+                  <option value="">无快照</option>
+                ) : (
+                  rollbackChapters.map((chapter) => (
+                    <option key={chapter} value={chapter}>
+                      {rollbackChapterLabel(chapter)}
+                    </option>
+                  ))
+                )}
+              </select>
+              <button
+                type="button"
+                onClick={handleRollback}
+                disabled={!canRollback || rollingBack}
+                className="pyqt-btn-secondary !min-h-9 !border-error/50 !px-2 text-[11px] !text-error hover:!bg-error-bg sm:!min-h-[26px]"
+              >
+                {rollingBack ? "回滚中" : "回滚"}
+              </button>
+            </div>
+          </section>
+        </div>
+      </details>
       {loading ? (
         <div className="text-[11px] text-book-text-muted">加载…</div>
       ) : !hasCurrentSnapshots ? (
-        <div className="text-[11px] text-book-text-muted italic">当前快照范围尚未加载，请刷新</div>
+        <div className="text-[11px] text-book-text-muted italic">
+          当前快照范围尚未加载，请刷新
+        </div>
       ) : (
         <>
           {conflict && (
             <div
-              className={`a4n-stat-tile px-2 py-1.5 text-[11px] ${
+              className={`rounded-xl border-l-2 px-3 py-2.5 text-[11px] ${
                 conflict.has_conflict
-                  ? "border-error/40 bg-error-bg/40 text-error"
-                  : "text-book-text-muted"
+                  ? "border-error/60 bg-error-bg/35 text-error"
+                  : "border-book-border bg-book-bg-tertiary/25 text-book-text-muted"
               }`}
             >
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="pyqt-pill !text-[10px]">
-                  档案同步至第 {conflict.last_synced_chapter} 章
-                </span>
-                <span className="pyqt-pill !text-[10px]">
-                  当前最大章节 {conflict.max_available_chapter}
-                </span>
-                {conflict.has_conflict && (
-                  <span className="font-medium">
-                    同步状态超过当前章节范围，请回滚到可用快照后再继续同步。
-                  </span>
-                )}
+              <div className="leading-relaxed">
+                档案同步至第 {conflict.last_synced_chapter} 章 · 当前最大章节{" "}
+                {conflict.max_available_chapter}
               </div>
+              {conflict.has_conflict ? (
+                <div className="mt-1 font-medium">
+                  同步状态超过当前章节范围，请回滚到可用快照后再继续同步。
+                </div>
+              ) : null}
               {conflict.available_snapshot_chapters.length > 0 && (
                 <div className="mt-1 text-[10px]">
-                  可回滚快照：第 {conflict.available_snapshot_chapters.join("、")} 章
+                  可回滚快照：第{" "}
+                  {conflict.available_snapshot_chapters.join("、")} 章
                 </div>
               )}
-              {conflict.has_conflict && conflict.available_snapshot_chapters.length === 0 && (
-                <div className="mt-1 text-[10px]">
-                  没有可用快照，可回滚到初始状态后重新同步。
-                </div>
-              )}
+              {conflict.has_conflict &&
+                conflict.available_snapshot_chapters.length === 0 && (
+                  <div className="mt-1 text-[10px]">
+                    没有可用快照，可回滚到初始状态后重新同步。
+                  </div>
+                )}
             </div>
           )}
           {snapshots.length === 0 ? (
-            <div className="text-[11px] text-book-text-muted italic">尚无快照引用</div>
+            <div className="text-[11px] text-book-text-muted italic">
+              尚无快照引用
+            </div>
           ) : (
-            <ul className="space-y-1 max-h-56 overflow-y-auto custom-scrollbar">
+            <ul className="a4n-flat-surface divide-y divide-book-border/45">
               {snapshots.map((s) => {
                 return (
-                  <li
-                    key={s.id}
-                    className="a4n-stat-tile px-2 py-1.5 text-[11px]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="pyqt-pill !text-[10px] font-mono">
-                        第{s.chapter_number}章
-                      </span>
-                      <span className="font-mono text-book-text-muted shrink-0 text-[10px]">
-                        {s.snapshot_hash.slice(0, 12)}
-                      </span>
-                      <span className="text-book-text-muted text-[10px]">
-                        变化 {s.changes_in_chapter} / 行为 {s.behaviors_in_chapter}
-                      </span>
-                      <span className="flex-1" />
+                  <li key={s.id} className="px-3 py-2 text-[11px]">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-book-text-main">
+                          第 {s.chapter_number} 章
+                          <span className="ml-2 text-[10px] font-normal text-book-text-muted">
+                            变化 {s.changes_in_chapter} · 行为{" "}
+                            {s.behaviors_in_chapter}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-[10px] leading-relaxed text-book-text-muted">
+                          {snapshotReferenceCountText(s)}
+                          {s.state_summary ? ` · ${s.state_summary}` : ""}
+                        </div>
+                      </div>
                       <button
                         type="button"
                         onClick={() => void handleViewState(s.chapter_number)}
-                        className="text-[10px] text-book-primary px-1.5 py-0.5 rounded hover:bg-book-primary/10"
+                        className="shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] text-book-primary hover:bg-book-primary/10"
                       >
                         状态
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleView(s.snapshot_hash)}
-                        className="text-[10px] text-book-primary px-1.5 py-0.5 rounded hover:bg-book-primary/10"
+                        className="shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] text-book-primary hover:bg-book-primary/10"
                       >
                         详情
                       </button>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-book-text-muted">
-                      <span>{snapshotReferenceCountText(s)}</span>
-                      {s.state_summary && (
-                        <span className="min-w-0 flex-1 truncate text-book-text-sub">
-                          {s.state_summary}
-                        </span>
-                      )}
                     </div>
                   </li>
                 );
@@ -572,7 +665,9 @@ export const SnapshotManager: React.FC<{
           )}
         </>
       )}
-      {chapterState != null && <ProfileChapterStateDetail state={chapterState} />}
+      {chapterState != null && (
+        <ProfileChapterStateDetail state={chapterState} />
+      )}
       {snapshotData != null && <SnapshotDetail snapshot={snapshotData} />}
       {delta != null && <SnapshotDeltaView delta={delta} />}
     </div>

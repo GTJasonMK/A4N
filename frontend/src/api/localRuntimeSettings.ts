@@ -10,6 +10,7 @@ import type {
   VideoGenConfig,
 } from "./video";
 import { readPortableItem, writePortableItem } from "../utils/portableStorage";
+import { usesLocalRuntimeSettings as runtimeUsesLocalRuntimeSettings } from "../utils/runtimeMode";
 
 const STORE_KEY = "a4n:local-runtime-settings:v1";
 
@@ -111,6 +112,10 @@ const RESERVED_LLM_REQUEST_OPTION_KEYS = new Set([
   "tool_choice",
   "stop",
 ]);
+
+export function usesLocalRuntimeSettings(): boolean {
+  return runtimeUsesLocalRuntimeSettings();
+}
 
 function defaultSettings(): LocalRuntimeSettings {
   const settings: LocalRuntimeSettings = {

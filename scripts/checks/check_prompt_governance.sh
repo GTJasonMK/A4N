@@ -7,8 +7,8 @@ source "$SCRIPT_DIR/../lib/common.sh"
 cd "$PROJECT_ROOT"
 
 SOURCE_DIRS=(
+  "crates/a4n-orchestrator/src"
   "crates/a4n-runtime/src"
-  "crates/a4n-services/src"
   "crates/a4n-tauri/src"
 )
 FRONTEND_SOURCE_DIRS=(
@@ -22,7 +22,7 @@ check_no_source_match() {
   local pattern="$2"
   local matches
 
-  matches="$(rg -n "$pattern" "${SOURCE_DIRS[@]}" --glob '!**/tests/**' || true)"
+  matches="$(rg -n "$pattern" "${SOURCE_DIRS[@]}" --glob '!**/tests/**' --glob '!**/tests.rs' || true)"
   if [[ -n "$matches" ]]; then
     printf 'prompt governance violation: %s\n%s\n\n' "$label" "$matches" >&2
     fail=1
@@ -58,7 +58,7 @@ check_no_sources_match_before_cfg_tests() {
         /^[[:space:]]*#\[cfg\(test\)\]/ { stop=1 }
         !stop { print FILENAME ":" FNR ":" $0 }
       ' "$file"
-    done < <(rg --files "${SOURCE_DIRS[@]}" -g '*.rs' --glob '!**/tests/**') | rg "$pattern" || true
+    done < <(rg --files "${SOURCE_DIRS[@]}" -g '*.rs' --glob '!**/tests/**' --glob '!**/tests.rs') | rg "$pattern" || true
   )"
   if [[ -n "$matches" ]]; then
     printf 'prompt governance violation: %s\n%s\n\n' "$label" "$matches" >&2
@@ -122,7 +122,7 @@ check_rendered_prompt_names_registered() {
         /^[[:space:]]*#\[cfg\(test\)\]/ { stop=1 }
         !stop { print FILENAME ":" FNR ":" $0 }
       ' "$file"
-    done < <(rg --files "${SOURCE_DIRS[@]}" -g '*.rs' --glob '!**/tests/**') \
+    done < <(rg --files "${SOURCE_DIRS[@]}" -g '*.rs' --glob '!**/tests/**' --glob '!**/tests.rs') \
       | rg '\.render\("[A-Za-z0-9_]+"' || true
   )"
   while IFS= read -r line; do
@@ -162,7 +162,7 @@ check_prompt_name_constants_registered() {
         in_block { print FILENAME ":" FNR ":" $0 }
         in_block && /;[[:space:]]*$/ { in_block = 0 }
       ' "$file"
-    done < <(rg --files "${SOURCE_DIRS[@]}" -g '*.rs' --glob '!**/tests/**') || true
+    done < <(rg --files "${SOURCE_DIRS[@]}" -g '*.rs' --glob '!**/tests/**' --glob '!**/tests.rs') || true
   )"
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -191,7 +191,7 @@ check_no_source_match \
 
 check_no_file_match_before_cfg_tests \
   "blueprint stage prompt wrappers must be rendered from prompts/ registry" \
-  "crates/a4n-services/src/blueprint/generation_contract.rs" \
+  "crates/a4n-orchestrator/src/blueprint/generation_contract.rs" \
   '请根据以下 JSON 输入执行当前蓝图生成阶段|请生成故事核心定位|请基于故事核心生成完整 world_setting|请基于故事核心和世界观生成主要角色|请基于故事核心、世界观和角色档案生成角色关系网络|请根据以下 JSON 输入优化蓝图'
 
 check_no_source_match \
@@ -199,7 +199,7 @@ check_no_source_match \
   'content:\s*"(你是|你现在是|当前项目上下文)'
 
 check_no_sources_match_before_cfg_tests \
-  "structured JSON user-message leads must use a4n_engine::prompt::request helpers" \
+  "structured JSON user-message leads must use a4n_prompt::request helpers" \
   '请根据以下 JSON 输入|请分析以下章节 JSON|请继续执行内容优化 Agent Loop'
 
 frontend_prompt_matches="$(rg -n '你是|请根据以下 JSON 输入|只返回 output_contract|严格 JSON 对象|不要输出 Markdown' "${FRONTEND_SOURCE_DIRS[@]}" || true)"
@@ -223,12 +223,12 @@ check_no_file_match_before_cfg_tests \
 
 check_no_file_match_before_cfg_tests \
   "video builder prompt rules must be rendered from prompts/ registry" \
-  "crates/a4n-services/src/video/prompt_context/builders.rs" \
+  "crates/a4n-orchestrator/src/video/prompt_context/builders/planning.rs" \
   '按 duration_secs 评估每个片段的动作容量|如果原文包含自伤|请根据以下 JSON 输入生成视频提示词|只返回 output_contract 要求的严格 JSON 对象|frame_prompt 是会直接发给图片模型'
 
 check_no_file_match_before_cfg_tests \
   "portrait generation user prompt must be rendered from prompts/ registry" \
-  "crates/a4n-services/src/portrait/prompt_generation.rs" \
+  "crates/a4n-orchestrator/src/portrait/prompt_generation/request.rs" \
   '请根据以下 JSON 输入生成可直接用于图像生成模型的中文人物三视图|只返回 prompt 文本，不要输出解释'
 
 prompt_code_fences="$(rg -n '```' prompts -g '*.md' || true)"
@@ -292,6 +292,10 @@ done < <(
     }
   ' prompts/_registry.yaml
 )
+
+if ! "$SCRIPT_DIR/check-structured-llm-repair-coverage.sh"; then
+  fail=1
+fi
 
 if [[ "$fail" -ne 0 ]]; then
   exit "$fail"

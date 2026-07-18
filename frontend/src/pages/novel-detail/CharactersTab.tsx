@@ -7,6 +7,7 @@ import {
 } from "../../api/runtime";
 import { listProfiles, type CharacterProfile } from "../../api/character";
 import { useToast } from "../../components/feedback/Toast";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { CharacterProfilesPanel } from "./characters/CharacterProfilesPanel";
 import { CharacterPortraitsPanel } from "./characters/CharacterPortraitsPanel";
 import type { CharactersSubTab } from "./characters/characterUtils";
@@ -127,24 +128,17 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   }
 
   return (
-    <div className="content-main flex flex-col gap-4">
-      <div className="flex items-center gap-1 border-b border-book-border/60 pb-2">
-        <button
-          type="button"
-          onClick={() => setSubTab("profile")}
-          data-active={subTab === "profile" ? "1" : undefined}
-          className="pyqt-tab"
-        >
-          角色档案
-        </button>
-        <button
-          type="button"
-          onClick={() => setSubTab("portrait")}
-          data-active={subTab === "portrait" ? "1" : undefined}
-          className="pyqt-tab"
-        >
-          人物三视图拆解
-        </button>
+    <div className="content-main flex min-h-0 flex-col gap-3">
+      <div className="flex items-center">
+        <SegmentedControl
+          ariaLabel="人物工作区"
+          value={subTab}
+          onChange={setSubTab}
+          options={[
+            { id: "profile" as const, label: "档案" },
+            { id: "portrait" as const, label: "立绘" },
+          ]}
+        />
       </div>
 
       {subTab === "profile" ? (

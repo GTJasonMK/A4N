@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Eye, Loader2, SlidersHorizontal } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import type { RunProgressTask } from "../../../hooks/useProgressTask";
 import { OutlineAdvancedPanel } from "./OutlineAdvancedPanel";
@@ -60,6 +61,7 @@ export function OutlineAdvancedToolsDialog({
   const deletingParts = delActing === DELETE_LATEST_PARTS_ACTION;
   const deletingChapterOutlines =
     delActing === DELETE_LATEST_CHAPTER_OUTLINES_ACTION;
+  const actionBusy = advancedBusy || regenLastPart || delActing != null;
   const maintenanceBusy = disabled || advancedBusy || regenLastPart || delActing != null;
   const advancedPanelDisabled = disabled || regenLastPart || delActing != null;
 
@@ -74,120 +76,167 @@ export function OutlineAdvancedToolsDialog({
   return (
     <Modal
       isOpen={open}
-      onClose={onClose}
+      onClose={() => {
+        if (!actionBusy) onClose();
+      }}
       title="大纲高级工具"
-      subtitle="进度查询、维护操作、部级章纲批处理和节拍映射统一收纳在这里。"
+      subtitle={`共 ${parts.length} 部、${outlines.length} 个章纲 · 生成、诊断与维护`}
       icon={<SlidersHorizontal size={15} />}
       maxWidthClassName="max-w-5xl"
       bodyClassName="px-4 py-4"
+      closeOnBackdrop={!actionBusy}
+      closeOnEscape={!actionBusy}
+      showCloseButton={!actionBusy}
     >
-      <div className="space-y-5">
-        <section className="space-y-3 text-xs">
-          <h3 className="font-serif text-sm text-book-text-main">维护操作</h3>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-            <div className="space-y-2 rounded-sm border border-book-border/40 bg-book-bg-paper/25 p-3">
-              <div className="font-semibold text-book-text-main">重写最后一部</div>
-              <p className="text-[11px] leading-relaxed text-book-text-muted">
-                用于主线收束不自然时快速重写末尾分部。
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={onPreviewRegenLastPart}
-                  disabled={maintenanceBusy}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <Eye size={12} /> 预览提示词
-                  </span>
-                </BookButton>
+      <div className="space-y-4">
+        <OutlineAdvancedPanel
+          projectId={projectId}
+          parts={parts}
+          partCount={typeof partCount === "number" ? partCount : null}
+          chaptersPerPart={typeof chaptersPerPart === "number" ? chaptersPerPart : null}
+          runProgressTask={runProgressTask}
+          disabled={advancedPanelDisabled}
+          onChanged={onChanged}
+          onBusyChange={handleAdvancedBusyChange}
+        />
+
+        <details className="group" aria-label="末尾维护与删除">
+          <summary className="a4n-flat-surface flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
+            <span className="font-medium text-book-text-main">末尾维护与删除</span>
+            <span className="min-w-0 flex-1 truncate text-right text-[11px] text-book-text-muted">
+              重写最后一部、删除最近内容
+            </span>
+          </summary>
+          <div className="mt-2 grid gap-2 text-xs">
+            <section className="a4n-flat-surface flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-medium text-book-text-main">重写最后一部</h3>
+                <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+                  保留更早分部，只重写故事末尾的阶段规划。
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2 sm:shrink-0">
+                {!regenLastPart ? (
+                  <Dropdown
+                    items={[
+                      {
+                        label: "查看模型请求",
+                        icon: <Eye size={12} />,
+                        onClick: onPreviewRegenLastPart,
+                        disabled: maintenanceBusy,
+                      },
+                    ]}
+                  />
+                ) : null}
                 <BookButton
                   variant="secondary"
                   size="sm"
                   onClick={onRegenLastPart}
                   disabled={maintenanceBusy}
+                  className="min-w-0 flex-1 !text-xs sm:flex-none"
                 >
                   {regenLastPart ? (
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5">
                       <Loader2 size={12} className="animate-spin" /> 重写中…
                     </span>
                   ) : (
-                    "重新生成最后一部"
+                    "重写最后一部"
                   )}
                 </BookButton>
               </div>
-            </div>
+            </section>
 
-            <div className="space-y-2 rounded-sm border border-error/30 bg-error-bg/30 p-3">
-              <div className="font-semibold text-error">删除最近分部</div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={parts.length}
-                  value={delPartCount}
-                  disabled={maintenanceBusy}
-                  onChange={(event) => onDelPartCountChange(Number(event.target.value))}
-                  className="pyqt-input !px-2 !py-1 w-16"
-                />
-                <span className="text-book-text-muted">部</span>
-                <button
-                  type="button"
+            <section className="a4n-flat-surface flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-medium text-book-text-main">删除最近分部</h3>
+                <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+                  从故事末尾删除指定数量的分部，操作前会再次确认。
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2 sm:shrink-0">
+                <label className="inline-flex items-center gap-1.5 text-book-text-muted">
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(parts.length, 1)}
+                    value={delPartCount}
+                    disabled={maintenanceBusy}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      onDelPartCountChange(
+                        Number.isFinite(value)
+                          ? Math.min(Math.max(Math.trunc(value), 1), Math.max(parts.length, 1))
+                          : 1,
+                      );
+                    }}
+                    className="pyqt-input !w-16"
+                  />
+                  部
+                </label>
+                <BookButton
+                  variant="danger"
+                  size="sm"
                   onClick={onDeleteLatestParts}
                   disabled={maintenanceBusy || deletingParts || parts.length === 0}
-                  className="pyqt-btn-secondary !min-h-9 !border-error/50 !px-2.5 text-xs !text-error hover:!bg-error-bg sm:!min-h-[28px]"
+                  className="!text-xs"
                 >
                   {deletingParts ? (
-                    <Loader2 size={12} className="animate-spin" />
+                    <span className="inline-flex items-center gap-1.5">
+                      <Loader2 size={12} className="animate-spin" /> 删除中…
+                    </span>
                   ) : (
                     "删除"
                   )}
-                </button>
+                </BookButton>
               </div>
-            </div>
+            </section>
 
-            <div className="space-y-2 rounded-sm border border-error/30 bg-error-bg/30 p-3">
-              <div className="font-semibold text-error">删除最近章纲</div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={outlines.length}
-                  value={delChapterCount}
-                  disabled={maintenanceBusy}
-                  onChange={(event) => onDelChapterCountChange(Number(event.target.value))}
-                  className="pyqt-input !px-2 !py-1 w-16"
-                />
-                <span className="text-book-text-muted">章</span>
-                <button
-                  type="button"
+            <section className="a4n-flat-surface flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-medium text-book-text-main">删除最近章纲</h3>
+                <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+                  删除后，对应章节会回到尚未规划的状态。
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2 sm:shrink-0">
+                <label className="inline-flex items-center gap-1.5 text-book-text-muted">
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(outlines.length, 1)}
+                    value={delChapterCount}
+                    disabled={maintenanceBusy}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      onDelChapterCountChange(
+                        Number.isFinite(value)
+                          ? Math.min(Math.max(Math.trunc(value), 1), Math.max(outlines.length, 1))
+                          : 1,
+                      );
+                    }}
+                    className="pyqt-input !w-16"
+                  />
+                  章
+                </label>
+                <BookButton
+                  variant="danger"
+                  size="sm"
                   onClick={onDeleteLatestOutlines}
                   disabled={maintenanceBusy || deletingChapterOutlines || outlines.length === 0}
-                  className="pyqt-btn-secondary !min-h-9 !border-error/50 !px-2.5 text-xs !text-error hover:!bg-error-bg sm:!min-h-[28px]"
+                  className="!text-xs"
                 >
                   {deletingChapterOutlines ? (
-                    <Loader2 size={12} className="animate-spin" />
+                    <span className="inline-flex items-center gap-1.5">
+                      <Loader2 size={12} className="animate-spin" /> 删除中…
+                    </span>
                   ) : (
                     "删除"
                   )}
-                </button>
+                </BookButton>
               </div>
-            </div>
+            </section>
           </div>
-        </section>
-
-        <section className="border-t border-book-border/40 pt-4">
-          <OutlineAdvancedPanel
-            projectId={projectId}
-            parts={parts}
-            partCount={typeof partCount === "number" ? partCount : null}
-            chaptersPerPart={typeof chaptersPerPart === "number" ? chaptersPerPart : null}
-            runProgressTask={runProgressTask}
-            disabled={advancedPanelDisabled}
-            onChanged={onChanged}
-            onBusyChange={handleAdvancedBusyChange}
-          />
-        </section>
+        </details>
       </div>
     </Modal>
   );

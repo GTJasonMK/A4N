@@ -1,0 +1,23 @@
+[package]
+name = "a4n-rag-index"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-core = { path = "../a4n-core" }
+a4n-rag-core = { path = "../a4n-rag-core" }
+
+arrow-array = "58"
+arrow-schema = "58"
+async-trait = { workspace = true }
+futures = { workspace = true }
+lancedb = "0.29"
+parking_lot = { workspace = true }
+serde_json = { workspace = true }
+tantivy = "0.22"
+tokio = { workspace = true }
+
+[dev-dependencies]
+a4n-embedding = { path = "../a4n-embedding" }
+tempfile = { workspace = true }
+

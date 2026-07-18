@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "../components/ui/Modal";
-import { BookButton } from "../components/ui/BookButton";
 import { useToast } from "../components/feedback/Toast";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { RequestPreviewModal } from "../components/feedback/RequestPreviewModal";
@@ -269,7 +268,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     try {
       const s = await runProgressTask(
         {
-          title: `生成场景 #${nextNumber}`,
+          title: `生成场景 ${nextNumber}`,
           startMessage: "正在准备场景生成",
           successMessage: "场景已生成",
           errorMessage: "生成场景失败",
@@ -289,7 +288,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
           ),
       );
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
-      addToast(`已生成场景 #${s.scene_number}`, "success");
+      addToast(`已生成场景 ${s.scene_number}`, "success");
       if (isCurrentScope(requestScope)) await load({ force: true });
     } catch (err) {
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
@@ -347,8 +346,8 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     const ok = await confirmDialog({
       title: "删除场景",
       message: title
-        ? `删除场景 #${s.scene_number} 「${title}」？不可撤销。`
-        : `删除场景 #${s.scene_number}？不可撤销。`,
+        ? `删除场景 ${s.scene_number}「${title}」？不可撤销。`
+        : `删除场景 ${s.scene_number}？不可撤销。`,
       confirmText: "删除",
       dialogType: "danger",
     });
@@ -416,20 +415,17 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       <Modal
         isOpen={open}
         onClose={onClose}
-        title={`场景管理${chapterNumber != null ? ` · 第 ${chapterNumber} 章` : ""}`}
-        maxWidthClassName="max-w-3xl"
-        footer={
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-book-text-muted">
-              共 {scenes.length} 个场景
-            </span>
-            <BookButton variant="secondary" onClick={onClose}>
-              关闭
-            </BookButton>
-          </div>
+        title="章节场景"
+        subtitle={
+          chapterNumber != null
+            ? `第 ${chapterNumber} 章${scenes.length > 0 ? ` · ${scenes.length} 个场景` : ""}`
+            : scenes.length > 0
+              ? `${scenes.length} 个场景`
+              : undefined
         }
+        maxWidthClassName="max-w-3xl"
       >
-        <div className="flex flex-col gap-3 max-h-[65vh]">
+        <div className="flex flex-col gap-3">
           <SceneGenerationPanel
             nextSceneNumber={nextSceneNumber}
             prompt={genPrompt}

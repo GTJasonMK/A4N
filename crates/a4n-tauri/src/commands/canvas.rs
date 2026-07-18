@@ -1,12 +1,11 @@
 use a4n_runtime::AppState;
-use a4n_runtime::actions::canvas_workflow as canvas_actions;
-use a4n_runtime::actions::canvas_workflow::{
-    CanvasNodeContract, CanvasNodeRequestPreview, CanvasRunSummary, GetCanvasGraphInput,
-    GetCanvasNodeContractsInput, ImportCanvasMediaInput, ImportedCanvasMedia,
+use a4n_runtime::host_api::canvas_workflow as canvas_actions;
+use a4n_runtime::host_api::canvas_workflow::{
+    CanvasGraphDocument, CanvasNodeContract, CanvasNodeRequestPreview, CanvasRunSummary,
+    GetCanvasGraphInput, GetCanvasNodeContractsInput, ImportCanvasMediaInput, ImportedCanvasMedia,
     PreviewCanvasNodeRequestInput, RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput,
     SaveCanvasTextAssetInput,
 };
-use a4n_services::canvas::CanvasGraphDocument;
 use tauri::State;
 
 #[tauri::command]

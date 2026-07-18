@@ -26,6 +26,13 @@ export interface PromptDependencyGraph {
   edges: unknown[];
 }
 
+export interface ProjectPromptOverrideSummary {
+  project_id: number;
+  prompt_name: string;
+  content: unknown;
+  updated_at: string;
+}
+
 export interface CategoryInfo {
   key: string;
   label?: string | null;

@@ -10,6 +10,7 @@ import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { useToast } from "../../../components/feedback/Toast";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
 import { BookButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 
 interface PortraitPromptDialogProps {
@@ -135,46 +136,50 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
     <Modal
       isOpen
       onClose={onClose}
-      title={`人物三视图拆解提示词 #${portrait.id}`}
+      title="人物三视图拆解提示词"
       maxWidthClassName="max-w-2xl"
-    >
-      <div className="space-y-3 text-sm">
-        <div>
-          <div className="mb-1 text-xs text-book-text-muted">原始 Prompt</div>
-          <pre className="pyqt-card custom-scrollbar max-h-48 overflow-y-auto whitespace-pre-wrap break-words bg-book-bg-tertiary/40 p-3 text-xs">
-            {portrait.prompt || "（无）"}
-          </pre>
-        </div>
-        <div className="flex items-center gap-2">
-          <BookButton variant="secondary" onClick={handleRender} disabled={busy}>
+      footer={
+        <div className="flex w-full items-center gap-2">
+          <Dropdown
+            items={[
+              {
+                label: "查看模型请求",
+                icon: <Eye size={12} />,
+                onClick: handlePreview,
+                disabled: busy,
+              },
+            ]}
+          />
+          <span className="min-w-0 flex-1" />
+          <BookButton variant="primary" onClick={handleRender} disabled={busy}>
             {busy ? (
               <span className="inline-flex items-center gap-1.5">
                 <Loader2 size={12} className="animate-spin" /> 渲染中…
               </span>
-            ) : (
+            ) : rendered === null ? (
               "渲染提示词"
+            ) : (
+              "重新渲染"
             )}
           </BookButton>
-          <BookButton variant="secondary" onClick={handlePreview} disabled={busy}>
-            <span className="inline-flex items-center gap-1.5">
-              <Eye size={12} />
-              预览请求
-            </span>
-          </BookButton>
+        </div>
+      }
+    >
+      <div className="space-y-3 text-sm">
+        <div>
+          <div className="mb-1 text-xs text-book-text-muted">当前提示词</div>
+          <pre className="a4n-flat-surface whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-book-text-sub">
+            {portrait.prompt || "（无）"}
+          </pre>
         </div>
         {rendered !== null ? (
           <div>
             <div className="mb-1 text-xs text-book-text-muted">渲染结果</div>
-            <pre className="pyqt-card custom-scrollbar max-h-64 overflow-y-auto whitespace-pre-wrap break-words bg-book-bg-tertiary/40 p-3 text-xs">
+            <pre className="a4n-flat-surface whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-book-text-sub">
               {rendered || "（空）"}
             </pre>
           </div>
         ) : null}
-        <div className="flex justify-end pt-2">
-          <BookButton variant="secondary" onClick={onClose}>
-            关闭
-          </BookButton>
-        </div>
       </div>
       <RequestPreviewModal
         open={requestPreviewOpen}

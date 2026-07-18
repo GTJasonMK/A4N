@@ -26,8 +26,7 @@ pub(super) async fn subscribe(
         loop {
             match receiver.recv().await {
                 Ok(payload) => {
-                    let data = serde_json::to_string(&payload).unwrap_or_else(|_| "null".into());
-                    return Some((Ok(Event::default().data(data)), receiver));
+                    return Some((Ok(Event::default().data(payload.to_string())), receiver));
                 }
                 Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(broadcast::error::RecvError::Closed) => return None,

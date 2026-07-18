@@ -1,7 +1,7 @@
 use crate::progress_task::WorkflowProgressTask;
 use a4n_core::event::channel::TaskType;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::scene_profile_sync::SceneProfileSyncProgress;
+use a4n_runtime::host_api::scene_profile_sync::SceneProfileSyncProgress;
 use serde_json::Value;
 use tauri::{State, Window};
 
@@ -14,7 +14,7 @@ pub async fn sync_scene_profiles(
     chapter_number: Option<i32>,
     task_id: Option<String>,
 ) -> Result<Value, String> {
-    let scope = a4n_runtime::actions::scene_profile_sync::scene_profile_sync_task_scope(
+    let scope = a4n_runtime::host_api::scene_profile_sync::scene_profile_sync_task_scope(
         state.inner(),
         user_id,
         project_id,
@@ -67,7 +67,7 @@ pub(crate) async fn sync_scene_profiles_for_chapters(
         let cancel_token = progress.cancel_token();
         let reporter = |current, total, message: &str| progress.progress(current, total, message);
         let runtime_progress = SceneProfileSyncProgress::new(Some(&reporter), Some(&cancel_token));
-        a4n_runtime::actions::scene_profile_sync::sync_scene_profiles_for_chapters(
+        a4n_runtime::host_api::scene_profile_sync::sync_scene_profiles_for_chapters(
             state,
             user_id,
             project_id,
@@ -76,7 +76,7 @@ pub(crate) async fn sync_scene_profiles_for_chapters(
         )
         .await
     } else {
-        a4n_runtime::actions::scene_profile_sync::sync_scene_profiles_for_chapters(
+        a4n_runtime::host_api::scene_profile_sync::sync_scene_profiles_for_chapters(
             state,
             user_id,
             project_id,

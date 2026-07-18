@@ -3,8 +3,8 @@
 //! 保持 `commands::auth::*` 的 Tauri 命令入口稳定，认证业务规则由 runtime 统一承载。
 
 use a4n_runtime::AppState;
-use a4n_runtime::actions::auth_records as auth_actions;
-use a4n_runtime::actions::oauth::{OAuth2AuthorizeInput, OAuth2CallbackInput};
+use a4n_runtime::host_api::auth_records as auth_actions;
+use a4n_runtime::host_api::oauth::{OAuth2AuthorizeInput, OAuth2CallbackInput};
 use auth_actions::{
     AuthResult, ChangePasswordInput, LoginInput, OAuth2LoginResult, RefreshTokenInput,
     RegisterInput, SessionSummary, TokenPairSummary, UpdateProfileInput, UserSummary,
@@ -63,7 +63,7 @@ auth_command!(
 
 #[tauri::command]
 pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, String> {
-    a4n_runtime::actions::oauth::oauth2_authorize_url(input).map_err(|e| e.to_string())
+    a4n_runtime::host_api::oauth::oauth2_authorize_url(input).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -71,15 +71,7 @@ pub async fn oauth2_callback(
     state: State<'_, AppState>,
     input: OAuth2CallbackInput,
 ) -> Result<OAuth2LoginResult, String> {
-    let user = a4n_runtime::actions::oauth::oauth2_login_user(&state.auth, input)
+    auth_actions::oauth2_callback_login(state.inner(), input, Some("a4n-tauri"))
         .await
-        .map_err(|e| e.to_string())?;
-    let result = auth_actions::issue_auth_result(state.inner(), user, Some("a4n-tauri"))
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(OAuth2LoginResult {
-        user: result.user,
-        tokens: result.tokens,
-        session: result.session,
-    })
+        .map_err(|e| e.to_string())
 }

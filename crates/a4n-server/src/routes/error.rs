@@ -49,6 +49,7 @@ impl From<AppError> for ApiError {
     fn from(error: AppError) -> Self {
         let status = match error {
             AppError::InvalidArgument(_) | AppError::InvalidState { .. } => StatusCode::BAD_REQUEST,
+            AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             AppError::Forbidden(_) => StatusCode::FORBIDDEN,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::ConfigError(_) => StatusCode::INTERNAL_SERVER_ERROR,

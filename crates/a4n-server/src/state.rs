@@ -1,9 +1,10 @@
 use a4n_core::config::app_config::{AppConfig, resolve_portable_path};
+use a4n_core::config::env::{optional_non_empty_env_path, optional_non_empty_env_string};
 use a4n_core::error::AppError;
 use a4n_core::files::paths::AppPaths;
-use a4n_services::auth::BootstrapAdminInput;
+use a4n_runtime::host_api::auth_records::{self, BootstrapAdminInput};
+use a4n_runtime::state::RuntimeProfile;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
@@ -30,13 +31,12 @@ impl ServerConfig {
         validate_postgres_url(&database_url)?;
 
         let jwt_secret = required_env("A4N_JWT_SECRET")?;
-        let bind_addr = std::env::var("A4N_WEB_ADDR")
-            .unwrap_or_else(|_| "127.0.0.1:8080".to_string())
+        let bind_addr = optional_non_empty_env_string("A4N_WEB_ADDR")?
+            .unwrap_or_else(|| "127.0.0.1:8080".to_string())
             .parse()
             .map_err(|e| AppError::ConfigError(format!("A4N_WEB_ADDR 无效: {e}")))?;
-        let frontend_dist = std::env::var("A4N_FRONTEND_DIST")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("frontend/dist"));
+        let frontend_dist = optional_non_empty_env_path("A4N_FRONTEND_DIST")?
+            .unwrap_or_else(|| PathBuf::from("frontend/dist"));
         let bootstrap_admin = bootstrap_admin_from_env()?;
 
         Ok(Self {
@@ -62,22 +62,38 @@ impl ServerState {
         AppPaths::from_config(&app_config)
             .ensure_dirs()
             .map_err(AppError::Io)?;
-        let runtime = Arc::new(a4n_runtime::AppState::new(app_config).await?);
+        let runtime_profile = runtime_profile_for_server_host()?;
+        let runtime =
+            Arc::new(a4n_runtime::AppState::new_with_profile(app_config, runtime_profile).await?);
         let bootstrap = bootstrap_admin.as_ref().map(|input| BootstrapAdminInput {
             username: input.username.as_str(),
             email: input.email.as_str(),
             password: input.password.as_str(),
         });
-        runtime
-            .auth
-            .require_existing_user_or_bootstrap_admin(bootstrap)
-            .await?;
+        auth_records::require_existing_user_or_bootstrap_admin(runtime.as_ref(), bootstrap).await?;
 
         Ok(Self {
             runtime,
             web_events: Arc::new(WebEventHub::new()),
         })
     }
+
+    pub fn runtime(&self) -> &a4n_runtime::AppState {
+        self.runtime.as_ref()
+    }
+}
+
+fn runtime_profile_for_server_host() -> Result<RuntimeProfile, AppError> {
+    #[cfg(not(feature = "embedded-capabilities"))]
+    if std::env::var_os("A4N_RUNTIME_PROFILE").is_none() {
+        tracing::info!(
+            runtime_profile = RuntimeProfile::Sidecar.as_str(),
+            "server host built without embedded capabilities; defaulting to sidecar profile"
+        );
+        return Ok(RuntimeProfile::Sidecar);
+    }
+
+    RuntimeProfile::from_env()
 }
 
 #[derive(Debug, Default)]
@@ -107,14 +123,6 @@ impl WebEventHub {
             .get(channel)
             .and_then(|sender| sender.send(payload).ok())
             .unwrap_or(0)
-    }
-}
-
-impl Deref for ServerState {
-    type Target = a4n_runtime::AppState;
-
-    fn deref(&self) -> &Self::Target {
-        &self.runtime
     }
 }
 

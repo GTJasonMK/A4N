@@ -17,6 +17,9 @@ pub enum AppError {
     #[error("权限不足：{0}")]
     Forbidden(String),
 
+    #[error("未认证：{0}")]
+    Unauthorized(String),
+
     #[error("参数无效：{0}")]
     InvalidArgument(String),
 

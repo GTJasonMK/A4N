@@ -33,7 +33,7 @@ export const Section: React.FC<{ label: string; children: React.ReactNode }> = (
   children,
 }) => (
   <div>
-    <div className="text-xs text-book-text-muted uppercase tracking-wider mb-1.5">{label}</div>
+    <div className="mb-1.5 text-[11px] font-medium text-book-text-muted">{label}</div>
     <div className="text-sm text-book-text-main">{children}</div>
   </div>
 );

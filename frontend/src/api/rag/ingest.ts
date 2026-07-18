@@ -68,6 +68,7 @@ async function ragIngestAllWithLocalDesktopEmbedding(projectId: Id): Promise<Rag
     userId: currentUserId(),
     projectId: projectIdNum,
     input: {
+      operation_trace_id: prepared.operation_trace_id,
       embedding_identity: prepared.embedding_identity,
       embeddings: uploaded,
     },

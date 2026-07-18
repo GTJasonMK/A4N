@@ -3,9 +3,9 @@ import React from 'react';
 /**
  * 基础卡片容器。
  *
- * - 4px 微圆角
- * - 1px 实边框
- * - 无 box-shadow（面板默认无投影）
+ * - 静态内容默认使用无阴影平面表面
+ * - 交互卡片只在 hover 时提供轻量反馈
+ * - hover 时可轻抬（可选）
  */
 
 interface BookCardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -20,10 +20,10 @@ export const BookCard: React.FC<BookCardProps> = ({
   contentClassName = '',
   ...props
 }) => {
-  const base = 'pyqt-card';
+  const base = 'a4n-flat-surface';
 
   const hoverCls = hover
-    ? 'cursor-pointer hover:border-book-primary/60 transition-colors duration-150'
+    ? 'cursor-pointer transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-px hover:shadow-[var(--shadow-card-hover)] hover:border-book-primary/25'
     : '';
 
   return (

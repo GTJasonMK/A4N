@@ -2,8 +2,41 @@
 resolver = "2"
 members = [
     "crates/a4n-core",
-    "crates/a4n-engine",
-    "crates/a4n-services",
+    "crates/a4n-test-support",
+    "crates/a4n-queue",
+    "crates/a4n-service-protocol",
+    "crates/a4n-sidecar-bootstrap",
+    "crates/a4n-capabilities",
+    "crates/a4n-service-manager",
+    "crates/a4n-demo-sidecar",
+    "crates/a4n-model-discovery",
+    "crates/a4n-prompt",
+    "crates/a4n-prompt-git",
+    "crates/a4n-prompt-service",
+    "crates/a4n-llm",
+    "crates/a4n-llm-http",
+    "crates/a4n-llm-gateway",
+    "crates/a4n-embedding",
+    "crates/a4n-embedding-fastembed",
+    "crates/a4n-embedding-service",
+    "crates/a4n-rag-core",
+    "crates/a4n-rag-index",
+    "crates/a4n-rag-service",
+    "crates/a4n-image",
+    "crates/a4n-image-providers",
+    "crates/a4n-image-service",
+    "crates/a4n-media",
+    "crates/a4n-video",
+    "crates/a4n-video-providers",
+    "crates/a4n-video-service",
+    "crates/a4n-archive-core",
+    "crates/a4n-import-core",
+    "crates/a4n-import-service",
+    "crates/a4n-export-core",
+    "crates/a4n-export-service",
+    "crates/a4n-domain",
+    "crates/a4n-db",
+    "crates/a4n-orchestrator",
     "crates/a4n-runtime",
     "crates/a4n-tauri",
     "crates/a4n-migration",
@@ -20,6 +53,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 base64 = "0.22"
+schemars = "1"
+jsonschema = { version = "0.40", default-features = false }
 
 # ORM 与数据库
 sea-orm = { version = "1", features = ["sqlx-postgres", "runtime-tokio", "macros"] }

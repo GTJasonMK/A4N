@@ -1,0 +1,96 @@
+use a4n_core::{models::character::attribute_event, rag::RagDataType};
+use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
+
+use crate::rag::{RagRecord, character_attribute_event_rag_chunk_id};
+
+pub(super) fn character_attribute_event_rag_text(
+    event: &attribute_event::Model,
+    name: &str,
+) -> Result<String, String> {
+    let name = required_rag_text(
+        Some(name),
+        format!("角色属性事件 {} 缺少角色名，跳过 RAG 入库", event.id),
+    )?;
+    let category = required_rag_text(
+        Some(&event.category),
+        format!("角色属性事件 {} 缺少属性类别，跳过 RAG 入库", event.id),
+    )?;
+    let key = required_rag_text(
+        Some(&event.key),
+        format!("角色属性事件 {} 缺少属性键，跳过 RAG 入库", event.id),
+    )?;
+    let operation = required_rag_text(
+        Some(&event.operation),
+        format!("角色属性事件 {} 缺少操作类型，跳过 RAG 入库", event.id),
+    )?;
+
+    let mut lines = vec![
+        format!("角色: {name}"),
+        format!("章节: 第{}章", event.chapter_number),
+        format!("类别: {}", attribute_category_label(category)),
+        format!("属性: {key}"),
+        format!("操作: {}", attribute_operation_label(operation)),
+    ];
+    if let Some(old_value) = optional_json_text(Some(&event.old_value)) {
+        lines.push(format!("原值: {old_value}"));
+    }
+    if let Some(new_value) = optional_json_text(Some(&event.new_value)) {
+        lines.push(format!("新值: {new_value}"));
+    }
+    if let Some(description) = optional_rag_text(Some(&event.change_description)) {
+        lines.push(format!("摘要: {description}"));
+    }
+    if let Some(cause) = optional_rag_text(Some(&event.cause)) {
+        lines.push(format!("原因: {cause}"));
+    }
+    if let Some(evidence) = optional_rag_text(Some(&event.evidence)) {
+        lines.push(format!("证据: {evidence}"));
+    }
+    Ok(lines.join("\n"))
+}
+
+pub fn character_attribute_event_rag_record(
+    project_id: i64,
+    event: &attribute_event::Model,
+    name: &str,
+) -> Result<RagRecord, String> {
+    let name = required_rag_text(
+        Some(name),
+        format!("角色属性事件 {} 缺少角色名，跳过 RAG 入库", event.id),
+    )?;
+    let text = character_attribute_event_rag_text(event, name)?;
+    let title = format!("{name} 第{}章属性变更", event.chapter_number);
+    Ok(RagRecord {
+        chunk_id: character_attribute_event_rag_chunk_id(project_id, event.id),
+        text,
+        metadata: serde_json::json!({
+            "data_type": RagDataType::CharacterAttributeEvent.as_str(),
+            "attribute_event_id": event.id,
+            "profile_id": event.profile_id,
+            "character_name": name,
+            "chapter_number": event.chapter_number,
+            "category": event.category,
+            "attribute_key": event.key,
+            "operation": event.operation,
+            "title": title,
+        }),
+    })
+}
+
+fn attribute_category_label(category: &str) -> &'static str {
+    match category {
+        "explicit" => "显性属性",
+        "implicit" => "隐性属性",
+        "social" => "社会属性",
+        _ => "属性",
+    }
+}
+
+fn attribute_operation_label(operation: &str) -> &'static str {
+    match operation {
+        "add" => "新增",
+        "modify" => "修改",
+        "delete" => "删除",
+        _ => "变更",
+    }
+}

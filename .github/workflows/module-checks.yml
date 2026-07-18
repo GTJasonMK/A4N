@@ -1,0 +1,163 @@
+name: Module Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  HEAVY_DEP_PATTERN: "a4n-llm-http|a4n-image-providers|a4n-video-providers|a4n-embedding-fastembed|fastembed|hf-hub|lancedb|tantivy|arrow-array|arrow-schema|a4n-prompt-git|git2|libgit2-sys"
+
+jobs:
+  host-minimal:
+    name: Host minimal profile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check server minimal host
+        run: timeout 600 ./scripts/dev/check-module.sh host-server
+
+      - name: Check tauri minimal host
+        run: timeout 600 ./scripts/dev/check-module.sh host-tauri
+
+      - name: Assert server minimal host excludes heavy providers
+        run: |
+          set +e
+          cargo tree -p a4n-server --no-default-features | rg "$HEAVY_DEP_PATTERN"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "a4n-server minimal host unexpectedly depends on heavy provider/index/git crates" >&2
+            exit 1
+          fi
+          if [ "$status" -ne 1 ]; then
+            exit "$status"
+          fi
+
+      - name: Assert tauri minimal host excludes heavy providers
+        run: |
+          set +e
+          cargo tree -p a4n-tauri --no-default-features | rg "$HEAVY_DEP_PATTERN"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "a4n-tauri minimal host unexpectedly depends on heavy provider/index/git crates" >&2
+            exit 1
+          fi
+          if [ "$status" -ne 1 ]; then
+            exit "$status"
+          fi
+
+  sidecars:
+    name: Sidecar package ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - a4n-prompt-service
+          - a4n-llm-gateway
+          - a4n-embedding-service
+          - a4n-rag-service
+          - a4n-image-service
+          - a4n-video-service
+          - a4n-import-service
+          - a4n-export-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check sidecar package
+        run: timeout 600 cargo check -p "${{ matrix.package }}"
+
+  full-backend:
+    name: Full backend check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check full workspace
+        run: ./scripts/build.sh --all --check
+
+  release-package:
+    name: Release package layout ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - linux-x86_64
+          - windows-x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deploy script syntax
+        run: |
+          bash -n \
+            scripts/deploy.sh \
+            scripts/build.sh \
+            scripts/dev/check-module.sh \
+            scripts/dev/prepare-tauri-external-bin.sh \
+            scripts/dev/build-tauri-bundle.sh
+          ruby -e 'require "json"; JSON.parse(File.read("crates/a4n-tauri/tauri.sidecars.conf.json"))'
+          ./scripts/checks/check-sidecar-package-inventory.sh
+          ./scripts/dev/build-tauri-bundle.sh --help >/dev/null
+
+      - name: Check release package layout
+        run: ./scripts/deploy.sh --target "${{ matrix.target }}" --dry-run --no-build
+
+  frontend:
+    name: Frontend and API parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Check Web API parity
+        working-directory: frontend
+        run: npm run check:web-api-parity

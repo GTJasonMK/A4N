@@ -80,7 +80,7 @@ export function setNodeTemplateDragImage(
   title.className = "truncate text-[11px] font-medium text-book-text-main";
   title.textContent = label;
   const category = document.createElement("div");
-  category.className = "truncate text-[9px] text-book-text-muted";
+  category.className = "truncate text-[10px] text-book-text-muted";
   category.textContent = contract ? studioCategoryLabel(contract.category) : "未知节点";
   titleBox.append(title, category);
   header.appendChild(titleBox);
@@ -97,7 +97,7 @@ export function setNodeTemplateDragImage(
   bodyText.className = "line-clamp-2 text-[10px] leading-4 text-book-text-sub";
   bodyText.textContent = dragPreviewBodyText(kind);
   const footer = document.createElement("div");
-  footer.className = "flex items-center justify-between gap-2 text-[9px] text-book-text-muted";
+  footer.className = "flex items-center justify-between gap-2 text-[10px] text-book-text-muted";
   const subtitle = document.createElement("span");
   subtitle.className = "truncate";
   subtitle.textContent = meta.label;

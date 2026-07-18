@@ -1,6 +1,6 @@
 use super::{command_input, i64_arg, string_arg, to_value, u64_arg};
 use crate::state::ServerState;
-use a4n_runtime::actions::admin_records as admin_records_actions;
+use a4n_runtime::host_api::admin_records as admin_records_actions;
 use serde_json::Value;
 
 use crate::routes::error::ApiError;
@@ -48,38 +48,40 @@ macro_rules! admin_web_unit_command {
 admin_web_json_command!(get_user_usage, |state, user_id, args| {
     let target_user_id = i64_arg(args, "userId")?;
     let limit = u64_arg(args, "limit")?;
-    admin_records_actions::get_user_usage_for_admin(state, user_id, target_user_id, limit).await?
+    admin_records_actions::get_user_usage_for_admin(state.runtime(), user_id, target_user_id, limit)
+        .await?
 });
 
 admin_web_value_command!(get_token_summary, |state, user_id, args| {
     let target_user_id = i64_arg(args, "userId")?;
-    admin_records_actions::get_token_summary_for_admin(state, user_id, target_user_id).await?
+    admin_records_actions::get_token_summary_for_admin(state.runtime(), user_id, target_user_id)
+        .await?
 });
 
 admin_web_json_command!(list_pending_tasks, |state, user_id, _args| {
-    admin_records_actions::list_pending_tasks_for_admin(state, user_id).await?
+    admin_records_actions::list_pending_tasks_for_admin(state.runtime(), user_id).await?
 });
 
 admin_web_unit_command!(cancel_admin_task, |state, user_id, args| {
     let task_id = string_arg(args, "taskId")?;
-    admin_records_actions::cancel_admin_task_for_admin(state, user_id, &task_id).await?;
+    admin_records_actions::cancel_admin_task_for_admin(state.runtime(), user_id, &task_id).await?;
 });
 
 admin_web_value_command!(health_check, |state, user_id, _args| {
-    admin_records_actions::health_check_for_admin(state, user_id).await?
+    admin_records_actions::health_check_for_admin(state.runtime(), user_id).await?
 });
 
 admin_web_json_command!(list_all_projects, |state, user_id, _args| {
-    admin_records_actions::list_all_projects_for_admin(state, user_id).await?
+    admin_records_actions::list_all_projects_for_admin(state.runtime(), user_id).await?
 });
 
 admin_web_json_command!(get_usage_trends, |state, user_id, args| {
     let input: admin_records_actions::UsageTrendsInput = command_input(args, "get_usage_trends")?;
-    admin_records_actions::get_usage_trends_for_admin(state, user_id, input).await?
+    admin_records_actions::get_usage_trends_for_admin(state.runtime(), user_id, input).await?
 });
 
 admin_web_json_command!(get_admin_overview, |state, user_id, _args| {
-    admin_records_actions::get_admin_overview_for_admin(state, user_id).await?
+    admin_records_actions::get_admin_overview_for_admin(state.runtime(), user_id).await?
 });
 
 fn require_admin_caller(authenticated_user_id: i64, args: &Value) -> Result<(), ApiError> {

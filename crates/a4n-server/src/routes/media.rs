@@ -1,8 +1,8 @@
 use super::auth::authenticated_user_from_access_token;
 use super::error::ApiError;
 use crate::state::ServerState;
+use a4n_runtime::host_api::{auth_records, storage_paths};
 use a4n_runtime::{file_utils, media_file};
-use a4n_services::auth::jwt;
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
@@ -26,16 +26,17 @@ pub(super) async fn serve(
 ) -> Result<Response, ApiError> {
     let path = media_file::relative_media_path(&query.path).map_err(ApiError::bad_request)?;
     authorize_media_request(&state, &query, &path).await?;
-    let path = state.config.data_dir.join(path);
-    let path =
-        file_utils::canonicalize_path_in_data_dir(&state.config.data_dir, &path, MEDIA_LABEL)
-            .map_err(|err| {
-                if err.contains("不在应用数据目录内") {
-                    ApiError::forbidden(err)
-                } else {
-                    ApiError::bad_request(err)
-                }
-            })?;
+    let data_dir = storage_paths::data_dir_path(state.runtime());
+    let path = data_dir.join(path);
+    let path = file_utils::canonicalize_path_in_data_dir(&data_dir, &path, MEDIA_LABEL).map_err(
+        |err| {
+            if err.is_outside_data_directory() {
+                ApiError::forbidden(err.to_string())
+            } else {
+                ApiError::bad_request(err.to_string())
+            }
+        },
+    )?;
     file_response(&path, headers.get(header::RANGE))
 }
 
@@ -60,44 +61,9 @@ async fn authorize_media_request(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| ApiError::unauthorized("缺少媒体访问令牌"))?;
-    let secret = state
-        .config
-        .security
-        .jwt_secret
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| ApiError::bad_request("A4N_JWT_SECRET 不能为空"))?;
-    let claims = jwt::verify_token(token, secret).map_err(|err| {
-        let message = err.to_string();
-        if message.contains("JWT") {
-            ApiError::unauthorized(message)
-        } else {
-            ApiError::forbidden(message)
-        }
-    })?;
-    if claims.token_type != "media" {
-        return Err(ApiError::forbidden("令牌类型错误：需要媒体令牌"));
-    }
-    let expected = claims
-        .media_path
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| ApiError::forbidden("媒体令牌缺少绑定路径"))?;
-    let expected_path = media_file::relative_media_path(expected).map_err(ApiError::forbidden)?;
-    if expected_path != path {
-        return Err(ApiError::forbidden("媒体令牌与请求文件不匹配"));
-    }
-    let user_id = claims
-        .sub
-        .parse::<i64>()
-        .map_err(|_| ApiError::forbidden("媒体令牌 subject 不是有效用户 ID"))?;
-    state
-        .auth
-        .get_current_user(user_id)
+    auth_records::verify_media_token_for_path(state.runtime(), token, path)
         .await
-        .map_err(|err| ApiError::forbidden(err.to_string()))?;
+        .map_err(ApiError::from)?;
     Ok(())
 }
 

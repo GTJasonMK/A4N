@@ -11,7 +11,8 @@ import {
 import type { GeneratedImage } from "../../../api/image";
 import type { ChapterVideoPrompt, VideoWorkflowMode } from "../../../api/video";
 import { BookButton } from "../../../components/ui/BookButton";
-import { BookCard } from "../../../components/ui/BookCard";
+import { Dropdown } from "../../../components/ui/Dropdown";
+import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { asArray, asJsonRecord as asRecord } from "../../../utils/jsonRecord";
 import { StyleTemplatePicker } from "../StyleTemplatePicker";
 import { EmptyHint } from "../shared";
@@ -36,6 +37,7 @@ import {
   type PromptUpdateInput,
 } from "./VideoFramePromptCard";
 import { VideoDurationOptionsPicker } from "./VideoDurationOptionsPicker";
+import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 
 interface VideoFrameWorkspaceProps {
   prompts: ChapterVideoPrompt[];
@@ -88,8 +90,7 @@ const compactLabel = (value: unknown): string | null => {
     return (
       textValue(record.anchor) ??
       textValue(record.name) ??
-      textValue(record.entity) ??
-      textValue(record.id)
+      textValue(record.entity)
     );
   }
   return null;
@@ -134,7 +135,7 @@ const DurationControl: React.FC<{
       >
         {durationLimits.supportedDurations.map((duration) => (
           <option key={duration} value={duration}>
-            {duration}s
+            {duration} 秒
           </option>
         ))}
       </select>
@@ -203,25 +204,11 @@ const SegmentPlanPanel: React.FC<{
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
-        <div className="a4n-stat-tile px-2 py-1">
-          <div className="text-book-text-muted">规划记录</div>
-          <div className="min-w-0 truncate font-mono text-book-text-main">
-            #{prompt.id} · {prompt.status}
-          </div>
-        </div>
-        <div className="a4n-stat-tile px-2 py-1">
-          <div className="text-book-text-muted">片段</div>
-          <div className="font-mono text-book-text-main">{segments.length}</div>
-        </div>
-        <div className="a4n-stat-tile px-2 py-1">
-          <div className="text-book-text-muted">总时长</div>
-          <div className="font-mono text-book-text-main">{totalDurationSecs}s</div>
-        </div>
-        <div className="a4n-stat-tile px-2 py-1">
-          <div className="text-book-text-muted">{firstFrameMode ? "初始首帧" : frameLabel}</div>
-          <div className="font-mono text-book-text-main">{expectedFrameCount}</div>
-        </div>
+      <div className="text-[11px] leading-relaxed text-book-text-muted">
+        {getOperationStatusLabel(prompt.status)} · {segments.length} 段
+        {totalDurationSecs > 0 ? ` · ${totalDurationSecs} 秒` : ""}
+        <span className="mx-1.5">·</span>
+        {firstFrameMode ? "初始首帧" : frameLabel} {expectedFrameCount}
       </div>
 
       {segments.length === 0 ? (
@@ -229,10 +216,10 @@ const SegmentPlanPanel: React.FC<{
           <EmptyHint text="片段规划没有可展示的 segments。" />
         </div>
       ) : (
-        <ol className="mt-3 space-y-2">
+        <ol className="a4n-flat-surface mt-3 divide-y divide-book-border/40 overflow-hidden">
           {segments.map((segment, index) => {
             const segmentNumber = numberValue(segment.segment_number) ?? index + 1;
-            const title = textValue(segment.title) ?? `片段 ${segmentNumber}`;
+            const title = textValue(segment.title);
             const durationSecs = numberValue(segment.duration_secs);
             const sceneSummary = textValue(segment.scene_summary);
             const blockingSummary = textValue(segment.blocking_summary);
@@ -247,7 +234,6 @@ const SegmentPlanPanel: React.FC<{
             const videoIntent = asRecord(segment.video_intent);
             const hook = textValue(videoIntent?.hook);
             const visualPriority = textValue(videoIntent?.visual_priority);
-            const sourceSpanIds = asArray(segment.source_span_ids).map(String);
             const spatialAnchors = asArray(segment.spatial_anchors)
               .map(compactLabel)
               .filter((label): label is string => label != null);
@@ -256,32 +242,27 @@ const SegmentPlanPanel: React.FC<{
               .map(compactLabel)
               .filter((label): label is string => label != null);
             const riskNote = textValue(materialCoverage?.risk_note);
-            const shotId = numberValue(segment.analysis_shot_id);
+            const shotId = textValue(segment.source_shot_id);
             const segmentIndexInShot = numberValue(segment.segment_index_in_shot);
             const shotSegmentCount = numberValue(segment.shot_segment_count);
             return (
               <li
                 key={`${segmentNumber}:${index}`}
-                className="min-w-0 rounded border border-book-border/60 bg-book-bg-paper/55 p-2"
+                className="min-w-0 px-3 py-3"
               >
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                  <span className="shrink-0 font-mono text-xs text-book-text-muted">
-                    #{segmentNumber}
-                  </span>
-                  <span className="min-w-[7rem] flex-1 truncate text-xs font-medium text-book-text-main">
-                    {title}
-                  </span>
-                  {durationSecs != null && (
-                    <span className="pyqt-pill shrink-0 !text-[10px]">{durationSecs}s</span>
-                  )}
-                  {shotId != null && (
-                    <span className="pyqt-pill shrink-0 !text-[10px]">镜头 {shotId}</span>
-                  )}
-                  {segmentIndexInShot != null && shotSegmentCount != null && (
-                    <span className="pyqt-pill shrink-0 !text-[10px]">
-                      {segmentIndexInShot}/{shotSegmentCount}
-                    </span>
-                  )}
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-medium text-book-text-main">
+                    片段 {segmentNumber}{title ? ` · ${title}` : ""}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-book-text-muted">
+                    {[
+                      durationSecs != null ? `${durationSecs} 秒` : null,
+                      shotId != null ? `镜头 ${shotId}` : null,
+                      segmentIndexInShot != null && shotSegmentCount != null && shotSegmentCount > 1
+                        ? `镜头内第 ${segmentIndexInShot}/${shotSegmentCount} 段`
+                        : null,
+                    ].filter(Boolean).join(" · ")}
+                  </div>
                 </div>
 
                 {sceneSummary && (
@@ -302,30 +283,15 @@ const SegmentPlanPanel: React.FC<{
                   {riskNote && <SegmentInfoLine label="素材">{riskNote}</SegmentInfoLine>}
                 </div>
 
-                {(spatialAnchors.length > 0 ||
-                  sourceSpanIds.length > 0 ||
-                  missingReferences.length > 0) && (
-                  <div className="mt-2 flex min-w-0 flex-wrap gap-1 text-[10px] text-book-text-muted">
-                    {spatialAnchors.slice(0, 4).map((anchor, anchorIndex) => (
-                      <span
-                        key={`${segmentNumber}:anchor:${anchorIndex}`}
-                        className="pyqt-pill shrink-0 !text-[10px]"
-                      >
-                        {anchor}
-                      </span>
-                    ))}
-                    {sourceSpanIds.slice(0, 3).map((id, idIndex) => (
-                      <span
-                        key={`${segmentNumber}:source:${idIndex}`}
-                        className="pyqt-pill shrink-0 !text-[10px]"
-                      >
-                        {id}
-                      </span>
-                    ))}
+                {(spatialAnchors.length > 0 || missingReferences.length > 0) && (
+                  <div className="mt-2 space-y-1 text-[10px] leading-relaxed text-book-text-muted">
+                    {spatialAnchors.length > 0 && (
+                      <div>空间锚点：{spatialAnchors.slice(0, 4).join("、")}</div>
+                    )}
                     {missingReferences.length > 0 && (
-                      <span className="pyqt-pill shrink-0 !border-warning/50 !text-[10px] !text-warning">
-                        弱覆盖 {missingReferences.length}
-                      </span>
+                      <div className="text-warning">
+                        {missingReferences.length} 项素材覆盖不足
+                      </div>
                     )}
                   </div>
                 )}
@@ -335,11 +301,11 @@ const SegmentPlanPanel: React.FC<{
         </ol>
       )}
 
-      <details className="mt-3 rounded border border-book-border/60 bg-book-bg-paper/45 px-2 py-1.5">
+      <details className="mt-3 text-[10px] text-book-text-muted">
         <summary className="cursor-pointer text-[11px] font-medium text-book-text-muted">
-          原始 JSON
+          诊断信息
         </summary>
-        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-book-bg-muted/60 p-2 text-[10px] leading-relaxed text-book-text-main custom-scrollbar">
+        <pre className="mt-2 whitespace-pre-wrap break-words border-l border-book-border/60 pl-2 font-mono text-[10px] leading-relaxed text-book-text-sub [overflow-wrap:anywhere]">
           {compactJson(metadata?.segments ?? metadata ?? prompt.metadata_json)}
         </pre>
       </details>
@@ -486,7 +452,6 @@ export const VideoFrameWorkspace: React.FC<VideoFrameWorkspaceProps> = ({
     for (const image of frameImages) map.set(image.id, image);
     return map;
   }, [availableImages, frameImages, referenceLookupImages]);
-  const generatedFrameImageCount = generatedFrameImages.length;
   const segmentPlanSegmentCount = asArray(asRecord(segmentPlanPrompt?.metadata_json)?.segments).length;
   const expectedFramePromptCount = expectedFrameCountFromSegmentPlanPrompt(
     segmentPlanPrompt,
@@ -516,7 +481,6 @@ export const VideoFrameWorkspace: React.FC<VideoFrameWorkspaceProps> = ({
     totalFramePromptRecordCount - prompts.length,
   );
   const segmentPlanRunningLocked = segmentPlanPrompt?.status === "running";
-  const segmentPlanHasDownstream = totalFramePromptRecordCount > 0 || hasVideoPrompts;
   const segmentPlanDownstreamReason =
     totalFramePromptRecordCount > 0
       ? `已存在后续${framePromptLabel} ${totalFramePromptRecordCount} 条；请先在片段规划页顶部处理后续提示词`
@@ -545,10 +509,8 @@ export const VideoFrameWorkspace: React.FC<VideoFrameWorkspaceProps> = ({
         : segmentPlanRunningLocked
           ? `${segmentPlanLabel}正在运行，不能删除`
           : undefined;
-  const framePromptRunningLocked = runningFramePrompt != null;
-  const framePromptGenerateLocked = framePromptRunningLocked;
   const framePromptLockedReason = runningFramePrompt
-    ? `${framePromptLabel} #${runningFramePrompt.shot_number} 正在运行，前置阶段已锁定`
+    ? `${framePromptLabel} ${runningFramePrompt.shot_number} 正在运行，前置阶段已锁定`
     : undefined;
   const framePromptGenerationBlockedReason =
     durationLimits.configError ??
@@ -568,48 +530,45 @@ export const VideoFrameWorkspace: React.FC<VideoFrameWorkspaceProps> = ({
     () =>
       prompts.filter(
         (prompt) => (generatedImageCountsByPromptId.get(prompt.id) ?? 0) === 0,
-      ),
+    ),
     [generatedImageCountsByPromptId, prompts],
   );
+  const segmentPlanGenerating = acting === "generate-segment-plan";
+  const showSegmentPlanPrimary =
+    segmentPlanGenerating || segmentPlanGenerationBlockedReason == null;
+  const framePromptsGenerating = acting === "generate-frame-prompts";
+  const framePromptActionBlockedReason =
+    framePromptGenerationBlockedReason ??
+    (remainingFramePromptCount === 0
+      ? `${framePromptLabel}已全部生成`
+      : undefined);
+  const showFramePromptPrimary =
+    framePromptsGenerating || framePromptActionBlockedReason == null;
   return (
     <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[320px_minmax(0,1fr)]">
-      <BookCard className="flex min-h-0 flex-col p-3">
-        <div className="mb-3 grid min-w-0 grid-cols-3 overflow-hidden rounded-sm border border-book-border/40 bg-book-bg-paper/30">
-          <button
-            type="button"
-            data-active={framePanelTab === "generate" ? "1" : undefined}
-            onClick={() => setFramePanelTab("generate")}
-            className="pyqt-tab min-w-0 flex-1 justify-center !px-2"
-          >
-            <Wand2 size={12} />
-            <span className="truncate">生成片段</span>
-          </button>
-          <button
-            type="button"
-            data-active={framePanelTab === "segments" ? "1" : undefined}
-            onClick={() => setFramePanelTab("segments")}
-            className="pyqt-tab min-w-0 flex-1 justify-center !px-2"
-          >
-            <ClipboardList size={12} />
-            <span className="truncate">片段规划</span>
-            {segmentPlanSegmentCount > 0 && (
-              <span className="font-mono text-[10px]">{segmentPlanSegmentCount}</span>
-            )}
-          </button>
-          <button
-            type="button"
-            data-active={framePanelTab === "prompts" ? "1" : undefined}
-            onClick={() => setFramePanelTab("prompts")}
-            className="pyqt-tab min-w-0 flex-1 justify-center !px-2"
-          >
-            <ListChecks size={12} />
-            <span className="truncate">{framePromptLabel}</span>
-            <span className="font-mono text-[10px]">{prompts.length}</span>
-          </button>
-        </div>
+      <section className="flex min-h-0 flex-col">
+        <SegmentedControl
+          className="mb-3"
+          ariaLabel="视频片段工作区"
+          value={framePanelTab}
+          onChange={setFramePanelTab}
+          options={[
+            { id: "generate", label: "生成", icon: <Wand2 size={12} /> },
+            {
+              id: "segments",
+              label: `片段${segmentPlanSegmentCount > 0 ? ` ${segmentPlanSegmentCount}` : ""}`,
+              icon: <ClipboardList size={12} />,
+            },
+            {
+              id: "prompts",
+              label: `${framePromptLabel}${prompts.length > 0 ? ` ${prompts.length}` : ""}`,
+              icon: <ListChecks size={12} />,
+            },
+          ]}
+        />
 
         {framePanelTab === "generate" ? (
-          <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
+          <div className="a4n-flat-surface min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar">
             <StyleTemplatePicker
               label="视频链路风格"
               value={options.style}
@@ -617,7 +576,14 @@ export const VideoFrameWorkspace: React.FC<VideoFrameWorkspaceProps> = ({
               rows={4}
               onChange={(style) => onOptionsChange((prev) => ({ ...prev, style }))}
             />
-            <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+            <details className="group mt-3 border-y border-book-border/40 py-2">
+              <summary className="flex min-h-8 cursor-pointer list-none items-center gap-2 text-xs [&::-webkit-details-marker]:hidden">
+                <span className="font-medium text-book-text-main">生成选项</span>
+                <span className="min-w-0 flex-1 truncate text-right text-[10px] text-book-text-muted">
+                  {options.durationSecs} 秒 · {options.aspectRatio} · {PROMPT_OUTPUT_LANGUAGE_LABELS[options.promptOutputLanguage]}
+                </span>
+              </summary>
+              <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
               <label className="flex flex-col gap-1">
                 <span className="text-book-text-muted">默认时长</span>
                 <DurationControl
@@ -678,227 +644,154 @@ export const VideoFrameWorkspace: React.FC<VideoFrameWorkspaceProps> = ({
                   ))}
                 </select>
               </label>
-            </div>
-            <div className="a4n-stat-tile mt-2 px-2 py-1.5 text-[11px] text-book-text-sub">
+              </div>
+            </details>
+            <div className="mt-3 text-[11px] leading-relaxed text-book-text-muted">
               {durationLimitsLabel(durationLimits)}
             </div>
             {durationLimits.configError && (
-              <div className="mt-2 rounded border border-error/40 bg-error/10 px-2 py-1.5 text-[11px] text-error">
+              <div role="alert" className="mt-2 rounded-lg border border-error/35 bg-error-bg px-2.5 py-2 text-[11px] text-error">
                 {durationLimits.configError}
               </div>
             )}
             {promptInputSelectionError && (
-              <div className="mt-2 rounded border border-error/40 bg-error/10 px-2 py-1.5 text-[11px] text-error">
+              <div role="alert" className="mt-2 rounded-lg border border-error/35 bg-error-bg px-2.5 py-2 text-[11px] text-error">
                 {promptInputSelectionError}
               </div>
             )}
-            <BookButton
-              variant="primary"
-              size="sm"
-              onClick={() => void onGenerateSegments()}
-              disabled={
-                chapterGenerating ||
-                acting === "generate-segment-plan" ||
-                !options.style.trim() ||
-                segmentPlanRunningLocked ||
-                segmentPlanHasDownstream ||
-                durationLimits.configError != null ||
-                promptInputSelectionError != null
-              }
-              title={segmentPlanGenerationBlockedReason}
-              className="mt-2 w-full"
-            >
-              <span className="inline-flex items-center gap-1">
-                {acting === "generate-segment-plan" ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Wand2 size={12} />
-                )}
-                生成/重试{segmentPlanLabel}
-              </span>
-            </BookButton>
-            {segmentPlanPrompt && (
-              <BookButton
-                variant="secondary"
-                size="sm"
-                onClick={() => void onGenerateSegments({ regenerateExisting: true })}
-                disabled={
-                  chapterGenerating ||
-                  acting === "generate-segment-plan" ||
-                  !options.style.trim() ||
-                  segmentPlanRunningLocked ||
-                  segmentPlanHasDownstream ||
-                  durationLimits.configError != null ||
-                  promptInputSelectionError != null
-                }
-                title={segmentPlanRegenerationBlockedReason}
-                className="mt-2 w-full"
-              >
-                <span className="inline-flex items-center gap-1">
-                  {acting === "generate-segment-plan" ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <RotateCcw size={12} />
-                  )}
-                  重新生成{segmentPlanLabel}
-                </span>
-              </BookButton>
-            )}
-            {segmentPlanPrompt && (
-              <BookButton
-                variant="danger"
-                size="sm"
-                onClick={() => void onDeleteSegmentPlan(segmentPlanPrompt)}
-                disabled={
-                  acting === `delete-prompt-${segmentPlanPrompt.id}` ||
-                  deleteSegmentPlanBlockedReason != null
-                }
-                title={deleteSegmentPlanBlockedReason ?? segmentPlanDownstreamReason}
-                className="mt-2 w-full"
-              >
-                <span className="inline-flex items-center gap-1">
-                  {acting === `delete-prompt-${segmentPlanPrompt.id}` ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={12} />
-                  )}
-                  删除{segmentPlanLabel}
-                </span>
-              </BookButton>
-            )}
-            {segmentPlanPrompt && (
-              <div className="a4n-stat-tile mt-2 px-2 py-1 text-[11px] text-book-text-muted">
-                {segmentPlanLabel} #{segmentPlanPrompt.id} · {segmentPlanPrompt.status}
+            {segmentPlanGenerationBlockedReason && !segmentPlanGenerating && (
+              <div role="status" className="mt-2 rounded-lg border border-warning/35 bg-warning-bg px-2.5 py-2 text-[11px] text-warning">
+                {segmentPlanGenerationBlockedReason}
               </div>
             )}
-            {hasVideoPrompts && (
-              <div className="a4n-stat-tile mt-2 px-2 py-1 text-[11px] text-book-text-muted">
-                已有视频提示词 {videoPromptCount} 条；编辑或删除被引用的前置提示词时，需要选择删除下游或保留下游继续。
-              </div>
-            )}
-            {generatedFrameImageCount > 0 && (
-              <div className="a4n-stat-tile mt-2 px-2 py-1 text-[11px] text-book-text-muted">
-                已有图片 {generatedFrameImageCount} 张；生成/续跑可继续补齐缺失提示词，重新生成会由后端逐条保护已有图片记录
-              </div>
-            )}
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-              <div className="a4n-stat-tile px-2 py-1">
-                <div className="text-book-text-muted">可选参考图</div>
-                <div className="font-mono text-book-text-main">{availableImages.length}</div>
-              </div>
-              <div className="a4n-stat-tile px-2 py-1">
-                <div className="text-book-text-muted">已有图片</div>
-                <div className="font-mono text-book-text-main">{generatedFrameImages.length}</div>
-              </div>
+            <div className="mt-3 flex items-center gap-2">
+              {showSegmentPlanPrimary && (
+                <BookButton
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void onGenerateSegments()}
+                  disabled={segmentPlanGenerating}
+                  title={segmentPlanGenerationBlockedReason}
+                  className="min-w-0 flex-1"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {segmentPlanGenerating ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={12} />
+                    )}
+                    {segmentPlanGenerating
+                      ? "正在生成"
+                      : segmentPlanPrompt
+                        ? `继续${segmentPlanLabel}`
+                        : `生成${segmentPlanLabel}`}
+                  </span>
+                </BookButton>
+              )}
+              {segmentPlanPrompt && (
+                <Dropdown
+                  label="更多"
+                  items={[
+                    {
+                      label: `重新生成${segmentPlanLabel}`,
+                      icon: <RotateCcw size={12} />,
+                      disabled:
+                        segmentPlanGenerating ||
+                        segmentPlanRegenerationBlockedReason != null,
+                      onClick: () => void onGenerateSegments({ regenerateExisting: true }),
+                    },
+                    ...(deleteSegmentPlanBlockedReason == null
+                      ? [
+                          { type: "divider" as const },
+                          {
+                            label: `删除${segmentPlanLabel}`,
+                            icon: <Trash2 size={12} />,
+                            danger: true,
+                            disabled: acting === `delete-prompt-${segmentPlanPrompt.id}`,
+                            onClick: () => void onDeleteSegmentPlan(segmentPlanPrompt),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              )}
+            </div>
+            <div className="mt-3 text-[11px] leading-relaxed text-book-text-muted">
+              {segmentPlanPrompt
+                ? `${segmentPlanLabel}已${getOperationStatusLabel(segmentPlanPrompt.status)}`
+                : `尚未生成${segmentPlanLabel}`}
+              {availableImages.length > 0 ? ` · 可用参考图 ${availableImages.length} 张` : ""}
+              {generatedFrameImages.length > 0 ? ` · 已有成图 ${generatedFrameImages.length} 张` : ""}
             </div>
           </div>
         ) : framePanelTab === "segments" ? (
           <div className="flex min-h-0 flex-1 flex-col gap-2">
-            <div className="shrink-0 space-y-2 border-b border-book-border/50 pb-2">
-              <div className="grid grid-cols-2 gap-2 text-[11px] text-book-text-muted">
-                <div className="a4n-stat-tile px-2 py-1">
-                  {segmentPlanPrompt
-                    ? `${segmentPlanLabel} ${segmentPlanSegmentCount} 段`
-                    : `未生成${segmentPlanLabel}`}
+            <div className="shrink-0 border-b border-book-border/50 pb-3">
+              {framePromptActionBlockedReason && !framePromptsGenerating && (
+                <div role="status" className="rounded-lg border border-warning/35 bg-warning-bg px-2.5 py-2 text-[11px] text-warning">
+                  {framePromptActionBlockedReason}
                 </div>
-                <div className="a4n-stat-tile px-2 py-1">
-                  {framePromptLabel} {prompts.length} 条
-                </div>
-              </div>
-              <BookButton
-                variant="primary"
-                size="sm"
-                onClick={() => void onGeneratePrompts()}
-                disabled={
-                  chapterGenerating ||
-                  acting === "generate-frame-prompts" ||
-                  !options.style.trim() ||
-                  !segmentPlanPrompt ||
-                  segmentPlanRunningLocked ||
-                  framePromptGenerateLocked ||
-                  durationLimits.configError != null ||
-                  promptInputSelectionError != null
-                }
-                title={framePromptGenerationBlockedReason}
-                className="w-full"
-              >
-                <span className="inline-flex items-center gap-1">
-                  {acting === "generate-frame-prompts" ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Wand2 size={12} />
-                  )}
-                  生成/续跑{framePromptLabel}
-                </span>
-              </BookButton>
-              {chatVideoMode &&
-                remainingFramePromptCount != null &&
-                remainingFramePromptCount > 0 && (
-                  <BookButton
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => void onGeneratePrompts({ runUntilComplete: true })}
-                    disabled={
-                      chapterGenerating ||
-                      acting === "generate-frame-prompts" ||
-                      !options.style.trim() ||
-                      !segmentPlanPrompt ||
-                      segmentPlanRunningLocked ||
-                      framePromptRunningLocked ||
-                      durationLimits.configError != null ||
-                      promptInputSelectionError != null
-                    }
-                    title={framePromptGenerationBlockedReason}
-                    className="w-full"
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {acting === "generate-frame-prompts" ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <ListChecks size={12} />
-                      )}
-                      一键续跑当前语言剩余 {remainingFramePromptCount} 条
-                    </span>
-                  </BookButton>
+              )}
+              <div className={`${framePromptActionBlockedReason && !framePromptsGenerating ? "mt-3" : ""} flex items-center gap-2`}>
+                {showFramePromptPrimary && (
+                <BookButton
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void onGeneratePrompts()}
+                  disabled={framePromptsGenerating}
+                  title={framePromptActionBlockedReason}
+                  className="min-w-0 flex-1"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {framePromptsGenerating ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={12} />
+                    )}
+                    {framePromptsGenerating ? "正在生成" : `生成下一批${framePromptLabel}`}
+                  </span>
+                </BookButton>
                 )}
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void onPreviewPromptRequests()}
-                  disabled={previewingPromptRequests || promptInputSelectionError != null}
-                  title={promptInputSelectionError ?? undefined}
-                  className="w-full"
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {previewingPromptRequests ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Eye size={12} />
-                    )}
-                    查看完整提示词
-                  </span>
-                </BookButton>
-                <BookButton
-                  variant="danger"
-                  size="sm"
-                  onClick={() => void onDeleteAllFramePrompts()}
-                  disabled={
-                    acting === "delete-frame-prompts" ||
-                    deleteAllFramePromptsBlockedReason != null
-                  }
-                  title={deleteAllFramePromptsBlockedReason}
-                  className="w-full"
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {acting === "delete-frame-prompts" ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={12} />
-                    )}
-                    删除全部
-                  </span>
-                </BookButton>
+                <Dropdown
+                  label="更多"
+                  items={[
+                    ...(chatVideoMode &&
+                    remainingFramePromptCount != null &&
+                    remainingFramePromptCount > 0
+                      ? [
+                          {
+                            label: `连续生成剩余 ${remainingFramePromptCount} 条`,
+                            icon: <ListChecks size={12} />,
+                            disabled:
+                              framePromptsGenerating ||
+                              framePromptGenerationBlockedReason != null,
+                            onClick: () => void onGeneratePrompts({ runUntilComplete: true }),
+                          },
+                        ]
+                      : []),
+                    {
+                      label: previewingPromptRequests ? "正在准备模型请求" : "查看完整模型请求",
+                      icon: previewingPromptRequests
+                        ? <Loader2 size={12} className="animate-spin" />
+                        : <Eye size={12} />,
+                      disabled:
+                        previewingPromptRequests || promptInputSelectionError != null,
+                      onClick: () => void onPreviewPromptRequests(),
+                    },
+                    ...(deleteAllFramePromptsBlockedReason == null
+                      ? [
+                          { type: "divider" as const },
+                          {
+                            label: `删除全部${framePromptLabel}`,
+                            icon: <Trash2 size={12} />,
+                            danger: true,
+                            disabled: acting === "delete-frame-prompts",
+                            onClick: () => void onDeleteAllFramePrompts(),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
               </div>
             </div>
             <SegmentPlanPanel
@@ -910,21 +803,23 @@ export const VideoFrameWorkspace: React.FC<VideoFrameWorkspaceProps> = ({
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
-            <div className="mb-2 space-y-2 text-[11px] text-book-text-muted">
-              <div className="a4n-stat-tile px-2 py-1">
-                待生成图片 {pendingImagePrompts.length}/{prompts.length}
+            {prompts.length > 0 && (
+              <div className="mb-2 text-[11px] text-book-text-muted">
+                {pendingImagePrompts.length > 0
+                  ? `还有 ${pendingImagePrompts.length} 张图片待生成`
+                  : `${prompts.length} 条提示词均已有图片`}
               </div>
-            </div>
+            )}
             {prompts.length === 0 ? (
               <EmptyHint
                 text={
                   hiddenFramePromptRecordCount > 0
-                    ? `当前章节已有 ${hiddenFramePromptRecordCount} 条首尾帧类提示词记录，但不属于当前生成模式或合同版本，请切换对应模式查看，或删除后重新生成。`
+                    ? `当前生成模式不包含已有的 ${hiddenFramePromptRecordCount} 条首尾帧提示词。请切换对应模式查看，或删除后重新生成。`
                     : `还没有${framePromptLabel}。`
                 }
               />
             ) : (
-              <ul className="space-y-2">
+              <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
                 {prompts.map((prompt) => {
                   const generatedImageCount = generatedImageCountsByPromptId.get(prompt.id) ?? 0;
                   return (
@@ -953,7 +848,7 @@ export const VideoFrameWorkspace: React.FC<VideoFrameWorkspaceProps> = ({
             )}
           </div>
         )}
-      </BookCard>
+      </section>
 
       <VideoFrameImageGallery
         images={generatedFrameImages}

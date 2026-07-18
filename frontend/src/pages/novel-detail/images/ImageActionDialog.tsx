@@ -1,10 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Clipboard,
-  Database,
-  FileJson,
   Image as ImageIcon,
-  Info,
   Loader2,
   Save,
   Star,
@@ -12,6 +9,7 @@ import {
 } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
+import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { useToast } from "../../../components/feedback/Toast";
 import type { GeneratedImage, UpdateImageInput } from "../../../api/image";
 import { copyTextToClipboard } from "../../../utils/clipboard";
@@ -25,6 +23,7 @@ import {
   imageSourceMetadataFields,
   type MetadataField,
 } from "./imageMetadata";
+import { imageTypeLabel } from "./imageTabUtils";
 
 type ImageDialogTab = "overview" | "metadata" | "manage";
 
@@ -45,11 +44,10 @@ interface ImageActionDialogProps {
 const IMAGE_DIALOG_TABS: Array<{
   id: ImageDialogTab;
   label: string;
-  icon: ReactNode;
 }> = [
-  { id: "overview", label: "概览", icon: <Info size={12} /> },
-  { id: "metadata", label: "元数据", icon: <FileJson size={12} /> },
-  { id: "manage", label: "管理", icon: <Database size={12} /> },
+  { id: "overview", label: "概览" },
+  { id: "metadata", label: "来源" },
+  { id: "manage", label: "管理" },
 ];
 
 const SYSTEM_MANAGED_IMAGE_TYPES = new Set([
@@ -122,17 +120,32 @@ export function ImageActionDialog({
 
   if (!image) return null;
 
-  const busy = busyId != null || scoringId != null;
+  const busy = busyId != null || scoringId != null || savingEdit;
   const src = toMediaSrc(image.file_path);
   const generationFields = imageGenerationMetadataFields(image);
   const sourceFields = imageSourceMetadataFields(image);
   const businessFields = imageBusinessMetadataFields(image);
   const snapshotFields = imagePromptSnapshotFields(image);
+  const detailSections = [
+    { title: "生成信息", fields: generationFields },
+    { title: "业务来源", fields: businessFields },
+    { title: "正文来源", fields: sourceFields },
+    { title: "提示词快照", fields: snapshotFields },
+  ].filter((section) => section.fields.length > 0);
   const systemManagedImageType = isSystemManagedImageType(image.image_type);
+  const overviewFields = imageBaseMetadataFields(image).filter(
+    (field) => !["图片类型", "模型", "尺寸"].includes(field.label),
+  );
   const editDirty =
     editPrompt.trim() !== image.prompt.trim() ||
     (!systemManagedImageType && editType.trim() !== image.image_type.trim()) ||
     (!systemManagedImageType && editPanelId.trim() !== (image.panel_id ?? ""));
+  const scoreValue = scoreInput.trim() ? Number(scoreInput) : Number.NaN;
+  const scoreValid =
+    Number.isFinite(scoreValue) && scoreValue >= 0 && scoreValue <= 1;
+  const scoreDirty =
+    scoreValid &&
+    (image.ai_score == null || Math.abs(scoreValue - image.ai_score) > 0.000_001);
 
   const copyRawJson = async () => {
     try {
@@ -173,130 +186,164 @@ export function ImageActionDialog({
     <Modal
       isOpen
       onClose={onClose}
-      title={`图片 #${image.id}`}
-      subtitle={`${image.image_type} · ${image.model}`}
+      title={imageTypeLabel(image.image_type)}
+      subtitle={`${image.width} × ${image.height}${image.is_favorite ? " · 已收藏" : ""}`}
       icon={<ImageIcon size={15} />}
       maxWidthClassName="max-w-5xl"
       bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4"
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
       showCloseButton={!busy}
-      headerExtra={
-        <div className="flex overflow-hidden rounded-sm border border-book-border/50 bg-book-bg-paper/35">
-          {visibleTabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              data-active={activeTab === item.id ? "1" : undefined}
-              onClick={() => setTab(item.id)}
-              className="pyqt-tab !px-3"
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-        </div>
-      }
     >
+      <SegmentedControl
+        ariaLabel="图片详情栏目"
+        value={activeTab}
+        onChange={setTab}
+        options={visibleTabs}
+        className="mb-4 w-full [&_.a4n-seg__btn]:flex-1 sm:w-auto sm:[&_.a4n-seg__btn]:flex-none"
+      />
+
       {activeTab === "overview" ? (
         <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           <div className="min-w-0">
-            <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded border border-book-border/50 bg-book-bg-tertiary text-xs text-book-text-muted">
+            <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[14px] border border-book-border/50 bg-book-bg-tertiary text-xs text-book-text-muted">
               {src ? (
-                <img src={src} alt={`图片 ${image.id}`} className="h-full w-full object-contain" />
+                <img
+                  src={src}
+                  alt={`${imageTypeLabel(image.image_type)}预览`}
+                  className="h-full w-full object-contain"
+                />
               ) : (
                 "无图"
               )}
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
-              <span className="pyqt-pill !text-[10px]">{image.image_type}</span>
-              {image.panel_id ? (
-                <span className="pyqt-pill !text-[10px] font-mono">{image.panel_id}</span>
-              ) : null}
-              {image.ai_score != null ? (
-                <span className="pyqt-pill !text-[10px]">评分 {image.ai_score.toFixed(3)}</span>
-              ) : null}
-              {image.is_favorite ? (
-                <span className="pyqt-pill !text-[10px] inline-flex items-center gap-0.5">
-                  <Star size={9} fill="currentColor" />
-                  收藏
-                </span>
-              ) : null}
-            </div>
           </div>
           <div className="min-w-0 space-y-4">
-            <MetadataSection title="基础记录" fields={imageBaseMetadataFields(image)} />
+            <MetadataSection title="基础信息" fields={overviewFields} />
             <MetadataTextBlock title="生成提示词" text={image.prompt} />
           </div>
         </div>
       ) : activeTab === "metadata" ? (
         <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <MetadataSection title="生成链路" fields={generationFields} empty="没有 generation 元数据。" />
-            <MetadataSection title="业务来源" fields={businessFields} empty="没有业务来源元数据。" />
-            <MetadataSection title="正文来源" fields={sourceFields} empty="没有 source 元数据。" />
-            <MetadataSection title="提示词快照" fields={snapshotFields} empty="没有 prompt_snapshot。" />
-          </div>
-          <div className="a4n-page-surface overflow-hidden">
-            <div className="flex items-center justify-between gap-2 border-b border-book-border/40 px-3 py-2">
-              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-book-text-main">
-                <FileJson size={12} className="text-book-primary" />
-                原始记录
-              </div>
-              <button
-                type="button"
-                onClick={() => void copyRawJson()}
-                className="pyqt-btn-secondary inline-flex !min-h-7 items-center gap-1 !px-3 text-[11px]"
-              >
-                <Clipboard size={11} />
-                {copied ? "已复制" : "复制 JSON"}
-              </button>
+          {detailSections.length > 0 ? (
+            <div className="a4n-flat-surface divide-y divide-book-border/45 overflow-hidden">
+              {detailSections.map((section) => (
+                <MetadataSection
+                  key={section.title}
+                  title={section.title}
+                  fields={section.fields}
+                  embedded
+                />
+              ))}
             </div>
-            <pre className="max-h-80 overflow-auto p-3 text-[11px] leading-relaxed text-book-text-sub">
-              {rawJson}
-            </pre>
-          </div>
+          ) : (
+            <div className="py-8 text-center text-xs text-book-text-muted">没有可展示的图片详情。</div>
+          )}
+          <details className="a4n-flat-surface overflow-hidden">
+            <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-xs font-medium text-book-text-sub">
+              <span>诊断信息</span>
+              <span className="text-[10px] font-normal text-book-text-muted">原始生成记录</span>
+            </summary>
+            <div className="border-t border-book-border/40">
+              <div className="flex justify-end px-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => void copyRawJson()}
+                  className="pyqt-btn-secondary inline-flex !min-h-7 items-center gap-1 !px-3 text-[11px]"
+                >
+                  <Clipboard size={11} />
+                  {copied ? "已复制" : "复制 JSON"}
+                </button>
+              </div>
+          <pre className="whitespace-pre-wrap break-words p-3 font-mono text-[10px] leading-relaxed text-book-text-sub">
+                {rawJson}
+              </pre>
+            </div>
+          </details>
         </div>
       ) : (
-        <div className="space-y-4">
-          <ImageActionButton
-            icon={<Star size={14} fill={image.is_favorite ? "currentColor" : "none"} />}
-            title={image.is_favorite ? "取消收藏" : "收藏图片"}
-            description="调整图片是否进入收藏筛选。"
-            disabled={busyId === image.id}
-            onClick={() => onToggleFavorite(image)}
-          />
-          <div className="a4n-page-surface p-3">
-            <div className="mb-2 text-xs font-semibold text-book-text-main">记录编辑</div>
-            <div className="grid gap-2">
-              <label className="grid gap-1 text-[11px] text-book-text-muted">
-                图片类型
-                <input
-                  value={editType}
-                  onChange={(event) => setEditType(event.target.value)}
-                  className="pyqt-input !px-2 !py-1 text-xs"
-                  disabled={savingEdit || busy || systemManagedImageType}
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={image.is_favorite}
+              disabled={busyId === image.id}
+              onClick={() => onToggleFavorite(image)}
+              className="a4n-flat-surface flex w-full items-center justify-between gap-3 overflow-hidden px-3 py-3 text-left transition-colors hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              <span className="flex min-w-0 items-start gap-2.5">
+                <Star
+                  size={14}
+                  fill={image.is_favorite ? "currentColor" : "none"}
+                  className="mt-0.5 shrink-0 text-book-primary"
                 />
-              </label>
-              <label className="grid gap-1 text-[11px] text-book-text-muted">
-                面板 ID
-                <input
-                  value={editPanelId}
-                  onChange={(event) => setEditPanelId(event.target.value)}
-                  className="pyqt-input !px-2 !py-1 text-xs"
-                  placeholder="可留空"
-                  disabled={savingEdit || busy || systemManagedImageType}
+                <span className="min-w-0">
+                  <span className="block text-xs font-medium text-book-text-main">加入收藏</span>
+                  <span className="mt-0.5 block text-[11px] leading-relaxed text-book-text-muted">
+                    在图库中通过收藏筛选快速找到这张图片
+                  </span>
+                </span>
+              </span>
+              <span
+                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  image.is_favorite ? "bg-book-primary" : "bg-book-text-muted/25"
+                }`}
+                aria-hidden="true"
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                    image.is_favorite ? "translate-x-[22px]" : "translate-x-0.5"
+                  }`}
                 />
-              </label>
+              </span>
+            </button>
+
+            <section className="a4n-flat-surface space-y-3 p-3">
+              <div>
+                <h3 className="text-xs font-semibold text-book-text-main">生成提示词</h3>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+                  修改这张图片保存的提示词记录
+                </p>
+              </div>
               <label className="grid gap-1 text-[11px] text-book-text-muted">
-                Prompt
                 <textarea
                   value={editPrompt}
                   onChange={(event) => setEditPrompt(event.target.value)}
-                  className="pyqt-input min-h-[120px] resize-y !px-2 !py-1 text-xs"
+                  className="pyqt-input min-h-[132px] resize-y !rounded-[12px] !px-3 !py-2 text-xs leading-relaxed"
                   disabled={savingEdit || busy}
                 />
               </label>
+
+              {!systemManagedImageType ? (
+                <details className="rounded-[12px] border border-book-border/45 bg-book-bg-paper/30">
+                  <summary className="cursor-pointer px-3 py-2.5 text-[11px] font-medium text-book-text-sub">
+                    高级记录字段
+                  </summary>
+                  <div className="grid gap-2 border-t border-book-border/40 px-3 py-3">
+                    <label className="grid gap-1 text-[11px] text-book-text-muted">
+                      素材分类
+                      <input
+                        value={editType}
+                        onChange={(event) => setEditType(event.target.value)}
+                        className="pyqt-input !px-2 !py-1 text-xs"
+                        disabled={savingEdit || busy}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-[11px] text-book-text-muted">
+                      关联分镜标识
+                      <input
+                        value={editPanelId}
+                        onChange={(event) => setEditPanelId(event.target.value)}
+                        className="pyqt-input !px-2 !py-1 text-xs"
+                        placeholder="可留空"
+                        disabled={savingEdit || busy}
+                      />
+                    </label>
+                  </div>
+                </details>
+              ) : null}
+
               <div className="flex justify-end">
                 <BookButton
                   variant="primary"
@@ -309,45 +356,70 @@ export function ImageActionDialog({
                     !editPrompt.trim() ||
                     (!systemManagedImageType && !editType.trim())
                   }
+                  className="w-full !text-xs sm:w-auto"
                 >
                   {savingEdit ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
-                  保存记录
+                  保存修改
                 </BookButton>
               </div>
-            </div>
+            </section>
+
+            <section className="a4n-flat-surface space-y-3 p-3">
+              <div>
+                <h3 className="text-xs font-semibold text-book-text-main">质量评分</h3>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+                  使用 0 到 1 之间的数值记录质量评价
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  inputMode="decimal"
+                  aria-label="质量评分"
+                  value={scoreInput}
+                  onChange={(event) => onScoreInputChange(event.target.value)}
+                  placeholder="例如：0.8"
+                  className="pyqt-input min-w-0 flex-1 !px-3 !py-1 text-xs sm:max-w-40"
+                />
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onScore(image)}
+                  disabled={busy || !scoreValid || !scoreDirty}
+                  className="shrink-0 !text-xs"
+                >
+                  {scoringId === image.id ? (
+                    <Loader2 size={11} className="animate-spin" />
+                  ) : (
+                    "保存评分"
+                  )}
+                </BookButton>
+              </div>
+            </section>
           </div>
-          <div className="a4n-page-surface p-3">
-            <div className="mb-2 text-xs font-semibold text-book-text-main">AI 评分</div>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={scoreInput}
-                onChange={(event) => onScoreInputChange(event.target.value)}
-                placeholder="0.8"
-                className="pyqt-input !px-2 !py-1 w-24 text-xs"
-              />
+
+          <details className="a4n-flat-surface overflow-hidden">
+            <summary className="cursor-pointer px-3 py-2.5 text-[11px] font-medium text-book-text-sub">
+              危险操作
+            </summary>
+            <div className="flex flex-col gap-3 border-t border-book-border/40 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[11px] leading-relaxed text-book-text-muted">
+                删除后会解除关联并移除这条图片记录。
+              </p>
               <BookButton
-                variant="secondary"
+                variant="danger"
                 size="sm"
-                onClick={() => onScore(image)}
-                disabled={scoringId === image.id}
+                disabled={busyId === image.id}
+                onClick={() => onDelete(image)}
+                className="w-full shrink-0 !text-xs sm:w-auto"
               >
-                {scoringId === image.id ? (
-                  <Loader2 size={11} className="animate-spin" />
-                ) : (
-                  "保存评分"
-                )}
+                <Trash2 size={12} /> 删除图片
               </BookButton>
             </div>
-          </div>
-          <ImageActionButton
-            icon={<Trash2 size={14} />}
-            title="删除图片"
-            description="解除关联并删除该生成图片记录。"
-            tone="danger"
-            disabled={busyId === image.id}
-            onClick={() => onDelete(image)}
-          />
+          </details>
         </div>
       )}
     </Modal>
@@ -358,13 +430,15 @@ function MetadataSection({
   title,
   fields,
   empty = "没有记录。",
+  embedded = false,
 }: {
   title: string;
   fields: MetadataField[];
   empty?: string;
+  embedded?: boolean;
 }) {
   return (
-    <section className="a4n-page-surface overflow-hidden">
+    <section className={embedded ? "overflow-hidden" : "a4n-flat-surface overflow-hidden"}>
       <div className="border-b border-book-border/40 px-3 py-2 text-xs font-semibold text-book-text-main">
         {title}
       </div>
@@ -373,7 +447,10 @@ function MetadataSection({
       ) : (
         <dl className="divide-y divide-book-border/35">
           {fields.map((item) => (
-            <div key={`${item.label}:${item.value}`} className="grid gap-2 px-3 py-2 sm:grid-cols-[130px_minmax(0,1fr)]">
+            <div
+              key={`${item.label}:${item.value}`}
+              className="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-3 px-3 py-2 sm:grid-cols-[130px_minmax(0,1fr)]"
+            >
               <dt className="text-[11px] text-book-text-muted">{item.label}</dt>
               <dd
                 className={`min-w-0 break-words text-xs text-book-text-main ${
@@ -392,58 +469,13 @@ function MetadataSection({
 
 function MetadataTextBlock({ title, text }: { title: string; text: string }) {
   return (
-    <section className="a4n-page-surface overflow-hidden">
+    <section className="a4n-flat-surface overflow-hidden">
       <div className="border-b border-book-border/40 px-3 py-2 text-xs font-semibold text-book-text-main">
         {title}
       </div>
-      <div className="max-h-44 overflow-auto p-3 text-xs leading-relaxed text-book-text-sub">
+      <div className="whitespace-pre-wrap p-3 text-xs leading-relaxed text-book-text-sub">
         {text}
       </div>
     </section>
-  );
-}
-
-function ImageActionButton({
-  icon,
-  title,
-  description,
-  disabled,
-  tone = "normal",
-  onClick,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  disabled?: boolean;
-  tone?: "normal" | "danger";
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`a4n-interactive-row flex w-full items-start gap-3 px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-55 ${
-        tone === "danger"
-          ? "border-error/50 bg-error-bg/40 text-error hover:bg-error-bg dark:hover:bg-error-bg"
-          : "text-book-text-main"
-      }`}
-    >
-      <span
-        className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border ${
-          tone === "danger"
-            ? "border-error/40 bg-error/10 text-error"
-            : "border-book-primary/30 bg-book-primary/10 text-book-primary"
-        }`}
-      >
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold">{title}</span>
-        <span className="mt-1 block text-[11px] leading-relaxed text-book-text-muted">
-          {description}
-        </span>
-      </span>
-    </button>
   );
 }

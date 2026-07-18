@@ -1,0 +1,62 @@
+use super::super::super::{
+    contracts::ProjectGeneratedDataResetSummary, summaries::project_summary_with_family_for_user,
+};
+use crate::AppState;
+use a4n_core::models::project::novel_project;
+use a4n_orchestrator::project::FreeformVideoGeneratedDataResetResult;
+
+pub(in crate::actions::project_records::reset) async fn to_freeform_generated_data_reset_summary(
+    state: &AppState,
+    user_id: i64,
+    project: &novel_project::Model,
+    result: &FreeformVideoGeneratedDataResetResult,
+    deleted_media_files: usize,
+) -> Result<ProjectGeneratedDataResetSummary, String> {
+    Ok(ProjectGeneratedDataResetSummary {
+        project: project_summary_with_family_for_user(state, user_id, project).await?,
+        deleted_galgame_scripts: 0,
+        deleted_galgame_scenes: 0,
+        deleted_galgame_lines: 0,
+        deleted_galgame_choices: 0,
+        deleted_chapters: 0,
+        deleted_chapter_outlines: 0,
+        deleted_part_outlines: 0,
+        deleted_chapter_derived_rows: 0,
+        deleted_current_blueprints: 0,
+        deleted_blueprint_characters: 0,
+        deleted_blueprint_relationships: 0,
+        preserved_blueprint_versions: 0,
+        reset_character_profiles: 0,
+        deleted_character_profiles: 0,
+        deleted_character_snapshots: 0,
+        deleted_character_timeline_rows: 0,
+        deleted_character_portraits: 0,
+        deleted_object_profiles: 0,
+        deleted_foreshadowing: 0,
+        deleted_scene_profiles: 0,
+        deleted_scene_occurrences: 0,
+        deleted_scene_transitions: 0,
+        deleted_scene_entity_states: 0,
+        deleted_text_anchors: 0,
+        deleted_profile_evidence: 0,
+        deleted_import_reviews: 0,
+        deleted_conversations: 0,
+        deleted_conversation_messages: 0,
+        deleted_optimization_sessions: 0,
+        deleted_optimization_session_messages: 0,
+        deleted_optimization_turns: 0,
+        deleted_optimization_events: 0,
+        deleted_optimization_patch_sets: 0,
+        deleted_optimization_patches: 0,
+        deleted_generated_images: result.artifact_row_cleanup.deleted_generated_images,
+        deleted_generated_videos: result.artifact_row_cleanup.deleted_generated_videos,
+        deleted_generation_specs: result.artifact_row_cleanup.deleted_generation_specs,
+        deleted_prompt_artifacts: result.artifact_link_cleanup.deleted_prompt_artifacts,
+        deleted_media_assets: result.artifact_row_cleanup.deleted_media_assets,
+        deleted_media_provenance: result.artifact_link_cleanup.deleted_media_provenance,
+        deleted_media_bindings: result.artifact_link_cleanup.deleted_media_bindings,
+        deleted_tasks: result.task_cleanup.deleted_tasks,
+        deleted_task_dependencies: result.task_cleanup.deleted_task_dependencies,
+        deleted_media_files,
+    })
+}

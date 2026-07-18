@@ -1,0 +1,27 @@
+use a4n_core::error::AppError;
+use serde_json::Value;
+
+use a4n_core::source_spans::SourceSpan;
+
+mod entities;
+mod events;
+mod foreshadowing;
+use entities::validate_fact_entity_array;
+use events::validate_event_candidates;
+use foreshadowing::validate_foreshadowing_candidates;
+mod root;
+use root::validate_root_fields;
+
+pub fn validate_chapter_fact_extraction(
+    facts: &Value,
+    source_spans: &[SourceSpan],
+) -> Result<(), AppError> {
+    validate_root_fields(facts)?;
+    for key in ["characters", "locations", "items"] {
+        validate_fact_entity_array(facts, key, source_spans)?;
+    }
+    validate_event_candidates(facts, source_spans)?;
+
+    validate_foreshadowing_candidates(facts, source_spans)?;
+    Ok(())
+}

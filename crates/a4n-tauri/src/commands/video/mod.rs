@@ -63,7 +63,7 @@ mod tests {
 
     fn collect_registered_video_commands() -> BTreeSet<String> {
         collect_after_prefix(
-            &read_repo_file("crates/a4n-tauri/src/main.rs"),
+            &read_repo_file("crates/a4n-tauri/src/command_registry.rs"),
             "commands::video::",
         )
     }
@@ -147,7 +147,7 @@ mod tests {
         let unregistered: Vec<_> = frontend_invokes.difference(&registered).collect();
         assert!(
             unregistered.is_empty(),
-            "frontend video api invokes commands not registered in main.rs: {unregistered:?}"
+            "frontend video api invokes commands not registered in command_registry.rs: {unregistered:?}"
         );
 
         let unexported: Vec<_> = frontend_invokes.difference(&exported).collect();
@@ -159,7 +159,7 @@ mod tests {
         let registered_without_export: Vec<_> = registered.difference(&exported).collect();
         assert!(
             registered_without_export.is_empty(),
-            "main.rs registers video commands not exported by video/mod.rs: {registered_without_export:?}"
+            "command_registry.rs registers video commands not exported by video/mod.rs: {registered_without_export:?}"
         );
     }
 }

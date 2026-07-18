@@ -46,8 +46,8 @@ import {
 import { ProjectListPanel } from "./novel-list/ProjectListPanel";
 import { createProjectActions } from "./novel-list/projectActions";
 import {
-  getRecentProjects,
-  groupProjectsByTitle,
+  getRecentProjectFamilies,
+  groupProjectFamiliesByTitle,
   pickRandomQuote,
   PROJECT_KIND_FILTERS,
   PROJECT_TABS,
@@ -248,11 +248,14 @@ export const NovelList: React.FC<NovelListProps> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const recentProjects = useMemo(
-    () => getRecentProjects(projects),
+  const recentProjectFamilies = useMemo(
+    () => getRecentProjectFamilies(projects),
     [projects],
   );
-  const groupedAll = useMemo(() => groupProjectsByTitle(projects), [projects]);
+  const groupedProjectFamilies = useMemo(
+    () => groupProjectFamiliesByTitle(projects),
+    [projects],
+  );
 
   const beginProjectAction = (key: string): boolean => {
     if (!mountedRef.current || projectActionKeysRef.current.has(key)) return false;
@@ -691,31 +694,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
     setProjectKindFilter(nextKind);
   };
 
-  const handleShowAllProjects = () => {
-    let changed = false;
-    if (activeTabRef.current !== "all") {
-      activeTabRef.current = "all";
-      setTab("all");
-      changed = true;
-    }
-    if (activeProjectKindFilterRef.current !== "all") {
-      activeProjectKindFilterRef.current = "all";
-      setProjectKindFilter("all");
-      changed = true;
-    }
-    if (activeAccessScopeRef.current !== "all") {
-      activeAccessScopeRef.current = "all";
-      setAccessScope("all");
-      changed = true;
-    }
-    if (changed) {
-      refreshSeqRef.current += 1;
-      setProjects([]);
-      setLoadError(null);
-      setLoading(true);
-    }
-  };
-
   const handleAcceptInvite = async (invite: ProjectInvite) => {
     if (!beginInviteAction(invite.id)) return;
     try {
@@ -785,7 +763,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
           quote={quote}
           onOpenSettings={() => navigate("/settings")}
           onCreateProject={() => setCreateDialogOpen(true)}
-          onShowAllProjects={handleShowAllProjects}
           onImportProject={() => setImportDialogOpenState(true)}
         />
 
@@ -794,8 +771,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
           loading={loading}
           loadError={loadError}
           empty={!loading && !loadError && projects.length === 0}
-          recentProjects={recentProjects}
-          groupedProjects={groupedAll}
+          recentProjectFamilies={recentProjectFamilies}
+          groupedProjectFamilies={groupedProjectFamilies}
           accessScope={accessScope}
           projectKindFilter={projectKindFilter}
           pendingInvites={pendingInvites}

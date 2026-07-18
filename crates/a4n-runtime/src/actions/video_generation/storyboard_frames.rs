@@ -3,9 +3,9 @@ use super::prompt_chain::{
     prompt_source_type_matches,
 };
 use crate::AppState;
+use crate::actions::app_error_message;
 use a4n_core::models::ai::generated_image;
 use a4n_core::models::chapter::chapter_video_prompt;
-use sea_orm::*;
 
 pub(super) async fn storyboard_image_id_for_prompt(
     state: &AppState,
@@ -13,16 +13,11 @@ pub(super) async fn storyboard_image_id_for_prompt(
     chapter_id: i64,
     prompt: &chapter_video_prompt::Model,
 ) -> Result<Option<i64>, String> {
-    let storyboard_prompts = chapter_video_prompt::Entity::find()
-        .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
-        .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_video_prompt::Column::WorkflowMode.eq("storyboard"))
-        .filter(chapter_video_prompt::Column::PromptType.eq("storyboard_prompt"))
-        .filter(chapter_video_prompt::Column::ShotNumber.eq(prompt.shot_number))
-        .order_by_desc(chapter_video_prompt::Column::Id)
-        .all(state.db.as_ref())
+    let storyboard_prompts = state
+        .orchestrator
+        .chapter_video_storyboard_prompt_candidates(project_id, chapter_id, prompt.shot_number)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(app_error_message)?;
 
     let Some(storyboard_prompt) = storyboard_prompts.iter().find(|storyboard_prompt| {
         storyboard_prompt_matches_video_prompt(prompt, storyboard_prompt)
@@ -30,13 +25,11 @@ pub(super) async fn storyboard_image_id_for_prompt(
         return Ok(None);
     };
 
-    let frame_images = generated_image::Entity::find()
-        .filter(generated_image::Column::ProjectId.eq(project_id))
-        .filter(generated_image::Column::ChapterId.eq(chapter_id))
-        .order_by_desc(generated_image::Column::Id)
-        .all(state.db.as_ref())
+    let frame_images = state
+        .orchestrator
+        .generated_images_for_video_prompt_references(project_id, chapter_id)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|error| error.to_string())?;
 
     Ok(latest_storyboard_image_id(&frame_images, storyboard_prompt))
 }

@@ -17,8 +17,8 @@ import {
   isSelectableReferenceImage,
   isVideoLibraryVisibleImage,
   promptHasVideoWorkflowContract,
+  finalVideoExecutionIdentityIsComplete,
   promptOutputLanguageOfPrompt,
-  promptMatchesSharedShotAnalysisContext,
   promptSourcePromptType,
   readSavedReferenceImageIds,
   trimmedText,
@@ -28,6 +28,8 @@ import {
   videoImageGenerationSource,
   videoDurationLimitsFromConfig,
   videoWorkflowModeOfPrompt,
+  videoExecutionIdentityMatches,
+  videoExecutionIdentityOfPrompt,
   videoWorkflowModeOfVideo,
   VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION,
   VIDEO_CHAT_VIDEO_CONTRACT_VERSION,
@@ -38,11 +40,9 @@ import {
   VIDEO_FRAME_PROMPT_TYPE,
   VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
   VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE,
-  VIDEO_FRAME_SHOT_ANALYSIS_PROMPT_TYPE,
   VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION,
   VIDEO_STORYBOARD_PROMPT_TYPE,
   VIDEO_STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION,
-  VIDEO_SHOT_ANALYSIS_CONTRACT_VERSION,
 } from "./videoTabUtils";
 
 interface UseVideoTabDerivedStateParams {
@@ -129,6 +129,7 @@ export const useVideoTabDerivedState = ({
         prompt.prompt_type === frameSegmentPlanType &&
         videoWorkflowModeOfPrompt(prompt) === "boundary_frames" &&
         promptHasVideoWorkflowContract(prompt, frameSegmentPlanContractVersion) &&
+        videoExecutionIdentityOfPrompt(prompt) != null &&
         (latest == null || prompt.id > latest.id)
       ) {
         latest = prompt;
@@ -136,21 +137,6 @@ export const useVideoTabDerivedState = ({
     }
     return latest;
   }, [frameSegmentPlanContractVersion, frameSegmentPlanType, prompts, workflowMode]);
-  const shotAnalysisPrompt = useMemo(() => {
-    let latest: ChapterVideoPrompt | null = null;
-    for (const prompt of prompts) {
-      if (
-        prompt.prompt_type === VIDEO_FRAME_SHOT_ANALYSIS_PROMPT_TYPE &&
-        videoWorkflowModeOfPrompt(prompt) === "boundary_frames" &&
-        promptHasVideoWorkflowContract(prompt, VIDEO_SHOT_ANALYSIS_CONTRACT_VERSION) &&
-        promptMatchesSharedShotAnalysisContext(prompt, currentContentHash) &&
-        (latest == null || prompt.id > latest.id)
-      ) {
-        latest = prompt;
-      }
-    }
-    return latest;
-  }, [currentContentHash, prompts]);
   const videoPromptSourceType = VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE;
   const finalVideoPrompts = useMemo(
     () =>
@@ -161,7 +147,9 @@ export const useVideoTabDerivedState = ({
             finalVideoPromptContractVersion != null &&
             videoWorkflowModeOfPrompt(prompt) === workflowMode &&
             promptHasVideoWorkflowContract(prompt, finalVideoPromptContractVersion) &&
-            promptSourcePromptType(prompt) === videoPromptSourceType,
+            promptSourcePromptType(prompt) === videoPromptSourceType &&
+            videoExecutionIdentityMatches(prompt, frameSegmentPlanPrompt) &&
+            finalVideoExecutionIdentityIsComplete(prompt),
         )
         .sort((a, b) => a.shot_number - b.shot_number || a.id - b.id),
     [
@@ -169,6 +157,7 @@ export const useVideoTabDerivedState = ({
       prompts,
       videoPromptSourceType,
       workflowMode,
+      frameSegmentPlanPrompt,
     ],
   );
   const currentLanguageFinalVideoPrompts = useMemo(
@@ -192,7 +181,8 @@ export const useVideoTabDerivedState = ({
           videoWorkflowModeOfPrompt(prompt) === workflowMode &&
           (workflowMode !== "first_frame_chain" || prompt.shot_number === 1) &&
           promptHasVideoWorkflowContract(prompt, framePromptContractVersion) &&
-          (frameSegmentPlanType == null || promptSourcePromptType(prompt) === frameSegmentPlanType),
+          (frameSegmentPlanType == null || promptSourcePromptType(prompt) === frameSegmentPlanType) &&
+          videoExecutionIdentityMatches(prompt, frameSegmentPlanPrompt),
       )
       .sort((a, b) => a.shot_number - b.shot_number || a.id - b.id);
   }, [
@@ -201,6 +191,7 @@ export const useVideoTabDerivedState = ({
     frameSegmentPlanType,
     prompts,
     workflowMode,
+    frameSegmentPlanPrompt,
   ]);
   const currentLanguageFramePrompts = useMemo(
     () =>
@@ -401,7 +392,6 @@ export const useVideoTabDerivedState = ({
     finalVideoPrompts,
     currentLanguageFinalVideoPrompts,
     selectedPrompt,
-    shotAnalysisPrompt,
     frameSegmentPlanPrompt,
     framePrompts,
     currentLanguageFramePrompts,

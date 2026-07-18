@@ -17,7 +17,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   if (error) {
     return (
       <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-6">
-        <div className="a4n-page-surface max-w-md px-5 py-4 text-sm text-book-text-main">
+        <div className="a4n-flat-surface max-w-md px-5 py-4 text-sm text-book-text-main">
           <div className="font-medium text-error">认证初始化失败</div>
           <div className="mt-2 break-words text-book-text-muted">{error}</div>
           <button
@@ -35,7 +35,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   if (!initialized) {
     return (
       <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-6">
-        <div className="a4n-page-surface flex items-center gap-2 px-4 py-3 text-sm text-book-text-muted">
+        <div className="a4n-flat-surface flex items-center gap-2 px-4 py-3 text-sm text-book-text-muted">
           <Loader2 size={18} className="animate-spin" />
           加载中…
         </div>

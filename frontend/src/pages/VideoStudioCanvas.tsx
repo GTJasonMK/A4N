@@ -22,8 +22,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  ArrowLeft,
   Eye,
+  Film,
   ListPlus,
   Loader2,
   Play,
@@ -61,8 +61,11 @@ import { listVideoConfigs } from "../api/video";
 import type { ProgressEventRecord } from "../api/progress";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { useToast } from "../components/feedback/Toast";
-import { BookButton } from "../components/ui/BookButton";
+import { BookButton, BookIconButton } from "../components/ui/BookButton";
+import { BackButton } from "../components/ui/BackButton";
+import { Dropdown, type DropdownItem } from "../components/ui/Dropdown";
 import { Modal } from "../components/ui/Modal";
+import { PageHeader } from "../components/shell/PageHeader";
 import {
   useContextMenu,
   type ContextMenuEntry,
@@ -83,6 +86,7 @@ import {
   edgeRoleLabel,
   nodeDisplayTitle,
   nodeKindMeta,
+  stateLabel,
 } from "./video-studio/StudioCanvasNode";
 import {
   nextAssembleClipOrder,
@@ -243,6 +247,12 @@ export const VideoStudioCanvas: React.FC = () => {
     ? studioNodeContract(nodeContractsByKind, selectedNode.data.nodeKind)
         ?.category === "output"
     : false;
+  const selectedNodeRunnable = selectedNode
+    ? Boolean(
+        studioNodeContract(nodeContractsByKind, selectedNode.data.nodeKind)
+          ?.runnable,
+      )
+    : false;
   const selectedRunScope = useMemo(
     () =>
       computeRunToNodeScope(
@@ -287,6 +297,8 @@ export const VideoStudioCanvas: React.FC = () => {
     project?.my_role === "owner" ||
     project?.my_role === "manager" ||
     project?.my_role === "editor";
+  const canvasWriteBusy = saving || importing;
+  const canvasMutationDisabled = !canEdit || canvasWriteBusy;
 
   useEffect(() => {
     if (isMobileLayout) return;
@@ -328,7 +340,7 @@ export const VideoStudioCanvas: React.FC = () => {
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast("视频项目 ID 无效", "error");
+      addToast("视频项目参数无效", "error");
       setLoading(false);
       return;
     }
@@ -441,30 +453,40 @@ export const VideoStudioCanvas: React.FC = () => {
 
   const onNodesChange = useCallback(
     (changes: NodeChange<StudioNode>[]) => {
+      const allowedChanges = canvasWriteBusy
+        ? changes.filter(
+            (change) =>
+              change.type === "select" || change.type === "dimensions",
+          )
+        : changes;
       if (
-        changes.some(
+        allowedChanges.some(
           (change) => change.type !== "select" && change.type !== "dimensions",
         )
       ) {
         setDirty(true);
       }
-      applyNodesChange(changes);
+      if (allowedChanges.length > 0) applyNodesChange(allowedChanges);
     },
-    [applyNodesChange],
+    [applyNodesChange, canvasWriteBusy],
   );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange<StudioEdge>[]) => {
-      if (changes.some((change) => change.type !== "select")) {
+      const allowedChanges = canvasWriteBusy
+        ? changes.filter((change) => change.type === "select")
+        : changes;
+      if (allowedChanges.some((change) => change.type !== "select")) {
         setDirty(true);
       }
-      applyEdgesChange(changes);
+      if (allowedChanges.length > 0) applyEdgesChange(allowedChanges);
     },
-    [applyEdgesChange],
+    [applyEdgesChange, canvasWriteBusy],
   );
 
   const addNode = useCallback(
     (kind: string, label: string, position?: { x: number; y: number }) => {
+      if (canvasMutationDisabled) return;
       const id = `node-${Date.now()}-${Math.round(Math.random() * 10000)}`;
       setNodes((items) => [
         ...items.map((item) => ({ ...item, selected: false })),
@@ -485,7 +507,7 @@ export const VideoStudioCanvas: React.FC = () => {
       ]);
       setDirty(true);
     },
-    [setNodes],
+    [canvasMutationDisabled, setNodes],
   );
 
   const addNodeToVisibleCanvas = useCallback(
@@ -510,7 +532,7 @@ export const VideoStudioCanvas: React.FC = () => {
       kind: string,
       label: string,
     ) => {
-      if (!canEdit) {
+      if (canvasMutationDisabled) {
         event.preventDefault();
         return;
       }
@@ -525,25 +547,25 @@ export const VideoStudioCanvas: React.FC = () => {
         studioNodeContract(nodeContractsByKind, kind),
       );
     },
-    [canEdit, flowInstance, nodeContractsByKind],
+    [canvasMutationDisabled, flowInstance, nodeContractsByKind],
   );
 
   const onCanvasDragOver = useCallback(
     (event: React.DragEvent) => {
       if (
-        !canEdit ||
+        canvasMutationDisabled ||
         !Array.from(event.dataTransfer.types).includes(NODE_DRAG_KIND)
       )
         return;
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
     },
-    [canEdit],
+    [canvasMutationDisabled],
   );
 
   const onCanvasDrop = useCallback(
     (event: React.DragEvent) => {
-      if (!canEdit || !flowInstance) return;
+      if (canvasMutationDisabled || !flowInstance) return;
       const kind = event.dataTransfer.getData(NODE_DRAG_KIND);
       const contract = kind
         ? studioNodeContract(nodeContractsByKind, kind)
@@ -563,11 +585,12 @@ export const VideoStudioCanvas: React.FC = () => {
         }),
       );
     },
-    [addNode, canEdit, flowInstance, nodeContractsByKind],
+    [addNode, canvasMutationDisabled, flowInstance, nodeContractsByKind],
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      if (canvasMutationDisabled) return;
       const contract = inferCanvasEdgeContract(
         connection,
         nodes,
@@ -611,13 +634,21 @@ export const VideoStudioCanvas: React.FC = () => {
       );
       setDirty(true);
     },
-    [addToast, edges, nodeContractsByKind, nodes, setEdges],
+    [
+      addToast,
+      canvasMutationDisabled,
+      edges,
+      nodeContractsByKind,
+      nodes,
+      setEdges,
+    ],
   );
 
   const isValidCanvasConnection = useCallback<IsValidConnection>(
     (connection) =>
+      !canvasMutationDisabled &&
       !canvasConnectionError(connection, nodes, edges, nodeContractsByKind),
-    [edges, nodeContractsByKind, nodes],
+    [canvasMutationDisabled, edges, nodeContractsByKind, nodes],
   );
 
   const selectCanvasNode = useCallback(
@@ -642,7 +673,7 @@ export const VideoStudioCanvas: React.FC = () => {
 
   const deleteCanvasNode = useCallback(
     (node: StudioNode) => {
-      if (!canEdit) return;
+      if (canvasMutationDisabled) return;
       setNodes((items) => items.filter((item) => item.id !== node.id));
       setEdges((items) =>
         items.filter(
@@ -652,21 +683,21 @@ export const VideoStudioCanvas: React.FC = () => {
       setDirty(true);
       addToast(`已删除节点：${nodeDisplayTitle(node.data)}`, "success");
     },
-    [addToast, canEdit, setEdges, setNodes],
+    [addToast, canvasMutationDisabled, setEdges, setNodes],
   );
 
   const deleteCanvasEdge = useCallback(
     (edge: StudioEdge) => {
-      if (!canEdit) return;
+      if (canvasMutationDisabled) return;
       setEdges((items) => items.filter((item) => item.id !== edge.id));
       setDirty(true);
       addToast("已删除连线", "success");
     },
-    [addToast, canEdit, setEdges],
+    [addToast, canvasMutationDisabled, setEdges],
   );
 
   const updateSelectedConfig = (patch: Record<string, unknown>) => {
-    if (!selectedNode || !canEdit) return;
+    if (!selectedNode || canvasMutationDisabled) return;
     const nextConfig = {
       ...selectedNode.data.config,
       ...patch,
@@ -720,7 +751,7 @@ export const VideoStudioCanvas: React.FC = () => {
   };
 
   const updateSelectedRef = (refType: string | null, refId: number | null) => {
-    if (!selectedNode || !canEdit) return;
+    if (!selectedNode || canvasMutationDisabled) return;
     setNodes((items) =>
       items.map((node) =>
         node.id === selectedNode.id
@@ -739,13 +770,13 @@ export const VideoStudioCanvas: React.FC = () => {
   };
 
   const moveAssembleClip = (edgeId: string, direction: -1 | 1) => {
-    if (!canEdit) return;
+    if (canvasMutationDisabled) return;
     setEdges((items) => reorderAssembleClipEdges(items, edgeId, direction));
     setDirty(true);
   };
 
   const persist = async () => {
-    if (!document || saving || !canEdit) return;
+    if (!document || canvasWriteBusy || !canEdit) return;
     const validationError = canvasGraphSaveValidationError(
       nodes,
       edges,
@@ -772,8 +803,10 @@ export const VideoStudioCanvas: React.FC = () => {
       );
       const savedEdges = saved.edges.map(toFlowEdge);
       setDocument(saved);
-      setNodes(saved.nodes.map(toFlowNode));
-      setEdges(savedEdges);
+      setNodes((current) =>
+        preserveSelectedItems(saved.nodes.map(toFlowNode), current),
+      );
+      setEdges((current) => preserveSelectedItems(savedEdges, current));
       setDirty(false);
       addToast("画布已保存", "success");
     } catch (err) {
@@ -784,7 +817,7 @@ export const VideoStudioCanvas: React.FC = () => {
   };
 
   const importMedia = async (mediaKind: "image" | "video" | "audio") => {
-    if (!document || importing || !canEdit) return;
+    if (!document || canvasWriteBusy || !canEdit) return;
     if (mediaKind === "audio" && project?.source_mode !== "freeform") {
       addToast("音频资产导入只支持自由视频项目", "error");
       return;
@@ -840,8 +873,10 @@ export const VideoStudioCanvas: React.FC = () => {
       );
       const savedEdges = saved.edges.map(toFlowEdge);
       setDocument(saved);
-      setNodes(saved.nodes.map(toFlowNode));
-      setEdges(savedEdges);
+      setNodes((current) =>
+        preserveSelectedItems(saved.nodes.map(toFlowNode), current),
+      );
+      setEdges((current) => preserveSelectedItems(savedEdges, current));
       setDirty(false);
       addToast(
         imported.media_kind === "image"
@@ -1012,7 +1047,7 @@ export const VideoStudioCanvas: React.FC = () => {
     }
     const nodeId = numericId(node.id);
     if (!nodeId) {
-      addToast("请先保存新节点再预览请求", "info");
+      addToast("请先保存新节点再查看模型请求", "info");
       return;
     }
     setPreviewDialogOpen(true);
@@ -1034,7 +1069,7 @@ export const VideoStudioCanvas: React.FC = () => {
   };
 
   const runNode = async (node: StudioNode) => {
-    if (!document) return;
+    if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
     if (dirty) {
       addToast("请先保存画布再运行", "info");
       return;
@@ -1093,7 +1128,7 @@ export const VideoStudioCanvas: React.FC = () => {
   };
 
   const runToNode = async (node: StudioNode) => {
-    if (!document) return;
+    if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
     if (dirty) {
       addToast("请先保存画布再运行", "info");
       return;
@@ -1154,7 +1189,7 @@ export const VideoStudioCanvas: React.FC = () => {
   };
 
   const runGraph = async () => {
-    if (!document) return;
+    if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
     if (dirty) {
       addToast("请先保存画布再运行", "info");
       return;
@@ -1191,40 +1226,44 @@ export const VideoStudioCanvas: React.FC = () => {
       const isOutputNode = contract?.category === "output";
       const isRunnableNode = Boolean(contract?.runnable);
       const hasProviderRequest = nodeHasProviderRequest(node);
-      return [
-        {
-          label: hasProviderRequest ? "预览请求" : "查看内容",
+      const items: ContextMenuEntry[] = [];
+      if (!hasProviderRequest || document) {
+        items.push({
+          label: hasProviderRequest ? "模型请求" : "查看内容",
           icon: <Eye size={13} />,
-          disabled: hasProviderRequest && !document,
           onClick: () => void previewNode(node),
-        },
-        {
-          label: isRunnableNode
-            ? "只运行此节点"
-            : "只运行此节点（输入节点不可运行）",
+        });
+      }
+      if (isRunnableNode) {
+        items.push({
+          label: "只运行此节点",
           icon: <Play size={13} />,
-          disabled: !isRunnableNode || !canEdit || workflowSubmitting,
+          disabled: canvasMutationDisabled || workflowSubmitting,
           onClick: () => void runNode(node),
-        },
-        {
-          label: isOutputNode ? "运行到此节点" : "运行到此节点（仅输出节点）",
+        });
+      }
+      if (isOutputNode) {
+        items.push({
+          label: "运行到此节点",
           icon: <Play size={13} />,
-          disabled: !isOutputNode || !canEdit || workflowSubmitting,
+          disabled: canvasMutationDisabled || workflowSubmitting,
           onClick: () => void runToNode(node),
-        },
-        { divider: true },
-        {
+        });
+      }
+      if (!canvasMutationDisabled) {
+        if (items.length > 0) items.push({ divider: true });
+        items.push({
           label: "删除节点",
           icon: <Trash2 size={13} />,
           danger: true,
-          disabled: !canEdit,
           shortcut: "Del",
           onClick: () => deleteCanvasNode(node),
-        },
-      ];
+        });
+      }
+      return items;
     },
     [
-      canEdit,
+      canvasMutationDisabled,
       deleteCanvasNode,
       document,
       nodeContractsByKind,
@@ -1236,38 +1275,33 @@ export const VideoStudioCanvas: React.FC = () => {
   );
 
   const edgeContextMenuItems = useCallback(
-    (edge: StudioEdge): ContextMenuEntry[] => [
-      {
-        label: "删除连线",
-        icon: <Trash2 size={13} />,
-        danger: true,
-        disabled: !canEdit,
-        shortcut: "Del",
-        onClick: () => deleteCanvasEdge(edge),
-      },
-    ],
-    [canEdit, deleteCanvasEdge],
+    (edge: StudioEdge): ContextMenuEntry[] =>
+      !canvasMutationDisabled
+        ? [
+            {
+              label: "删除连线",
+              icon: <Trash2 size={13} />,
+              danger: true,
+              shortcut: "Del",
+              onClick: () => deleteCanvasEdge(edge),
+            },
+          ]
+        : [],
+    [canvasMutationDisabled, deleteCanvasEdge],
   );
 
-  const paneContextMenuItems = useCallback(
+  const mediaImportMenuItems = useCallback(
     (): ContextMenuEntry[] => [
-      {
-        label: "运行画布",
-        icon: <Play size={13} />,
-        disabled: !document || !canEdit || workflowSubmitting,
-        onClick: () => void runGraph(),
-      },
-      { divider: true },
       {
         label: "导入图片",
         icon: <Upload size={13} />,
-        disabled: !document || importing || !canEdit,
+        disabled: !document || canvasWriteBusy || !canEdit,
         onClick: () => void importMedia("image"),
       },
       {
         label: "导入视频",
         icon: <Upload size={13} />,
-        disabled: !document || importing || !canEdit,
+        disabled: !document || canvasWriteBusy || !canEdit,
         onClick: () => void importMedia("video"),
       },
       {
@@ -1275,7 +1309,7 @@ export const VideoStudioCanvas: React.FC = () => {
         icon: <Upload size={13} />,
         disabled:
           !document ||
-          importing ||
+          canvasWriteBusy ||
           !canEdit ||
           project?.source_mode !== "freeform",
         onClick: () => void importMedia("audio"),
@@ -1285,8 +1319,28 @@ export const VideoStudioCanvas: React.FC = () => {
       canEdit,
       document,
       importMedia,
-      importing,
+      canvasWriteBusy,
       project?.source_mode,
+    ],
+  );
+
+  const paneContextMenuItems = useCallback(
+    (): ContextMenuEntry[] => [
+      {
+        label: "运行画布",
+        icon: <Play size={13} />,
+        disabled:
+          !document || canvasWriteBusy || !canEdit || workflowSubmitting,
+        onClick: () => void runGraph(),
+      },
+      { divider: true },
+      ...mediaImportMenuItems(),
+    ],
+    [
+      canEdit,
+      canvasWriteBusy,
+      document,
+      mediaImportMenuItems,
       runGraph,
       workflowSubmitting,
     ],
@@ -1353,7 +1407,7 @@ export const VideoStudioCanvas: React.FC = () => {
     setResumingWorkflow(true);
     try {
       const run = await resumeWorkflowRun(workflowRunId);
-      addToast(`已继续运行 #${run.id}`, "success");
+      addToast("已继续运行画布任务", "success");
       workflowRuntimeRefreshSignatureRef.current = null;
       await loadWorkflowStatus(run.id);
     } catch (err) {
@@ -1363,28 +1417,98 @@ export const VideoStudioCanvas: React.FC = () => {
     }
   };
 
+  const headerActionItems = useMemo<DropdownItem[]>(() => {
+    const importDisabled = !document || canvasWriteBusy || !canEdit;
+    const items: DropdownItem[] = [
+      {
+        label: "导入图片",
+        icon: <Upload size={13} />,
+        disabled: importDisabled,
+        onClick: () => void importMedia("image"),
+      },
+      {
+        label: "导入视频",
+        icon: <Upload size={13} />,
+        disabled: importDisabled,
+        onClick: () => void importMedia("video"),
+      },
+    ];
+    if (project?.source_mode === "freeform") {
+      items.push({
+        label: "导入音频",
+        icon: <Upload size={13} />,
+        disabled: importDisabled,
+        onClick: () => void importMedia("audio"),
+      });
+    }
+    if (selectedNode) {
+      items.push({ type: "divider" });
+      items.push({
+        label: nodeHasProviderRequest(selectedNode) ? "查看模型请求" : "查看节点内容",
+        icon: <Eye size={13} />,
+        disabled:
+          previewLoading ||
+          (nodeHasProviderRequest(selectedNode) && (!document || dirty)),
+        onClick: () => void previewNode(selectedNode),
+      });
+      if (selectedNodeRunToTarget || selectedNodeRunnable) {
+        items.push({
+          label: selectedNodeRunToTarget ? "运行到所选节点" : "只运行所选节点",
+          icon: <Play size={13} />,
+          disabled:
+            canvasMutationDisabled || dirty || workflowSubmitting,
+          onClick: () =>
+            void (selectedNodeRunToTarget
+              ? runToNode(selectedNode)
+              : runNode(selectedNode)),
+        });
+      }
+    }
+    return items;
+  }, [
+    canEdit,
+    canvasMutationDisabled,
+    canvasWriteBusy,
+    dirty,
+    document,
+    importMedia,
+    previewLoading,
+    previewNode,
+    project?.source_mode,
+    runNode,
+    runToNode,
+    selectedNode,
+    selectedNodeRunToTarget,
+    selectedNodeRunnable,
+    workflowSubmitting,
+  ]);
+
   const renderNodeLibraryPanel = (mobile: boolean) => (
-    <>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="text-[11px] font-medium text-book-text-muted">
-          节点库
+    <div className={mobile ? "space-y-3" : "flex h-full min-h-0 flex-col"}>
+      {mobile ? (
+        <p className="text-[11px] text-book-text-muted">
+          点击节点即可添加到当前画布视图中心
+        </p>
+      ) : (
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-book-text-main">节点库</h2>
+          <p className="mt-0.5 text-[11px] text-book-text-muted">
+            拖入画布编排 · {nodeTemplateCount} 种节点
+          </p>
         </div>
-        <div className="font-mono text-[10px] text-book-text-muted">
-          {nodeTemplateCount}
-        </div>
-      </div>
-      <div className="space-y-4">
+      )}
+      <div className={mobile ? "space-y-4" : "min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 custom-scrollbar"}>
         {nodeTemplateGroups.map((group) => (
           <section key={group.title} className="space-y-1.5">
-            <div className="px-1 text-[10px] font-medium text-book-text-muted">
+            <h3 className="a4n-kicker px-1">
               {group.title}
-            </div>
-            <div className="grid gap-1.5">
+            </h3>
+            <div className="divide-y divide-book-border/35">
               {group.items.map(({ kind, label, icon: Icon }) => (
                 <button
                   key={kind}
                   type="button"
-                  draggable={!mobile && canEdit}
+                  draggable={!mobile && !canvasMutationDisabled}
                   onClick={
                     mobile ? () => addNodeToVisibleCanvas(kind, label) : undefined
                   }
@@ -1393,15 +1517,17 @@ export const VideoStudioCanvas: React.FC = () => {
                       ? undefined
                       : (event) => onNodeTemplateDragStart(event, kind, label)
                   }
-                  disabled={!canEdit}
+                  disabled={canvasMutationDisabled}
                   title={mobile ? "添加到当前画布视图中心" : "拖入画布"}
-                  className={`flex w-full select-none items-center gap-2 rounded border border-book-border bg-book-bg px-2 text-left text-xs text-book-text-main transition hover:border-book-primary/60 hover:bg-book-bg-tertiary disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`flex w-full select-none items-center gap-2 rounded-xl bg-transparent px-2 text-left text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-50 ${
                     mobile
                       ? "h-10"
                       : "h-8 cursor-grab active:cursor-grabbing"
                   }`}
                 >
-                  <Icon size={14} className="shrink-0 text-book-primary" />
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-book-primary/10 text-book-primary">
+                    <Icon size={13} />
+                  </span>
                   <span className="truncate">{label}</span>
                 </button>
               ))}
@@ -1409,140 +1535,164 @@ export const VideoStudioCanvas: React.FC = () => {
           </section>
         ))}
       </div>
-    </>
+    </div>
   );
 
-  const renderInspectorPanel = () => (
-    <>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="text-[11px] font-medium text-book-text-muted">
-          {selectedEdge ? "连线属性" : "节点属性"}
+  const renderInspectorPanel = (mobile = false) => (
+    <div className={mobile ? "space-y-3" : "flex h-full min-h-0 flex-col"}>
+      {!mobile ? (
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-book-text-main">
+            {selectedEdge ? "连线属性" : "节点属性"}
+          </h2>
+          <p className="mt-0.5 truncate text-[11px] text-book-text-muted">
+            {selectedNode
+              ? `${selectedNode.data.label || nodeDisplayTitle(selectedNode.data)} · ${stateLabel(selectedNode.data.state)}`
+              : selectedEdge
+                ? edgeRoleLabel(selectedEdge.data?.role ?? "")
+                : "选择节点或连线后编辑"}
+          </p>
         </div>
-        {selectedNode ? (
-          <span className="rounded border border-book-border bg-book-bg px-1.5 py-0.5 text-[10px] text-book-text-muted">
-            {selectedNode.data.state}
-          </span>
-        ) : null}
-      </div>
-      {selectedEdge ? (
-        <EdgeInspector edge={selectedEdge} />
       ) : selectedNode ? (
-        <NodeInspector
-          node={selectedNode}
-          nodes={nodes}
-          edges={edges}
-          disabled={!canEdit}
-          configOptions={configOptions}
-          onChange={updateSelectedConfig}
-          onRefChange={updateSelectedRef}
-          onMoveAssembleClip={moveAssembleClip}
-          onPreviewContent={(node) => setContentPreviewNode(node)}
+        <p className="text-[11px] text-book-text-muted">
+          {selectedNode.data.label || nodeDisplayTitle(selectedNode.data)} · {stateLabel(selectedNode.data.state)}
+        </p>
+      ) : null}
+      <div className={mobile ? "space-y-3" : "min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar"}>
+        {selectedEdge ? (
+          <EdgeInspector edge={selectedEdge} />
+        ) : selectedNode ? (
+          <NodeInspector
+            node={selectedNode}
+            nodes={nodes}
+            edges={edges}
+            disabled={canvasMutationDisabled}
+            configOptions={configOptions}
+            onChange={updateSelectedConfig}
+            onRefChange={updateSelectedRef}
+            onMoveAssembleClip={moveAssembleClip}
+            onPreviewContent={(node) => setContentPreviewNode(node)}
+          />
+        ) : (
+          <div className="a4n-empty-state a4n-empty-state--compact text-xs">
+            选择画布节点或连线后编辑属性
+          </div>
+        )}
+        <CanvasWorkflowPanel
+          latestWorkflowRunId={latestWorkflowRunId}
+          detail={workflowDetail}
+          events={workflowEvents}
+          loading={workflowLoading}
+          submittingLabel={workflowSubmissionLabel}
+          cancelling={cancellingWorkflow}
+          resuming={resumingWorkflow}
+          onRefresh={() =>
+            latestWorkflowRunId && void loadWorkflowStatus(latestWorkflowRunId)
+          }
+          onCancel={() => void cancelActiveWorkflow()}
+          onResume={() => void resumeActiveWorkflow()}
         />
-      ) : (
-        <div className="rounded border border-book-border bg-book-bg p-3 text-xs text-book-text-muted">
-          选择画布节点或连线后编辑属性
-        </div>
-      )}
-      <CanvasWorkflowPanel
-        latestWorkflowRunId={latestWorkflowRunId}
-        detail={workflowDetail}
-        events={workflowEvents}
-        loading={workflowLoading}
-        submittingLabel={workflowSubmissionLabel}
-        cancelling={cancellingWorkflow}
-        resuming={resumingWorkflow}
-        onRefresh={() =>
-          latestWorkflowRunId && void loadWorkflowStatus(latestWorkflowRunId)
-        }
-        onCancel={() => void cancelActiveWorkflow()}
-        onResume={() => void resumeActiveWorkflow()}
-      />
-    </>
+      </div>
+    </div>
   );
 
   return (
     <StudioNodeContractsProvider contracts={nodeContractsByKind}>
       <div className="h-full min-h-0 flex flex-col bg-book-bg">
-        <header className="a4n-page-header shrink-0 flex-wrap gap-3 py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={() => navigate("/")}
-            >
-              <ArrowLeft size={14} />
-              返回
-            </BookButton>
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <h1 className="truncate text-sm font-semibold text-book-text-main">
-                  {project?.title || "视频画布"}
-                </h1>
-                <span className="shrink-0 rounded border border-book-primary/35 bg-book-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-book-primary">
-                  {project?.source_mode === "freeform" ? "自由" : "派生"}
-                </span>
-                {dirty ? (
-                  <span className="shrink-0 rounded border border-warning/40 bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium text-warning">
-                    未保存
-                  </span>
-                ) : null}
-              </div>
-              <p className="truncate text-[11px] text-book-text-muted">
-                {isMobileLayout
-                  ? selectedNode
-                    ? `正在编辑：${selectedNode.data.label}`
-                    : "移动端可通过节点库添加节点，选择节点后打开面板编辑"
-                  : selectedNode
-                  ? `正在编辑：${selectedNode.data.label}`
+        <PageHeader
+          className="shrink-0"
+          leading={<BackButton iconOnly title="返回项目列表" onClick={() => navigate("/")} />}
+          icon={<Film size={15} />}
+          title={project?.title || "视频画布"}
+          subtitle={
+            selectedNode
+              ? `${selectedNode.data.label || nodeDisplayTitle(selectedNode.data)} · ${stateLabel(selectedNode.data.state)}`
+              : project?.source_mode === "freeform"
+                ? "自由编排节点、媒体与生成流程"
+                : "基于派生项目编排视频生成流程"
+          }
+          meta={
+            <span className="text-[11px] text-book-text-muted">
+              {saving
+                ? "正在保存画布…"
+                : importing
+                  ? "正在导入媒体…"
                   : project?.source_mode === "freeform"
-                    ? "自由视频项目"
-                    : "派生视频项目画布"}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {isMobileLayout ? (
-              <>
+                    ? "自由画布"
+                    : "派生画布"}
+              {!canvasWriteBusy && dirty ? " · 有未保存更改" : ""}
+            </span>
+          }
+          actions={
+            <>
+              {isMobileLayout ? (
+                <>
+                  <BookIconButton
+                    label="打开节点库"
+                    onClick={() => setMobileNodeLibraryOpen(true)}
+                    disabled={canvasMutationDisabled}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    <ListPlus size={14} />
+                  </BookIconButton>
+                  <BookIconButton
+                    label="打开属性面板"
+                    onClick={() => setMobileInspectorOpen(true)}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    <SlidersHorizontal size={14} />
+                  </BookIconButton>
+                </>
+              ) : null}
+              <Dropdown items={headerActionItems} />
+              {dirty || saving ? (
                 <BookButton
-                  variant="secondary"
+                  variant="primary"
                   size="sm"
-                  onClick={() => setMobileNodeLibraryOpen(true)}
-                  disabled={!canEdit}
+                  onClick={persist}
+                  disabled={canvasWriteBusy || !canEdit}
                 >
-                  <ListPlus size={14} />
-                  节点库
+                  {saving ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Save size={14} />
+                  )}
+                  {saving ? "保存中…" : "保存画布"}
                 </BookButton>
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setMobileInspectorOpen(true)}
-                >
-                  <SlidersHorizontal size={14} />
-                  面板
-                </BookButton>
-              </>
-            ) : null}
-            <BookButton
-              variant="primary"
-              size="sm"
-              onClick={persist}
-              disabled={saving || !canEdit}
-            >
-              {saving ? (
-                <Loader2 size={14} className="animate-spin" />
               ) : (
-                <Save size={14} />
+                <BookButton
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void runGraph()}
+                  disabled={
+                    !document ||
+                    canvasWriteBusy ||
+                    !canEdit ||
+                    workflowSubmitting
+                  }
+                  title="运行完整画布工作流"
+                >
+                  {workflowSubmitting ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Play size={14} />
+                  )}
+                  {workflowSubmitting ? workflowSubmissionLabel ?? "正在运行" : "运行画布"}
+                </BookButton>
               )}
-              保存
-            </BookButton>
-          </div>
-        </header>
-        <main
+            </>
+          }
+        />
+        <section
+          aria-label="视频画布编辑区"
+          aria-busy={canvasWriteBusy}
           className="grid flex-1 min-h-0 overflow-hidden"
           style={{ gridTemplateColumns: canvasGridTemplateColumns }}
         >
           {leftSidebarVisible ? (
-            <aside className="min-h-0 overflow-y-auto border-r border-book-border bg-book-bg-paper p-3 pb-10 custom-scrollbar">
+            <aside className="min-h-0 overflow-hidden border-r border-book-border/80 bg-book-bg-paper p-2.5">
               {renderNodeLibraryPanel(false)}
             </aside>
           ) : null}
@@ -1575,6 +1725,8 @@ export const VideoStudioCanvas: React.FC = () => {
                   onEdgesChange={onEdgesChange}
                   onConnect={onConnect}
                   isValidConnection={isValidCanvasConnection}
+                  nodesDraggable={!canvasMutationDisabled}
+                  nodesConnectable={!canvasMutationDisabled}
                   onNodeContextMenu={onNodeContextMenu}
                   onEdgeContextMenu={onEdgeContextMenu}
                   onPaneContextMenu={onPaneContextMenu}
@@ -1586,7 +1738,9 @@ export const VideoStudioCanvas: React.FC = () => {
                   defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                   minZoom={0.35}
                   maxZoom={1.4}
-                  deleteKeyCode={["Delete", "Backspace"]}
+                  deleteKeyCode={
+                    canvasMutationDisabled ? null : ["Delete", "Backspace"]
+                  }
                   className="a4n-studio-flow"
                 >
                   {!isMobileLayout ? (
@@ -1628,11 +1782,11 @@ export const VideoStudioCanvas: React.FC = () => {
             />
           ) : null}
           {rightSidebarVisible ? (
-            <aside className="min-h-0 overflow-y-auto border-l border-book-border bg-book-bg-paper p-3 pb-10 custom-scrollbar">
-              {renderInspectorPanel()}
+            <aside className="min-h-0 overflow-hidden border-l border-book-border/80 bg-book-bg-paper p-2.5">
+              {renderInspectorPanel(false)}
             </aside>
           ) : null}
-        </main>
+        </section>
         {isMobileLayout ? (
           <>
             <Modal
@@ -1651,7 +1805,7 @@ export const VideoStudioCanvas: React.FC = () => {
               maxWidthClassName="max-w-xl"
               bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
             >
-              {renderInspectorPanel()}
+              {renderInspectorPanel(true)}
             </Modal>
           </>
         ) : null}

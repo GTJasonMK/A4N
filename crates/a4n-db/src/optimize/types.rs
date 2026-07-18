@@ -1,0 +1,129 @@
+use super::*;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptimizationSessionCreateInput {
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub name: Option<String>,
+    pub status: String,
+    pub issues: Option<Value>,
+    pub agent_permissions: Option<Value>,
+    pub agent_instruction: Option<String>,
+    pub fixes_applied: i32,
+    pub summary: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptimizationSessionUpdateInput {
+    pub session: optimization_session::Model,
+    pub status: Option<String>,
+    pub issues: Option<Option<Value>>,
+    pub agent_permissions: Option<Option<Value>>,
+    pub agent_instruction: Option<Option<String>>,
+    pub fixes_applied: Option<i32>,
+    pub summary: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptimizationSessionMessageInsertInput {
+    pub session_id: i64,
+    pub role: String,
+    pub content: String,
+    pub tool_calls: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptimizationTurnCreateInput {
+    pub session_id: i64,
+    pub user_text: String,
+    pub status: String,
+    pub permissions_snapshot: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptimizationTurnUpdateInput {
+    pub turn: optimization_turn::Model,
+    pub status: Option<String>,
+    pub final_reply: Option<Option<String>>,
+    pub error: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptimizationTurnEventAppendInput {
+    pub turn_id: i64,
+    pub kind: String,
+    pub status: String,
+    pub public_text: String,
+    pub payload: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizationPatchCreateInput {
+    pub patch_id: String,
+    pub issue_id: Option<String>,
+    pub operation: String,
+    pub old_text: String,
+    pub new_text: String,
+    pub reason: String,
+    pub risk: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizationPatchSetCreateInput {
+    pub turn_id: i64,
+    pub session_id: i64,
+    pub chapter_id: i64,
+    pub base_content_hash: String,
+    pub status: String,
+    pub summary: String,
+    pub patch_decision: String,
+    pub patch_apply_status: String,
+    pub patches: Vec<OptimizationPatchCreateInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizationContextReadInput {
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub read_project_detail: bool,
+    pub read_blueprint: bool,
+    pub read_outlines: bool,
+    pub read_character_profiles: bool,
+    pub read_foreshadowing: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct OptimizationBlueprintRows {
+    pub blueprint: novel_blueprint::Model,
+    pub characters: Vec<blueprint_character::Model>,
+    pub relationships: Vec<blueprint_relationship::Model>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OptimizationContextRows {
+    pub current_chapter: chapter::Model,
+    pub current_chapter_outline: Option<chapter_outline::Model>,
+    pub project: Option<novel_project::Model>,
+    pub blueprint: Option<OptimizationBlueprintRows>,
+    pub part_outlines: Vec<part_outline::Model>,
+    pub chapter_outlines: Vec<chapter_outline::Model>,
+    pub character_profiles: Vec<protagonist_profile::Model>,
+    pub foreshadowing_index: Vec<foreshadowing_index::Model>,
+    pub previous_chapters: Vec<chapter::Model>,
+    pub next_chapters: Vec<chapter::Model>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OptimizationChapterPatchWriteInput {
+    pub chapter: chapter::Model,
+    pub content: String,
+    pub word_count: i32,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum OptimizeDbError {
+    #[error("{0}")]
+    InvalidArgument(String),
+    #[error(transparent)]
+    Database(#[from] DbErr),
+}

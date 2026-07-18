@@ -1,0 +1,14 @@
+[package]
+name = "a4n-export-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-archive-core = { path = "../a4n-archive-core" }
+base64 = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+zip = { workspace = true, features = ["deflate"] }

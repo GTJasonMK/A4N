@@ -1,0 +1,41 @@
+use a4n_core::error::AppError;
+use a4n_core::models::user::{role::validate_user_role, user};
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
+
+use crate::auth::rules::validate_positive_user_id;
+
+use super::read::user_by_id;
+
+pub async fn update_user_role(
+    db: &DatabaseConnection,
+    user_id: i64,
+    role: &str,
+) -> Result<user::Model, AppError> {
+    validate_positive_user_id(user_id)?;
+    validate_user_role(role)?;
+
+    let user = user_by_id(db, user_id).await?;
+    let mut active: user::ActiveModel = user.into();
+    active.role = Set(role.to_string());
+    active.updated_at = Set(Utc::now().naive_utc());
+    active.update(db).await.map_err(AppError::Database)
+}
+
+pub async fn disable_user(
+    db: &DatabaseConnection,
+    caller_user_id: i64,
+    user_id: i64,
+) -> Result<(), AppError> {
+    validate_positive_user_id(user_id)?;
+    if caller_user_id == user_id {
+        return Err(AppError::InvalidArgument("不能禁用当前登录用户".into()));
+    }
+
+    let user = user_by_id(db, user_id).await?;
+    let mut active: user::ActiveModel = user.into();
+    active.is_active = Set(false);
+    active.updated_at = Set(Utc::now().naive_utc());
+    active.update(db).await.map_err(AppError::Database)?;
+    Ok(())
+}

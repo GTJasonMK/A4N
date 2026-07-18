@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Film, GitCompare, Layers3, Loader2 } from "lucide-react";
+import { Film, GitCompare, Layers3, Loader2 } from "lucide-react";
 import {
   getProject,
   listSourceSnapshotChapters,
@@ -9,10 +9,13 @@ import {
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { useToast } from "../components/feedback/Toast";
-import { BookButton } from "../components/ui/BookButton";
+import { BookButton, BookIconButton } from "../components/ui/BookButton";
+import { BackButton } from "../components/ui/BackButton";
+import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { EmptyHint, type ChapterRow } from "./novel-detail/shared";
 import { VideoTab } from "./novel-detail/VideoTab";
 import { SourceSyncDialog } from "./derived/SourceSyncDialog";
+import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 
 export const VideoProjectWorkspace: React.FC = () => {
   const { id } = useParams();
@@ -31,7 +34,7 @@ export const VideoProjectWorkspace: React.FC = () => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast("视频项目 ID 无效", "error");
+      addToast("视频项目参数无效", "error");
       setProject(null);
       setChapters([]);
       setSelectedSourceChapterId(null);
@@ -109,29 +112,34 @@ export const VideoProjectWorkspace: React.FC = () => {
   }, [project]);
   const canEditProject =
     project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
+  const showChapterNavigation = chapters.length > 1;
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
-      <header className="a4n-page-header shrink-0 flex-col items-stretch !gap-3 py-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <BookButton variant="secondary" size="sm" onClick={() => navigate("/")}>
-              <ArrowLeft size={14} />
-              返回
-            </BookButton>
+      <DerivedProjectHeader
+        leading={<BackButton iconOnly title="返回项目列表" onClick={() => navigate("/")} />}
+        icon={<Film size={15} />}
+        title={project?.title || "视频项目"}
+        subtitle={
+          project
+            ? getDerivedProjectSubtitle(project, "视频项目工作区")
+            : "加载源文本信息中"
+        }
+        actions={
+          <>
             {canEditProject ? (
-              <BookButton
-                variant="secondary"
-                size="sm"
+              <BookIconButton
+                label="同步源文本"
                 onClick={() => setSourceSyncOpen(true)}
                 disabled={!project}
+                variant="secondary"
+                size="sm"
               >
                 <GitCompare size={14} />
-                源文本同步
-              </BookButton>
+              </BookIconButton>
             ) : null}
             <BookButton
-              variant="secondary"
+              variant="primary"
               size="sm"
               onClick={() => navigate(`/video-project/${projectId}/studio`)}
               disabled={!project}
@@ -139,29 +147,9 @@ export const VideoProjectWorkspace: React.FC = () => {
               <Layers3 size={14} />
               画布模式
             </BookButton>
-          </div>
-          <div className="flex min-w-0 items-center gap-2">
-            <Film size={16} className="shrink-0 text-book-primary" />
-            <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold text-book-text-main">
-                {project?.title || "视频项目"}
-              </h1>
-              <p className="truncate text-[11px] text-book-text-muted">
-                {project?.root_project_title
-                  ? `基于：${project.root_project_title}`
-                  : "加载源文本信息中"}
-              </p>
-            </div>
-          </div>
-        </div>
-        {project ? (
-          <div className="mt-3 grid gap-2 text-[11px] text-book-text-muted sm:grid-cols-3">
-            <Info label="源快照" value={project.source_snapshot_created_at || "-"} />
-            <Info label="同步状态" value={project.source_sync_status} />
-            <Info label="章节范围" value={formatChapterScope(project.derived_chapter_scope)} />
-          </div>
-        ) : null}
-      </header>
+          </>
+        }
+      />
 
       {project ? (
         <SourceSyncDialog
@@ -175,7 +163,7 @@ export const VideoProjectWorkspace: React.FC = () => {
         />
       ) : null}
 
-      <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 md:overflow-hidden md:px-5 md:py-5">
+      <section aria-label="视频项目工作区" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 md:overflow-hidden md:px-5 md:py-5">
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <Loader2 size={14} className="animate-spin" />
@@ -184,31 +172,72 @@ export const VideoProjectWorkspace: React.FC = () => {
         ) : project && !canEditProject ? (
           <EmptyHint text="当前账号没有编辑此视频项目的权限。" />
         ) : project && chapters.length > 0 ? (
-          <div className="grid min-h-0 gap-3 md:h-full md:grid-cols-[220px_minmax(0,1fr)] md:gap-4">
-            <aside className="a4n-page-surface min-h-0 overflow-x-auto p-2 md:overflow-y-auto custom-scrollbar">
-              <div className="mb-2 px-2 text-[11px] font-medium text-book-text-muted">
-                源快照章节
+          <div
+            className={
+              showChapterNavigation
+                ? "grid min-h-0 gap-3 md:h-full md:grid-cols-[220px_minmax(0,1fr)] md:gap-4"
+                : "flex min-h-0 flex-col gap-3 md:h-full"
+            }
+          >
+            {showChapterNavigation ? (
+              <>
+                <label className="flex min-w-0 items-center gap-2 border-b border-book-border/45 pb-3 text-xs md:hidden">
+                  <span className="shrink-0 font-medium text-book-text-muted">来源章节</span>
+                  <select
+                    value={selectedSourceChapterId ?? ""}
+                    onChange={(event) => setSelectedSourceChapterId(Number(event.target.value))}
+                    className="pyqt-input h-9 min-w-0 flex-1 !px-2 !py-1.5 text-xs"
+                  >
+                    {chapters.map((chapter) => {
+                      const title = sourceChapterTitle(chapter);
+                      return (
+                        <option key={chapter.id} value={chapter.source_chapter_id}>
+                          第 {chapter.chapter_number} 章{title ? ` · ${title}` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+                <aside aria-label="来源章节" className="a4n-flat-surface hidden max-h-full min-h-0 self-start overflow-y-auto p-2 custom-scrollbar md:block">
+                  <div className="mb-2 hidden px-2 text-[11px] font-medium text-book-text-muted md:block">
+                    来源章节
+                  </div>
+                  <div className="space-y-1">
+                    {chapters.map((chapter) => {
+                      const active = chapter.source_chapter_id === selectedSourceChapterId;
+                      const title = sourceChapterTitle(chapter);
+                      return (
+                        <button
+                          key={chapter.id}
+                          type="button"
+                          onClick={() => setSelectedSourceChapterId(chapter.source_chapter_id)}
+                          data-active={active ? "1" : undefined}
+                          className="a4n-sidebar-item text-xs"
+                        >
+                          <div className="font-medium">第 {chapter.chapter_number} 章</div>
+                          {title ? (
+                            <div className="mt-0.5 truncate text-[11px] text-book-text-muted">
+                              {title}
+                            </div>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </aside>
+              </>
+            ) : selectedChapter ? (
+              <div
+                aria-label="当前来源章节"
+                className="flex min-w-0 shrink-0 items-baseline gap-2 border-b border-book-border/45 px-1 pb-3 text-xs"
+              >
+                <span className="shrink-0 text-book-text-muted">来源章节</span>
+                <span className="min-w-0 truncate font-medium text-book-text-main">
+                  第 {selectedChapter.chapter_number} 章
+                  {selectedChapter.title ? ` · ${selectedChapter.title}` : ""}
+                </span>
               </div>
-              <div className="flex min-w-max gap-1 md:block md:min-w-0 md:space-y-1">
-                {chapters.map((chapter) => {
-                  const active = chapter.source_chapter_id === selectedSourceChapterId;
-                  return (
-                    <button
-                      key={chapter.id}
-                      type="button"
-                      onClick={() => setSelectedSourceChapterId(chapter.source_chapter_id)}
-                      data-active={active ? "1" : undefined}
-                      className="a4n-sidebar-item min-w-[9rem] text-xs md:min-w-0"
-                    >
-                      <div className="font-medium">第 {chapter.chapter_number} 章</div>
-                      <div className="mt-0.5 truncate text-[11px] text-book-text-muted">
-                        {chapter.title || "未命名章节"}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </aside>
+            ) : null}
             <section className="min-h-[60vh] overflow-hidden md:min-h-0">
               <VideoTab
                 projectId={project.id}
@@ -219,25 +248,16 @@ export const VideoProjectWorkspace: React.FC = () => {
             </section>
           </div>
         ) : (
-          <EmptyHint text="当前视频项目没有可用的源快照章节。" />
+          <EmptyHint text="当前视频项目没有可用的来源章节。" />
         )}
-      </main>
+      </section>
     </div>
   );
 };
 
-const Info: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="a4n-stat-tile">
-    <div className="mb-1 text-[10px] text-book-text-muted">{label}</div>
-    <div className="truncate text-xs text-book-text-main">{value}</div>
-  </div>
-);
-
-function formatChapterScope(scope: unknown): string {
-  if (!scope || typeof scope !== "object") return "-";
-  const record = scope as Record<string, unknown>;
-  const start = Number(record.start);
-  const end = Number(record.end);
-  if (Number.isInteger(start) && Number.isInteger(end)) return `第 ${start}-${end} 章`;
-  return JSON.stringify(scope);
+function sourceChapterTitle(chapter: SourceSnapshotChapter): string | null {
+  const title = chapter.title?.trim();
+  if (!title) return null;
+  const normalizedTitle = title.replace(/\s+/g, "");
+  return normalizedTitle === `第${chapter.chapter_number}章` ? null : title;
 }

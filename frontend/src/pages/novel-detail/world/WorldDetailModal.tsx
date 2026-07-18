@@ -7,44 +7,34 @@ import { stringifyPretty, type WorldObject } from "./worldTabUtils";
 interface WorldDetailModalProps {
   open: boolean;
   worldObject: WorldObject | null;
-  showJsonView: boolean;
   onClose: () => void;
-  onToggleJsonView: () => void;
 }
 
 export const WorldDetailModal: React.FC<WorldDetailModalProps> = ({
   open,
   worldObject,
-  showJsonView,
   onClose,
-  onToggleJsonView,
 }) => {
   return (
     <Modal
       isOpen={open}
       onClose={onClose}
       title="完整世界观"
-      subtitle="完整设定收纳在弹窗中，主页面只保留核心摘要。"
+      subtitle="世界规则、地点、阵营与其他扩展设定"
       icon={<ScrollText size={15} />}
       maxWidthClassName="max-w-5xl"
       bodyClassName="px-4 py-4"
     >
       {worldObject ? <WorldObjectView obj={worldObject} /> : null}
       {worldObject ? (
-        <div className="mt-4 rounded-sm border border-book-border/40 bg-book-bg-tertiary/35 p-3">
-          <button
-            type="button"
-            className="text-xs font-semibold text-book-text-sub hover:text-book-text-main"
-            onClick={onToggleJsonView}
-          >
-            {showJsonView ? "隐藏 JSON 原文" : "查看 JSON 原文"}
-          </button>
-          {showJsonView && (
-            <pre className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-sm bg-book-bg-paper p-3 font-mono text-[10px] leading-relaxed text-book-text-sub custom-scrollbar">
-              {stringifyPretty(worldObject)}
-            </pre>
-          )}
-        </div>
+        <details className="mt-4 text-[10px] text-book-text-muted">
+          <summary className="w-fit cursor-pointer text-xs hover:text-book-text-main">
+            诊断信息
+          </summary>
+          <pre className="mt-1 whitespace-pre-wrap break-words rounded-[10px] bg-book-bg-tertiary/45 p-3 font-mono text-[10px] leading-relaxed text-book-text-sub">
+            {stringifyPretty(worldObject)}
+          </pre>
+        </details>
       ) : null}
     </Modal>
   );

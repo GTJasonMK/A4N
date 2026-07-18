@@ -59,7 +59,9 @@ export type OptimizeSubmitKind = "message" | "analyze" | "propose_patches";
 
 export const chapterOptionLabel = (chapter: ChapterData): string => {
   const title = nonEmptyText(chapter.title);
-  return title ? `#${chapter.chapter_number} ${title}` : `#${chapter.chapter_number}`;
+  return title
+    ? `第 ${chapter.chapter_number} 章 · ${title}`
+    : `第 ${chapter.chapter_number} 章`;
 };
 
 export const initialSelectedChapter = (

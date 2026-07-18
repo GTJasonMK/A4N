@@ -1,0 +1,16 @@
+[package]
+name = "a4n-capabilities"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-export-core = { path = "../a4n-export-core" }
+a4n-import-core = { path = "../a4n-import-core" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+
+async-trait = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }

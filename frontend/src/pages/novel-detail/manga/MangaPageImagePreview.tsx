@@ -22,7 +22,7 @@ export const MangaPageImagePreview: React.FC<{
   const src = toMediaSrc(image?.file_path);
   if (src && image) {
     return (
-      <div className="min-h-[360px] overflow-hidden rounded border border-book-border/45 bg-book-bg-tertiary/40">
+      <div className="min-h-[360px] overflow-hidden bg-book-bg-tertiary/40">
         <button
           type="button"
           onClick={() => onOpenImage({ pageNumber: page.pageNumber, image, src })}
@@ -34,16 +34,13 @@ export const MangaPageImagePreview: React.FC<{
             alt={`第 ${page.pageNumber} 页漫画`}
             className="max-h-[58vh] w-full object-contain"
           />
-          <span className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded border border-book-border/60 bg-book-bg-paper/90 text-book-text-sub shadow-sm opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
+          <span className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-book-border/60 bg-book-bg-paper/90 text-book-text-sub shadow-sm opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
             <Maximize2 size={14} />
           </span>
         </button>
         <div className="flex flex-wrap items-center gap-2 border-t border-book-border/45 bg-book-bg-paper/70 px-3 py-2 text-[11px] text-book-text-muted">
-          <span className="font-mono text-book-text-main">#{image.id}</span>
-          <span>{image.model}</span>
-          <span>
-            {image.width}x{image.height}
-          </span>
+          <span>漫画成图</span>
+          <span>{image.width}×{image.height}</span>
           {image.file_size != null ? (
             <span>{Math.round(image.file_size / 1024)} KB</span>
           ) : null}
@@ -53,14 +50,14 @@ export const MangaPageImagePreview: React.FC<{
   }
 
   return (
-    <div className="flex min-h-[360px] items-center justify-center rounded border border-book-border/45 bg-book-bg-tertiary/40 p-4 text-xs text-book-text-muted">
+    <div className="flex min-h-[360px] items-center justify-center bg-book-bg-tertiary/40 p-4 text-xs text-book-text-muted">
       {loading ? (
         <span className="inline-flex items-center gap-2">
           <Loader2 size={13} className="animate-spin" />
           加载图片素材…
         </span>
       ) : page.prompt.generated_image_id != null ? (
-        `图片 #${page.prompt.generated_image_id} 暂未加载`
+        "图片暂未加载"
       ) : (
         "暂无成图"
       )}

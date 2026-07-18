@@ -1,0 +1,14 @@
+{
+  "bundle": {
+    "externalBin": [
+      "../../target/tauri-sidecars/a4n-prompt-service",
+      "../../target/tauri-sidecars/a4n-llm-gateway",
+      "../../target/tauri-sidecars/a4n-embedding-service",
+      "../../target/tauri-sidecars/a4n-rag-service",
+      "../../target/tauri-sidecars/a4n-image-service",
+      "../../target/tauri-sidecars/a4n-video-service",
+      "../../target/tauri-sidecars/a4n-import-service",
+      "../../target/tauri-sidecars/a4n-export-service"
+    ]
+  }
+}

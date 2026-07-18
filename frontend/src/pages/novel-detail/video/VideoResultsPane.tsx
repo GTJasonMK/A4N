@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
   Copy,
   Eye,
   Film,
@@ -10,21 +11,20 @@ import {
   Scissors,
   Star,
   Trash2,
-  X,
 } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import type { GeneratedVideo, UpdateVideoInput } from "../../../api/video";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { EmptyHint } from "../shared";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import { toMediaSrc } from "../../../utils/mediaSrc";
-import { statusClass } from "./videoGenerationDisplay";
+import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { useVideoPlaybackSource } from "./useVideoPlaybackSource";
 import {
   formatVideoCreatedAt,
-  promptByteCount,
   promptCharCount,
   videoProviderRequestPreviewBlockedReason,
 } from "./videoTabUtils";
@@ -48,7 +48,27 @@ interface VideoResultsPaneProps {
   onTrimStartChange: (value: string) => void;
   onTrimEndChange: (value: string) => void;
   onTrim: () => void | Promise<void>;
+  onOpenSetup?: () => void;
 }
+
+type VideoActionItems = React.ComponentProps<typeof Dropdown>["items"];
+
+const videoRecordTitle = (video: GeneratedVideo): string => {
+  const metadata =
+    video.metadata_json && typeof video.metadata_json === "object" && !Array.isArray(video.metadata_json)
+      ? (video.metadata_json as Record<string, unknown>)
+      : null;
+  const shotNumber = metadata?.shot_number;
+  if (video.video_type === "chapter_video") {
+    return typeof shotNumber === "number" && Number.isInteger(shotNumber) && shotNumber > 0
+      ? `镜头 ${shotNumber}`
+      : "章节视频";
+  }
+  if (video.video_type === "reference_media_video") return "参考媒体视频";
+  if (video.video_type === "trimmed_clip") return "裁剪片段";
+  if (video.video_type === "canvas_video") return "画布视频";
+  return "生成视频";
+};
 
 export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   videos,
@@ -69,6 +89,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   onTrimStartChange,
   onTrimEndChange,
   onTrim,
+  onOpenSetup,
 }) => {
   const addToast = useToast((state) => state.addToast);
   const [promptOpen, setPromptOpen] = useState(false);
@@ -90,9 +111,6 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     selectedVideo: selectedVideoRecord,
     selectedVideoPath: selectedVideoRecord ? selectedVideoPath : "",
   });
-  const deleteAllVideoAssetsBlockedReason =
-    totalVideoAssetCount === 0 ? "没有可删除的视频资产" : undefined;
-
   useEffect(() => {
     promptSavingRef.current = false;
     setPromptEditing(false);
@@ -149,20 +167,12 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     setPromptEditing(true);
   };
 
-  const cancelPromptEdit = () => {
-    if (!selectedVideoRecord) return;
-    setPromptDraft(selectedVideoRecord.prompt ?? "");
-    setNegativePromptDraft(selectedVideoRecord.negative_prompt ?? "");
-    setPromptEditing(false);
-  };
-
   const promptRecordDirty =
     selectedVideoRecord != null &&
     (promptDraft.trim() !== selectedVideoRecord.prompt.trim() ||
       negativePromptDraft.trim() !== (selectedVideoRecord.negative_prompt ?? "").trim());
   const promptActionBusy = promptSaving || acting != null;
   const selectedPromptChars = promptCharCount(selectedVideoRecord?.prompt);
-  const selectedPromptBytes = promptByteCount(selectedVideoRecord?.prompt);
 
   const handleSavePromptRecord = async () => {
     if (!selectedVideoRecord || !onUpdateVideo) return;
@@ -191,106 +201,82 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   const renderSelectedVideoPreview = () => {
     if (!selectedVideoRecord) {
       return (
-        <div className="a4n-page-surface flex min-h-[260px] items-center justify-center">
+        <div className="a4n-flat-surface min-h-[180px] self-start">
           <EmptyHint text="选择一个视频后查看生成效果。" />
         </div>
       );
     }
 
     const previewBlockedReason = videoProviderRequestPreviewBlockedReason(selectedVideoRecord);
-    const previewBlockedLabel = previewBlockedReason?.includes("Chat 生视频")
-      ? "外部生成"
-      : "请求快照缺失";
+    const selectedActions: VideoActionItems = [
+      {
+        label: "复制提示词",
+        icon: <Copy size={12} />,
+        onClick: () => void copyText("视频 Prompt", selectedVideoRecord.prompt),
+      },
+      ...(onPreviewVideoRequest && !previewBlockedReason
+        ? [
+            {
+              label: "查看模型请求",
+              icon: <Eye size={12} />,
+              onClick: () => void onPreviewVideoRequest(selectedVideoRecord),
+            },
+          ]
+        : []),
+      ...(selectedVideoRecord.provider_job_id && selectedVideoRecord.status !== "completed"
+        ? [
+            {
+              label: "刷新生成状态",
+              icon: <RefreshCw size={12} />,
+              onClick: () => void onPollVideo(selectedVideoRecord),
+            },
+          ]
+        : []),
+      {
+        label: selectedVideoRecord.is_favorite ? "取消收藏" : "收藏视频",
+        icon: <Star size={12} fill={selectedVideoRecord.is_favorite ? "currentColor" : "none"} />,
+        onClick: () => void onToggleVideoFavorite(selectedVideoRecord),
+      },
+      { type: "divider" },
+      {
+        label: "删除视频",
+        icon: <Trash2 size={12} />,
+        danger: true,
+        onClick: () => void onDeleteVideo(selectedVideoRecord),
+      },
+    ];
     return (
-      <div className="a4n-page-surface min-w-0 overflow-hidden">
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b border-book-border/40 px-2 py-1.5 text-xs">
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
-            <span className="font-mono text-book-text-main">#{selectedVideoRecord.id}</span>
-            <span className={`pyqt-pill !text-[10px] ${statusClass(selectedVideoRecord.status)}`}>
-              {selectedVideoRecord.status}
-            </span>
-            <span className="min-w-0 truncate text-book-text-sub">{selectedVideoRecord.model}</span>
-            <span className="font-mono text-book-text-muted">
-              {Math.round(selectedVideoRecord.duration_secs)}s
-            </span>
-            {selectedVideoRecord.is_favorite && (
-              <Star size={11} className="fill-book-primary text-book-primary" />
-            )}
+      <div className="a4n-flat-surface min-w-0 overflow-hidden">
+        <div className="relative z-10 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/40 px-3 py-2.5">
+          <Film size={12} className="shrink-0 text-book-primary" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xs font-medium text-book-text-main">
+              {videoRecordTitle(selectedVideoRecord)}
+            </div>
+            <div className="mt-0.5 truncate text-[10px] text-book-text-muted">
+              {getOperationStatusLabel(selectedVideoRecord.status)} · {Math.round(selectedVideoRecord.duration_secs)} 秒
+              {selectedVideoRecord.is_favorite ? " · 已收藏" : ""}
+              {selectedVideoRecord.created_at ? ` · ${formatVideoCreatedAt(selectedVideoRecord.created_at)}` : ""}
+            </div>
           </div>
-          <div className="relative z-20 flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={() => void copyText("视频 Prompt", selectedVideoRecord.prompt)}
-              className="pyqt-btn-secondary !min-h-7 !px-2 text-[11px] inline-flex items-center gap-1"
-              title="复制当前视频提示词"
-            >
-              <Copy size={11} />
-              复制提示词
-            </button>
-            <button
-              type="button"
-              onClick={openPromptModal}
-              className="pyqt-btn-secondary !min-h-7 !px-2 text-[11px] inline-flex items-center gap-1"
-              title="查看完整视频提示词"
-            >
-              <Eye size={11} />
-              完整提示词
-            </button>
-            {onPreviewVideoRequest && !previewBlockedReason ? (
-              <button
-                type="button"
-                onClick={() => void onPreviewVideoRequest(selectedVideoRecord)}
-                className="pyqt-btn-secondary !min-h-9 !px-2 text-[11px] inline-flex items-center gap-1 sm:!min-h-7"
-                title="查看生成时发给 provider 的完整请求"
-              >
-                <Eye size={11} />
-                模型请求
-              </button>
-            ) : previewBlockedReason ? (
-              <span
-                className="inline-flex min-h-7 items-center text-[10px] text-book-text-muted"
-                title={previewBlockedReason}
-              >
-                {previewBlockedLabel}
-              </span>
-            ) : null}
-            {selectedVideoRecord.provider_job_id && selectedVideoRecord.status !== "completed" && (
-              <button
-                type="button"
-                onClick={() => void onPollVideo(selectedVideoRecord)}
-                disabled={acting === `poll-${selectedVideoRecord.id}`}
-                className="pyqt-btn-secondary !min-h-7 !px-2 text-[11px] inline-flex items-center gap-1"
-              >
-                {acting === `poll-${selectedVideoRecord.id}` ? (
-                  <Loader2 size={11} className="animate-spin" />
-                ) : (
-                  <RefreshCw size={11} />
-                )}
-                轮询
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void onToggleVideoFavorite(selectedVideoRecord)}
-              disabled={acting === `favorite-${selectedVideoRecord.id}`}
-              className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
-              title={selectedVideoRecord.is_favorite ? "取消收藏" : "收藏"}
-            >
-              <Star
-                size={12}
-                fill={selectedVideoRecord.is_favorite ? "currentColor" : "none"}
-              />
-            </button>
-            <button
-              type="button"
-              onClick={() => void onDeleteVideo(selectedVideoRecord)}
-              disabled={acting === `delete-video-${selectedVideoRecord.id}`}
-              className="pyqt-btn-icon !h-9 !w-9 !border-error/50 !text-error sm:!h-7 sm:!w-7"
-              title="删除视频"
-            >
-              <Trash2 size={12} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={openPromptModal}
+            className="pyqt-btn-secondary inline-flex !min-h-9 items-center gap-1 !px-2.5 text-[11px] sm:!min-h-7"
+            title="查看完整视频提示词"
+          >
+            <Eye size={11} />
+            提示词
+          </button>
+          {acting === `poll-${selectedVideoRecord.id}` ||
+          acting === `favorite-${selectedVideoRecord.id}` ||
+          acting === `delete-video-${selectedVideoRecord.id}` ? (
+            <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
+              <Loader2 size={11} className="animate-spin" />
+            </span>
+          ) : (
+            <Dropdown items={selectedActions} />
+          )}
         </div>
         {selectedVideoRecord && selectedVideoPath ? (
           <div className="relative bg-black">
@@ -324,7 +310,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           </div>
         ) : (
           <div className="flex aspect-video w-full items-center justify-center bg-book-bg-tertiary text-xs text-book-text-muted">
-            {selectedVideoRecord.provider_job_id ? "等待 provider 生成结果" : "无本地视频文件"}
+            {selectedVideoRecord.provider_job_id ? "等待视频服务返回结果" : "无本地视频文件"}
           </div>
         )}
         {videoLoadError && (
@@ -338,40 +324,53 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           </div>
         )}
         <div className="border-t border-book-border/40 px-2 py-2">
-          <div className="mb-1 font-mono text-[10px] text-book-text-muted">
-            Prompt {selectedPromptChars.toLocaleString()} 字符 / {selectedPromptBytes.toLocaleString()} 字节
+          <div className="mb-1 text-[10px] text-book-text-muted">
+            提示词 · {selectedPromptChars.toLocaleString()} 字
           </div>
-          <div className="mb-2 line-clamp-3 text-[11px] leading-relaxed text-book-text-sub">
+          <div className="line-clamp-3 text-[11px] leading-relaxed text-book-text-sub">
             {selectedVideoRecord.prompt}
           </div>
-          <div className="grid grid-cols-[90px_90px_auto] gap-1 text-xs">
-            <input
-              value={trimStart}
-              onChange={(event) => onTrimStartChange(event.target.value)}
-              className="pyqt-input !px-2 !py-1"
-              placeholder="开始秒"
-            />
-            <input
-              value={trimEnd}
-              onChange={(event) => onTrimEndChange(event.target.value)}
-              className="pyqt-input !px-2 !py-1"
-              placeholder="结束秒"
-            />
-            <button
-              type="button"
-              onClick={() => void onTrim()}
-              disabled={acting === `trim-${selectedVideoRecord.id}` || !selectedVideoPath}
-              className="pyqt-btn-secondary !min-h-9 !px-2 text-xs inline-flex items-center justify-center gap-1 sm:!min-h-[28px]"
-              title="裁剪选中视频"
-            >
-              {acting === `trim-${selectedVideoRecord.id}` ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <Scissors size={12} />
-              )}
-              裁剪
-            </button>
-          </div>
+          {selectedVideoPath ? (
+            <details className="mt-2 border-t border-book-border/35 pt-2 text-xs">
+              <summary className="w-fit cursor-pointer text-[10px] text-book-text-muted transition-colors hover:text-book-text-main">
+                裁剪视频
+              </summary>
+              <div className="mt-2 grid gap-2 sm:grid-cols-[90px_90px_auto]">
+                <label className="grid gap-1 text-[10px] text-book-text-muted">
+                  开始时间
+                  <input
+                    value={trimStart}
+                    onChange={(event) => onTrimStartChange(event.target.value)}
+                    className="pyqt-input !px-2 !py-1 text-xs"
+                    placeholder="秒"
+                  />
+                </label>
+                <label className="grid gap-1 text-[10px] text-book-text-muted">
+                  结束时间
+                  <input
+                    value={trimEnd}
+                    onChange={(event) => onTrimEndChange(event.target.value)}
+                    className="pyqt-input !px-2 !py-1 text-xs"
+                    placeholder="秒"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void onTrim()}
+                  disabled={acting === `trim-${selectedVideoRecord.id}`}
+                  className="pyqt-btn-secondary inline-flex !min-h-9 items-center justify-center gap-1 !px-2 text-xs sm:self-end sm:!min-h-[28px]"
+                  title="裁剪选中视频"
+                >
+                  {acting === `trim-${selectedVideoRecord.id}` ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Scissors size={12} />
+                  )}
+                  裁剪
+                </button>
+              </div>
+            </details>
+          ) : null}
         </div>
       </div>
     );
@@ -389,38 +388,31 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           return (
             <li
               key={video.id}
-              className={`a4n-interactive-row flex items-stretch overflow-hidden ${
-                selected ? "border-book-primary bg-book-primary/10" : ""
+              className={`a4n-flat-surface flex items-stretch overflow-hidden transition-colors ${
+                selected
+                  ? "border-book-primary/55 bg-book-primary/8"
+                  : "hover:border-book-primary/30 hover:bg-book-bg-tertiary/45"
               }`}
             >
               <button
                 type="button"
                 onClick={() => onSelectVideo(video.id)}
-                className="min-w-0 flex-1 p-2 text-left focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary"
+                aria-current={selected ? "true" : undefined}
+                className="min-w-0 flex-1 p-2.5 text-left focus-visible:outline-2 focus-visible:outline-book-primary/35"
               >
-                <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-1 text-xs">
-                  <span className="font-mono text-book-text-main">#{video.id}</span>
-                  <span className={`pyqt-pill !text-[10px] ${statusClass(video.status)}`}>
-                    {video.status}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-book-text-main">
-                    {video.model}
-                  </span>
-                  <span className="font-mono text-book-text-muted">
-                    {Math.round(video.duration_secs)}s
+                <div className="mb-1 flex min-w-0 items-baseline gap-1.5 text-xs">
+                  <span className="min-w-0 flex-1 truncate font-medium text-book-text-main">
+                    {videoRecordTitle(video)}
                   </span>
                   {video.is_favorite && (
                     <Star size={11} className="fill-book-primary text-book-primary" />
                   )}
                 </div>
+                <div className="mb-1.5 text-[10px] text-book-text-muted">
+                  {getOperationStatusLabel(video.status)} · {Math.round(video.duration_secs)} 秒 · {formatVideoCreatedAt(video.created_at)}
+                </div>
                 <div className="line-clamp-2 text-[11px] leading-relaxed text-book-text-sub">
                   {video.prompt}
-                </div>
-                <div className="mt-1 font-mono text-[10px] text-book-text-muted">
-                  Prompt {promptCharCount(video.prompt).toLocaleString()} 字符 / {promptByteCount(video.prompt).toLocaleString()} 字节
-                </div>
-                <div className="mt-1 truncate text-[10px] text-book-text-muted">
-                  {formatVideoCreatedAt(video.created_at)}
                 </div>
                 {video.error_message && (
                   <div className="mt-1 line-clamp-2 text-[10px] text-error">
@@ -428,20 +420,23 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                   </div>
                 )}
               </button>
-              <div className="flex shrink-0 items-start border-l border-book-border/40 p-1.5">
-                <button
-                  type="button"
-                  onClick={() => void onDeleteVideo(video)}
-                  disabled={acting === `delete-video-${video.id}`}
-                  className="pyqt-btn-icon relative z-20 !h-9 !w-9 !border-error/50 !text-error sm:!h-7 sm:!w-7"
-                  title="删除视频"
-                >
-                  {acting === `delete-video-${video.id}` ? (
+              <div className="flex shrink-0 items-start p-1.5">
+                {acting === `delete-video-${video.id}` ? (
+                  <span className="inline-flex h-9 w-9 items-center justify-center text-book-text-muted sm:h-7 sm:w-7">
                     <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={12} />
-                  )}
-                </button>
+                  </span>
+                ) : (
+                  <Dropdown
+                    items={[
+                      {
+                        label: "删除视频",
+                        icon: <Trash2 size={12} />,
+                        danger: true,
+                        onClick: () => void onDeleteVideo(video),
+                      },
+                    ]}
+                  />
+                )}
               </div>
             </li>
           );
@@ -450,6 +445,36 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     );
   };
 
+  if (videos.length === 0) {
+    return (
+      <div className="a4n-flat-surface w-full self-start">
+        <div className="a4n-empty-state min-h-[180px] px-4 py-6">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-book-bg-tertiary text-book-primary">
+            <Film size={16} />
+          </div>
+          <div className="max-w-sm">
+            <h3 className="text-sm font-medium text-book-text-main">还没有生成视频</h3>
+            <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
+              完成提示词配置并生成视频后，可以在这里预览、整理和剪辑成片。
+            </p>
+            {onOpenSetup ? (
+              <div className="mt-3 xl:hidden">
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={onOpenSetup}
+                >
+                  <ArrowLeft size={13} />
+                  前往配置
+                </BookButton>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_340px]">
@@ -457,36 +482,30 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           {renderSelectedVideoPreview()}
         </div>
         <div className="flex min-h-0 flex-col">
-          <div className="mb-2 flex items-center justify-between gap-2 text-xs">
-            <h3 className="inline-flex items-center gap-1.5 font-serif text-sm text-book-text-main">
-              <Film size={14} className="text-book-primary" />
-              成片记录
-            </h3>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-book-text-muted">
+          <div className="mb-2 flex min-w-0 items-center gap-2 px-1">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-medium text-book-text-main">成片记录</div>
+              <div className="mt-0.5 text-[10px] text-book-text-muted">
                 {videos.length} 条
-              </span>
-              <BookButton
-                variant="danger"
-                size="sm"
-                onClick={() => void onDeleteAllVideoAssets()}
-                disabled={
-                  acting === "delete-video-assets" ||
-                  deleteAllVideoAssetsBlockedReason != null
-                }
-                title={deleteAllVideoAssetsBlockedReason}
-                className="!min-h-7 !px-2"
-              >
-                <span className="inline-flex items-center gap-1">
-                  {acting === "delete-video-assets" ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={12} />
-                  )}
-                  删除全部
-                </span>
-              </BookButton>
+              </div>
             </div>
+            {acting === "delete-video-assets" ? (
+              <span className="inline-flex items-center gap-1 text-[10px] text-book-text-muted">
+                <Loader2 size={11} className="animate-spin" />
+                正在清理
+              </span>
+            ) : totalVideoAssetCount > 0 ? (
+              <Dropdown
+                items={[
+                  {
+                    label: `删除全部视频资产（${totalVideoAssetCount}）`,
+                    icon: <Trash2 size={13} />,
+                    danger: true,
+                    onClick: () => void onDeleteAllVideoAssets(),
+                  },
+                ]}
+              />
+            ) : null}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
             {renderVideoHistory()}
@@ -497,152 +516,162 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       <Modal
         isOpen={promptOpen && selectedVideoRecord != null}
         onClose={closePromptModal}
-        title={selectedVideoRecord ? `视频提示词 #${selectedVideoRecord.id}` : "视频提示词"}
-        subtitle={selectedVideoRecord ? `${selectedVideoRecord.video_type} · ${selectedVideoRecord.model}` : undefined}
+        title="视频提示词"
+        subtitle={
+          selectedVideoRecord
+            ? `${videoRecordTitle(selectedVideoRecord)} · ${Math.round(selectedVideoRecord.duration_secs)} 秒`
+            : undefined
+        }
         icon={<Eye size={15} />}
         maxWidthClassName="max-w-4xl"
         footer={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {selectedVideoRecord ? (
-              <>
-                {promptEditing ? (
-                  <>
-                    <BookButton
-                      variant="secondary"
-                      onClick={cancelPromptEdit}
-                      disabled={promptActionBusy}
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        <X size={12} />
-                        取消编辑
-                      </span>
-                    </BookButton>
-                    <BookButton
-                      variant="primary"
-                      onClick={() => void handleSavePromptRecord()}
-                      disabled={promptActionBusy || !promptDraft.trim() || !promptRecordDirty}
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        {promptSaving ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <Save size={12} />
-                        )}
-                        保存记录
-                      </span>
-                    </BookButton>
-                  </>
+          promptEditing && selectedVideoRecord ? (
+            <BookButton
+              variant="primary"
+              onClick={() => void handleSavePromptRecord()}
+              disabled={promptActionBusy || !promptDraft.trim() || !promptRecordDirty}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {promptSaving ? (
+                  <Loader2 size={12} className="animate-spin" />
                 ) : (
-                  <>
-                    <BookButton
-                      variant="secondary"
-                      onClick={() => void copyText("视频 Prompt", selectedVideoRecord.prompt)}
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        <Copy size={12} />
-                        复制 Prompt
-                      </span>
-                    </BookButton>
-                    <BookButton
-                      variant="secondary"
-                      onClick={() => void copyText("Negative Prompt", selectedVideoRecord.negative_prompt)}
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        <Copy size={12} />
-                        复制 Negative
-                      </span>
-                    </BookButton>
-                    <BookButton
-                      variant="secondary"
-                      onClick={() =>
-                        void copyText("模型请求 JSON", providerRequestSnapshotText(selectedVideoRecord))
-                      }
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        <Copy size={12} />
-                        复制请求 JSON
-                      </span>
-                    </BookButton>
-                    {onUpdateVideo ? (
-                      <BookButton
-                        variant="secondary"
-                        onClick={beginPromptEdit}
-                        disabled={acting != null}
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <Pencil size={12} />
-                          编辑记录
-                        </span>
-                      </BookButton>
-                    ) : null}
-                  </>
+                  <Save size={12} />
                 )}
-              </>
-            ) : null}
-            <BookButton variant="secondary" onClick={closePromptModal} disabled={promptActionBusy}>
-              关闭
+                {promptSaving ? "保存中" : "保存记录"}
+              </span>
             </BookButton>
-          </div>
+          ) : undefined
         }
       >
         {selectedVideoRecord ? (
           <div className="space-y-3">
+            {!promptEditing && (
+              <div className="flex items-center justify-end gap-2">
+                {onUpdateVideo ? (
+                  <BookButton
+                    variant="primary"
+                    size="sm"
+                    onClick={beginPromptEdit}
+                    disabled={acting != null}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <Pencil size={12} />
+                      编辑记录
+                    </span>
+                  </BookButton>
+                ) : null}
+                <Dropdown
+                  items={[
+                    {
+                      label: "复制提示词",
+                      icon: <Copy size={12} />,
+                      onClick: () => void copyText("视频提示词", selectedVideoRecord.prompt),
+                    },
+                    ...(selectedVideoRecord.negative_prompt
+                      ? [
+                          {
+                            label: "复制负面提示词",
+                            icon: <Copy size={12} />,
+                            onClick: () =>
+                              void copyText(
+                                "负面提示词",
+                                selectedVideoRecord.negative_prompt,
+                              ),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              </div>
+            )}
             {promptEditing ? (
               <>
-                <label className="a4n-page-surface block overflow-hidden">
-                  <span className="block border-b border-book-border/40 px-3 py-2 text-xs font-semibold text-book-text-main">
-                    视频模型 Prompt
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-book-text-main">
+                    视频提示词
                   </span>
                   <textarea
                     value={promptDraft}
                     onChange={(event) => setPromptDraft(event.target.value)}
                     disabled={promptActionBusy}
-                    className="custom-scrollbar min-h-[260px] max-h-[48vh] w-full resize-y border-0 bg-transparent px-3 py-2 font-mono text-[11px] leading-relaxed text-book-text-main outline-none"
+                    className="book-control custom-scrollbar min-h-[260px] max-h-[48vh] w-full resize-y px-3 py-2 text-[11px] leading-relaxed"
                   />
                 </label>
-                <label className="a4n-page-surface block overflow-hidden">
-                  <span className="block border-b border-book-border/40 px-3 py-2 text-xs font-semibold text-book-text-main">
-                    Negative Prompt
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-book-text-main">
+                    负面提示词
                   </span>
                   <textarea
                     value={negativePromptDraft}
                     onChange={(event) => setNegativePromptDraft(event.target.value)}
                     disabled={promptActionBusy}
-                    className="custom-scrollbar min-h-[120px] max-h-56 w-full resize-y border-0 bg-transparent px-3 py-2 font-mono text-[11px] leading-relaxed text-book-text-main outline-none"
+                    className="book-control custom-scrollbar min-h-[120px] max-h-56 w-full resize-y px-3 py-2 text-[11px] leading-relaxed"
                   />
                 </label>
               </>
             ) : (
-              <>
-                <section className="a4n-page-surface overflow-hidden">
-                  <div className="border-b border-book-border/40 px-3 py-2 text-xs font-semibold text-book-text-main">
-                    视频模型 Prompt
+              <section className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
+                <div>
+                  <div className="px-3 pt-3 text-xs font-medium text-book-text-main">
+                    视频提示词
                   </div>
-                  <pre className="custom-scrollbar max-h-[48vh] overflow-auto whitespace-pre-wrap break-words px-3 py-2 text-[11px] leading-relaxed text-book-text-main">
+                  <div className="whitespace-pre-wrap break-words px-3 pb-3 pt-2 text-[11px] leading-relaxed text-book-text-main">
                     {selectedVideoRecord.prompt || "（空）"}
-                  </pre>
-                </section>
-                {selectedVideoRecord.negative_prompt ? (
-                  <section className="a4n-page-surface overflow-hidden">
-                    <div className="border-b border-book-border/40 px-3 py-2 text-xs font-semibold text-book-text-main">
-                      Negative Prompt
-                    </div>
-                    <pre className="custom-scrollbar max-h-40 overflow-auto whitespace-pre-wrap break-words px-3 py-2 text-[11px] leading-relaxed text-book-text-main">
-                      {selectedVideoRecord.negative_prompt}
-                    </pre>
-                  </section>
-                ) : null}
-              </>
-            )}
-            {selectedVideoRecord.metadata_json ? (
-              <section className="a4n-page-surface overflow-hidden">
-                <div className="border-b border-book-border/40 px-3 py-2 text-xs font-semibold text-book-text-main">
-                  请求元数据
+                  </div>
                 </div>
-                <pre className="custom-scrollbar max-h-72 overflow-auto whitespace-pre-wrap break-words px-3 py-2 text-[11px] leading-relaxed text-book-text-sub">
-                  {JSON.stringify(selectedVideoRecord.metadata_json, null, 2)}
-                </pre>
+                {selectedVideoRecord.negative_prompt ? (
+                  <div>
+                    <div className="px-3 pt-3 text-xs font-medium text-book-text-main">
+                      负面提示词
+                    </div>
+                    <div className="whitespace-pre-wrap break-words px-3 pb-3 pt-2 text-[11px] leading-relaxed text-book-text-main">
+                      {selectedVideoRecord.negative_prompt}
+                    </div>
+                  </div>
+                ) : null}
               </section>
+            )}
+            {selectedVideoRecord.model || selectedVideoRecord.metadata_json ? (
+              <details className="a4n-flat-surface overflow-hidden">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-book-text-muted hover:text-book-text-main">
+                  诊断信息
+                </summary>
+                <div className="border-t border-book-border/40">
+                  <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 px-3 py-2 text-[10px]">
+                    <dt className="text-book-text-muted">模型</dt>
+                    <dd className="break-all font-mono text-book-text-sub">
+                      {selectedVideoRecord.model || "未记录"}
+                    </dd>
+                    <dt className="text-book-text-muted">画面规格</dt>
+                    <dd className="text-book-text-sub">
+                      {selectedVideoRecord.width}×{selectedVideoRecord.height} · {selectedVideoRecord.fps} FPS
+                    </dd>
+                  </dl>
+                  {providerRequestSnapshotText(selectedVideoRecord) ? (
+                    <div className="flex justify-end border-t border-book-border/35 px-3 pt-2">
+                      <BookButton
+                        variant="secondary"
+                        size="sm"
+                        onClick={() =>
+                          void copyText(
+                            "模型请求",
+                            providerRequestSnapshotText(selectedVideoRecord),
+                          )
+                        }
+                        className="!min-h-7 !text-[11px]"
+                      >
+                        <Copy size={11} />
+                        复制模型请求
+                      </BookButton>
+                    </div>
+                  ) : null}
+                  {selectedVideoRecord.metadata_json ? (
+                    <pre className="whitespace-pre-wrap break-words px-3 py-2 font-mono text-[11px] leading-relaxed text-book-text-sub">
+                      {JSON.stringify(selectedVideoRecord.metadata_json, null, 2)}
+                    </pre>
+                  ) : null}
+                </div>
+              </details>
             ) : null}
           </div>
         ) : null}

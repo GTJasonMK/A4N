@@ -1,6 +1,8 @@
 import React, { useMemo } from "react";
-import { Check, Loader2, Trash2 } from "lucide-react";
+import { Check, Code2, Download, Loader2, Trash2 } from "lucide-react";
 import { type Theme } from "../../../api/theme";
+import { BookButton } from "../../../components/ui/BookButton";
+import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { getThemeCssVariable } from "../../../theme/themeCssVariables";
 
 interface ThemeCardProps {
@@ -11,6 +13,8 @@ interface ThemeCardProps {
   exporting: boolean;
   renaming: boolean;
   renameValue: string;
+  renameSaving: boolean;
+  mutationBusy: boolean;
   onRenameInput: (value: string) => void;
   onRenameStart: () => void;
   onRenameConfirm: () => void;
@@ -29,6 +33,8 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   exporting,
   renaming,
   renameValue,
+  renameSaving,
+  mutationBusy,
   onRenameInput,
   onRenameStart,
   onRenameConfirm,
@@ -38,6 +44,8 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   onExport,
   onViewCss,
 }) => {
+  const renameReady =
+    renameValue.trim().length > 0 && renameValue.trim() !== theme.name.trim();
   const previewColors = useMemo(() => {
     const safeRgb = (raw: string | undefined): string =>
       raw ? `rgb(${raw})` : "#ccc";
@@ -49,129 +57,131 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
       border: safeRgb(getThemeCssVariable(theme.css_variables, "color-border")),
     };
   }, [theme]);
+  const moreItems: DropdownItem[] = [
+    {
+      label: "导出主题",
+      icon: <Download size={12} />,
+      onClick: onExport,
+    },
+    {
+      label: "查看颜色变量",
+      icon: <Code2 size={12} />,
+      onClick: onViewCss,
+    },
+  ];
+  if (!theme.is_system_default && !theme.is_active) {
+    moreItems.push({ type: "divider" });
+    moreItems.push({
+      label: "删除主题",
+      icon: <Trash2 size={12} />,
+      danger: true,
+      disabled: mutationBusy,
+      onClick: onDelete,
+    });
+  }
 
   return (
-    <li className="pyqt-card overflow-hidden flex flex-col">
-      <div
-        className="h-20 flex items-center px-3 gap-1"
-        style={{
-          background: previewColors.bg,
-          borderBottom: `1px solid ${previewColors.border}`,
-        }}
-      >
-        <ColorChip color={previewColors.primary} label="P" />
-        <ColorChip color={previewColors.bg} label="B" />
-        <ColorChip color={previewColors.bgPaper} label="C" />
-        <ColorChip color={previewColors.text} label="T" />
-        <ColorChip color={previewColors.border} label="L" />
+    <li className="a4n-flat-surface flex min-w-0 items-stretch overflow-hidden">
+      <div className="flex w-16 shrink-0 overflow-hidden sm:w-24" style={{ background: previewColors.bg }}>
+        <ColorBand color={previewColors.primary} label="主色" />
+        <ColorBand color={previewColors.bg} label="背景" />
+        <ColorBand color={previewColors.bgPaper} label="表面" />
+        <ColorBand color={previewColors.text} label="文字" />
+        <ColorBand color={previewColors.border} label="边线" />
       </div>
 
-      <div className="p-3 flex flex-col gap-2 flex-1">
-        <div className="flex items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-3 p-3">
+        <div className="min-w-0 flex-1">
           {renaming ? (
-            <div className="flex items-center gap-1 flex-1 min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <input
                 value={renameValue}
                 onChange={(event) => onRenameInput(event.target.value)}
-                className="pyqt-input !py-1 !px-2 text-xs flex-1 min-w-0"
+                disabled={renameSaving}
+                className="pyqt-input min-w-32 flex-1 !px-2 !py-1 text-xs"
                 autoFocus
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") onRenameConfirm();
-                  if (event.key === "Escape") onRenameCancel();
+                  if (event.key === "Enter" && renameReady && !renameSaving) onRenameConfirm();
+                  if (event.key === "Escape" && !renameSaving) onRenameCancel();
                 }}
               />
-              <button
-                type="button"
+              <BookButton
+                variant="primary"
+                size="sm"
                 onClick={onRenameConfirm}
-                className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] sm:!min-h-[24px]"
+                disabled={!renameReady || renameSaving}
               >
-                ✓
-              </button>
-              <button
-                type="button"
+                {renameSaving ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Loader2 size={12} className="animate-spin" /> 保存中…
+                  </span>
+                ) : (
+                  "保存"
+                )}
+              </BookButton>
+              <BookButton
+                variant="ghost"
+                size="sm"
                 onClick={onRenameCancel}
-                className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] sm:!min-h-[24px]"
+                disabled={renameSaving}
               >
-                ✕
-              </button>
+                取消
+              </BookButton>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={onRenameStart}
-              className="text-sm font-semibold text-book-text-main truncate text-left hover:underline"
-              title="点击重命名"
-            >
-              {theme.name}
-            </button>
-          )}
-          {theme.is_active && (
-            <span className="pyqt-pill border-book-primary/40 bg-book-primary/10 text-book-primary !text-[10px]">
-              激活
-            </span>
+            <>
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <button
+                  type="button"
+                  onClick={onRenameStart}
+                  disabled={mutationBusy}
+                  className="min-w-0 truncate text-left text-sm font-semibold text-book-text-main hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-55"
+                  title="重命名主题"
+                >
+                  {theme.name}
+                </button>
+                {theme.is_active ? (
+                  <span className="text-[10px] font-medium text-book-primary">使用中</span>
+                ) : null}
+              </div>
+              <div className="mt-0.5 text-[11px] text-book-text-muted">
+                {theme.is_system_default ? "系统默认" : "用户自定义"} ·{" "}
+                {theme.mode === "dark" ? "暗色" : "亮色"}
+              </div>
+            </>
           )}
         </div>
-        <div className="text-[11px] text-book-text-muted">
-          {theme.is_system_default ? "系统默认" : "用户自定义"} · {theme.mode}
-        </div>
-        <div className="mt-auto pt-2 flex items-center gap-1.5 flex-wrap">
-          {!theme.is_active && (
-            <button
-              type="button"
-              onClick={onActivate}
-              disabled={activateDisabled}
-              className="pyqt-btn-secondary !min-h-9 !px-2.5 text-xs sm:!min-h-[28px]"
-            >
-              {activating ? (
+        {!renaming ? (
+          <div className="flex shrink-0 items-center gap-2">
+            {!theme.is_active ? (
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={onActivate}
+                disabled={activateDisabled}
+              >
+                {activating ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                使用
+              </BookButton>
+            ) : null}
+            {exporting || deleting ? (
+              <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
                 <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <>
-                  <Check size={12} className="mr-1" />
-                  激活
-                </>
-              )}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onExport}
-            disabled={exporting}
-            className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] sm:!min-h-[28px]"
-            title="导出 JSON 到剪贴板"
-          >
-            {exporting ? <Loader2 size={11} className="animate-spin" /> : "导出"}
-          </button>
-          <button
-            type="button"
-            onClick={onViewCss}
-            className="pyqt-btn-secondary !min-h-9 !px-2 text-[10px] sm:!min-h-[28px]"
-            title="复制 CSS 变量"
-          >
-            CSS
-          </button>
-          {!theme.is_system_default && (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={deleting || theme.is_active}
-              title={theme.is_active ? "激活中的主题不可删除" : ""}
-              className="pyqt-btn-secondary !min-h-9 !px-2.5 text-xs !border-error/50 !text-error hover:!bg-error-bg sm:!min-h-[28px]"
-            >
-              {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-            </button>
-          )}
-        </div>
+              </span>
+            ) : (
+              <Dropdown items={moreItems} />
+            )}
+          </div>
+        ) : null}
       </div>
     </li>
   );
 };
 
-const ColorChip: React.FC<{ color: string; label: string }> = ({ color, label }) => (
+const ColorBand: React.FC<{ color: string; label: string }> = ({ color, label }) => (
   <div
-    className="w-9 h-9 rounded border border-book-border/50 flex items-center justify-center text-[10px] font-mono font-bold text-white shadow"
-    style={{ background: color, textShadow: "0 1px 2px rgba(0,0,0,0.4)" }}
-    title={`${label} ${color}`}
-  >
-    {label}
-  </div>
+    className="h-full min-w-0 flex-1"
+    style={{ background: color }}
+    title={label}
+  />
 );

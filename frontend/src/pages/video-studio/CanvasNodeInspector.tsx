@@ -1,14 +1,12 @@
 import React from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Eye } from "lucide-react";
-import { BookButton } from "../../components/ui/BookButton";
+import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import {
+  canvasDataTypeLabel,
   edgeRoleLabel,
   nodeDisplayTitle,
-  nodeKindMeta,
   nodePreviewSrc,
-  nodeStateClass,
   nodeValidationIssues,
-  stateLabel,
 } from "./StudioCanvasNode";
 import { nodeHasContentPreview } from "./CanvasNodeContentPreviewDialog";
 import {
@@ -37,6 +35,10 @@ import {
 } from "./nodeContracts";
 import type { StudioEdge, StudioNode } from "./types";
 
+const INSPECTOR_CONTROL_CLASS =
+  "pyqt-input mt-1 w-full !px-2.5 !py-1.5 text-xs";
+const INSPECTOR_TEXTAREA_CLASS = `${INSPECTOR_CONTROL_CLASS} resize-none leading-relaxed`;
+
 interface NodeConfigEditorProps {
   node: StudioNode;
   nodes: StudioNode[];
@@ -64,41 +66,19 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   configOptions,
   onPreviewContent,
 }) => {
-  const meta = nodeKindMeta(node.data.nodeKind);
-  const Icon = meta.icon;
   const issues = nodeValidationIssues(node.data);
   const previewSrc = nodePreviewSrc(node.data);
   return (
     <div className="space-y-3 text-xs">
-      <div className={`rounded border border-book-border bg-book-bg p-3 ${meta.tone}`}>
-        <div className="flex items-start gap-2">
-          <span className="a4n-studio-node-icon">
-            <Icon size={15} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-book-text-main" title={nodeDisplayTitle(node.data)}>
-              {nodeDisplayTitle(node.data)}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <span className="rounded border border-book-border bg-book-bg-paper px-1.5 py-0.5 text-[10px] text-book-text-muted">
-                {meta.label}
-              </span>
-              <span className={`a4n-studio-state ${nodeStateClass(node.data.state)}`}>
-                {stateLabel(node.data.state)}
-              </span>
-            </div>
-          </div>
-        </div>
-        {previewSrc ? (
-          <img
-            src={previewSrc}
-            alt=""
-            className="mt-3 max-h-36 w-full rounded border border-book-border object-cover"
-          />
-        ) : null}
-      </div>
+      {previewSrc ? (
+        <img
+          src={previewSrc}
+          alt=""
+          className="max-h-44 w-full rounded-2xl border border-book-border/55 bg-book-bg-tertiary object-contain"
+        />
+      ) : null}
       {issues.length > 0 ? (
-        <div className="space-y-1 rounded border border-warning/40 bg-warning-bg p-2 text-[11px] text-warning">
+        <div role="alert" className="space-y-1 rounded-xl border border-warning/45 bg-warning-bg p-2.5 text-[11px] text-warning">
           {issues.map((issue) => (
             <div key={issue} className="flex gap-1.5">
               <AlertTriangle size={12} className="mt-0.5 shrink-0" />
@@ -125,13 +105,22 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
       <InspectorSection title="输出">
         <NodeOutputSummary node={node} onPreviewContent={onPreviewContent} />
       </InspectorSection>
+      <details className="border-t border-book-border/70 pt-3 text-[10px] text-book-text-muted">
+        <summary className="cursor-pointer">诊断信息</summary>
+        <div className="mt-2 grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1 rounded-xl bg-book-bg-tertiary/45 p-2.5">
+          <span>节点编号</span>
+          <span className="font-mono text-book-text-sub">{node.id}</span>
+          <span>节点类型</span>
+          <span className="break-all font-mono text-book-text-sub">{node.data.nodeKind}</span>
+        </div>
+      </details>
     </div>
   );
 };
 
 const InspectorSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <section className="space-y-2 rounded border border-book-border bg-book-bg p-2">
-    <div className="text-[10px] font-medium text-book-text-muted">{title}</div>
+  <section className="space-y-2 border-t border-book-border/70 pt-3 first:border-t-0 first:pt-0">
+    <h3 className="text-[11px] font-medium text-book-text-muted">{title}</h3>
     {children}
   </section>
 );
@@ -151,23 +140,26 @@ const NodeInputSummary: React.FC<{ node: StudioNode; nodes: StudioNode[]; edges:
   }
   const nodesById = new Map(nodes.map((item) => [item.id, item]));
   return (
-    <div className="space-y-1.5">
+    <div className="a4n-flat-surface divide-y divide-book-border/45 overflow-hidden">
       {inputPorts.map((port) => {
         const incoming = edges.filter((edge) => edge.target === node.id && edge.targetHandle === port.id);
         return (
-          <div key={port.id} className="rounded border border-book-border bg-book-bg-paper p-2">
+          <section key={port.id} className="p-2.5">
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[11px] text-book-text-main">{port.label}</span>
-              <span className="font-mono text-[10px] text-book-text-muted">{port.data_type}</span>
+              <span className="font-medium text-book-text-main">{port.label}</span>
+              <span className="text-[10px] text-book-text-muted">{canvasDataTypeLabel(port.data_type)}</span>
             </div>
             {incoming.length > 0 ? (
               <div className="space-y-1">
                 {incoming.map((edge) => {
                   const source = nodesById.get(edge.source);
                   return (
-                    <div key={edge.id} className="truncate text-[11px] text-book-text-sub" title={source ? nodeDisplayTitle(source.data) : edge.source}>
+                    <div
+                      key={edge.id}
+                      className="truncate text-[11px] text-book-text-sub"
+                      title={`${source ? nodeDisplayTitle(source.data) : edge.source} · ${edge.sourceHandle ?? "默认输出"}`}
+                    >
                       {source ? nodeDisplayTitle(source.data) : edge.source}
-                      <span className="font-mono text-book-text-muted">.{edge.sourceHandle ?? "-"}</span>
                     </div>
                   );
                 })}
@@ -177,7 +169,7 @@ const NodeInputSummary: React.FC<{ node: StudioNode; nodes: StudioNode[]; edges:
                 {port.required ? "缺少必需输入" : "未连接"}
               </div>
             )}
-          </div>
+          </section>
         );
       })}
     </div>
@@ -192,7 +184,7 @@ const NodeOutputSummary: React.FC<{ node: StudioNode; onPreviewContent: (node: S
   const renderedPrompt = configText(node.data.config, "prompt_text").trim();
   const filePath = configText(node.data.config, "file_path").trim();
   const thumbnailPath = configText(node.data.config, "thumbnail_path").trim();
-  const reference = node.data.refType ? `${node.data.refType} #${node.data.refId ?? "-"}` : "";
+  const reference = node.data.refType ? "已关联" : "";
   const mediaAssetId =
     configPositiveNumber(node.data.config, "media_asset_id") ??
     nodeMediaAssetRefId(node.data);
@@ -213,12 +205,20 @@ const NodeOutputSummary: React.FC<{ node: StudioNode; onPreviewContent: (node: S
   const output = configObject(node.data.config, "output");
   const outputRows = [
     ["引用", reference],
-    ["媒体", mediaAssetId ? `#${mediaAssetId}` : ""],
-    ["图片", generatedImageId ? `#${generatedImageId}` : ""],
-    ["视频", generatedVideoId ? `#${generatedVideoId}` : ""],
-    ["文件", filePath],
-    ["缩略图", thumbnailPath],
+    ["媒体", mediaAssetId ? "已绑定" : ""],
+    ["图片", generatedImageId ? "已生成" : ""],
+    ["视频", generatedVideoId ? "已生成" : ""],
+    ["文件", filePath ? fileName(filePath) : ""],
+    ["缩略图", thumbnailPath ? fileName(thumbnailPath) : ""],
   ].filter((row): row is [string, string] => typeof row[1] === "string" && row[1].trim().length > 0);
+  const technicalRows = [
+    ["引用", node.data.refType ? `${node.data.refType} #${node.data.refId ?? "-"}` : ""],
+    ["媒体编号", mediaAssetId ? String(mediaAssetId) : ""],
+    ["图片编号", generatedImageId ? String(generatedImageId) : ""],
+    ["视频编号", generatedVideoId ? String(generatedVideoId) : ""],
+    ["文件路径", filePath],
+    ["缩略图路径", thumbnailPath],
+  ].filter((row): row is [string, string] => row[1].trim().length > 0);
   if (outputPorts.length === 0 && contract.outputs.length > 0) {
     return <div className="text-[11px] text-book-text-muted">完成参数配置后显示可用输出端口。</div>;
   }
@@ -238,30 +238,42 @@ const NodeOutputSummary: React.FC<{ node: StudioNode; onPreviewContent: (node: S
           {outputPorts.map((port) => (
             <React.Fragment key={port.id}>
               <span className="text-book-text-muted">{port.label}</span>
-              <span className="font-mono text-book-text-main">{port.data_type}</span>
+              <span className="text-book-text-main">{canvasDataTypeLabel(port.data_type)}</span>
             </React.Fragment>
           ))}
         </div>
       ) : null}
       {renderedPrompt ? (
-        <textarea
-          value={renderedPrompt}
-          readOnly
-          rows={7}
-          className="w-full resize-none rounded border border-book-border bg-book-bg-paper px-2 py-1 font-mono text-[11px] leading-4 text-book-text-main outline-none"
-        />
+        <div className="a4n-flat-surface whitespace-pre-wrap break-words p-2.5 font-mono text-[11px] leading-relaxed text-book-text-sub">
+          {renderedPrompt}
+        </div>
       ) : null}
       {outputRows.length > 0 ? (
         <div className="grid grid-cols-[80px_minmax(0,1fr)] gap-x-2 gap-y-1 text-[11px]">
           {outputRows.map(([label, value]) => (
             <React.Fragment key={label}>
               <span className="text-book-text-muted">{label}</span>
-              <span className="truncate font-mono text-book-text-main" title={value}>
+              <span className="truncate text-book-text-main" title={value}>
                 {value}
               </span>
             </React.Fragment>
           ))}
         </div>
+      ) : null}
+      {technicalRows.length > 0 ? (
+        <details className="rounded-xl bg-book-bg-tertiary/35">
+          <summary className="cursor-pointer px-2.5 py-2 text-[10px] text-book-text-muted">
+            诊断信息
+          </summary>
+          <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-book-border/40 px-2.5 py-2 text-[10px]">
+            {technicalRows.map(([label, value]) => (
+              <React.Fragment key={label}>
+                <span className="text-book-text-muted">{label}</span>
+                <span className="break-all font-mono text-book-text-sub">{value}</span>
+              </React.Fragment>
+            ))}
+          </div>
+        </details>
       ) : null}
     </div>
   );
@@ -277,7 +289,7 @@ const FunctionalNodeOutputSummary: React.FC<{
           {outputPorts.map((port) => (
             <React.Fragment key={port.id}>
               <span className="text-book-text-muted">{port.label}</span>
-              <span className="font-mono text-book-text-main">{port.data_type}</span>
+              <span className="text-book-text-main">{canvasDataTypeLabel(port.data_type)}</span>
             </React.Fragment>
           ))}
         </div>
@@ -289,26 +301,25 @@ const FunctionalNodeOutputSummary: React.FC<{
 
 export const EdgeInspector: React.FC<{ edge: StudioEdge }> = ({ edge }) => (
   <div className="space-y-2 text-xs">
-    <div className="rounded border border-book-border bg-book-bg p-3">
+    <div className="border-b border-book-border/70 pb-3">
       <div className="text-sm font-semibold text-book-text-main">{edgeRoleLabel(edge.data?.role ?? "")}</div>
-      <div className="mt-1 font-mono text-[11px] text-book-text-muted">
-        {edge.source}.{edge.sourceHandle ?? "-"} → {edge.target}.{edge.targetHandle ?? "-"}
-      </div>
+      <div className="mt-1 text-[11px] text-book-text-muted">连接两个节点并传递运行结果</div>
     </div>
-    <div className="rounded border border-book-border bg-book-bg p-2">
-      <div className="grid grid-cols-[70px_minmax(0,1fr)] gap-x-2 gap-y-1 text-[11px]">
-        <span className="text-book-text-muted">role</span>
+    <details className="rounded-xl border border-book-border/65 bg-book-bg-paper/65">
+      <summary className="cursor-pointer px-2.5 py-2 text-[11px] text-book-text-muted">诊断信息</summary>
+      <div className="grid grid-cols-[70px_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-book-border/50 px-2.5 py-2 text-[11px]">
+        <span className="text-book-text-muted">连接类型</span>
         <span className="font-mono text-book-text-main">{edge.data?.role ?? "-"}</span>
-        <span className="text-book-text-muted">source</span>
+        <span className="text-book-text-muted">来源端口</span>
         <span className="truncate font-mono text-book-text-main">{edge.sourceHandle ?? "-"}</span>
-        <span className="text-book-text-muted">target</span>
+        <span className="text-book-text-muted">目标端口</span>
         <span className="truncate font-mono text-book-text-main">{edge.targetHandle ?? "-"}</span>
-        <span className="text-book-text-muted">order</span>
+        <span className="text-book-text-muted">顺序</span>
         <span className="truncate font-mono text-book-text-main">
           {edgeOrderIndex(edge) ?? "-"}
         </span>
       </div>
-    </div>
+    </details>
   </div>
 );
 
@@ -326,7 +337,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   if (node.data.nodeKind === "ImageInputNode") {
     return (
       <ReferenceEditor
-        label="生成图片 ID"
+        label="图片资源编号"
         refType="generated_image"
         refId={node.data.refId}
         disabled={disabled}
@@ -337,7 +348,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   if (node.data.nodeKind === "VideoInputNode") {
     return (
       <ReferenceEditor
-        label="生成视频 ID"
+        label="视频资源编号"
         refType="generated_video"
         refId={node.data.refId}
         disabled={disabled}
@@ -348,7 +359,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   if (node.data.nodeKind === "AudioInputNode") {
     return (
       <ReferenceEditor
-        label="媒体资产 ID"
+        label="音频资源编号"
         refType="media_asset"
         refId={node.data.refId}
         disabled={disabled}
@@ -358,21 +369,21 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   }
   if (node.data.nodeKind === "TextInputNode") {
     return (
-      <div className="rounded border border-book-border bg-book-bg p-2">
-        <label className="block text-[10px] text-book-text-muted">文本</label>
+      <label className="block text-[10px] text-book-text-muted">
+        文本
         <textarea
           value={configText(config, "content")}
           onChange={(event) => onChange({ content: event.target.value, title: firstLine(event.target.value) })}
           disabled={disabled}
           rows={6}
-          className="mt-1 w-full resize-none rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+          className={INSPECTOR_TEXTAREA_CLASS}
         />
-      </div>
+      </label>
     );
   }
   if (isProbeNodeKind(node.data.nodeKind)) {
     return (
-      <div className="space-y-2 rounded border border-book-border bg-book-bg p-2">
+      <div className="space-y-3">
         <label className="block text-[10px] text-book-text-muted">
           标题
           <input
@@ -380,7 +391,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             value={configText(config, "title")}
             disabled={disabled}
             onChange={(event) => onChange({ title: event.target.value })}
-            className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+            className={INSPECTOR_CONTROL_CLASS}
           />
         </label>
         <label className="block text-[10px] text-book-text-muted">
@@ -389,7 +400,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             value={configText(config, "display_mode") || "summary"}
             disabled={disabled}
             onChange={(event) => onChange({ display_mode: event.target.value })}
-            className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+            className={INSPECTOR_CONTROL_CLASS}
           >
             <option value="summary">摘要</option>
             <option value="detail">详细</option>
@@ -409,7 +420,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             onChange={(event) => onChange({ template: event.target.value, title: firstLine(event.target.value) || "渲染提示词" })}
             disabled={disabled}
             rows={7}
-            className="mt-1 w-full resize-none rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+            className={INSPECTOR_TEXTAREA_CLASS}
           />
         </label>
         <label className="block text-[10px] text-book-text-muted">
@@ -418,7 +429,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             value={configText(config, "output_kind") || "canvas_text"}
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
-            className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+            className={INSPECTOR_CONTROL_CLASS}
           >
             <option value="canvas_text">画布文本</option>
             <option value="video_prompt">视频文本</option>
@@ -430,7 +441,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   }
   if (node.data.nodeKind === "LlmTextNode") {
     return (
-      <div className="space-y-2 rounded border border-book-border bg-book-bg p-2">
+      <div className="space-y-3">
         <ConfigSelect
           label="LLM配置"
           value={configPositiveNumber(config, "llm_config_id")}
@@ -444,7 +455,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           onChange={(event) => onChange({ instruction: event.target.value, title: firstLine(event.target.value) || "LLM改写" })}
           disabled={disabled}
           rows={5}
-          className="w-full resize-none rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+          className={`${INSPECTOR_TEXTAREA_CLASS} !mt-0`}
         />
         <label className="block text-[10px] text-book-text-muted">
           输出类型
@@ -452,7 +463,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             value={configText(config, "output_kind") || "shot_script"}
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
-            className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+            className={INSPECTOR_CONTROL_CLASS}
           >
             <option value="shot_script">镜头脚本</option>
             <option value="storyboard">分镜</option>
@@ -481,7 +492,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             value={inputMode}
             disabled={disabled}
             onChange={(event) => onChange({ input_mode: event.target.value })}
-            className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+            className={INSPECTOR_CONTROL_CLASS}
           >
             <option value="text_only">仅提示词</option>
             <option value="first_frame">首帧</option>
@@ -495,7 +506,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           onChange={(event) => onChange({ negative_prompt: event.target.value })}
           disabled={disabled}
           rows={3}
-          className="w-full resize-none rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+          className={`${INSPECTOR_TEXTAREA_CLASS} !mt-0`}
         />
         <div className="grid grid-cols-2 gap-2">
           <NumberField label="宽" value={configNumber(config, "width")} disabled={disabled} onChange={(value) => onChange({ width: value })} />
@@ -508,15 +519,13 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   }
   if (node.data.nodeKind === "GenerateImageNode") {
     return (
-      <div className="rounded border border-book-border bg-book-bg p-2">
-        <ConfigSelect
-          label="图片配置"
-          value={configPositiveNumber(config, "image_config_id")}
-          options={configOptions.image}
-          disabled={disabled}
-          onChange={(value) => onChange({ image_config_id: value })}
-        />
-      </div>
+      <ConfigSelect
+        label="图片配置"
+        value={configPositiveNumber(config, "image_config_id")}
+        options={configOptions.image}
+        disabled={disabled}
+        onChange={(value) => onChange({ image_config_id: value })}
+      />
     );
   }
   if (node.data.nodeKind === "VideoOutputNode") {
@@ -528,32 +537,30 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           value={configText(config, "title")}
           disabled={disabled}
           onChange={(event) => onChange({ title: event.target.value })}
-          className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+          className={INSPECTOR_CONTROL_CLASS}
         />
       </label>
     );
   }
   if (node.data.nodeKind === "TrimVideoNode") {
     return (
-      <div className="space-y-2 rounded border border-book-border bg-book-bg p-2">
-        <div className="grid grid-cols-2 gap-2">
-          <NumberField label="开始秒" value={configNumber(config, "start_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ start_secs: value })} />
-          <NumberField label="结束秒" value={configNumber(config, "end_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ end_secs: value })} />
-        </div>
+      <div className="grid grid-cols-2 gap-2">
+        <NumberField label="开始秒" value={configNumber(config, "start_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ start_secs: value })} />
+        <NumberField label="结束秒" value={configNumber(config, "end_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ end_secs: value })} />
       </div>
     );
   }
   if (node.data.nodeKind === "ExtractFrameNode") {
     const frameKind = configText(config, "frame_kind") || "first";
     return (
-      <div className="space-y-2 rounded border border-book-border bg-book-bg p-2">
+      <div className="space-y-3">
         <label className="block text-[10px] text-book-text-muted">
           抽帧类型
           <select
             value={frameKind}
             disabled={disabled}
             onChange={(event) => onChange({ frame_kind: event.target.value, at_secs: event.target.value === "time" ? configNumber(config, "at_secs") : undefined })}
-            className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+            className={INSPECTOR_CONTROL_CLASS}
           >
             <option value="first">首帧</option>
             <option value="tail">尾帧</option>
@@ -568,19 +575,17 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   }
   if (node.data.nodeKind === "AssembleVideoNode") {
     return (
-      <div className="space-y-2">
-        <div className="space-y-2 rounded border border-book-border bg-book-bg p-2">
-          <label className="block text-[10px] text-book-text-muted">
-            标题
-            <input
-              type="text"
-              value={configText(config, "title")}
-              disabled={disabled}
-              onChange={(event) => onChange({ title: event.target.value })}
-              className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
-            />
-          </label>
-        </div>
+      <div className="space-y-3">
+        <label className="block text-[10px] text-book-text-muted">
+          标题
+          <input
+            type="text"
+            value={configText(config, "title")}
+            disabled={disabled}
+            onChange={(event) => onChange({ title: event.target.value })}
+            className={INSPECTOR_CONTROL_CLASS}
+          />
+        </label>
         <AssembleClipOrderEditor
           assembleNode={node}
           nodes={nodes}
@@ -607,26 +612,26 @@ const ProbeObservationSummary: React.FC<{ config: Record<string, unknown>; displ
     return <div className="text-[11px] text-book-text-muted">尚未观察到运行结果</div>;
   }
   return (
-    <div className="space-y-1 rounded border border-book-border bg-book-bg-paper p-2 text-[11px]">
+    <div className="a4n-flat-surface p-2.5 text-[11px]">
       <div className="grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1">
         <span className="text-book-text-muted">类型</span>
-        <span className="text-book-text-main">{dataType || "-"}</span>
+        <span className="text-book-text-main">{canvasDataTypeLabel(dataType)}</span>
         {generatedImageId ? (
           <>
             <span className="text-book-text-muted">图片</span>
-            <span className="font-mono text-book-text-main">#{generatedImageId}</span>
+            <span className="text-book-text-main">已生成</span>
           </>
         ) : null}
         {generatedVideoId ? (
           <>
             <span className="text-book-text-muted">视频</span>
-            <span className="font-mono text-book-text-main">#{generatedVideoId}</span>
+            <span className="text-book-text-main">已生成</span>
           </>
         ) : null}
         {mediaAssetId ? (
           <>
             <span className="text-book-text-muted">媒体</span>
-            <span className="font-mono text-book-text-main">#{mediaAssetId}</span>
+            <span className="text-book-text-main">已绑定</span>
           </>
         ) : null}
         {durationSecs !== "" ? (
@@ -646,11 +651,11 @@ const ProbeObservationSummary: React.FC<{ config: Record<string, unknown>; displ
       </div>
       {observedText ? (
         displayMode === "detail" ? (
-          <div className="max-h-28 overflow-y-auto whitespace-pre-wrap rounded border border-book-border bg-book-bg p-2 text-book-text-sub custom-scrollbar">
+          <div className="mt-2 whitespace-pre-wrap border-t border-book-border/40 pt-2 leading-relaxed text-book-text-sub">
             {observedText}
           </div>
         ) : (
-          <div className="line-clamp-3 rounded border border-book-border bg-book-bg p-2 text-book-text-sub">
+          <div className="mt-2 line-clamp-3 border-t border-book-border/40 pt-2 leading-relaxed text-book-text-sub">
             {observedText}
           </div>
         )
@@ -676,51 +681,48 @@ const AssembleClipOrderEditor: React.FC<AssembleClipOrderEditorProps> = ({
 }) => {
   const clips = assembleClipEdges(assembleNode.id, nodes, edges);
   return (
-    <div className="space-y-2 rounded border border-book-border bg-book-bg p-2">
-      <div className="text-[10px] text-book-text-muted">成片轨道</div>
+    <div className="space-y-2">
+      <div className="text-[10px] font-medium text-book-text-muted">成片轨道</div>
       {clips.length === 0 ? (
         <div className="text-[11px] text-book-text-muted">暂无片段连线</div>
       ) : (
-        <div className="space-y-1">
+        <ol className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
           {clips.map(({ edge, source, orderIndex }, index) => (
-            <div
+            <li
               key={edge.id}
-              className="grid grid-cols-[24px_minmax(0,1fr)_56px] items-center gap-2 rounded border border-book-border bg-book-bg-paper px-2 py-1"
+              className="grid grid-cols-[24px_minmax(0,1fr)_72px] items-center gap-2 px-2.5 py-2"
             >
               <span className="font-mono text-[11px] text-book-text-muted">{orderIndex ?? index + 1}</span>
               <div className="min-w-0">
                 <div className="truncate text-[11px] text-book-text-main" title={source.data.label}>
                   {source.data.label}
                 </div>
-                <div className="truncate font-mono text-[10px] text-book-text-muted">
-                  video #{nodeGeneratedVideoRefId(source.data) ?? "-"}
-                </div>
               </div>
               <div className="flex items-center justify-end gap-1">
-                <button
-                  type="button"
-                  title="上移"
-                  aria-label="上移片段"
+                <BookIconButton
+                  label="上移片段"
+                  variant="ghost"
+                  size="sm"
                   disabled={disabled || index === 0}
                   onClick={() => onMove(edge.id, -1)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded border border-book-border text-book-text-muted hover:border-book-primary hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-40 sm:h-6 sm:w-6"
+                  className="!h-8 !w-8"
                 >
                   <ArrowUp size={12} />
-                </button>
-                <button
-                  type="button"
-                  title="下移"
-                  aria-label="下移片段"
+                </BookIconButton>
+                <BookIconButton
+                  label="下移片段"
+                  variant="ghost"
+                  size="sm"
                   disabled={disabled || index === clips.length - 1}
                   onClick={() => onMove(edge.id, 1)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded border border-book-border text-book-text-muted hover:border-book-primary hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-40 sm:h-6 sm:w-6"
+                  className="!h-8 !w-8"
                 >
                   <ArrowDown size={12} />
-                </button>
+                </BookIconButton>
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
       )}
     </div>
   );
@@ -735,14 +737,17 @@ interface ReferenceEditorProps {
 }
 
 const ReferenceEditor: React.FC<ReferenceEditorProps> = ({ label, refType, refId, disabled, onChange }) => (
-  <div className="rounded border border-book-border bg-book-bg p-2">
-    <NumberField
-      label={label}
-      value={refId ?? ""}
-      disabled={disabled}
-      onChange={(value) => onChange(refType, value)}
-    />
-  </div>
+  <details className="a4n-flat-surface overflow-hidden">
+    <summary className="cursor-pointer px-2.5 py-2.5 text-[11px] text-book-text-muted">高级引用</summary>
+    <div className="border-t border-book-border/60 p-2">
+      <NumberField
+        label={label}
+        value={refId ?? ""}
+        disabled={disabled}
+        onChange={(value) => onChange(refType, value)}
+      />
+    </div>
+  </details>
 );
 
 interface NumberFieldProps {
@@ -762,7 +767,7 @@ const NumberField: React.FC<NumberFieldProps> = ({ label, value, disabled, min =
       value={value}
       disabled={disabled}
       onChange={(event) => onChange(numberOrNull(event.target.value, min))}
-      className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+      className={INSPECTOR_CONTROL_CLASS}
     />
   </label>
 );
@@ -785,11 +790,11 @@ const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disa
         value={value ?? ""}
         disabled={disabled || (options.length === 0 && !selectedMissing)}
         onChange={(event) => onChange(numberOrNull(event.target.value, 1))}
-        className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary disabled:opacity-60"
+        className={INSPECTOR_CONTROL_CLASS}
       >
         <option value="">{options.length === 0 ? "暂无可用配置" : "使用默认配置"}</option>
         {selectedMissing ? (
-          <option value={value}>已删除或不可用配置 #{value}</option>
+          <option value={value}>已删除或不可用配置</option>
         ) : null}
         {options.map((option) => (
           <option key={option.id} value={option.id}>
@@ -802,10 +807,14 @@ const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disa
           当前：{configOptionLabel(selectedOption)}
         </div>
       ) : selectedMissing ? (
-        <div className="mt-1 text-[10px] text-warning">
-          当前节点引用的配置 #{value} 已不存在，请重新选择。
+        <div className="mt-1 text-[10px] text-warning" title={`配置编号 ${value}`}>
+          当前配置已不可用，请重新选择。
         </div>
       ) : null}
     </label>
   );
 };
+
+function fileName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+}

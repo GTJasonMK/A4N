@@ -14,7 +14,7 @@ import {
 import { useAuthStore } from "../../store/auth";
 import { PromptEditorPanel } from "./prompt/PromptEditorPanel";
 import { PromptList } from "./prompt/PromptList";
-import { PromptCategoryTabs, PromptRegistryHeader } from "./prompt/PromptNavigation";
+import { PromptCategoryTabs } from "./prompt/PromptNavigation";
 import { PromptToolbar } from "./prompt/PromptToolbar";
 import { filterPrompts } from "./prompt/promptTabUtils";
 
@@ -200,6 +200,7 @@ export const PromptTab: React.FC = () => {
     const requestSeq = saveSeqRef.current + 1;
     const requestEditVersion = editVersionRef.current;
     const requestName = selected.name;
+    const requestLabel = selected.title || "提示词";
     const requestDraft = draft;
     saveSeqRef.current = requestSeq;
     saveBusyRef.current = true;
@@ -212,11 +213,11 @@ export const PromptTab: React.FC = () => {
       });
       if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
       if (editVersionRef.current !== requestEditVersion) {
-        addToast(`已保存提交时的提示词：${requestName}，当前保留后续编辑草稿`, "info");
+        addToast(`已保存提交时的「${requestLabel}」，当前保留后续编辑草稿`, "info");
         return;
       }
       markClean();
-      addToast(`已保存：${requestName}`, "success");
+      addToast(`已保存「${requestLabel}」`, "success");
       await refresh();
     } catch (err) {
       if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
@@ -239,10 +240,11 @@ export const PromptTab: React.FC = () => {
     }
     if (!selected) return;
     const requestName = selected.name;
+    const requestLabel = selected.title || "提示词";
     resetBusyRef.current = true;
     const ok = await confirmDialog({
       title: "重置提示词",
-      message: `将提示词 "${requestName}" 重置为默认内容？所有自定义将丢失。`,
+      message: `将「${requestLabel}」恢复为默认内容？现有自定义将丢失。`,
       confirmText: "重置",
       dialogType: "warning",
     });
@@ -262,11 +264,11 @@ export const PromptTab: React.FC = () => {
       await promptReset(requestName);
       if (!mountedRef.current || resetSeqRef.current !== requestSeq) return;
       if (editVersionRef.current !== requestEditVersion) {
-        addToast(`已重置提交时的提示词：${requestName}，当前保留后续编辑草稿`, "info");
+        addToast(`已恢复提交时的「${requestLabel}」，当前保留后续编辑草稿`, "info");
         return;
       }
       markClean();
-      addToast(`已重置：${requestName}`, "success");
+      addToast(`「${requestLabel}」已恢复默认内容`, "success");
       await refresh();
     } catch (err) {
       if (!mountedRef.current || resetSeqRef.current !== requestSeq) return;
@@ -339,13 +341,7 @@ export const PromptTab: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col gap-3 min-h-0">
-      <PromptRegistryHeader
-        categories={categories}
-        totalCount={items.length}
-        loading={loading}
-      />
-
+    <div className="flex h-auto min-h-0 flex-col gap-3 md:h-full">
       <PromptCategoryTabs
         categories={categories}
         activeCategory={activeCategory}
@@ -362,7 +358,7 @@ export const PromptTab: React.FC = () => {
         onRefresh={() => void handleRefresh()}
       />
 
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[280px_1fr] md:grid-rows-1">
+      <div className="grid min-h-0 gap-3 md:flex-1 md:grid-cols-[260px_minmax(0,1fr)] md:grid-rows-1">
         <PromptList
           prompts={filtered}
           loading={loading}

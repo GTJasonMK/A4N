@@ -1,8 +1,7 @@
 use super::error::ApiError;
 use crate::state::ServerState;
-use a4n_core::error::AppError;
 use a4n_core::models::user::user;
-use a4n_runtime::actions::auth_records;
+use a4n_runtime::host_api::auth_records;
 use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
@@ -19,7 +18,8 @@ pub async fn login(
     headers: HeaderMap,
     Json(input): Json<auth_records::LoginInput>,
 ) -> Result<Json<auth_records::AuthResult>, ApiError> {
-    let response = auth_records::login_user(&state, input, user_agent(&headers).as_deref()).await?;
+    let response =
+        auth_records::login_user(state.runtime(), input, user_agent(&headers).as_deref()).await?;
     Ok(Json(response))
 }
 
@@ -29,7 +29,8 @@ pub async fn register(
     Json(input): Json<auth_records::RegisterInput>,
 ) -> Result<Json<auth_records::AuthResult>, ApiError> {
     let response =
-        auth_records::register_user(&state, input, user_agent(&headers).as_deref()).await?;
+        auth_records::register_user(state.runtime(), input, user_agent(&headers).as_deref())
+            .await?;
     Ok(Json(response))
 }
 
@@ -47,7 +48,7 @@ pub(super) async fn logout(
     Json(input): Json<LogoutRequest>,
 ) -> Result<(), ApiError> {
     let user = authenticated_user(&state, &headers).await?;
-    auth_records::logout_user(&state, Some(user.id), Some(&input.session_id)).await?;
+    auth_records::logout_user(state.runtime(), Some(user.id), Some(&input.session_id)).await?;
     Ok(())
 }
 
@@ -56,9 +57,9 @@ pub async fn refresh(
     Json(input): Json<auth_records::RefreshTokenInput>,
 ) -> Result<Json<auth_records::TokenPairSummary>, ApiError> {
     Ok(Json(
-        auth_records::refresh_token(&state, input)
+        auth_records::refresh_token(state.runtime(), input)
             .await
-            .map_err(auth_token_error)?,
+            .map_err(ApiError::from)?,
     ))
 }
 
@@ -74,9 +75,9 @@ pub async fn authenticated_user_from_access_token(
     state: &ServerState,
     token: &str,
 ) -> Result<user::Model, ApiError> {
-    auth_records::user_from_access_token(state, token)
+    auth_records::user_from_access_token(state.runtime(), token)
         .await
-        .map_err(auth_token_error)
+        .map_err(ApiError::from)
 }
 
 pub(crate) async fn issue_auth_response(
@@ -84,7 +85,7 @@ pub(crate) async fn issue_auth_response(
     headers: &HeaderMap,
     user: user::Model,
 ) -> Result<auth_records::AuthResult, ApiError> {
-    auth_records::issue_auth_result(state, user, user_agent(headers).as_deref())
+    auth_records::issue_auth_result(state.runtime(), user, user_agent(headers).as_deref())
         .await
         .map_err(Into::into)
 }
@@ -109,17 +110,4 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
-}
-
-fn auth_token_error(error: AppError) -> ApiError {
-    match &error {
-        AppError::Forbidden(message)
-            if message.contains("JWT")
-                || message.contains("令牌类型")
-                || message.contains("subject") =>
-        {
-            ApiError::unauthorized(error.to_string())
-        }
-        _ => error.into(),
-    }
 }

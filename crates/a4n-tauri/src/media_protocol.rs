@@ -1,5 +1,5 @@
 use a4n_runtime::AppState;
-use a4n_runtime::{file_utils::canonicalize_path_in_data_dir, media_file};
+use a4n_runtime::{file_utils::canonicalize_path_in_data_dir, host_api::storage_paths, media_file};
 use std::path::Path;
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{Manager, Runtime, UriSchemeContext};
@@ -21,13 +21,14 @@ pub fn handle_request<R: Runtime>(
         Ok(path) => path,
         Err(err) => return text_response(StatusCode::BAD_REQUEST, &err),
     };
-    let path = state.config.data_dir.join(path);
-    let path = match canonicalize_path_in_data_dir(&state.config.data_dir, &path, MEDIA_LABEL) {
+    let data_dir = storage_paths::data_dir_path(state.inner());
+    let path = data_dir.join(path);
+    let path = match canonicalize_path_in_data_dir(&data_dir, &path, MEDIA_LABEL) {
         Ok(path) => path,
-        Err(err) if err.contains("不在应用数据目录内") => {
-            return text_response(StatusCode::FORBIDDEN, &err);
+        Err(err) if err.is_outside_data_directory() => {
+            return text_response(StatusCode::FORBIDDEN, &err.to_string());
         }
-        Err(err) => return text_response(StatusCode::NOT_FOUND, &err),
+        Err(err) => return text_response(StatusCode::NOT_FOUND, &err.to_string()),
     };
 
     match file_response(&path, request.headers().get(header::RANGE)) {

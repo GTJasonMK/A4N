@@ -9,6 +9,7 @@ import {
   removeWritingDraft,
   writeWritingDraft,
 } from "../../utils/writingDraft";
+import { formatUiDateTime } from "../../utils/dateTime";
 
 type AddToast = (message: unknown, type: ToastType) => void;
 
@@ -158,11 +159,7 @@ export function useWritingDeskDrafts({
         draftPromptedRef.current.add(draftKey);
         const draft = readWritingDraft(draftKey);
         if (draft && draft.content !== baseContent) {
-          let ts = draft.updatedAt;
-          const parsedDate = new Date(draft.updatedAt);
-          if (!Number.isNaN(parsedDate.getTime())) {
-            ts = parsedDate.toLocaleString();
-          }
+          const ts = formatUiDateTime(draft.updatedAt, "时间未知");
           void confirmDialog({
             title: "恢复草稿",
             message: `检测到本地草稿（${ts}）。\n是否恢复到编辑器？`,

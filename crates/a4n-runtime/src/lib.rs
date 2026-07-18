@@ -1,14 +1,27 @@
-pub mod actions;
+/// 业务实现体（crate 内）。宿主请使用 [`host_api`]。
+pub(crate) mod actions;
+/// 阶段 11：宿主侧唯一业务编排入口（orchestrator facade）。
+///
+/// `a4n-server` / `a4n-tauri` 只能通过本模块调用业务。
+/// 实现体在 `actions`（`pub(crate)`），对外不暴露。
+pub mod host_api {
+    pub use crate::actions::*;
+}
+
 mod baseline_configs;
+mod cleanup_outbox;
 pub mod dynamic_embedding;
 pub mod dynamic_llm;
 pub mod file_utils;
-pub mod global_ai_config;
+pub(crate) mod jwt;
 pub mod media_file;
-pub(crate) mod prompt_overrides;
+pub(crate) mod oauth_provider;
+pub(crate) mod prompt_renderer;
 pub mod rag_ingest;
 pub mod runtime_config;
+pub(crate) mod sidecar_clients;
 pub mod state;
 pub mod workflow;
 
+pub use a4n_orchestrator::OrchestratorContext;
 pub use state::AppState;

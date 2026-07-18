@@ -3,7 +3,7 @@ use crate::progress_task::WorkflowProgressTask;
 use a4n_core::error::AppError;
 use a4n_core::event::channel::TaskType;
 use a4n_runtime::AppState;
-use a4n_runtime::actions::import_reverse::{
+use a4n_runtime::host_api::import_reverse::{
     ReverseEngineerInput, ReverseEngineeringTarget,
     preview_reverse_engineer_request as preview_reverse_engineer_model_request, reverse_engineer,
     reverse_engineer_and_apply, reverse_engineer_task_scope,

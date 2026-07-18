@@ -31,6 +31,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   const { runProgressTask } = useProgressTask();
   const [portraits, setPortraits] = useState<Portrait[]>([]);
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -86,6 +87,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       if (!isCurrentLoad(requestProjectId, requestSeq)) return;
       setPortraits(data);
       setProfiles(profs);
+      setSelectedProfileId((current) =>
+        current != null && profs.some((profile) => profile.id === current)
+          ? current
+          : null,
+      );
     } catch (err) {
       if (!isCurrentLoad(requestProjectId, requestSeq)) return;
       setPortraits([]);
@@ -115,6 +121,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     setShowAge(null);
     setShowPrompt(null);
     setActionPortrait(null);
+    setSelectedProfileId(null);
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
     setRequestPreviewData(null);
@@ -317,6 +324,14 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   const displayPortraits = loadedProjectId === projectId ? portraits : [];
   const displayProfiles = loadedProjectId === projectId ? profiles : [];
   const displayLoading = loading || loadedProjectId !== projectId;
+  const visiblePortraits =
+    selectedProfileId == null
+      ? displayPortraits
+      : displayPortraits.filter((portrait) => portrait.profile_id === selectedProfileId);
+  const selectedProfile =
+    selectedProfileId == null
+      ? null
+      : displayProfiles.find((profile) => profile.id === selectedProfileId) ?? null;
 
   if (displayLoading) {
     return (
@@ -329,8 +344,12 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   return (
     <div className="flex flex-col gap-3">
       <PortraitToolbar
-        portraitCount={displayPortraits.length}
+        visiblePortraitCount={visiblePortraits.length}
+        totalPortraitCount={displayPortraits.length}
+        profiles={displayProfiles}
+        selectedProfileId={selectedProfileId}
         generating={generating}
+        onProfileChange={setSelectedProfileId}
         onOpenSingle={() => setShowSingle(true)}
         onOpenUpload={() => setShowUpload(true)}
         onPreviewGenerateMissing={handlePreviewGenerateMissing}
@@ -338,10 +357,15 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       />
 
       <PortraitGalleryGrid
-        portraits={displayPortraits}
+        portraits={visiblePortraits}
         profiles={displayProfiles}
         busyId={busyId}
         onOpenActions={setActionPortrait}
+        emptyText={
+          selectedProfile
+            ? `${selectedProfile.name} 暂无人物三视图或立绘，可使用「生成单个」或上传素材。`
+            : undefined
+        }
       />
 
       {showSingle ? (

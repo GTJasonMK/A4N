@@ -1,5 +1,7 @@
 import { CheckCircle2 } from "lucide-react";
 import type { ProposeOptimizationPatchesResponse } from "../../../api/optimize";
+import { BookButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
 
 interface PendingPatchProposalPanelProps {
   proposal: ProposeOptimizationPatchesResponse;
@@ -18,8 +20,24 @@ export function PendingPatchProposalPanel({
   onApply,
   onDiscard,
 }: PendingPatchProposalPanelProps) {
+  if (reviewInEditor) {
+    return (
+      <div className="a4n-flat-surface mb-2 flex min-w-0 items-start gap-2.5 px-3 py-2.5 text-xs">
+        <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-book-primary" />
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-book-text-main">
+            {proposal.patches.length} 个补丁待审阅
+          </div>
+          <div className="mt-0.5 truncate text-[11px] text-book-text-sub" title={proposal.summary}>
+            {proposal.summary}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mb-2 min-w-0 rounded border border-book-border bg-book-bg-tertiary px-2.5 py-2 text-xs">
+    <div className="a4n-flat-surface mb-2 min-w-0 px-3 py-2.5 text-xs">
       <div className="flex min-w-0 flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1 basis-36">
           <div className="font-semibold text-book-text-main">
@@ -29,28 +47,29 @@ export function PendingPatchProposalPanel({
             {proposal.summary}
           </div>
         </div>
-        {!reviewInEditor ? (
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
-            <button
-              type="button"
-              onClick={onApply}
-              disabled={taskRunning}
-              className="inline-flex h-9 items-center gap-1 rounded border border-book-primary bg-book-primary px-1.5 text-[11px] font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:h-7"
-              title="确认后应用这些局部补丁"
-            >
-              <CheckCircle2 size={12} />
-              {automaticWriteback ? "接受全部" : "应用补丁"}
-            </button>
-            <button
-              type="button"
-              onClick={onDiscard}
-              disabled={taskRunning}
-              className="inline-flex h-9 items-center rounded border border-book-border bg-book-bg-paper px-1.5 text-[11px] text-book-text-sub hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-50 sm:h-7"
-            >
-              丢弃
-            </button>
-          </div>
-        ) : null}
+        <div className="flex min-w-0 items-center gap-2">
+          <Dropdown
+            items={[
+              {
+                label: "丢弃补丁",
+                danger: true,
+                onClick: onDiscard,
+                disabled: taskRunning,
+              },
+            ]}
+          />
+          <BookButton
+            variant="primary"
+            size="sm"
+            onClick={onApply}
+            disabled={taskRunning}
+            className="!text-[11px]"
+            title="确认后应用这些局部补丁"
+          >
+            <CheckCircle2 size={12} />
+            {automaticWriteback ? "接受全部" : "应用补丁"}
+          </BookButton>
+        </div>
       </div>
     </div>
   );

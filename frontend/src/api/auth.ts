@@ -32,7 +32,7 @@ interface TokenPair {
   session_id: string;
 }
 
-interface SessionSummary {
+export interface SessionSummary {
   id: string;
   user_id: number;
   user_agent: string | null;

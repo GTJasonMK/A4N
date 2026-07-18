@@ -143,71 +143,8 @@ pub struct GeneratedVideoSummary {
     pub updated_at: Option<String>,
 }
 
-pub struct VideoGenerationProgress<'a> {
-    reporter: Option<VideoGenerationProgressCallback<'a>>,
-    cancel_token: CancellationToken,
-}
+mod progress;
+pub(crate) use progress::VideoGenerationProgress;
 
-impl<'a> VideoGenerationProgress<'a> {
-    pub fn new(
-        reporter: Option<VideoGenerationProgressCallback<'a>>,
-        cancel_token: CancellationToken,
-    ) -> Self {
-        Self {
-            reporter,
-            cancel_token,
-        }
-    }
-
-    pub(super) fn progress(
-        &mut self,
-        current: u32,
-        total: u32,
-        message: &str,
-    ) -> Result<(), String> {
-        if let Some(reporter) = self.reporter.as_deref_mut() {
-            reporter(current, total.max(1), message).map_err(|err| err.to_string())?;
-        }
-        Ok(())
-    }
-
-    pub(super) fn check_cancelled(&self, message: &str) -> Result<(), String> {
-        if self.cancel_token.is_cancelled() {
-            return Err(message.to_string());
-        }
-        Ok(())
-    }
-
-    pub(super) fn cancel_token(&self) -> CancellationToken {
-        self.cancel_token.clone()
-    }
-}
-
-pub(crate) fn video_to_summary(v: &generated_video::Model) -> GeneratedVideoSummary {
-    GeneratedVideoSummary {
-        id: v.id,
-        project_id: v.project_id,
-        chapter_id: v.chapter_id,
-        video_type: v.video_type.clone(),
-        workflow_mode: v.workflow_mode.clone(),
-        file_path: v.file_path.clone(),
-        thumbnail_path: v.thumbnail_path.clone(),
-        prompt: v.prompt.clone(),
-        negative_prompt: v.negative_prompt.clone(),
-        model: v.model.clone(),
-        width: v.width,
-        height: v.height,
-        duration_secs: v.duration_secs,
-        fps: v.fps,
-        file_size: v.file_size,
-        source_video_id: v.source_video_id,
-        source_image_id: v.source_image_id,
-        status: v.status.clone(),
-        provider_job_id: v.provider_job_id.clone(),
-        error_message: v.error_message.clone(),
-        metadata_json: v.metadata_json.clone(),
-        is_favorite: v.is_favorite,
-        created_at: Some(v.created_at.to_string()),
-        updated_at: Some(v.updated_at.to_string()),
-    }
-}
+mod summary;
+pub(crate) use summary::video_to_summary;
