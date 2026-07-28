@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 将编译反馈收益量化并设回归门禁，同时让重构状态文档进入可审查版本历史 |
 | V2 来源 | 3.23、3.27；阶段 L、阶段 M 的 timing/文档部分 |
-| 当前状态 | 3.27 已由提交 `b458781` 的 commit/blame 证据关闭；run `30368914502` 已产出首份 fixed-runner cold/warm artifact，真实中位数已写回 baseline，待新提交在同一门禁下复验 |
+| 当前状态 | `完成（批次 336）`：3.27 已有 commit/blame；run `30368914502` 建立 fixed-runner baseline，run `30371035840` 在同一 `25%` budget 下复验通过 |
 | 可并行性 | timing、doc checks、状态一致性可并行；最终阈值和 V2 状态回写由协调者确认 |
 
 ## 子包 A：编译反馈门禁（3.23）
@@ -279,3 +279,12 @@ git check-ignore docs/重构/模块化重构执行计划-v2.md docs/重构/模�
 - 固定环境为 Ubuntu 24.04、AMD EPYC 7763、4 logical CPUs、Rust/Cargo 1.95.0、`CARGO_INCREMENTAL=1`；workspace cold 为 `228231 ms`。
 - `package-rebuild-v1` 中位数依次为 prompt `739`、LLM `597`、embedding `654`、RAG `777`、image `615`、video `619`、Server `4792`、Tauri `27802 ms`。本批直接替换 provisional baseline，并统一收紧为 `25%` regression ceiling，不新增第二套性能配置。
 - 3.23/阶段 L 暂不提前关闭：还需该 baseline 进入 Git 后由同一 fixed runner 再通过一次 budget。
+
+## 批次 336 · fixed-runner budget 复验与收口 · 2026-07-28
+
+状态：`完成`
+
+- baseline 提交 `c16d35351201567451418e3c1af63a9bee48a9f8` 触发 GitHub Actions run `30371035840`；`Cold and warm build feedback budget` job `90314642186` 成功。
+- artifact `build-feedback-Linux-X64`（`8693269442`，1,877,890 bytes）记录 workspace cold `172303 ms`；八包中位数为 `571 / 458 / 542 / 637 / 482 / 489 / 4265 / 22122 ms`，全部通过首份 fixed-runner baseline 的 `25%` ceiling。
+- artifact 继续包含每次 Cargo timings、原始样本、runner/hardware/toolchain metadata 和 `cargo tree --depth 1`；minimal Server/Tauri 及重依赖扫描已在前一 run 成功，不新增平行门禁。
+- 3.23 与阶段 L 正式关闭；工作包 11 完成。总体由 `36/44` 更新为 `38/44`，未完成 6 条。
