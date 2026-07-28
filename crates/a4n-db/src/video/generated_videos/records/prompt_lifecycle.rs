@@ -16,6 +16,11 @@ where
     C: ConnectionTrait,
 {
     let prompt = prompt_for_generated_video_record(db, prompt_id, video).await?;
+    if prompt.generated_video_id.is_some() {
+        return Err(VideoDbError::InvalidArgument(
+            "已存在由该视频提示词生成的视频，不能再次生成；请先删除对应视频".to_string(),
+        ));
+    }
     let mut active: chapter_video_prompt::ActiveModel = prompt.into();
     active.status = Set("running".to_string());
     active.updated_at = Set(Utc::now().naive_utc());

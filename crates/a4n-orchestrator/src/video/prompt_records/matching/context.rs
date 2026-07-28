@@ -98,8 +98,13 @@ pub(in crate::video::prompt_records) fn prompt_matches_generation_context_for_wo
     row: &chapter_video_prompt::Model,
     context: PromptGenerationContextForWorkflow<'_>,
 ) -> bool {
+    let expected_storage_workflow_mode = if context.prompt_type == "frame_segment_plan" {
+        "shared_segment_plan"
+    } else {
+        context.expected_workflow_mode
+    };
     if row.prompt_type != context.prompt_type
-        || row.workflow_mode != context.expected_workflow_mode
+        || row.workflow_mode != expected_storage_workflow_mode
         || row.style.as_deref() != Some(context.style)
         || row.aspect_ratio.as_deref() != Some(context.aspect_ratio)
     {
@@ -116,7 +121,7 @@ pub(in crate::video::prompt_records) fn prompt_matches_generation_context_for_wo
         return false;
     }
     let Some(expected_contract) =
-        expected_contract_version(context.expected_workflow_mode, context.prompt_type)
+        expected_contract_version(expected_storage_workflow_mode, context.prompt_type)
     else {
         return false;
     };

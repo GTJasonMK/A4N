@@ -29,6 +29,7 @@ async fn sync_chapter_prompts_preserves_unchanged_video_prompt_identity() {
         generated_video_id: Set(Some(9301)),
         metadata_json: Set(Some(json!({
             "source_prompt_type": "frame_segment_plan",
+            "guidance_mode": "system_frames",
             "source": {"content_sha256": "same"}
         }))),
         created_at: Set(old_time),

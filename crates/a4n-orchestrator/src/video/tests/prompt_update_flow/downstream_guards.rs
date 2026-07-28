@@ -114,7 +114,7 @@ async fn delete_prompt_rejects_segment_plan_when_frame_prompts_exist() {
         project.id,
         chapter.id,
         "frame_segment_plan",
-        "boundary_frames",
+        "shared_segment_plan",
         0,
         json!({
             "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
