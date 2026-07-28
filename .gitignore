@@ -73,6 +73,7 @@ docs/重构/*
 !docs/重构/模块化重构执行计划-v2.md
 !docs/重构/模块化重构进度记录.md
 !docs/重构/rag-qdrant-migration.md
+!docs/重构/全量增量生成迁移清单.md
 !docs/重构/剩余重构/
 !docs/重构/剩余重构/*.md
 # OS/editor noise

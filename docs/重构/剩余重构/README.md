@@ -23,9 +23,9 @@
 | [08-sidecar-security-resource-protocol.md](08-sidecar-security-resource-protocol.md) | 已收口（批次 306） | 唯一安全/资源/兼容 owner、八项 capability process、Export 历史/current/rollback 四组合和 Linux mTLS/watcher 满足原始关闭条件；3.19–3.21 与阶段 J/K 已关闭 | 2026-07-25 |
 | [09-media-lifecycle-and-host-events.md](09-media-lifecycle-and-host-events.md) | 已收口（批次 303） | 33 个生命周期入口、created-media/scanner/cleanup outbox、PostgreSQL 双故障/强杀恢复、唯一 generation event、Server SSE/Tauri Channel、真实 Chromium/Wry 重挂载与 Destroyed 均满足原始关闭条件；远端与跨平台发布证据转交 10 | 2026-07-27 |
 | [10-release-observability-supply-chain.md](10-release-observability-supply-chain.md) | 进行中（本地实现已收口，待真实 release） | 批次 326 的九包 SBOM、发布 DAG 和 fail-closed 门禁已验证；真实远端 artifact 仍缺 | 2026-07-25 |
-| [11-compile-feedback-and-doc-governance.md](11-compile-feedback-and-doc-governance.md) | 进行中（批次 333 已关闭 Git 文档证据，待固定 runner） | 3.27 已有真实 commit/blame；首轮 timing 被 runner 缺 `rg` 拦截，仍需成功 cold/warm artifact | 2026-07-25 |
+| [11-compile-feedback-and-doc-governance.md](11-compile-feedback-and-doc-governance.md) | 进行中（批次 335 已建立 fixed-runner baseline，待复验） | 3.27 已关闭；run `30368914502` 的真实中位数已写回 baseline，待新提交通过同一 budget | 2026-07-25 |
 
-本会话当前工作包：`11-compile-feedback-and-doc-governance.md`。批次 327–333 已收口文档 fail-closed、状态/阻塞列表、编译证据、架构边界、V2 当前事实和真实 Git 提交证据；3.27 已关闭，当前只待 fixed-runner 成功 timing artifact，总体为 `36/44`。
+本会话当前工作包：`11-compile-feedback-and-doc-governance.md`。批次 327–335 已收口文档 fail-closed、状态/阻塞列表、编译证据、架构边界、V2 当前事实、真实 Git 提交证据、generation inventory tracking 和 fixed-runner baseline；3.27 已关闭，当前只待新 baseline 在同一 runner job 复验，总体为 `36/44`。
 
 ## 当前快照
 
@@ -39,7 +39,7 @@
 | A2 本地纯 rules | 0 文件 / 0 行 |
 | Orchestrator 透传壳 | 0 文件 / 0 行 |
 
-当前协调记录（2026-07-28）：批次 303–306 关闭 09、3.25、合同/process 阶段和工作包 08；批次 307–319 补上三平台发布与供应链，批次 320 收口 build-feedback job，批次 321–326 完成 GitHub 发布准备、公开配置治理、普通 CI pin、原子公开、checkout 凭证最小化和九包 SBOM，批次 327–333 收口文档 fail-closed、状态/阻塞列表、编译证据、架构边界、当前事实、A3 协调状态和真实 Git 证据。整体 V2 为 36/44；剩余 8 条由工作包 10/11 的正式平台、fixed runner 与 release 证据承接。
+当前协调记录（2026-07-28）：批次 303–306 关闭 09、3.25、合同/process 阶段和工作包 08；批次 307–319 补上三平台发布与供应链，批次 320 收口 build-feedback job，批次 321–326 完成 GitHub 发布准备、公开配置治理、普通 CI pin、原子公开、checkout 凭证最小化和九包 SBOM，批次 327–335 收口文档门禁、当前事实、真实 Git 证据、generation inventory tracking 和 fixed-runner baseline。整体 V2 为 36/44；剩余 8 条由工作包 10/11 的正式平台、baseline 复验与 release 证据承接。
 
 `AppState` 数字是边界观察量，不是待迁业务 owner 数量。权限、队列、provider、文件系统、FFmpeg、缓存、事件桥和 DTO 适配可以合法留在 Host；不要为了降低数字而增加第二套 facade 或搬动基础设施。
 

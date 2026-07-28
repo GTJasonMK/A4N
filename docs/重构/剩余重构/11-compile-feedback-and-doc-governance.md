@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 将编译反馈收益量化并设回归门禁，同时让重构状态文档进入可审查版本历史 |
 | V2 来源 | 3.23、3.27；阶段 L、阶段 M 的 timing/文档部分 |
-| 当前状态 | 3.27 已由提交 `b458781` 的 commit/blame 证据关闭；timing 采集、warm budget 和固定 CI job 已落地，仍缺 fixed-runner 成功 cold/warm artifact |
+| 当前状态 | 3.27 已由提交 `b458781` 的 commit/blame 证据关闭；run `30368914502` 已产出首份 fixed-runner cold/warm artifact，真实中位数已写回 baseline，待新提交在同一门禁下复验 |
 | 可并行性 | timing、doc checks、状态一致性可并行；最终阈值和 V2 状态回写由协调者确认 |
 
 ## 子包 A：编译反馈门禁（3.23）
@@ -261,3 +261,21 @@ git check-ignore docs/重构/模块化重构执行计划-v2.md docs/重构/模�
 - 同一远端 run 证明 Host minimal 被 `build.sh` 的无条件 ONNX 检查错误拦截，full backend 则确实需要但未准备 ONNX。本批让 `build.sh` 依据实际 Cargo normal/build 依赖图决定是否要求 FastEmbed/ONNX，full workspace 复用现有 setup；所有调用 `rg` checker/smoke 的受影响 Linux/macOS job 显式安装 `ripgrep`，既有 build-feedback 合同锁定该依赖。状态 checker 还关闭 Git 非 ASCII 路径转义，避免中文计划/进度文件在 diff 中无法匹配。
 - Bash/YAML、build-feedback fixture、状态/文档 checker 与 diff 检查通过；无效 ONNX 根下 minimal Server 已进入 Cargo check，但受共享 target 锁和 60 秒预算影响超时，full Server 则仍按预期 fail closed。
 - 最小本地门禁通过后仍需提交并推送本批补丁，再等待下一次固定 runner 成功 artifact。当前仅 3.23/阶段 L 属于本工作包未关闭范围；总体为 `36/44`、还差 8 条。
+
+## 批次 334 · generation inventory 纳入 Git · 2026-07-28
+
+状态：`未完成`
+
+- 远端提交 `4fc1b0c9d9e30d734e441b152a91fef4139de249` 的 Host minimal 已通过 Server/Tauri 编译和重依赖扫描，最终只因 `docs/重构/全量增量生成迁移清单.md` 在干净 checkout 中不存在而失败。
+- 根因是该既有权威清单仍命中 `docs/重构/*` ignore；本批只新增单文件 allowlist 并纳入 Git，不放行其他本地重构文档，也不复制 inventory。
+- 当前共享工作树及独立 clean-HEAD worktree 均通过 `inventory-generation-paths.sh --check`：`actual=47 / declared=47 / missing=0 / stale=0`。
+- 3.27 继续保持完成；本包唯一未关闭条件仍是 3.23/阶段 L 的 fixed-runner 成功 timing artifact。
+
+## 批次 335 · fixed-runner baseline 建立 · 2026-07-28
+
+状态：`未完成`
+
+- GitHub Actions run `30368914502` 的 `Cold and warm build feedback budget` job（`90307300857`）成功，artifact `build-feedback-Linux-X64`（`8692474800`）包含 workspace cold、八包各三次 rebuild、Cargo timings、hardware、toolchain 和直接依赖清单。
+- 固定环境为 Ubuntu 24.04、AMD EPYC 7763、4 logical CPUs、Rust/Cargo 1.95.0、`CARGO_INCREMENTAL=1`；workspace cold 为 `228231 ms`。
+- `package-rebuild-v1` 中位数依次为 prompt `739`、LLM `597`、embedding `654`、RAG `777`、image `615`、video `619`、Server `4792`、Tauri `27802 ms`。本批直接替换 provisional baseline，并统一收紧为 `25%` regression ceiling，不新增第二套性能配置。
+- 3.23/阶段 L 暂不提前关闭：还需该 baseline 进入 Git 后由同一 fixed runner 再通过一次 budget。
