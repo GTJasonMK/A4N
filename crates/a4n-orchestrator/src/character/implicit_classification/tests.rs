@@ -497,7 +497,8 @@ async fn application_rejects_truncated_llm_response_without_checkpoint() {
         )
         .await
         .expect_err("truncated classification response must fail");
-    assert!(error.to_string().contains("返回 JSON 被截断"));
+    assert!(matches!(&error, AppError::InvalidArgument(_)));
+    assert!(error.to_string().contains("模型输出被截断"));
     assert_eq!(provider.stream_call_count(), 1);
 
     let checkpoint = workflow_checkpoint::Entity::find()

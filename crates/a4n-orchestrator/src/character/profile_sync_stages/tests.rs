@@ -420,7 +420,8 @@ async fn application_rejects_truncated_response_without_checkpoint() {
         )
         .await
         .expect_err("truncated stage response must fail");
-    assert!(error.to_string().contains("返回 JSON 被截断"));
+    assert!(matches!(&error, AppError::InvalidArgument(_)));
+    assert!(error.to_string().contains("模型输出被截断"));
     assert_eq!(provider.stream_call_count(), 1);
     let checkpoints = workflow_checkpoint::Entity::find()
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))

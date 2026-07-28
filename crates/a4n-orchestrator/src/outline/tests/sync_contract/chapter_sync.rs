@@ -4,6 +4,7 @@ use super::*;
 async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_missing() {
     let db = setup_db().await;
     let project_id = 7501;
+    insert_project(&db, project_id).await;
     let old_time = fixed_time(1);
     let now = fixed_time(2);
     let part = part_outline::ActiveModel {

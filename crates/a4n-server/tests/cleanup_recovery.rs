@@ -4959,53 +4959,59 @@ async fn webdriver_click_button_by_xpath(
     xpath: &str,
 ) {
     const ELEMENT_KEY: &str = "element-6066-11e4-a52e-4f735466cecf";
-    let buttons = browser
-        .post(format!("{webdriver_url}/session/{session_id}/elements"))
-        .json(&json!({
-            "using": "xpath",
-            "value": xpath,
-        }))
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap()
-        .json::<serde_json::Value>()
-        .await
-        .unwrap();
-    let mut button_id = None;
-    for button in buttons["value"].as_array().unwrap() {
-        let candidate = button[ELEMENT_KEY].as_str().unwrap();
-        let displayed = browser
-            .get(format!(
-                "{webdriver_url}/session/{session_id}/element/{candidate}/displayed"
-            ))
-            .send()
-            .await
-            .unwrap()
-            .error_for_status()
-            .unwrap()
-            .json::<serde_json::Value>()
-            .await
-            .unwrap();
-        let enabled = browser
-            .get(format!(
-                "{webdriver_url}/session/{session_id}/element/{candidate}/enabled"
-            ))
-            .send()
-            .await
-            .unwrap()
-            .error_for_status()
-            .unwrap()
-            .json::<serde_json::Value>()
-            .await
-            .unwrap();
-        if displayed["value"].as_bool() == Some(true) && enabled["value"].as_bool() == Some(true) {
-            button_id = Some(candidate.to_string());
-            break;
+    let button_id = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let buttons = browser
+                .post(format!("{webdriver_url}/session/{session_id}/elements"))
+                .json(&json!({
+                    "using": "xpath",
+                    "value": xpath,
+                }))
+                .send()
+                .await
+                .unwrap()
+                .error_for_status()
+                .unwrap()
+                .json::<serde_json::Value>()
+                .await
+                .unwrap();
+            for button in buttons["value"].as_array().unwrap() {
+                let candidate = button[ELEMENT_KEY].as_str().unwrap();
+                let displayed = browser
+                    .get(format!(
+                        "{webdriver_url}/session/{session_id}/element/{candidate}/displayed"
+                    ))
+                    .send()
+                    .await
+                    .unwrap()
+                    .error_for_status()
+                    .unwrap()
+                    .json::<serde_json::Value>()
+                    .await
+                    .unwrap();
+                let enabled = browser
+                    .get(format!(
+                        "{webdriver_url}/session/{session_id}/element/{candidate}/enabled"
+                    ))
+                    .send()
+                    .await
+                    .unwrap()
+                    .error_for_status()
+                    .unwrap()
+                    .json::<serde_json::Value>()
+                    .await
+                    .unwrap();
+                if displayed["value"].as_bool() == Some(true)
+                    && enabled["value"].as_bool() == Some(true)
+                {
+                    return candidate.to_string();
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
         }
-    }
-    let button_id = button_id.unwrap_or_else(|| panic!("no displayed button matched {xpath}"));
+    })
+    .await
+    .unwrap_or_else(|_| panic!("no displayed button matched {xpath}"));
     let started = Instant::now();
     loop {
         let response = browser

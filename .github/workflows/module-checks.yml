@@ -148,6 +148,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
+      - name: Start Qdrant for RAG process test
+        if: matrix.package == 'a4n-rag-service'
+        run: docker run --detach --rm --publish 6334:6334 qdrant/qdrant:v1.18.3
+
       - name: Run independent sidecar process test
         run: |
           if [ "${{ matrix.package }}" = "a4n-embedding-service" ]; then

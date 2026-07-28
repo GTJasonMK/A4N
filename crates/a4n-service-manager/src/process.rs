@@ -45,7 +45,6 @@ enum SupervisorCommand {
 pub struct ManagedSidecarProcess {
     config: ManagedServiceConfig,
     command: mpsc::UnboundedSender<SupervisorCommand>,
-    status_sender: watch::Sender<ManagedSidecarStatus>,
     status: watch::Receiver<ManagedSidecarStatus>,
     task: Option<JoinHandle<Result<(), ServiceManagerError>>>,
 }
@@ -85,12 +84,11 @@ impl ManagedSidecarProcess {
             integrity,
             child,
             command_rx,
-            status_tx.clone(),
+            status_tx,
         ));
         Ok(Self {
             config,
             command: command_tx,
-            status_sender: status_tx,
             status: status_rx,
             task: Some(task),
         })
@@ -135,16 +133,8 @@ impl ManagedSidecarProcess {
 
 impl Drop for ManagedSidecarProcess {
     fn drop(&mut self) {
-        if let Some(task) = self.task.take() {
+        if self.task.take().is_some() {
             let _ = self.command.send(SupervisorCommand::ForceStop);
-            let current = self.status.borrow().clone();
-            self.status_sender.send_replace(ManagedSidecarStatus {
-                state: ManagedSidecarState::Stopped,
-                pid: None,
-                next_restart_in_ms: None,
-                ..current
-            });
-            task.abort();
         }
     }
 }

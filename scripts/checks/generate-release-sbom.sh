@@ -43,6 +43,36 @@ mapfile -t PACKAGES < <(
     ' "$CATALOG" "$METADATA"
 )
 
+mapfile -t GENERATED < <(
+    ruby -rjson -e '
+      metadata = JSON.parse(File.read(ARGV.fetch(0)))
+      members = metadata.fetch("workspace_members").to_h { |id| [id, true] }
+      metadata.fetch("packages").each do |package|
+        next unless members.key?(package.fetch("id"))
+        puts File.join(
+          File.dirname(package.fetch("manifest_path")),
+          "#{package.fetch("name")}.cdx.json"
+        )
+      end
+    ' "$METADATA"
+)
+for generated in "${GENERATED[@]}"; do
+    [[ ! -e "$generated" ]] || {
+        echo "stale generated SBOM exists: $generated" >&2
+        exit 1
+    }
+done
+cleanup_generated() {
+    rm -f -- "${GENERATED[@]}"
+}
+trap cleanup_generated EXIT
+
+cargo cyclonedx \
+    --manifest-path "$ROOT/Cargo.toml" \
+    --format json \
+    --all-features \
+    --target all
+
 for package in "${PACKAGES[@]}"; do
     manifest="$(ruby -rjson -e '
       metadata = JSON.parse(File.read(ARGV.fetch(0)))
@@ -51,17 +81,7 @@ for package in "${PACKAGES[@]}"; do
       print matches.first.fetch("manifest_path")
     ' "$METADATA" "$package")"
     filename="A4N-${RELEASE_ID}-${package}.cdx.json"
-    generated="$(dirname "$manifest")/$filename"
-    [[ ! -e "$generated" ]] || {
-        echo "stale generated SBOM exists: $generated" >&2
-        exit 1
-    }
-    cargo cyclonedx \
-        --manifest-path "$manifest" \
-        --format json \
-        --all-features \
-        --target all \
-        --override-filename "$filename"
+    generated="$(dirname "$manifest")/${package}.cdx.json"
     [[ -s "$generated" ]] || {
         echo "cargo-cyclonedx did not create: $generated" >&2
         exit 1

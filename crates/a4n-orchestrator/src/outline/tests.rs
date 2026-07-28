@@ -27,7 +27,7 @@ use super::{
 use a4n_core::error::AppError;
 use a4n_core::models::{
     chapter::{chapter_outline, part_outline},
-    project::{blueprint_character, blueprint_relationship, novel_blueprint},
+    project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
 };
 use chrono::Utc;
 use sea_orm::{
@@ -46,6 +46,30 @@ fn outline_progress_rejects_invalid_ranges() {
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
+}
+
+async fn insert_project(db: &DatabaseConnection, project_id: i64) {
+    let now = fixed_time(1);
+    novel_project::ActiveModel {
+        id: Set(project_id),
+        user_id: Set(1),
+        title: Set(format!("大纲测试项目 {project_id}")),
+        description: Set("大纲同步测试".to_string()),
+        project_type: Set("novel_long".to_string()),
+        project_kind: Set("text".to_string()),
+        source_sync_status: Set("current".to_string()),
+        status: Set("writing".to_string()),
+        target_chapters: Set(30),
+        current_chapter: Set(0),
+        total_chapters: Set(Some(30)),
+        chapters_per_part: Set(Some(10)),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
 }
 
 fn fixed_time(day: u32) -> chrono::NaiveDateTime {

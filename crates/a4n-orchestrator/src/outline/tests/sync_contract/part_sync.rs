@@ -4,6 +4,7 @@ use super::*;
 async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
     let db = setup_db().await;
     let project_id = 7401;
+    insert_project(&db, project_id).await;
     let old_time = fixed_time(1);
     let now = fixed_time(2);
     let kept = part_outline::ActiveModel {
@@ -103,6 +104,7 @@ async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
 async fn sync_part_outlines_rejects_out_of_range_existing_chapter_outline() {
     let db = setup_db().await;
     let project_id = 7402;
+    insert_project(&db, project_id).await;
     let old_time = fixed_time(1);
     let now = fixed_time(2);
     part_outline::ActiveModel {

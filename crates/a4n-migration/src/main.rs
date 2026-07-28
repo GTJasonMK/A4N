@@ -1,8 +1,23 @@
 use sea_orm::{ConnectOptions, Database};
 
-#[tokio::main]
-async fn main() {
-    if let Err(err) = run().await {
+const MIGRATION_THREAD_STACK_SIZE: usize = 8 * 1024 * 1024;
+
+fn main() {
+    // Windows main threads default to a smaller stack than the baseline migration future needs.
+    let result = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .thread_stack_size(MIGRATION_THREAD_STACK_SIZE)
+        .enable_all()
+        .build()
+        .map_err(|err| format!("初始化数据库迁移运行时失败: {err}"))
+        .and_then(|runtime| {
+            runtime.block_on(async {
+                tokio::spawn(run())
+                    .await
+                    .map_err(|err| format!("数据库迁移任务失败: {err}"))?
+            })
+        });
+    if let Err(err) = result {
         eprintln!("{err}");
         std::process::exit(1);
     }
