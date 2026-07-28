@@ -99,7 +99,7 @@ export const useOptimizeStreamItems = ({
           streamItemBelongsToContext(item, activeChapter?.id ?? null, activeSessionId),
       ),
     );
-    mergeOpenProcessStepsIntoRunningStream(activityItems, optimizeTaskId);
+    mergeOpenProcessStepsIntoRunningStream(activityItems, optimizeTaskId ?? null);
     if (taskRunning && visibleProgressItems.length > 0) {
       const last = visibleProgressItems[visibleProgressItems.length - 1];
       const currentProcessIndex = activityItems.length - 1;

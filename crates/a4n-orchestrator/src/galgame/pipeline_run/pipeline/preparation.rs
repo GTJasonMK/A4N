@@ -47,11 +47,11 @@ pub(super) async fn prepare_galgame_pipeline(
         });
     }
     context.shooting_scripts = shooting_scripts;
-    ensure_galgame_pipeline_not_cancelled(&service.db, options.workflow_run_id).await?;
+    ensure_galgame_pipeline_not_cancelled(&service.database, options.workflow_run_id).await?;
 
     if !options.resume_from_checkpoint && options.start_from_stage.is_none() {
         delete_workflow_checkpoints_by_keys(
-            service.db.connection(),
+            service.database.connection(),
             options.workflow_run_id,
             ALL_GALGAME_PIPELINE_CHECKPOINT_KEYS,
         )
@@ -60,7 +60,7 @@ pub(super) async fn prepare_galgame_pipeline(
     }
     if let Some(start_stage) = options.start_from_stage {
         delete_workflow_checkpoints_by_keys(
-            service.db.connection(),
+            service.database.connection(),
             options.workflow_run_id,
             start_stage.checkpoint_keys_to_clear(),
         )

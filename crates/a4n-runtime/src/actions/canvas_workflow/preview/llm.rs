@@ -1,26 +1,30 @@
-use super::super::inputs::build_canvas_llm_transform_input_for_run;
 use super::contracts::{CanvasNodeRequestPreview, PreviewCanvasNodeRequestInput};
 use super::fallback::blocked_canvas_node_request_preview;
-use crate::AppState;
+use crate::state::CanvasRuntimeFacade;
 use a4n_core::models::canvas::canvas_node;
 use a4n_orchestrator::canvas::CanvasGraphRecordDocument as CanvasGraphDocument;
 use serde_json::json;
 
 pub(super) async fn preview_canvas_llm_node(
-    state: &AppState,
+    canvas: &CanvasRuntimeFacade<'_>,
     input: &PreviewCanvasNodeRequestInput,
     node: &canvas_node::Model,
     document: &CanvasGraphDocument,
 ) -> Result<CanvasNodeRequestPreview, String> {
-    let llm_input =
-        match build_canvas_llm_transform_input_for_run(Some(state), None, node, document).await {
-            Ok(llm_input) => llm_input,
-            Err(reason) => {
-                return Ok(blocked_canvas_node_request_preview(
-                    input, node, document, reason,
-                ));
-            }
-        };
+    let llm_input = match canvas
+        .prepare_canvas_llm_text_input_validated(None, node, document)
+        .await
+    {
+        Ok(llm_input) => llm_input,
+        Err(reason) => {
+            return Ok(blocked_canvas_node_request_preview(
+                input,
+                node,
+                document,
+                reason.to_string(),
+            ));
+        }
+    };
     Ok(CanvasNodeRequestPreview {
         project_id: input.project_id,
         graph_id: input.graph_id,

@@ -158,6 +158,7 @@ async fn restore_blueprint_version_record_restores_rows_and_project_status() {
         source_sync_status: Set("current".to_string()),
         derived_project_status: Set(None),
         status: Set("draft".to_string()),
+        lifecycle_gate: Set("active".to_string()),
         target_chapters: Set(10),
         current_chapter: Set(1),
         total_chapters: Set(Some(10)),

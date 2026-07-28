@@ -4,11 +4,29 @@ pub fn redact_sensitive_message(message: impl AsRef<str>) -> String {
     let message = message.as_ref();
     if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(message) {
         redact_sensitive_value(&mut value);
+        redact_json_urls(&mut value);
         return value.to_string();
     }
 
     let message = redact_url_substrings(message);
     redact_sensitive_key_values(&message)
+}
+
+fn redact_json_urls(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(fields) => {
+            for field in fields.values_mut() {
+                redact_json_urls(field);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                redact_json_urls(item);
+            }
+        }
+        serde_json::Value::String(text) => *text = redact_url_substrings(text),
+        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
+    }
 }
 
 fn redact_url_substrings(input: &str) -> String {

@@ -1,12 +1,12 @@
 use a4n_core::error::AppError;
 use a4n_embedding::local::LocalEmbeddingProvider;
 use a4n_embedding::provider::EmbeddingProvider;
+#[cfg(feature = "fastembed")]
 use a4n_embedding_fastembed::FastEmbedProvider;
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 
 use crate::contracts::{EmbedTextsOutput, EmbedTextsPayload};
-use crate::handlers::models::resolve_cache_dir;
 use crate::protocol::{error_response, result_response, validate_service_request};
 
 pub(crate) async fn embed_texts(
@@ -40,6 +40,11 @@ pub(crate) fn embedding_provider(
             "embedding sidecar 向量维度必须大于 0".to_string(),
         ));
     }
+    if payload.batch_size == 0 {
+        return Err(AppError::ConfigError(
+            "embedding sidecar batch_size 必须大于 0".to_string(),
+        ));
+    }
 
     let provider: Box<dyn EmbeddingProvider> = match payload
         .backend
@@ -47,11 +52,18 @@ pub(crate) fn embedding_provider(
         .to_ascii_lowercase()
         .as_str()
     {
+        #[cfg(feature = "fastembed")]
         "fastembed" => Box::new(FastEmbedProvider::try_new(
             model,
             payload.batch_size,
-            resolve_cache_dir()?,
+            crate::handlers::models::resolve_cache_dir()?,
         )?),
+        #[cfg(not(feature = "fastembed"))]
+        "fastembed" => {
+            return Err(AppError::ConfigError(
+                "embedding sidecar fastembed 支持未编译".to_string(),
+            ));
+        }
         "local_hash" => {
             let expected_model = LocalEmbeddingProvider::new(payload.dimension);
             if model != expected_model.model_name() {

@@ -1,14 +1,14 @@
 use crate::commands::request_preview::ModelRequestPreview;
 use crate::progress_task::WorkflowProgressTask;
 use a4n_core::error::AppError;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::import_reverse::{
     ReverseEngineerInput, ReverseEngineeringTarget,
     preview_reverse_engineer_request as preview_reverse_engineer_model_request, reverse_engineer,
     reverse_engineer_and_apply, reverse_engineer_task_scope,
 };
-use tauri::{State, Window};
+use tauri::State;
 
 fn progress_reporter<'a>(
     progress: &'a WorkflowProgressTask,
@@ -23,7 +23,6 @@ fn progress_reporter<'a>(
 }
 
 async fn run_reverse_engineer_command(
-    window: Window,
     state: State<'_, AppState>,
     user_id: i64,
     input: ReverseEngineerInput,
@@ -35,10 +34,9 @@ async fn run_reverse_engineer_command(
         .await
         .map_err(|e| e.to_string())?;
     let progress = WorkflowProgressTask::new(
-        window,
         state.inner(),
         task_id,
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         Some(scope.project_id),
         scope.total,
         target.initial_message(apply),
@@ -55,9 +53,7 @@ async fn run_reverse_engineer_command(
                 .map_err(|e| e.to_string())
         }
     };
-    progress.finish_result(state.inner(), &output, target.failure_event(), |_| {
-        target.success_message(apply)
-    });
+    progress.remove(state.inner());
     output
 }
 
@@ -76,14 +72,12 @@ macro_rules! reverse_engineer_commands {
     ($run:ident, $preview:ident, $apply:ident, $target:expr) => {
         #[tauri::command]
         pub async fn $run(
-            window: Window,
             state: State<'_, AppState>,
             user_id: i64,
             input: ReverseEngineerInput,
             task_id: Option<String>,
         ) -> Result<serde_json::Value, String> {
-            run_reverse_engineer_command(window, state, user_id, input, task_id, $target, false)
-                .await
+            run_reverse_engineer_command(state, user_id, input, task_id, $target, false).await
         }
 
         #[tauri::command]
@@ -97,14 +91,12 @@ macro_rules! reverse_engineer_commands {
 
         #[tauri::command]
         pub async fn $apply(
-            window: Window,
             state: State<'_, AppState>,
             user_id: i64,
             input: ReverseEngineerInput,
             task_id: Option<String>,
         ) -> Result<serde_json::Value, String> {
-            run_reverse_engineer_command(window, state, user_id, input, task_id, $target, true)
-                .await
+            run_reverse_engineer_command(state, user_id, input, task_id, $target, true).await
         }
     };
 }

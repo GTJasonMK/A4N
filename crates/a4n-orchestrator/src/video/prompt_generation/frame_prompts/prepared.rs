@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 use super::{
-    FRAME_SEGMENT_PLAN_CONTRACT_VERSION, NewChapterVideoPrompt, PromptOutputLanguage,
-    PromptWorkflowMode, SourceSpan, VideoPromptGenerationTrace, VideoSegmentPlan,
+    FRAME_SEGMENT_PLAN_CONTRACT_VERSION, NewChapterVideoPrompt, PromptOutputLanguage, SourceSpan,
+    VideoPromptGenerationTrace, VideoSegmentPlan,
 };
 
 pub(super) struct PreparedVideoPromptInputs {
@@ -12,6 +12,7 @@ pub(super) struct PreparedVideoPromptInputs {
     pub(super) source_spans: Vec<SourceSpan>,
     pub(super) regenerate_existing: bool,
     pub(super) prompt_batch_size: usize,
+    pub(super) target_shot_number: Option<i32>,
     pub(super) style: String,
     pub(super) prompt_output_language: PromptOutputLanguage,
     pub(super) duration_secs: i32,
@@ -41,8 +42,6 @@ pub(crate) struct ReusableSegmentPlan {
     pub(crate) execution_identity: Value,
 }
 
-pub(super) const SHARED_SEGMENT_PLAN_WORKFLOW_MODE: PromptWorkflowMode =
-    PromptWorkflowMode::BoundaryFrames;
 pub(super) const SHARED_SEGMENT_PLAN_PROMPT_TYPE: &str = "frame_segment_plan";
 pub(super) const SHARED_SEGMENT_PLAN_TITLE: &str = "视频片段规划";
 pub(super) const SHARED_SEGMENT_PLAN_CONTEXT: &str = "视频分段规划";

@@ -9,6 +9,6 @@ pub fn is_project_reusable_video_material_image(
     profile_material::is_project_reusable_video_material_image(image_type, metadata)
 }
 
-pub(super) fn is_video_frame_input_metadata(metadata: &Map<String, Value>) -> bool {
+pub(crate) fn is_video_frame_input_metadata(metadata: &Map<String, Value>) -> bool {
     profile_material::is_video_frame_input_metadata(Some(&Value::Object(metadata.clone())))
 }

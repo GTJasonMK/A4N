@@ -1,13 +1,16 @@
+use crate::EgressDataType;
+use crate::compatibility::{capability_major, capability_name};
 use crate::health::{HealthStatus, ServiceHealth, ServiceVersion};
+use crate::service_compatibility_for_host;
 use crate::validation::RequiredSecretPolicy;
 
 pub const PROTOCOL_VERSION: u32 = 2;
 pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v2";
-pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v2";
+pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v3";
 pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v2";
 pub const RAG_INDEX_CAPABILITY_VERSION: &str = "rag-index-v2";
 pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v2";
-pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v2";
+pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v5";
 pub const IMPORT_TRANSFORM_CAPABILITY_VERSION: &str = "import-transform-v2";
 pub const EXPORT_RENDER_CAPABILITY_VERSION: &str = "export-render-v2";
 
@@ -34,10 +37,51 @@ pub fn expected_capability_version_for_service(service: &str) -> Option<&'static
     }
 }
 
+pub fn service_for_capability_version(capability_version: &str) -> Option<&'static str> {
+    let name = capability_name(capability_version)?;
+    let major = capability_major(capability_version)?;
+    [
+        PROMPT_SERVICE_NAME,
+        LLM_SERVICE_NAME,
+        EMBEDDING_SERVICE_NAME,
+        RAG_SERVICE_NAME,
+        IMAGE_SERVICE_NAME,
+        VIDEO_SERVICE_NAME,
+        IMPORT_SERVICE_NAME,
+        EXPORT_SERVICE_NAME,
+    ]
+    .into_iter()
+    .find(|service| {
+        expected_capability_version_for_service(service).is_some_and(|expected| {
+            capability_name(expected) == Some(name) && capability_major(expected) == Some(major)
+        })
+    })
+}
+
+pub fn egress_data_type_for_service(service: &str) -> Option<EgressDataType> {
+    match service {
+        PROMPT_SERVICE_NAME => Some(EgressDataType::Prompt),
+        LLM_SERVICE_NAME | EMBEDDING_SERVICE_NAME | RAG_SERVICE_NAME => Some(EgressDataType::Text),
+        IMAGE_SERVICE_NAME => Some(EgressDataType::Image),
+        VIDEO_SERVICE_NAME => Some(EgressDataType::Video),
+        IMPORT_SERVICE_NAME | EXPORT_SERVICE_NAME => Some(EgressDataType::Archive),
+        _ => None,
+    }
+}
+
 pub fn known_service_health(
     service: &'static str,
     service_version: impl Into<String>,
     status: HealthStatus,
+) -> ServiceHealth {
+    known_service_health_for_host(service, service_version, status, Some(PROTOCOL_VERSION))
+}
+
+pub fn known_service_health_for_host(
+    service: &'static str,
+    service_version: impl Into<String>,
+    status: HealthStatus,
+    host_protocol_version: Option<u32>,
 ) -> ServiceHealth {
     let capability_version = expected_capability_version_for_service(service)
         .expect("known sidecar service must have protocol capability version");
@@ -48,6 +92,7 @@ pub fn known_service_health(
             service_version: service_version.into(),
             protocol_version: PROTOCOL_VERSION,
             capability_version: capability_version.to_string(),
+            compatibility: service_compatibility_for_host(service, host_protocol_version),
         },
     }
 }
@@ -87,5 +132,20 @@ pub fn required_secret_policy_for_service(service: &str) -> Option<RequiredSecre
             rejection_message: "export render sidecar 不接收 secret forwarding policy",
         }),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn additive_capability_suffix_resolves_to_the_registered_service() {
+        assert_eq!(
+            service_for_capability_version("prompt-render-v2.1"),
+            Some(PROMPT_SERVICE_NAME)
+        );
+        assert_eq!(service_for_capability_version("prompt-render-v3"), None);
+        assert_eq!(service_for_capability_version("unknown-v2.1"), None);
     }
 }

@@ -1,7 +1,8 @@
 use super::{
     SELECTION_REASON_PROFILE_FAVORITE, SELECTION_REASON_PROFILE_PRIMARY, VideoAssetCandidate,
     available_video_image_ids, best_profile_material_image, is_chapter_video_material,
-    profile_relevance, video_library_image_entry,
+    is_video_reference_image_candidate, profile_relevance,
+    resolve_video_reference_image_project_ids, video_library_image_entry,
 };
 use serde_json::json;
 
@@ -100,6 +101,47 @@ fn video_library_image_entry_includes_display_order_and_label() {
     assert_eq!(entry["display_label"], json!("参考图 3"));
 }
 
+#[test]
+fn video_reference_candidate_keeps_original_scope_rules() {
+    assert!(is_video_reference_image_candidate(
+        &reference_test_image(Some(7), "scene"),
+        7
+    ));
+    assert!(is_video_reference_image_candidate(
+        &reference_test_image(None, "scene"),
+        7
+    ));
+    let mut reusable = reference_test_image(Some(9), "scene_material");
+    reusable.metadata_json = Some(json!({"profile_kind": "scene", "profile_id": 3}));
+    assert!(is_video_reference_image_candidate(&reusable, 7));
+    assert!(!is_video_reference_image_candidate(
+        &reference_test_image(Some(9), "scene"),
+        7
+    ));
+}
+
+#[test]
+fn video_reference_project_scope_is_validated_and_deduplicated() {
+    assert_eq!(
+        resolve_video_reference_image_project_ids(Vec::new(), &[20, 10]).unwrap(),
+        vec![10, 20]
+    );
+    assert_eq!(
+        resolve_video_reference_image_project_ids(vec![20, 10, 20], &[20, 10]).unwrap(),
+        vec![10, 20]
+    );
+    assert!(
+        resolve_video_reference_image_project_ids(vec![10, 0], &[10])
+            .unwrap_err()
+            .contains("image_project_ids[1] 必须为正整数")
+    );
+    assert!(
+        resolve_video_reference_image_project_ids(vec![10, 99], &[10, 20])
+            .unwrap_err()
+            .contains("不属于当前视频项目允许的素材项目：99")
+    );
+}
+
 fn fixed_test_image(id: i64, is_favorite: bool) -> a4n_core::models::ai::generated_image::Model {
     a4n_core::models::ai::generated_image::Model {
         id,
@@ -121,4 +163,15 @@ fn fixed_test_image(id: i64, is_favorite: bool) -> a4n_core::models::ai::generat
             .and_hms_opt(10, 0, 0)
             .unwrap(),
     }
+}
+
+fn reference_test_image(
+    chapter_id: Option<i64>,
+    image_type: &str,
+) -> a4n_core::models::ai::generated_image::Model {
+    let mut image = fixed_test_image(1, false);
+    image.chapter_id = chapter_id;
+    image.image_type = image_type.to_string();
+    image.metadata_json = None;
+    image
 }

@@ -4,7 +4,7 @@ use std::pin::Pin;
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmProvider};
 use a4n_service_protocol::ServiceRequest;
-use a4n_sidecar_bootstrap::service_event_line;
+use a4n_sidecar_bootstrap::{service_event_line, single_service_event_stream};
 use axum::body::Bytes;
 use futures::{Stream, StreamExt, stream};
 
@@ -15,12 +15,25 @@ use crate::protocol::service_error;
 
 pub(super) type EventLineStream = Pin<Box<dyn Stream<Item = Result<Bytes, Infallible>> + Send>>;
 
-pub(super) async fn stream_with_provider(
-    request: ServiceRequest<LlmChatPayload>,
-) -> Result<EventLineStream, AppError> {
-    let provider = provider_from_config(request.payload.provider)?;
-    let chunks = provider.chat_stream(request.payload.request).await?;
-    Ok(Box::pin(llm_event_stream(request.request_id, chunks)))
+pub(super) fn stream_with_provider(request: ServiceRequest<LlmChatPayload>) -> EventLineStream {
+    let task_id = request.request_id.clone();
+    Box::pin(
+        stream::once(async move {
+            let chunks = match provider_from_config(request.payload.provider) {
+                Ok(provider) => provider.chat_stream(request.payload.request).await,
+                Err(error) => Err(error),
+            };
+            match chunks {
+                Ok(chunks) => Box::pin(llm_event_stream(task_id, chunks)) as EventLineStream,
+                Err(error) => Box::pin(single_service_event_stream(failed_event(
+                    task_id,
+                    1,
+                    service_error(error),
+                ))) as EventLineStream,
+            }
+        })
+        .flatten(),
+    )
 }
 
 pub(crate) fn llm_event_stream(

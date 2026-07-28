@@ -15,7 +15,7 @@ impl OrchestratorContext {
         validate_positive_id(project_id, "project_id")?;
         let context = self.load_galgame_context(project_id).await?;
         let record = a4n_db::galgame::galgame_pipeline_prompt_context_record(
-            self.db.connection(),
+            self.database.connection(),
             context.root_project.id,
             context.source_snapshot.id,
         )
@@ -31,7 +31,7 @@ impl OrchestratorContext {
 }
 
 /// 将 DB 层管线提示词上下文 read model 装配为 service 侧 DTO。
-pub(in crate::galgame) fn galgame_pipeline_prompt_context_from_record(
+pub(crate) fn galgame_pipeline_prompt_context_from_record(
     project_id: i64,
     root_project_id: i64,
     source_snapshot_id: i64,

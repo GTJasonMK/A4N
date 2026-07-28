@@ -15,7 +15,7 @@ mod naming;
 mod store;
 mod trait_impl;
 
-pub use store::GitPromptStore;
+pub use store::{GitPromptStore, backup_prompt_repository, restore_prompt_repository};
 
 #[cfg(test)]
 mod tests;

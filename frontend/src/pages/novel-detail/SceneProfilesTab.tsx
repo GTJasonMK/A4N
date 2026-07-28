@@ -14,19 +14,24 @@ import type { DownstreamConflictStrategy } from "../../api/dependencyConflict";
 import {
   createSceneProfile,
   deleteSceneProfile,
-  generateSceneProfileImage,
   listSceneProfiles,
   syncSceneProfiles,
   updateSceneProfile,
   type SceneProfile,
   type SceneProfileInput,
 } from "../../api/sceneProfiles";
+import {
+  startImageGeneration,
+  verifyImageGenerationResult,
+} from "../../api/image";
+
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
 import { EmptyHint } from "./shared";
@@ -239,17 +244,17 @@ export const SceneProfilesTab: React.FC<{
       finishAction(requestSeq);
       return;
     }
-    const taskId = createProgressTaskId("scene-profile-sync", requestProjectId);
+    const taskId = allocateHostTaskId("scene-profile-sync", requestProjectId);
     setSyncing(true);
     try {
       await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: "同步场景档案",
           startMessage: "正在准备场景档案同步",
           successMessage: "场景档案已同步",
           errorMessage: "场景档案同步失败",
           total: 6,
-          taskId,
           cancelLabel: "停止同步",
           runningHint: "场景档案同步过程中请保持当前窗口打开",
         },
@@ -291,34 +296,32 @@ export const SceneProfilesTab: React.FC<{
     }
     const requestSeq = beginAction(requestProjectId);
     if (requestSeq == null) return;
-    const taskId = createProgressTaskId("scene-profile-image", requestProjectId);
     setBusyId(requestProfile.id);
     try {
-      await runProgressTask(
+      const handle = await startImageGeneration({
+        project_id: requestProjectId,
+        operation: {
+          kind: "scene_profile",
+          scene_profile_id: requestProfile.id,
+          style: DEFAULT_IMAGE_STYLE,
+        },
+      });
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "生成场景素材图",
           startMessage: "正在准备场景素材图",
           successMessage: "场景素材图已生成",
           errorMessage: "场景素材图生成失败",
           total: 3,
-          taskId,
           cancelLabel: "停止生成",
-          runningHint: "图片生成过程中请保持当前窗口打开",
         },
-        async () => {
+        async (task) => {
           if (!isCurrentAction(requestProjectId, requestSeq)) {
             throw new Error("任务已停止");
           }
-          await generateSceneProfileImage(
-            {
-              scene_profile_id: requestProfile.id,
-              style: DEFAULT_IMAGE_STYLE,
-            },
-            taskId,
-          );
-          if (!isCurrentAction(requestProjectId, requestSeq)) {
-            throw new Error("任务已停止");
-          }
+          await verifyImageGenerationResult(task, requestProjectId);
           await load({ silent: true, force: true, projectId: requestProjectId });
         },
       );

@@ -1,3 +1,4 @@
+use a4n_api_contract::video::SelectSegmentVideoInput;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::video_generation::GeneratedVideoSummary;
 use a4n_runtime::host_api::video_records::{
@@ -36,6 +37,26 @@ pub async fn update_video(
     input: UpdateGeneratedVideoInput,
 ) -> Result<GeneratedVideoSummary, String> {
     video_records_actions::update_video(state.inner(), user_id, video_id, input).await
+}
+
+#[tauri::command]
+pub async fn select_segment_video(
+    state: State<'_, AppState>,
+    user_id: i64,
+    project_id: i64,
+    chapter_id: i64,
+    video_id: i64,
+    input: SelectSegmentVideoInput,
+) -> Result<GeneratedVideoSummary, String> {
+    video_records_actions::select_segment_video(
+        state.inner(),
+        user_id,
+        project_id,
+        chapter_id,
+        video_id,
+        input,
+    )
+    .await
 }
 
 #[tauri::command]

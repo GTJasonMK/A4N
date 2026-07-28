@@ -7,7 +7,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn video_prompt_row
     workflow_mode: PromptWorkflowMode,
 ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
     a4n_db::video::chapter_video_prompt_workflow_records(
-        service.db.connection(),
+        service.database.connection(),
         project_id,
         chapter_id,
         "video_prompt",
@@ -29,7 +29,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ignored_prompt_i
         return Ok(BTreeSet::new());
     }
     let rows = a4n_db::video::chapter_video_prompt_records_for_types(
-        service.db.connection(),
+        service.database.connection(),
         project_id,
         chapter_id,
         prompt_types,
@@ -53,10 +53,10 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn segment_plan_row
     only_plan_row: bool,
 ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
     a4n_db::video::chapter_video_prompt_segment_plan_records(
-        service.db.connection(),
+        service.database.connection(),
         project_id,
         chapter_id,
-        workflow_mode.as_str(),
+        workflow_mode.storage_str(prompt_type),
         prompt_type,
         only_plan_row,
     )

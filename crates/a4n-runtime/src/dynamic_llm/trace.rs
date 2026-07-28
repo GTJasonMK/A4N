@@ -3,7 +3,7 @@ mod recording;
 
 use a4n_core::error::AppError;
 use a4n_llm::provider::LlmTraceContext;
-use a4n_orchestrator::OrchestratorContext;
+use a4n_orchestrator::DynamicProviderFacade;
 
 pub(in crate::dynamic_llm) use preparation::prepare_dynamic_llm_trace_context;
 pub(in crate::dynamic_llm) use recording::record_dynamic_llm_trace;
@@ -36,7 +36,7 @@ pub(super) fn llm_trace_status_for_error(error: &AppError) -> &'static str {
 }
 
 pub(super) async fn complete_llm_trace_project_scope(
-    orchestrator: &OrchestratorContext,
+    facade: &DynamicProviderFacade,
     trace_context: &mut LlmTraceContext,
 ) -> Result<(), AppError> {
     let Some(project_id) = trace_context.project_id else {
@@ -54,7 +54,7 @@ pub(super) async fn complete_llm_trace_project_scope(
             trace_context.workflow, trace_context.step_key
         )));
     }
-    let project = orchestrator
+    let project = facade
         .project_by_id(project_id)
         .await
         .map_err(AppError::from)?

@@ -15,7 +15,7 @@ pub use scene_script::{script_adaptation_from_value, shooting_script_projection_
 pub use staging::character_staging_from_value;
 pub use visual::visual_plan_from_value;
 
-pub(in crate::galgame) fn galgame_llm_output_schema(
+pub(crate) fn galgame_llm_output_schema(
     prompt_name: &str,
 ) -> Result<serde_json::Value, a4n_core::error::AppError> {
     let schema = match prompt_name {

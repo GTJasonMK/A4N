@@ -1,9 +1,7 @@
 use std::pin::Pin;
 
 use a4n_core::error::AppError;
-use a4n_llm::provider::{
-    ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmProvider, ModelCapabilities,
-};
+use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use async_trait::async_trait;
 use futures::{Stream, stream};
 
@@ -22,14 +20,6 @@ impl StaticLlmProvider {
 
 #[async_trait]
 impl LlmProvider for StaticLlmProvider {
-    async fn chat(&self, _request: ChatRequest) -> Result<ChatResponse, AppError> {
-        Ok(ChatResponse {
-            message: ChatMessage::assistant(self.reply.clone()),
-            usage: None,
-            finish_reason: Some("stop".to_string()),
-        })
-    }
-
     async fn chat_stream(
         &self,
         _request: ChatRequest,

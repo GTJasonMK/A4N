@@ -9,7 +9,7 @@ use a4n_rag_core::{
 use super::contracts::RagEmbeddedInput;
 use super::records::store_rag_embedding_records;
 
-pub(super) async fn store_embedded_rag_records_in_store(
+pub async fn store_embedded_rag_records_in_store(
     vector_store: &dyn VectorStore,
     project_id: i64,
     inputs: Vec<RagEmbeddedInput>,

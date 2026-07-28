@@ -5,8 +5,8 @@ mod completion;
 mod session;
 mod validation;
 
-pub(super) use completion::ChapterGenerationTrace;
-pub(in crate::chapter_generation::service) use session::ChapterGenerationSession;
+pub(in crate::chapter_generation) use completion::ChapterGenerationTrace;
+pub(in crate::chapter_generation) use session::ChapterGenerationSession;
 
 fn chapter_generation_lifecycle_error_to_app_error(
     error: ChapterGenerationLifecycleError,

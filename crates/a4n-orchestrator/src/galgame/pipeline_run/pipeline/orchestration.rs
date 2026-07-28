@@ -10,7 +10,7 @@ use super::late_stages::run_galgame_pipeline_late_stages;
 use super::preparation::prepare_galgame_pipeline;
 
 impl OrchestratorContext {
-    pub async fn run_pipeline(
+    pub(crate) async fn run_pipeline(
         &self,
         project_id: i64,
         prompt_renderer: &dyn PromptRenderer,

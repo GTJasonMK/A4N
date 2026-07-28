@@ -26,7 +26,7 @@ pub(super) async fn prepare_import_reverse_call(
         trace_context.call_key = Some(call_key.clone());
         trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
     }
-    workflow::mark_workflow_current_step(context.db.connection(), workflow_run_id, &call_key)
+    workflow::mark_workflow_current_step(context.database.connection(), workflow_run_id, &call_key)
         .await
         .map_err(workflow_write_app_error)?;
 

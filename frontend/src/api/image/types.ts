@@ -16,38 +16,11 @@ export interface GeneratedImage {
   created_at: string | null;
 }
 
-export interface ImageGenConfig {
-  id: number;
-  name: string;
-  backend: string;
-  base_url: string | null;
-  api_key_encrypted: string | null;
-  has_api_key?: boolean;
-  model: string;
-  max_concurrent: number;
-  default_width: number;
-  default_height: number;
-  provider_options_json?: unknown | null;
-  is_default: boolean;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-export interface ImageConfigInput {
-  name: string;
-  backend: string;
-  base_url: string;
-  api_key_encrypted?: string | null;
-  model: string;
-  max_concurrent: number;
-  default_width: number;
-  default_height: number;
-  provider_options_json?: unknown | null;
-}
-
-export interface UpdateImageConfigInput extends Omit<
-  ImageConfigInput,
-  "api_key_encrypted"
-> {
-  api_key_encrypted?: string | null;
-}
+export type ImageGenConfig = ImageConfigSummary;
+export type ImageConfigInput = ApiImageConfigInput;
+export type UpdateImageConfigInput = ApiUpdateImageConfigInput;
+import type {
+  ImageConfigInput as ApiImageConfigInput,
+  ImageConfigSummary,
+  UpdateImageConfigInput as ApiUpdateImageConfigInput,
+} from "../generated/config";

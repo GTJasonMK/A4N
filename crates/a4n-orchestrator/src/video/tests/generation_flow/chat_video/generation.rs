@@ -102,7 +102,7 @@ async fn chat_video_prompt_generation_writes_copyable_prompts_after_frame_stage(
     let segment_plan_count = chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter.id))
         .filter(chapter_video_prompt::Column::PromptType.eq("frame_segment_plan"))
-        .filter(chapter_video_prompt::Column::WorkflowMode.eq("boundary_frames"))
+        .filter(chapter_video_prompt::Column::WorkflowMode.eq("shared_segment_plan"))
         .count(db.as_ref())
         .await
         .unwrap();

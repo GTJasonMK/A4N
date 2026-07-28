@@ -57,6 +57,15 @@ pub(in crate::project_reset) async fn reset_galgame_generated_data_in_tx(
 
     let media_paths =
         crate::media::filter_unreferenced_media_paths(&tx, &candidate_media_paths).await?;
+    if !media_paths.is_empty() {
+        crate::cleanup_outbox::insert_file_artifact_cleanup_intent(
+            &tx,
+            format!("project-generated-data-reset:{project_id}"),
+            crate::cleanup_outbox::FileArtifactCleanupPayload::new(project_id, media_paths.clone()),
+        )
+        .await?;
+    }
+    // gate 保持 resetting；Host 清理 RAG 成功后再完成，崩溃时由同一 gate 接续。
     tx.commit().await?;
 
     Ok(galgame_reset_outcome(GalgameResetOutcomeInput {

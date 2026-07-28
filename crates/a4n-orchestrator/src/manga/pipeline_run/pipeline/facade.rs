@@ -9,7 +9,7 @@ impl OrchestratorContext {
     ///
     /// 每步把上一步的 JSON 输出拼到下一步的 user message 中传给 LLM；prompt 模板
     /// （system message）只描述抽取/规划/编排的策略，不依赖 Tera 变量插值。
-    pub async fn generate_panels(
+    pub(crate) async fn generate_panels(
         &self,
         input: MangaGeneratePanelsInput<'_>,
     ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {

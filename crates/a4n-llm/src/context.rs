@@ -25,6 +25,10 @@ pub use self::request::{
 };
 
 pub const CONTEXT_MANIFEST_SCHEMA_VERSION: u32 = 1;
+pub const PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT: &str = "profile_sync_source_context";
+pub const PACK_KIND_IMPLICIT_CLASSIFICATION_CONTEXT: &str = "implicit_classification_context";
+pub const PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT: &str = "implicit_update_review_context";
+pub const PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT: &str = "scene_profile_sync_source_context";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LlmContextManifest {

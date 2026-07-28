@@ -21,9 +21,11 @@ crates/
   a4n-prompt* / a4n-llm*      Prompt 与 LLM 核心、provider 和 sidecar
   a4n-embedding* / a4n-rag*   Embedding 与 RAG 核心、索引和 sidecar
   a4n-image* / a4n-video*     图片/视频合同、provider 和 sidecar
-  a4n-services                业务服务层
-  a4n-orchestrator            权限、事务、工作流和能力编排边界
-  a4n-runtime                 本地 runtime 组装和 host API 实现
+  a4n-api-contract            Server/Tauri 共享 Host API 合同与 TS 生成
+  a4n-service-protocol        八个 sidecar 的协议、catalog 和发布合同
+  a4n-db / a4n-domain         数据库边界与纯领域值对象
+  a4n-orchestrator            业务规则、事务、工作流和能力编排唯一 owner
+  a4n-runtime                 provider、文件、进程和 Host API 适配
   a4n-tauri / a4n-server      桌面与 Web host 入口
   a4n-migration               数据库迁移
 frontend/
@@ -34,7 +36,7 @@ docs/            功能文档与架构设计
 scripts/         开发、构建、测试脚本
 ```
 
-前端 API 封装集中在 `frontend/src/api/`，后端命令入口集中在 `crates/a4n-tauri/src/commands/`。业务规则优先收敛在 `crates/a4n-services/`，共享数据合同放在 `crates/a4n-core/`。
+前端 API 封装集中在 `frontend/src/api/`，后端命令入口集中在 `crates/a4n-tauri/src/commands/`。业务规则由 `a4n-orchestrator` 拥有；`a4n-runtime` 只实现数据库、provider、文件、进程与 Host transport 适配。Host API DTO 位于 `a4n-api-contract`，sidecar 合同位于 `a4n-service-protocol`，`a4n-core` 只保留实体、基础配置、基础事件和少量无依赖共享值。
 
 ## 本地开发
 
@@ -51,7 +53,7 @@ scripts/         开发、构建、测试脚本
 ./scripts/dev/dev-db.sh up
 ```
 
-数据库测试使用独立的 `a4n_test` 库。具体连接方式和并行测试注意事项见[测试数据库说明](TEST_DATABASE.md)。
+数据库测试使用独立的 `a4n_test` 库。具体连接方式和并行测试注意事项见[测试数据库说明](docs/TEST_DATABASE.md)。
 
 安装前端依赖：
 
@@ -203,4 +205,8 @@ cd frontend && npm run build
 ./scripts/build.sh --check
 ```
 
-如果要公开发布仓库，需要在上传前明确项目许可证。当前仓库未包含 `LICENSE` 文件。
+源码推送、GitHub 仓库设置、正式签名 Release 所需的 secrets/variables 和打 tag 顺序见 [GitHub 发布说明](GITHUB_RELEASE.md)。参与开发前请阅读 [贡献指南](CONTRIBUTING.md)；安全问题按 [安全策略](SECURITY.md) 私下报告。
+
+## 许可证
+
+本项目使用 [Apache License 2.0](LICENSE)。

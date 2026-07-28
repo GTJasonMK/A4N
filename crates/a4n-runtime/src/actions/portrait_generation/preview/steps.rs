@@ -45,7 +45,7 @@ pub(super) async fn provider_preview_step(
     config: &image_gen_config::Model,
     request: ImageGenerationRequest,
 ) -> Result<ModelRequestPreviewStep, String> {
-    if state.runtime_profile.uses_sidecars() {
+    if state.runtime_profile().uses_sidecars() {
         let root_project_id = crate::actions::sidecar_root_project_id(state, project_id).await?;
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
             state.capabilities(),

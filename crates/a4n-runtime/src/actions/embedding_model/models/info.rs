@@ -10,8 +10,7 @@ use crate::AppState;
 use super::super::contracts::EmbeddingModelDownloadFileSummary;
 use super::super::{
     contracts::{EmbeddingModelDownloadInfoSummary, EmbeddingModelExecution, EmbeddingModelInput},
-    provider::fastembed_cache_dir,
-    rules::{embedding_model_execution, required_text},
+    host_adapter::{embedding_model_execution, required_text},
 };
 
 pub async fn get_embedding_model_download_info(
@@ -19,7 +18,7 @@ pub async fn get_embedding_model_download_info(
     input: EmbeddingModelInput,
 ) -> Result<EmbeddingModelDownloadInfoSummary, AppError> {
     let model = required_text(&input.model, "fastembed 模型名")?;
-    if embedding_model_execution(state.runtime_profile) == EmbeddingModelExecution::Sidecar {
+    if embedding_model_execution(state.runtime_profile()) == EmbeddingModelExecution::Sidecar {
         return crate::sidecar_clients::embedding_model_operation(
             state.capabilities(),
             "download_info",
@@ -27,7 +26,7 @@ pub async fn get_embedding_model_download_info(
         )
         .await;
     }
-    get_embedding_model_download_info_in_cache(&model, &fastembed_cache_dir(state)).await
+    get_embedding_model_download_info_in_cache(&model, &state.default_fastembed_cache_dir()).await
 }
 
 pub async fn get_embedding_model_download_info_in_cache(

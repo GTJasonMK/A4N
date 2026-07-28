@@ -1,7 +1,7 @@
 use super::*;
 
 impl OrchestratorContext {
-    pub async fn create_analysis_session(
+    pub(crate) async fn create_analysis_session(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -10,9 +10,13 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &std::collections::HashMap<String, serde_json::Value>,
     ) -> Result<optimization_session::Model, AppError> {
-        let name =
-            required_available_session_name(self.db.connection(), project_id, chapter_id, name)
-                .await?;
+        let name = required_available_session_name(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+            name,
+        )
+        .await?;
         let bundle = self
             .build_analysis_session_prompt_bundle(
                 project_id,
@@ -23,7 +27,7 @@ impl OrchestratorContext {
             )
             .await?;
         let session = a4n_db::optimize::create_optimization_session(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationSessionCreateInput {
                 project_id,
                 chapter_id,
@@ -74,7 +78,7 @@ impl OrchestratorContext {
 
     /// 在已有 Agent 会话内准备一次新的章节分析输入，不新建会话。
 
-    pub async fn prepare_analysis_session(
+    pub(crate) async fn prepare_analysis_session(
         &self,
         session_id: i64,
         chapter_content: &str,
@@ -122,7 +126,7 @@ impl OrchestratorContext {
             .await?;
 
         a4n_db::optimize::update_optimization_session(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationSessionUpdateInput {
                 session,
                 status: Some("analyzing".to_string()),

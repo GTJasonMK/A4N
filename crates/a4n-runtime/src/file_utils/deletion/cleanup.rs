@@ -52,6 +52,13 @@ pub(crate) fn error_with_rollback_file_cleanup(
     paths: &[PathBuf],
     label: &str,
 ) -> String {
+    match rollback_file_cleanup(paths, label) {
+        Ok(()) => primary,
+        Err(cleanup_error) => format!("{primary}；{cleanup_error}"),
+    }
+}
+
+pub(crate) fn rollback_file_cleanup(paths: &[PathBuf], label: &str) -> Result<(), String> {
     let mut cleanup_errors = Vec::new();
     for path in paths.iter().rev() {
         match std::fs::remove_file(path) {
@@ -63,8 +70,8 @@ pub(crate) fn error_with_rollback_file_cleanup(
         }
     }
     if cleanup_errors.is_empty() {
-        primary
+        Ok(())
     } else {
-        format!("{primary}；{}", cleanup_errors.join("；"))
+        Err(cleanup_errors.join("；"))
     }
 }

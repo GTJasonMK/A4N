@@ -1,5 +1,5 @@
 use super::contracts::UpdateProfileInput;
-use super::rules::{
+use a4n_orchestrator::auth::{
     ensure_same_user, profile_email_update, required_logout_identity, required_session_id,
     required_session_user_id,
 };

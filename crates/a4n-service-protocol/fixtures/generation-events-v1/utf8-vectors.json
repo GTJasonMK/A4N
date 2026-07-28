@@ -1,0 +1,8 @@
+[
+  { "name": "ascii", "text": "hello", "utf8_bytes": 5 },
+  { "name": "chinese", "text": "中文", "utf8_bytes": 6 },
+  { "name": "emoji", "text": "🙂", "utf8_bytes": 4 },
+  { "name": "combining", "text": "é", "utf8_bytes": 3 },
+  { "name": "mixed", "text": "A中文🙂é", "utf8_bytes": 14 },
+  { "name": "empty", "text": "", "utf8_bytes": 0 }
+]

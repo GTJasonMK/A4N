@@ -1,34 +1,19 @@
-use super::ids::{ensure_reference_image_ids_valid, reference_image_ids};
 use super::records::{
     load_reference_images_by_id, reference_image_project_ids_in_reference_order,
     verify_reference_image_project_editors,
 };
-use crate::AppState;
-use crate::actions::video_generation::media::provider_images::{
-    encode_query_component, image_mime_from_path,
-};
 use crate::actions::video_generation::media::types::ReferenceImagePreviewPlaceholders;
+use crate::state::{CollaborationRuntimeFacade, VideoRuntimeFacade};
 use a4n_core::models::ai::generated_image;
-use a4n_orchestrator::video::is_project_reusable_video_material_image;
-use serde_json::Value;
+use a4n_orchestrator::video::{
+    encode_query_component, ensure_reference_image_ids_valid, image_mime_from_path,
+    is_project_reusable_video_material_image,
+};
 use std::path::Path;
 
-pub(crate) async fn reference_image_preview_placeholders(
-    state: &AppState,
-    user_id: i64,
-    project_id: i64,
-    chapter_id: i64,
-    value: Option<&Value>,
-) -> Result<ReferenceImagePreviewPlaceholders, String> {
-    let ids = reference_image_ids(value)?;
-    if ids.is_empty() {
-        return Ok(ReferenceImagePreviewPlaceholders::default());
-    }
-    reference_image_preview_placeholders_for_ids(state, user_id, project_id, chapter_id, ids).await
-}
-
 pub(crate) async fn reference_image_preview_placeholders_by_ids(
-    state: &AppState,
+    video: &VideoRuntimeFacade<'_>,
+    collaboration: &CollaborationRuntimeFacade<'_>,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
@@ -38,11 +23,20 @@ pub(crate) async fn reference_image_preview_placeholders_by_ids(
     if ids.is_empty() {
         return Ok(ReferenceImagePreviewPlaceholders::default());
     }
-    reference_image_preview_placeholders_for_ids(state, user_id, project_id, chapter_id, ids).await
+    reference_image_preview_placeholders_for_ids(
+        video,
+        collaboration,
+        user_id,
+        project_id,
+        chapter_id,
+        ids,
+    )
+    .await
 }
 
 pub(crate) async fn reference_image_preview_placeholder_by_id(
-    state: &AppState,
+    video: &VideoRuntimeFacade<'_>,
+    collaboration: &CollaborationRuntimeFacade<'_>,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
@@ -52,7 +46,8 @@ pub(crate) async fn reference_image_preview_placeholder_by_id(
         return Ok((None, Vec::new()));
     };
     let mut placeholders = reference_image_preview_placeholders_for_ids(
-        state,
+        video,
+        collaboration,
         user_id,
         project_id,
         chapter_id,
@@ -63,14 +58,14 @@ pub(crate) async fn reference_image_preview_placeholder_by_id(
 }
 
 async fn reference_image_preview_placeholders_for_ids(
-    state: &AppState,
+    video: &VideoRuntimeFacade<'_>,
+    collaboration: &CollaborationRuntimeFacade<'_>,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
     ids: Vec<i64>,
 ) -> Result<ReferenceImagePreviewPlaceholders, String> {
-    let allowed_project_ids = state
-        .orchestrator
+    let allowed_project_ids = video
         .video_asset_project_ids(project_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -79,9 +74,9 @@ async fn reference_image_preview_placeholders_for_ids(
         notes: Vec::new(),
     };
 
-    let images_by_id = load_reference_images_by_id(state, &ids).await?;
+    let images_by_id = load_reference_images_by_id(video, &ids).await?;
     let project_ids = reference_image_project_ids_in_reference_order(&ids, &images_by_id);
-    verify_reference_image_project_editors(state, user_id, project_ids).await?;
+    verify_reference_image_project_editors(collaboration, user_id, &project_ids).await?;
 
     for id in ids {
         if let Some(image) = images_by_id.get(&id) {

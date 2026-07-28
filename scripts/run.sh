@@ -12,8 +12,8 @@
 #   ./scripts/run.sh --release       # Release 模式运行
 #   ./scripts/run.sh --server        # 仅启动后端（无 GUI 窗口）
 #   ./scripts/run.sh --frontend      # 仅启动前端开发服务器（Vite HMR）
-#   ./scripts/run.sh --remote-api    # 本地 Tauri 前端连接线上 A4N 后端
-#   ./scripts/run.sh --remote-api-url http://host/a4n/api
+#   A4N_REMOTE_API_URL=https://server.example.com/a4n/api ./scripts/run.sh --remote-api
+#   ./scripts/run.sh --remote-api-url https://server.example.com/a4n/api
 #   ./scripts/run.sh --full          # 使用 embedded/full host（会编译重 provider）
 #   ./scripts/run.sh --no-services   # sidecar profile 下不自动启动 sidecar
 #   ./scripts/run.sh --migrate       # 仅运行数据库迁移
@@ -56,7 +56,7 @@ CHECK_ONLY=false
 FRONTEND_ONLY=false
 HOT_RELOAD=true  # 默认开启精细热重载
 REMOTE_API=false
-REMOTE_API_URL="${A4N_REMOTE_API_URL:-http://111.230.45.185/a4n/api}"
+REMOTE_API_URL="${A4N_REMOTE_API_URL:-}"
 FULL_HOST=false
 AUTO_START_SIDECARS=true
 SIDECAR_MODULES="prompt,llm,embedding,rag,image,video,import,export"
@@ -96,7 +96,7 @@ while [[ $# -gt 0 ]]; do
         --remote-api-url)
             REMOTE_API=true
             if [[ $# -lt 2 || -z "${2:-}" ]]; then
-                echo -e "${RED}--remote-api-url 需要提供 URL，例如 http://111.230.45.185/a4n/api${NC}"
+                echo -e "${RED}--remote-api-url 需要提供 URL，例如 https://server.example.com/a4n/api${NC}"
                 exit 1
             fi
             REMOTE_API_URL="$2"
@@ -131,6 +131,10 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if $REMOTE_API && [[ -z "$REMOTE_API_URL" ]]; then
+    die "--remote-api 需要 A4N_REMOTE_API_URL，或改用 --remote-api-url URL"
+fi
 
 reload_cargo_args_from_env() {
     HOST_CARGO_RUN_ARGS=()

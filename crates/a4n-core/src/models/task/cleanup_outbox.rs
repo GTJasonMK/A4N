@@ -1,4 +1,4 @@
-//! 项目删除后的持久化清理意图。
+//! Host 持久化清理意图。
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -10,16 +10,23 @@ pub struct Model {
     pub id: i64,
     pub dedupe_key: String,
     pub cleanup_kind: String,
-    pub project_id: i64,
+    pub project_id: Option<i64>,
+    pub requested_by_user_id: Option<i64>,
+    pub task_id: Option<String>,
+    pub attempt: Option<i32>,
+    pub payload_version: i32,
     #[sea_orm(column_type = "JsonBinary")]
     pub payload_json: serde_json::Value,
+    pub payload_sha256: String,
     pub status: String,
     pub attempt_count: i32,
+    pub observation_count: i32,
     pub next_attempt_at: DateTime,
     pub lease_token: Option<String>,
     pub lease_expires_at: Option<DateTime>,
     #[sea_orm(column_type = "Text")]
     pub last_error: Option<String>,
+    pub outcome: Option<String>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
     pub completed_at: Option<DateTime>,

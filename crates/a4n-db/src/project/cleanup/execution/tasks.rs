@@ -1,6 +1,9 @@
 use super::super::{ProjectCleanupDbError, ProjectTaskQueueCleanupResult};
 use crate::project::validate_positive_i64;
-use a4n_core::models::task::{task_dependency, task_queue};
+use a4n_core::models::{
+    generation::generation_start_request,
+    task::{task_dependency, task_queue},
+};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 pub(crate) async fn delete_project_task_queue_records<C>(
@@ -22,6 +25,10 @@ where
 
     let mut deleted_task_dependencies = 0;
     if !task_ids.is_empty() {
+        generation_start_request::Entity::delete_many()
+            .filter(generation_start_request::Column::TaskId.is_in(task_ids.clone()))
+            .exec(db)
+            .await?;
         deleted_task_dependencies += task_dependency::Entity::delete_many()
             .filter(task_dependency::Column::TaskId.is_in(task_ids.clone()))
             .exec(db)

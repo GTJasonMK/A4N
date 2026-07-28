@@ -1,4 +1,4 @@
-use super::contracts::{SourceSyncDecisionInput, SourceSyncExecutionContext, SourceSyncPlan};
+use super::contracts::{SourceSyncDecisionInput, SourceSyncExecutionContext};
 use super::decisions::prepare_decision_execution_context;
 use super::preparation::prepared_source_sync_decisions;
 use super::rules::source_sync_decisions_require_galgame_preparation;
@@ -6,37 +6,67 @@ use crate::OrchestratorContext;
 use crate::source_sync::source_sync_db_error;
 use a4n_core::error::AppError;
 use a4n_core::models::source_sync::source_sync_run;
+
+pub struct ApplySourceSyncApplicationInput<'a> {
+    pub run: source_sync_run::Model,
+    pub decisions: Vec<SourceSyncDecisionInput>,
+    pub galgame_prompt_renderer: Option<&'a dyn a4n_prompt::rendering::PromptRenderer>,
+}
+
 impl OrchestratorContext {
-    pub async fn preview_source_sync(
+    pub async fn run_source_sync_apply_validated(
         &self,
-        derived_project_id: i64,
-    ) -> Result<SourceSyncPlan, AppError> {
-        let preview = a4n_db::source_sync::create_source_sync_preview_records(
-            self.db.connection(),
-            derived_project_id,
-        )
-        .await
-        .map_err(source_sync_db_error)?;
-        Ok(SourceSyncPlan {
-            run: preview.run,
-            conflicts: preview.conflicts,
-        })
-    }
-
-    pub async fn apply_source_sync_decisions(
-        &self,
-        sync_run_id: i64,
-        decisions: Vec<SourceSyncDecisionInput>,
+        input: ApplySourceSyncApplicationInput<'_>,
     ) -> Result<source_sync_run::Model, AppError> {
-        self.apply_source_sync_decisions_with_context(
-            sync_run_id,
-            decisions,
-            SourceSyncExecutionContext::default(),
-        )
-        .await
+        let decisions_json = serde_json::to_value(&input.decisions)?;
+        let workflow = self
+            .begin_source_sync_apply_workflow_validated(
+                input.run.id,
+                input.run.derived_project_id,
+                input.run.root_project_id,
+                input.run.from_snapshot_id,
+                input.run.to_snapshot_id,
+                &decisions_json,
+            )
+            .await?;
+        let result = self
+            .apply_source_sync_decisions_with_context(
+                input.run.id,
+                input.decisions,
+                SourceSyncExecutionContext {
+                    galgame: input.galgame_prompt_renderer.map(|prompt_renderer| {
+                        super::contracts::GalgameSourceSyncExecutionContext {
+                            prompt_renderer,
+                            workflow_run_id: workflow.id,
+                        }
+                    }),
+                },
+            )
+            .await;
+        let error_message = result.as_ref().err().map(ToString::to_string);
+        let finalized = self
+            .finalize_workflow_run_outcome_validated(
+                workflow.id,
+                if result.is_ok() {
+                    crate::workflow::WorkflowRunFinalizeOutcome::Completed
+                } else {
+                    crate::workflow::WorkflowRunFinalizeOutcome::Failed
+                },
+                error_message.as_deref(),
+            )
+            .await;
+        match (result, finalized) {
+            (Ok(run), Ok(_)) => Ok(run),
+            (Ok(_), Err(status_error)) => Err(status_error),
+            (Err(error), Ok(_)) => Err(error),
+            (Err(error), Err(status_error)) => Err(AppError::InvalidState {
+                current: error.to_string(),
+                operation: format!("源同步应用失败，且 workflow 终态写入失败: {status_error}"),
+            }),
+        }
     }
 
-    pub async fn apply_source_sync_decisions_with_context(
+    pub(crate) async fn apply_source_sync_decisions_with_context(
         &self,
         sync_run_id: i64,
         decisions: Vec<SourceSyncDecisionInput>,
@@ -44,7 +74,7 @@ impl OrchestratorContext {
     ) -> Result<source_sync_run::Model, AppError> {
         if decisions.is_empty() {
             return a4n_db::source_sync::apply_unconflicted_source_sync_records_transaction(
-                self.db.connection(),
+                self.database.connection(),
                 sync_run_id,
             )
             .await
@@ -52,7 +82,7 @@ impl OrchestratorContext {
         }
         let prepared_context = if source_sync_decisions_require_galgame_preparation(&decisions)? {
             let run = a4n_db::source_sync::load_source_sync_apply_run_record(
-                self.db.connection(),
+                self.database.connection(),
                 sync_run_id,
             )
             .await
@@ -63,7 +93,7 @@ impl OrchestratorContext {
         };
         let prepared_decisions = prepared_source_sync_decisions(&decisions, &prepared_context)?;
         a4n_db::source_sync::apply_prepared_source_sync_decisions_records_transaction(
-            self.db.connection(),
+            self.database.connection(),
             sync_run_id,
             prepared_decisions,
         )

@@ -2,10 +2,12 @@ import { apiInvoke } from "../index";
 import { runtimeInvoke } from "../runtime";
 import type { ModelRequestPreview } from "../requestPreview";
 import type {
+  CreateEmbeddingInput,
   EmbeddingConfig,
   EmbeddingModelDownloadInfo,
   LocalEmbedTextsOutput,
   LocalEmbeddingModel,
+  UpdateEmbeddingInput,
 } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
 import {
@@ -21,28 +23,6 @@ import {
   canUseLocalDesktopEmbedding,
   usesLocalRuntimeSettings,
 } from "../../utils/runtimeMode";
-
-interface CreateEmbeddingInput {
-  name: string;
-  backend: string;
-  base_url?: string | null;
-  api_key_encrypted?: string | null;
-  model: string;
-  dimension: number;
-  batch_size: number;
-  local_model_path?: string | null;
-}
-
-interface UpdateEmbeddingInput {
-  name?: string;
-  backend?: string;
-  base_url?: string | null;
-  api_key_encrypted?: string | null;
-  model?: string;
-  dimension?: number;
-  batch_size?: number | null;
-  local_model_path?: string | null;
-}
 
 export async function listEmbeddingConfig(): Promise<EmbeddingConfig[]> {
   if (usesLocalRuntimeSettings()) return listLocalEmbeddingConfigs();

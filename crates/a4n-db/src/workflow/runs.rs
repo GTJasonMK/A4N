@@ -1,6 +1,7 @@
 use super::*;
 
 mod checkpoints;
+mod claim;
 mod mutations;
 mod progress;
 mod projections;
@@ -8,6 +9,7 @@ mod queries;
 mod validation;
 
 pub use checkpoints::*;
+pub use claim::*;
 pub use mutations::*;
 pub use progress::*;
 pub use queries::*;

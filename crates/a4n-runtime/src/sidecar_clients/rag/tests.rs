@@ -10,7 +10,7 @@ use super::store::SidecarVectorStore;
 use a4n_core::error::AppError;
 use a4n_rag_core::vector_store::{EmbeddingRecord, VectorStore};
 use a4n_service_protocol::{
-    SecretForwardingPolicy, ServiceErrorCode, ServiceTaskEvent, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, SecretForwardingPolicy, ServiceErrorCode,
 };
 use a4n_test_support::capability::RecordingRagClient;
 use serde_json::json;
@@ -245,11 +245,11 @@ async fn rag_ingest_uses_typed_events_and_preserves_project_scope() {
     assert_eq!(request.payload["records"][0]["metadata"]["project_id"], 42);
 }
 
-fn successful_rag_ingest_events() -> Vec<ServiceTaskEvent> {
+fn successful_rag_ingest_events() -> Vec<CapabilityTaskEvent> {
     vec![
-        ServiceTaskEvent {
+        CapabilityTaskEvent {
             task_id: "configured-task".to_string(),
-            event_kind: ServiceTaskEventKind::Progress,
+            event_kind: CapabilityTaskEventKind::Progress,
             sequence: 1,
             chunk_index: None,
             chunk_delta: None,
@@ -266,9 +266,9 @@ fn successful_rag_ingest_events() -> Vec<ServiceTaskEvent> {
                 "message": "rag sidecar 正在写入向量索引"
             })),
         },
-        ServiceTaskEvent {
+        CapabilityTaskEvent {
             task_id: "configured-task".to_string(),
-            event_kind: ServiceTaskEventKind::Completed,
+            event_kind: CapabilityTaskEventKind::Completed,
             sequence: 2,
             chunk_index: None,
             chunk_delta: None,
@@ -286,9 +286,9 @@ fn successful_rag_ingest_events() -> Vec<ServiceTaskEvent> {
 
 #[test]
 fn rag_ingest_terminal_events_preserve_failure_and_cancel_semantics() {
-    let failed = ServiceTaskEvent {
+    let failed = CapabilityTaskEvent {
         task_id: "rag-1".to_string(),
-        event_kind: ServiceTaskEventKind::Failed,
+        event_kind: CapabilityTaskEventKind::Failed,
         sequence: 1,
         chunk_index: None,
         chunk_delta: None,
@@ -312,9 +312,9 @@ fn rag_ingest_terminal_events_preserve_failure_and_cancel_semantics() {
             .contains("vector index unavailable")
     );
 
-    let cancel = ServiceTaskEvent {
+    let cancel = CapabilityTaskEvent {
         task_id: "rag-1".to_string(),
-        event_kind: ServiceTaskEventKind::CancelAck,
+        event_kind: CapabilityTaskEventKind::CancelAck,
         sequence: 2,
         chunk_index: None,
         chunk_delta: None,

@@ -127,6 +127,21 @@ pub(in crate::routes::commands) fn nullable_string_update_field(
     }
 }
 
+pub(in crate::routes::commands) fn nullable_i64_update_field(
+    input: &Value,
+    key: &str,
+) -> Result<Option<Option<i64>>, ApiError> {
+    match input.get(key) {
+        None => Ok(None),
+        Some(Value::Null) => Ok(Some(None)),
+        Some(value) => value
+            .as_i64()
+            .filter(|value| *value > 0)
+            .map(|value| Some(Some(value)))
+            .ok_or_else(|| ApiError::bad_request(format!("{key} 必须是正整数或 null"))),
+    }
+}
+
 pub(in crate::routes::commands) fn nullable_value_update_field(
     input: &Value,
     key: &str,

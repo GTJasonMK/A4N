@@ -13,7 +13,7 @@ use crate::import_reverse::{
     apply_reverse_blueprint_records_transaction, apply_reverse_outline_records_transaction,
     apply_reverse_part_outline_records_transaction,
 };
-use crate::project::CHAPTERS_PER_PART;
+use crate::project::{CHAPTERS_PER_PART, PROJECT_KIND_TEXT, SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT};
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
@@ -33,6 +33,13 @@ async fn insert_project(db: &DatabaseConnection, title: &str) -> novel_project::
         title: Set(title.to_string()),
         description: Set("反推 apply DB 测试".to_string()),
         project_type: Set("novel_long".to_string()),
+        project_kind: Set(PROJECT_KIND_TEXT.to_string()),
+        source_mode: Set(SOURCE_MODE_SELF.to_string()),
+        root_project_id: Set(None),
+        parent_project_id: Set(None),
+        source_snapshot_id: Set(None),
+        source_sync_status: Set(SOURCE_SYNC_CURRENT.to_string()),
+        derived_project_status: Set(None),
         status: Set("draft".to_string()),
         target_chapters: Set(100),
         current_chapter: Set(0),

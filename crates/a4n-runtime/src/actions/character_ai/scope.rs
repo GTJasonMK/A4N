@@ -1,12 +1,28 @@
 use super::{CHARACTER_PROFILE_SYNC_STEPS, CharacterAiTaskScope};
 use crate::{AppState, actions::access};
+use a4n_orchestrator::character::CharacterDiscoveryInput;
 
 pub async fn character_discovery_task_scope(
     state: &AppState,
     user_id: i64,
     project_id: i64,
+    chapter_number: Option<i32>,
 ) -> Result<CharacterAiTaskScope, String> {
-    character_ai_project_task_scope(state, user_id, project_id, 100).await
+    access::verify_project_editor(state, user_id, project_id)
+        .await
+        .map_err(|error| error.to_string())?;
+    let scope = state
+        .character()
+        .character_discovery_task_scope_validated(&CharacterDiscoveryInput {
+            project_id,
+            chapter_number,
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(CharacterAiTaskScope {
+        project_id: scope.project_id,
+        total: scope.total,
+    })
 }
 
 pub async fn character_profile_sync_task_scope(

@@ -1,8 +1,8 @@
 mod contracts;
 mod download;
+mod host_adapter;
 mod models;
 mod provider;
-mod rules;
 mod runtime;
 
 pub use a4n_embedding::provider::DownloadProgress;

@@ -59,22 +59,80 @@ pub(super) fn make_provider(m: &llm_config::Model) -> Result<HttpLlmProvider, Ap
 pub(super) async fn chat_via_sidecar(
     client: Arc<dyn LlmClient>,
     resolved_model: ResolvedLlmModel,
-    request: ChatRequest,
+    mut request: ChatRequest,
     trace_context: &LlmTraceContext,
 ) -> Result<ChatResponse, AppError> {
+    // 业务完整结果只走 sidecar stream 再收集，禁止 capability /chat 完整响应。
+    request.stream_include_usage = true;
     let payload = resolved_model.sidecar_payload(request);
     let sidecar_context = crate::sidecar_clients::sidecar_context_for_llm_trace(trace_context)
         .map_err(|err| AppError::ConfigError(format!("LLM sidecar 请求构造失败：{err}")))?;
-    let request = crate::sidecar_clients::service_request_with_context_provider_secret_policy(
-        sidecar_context,
-        "llm",
-        a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
-        payload,
-    )
-    .map_err(|err| AppError::ConfigError(format!("LLM sidecar 请求构造失败：{err}")))?;
-    let response = client.chat(request).await.map_err(llm_sidecar_error)?;
-    crate::sidecar_clients::response_payload(response, "llm")
-        .map_err(|err| AppError::LlmError(format!("LLM sidecar 响应失败：{err}")))
+    let sidecar_request =
+        crate::sidecar_clients::service_request_with_context_provider_secret_policy(
+            sidecar_context,
+            "llm",
+            a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
+            payload,
+        )
+        .map_err(|err| AppError::ConfigError(format!("LLM sidecar 请求构造失败：{err}")))?;
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(64);
+    let stream_task = client.stream(sidecar_request, event_tx);
+    tokio::pin!(stream_task);
+
+    let mut content = String::new();
+    let mut usage = None;
+    let mut finish_reason = None;
+    loop {
+        tokio::select! {
+            stream_result = &mut stream_task => {
+                stream_result.map_err(llm_sidecar_error)?;
+                break;
+            }
+            event = event_rx.recv() => {
+                let Some(event) = event else { break; };
+                if event.error.is_some() {
+                    return Err(super::streams::sidecar_event_error(event));
+                }
+                let chunk = super::streams::chat_chunk_from_sidecar_event(event)
+                    .map_err(|err| AppError::LlmError(err.to_string()))?;
+                if let Some(delta) = chunk.content.as_deref().filter(|text| !text.is_empty()) {
+                    content.push_str(delta);
+                }
+                if chunk.usage.is_some() {
+                    usage = chunk.usage;
+                }
+                if let Some(reason) = chunk.finish_reason {
+                    finish_reason = Some(reason);
+                }
+            }
+        }
+    }
+    while let Some(event) = event_rx.recv().await {
+        if event.error.is_some() {
+            return Err(super::streams::sidecar_event_error(event));
+        }
+        let chunk = super::streams::chat_chunk_from_sidecar_event(event)
+            .map_err(|err| AppError::LlmError(err.to_string()))?;
+        if let Some(delta) = chunk.content.as_deref().filter(|text| !text.is_empty()) {
+            content.push_str(delta);
+        }
+        if chunk.usage.is_some() {
+            usage = chunk.usage;
+        }
+        if let Some(reason) = chunk.finish_reason {
+            finish_reason = Some(reason);
+        }
+    }
+    if finish_reason.is_none() {
+        return Err(AppError::LlmError(
+            "LLM sidecar stream 结束但缺少 finish_reason".to_string(),
+        ));
+    }
+    Ok(ChatResponse {
+        message: a4n_llm::provider::ChatMessage::assistant(content),
+        usage,
+        finish_reason,
+    })
 }
 
 pub(super) fn require_sidecar_business_trace<'a>(
@@ -111,7 +169,8 @@ pub(super) async fn chat_embedded(
     request: ChatRequest,
 ) -> Result<ChatResponse, AppError> {
     let provider = make_provider(&resolved_model.model)?;
-    provider.chat(request).await
+    // 完整结果只允许从真实 chat_stream 收集，禁止完整响应接口。
+    a4n_llm::provider::collect_chat_stream(&provider, request).await
 }
 
 #[cfg(not(feature = "embedded-llm-provider"))]

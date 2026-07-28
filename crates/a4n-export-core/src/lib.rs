@@ -9,6 +9,7 @@ mod contracts;
 pub mod epub;
 mod errors;
 mod json;
+pub mod pdf;
 
 pub use archive::{ExportZipWriter, render_zip, render_zip_package, write_zip_package_to_writer};
 pub use contracts::*;

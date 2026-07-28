@@ -12,7 +12,7 @@ pub(super) async fn append_scene_records(
     expected: &mut ExpectedRagRecords,
 ) -> Result<(), String> {
     let scene_profiles = state
-        .orchestrator
+        .rag()
         .scene_profiles_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -27,7 +27,7 @@ pub(super) async fn append_scene_records(
     }
 
     let scene_occurrences = state
-        .orchestrator
+        .rag()
         .scene_occurrences_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -46,7 +46,7 @@ pub(super) async fn append_scene_records(
     }
 
     let scene_transitions = state
-        .orchestrator
+        .rag()
         .scene_transitions_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;

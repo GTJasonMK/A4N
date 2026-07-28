@@ -1,5 +1,7 @@
 use a4n_core::models::ai::generated_video;
-use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+};
 
 pub async fn generated_video_by_id<C>(
     db: &C,
@@ -25,4 +27,31 @@ where
         .order_by_desc(generated_video::Column::CreatedAt)
         .all(db)
         .await
+}
+
+pub async fn generated_videos_by_provider_job_id<C>(
+    db: &C,
+    project_id: Option<i64>,
+    provider_job_id: &str,
+) -> Result<Vec<generated_video::Model>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    let provider_job_id = provider_job_id.trim();
+    if provider_job_id.is_empty() {
+        return Err(DbErr::Custom("provider_job_id 不能为空".to_string()));
+    }
+    if project_id.is_some_and(|value| value <= 0) {
+        return Err(DbErr::Custom(
+            "provider job project_id 必须为正整数".to_string(),
+        ));
+    }
+    let mut query = generated_video::Entity::find()
+        .filter(generated_video::Column::ProviderJobId.eq(provider_job_id))
+        .order_by_asc(generated_video::Column::Id)
+        .limit(2);
+    if let Some(project_id) = project_id {
+        query = query.filter(generated_video::Column::ProjectId.eq(project_id));
+    }
+    query.all(db).await
 }

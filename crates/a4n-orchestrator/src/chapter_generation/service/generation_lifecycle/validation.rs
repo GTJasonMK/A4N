@@ -10,7 +10,7 @@ mod metadata;
 use metadata::generated_chapter_metadata;
 
 impl ChapterGenerationService {
-    pub(in crate::chapter_generation::service) fn validate_generated_chapter_for_checkpoint(
+    pub(in crate::chapter_generation) fn validate_generated_chapter_for_checkpoint(
         &self,
         session: &ChapterGenerationSession,
         content: &str,
@@ -33,8 +33,8 @@ impl ChapterGenerationService {
     }
 }
 
-pub(in crate::chapter_generation::service) struct ValidatedGeneratedChapter {
-    pub(in crate::chapter_generation::service) title: String,
-    pub(in crate::chapter_generation::service) summary: String,
-    pub(in crate::chapter_generation::service) normalized_content: String,
+pub(in crate::chapter_generation) struct ValidatedGeneratedChapter {
+    pub(in crate::chapter_generation) title: String,
+    pub(in crate::chapter_generation) summary: String,
+    pub(in crate::chapter_generation) normalized_content: String,
 }

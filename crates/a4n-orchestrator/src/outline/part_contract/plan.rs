@@ -3,7 +3,7 @@ use a4n_core::error::AppError;
 use a4n_core::models::chapter::part_outline;
 use std::collections::BTreeSet;
 
-pub(in crate::outline) fn validate_part_generation_inputs(
+pub fn validate_part_generation_inputs(
     part_count: i32,
     chapters_per_part: i32,
 ) -> Result<(), AppError> {
@@ -20,7 +20,7 @@ pub(in crate::outline) fn validate_part_generation_inputs(
     Ok(())
 }
 
-pub(in crate::outline) fn resolve_part_generation_plan(
+pub fn resolve_part_generation_plan(
     requested_part_count: Option<i32>,
     requested_chapters_per_part: Option<i32>,
     project_chapters_per_part: Option<i32>,
@@ -41,9 +41,7 @@ pub(in crate::outline) fn resolve_part_generation_plan(
     })
 }
 
-pub(in crate::outline) fn validate_existing_parts_for_plan(
-    parts: &[part_outline::Model],
-) -> Result<(), AppError> {
+pub fn validate_existing_parts_for_plan(parts: &[part_outline::Model]) -> Result<(), AppError> {
     validate_existing_parts(parts, "请先清理后再生成")
 }
 

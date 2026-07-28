@@ -27,8 +27,8 @@ APP_DATA_DIR="${A4N_DATA_DIR:-$PROJECT_ROOT/data}"
 APP_TMP_DIR="${A4N_TEMP_DIR:-$APP_DATA_DIR/tmp}"
 mkdir -p "$APP_TMP_DIR"
 
-LTX_SSH_HOST="${LTX_SSH_HOST:-connect.bjb1.seetacloud.com}"
-LTX_SSH_PORT="${LTX_SSH_PORT:-39244}"
+LTX_SSH_HOST="${LTX_SSH_HOST:-}"
+LTX_SSH_PORT="${LTX_SSH_PORT:-22}"
 LTX_SSH_USER="${LTX_SSH_USER:-root}"
 LTX_LOCAL_COMFY_PORT="${LTX_LOCAL_COMFY_PORT:-6006}"
 LTX_REMOTE_COMFY_HOST="${LTX_REMOTE_COMFY_HOST:-127.0.0.1}"
@@ -68,8 +68,8 @@ LTX_OBJECT_INFO_TIMEOUT_SECS="${LTX_OBJECT_INFO_TIMEOUT_SECS:-90}"
 LTX_KEEP_TUNNEL="${LTX_KEEP_TUNNEL:-0}"
 LTX_REMOTE_START_TIMEOUT_SECS="${LTX_REMOTE_START_TIMEOUT_SECS:-180}"
 
-SSH_TARGET="${LTX_SSH_USER}@${LTX_SSH_HOST}"
-SSH_CONTROL_SOCKET="$APP_TMP_DIR/ltx-ssh-${LTX_SSH_HOST}-${LTX_SSH_PORT}-$$.sock"
+SSH_TARGET=""
+SSH_CONTROL_SOCKET=""
 STARTED_SSH_CONTROL=false
 STARTED_TUNNEL=false
 BRIDGE_PID=""
@@ -79,7 +79,7 @@ usage() {
     cat <<EOF
 
 Environment:
-  LTX_SSH_HOST                    default ${LTX_SSH_HOST}
+  LTX_SSH_HOST                    required unless remote SSH operations are disabled
   LTX_SSH_PORT                    default ${LTX_SSH_PORT}
   LTX_SSH_USER                    default ${LTX_SSH_USER}
   LTX_LOCAL_COMFY_PORT            default ${LTX_LOCAL_COMFY_PORT}
@@ -183,6 +183,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ "$LTX_SKIP_REMOTE_START" != "1" || "$LTX_SKIP_TUNNEL" != "1" || "$LTX_SKIP_MODEL_CHECK" != "1" ]]; then
+    [[ -n "$LTX_SSH_HOST" ]] || die "LTX_SSH_HOST is required for remote startup, tunnel, or model checks"
+fi
+if [[ -n "$LTX_SSH_HOST" ]]; then
+    SSH_TARGET="${LTX_SSH_USER}@${LTX_SSH_HOST}"
+    SSH_CONTROL_SOCKET="$APP_TMP_DIR/ltx-ssh-${LTX_SSH_HOST}-${LTX_SSH_PORT}-$$.sock"
+fi
+
 log_step() {
     log_section "$@"
 }
@@ -233,7 +241,7 @@ wait_for_comfy() {
 ssh_base_args() {
     printf '%s\n' \
         -p "$LTX_SSH_PORT" \
-        -o StrictHostKeyChecking=accept-new \
+        -o StrictHostKeyChecking=yes \
         -o ServerAliveInterval=30 \
         -o ServerAliveCountMax=3
 }

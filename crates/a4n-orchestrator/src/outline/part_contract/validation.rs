@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::part_outline;
 
-pub(in crate::outline) fn validate_part_outline_request(
+pub fn validate_part_outline_request(
     part_number: i32,
     start_chapter: i32,
     end_chapter: i32,
@@ -24,7 +24,7 @@ pub(in crate::outline) fn validate_part_outline_request(
     Ok(())
 }
 
-pub(in crate::outline) fn ensure_continue_part_request(
+pub fn ensure_continue_part_request(
     existing_parts: &[part_outline::Model],
     part_number: i32,
     start_chapter: i32,
@@ -57,7 +57,7 @@ pub(in crate::outline) fn ensure_continue_part_request(
     Ok(())
 }
 
-pub(in crate::outline) fn ensure_no_part_outline_conflict(
+pub fn ensure_no_part_outline_conflict(
     existing_parts: &[part_outline::Model],
     part_number: i32,
     start_chapter: i32,

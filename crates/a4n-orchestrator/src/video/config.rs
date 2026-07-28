@@ -2,7 +2,11 @@ mod contracts;
 mod provider;
 mod validation;
 
-pub use self::contracts::{UpdateVideoConfigParams, VideoConfigParams};
+pub use self::contracts::{
+    CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
+    OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
+    UpdateVideoConfigParams, VideoConfigParams,
+};
 pub use self::provider::pick_provider_for_config;
 pub use self::validation::{
     duration_capability_for_config, validate_video_config_model, validate_video_config_params,

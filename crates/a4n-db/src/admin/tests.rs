@@ -102,6 +102,7 @@ fn admin_user_summary_uses_username_as_display_name() {
         oauth_subject: Some("42".to_string()),
         avatar_url: Some("https://example.com/avatar.png".to_string()),
         is_active: true,
+        lifecycle_gate: "active".to_string(),
         created_at: now,
         updated_at: now,
         last_login_at: Some(now),

@@ -1,7 +1,8 @@
 use a4n_core::error::AppError;
 use a4n_service_protocol::{
-    PROMPT_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
-    ServiceStatus, redact_sensitive_message, validate_known_service_request_envelope,
+    EgressDataType, PROMPT_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest,
+    ServiceResponse, ServiceStatus, redact_sensitive_message, validate_egress_scope,
+    validate_known_service_request_envelope,
 };
 
 pub(crate) fn ok_response<T>(
@@ -40,7 +41,13 @@ pub(crate) fn result_response<T>(
 }
 
 pub(crate) fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    validate_known_service_request_envelope(request, PROMPT_SERVICE_NAME)
+    validate_known_service_request_envelope(request, PROMPT_SERVICE_NAME)?;
+    validate_egress_scope(
+        PROMPT_SERVICE_NAME,
+        EgressDataType::Prompt,
+        &request.secret_policy.scope,
+    )
+    .map(|_| ())
 }
 
 pub(crate) fn error_response<T, P>(

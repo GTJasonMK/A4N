@@ -5,19 +5,23 @@ use std::{
     time::Duration,
 };
 
-use a4n_capabilities::{CapabilityClient, HttpLlmClient, JsonRequest, LlmClient};
+use a4n_capabilities::{
+    CapabilityClient, EVENT_QUEUE_CAPACITY, HttpLlmClient, JsonRequest, LlmClient,
+};
 use a4n_llm::provider::ChatRequest;
 use a4n_service_manager::{ManagedServiceConfig, ServiceManager, ServiceManagerError};
 use a4n_service_protocol::{
-    HealthStatus, LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME, PROTOCOL_VERSION,
-    ServiceRequestContext, ServiceTaskEvent, TraceContext,
+    CapabilityTaskEvent, HealthStatus, LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME,
+    PROTOCOL_VERSION, SIDECAR_AUTH_TOKEN_ENV, SecretForwardingPolicy, ServiceRequestContext,
+    TraceContext,
 };
+use a4n_test_support::process::SIDECAR_PROCESS_TEST_TOKEN;
 use axum::{
     Json, Router,
     extract::State,
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::post,
+    routing::{get, post},
 };
 use serde_json::{Value, json};
 use tokio::{sync::oneshot, task::JoinHandle, time::timeout};
@@ -46,8 +50,26 @@ pub(crate) fn gateway_manager(addr: SocketAddr) -> ServiceManager {
         "A4N_LLM_GATEWAY_LOG".to_string(),
         "a4n_llm_gateway=error".to_string(),
     );
+    config.env.insert(
+        SIDECAR_AUTH_TOKEN_ENV.to_string(),
+        SIDECAR_PROCESS_TEST_TOKEN.to_string(),
+    );
     config.startup_timeout_ms = 10_000;
     ServiceManager::new(vec![config]).expect("gateway sidecar config should be valid")
+}
+
+pub(crate) fn gateway_client(addr: SocketAddr) -> HttpLlmClient {
+    HttpLlmClient::new_with_auth_token(format!("http://{addr}"), SIDECAR_PROCESS_TEST_TOKEN)
+}
+
+pub(crate) fn gateway_client_with_test_timeouts(addr: SocketAddr) -> HttpLlmClient {
+    HttpLlmClient::new_with_auth_token(format!("http://{addr}"), SIDECAR_PROCESS_TEST_TOKEN)
+        .with_test_timeouts(
+            Duration::from_secs(1),
+            Duration::from_secs(2),
+            Duration::from_millis(100),
+            Duration::from_secs(1),
+        )
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +98,7 @@ impl FakeProviderServer {
         let observation = Arc::new(Mutex::new(Vec::new()));
         let router = Router::new()
             .route("/chat/completions", post(fake_chat_completions))
+            .route("/models", get(fake_models))
             .with_state(observation.clone());
         let (shutdown, shutdown_rx) = oneshot::channel();
         let task = tokio::spawn(async move {
@@ -115,6 +138,12 @@ impl FakeProviderServer {
     }
 }
 
+async fn fake_models() -> Json<Value> {
+    Json(json!({
+        "data": [{"id": "process-fake-model", "owned_by": "process-test"}]
+    }))
+}
+
 async fn fake_chat_completions(
     State(observation): State<FakeProviderObservation>,
     headers: HeaderMap,
@@ -142,6 +171,16 @@ async fn fake_chat_completions(
     }
 
     if body["stream"].as_bool() == Some(true) {
+        if body["model"] == json!("process-burst-model") {
+            let mut stream = String::new();
+            for _ in 0..(EVENT_QUEUE_CAPACITY + 8) {
+                stream.push_str(
+                    "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\"},\"finish_reason\":null}]}\n\n",
+                );
+            }
+            stream.push_str("data: [DONE]\n\n");
+            return ([(header::CONTENT_TYPE, "text/event-stream")], stream).into_response();
+        }
         return (
             [(header::CONTENT_TYPE, "text/event-stream")],
             concat!(
@@ -189,12 +228,52 @@ pub(crate) fn gateway_request_for_model(
     provider_model: &str,
     request: ChatRequest,
 ) -> JsonRequest {
-    let mut context = ServiceRequestContext::local_user_secret(
+    gateway_request_with_policy(
+        request_id,
+        trace_id,
+        provider_base_url,
+        provider_model,
+        Some("process-provider-secret"),
+        SecretForwardingPolicy::local_user_secret(),
+        request,
+    )
+}
+
+pub(crate) fn gateway_remote_request_for_model(
+    request_id: &str,
+    trace_id: &str,
+    provider_base_url: &str,
+    provider_model: &str,
+    api_key: Option<&str>,
+    request: ChatRequest,
+) -> JsonRequest {
+    gateway_request_with_policy(
+        request_id,
+        trace_id,
+        provider_base_url,
+        provider_model,
+        api_key,
+        SecretForwardingPolicy::trusted_remote_no_secrets(),
+        request,
+    )
+}
+
+fn gateway_request_with_policy(
+    request_id: &str,
+    trace_id: &str,
+    provider_base_url: &str,
+    provider_model: &str,
+    api_key: Option<&str>,
+    secret_policy: SecretForwardingPolicy,
+    request: ChatRequest,
+) -> JsonRequest {
+    let mut context = ServiceRequestContext::new(
         request_id,
         TraceContext {
             trace_id: trace_id.to_string(),
             parent_span_id: Some("process-integration".to_string()),
         },
+        secret_policy,
     );
     context.project_id = Some(7);
     context.root_project_id = Some(3);
@@ -205,7 +284,7 @@ pub(crate) fn gateway_request_for_model(
                 "provider": {
                     "base_url": provider_base_url,
                     "model": provider_model,
-                    "api_key": "process-provider-secret",
+                    "api_key": api_key,
                     "timeout_secs": 5,
                     "request_options_json": null
                 },
@@ -215,11 +294,62 @@ pub(crate) fn gateway_request_for_model(
         .expect("process integration request context should be valid")
 }
 
+pub(crate) fn gateway_probe_request(
+    request_id: &str,
+    trace_id: &str,
+    provider_base_url: &str,
+) -> JsonRequest {
+    ServiceRequestContext::local_user_secret(
+        request_id,
+        TraceContext {
+            trace_id: trace_id.to_string(),
+            parent_span_id: Some("process-integration".to_string()),
+        },
+    )
+    .with_payload(
+        LLM_CHAT_CAPABILITY_VERSION,
+        json!({
+            "provider": {
+                "base_url": provider_base_url,
+                "model": "process-fake-model",
+                "api_key": "process-provider-secret",
+                "timeout_secs": 5,
+                "request_options_json": null
+            },
+            "request": ChatRequest::system_user("system", "probe ping", None, Some(16), None)
+        }),
+    )
+    .expect("process probe request context should be valid")
+}
+
+pub(crate) fn gateway_models_request(
+    request_id: &str,
+    trace_id: &str,
+    provider_base_url: &str,
+) -> JsonRequest {
+    ServiceRequestContext::local_user_secret(
+        request_id,
+        TraceContext {
+            trace_id: trace_id.to_string(),
+            parent_span_id: Some("process-integration".to_string()),
+        },
+    )
+    .with_payload(
+        LLM_CHAT_CAPABILITY_VERSION,
+        json!({
+            "provider": "openai",
+            "base_url": provider_base_url,
+            "api_key": "process-provider-secret"
+        }),
+    )
+    .expect("process models request context should be valid")
+}
+
 pub(crate) async fn collect_stream_events(
     client: &impl LlmClient,
     request: JsonRequest,
-) -> Vec<ServiceTaskEvent> {
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
+) -> Vec<CapabilityTaskEvent> {
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
     client
         .stream(request, event_tx)
         .await
@@ -263,7 +393,7 @@ pub(crate) async fn assert_gateway_health(manager: &ServiceManager, addr: Socket
         LLM_CHAT_CAPABILITY_VERSION
     );
 
-    let client_health = HttpLlmClient::new(format!("http://{addr}"))
+    let client_health = gateway_client(addr)
         .health()
         .await
         .expect("typed client should validate the independent gateway process");

@@ -10,7 +10,7 @@ use a4n_db::outline::{self as outline_db, OutlineDbError, PartOutlineSyncDraft};
 use serde_json::Value;
 
 #[cfg(test)]
-pub(in crate::outline) fn chapter_outline_ids_in_part_range(
+pub fn chapter_outline_ids_in_part_range(
     outlines: &[chapter_outline::Model],
     part: &part_outline::Model,
 ) -> Vec<i64> {
@@ -18,14 +18,14 @@ pub(in crate::outline) fn chapter_outline_ids_in_part_range(
 }
 
 #[cfg(test)]
-pub(in crate::outline) fn chapter_outline_ids_in_part_ranges(
+pub fn chapter_outline_ids_in_part_ranges(
     outlines: &[chapter_outline::Model],
     parts: &[part_outline::Model],
 ) -> Vec<i64> {
     outline_db::chapter_outline_ids_in_part_ranges(outlines, parts)
 }
 
-pub(in crate::outline) fn part_outline_sync_draft_from_json(
+pub fn part_outline_sync_draft_from_json(
     part_number: i32,
     start_chapter: i32,
     end_chapter: i32,
@@ -43,7 +43,7 @@ pub(in crate::outline) fn part_outline_sync_draft_from_json(
     })
 }
 
-pub(in crate::outline) fn part_outline_model_from_json(
+pub fn part_outline_model_from_json(
     id: i64,
     project_id: i64,
     part_number: i32,
@@ -71,7 +71,7 @@ pub(in crate::outline) fn part_outline_model_from_json(
 }
 
 #[cfg(test)]
-pub(in crate::outline) async fn sync_part_outlines<C>(
+pub async fn sync_part_outlines<C>(
     db: &C,
     project_id: i64,
     drafts: Vec<PartOutlineDraft>,
@@ -94,7 +94,7 @@ where
         .map_err(outline_db_error)
 }
 
-pub(in crate::outline) async fn sync_part_outlines_and_assign_chapters_transaction(
+pub async fn sync_part_outlines_and_assign_chapters_transaction(
     db: &DbHandle,
     project_id: i64,
     drafts: Vec<PartOutlineDraft>,
@@ -120,7 +120,7 @@ pub(in crate::outline) async fn sync_part_outlines_and_assign_chapters_transacti
 }
 
 #[cfg(test)]
-pub(in crate::outline) async fn sync_chapter_outline_part_assignments<C>(
+pub async fn sync_chapter_outline_part_assignments<C>(
     db: &C,
     project_id: i64,
     parts: &[part_outline::Model],
@@ -134,7 +134,7 @@ where
         .map_err(outline_db_error)
 }
 
-pub(in crate::outline) async fn insert_part_outline_from_json<C>(
+pub async fn insert_part_outline_from_json<C>(
     db: &C,
     project_id: i64,
     part_number: i32,
@@ -153,7 +153,7 @@ where
         .map_err(outline_db_error)
 }
 
-pub(in crate::outline) async fn update_part_outline_from_json<C>(
+pub async fn update_part_outline_from_json<C>(
     db: &C,
     existing: part_outline::Model,
     part_number: i32,
@@ -172,7 +172,7 @@ where
         .map_err(outline_db_error)
 }
 
-pub(in crate::outline) async fn update_part_outline_and_rebind_chapters_transaction(
+pub async fn update_part_outline_and_rebind_chapters_transaction(
     db: &DbHandle,
     project_id: i64,
     existing: part_outline::Model,

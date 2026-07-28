@@ -7,7 +7,7 @@ use a4n_db::project::{
     ProjectOutlineRecordError,
 };
 
-pub(in crate::project) fn blueprint_restore_error_to_app(error: BlueprintRestoreError) -> AppError {
+pub(crate) fn blueprint_restore_error_to_app(error: BlueprintRestoreError) -> AppError {
     match error {
         BlueprintRestoreError::InvalidArgument(message)
         | BlueprintRestoreError::InvalidSnapshot(message) => AppError::InvalidArgument(message),
@@ -30,7 +30,7 @@ pub(in crate::project) fn blueprint_restore_error_to_app(error: BlueprintRestore
     }
 }
 
-pub(in crate::project) fn project_chapter_outline_update_error_to_app_error(
+pub(crate) fn project_chapter_outline_update_error_to_app_error(
     error: ProjectChapterOutlineUpdateError,
 ) -> AppError {
     match error {
@@ -48,7 +48,7 @@ pub(crate) fn project_outline_record_error_to_app_error(
     }
 }
 
-pub(in crate::project) fn project_chapter_scene_reorder_error_to_app_error(
+pub(crate) fn project_chapter_scene_reorder_error_to_app_error(
     error: ProjectChapterSceneReorderError,
 ) -> AppError {
     match error {
@@ -60,7 +60,7 @@ pub(in crate::project) fn project_chapter_scene_reorder_error_to_app_error(
     }
 }
 
-pub(in crate::project) fn project_generated_chapter_scene_save_error_to_app_error(
+pub(crate) fn project_generated_chapter_scene_save_error_to_app_error(
     error: ProjectGeneratedChapterSceneSaveError,
 ) -> AppError {
     match error {
@@ -72,7 +72,7 @@ pub(in crate::project) fn project_generated_chapter_scene_save_error_to_app_erro
     }
 }
 
-pub(in crate::project) fn project_chapter_scene_record_error_to_app_error(
+pub(crate) fn project_chapter_scene_record_error_to_app_error(
     error: ProjectChapterSceneRecordError,
 ) -> AppError {
     match error {
@@ -93,9 +93,7 @@ pub(crate) fn project_chapter_context_error_to_app_error(
     }
 }
 
-pub(in crate::project) fn foreshadowing_db_error_to_app_error(
-    error: ForeshadowingDbError,
-) -> AppError {
+pub(crate) fn foreshadowing_db_error_to_app_error(error: ForeshadowingDbError) -> AppError {
     match error {
         ForeshadowingDbError::Database(error) => AppError::Database(error),
     }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use a4n_capabilities::A4nCapabilities;
 use a4n_core::{config::app_config::AppConfig, error::AppError};
 use a4n_embedding::provider::EmbeddingProvider;
-use a4n_orchestrator::{OrchestratorContext, task_queue::PersistentTaskQueue};
+use a4n_orchestrator::DynamicProviderFacade;
 
 use crate::{
     dynamic_embedding::{self, DynamicEmbeddingProvider},
@@ -14,8 +14,7 @@ use super::super::super::required_sidecar_client;
 use super::SidecarEmbeddingProvider;
 
 pub(crate) fn create_embedding_provider(
-    task_queue: Arc<PersistentTaskQueue>,
-    orchestrator: OrchestratorContext,
+    facade: DynamicProviderFacade,
     config: &AppConfig,
     profile: RuntimeProfile,
     capabilities: &A4nCapabilities,
@@ -27,14 +26,12 @@ pub(crate) fn create_embedding_provider(
         return Ok(Arc::new(SidecarEmbeddingProvider::new(
             config.embedding.dimension,
             config.embedding.batch_size,
-            task_queue,
-            orchestrator,
+            facade,
             client,
         )));
     }
     Ok(Arc::new(DynamicEmbeddingProvider::new(
-        orchestrator,
-        task_queue,
+        facade,
         config.embedding.clone(),
         dynamic_embedding::default_fastembed_cache_dir(config),
     )))

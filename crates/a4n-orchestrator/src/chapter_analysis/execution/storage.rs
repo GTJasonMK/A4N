@@ -13,7 +13,7 @@ use super::super::{
 use crate::generation::generation_error;
 
 impl OrchestratorContext {
-    pub async fn analyze_and_store_chapter(
+    pub(crate) async fn analyze_and_store_chapter(
         &self,
         input: ChapterAnalysisInput<'_>,
     ) -> Result<Value, AppError> {
@@ -24,7 +24,7 @@ impl OrchestratorContext {
             cancel_token,
             workflow_run_id,
         } = input;
-        let chapter = chapter_by_id_for_analysis(self.db.connection(), chapter_id)
+        let chapter = chapter_by_id_for_analysis(self.database.connection(), chapter_id)
             .await
             .map_err(chapter_content_edit_error)?;
         ensure_chapter_has_analysis_content(&chapter)?;
@@ -36,7 +36,7 @@ impl OrchestratorContext {
         let analysis = run.analysis.clone();
         let projection = chapter_analysis_storage_projection(&chapter, &analysis);
         store_chapter_analysis_record(
-            self.db.connection(),
+            self.database.connection(),
             chapter.clone(),
             StoreChapterAnalysisRecordInput {
                 analysis_data: analysis.clone(),
@@ -48,7 +48,7 @@ impl OrchestratorContext {
         .await
         .map_err(chapter_content_edit_error)?;
         a4n_db::generation::delete_generation_run_targets_for(
-            self.db.connection(),
+            self.database.connection(),
             "chapter_analysis",
             &[chapter.id],
         )

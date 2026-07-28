@@ -1,6 +1,6 @@
 use a4n_embedding::provider::DownloadProgress;
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceTaskEvent, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError, ServiceErrorCode,
     redact_sensitive_message,
 };
 
@@ -8,7 +8,7 @@ pub(crate) fn download_progress_event(
     task_id: String,
     sequence: u64,
     progress: DownloadProgress,
-) -> Result<ServiceTaskEvent, ServiceError> {
+) -> Result<CapabilityTaskEvent, ServiceError> {
     let payload = serde_json::to_value(progress).map_err(|error| ServiceError {
         code: ServiceErrorCode::Internal,
         message: redact_sensitive_message(format!(
@@ -16,9 +16,9 @@ pub(crate) fn download_progress_event(
         )),
         retryable: Some(false),
     })?;
-    Ok(ServiceTaskEvent {
+    Ok(CapabilityTaskEvent {
         task_id,
-        event_kind: ServiceTaskEventKind::Progress,
+        event_kind: CapabilityTaskEventKind::Progress,
         sequence,
         chunk_index: None,
         chunk_delta: None,
@@ -37,10 +37,10 @@ pub(crate) fn completed_download_event(
     task_id: String,
     sequence: u64,
     models: serde_json::Value,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id,
-        event_kind: ServiceTaskEventKind::Completed,
+        event_kind: CapabilityTaskEventKind::Completed,
         sequence,
         chunk_index: None,
         chunk_delta: None,
@@ -59,10 +59,10 @@ pub(crate) fn failed_download_event(
     task_id: String,
     sequence: u64,
     error: ServiceError,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id,
-        event_kind: ServiceTaskEventKind::Failed,
+        event_kind: CapabilityTaskEventKind::Failed,
         sequence,
         chunk_index: None,
         chunk_delta: None,

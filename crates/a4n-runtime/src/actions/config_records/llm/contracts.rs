@@ -1,57 +1,5 @@
-use super::super::shared::{deserialize_optional_json_update, deserialize_optional_string_update};
+pub use a4n_api_contract::config::{CreateLlmInput, LlmConfigSummary, UpdateLlmInput};
 use a4n_core::models::ai::llm_config;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LlmConfigSummary {
-    pub id: i64,
-    pub name: String,
-    pub provider: String,
-    pub base_url: String,
-    pub has_api_key: bool,
-    pub model: String,
-    pub max_concurrent: i32,
-    pub timeout_secs: i32,
-    pub max_context_tokens: i32,
-    pub max_output_tokens: i32,
-    pub request_options_json: Option<Value>,
-    pub is_default: bool,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CreateLlmInput {
-    pub name: String,
-    pub provider: String,
-    pub base_url: String,
-    pub api_key_encrypted: Option<String>,
-    pub model: String,
-    pub max_concurrent: i32,
-    pub timeout_secs: i32,
-    pub max_context_tokens: i32,
-    pub max_output_tokens: i32,
-    pub request_options_json: Option<Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UpdateLlmInput {
-    pub name: Option<String>,
-    pub provider: Option<String>,
-    pub base_url: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_optional_string_update")]
-    pub api_key_encrypted: Option<Option<String>>,
-    pub model: Option<String>,
-    pub max_concurrent: Option<i32>,
-    pub timeout_secs: Option<i32>,
-    pub max_context_tokens: Option<i32>,
-    pub max_output_tokens: Option<i32>,
-    #[serde(default, deserialize_with = "deserialize_optional_json_update")]
-    pub request_options_json: Option<Option<Value>>,
-}
 
 pub(super) fn llm_config_summary(config: &llm_config::Model) -> LlmConfigSummary {
     LlmConfigSummary {

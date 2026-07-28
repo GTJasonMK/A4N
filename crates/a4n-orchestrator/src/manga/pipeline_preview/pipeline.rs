@@ -12,7 +12,7 @@ use super::late_extraction::preview_late_extraction;
 use super::planning::preview_planning;
 
 impl OrchestratorContext {
-    pub async fn preview_generate_panels_requests(
+    pub(crate) async fn preview_generate_panels_requests(
         &self,
         input: MangaPipelineRequestPreviewInput<'_>,
     ) -> Result<Vec<MangaPipelineRequestPreviewStep>, AppError> {

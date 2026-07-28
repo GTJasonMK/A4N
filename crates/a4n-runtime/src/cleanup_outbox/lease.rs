@@ -11,7 +11,7 @@ pub(super) async fn renew_cleanup_lease(
     lease_token: &str,
 ) -> Result<(), String> {
     state
-        .orchestrator
+        .project_family()
         .renew_claimed_cleanup(id, lease_token)
         .await
         .map_err(app_error_message)

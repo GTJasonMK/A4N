@@ -8,50 +8,18 @@ import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
 import { SYSTEM_VIDEO_CONFIG_ID } from "./configs";
 import type {
   AssemblyPushResult,
+  ApplyAssemblyPostprocessEditInput,
   AssembledChapterVideoPreview,
+  DeleteChapterVideoAssetsResult,
   GeneratedVideo,
+  PushAssembledChapterVideoInput,
   PreviewChapterVideoPromptOverrideInput,
   ReferenceMediaVideoInput,
+  UploadAssemblyInsertVideoInput,
+  UploadChapterVideoInput,
+  UploadReferenceMediaVideoInput,
   VideoPlaybackData,
 } from "./types";
-
-interface UploadChapterVideoInput {
-  file_name: string;
-  mime_type: string;
-  data_base64: string;
-  prompt_id: number;
-}
-
-interface UploadReferenceMediaVideoInput {
-  file_name: string;
-  mime_type: string;
-  data_base64: string;
-  prompt: string;
-  duration_secs: number;
-  aspect_ratio: string;
-}
-
-interface UploadAssemblyInsertVideoInput {
-  file_name: string;
-  mime_type: string;
-  data_base64: string;
-  insert_after_video_id?: number | null;
-}
-
-interface PushAssembledChapterVideoInput {
-  end_video_id?: Id | null;
-}
-
-interface ApplyAssemblyPostprocessEditInput {
-  operation: "insert" | "delete" | "replace";
-  at_secs?: number | null;
-  start_secs?: number | null;
-  end_secs?: number | null;
-  source_video_id?: Id | null;
-  source_file_name?: string | null;
-  source_mime_type?: string | null;
-  source_data_base64?: string | null;
-}
 
 export interface UpdateVideoInput {
   prompt?: string;
@@ -62,9 +30,6 @@ export interface UpdateVideoInput {
   move_assembly_insert_to_start?: boolean;
 }
 
-export interface DeleteChapterVideoAssetsResult {
-  deleted_video_count: number;
-}
 
 const currentUserId = (): number => {
   const id = readCurrentUserId();
@@ -95,6 +60,21 @@ export async function updateVideo(videoId: Id, input: UpdateVideoInput): Promise
     userId: currentUserId(),
     videoId: idNum(videoId),
     input: toUpdateVideoPayload(input),
+  });
+}
+
+export async function selectSegmentVideo(
+  projectId: Id,
+  chapterId: Id,
+  videoId: Id,
+  shotNumber: number,
+): Promise<GeneratedVideo> {
+  return apiInvoke<GeneratedVideo>("select_segment_video", {
+    userId: currentUserId(),
+    projectId: idNum(projectId),
+    chapterId: idNum(chapterId),
+    videoId: idNum(videoId),
+    input: { shot_number: shotNumber },
   });
 }
 
@@ -234,6 +214,8 @@ export async function uploadReferenceMediaVideo(
       prompt: input.prompt,
       duration_secs: input.duration_secs,
       aspect_ratio: input.aspect_ratio,
+      segment_prompt_id: input.segment_prompt_id == null ? null : idNum(input.segment_prompt_id),
+      shot_number: input.shot_number ?? null,
     },
   });
 }

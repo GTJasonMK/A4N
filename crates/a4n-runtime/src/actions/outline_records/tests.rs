@@ -1,4 +1,5 @@
 use super::*;
+use a4n_orchestrator::outline::required_outline_pacing_score;
 use chrono::NaiveDate;
 use serde_json::json;
 
@@ -46,21 +47,6 @@ fn sample_part(id: i64, part_number: i32) -> part_outline::Model {
         created_at: now,
         updated_at: now,
     }
-}
-
-fn sample_part_range(id: i64, part_number: i32, start: i32, end: i32) -> part_outline::Model {
-    let mut part = sample_part(id, part_number);
-    part.start_chapter = start;
-    part.end_chapter = end;
-    part
-}
-
-fn progress_outline(id: i64, chapter_number: i32, status: &str) -> chapter_outline::Model {
-    let mut outline = sample_outline(1, None);
-    outline.id = id;
-    outline.chapter_number = chapter_number;
-    outline.status = status.to_string();
-    outline
 }
 
 #[test]
@@ -180,60 +166,4 @@ fn build_chapter_outlines_pacing_accepts_finite_scores() {
 
     assert_eq!(pacing["pacing_score"], json!(0.6));
     assert_eq!(pacing["summary"], json!("节奏适中"));
-}
-
-#[test]
-fn order_parts_for_batch_generation_uses_part_order_not_input_order() {
-    let mut parts = vec![
-        sample_part(30, 3),
-        sample_part(10, 1),
-        sample_part(20, 2),
-        sample_part(19, 2),
-    ];
-
-    order_parts_for_batch_generation(&mut parts);
-
-    let ids = parts.iter().map(|part| part.id).collect::<Vec<_>>();
-    assert_eq!(ids, vec![10, 19, 20, 30]);
-}
-
-#[test]
-fn completed_part_count_requires_full_completed_chapter_range() {
-    let parts = vec![
-        sample_part_range(1, 1, 1, 2),
-        sample_part_range(2, 2, 3, 4),
-        sample_part_range(3, 3, 5, 5),
-    ];
-    let outlines = vec![
-        progress_outline(11, 1, chapter_outline::STATUS_COMPLETED),
-        progress_outline(12, 2, chapter_outline::STATUS_COMPLETED),
-        progress_outline(13, 3, chapter_outline::STATUS_COMPLETED),
-        progress_outline(14, 4, chapter_outline::STATUS_DRAFT),
-        progress_outline(15, 5, chapter_outline::STATUS_COMPLETED),
-    ];
-
-    let completed =
-        completed_part_count(&parts, &outlines).expect("valid progress data should count");
-
-    assert_eq!(completed, 2);
-}
-
-#[test]
-fn completed_part_count_rejects_invalid_progress_state() {
-    let duplicate = completed_part_count(
-        &[sample_part_range(1, 1, 1, 2)],
-        &[
-            progress_outline(11, 1, chapter_outline::STATUS_COMPLETED),
-            progress_outline(12, 1, chapter_outline::STATUS_COMPLETED),
-        ],
-    )
-    .expect_err("duplicate chapter outlines must be explicit");
-    assert!(duplicate.to_string().contains("存在重复章节大纲"));
-
-    let overlapping = completed_part_count(
-        &[sample_part_range(1, 1, 1, 2), sample_part_range(2, 2, 2, 3)],
-        &[],
-    )
-    .expect_err("overlapping part ranges must be explicit");
-    assert!(overlapping.to_string().contains("被多个分部范围覆盖"));
 }

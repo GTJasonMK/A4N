@@ -24,6 +24,7 @@ embedded-media-providers = [
 ]
 
 [dependencies]
+a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-capabilities = { path = "../a4n-capabilities" }
 a4n-core = { path = "../a4n-core" }
 a4n-db = { path = "../a4n-db" }

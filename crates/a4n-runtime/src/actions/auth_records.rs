@@ -1,6 +1,5 @@
 mod contracts;
 mod projections;
-mod rules;
 mod sessions;
 mod tokens;
 mod users;

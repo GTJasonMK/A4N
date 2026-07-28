@@ -71,7 +71,6 @@ export const useOptimizeActivityStream = ({
         status: "running",
         steps: [],
         timestamp: Date.now(),
-        taskId,
         chapterId: activeChapterId,
         sessionId: activeSessionIdRef.current,
       };

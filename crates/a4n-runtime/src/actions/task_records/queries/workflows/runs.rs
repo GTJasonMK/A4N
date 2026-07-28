@@ -2,11 +2,11 @@ use crate::{
     AppState,
     actions::{access, app_error_message},
 };
+use a4n_orchestrator::workflow::validate_optional_project_id;
 
 use super::super::super::{
     GetWorkflowRunInput, ListWorkflowRunsInput, WorkflowRunDetailSummary, WorkflowRunSummary,
     access::{verify_workflow_run_summary_access, workflow_run_summary_visible_to_user},
-    projections::validate_optional_project_id,
 };
 
 pub async fn list_workflow_runs_for_user(
@@ -19,7 +19,7 @@ pub async fn list_workflow_runs_for_user(
         access::verify_project_editor_string(state, user_id, project_id).await?;
     }
     let runs = state
-        .orchestrator
+        .workflow()
         .workflow_runs(input)
         .await
         .map_err(app_error_message)?;
@@ -38,7 +38,7 @@ pub async fn get_workflow_run_detail_for_user(
     input: GetWorkflowRunInput,
 ) -> Result<WorkflowRunDetailSummary, String> {
     let detail = state
-        .orchestrator
+        .workflow()
         .workflow_run_detail(input.workflow_run_id)
         .await
         .map_err(app_error_message)?;

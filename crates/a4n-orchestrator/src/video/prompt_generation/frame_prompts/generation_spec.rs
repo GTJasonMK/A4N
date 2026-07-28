@@ -3,7 +3,6 @@ use a4n_core::error::AppError;
 use super::{
     PromptWorkflowMode, SHARED_SEGMENT_PLAN_CONTEXT, SHARED_SEGMENT_PLAN_CONTRACT_VERSION,
     SHARED_SEGMENT_PLAN_PROGRESS, SHARED_SEGMENT_PLAN_PROMPT_TYPE, SHARED_SEGMENT_PLAN_TITLE,
-    SHARED_SEGMENT_PLAN_WORKFLOW_MODE,
 };
 
 pub(super) struct FramePromptGenerationSpec {
@@ -49,7 +48,7 @@ impl FramePromptGenerationSpec {
     }
 
     pub(super) fn segment_storage_workflow_mode(&self) -> PromptWorkflowMode {
-        SHARED_SEGMENT_PLAN_WORKFLOW_MODE
+        self.workflow_mode
     }
 
     pub(super) fn segment_storage_prompt_type(&self) -> &'static str {

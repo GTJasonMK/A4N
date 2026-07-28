@@ -2,9 +2,9 @@ use crate::contracts::{VideoPollPayload, VideoProviderPayload};
 use a4n_core::error::AppError;
 use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
-    VIDEO_SERVICE_NAME, redact_sensitive_message, validate_known_service_request_envelope,
-    validate_provider_api_key_secret_policy,
+    EgressDataType, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
+    VIDEO_SERVICE_NAME, redact_sensitive_message, validate_egress_scope,
+    validate_known_service_request_envelope, validate_provider_api_key_secret_policy,
 };
 
 pub(crate) fn result_response<T>(
@@ -40,6 +40,14 @@ pub(crate) fn validate_video_provider_request(
 ) -> Result<(), ServiceError> {
     validate_service_request(request)?;
     validate_provider_secret_policy(&request.payload.api_key, request)?;
+    a4n_video::validate_video_provider_idempotency_key(
+        request.payload.provider_idempotency_key_sha256.as_deref(),
+    )
+    .map_err(|error| ServiceError {
+        code: ServiceErrorCode::ConfigurationError,
+        message: error.to_string(),
+        retryable: Some(false),
+    })?;
     Ok(())
 }
 
@@ -48,6 +56,19 @@ pub(crate) fn validate_video_poll_request(
 ) -> Result<(), ServiceError> {
     validate_service_request(request)?;
     validate_provider_secret_policy(&request.payload.api_key, request)?;
+    if request
+        .payload
+        .project_id
+        .is_some_and(|project_id| project_id <= 0)
+        || request.payload.project_id != request.project_id
+    {
+        return Err(ServiceError {
+            code: ServiceErrorCode::ConfigurationError,
+            message: "video poll/status payload project_id 必须与 request envelope 一致且为正整数"
+                .to_string(),
+            retryable: Some(false),
+        });
+    }
     Ok(())
 }
 
@@ -60,7 +81,13 @@ pub(crate) fn validate_model_discovery_request(
 }
 
 pub(crate) fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    validate_known_service_request_envelope(request, VIDEO_SERVICE_NAME)
+    validate_known_service_request_envelope(request, VIDEO_SERVICE_NAME)?;
+    validate_egress_scope(
+        VIDEO_SERVICE_NAME,
+        EgressDataType::Video,
+        &request.secret_policy.scope,
+    )
+    .map(|_| ())
 }
 
 pub(crate) fn validate_provider_secret_policy<T>(

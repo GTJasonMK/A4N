@@ -7,6 +7,9 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
@@ -17,7 +20,7 @@ jobs:
     name: Host minimal profile
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Linux build dependencies
         run: |
@@ -29,7 +32,7 @@ jobs:
             pkg-config
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Check server minimal host
         run: timeout 600 ./scripts/dev/check-module.sh host-server
@@ -65,6 +68,15 @@ jobs:
             exit "$status"
           fi
 
+      - name: Check a4n-core boundary inventory
+        run: ./scripts/checks/check-core-boundary.sh
+
+      - name: Check canonical task kind boundary
+        run: ./scripts/checks/check-task-kind-boundary.sh
+
+      - name: Check retired generation contract boundary
+        run: ./scripts/checks/check-generation-cutover-boundary.sh
+
   sidecars:
     name: Sidecar package ${{ matrix.package }}
     runs-on: ubuntu-latest
@@ -81,19 +93,71 @@ jobs:
           - a4n-import-service
           - a4n-export-service
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Check sidecar package
         run: timeout 600 cargo check -p "${{ matrix.package }}"
+
+      - name: Check sidecar security and resource boundaries
+        run: ./scripts/checks/check-sidecar-security-boundary.sh
+
+  service-manager-process:
+    name: Service manager multi-instance process test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Build demo sidecar
+        run: cargo build -p a4n-demo-sidecar
+
+      - name: Run multi-instance ownership test
+        env:
+          A4N_DEMO_SIDECAR_BIN: ${{ github.workspace }}/target/debug/a4n-demo-sidecar
+        run: timeout 120 cargo test -p a4n-service-manager --lib two_managers_own_distinct_sidecars_and_stop_independently -- --nocapture
+
+  sidecar-process:
+    name: Sidecar process test ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - a4n-prompt-service
+          - a4n-llm-gateway
+          - a4n-embedding-service
+          - a4n-rag-service
+          - a4n-image-service
+          - a4n-video-service
+          - a4n-import-service
+          - a4n-export-service
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Run independent sidecar process test
+        run: |
+          if [ "${{ matrix.package }}" = "a4n-embedding-service" ]; then
+            ./scripts/dev/setup-onnxruntime.sh
+            source scripts/lib/common.sh
+            require_onnxruntime
+            timeout 900 cargo test -p a4n-embedding-service --test process -- --nocapture --test-threads=1
+          else
+            timeout 300 cargo test -p "${{ matrix.package }}" --test process -- --nocapture --test-threads=1
+          fi
 
   full-backend:
     name: Full backend check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Linux build dependencies
         run: |
@@ -105,10 +169,100 @@ jobs:
             pkg-config
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Check full workspace
         run: ./scripts/build.sh --all --check
+
+  build-feedback:
+    name: Cold and warm build feedback budget
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_INCREMENTAL: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            pkg-config
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Check refactor plan status
+        env:
+          A4N_REFACTOR_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: ./scripts/checks/check-refactor-plan-status.sh
+
+      - name: Check build feedback tooling contracts
+        run: ./scripts/checks/check-build-feedback-tools.sh
+
+      - name: Measure cold workspace and warm package feedback
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          source scripts/lib/common.sh
+          require_onnxruntime
+          timeout 4800 ./scripts/checks/measure-build-feedback.sh --runs 3
+
+      - name: Enforce warm package feedback budget
+        run: ./scripts/checks/check-build-feedback-budget.sh
+
+      - name: Upload Cargo timing and dependency evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-feedback-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            target/build-feedback
+            scripts/checks/build-feedback-baseline.tsv
+          retention-days: 30
+
+  postgres-integration:
+    name: PostgreSQL migration and integration gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: a4n_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d a4n_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      A4N_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Run all migrations against PostgreSQL
+        run: timeout 300 cargo run -p a4n-migration -- "$DATABASE_URL"
+
+      - name: Run database integration tests
+        run: timeout 900 cargo test -p a4n-db --lib --tests -- --nocapture
+
+      - name: Run orchestrator database integration tests
+        run: timeout 900 cargo test -p a4n-orchestrator --lib --no-default-features -- --nocapture
+
+      - name: Run runtime database integration tests
+        run: timeout 900 cargo test -p a4n-runtime --lib --no-default-features -- --nocapture
 
   release-package:
     name: Release package layout ${{ matrix.target }}
@@ -120,31 +274,81 @@ jobs:
           - linux-x86_64
           - windows-x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
       - name: Validate deploy script syntax
+        env:
+          A4N_REFACTOR_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           bash -n \
             scripts/deploy.sh \
             scripts/build.sh \
             scripts/dev/check-module.sh \
+            scripts/dev/setup-onnxruntime.sh \
             scripts/dev/prepare-tauri-external-bin.sh \
-            scripts/dev/build-tauri-bundle.sh
+            scripts/dev/build-tauri-bundle.sh \
+            scripts/checks/smoke-macos-tauri-bundle.sh \
+            scripts/checks/generate-release-sbom.sh \
+            scripts/checks/check-release-signing-workflow.sh
           ruby -e 'require "json"; JSON.parse(File.read("crates/a4n-tauri/tauri.sidecars.conf.json"))'
           ./scripts/checks/check-sidecar-package-inventory.sh
+          ./scripts/checks/check-release-manifest.sh
+          ./scripts/checks/check-release-signing-workflow.sh
+          ./scripts/checks/check-sidecar-security-boundary.sh
+          ./scripts/checks/check-core-boundary.sh
+          ./scripts/checks/check-generation-cutover-boundary.sh
+          ./scripts/checks/check-refactor-docs.sh
           ./scripts/dev/build-tauri-bundle.sh --help >/dev/null
 
       - name: Check release package layout
         run: ./scripts/deploy.sh --target "${{ matrix.target }}" --dry-run --no-build
 
-  frontend:
-    name: Frontend and API parity
-    runs-on: ubuntu-latest
+  linux-release-smoke:
+    name: Linux installed release smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: a4n_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d a4n_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      qdrant:
+        image: qdrant/qdrant:v1.18.3
+        ports:
+          - 6334:6334
+    env:
+      A4N_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
+      A4N_QDRANT_URL: http://127.0.0.1:6334
+      A4N_RELEASE_SMOKE_ARTIFACT_DIR: artifacts/linux-release-smoke
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Linux release dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            pkg-config \
+            xvfb
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -154,6 +358,228 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Build real Linux release archive
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          source scripts/lib/common.sh
+          require_onnxruntime
+          ./scripts/deploy.sh --target linux-x86_64
+
+      - name: Start installed host and eight sidecars
+        run: |
+          A4N_JWT_SECRET="$(openssl rand -hex 32)" \
+            xvfb-run -a timeout 180 \
+            ./scripts/checks/smoke-linux-release-package.sh \
+            deploy/a4n-tauri-*-linux-x86_64.tar.gz
+
+      - name: Upload Linux release and smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-release-smoke
+          path: |
+            deploy/a4n-tauri-*-linux-x86_64.tar.gz
+            deploy/a4n-tauri-*-linux-x86_64.tar.gz.sha256
+            artifacts/linux-release-smoke
+          retention-days: 30
+
+  windows-release-smoke:
+    name: Windows portable release smoke
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      A4N_DATABASE_URL: postgres://postgres:root@127.0.0.1:5432/a4n_test
+      A4N_QDRANT_URL: http://127.0.0.1:6334
+      A4N_RELEASE_SMOKE_ARTIFACT_DIR: artifacts/windows-release-smoke
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Start PostgreSQL 17
+        shell: pwsh
+        run: |
+          Set-Service -Name postgresql-x64-17 -StartupType Manual
+          Start-Service -Name postgresql-x64-17
+          $env:PGPASSWORD = "root"
+          & "$env:PGBIN\createdb.exe" -h 127.0.0.1 -U postgres a4n_test
+          if ($LASTEXITCODE -ne 0) { throw "unable to create a4n_test" }
+
+      - name: Start verified Qdrant 1.18.3
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts\qdrant | Out-Null
+          $archive = "$env:RUNNER_TEMP\qdrant.zip"
+          Invoke-WebRequest -Uri "https://github.com/qdrant/qdrant/releases/download/v1.18.3/qdrant-x86_64-pc-windows-msvc.zip" -OutFile $archive
+          $actual = (Get-FileHash -Algorithm SHA256 -Path $archive).Hash.ToLowerInvariant()
+          if ($actual -ne "984619bbd4032ace578656174c465c5d6b71d1267ecad5b7b4c21cc6549ca833") {
+            throw "Qdrant SHA-256 mismatch: $actual"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath "$env:RUNNER_TEMP\qdrant"
+          $qdrant = Start-Process -FilePath "$env:RUNNER_TEMP\qdrant\qdrant.exe" `
+            -RedirectStandardOutput artifacts\qdrant\stdout.log `
+            -RedirectStandardError artifacts\qdrant\stderr.log -PassThru
+          $qdrant.Id | Out-File -FilePath artifacts\qdrant\pid -Encoding ascii
+          for ($attempt = 0; $attempt -lt 300; $attempt++) {
+            try {
+              Invoke-RestMethod -Uri "http://127.0.0.1:6333/readyz" -TimeoutSec 1 | Out-Null
+              exit 0
+            } catch {
+              if ($qdrant.HasExited) { throw "Qdrant exited before becoming ready" }
+              Start-Sleep -Milliseconds 100
+            }
+          }
+          throw "Qdrant did not become ready"
+
+      - name: Build real Windows portable archive
+        shell: bash
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          source scripts/lib/common.sh
+          require_onnxruntime
+          ./scripts/deploy.sh --target windows-x86_64
+
+      - name: Run start.ps1 host and sidecar lifecycle
+        shell: pwsh
+        run: |
+          $bytes = New-Object byte[] 32
+          $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+          try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+          $env:A4N_JWT_SECRET = -join ($bytes | ForEach-Object { $_.ToString("x2") })
+          $archives = @(Get-ChildItem -Path deploy\a4n-tauri-*-windows-x86_64.tar.gz)
+          if ($archives.Count -ne 1) { throw "expected one Windows release archive, found $($archives.Count)" }
+          ./scripts/checks/smoke-windows-release-package.ps1 -Archive $archives[0].FullName
+
+      - name: Upload Windows release and smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-release-smoke
+          path: |
+            deploy/a4n-tauri-*-windows-x86_64.tar.gz
+            deploy/a4n-tauri-*-windows-x86_64.tar.gz.sha256
+            artifacts/windows-release-smoke
+            artifacts/qdrant
+          retention-days: 30
+
+  macos-tauri-smoke:
+    name: macOS arm64 Tauri bundle smoke
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      A4N_DATABASE_URL: postgres://a4n@127.0.0.1:5432/a4n_test
+      A4N_QDRANT_URL: http://127.0.0.1:6334
+      A4N_RELEASE_SMOKE_ARTIFACT_DIR: artifacts/macos-tauri-smoke
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Start PostgreSQL 16 and migrate a4n_test
+        run: |
+          brew list postgresql@16 >/dev/null 2>&1 || brew install postgresql@16
+          postgres_bin="$(brew --prefix postgresql@16)/bin"
+          export PATH="$postgres_bin:$PATH"
+          brew services start postgresql@16
+          for _ in {1..60}; do
+            pg_isready -h 127.0.0.1 -d postgres && break
+            sleep 1
+          done
+          pg_isready -h 127.0.0.1 -d postgres
+          psql -h 127.0.0.1 -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='a4n'" | grep -q 1 || createuser -h 127.0.0.1 -s a4n
+          psql -h 127.0.0.1 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='a4n_test'" | grep -q 1 || createdb -h 127.0.0.1 -O a4n a4n_test
+          cargo run -p a4n-migration -- "$A4N_DATABASE_URL"
+
+      - name: Start verified Qdrant 1.18.3
+        run: |
+          mkdir -p artifacts/qdrant "$RUNNER_TEMP/qdrant"
+          archive="$RUNNER_TEMP/qdrant.tar.gz"
+          curl -fL --retry 3 -o "$archive" \
+            https://github.com/qdrant/qdrant/releases/download/v1.18.3/qdrant-aarch64-apple-darwin.tar.gz
+          actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+          test "$actual" = "0cb040a261035c316779bd7b4cca2e6ab39faf62640d6918bbbe320e2a9a6547"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/qdrant"
+          chmod +x "$RUNNER_TEMP/qdrant/qdrant"
+          pushd "$RUNNER_TEMP/qdrant"
+          ./qdrant >"$GITHUB_WORKSPACE/artifacts/qdrant/qdrant.log" 2>&1 &
+          echo $! >"$GITHUB_WORKSPACE/artifacts/qdrant/pid"
+          popd
+          for _ in {1..300}; do
+            curl -fsS --max-time 1 http://127.0.0.1:6333/readyz && break
+            sleep 0.1
+          done
+          curl -fsS --max-time 2 http://127.0.0.1:6333/readyz
+
+      - name: Build unsigned macOS arm64 Tauri app
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          cargo install tauri-cli --version 2.11.0 --locked
+          ./scripts/dev/build-tauri-bundle.sh \
+            --target aarch64-apple-darwin \
+            --bundles app
+
+      - name: Start bundled Host and eight sidecars
+        run: |
+          A4N_JWT_SECRET="$(openssl rand -hex 32)" \
+            ./scripts/checks/smoke-macos-tauri-bundle.sh \
+            target/aarch64-apple-darwin/release/bundle/macos/A4N.app
+
+      - name: Upload unsigned macOS bundle and smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-arm64-tauri-smoke
+          path: |
+            target/aarch64-apple-darwin/release/bundle/macos/A4N.app
+            artifacts/macos-tauri-smoke
+            artifacts/qdrant
+          retention-days: 30
+
+  frontend:
+    name: Frontend and API parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm run test:run
+
       - name: Build frontend
         working-directory: frontend
         run: npm run build
@@ -161,3 +587,210 @@ jobs:
       - name: Check Web API parity
         working-directory: frontend
         run: npm run check:web-api-parity
+
+  generation-host-process:
+    name: Generation Web and Tauri process
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: a4n_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d a4n_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      A4N_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            pkg-config \
+            webkit2gtk-driver \
+            xvfb
+          chromedriver --version
+          google-chrome --version
+          WebKitWebDriver --version
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend and real Tauri application
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          source scripts/lib/common.sh
+          require_onnxruntime
+          npm --prefix frontend run build
+          cargo build -p a4n-tauri --features embedded-capabilities
+
+      - name: Run real Chromium and Tauri generation recovery
+        env:
+          A4N_WDIO_APP_BINARY: ${{ github.workspace }}/target/debug/a4n-tauri
+        run: |
+          source scripts/lib/common.sh
+          require_onnxruntime
+          xvfb-run -a timeout 1200 cargo test -p a4n-server \
+            --features embedded-llm-provider,embedded-media-providers \
+            --test cleanup_recovery \
+            real_chromium_recovers_generation_after_proxy_aborts_sse \
+            -- --nocapture --test-threads=1
+
+      - name: Run 1 MiB generation reconnect recovery
+        run: >-
+          timeout 900 cargo test -p a4n-server
+          --features embedded-llm-provider,embedded-media-providers
+          --test cleanup_recovery
+          server_process_reconnects_inspiration_sse_ten_times_without_losing_one_mib
+          -- --nocapture --test-threads=1
+
+      - name: Run Tauri Channel generation process
+        run: >-
+          timeout 900 cargo test -p a4n-tauri
+          --features embedded-media-providers
+          tauri_channel_remounts_active_image_generation_after_window_cleanup
+          -- --nocapture --test-threads=1
+
+  supply-chain:
+    name: Advisory, license and SBOM checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@f1b61bf3a1373bccc1ebdc11506122709bd40dee # cargo-audit
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@0843b7c6f00e5da5a08f795c041bd69dbba2ba6d # cargo-deny
+
+      - name: Install cargo-cyclonedx
+        uses: taiki-e/install-action@267ee3b185642de47023eface7caa6ec9a5a999c # cargo-cyclonedx
+
+      - name: Run advisory and policy checks
+        run: |
+          cargo audit
+          cargo deny check
+
+      - name: Generate Host and sidecar CycloneDX SBOMs
+        run: ./scripts/checks/generate-release-sbom.sh artifacts/supply-chain "ci-${GITHUB_SHA}"
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: a4n-release-sbom
+          path: artifacts/supply-chain
+
+  cross-platform-sidecar-process:
+    name: Native sidecar process ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: target/debug/a4n-demo-sidecar
+          - os: macos-latest
+            binary: target/debug/a4n-demo-sidecar
+          - os: windows-latest
+            binary: target/debug/a4n-demo-sidecar.exe
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Build demo sidecar
+        run: cargo build -p a4n-demo-sidecar
+
+      - name: Exercise manager restart and cleanup
+        env:
+          A4N_DEMO_SIDECAR_BIN: ${{ github.workspace }}/${{ matrix.binary }}
+        run: cargo test -p a4n-service-manager --lib supervisor_restarts_once_and_does_not_replay_in_flight_request -- --nocapture
+
+  cross-platform-remote-mtls:
+    name: Remote mTLS process ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install OpenSSL (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev openssl
+
+      - name: Install OpenSSL (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+          echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
+
+      - name: Install OpenSSL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install openssl.light --no-progress -y
+
+      - name: Add OpenSSL to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $openssl = Get-ChildItem 'C:\Program Files\OpenSSL*' -Filter openssl.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $openssl) { throw 'openssl.exe was not found after installation' }
+          $openssl.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Run cross-platform remote mTLS process test
+        env:
+          A4N_REQUIRE_OPENSSL_MTLS: "1"
+        run: |
+          cargo test -p a4n-service-manager --lib remote_tls_watcher_marks_certificate_directory_changes -- --nocapture
+          cargo test -p a4n-service-manager --lib remote_mtls_process_handshake_and_certificate_reload -- --nocapture
+
+  sidecar-version-matrix:
+    name: Historical sidecar version matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Run real old/new/rollback sidecar process matrix
+        run: timeout 1800 ./scripts/checks/check-sidecar-version-matrix.sh

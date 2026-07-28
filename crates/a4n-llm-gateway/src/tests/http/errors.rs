@@ -1,8 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use a4n_capabilities::LlmClient;
 use a4n_llm::provider::ChatRequest;
-use a4n_service_protocol::{ServiceErrorCode, ServiceTaskEvent, ServiceTaskEventKind};
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode};
 use axum::{
     Json, Router,
     body::{Body, Bytes},
@@ -15,7 +14,7 @@ use futures::stream;
 use serde_json::{Value, json};
 
 use super::{
-    FakeProviderObservation, TestHttpServer, build_router, json_request,
+    FakeProviderObservation, TestHttpServer, build_router, collect_stream_events, json_request,
     observe_fake_provider_request, service_request,
 };
 use crate::contracts::{HttpLlmProviderConfig, LlmChatPayload};
@@ -149,22 +148,6 @@ async fn broken_body_chat_completions(
         .into_response()
 }
 
-async fn collect_stream_events(
-    client: &impl LlmClient,
-    request: a4n_capabilities::JsonRequest,
-) -> Vec<ServiceTaskEvent> {
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
-    client
-        .stream(request, event_tx)
-        .await
-        .expect("terminal Failed event should complete typed transport");
-    let mut events = Vec::new();
-    while let Some(event) = event_rx.recv().await {
-        events.push(event);
-    }
-    events
-}
-
 #[tokio::test]
 async fn malformed_provider_sse_emits_one_redacted_failed_terminal_event() {
     let provider_observation = Arc::new(Mutex::new(None));
@@ -201,11 +184,11 @@ async fn malformed_provider_sse_emits_one_redacted_failed_terminal_event() {
     );
 
     assert_eq!(events.len(), 2);
-    assert_eq!(events[0].event_kind, ServiceTaskEventKind::Chunk);
+    assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[0].sequence, 1);
     assert_eq!(events[0].chunk_delta.as_deref(), Some("safe"));
 
-    assert_eq!(events[1].event_kind, ServiceTaskEventKind::Failed);
+    assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Failed);
     assert_eq!(events[1].sequence, 2);
     assert_eq!(
         events[1].error.as_ref().map(|error| error.code.clone()),
@@ -350,11 +333,11 @@ async fn provider_body_error_after_done_keeps_completed_result() {
     provider.stop().await;
 
     assert_eq!(events.len(), 3);
-    assert_eq!(events[0].event_kind, ServiceTaskEventKind::Chunk);
+    assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[0].chunk_delta.as_deref(), Some("complete"));
-    assert_eq!(events[1].event_kind, ServiceTaskEventKind::Chunk);
+    assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[1].finish_reason.as_deref(), Some("stop"));
-    assert_eq!(events[2].event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(events[2].finish_reason.as_deref(), Some("stop"));
     assert_eq!(events[2].is_truncated_finish_reason, Some(false));
 }
@@ -385,7 +368,7 @@ async fn provider_body_error_after_finish_preserves_truncation_contract() {
     provider.stop().await;
 
     assert_eq!(events.len(), 3);
-    assert_eq!(events[2].event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(events[2].finish_reason.as_deref(), Some("length"));
     assert_eq!(events[2].is_truncated_finish_reason, Some(true));
 }
@@ -420,7 +403,7 @@ async fn provider_body_error_before_terminal_marker_remains_failed() {
         provider.stop().await;
 
         assert_eq!(events.len(), 2);
-        assert_eq!(events[0].event_kind, ServiceTaskEventKind::Chunk);
+        assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
         assert_one_failed_terminal(&events);
         let error = events[1]
             .error
@@ -437,7 +420,7 @@ async fn provider_body_error_before_terminal_marker_remains_failed() {
     }
 }
 
-fn assert_one_failed_terminal(events: &[ServiceTaskEvent]) {
+fn assert_one_failed_terminal(events: &[CapabilityTaskEvent]) {
     assert_eq!(
         events
             .iter()
@@ -447,11 +430,11 @@ fn assert_one_failed_terminal(events: &[ServiceTaskEvent]) {
     );
     assert_eq!(
         events.last().map(|event| &event.event_kind),
-        Some(&ServiceTaskEventKind::Failed)
+        Some(&CapabilityTaskEventKind::Failed)
     );
     assert!(
         events
             .iter()
-            .all(|event| event.event_kind != ServiceTaskEventKind::Completed)
+            .all(|event| event.event_kind != CapabilityTaskEventKind::Completed)
     );
 }

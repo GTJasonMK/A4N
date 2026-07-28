@@ -1,7 +1,11 @@
-use crate::actions::dependency_conflict::DownstreamConflictStrategy;
 use a4n_core::manga::{MangaPageDrawingPromptV2, MangaPageV3};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+pub use a4n_orchestrator::manga::{
+    BindReferenceImageInput, MangaPipelineStatusSummary as PipelineStatusSummary,
+    OptimizeMangaPromptRecordInput as OptimizeMangaPromptInput, UpdateMangaPromptInput,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MangaPromptSummary {
@@ -68,58 +72,4 @@ pub(super) struct MangaPageGenerationLayoutV2 {
     #[serde(rename = "prompt_fingerprint")]
     pub _prompt_fingerprint: Value,
     pub source: MangaPromptSourceSummary,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PipelineStatusSummary {
-    pub chapter_id: i64,
-    pub pending: i64,
-    pub generating: i64,
-    pub completed: i64,
-    pub failed: i64,
-    pub cancelled: i64,
-    pub pipeline_status: Option<String>,
-    pub stage: Option<String>,
-    pub current: Option<i32>,
-    pub total: Option<i32>,
-    pub message: Option<String>,
-    pub task_id: Option<String>,
-    pub can_cancel: bool,
-    pub can_resume: bool,
-    pub has_checkpoint: bool,
-    pub checkpoint_valid: bool,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct BindReferenceImageInput {
-    pub prompt_id: i64,
-    pub slot_id: String,
-    pub asset_kind: String,
-    pub asset_id: i64,
-    #[serde(default)]
-    pub downstream_strategy: DownstreamConflictStrategy,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UpdateMangaPromptInput {
-    pub prompt_id: i64,
-    pub image_prompt: String,
-    #[serde(default)]
-    pub downstream_strategy: DownstreamConflictStrategy,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct OptimizeMangaPromptInput {
-    pub prompt_id: i64,
-    pub instruction: String,
-    #[serde(default)]
-    pub downstream_strategy: DownstreamConflictStrategy,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct OptimizedMangaPromptFields {
-    pub image_prompt: String,
 }

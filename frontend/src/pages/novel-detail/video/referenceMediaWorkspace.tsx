@@ -8,10 +8,12 @@ import type {
   VideoGenConfig,
   VideoWorkflowMode,
 } from "../../../api/video";
+import type { ReferenceMediaUploadInput } from "../../../api/generated/generationContracts";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
 import { toMediaSrc } from "../../../utils/mediaSrc";
+import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { imageTypeLabel } from "../images/imageTabUtils";
 import type { ChapterRow } from "../shared";
 import { VideoResultsPane } from "./VideoResultsPane";
@@ -45,6 +47,7 @@ export interface ReferenceMediaBindingRow {
   id: string;
   url: string;
   usage: string;
+  upload?: ReferenceMediaUploadInput;
 }
 
 export interface ReferenceMediaDraft {
@@ -65,6 +68,12 @@ export const REFERENCE_MEDIA_KIND_META: Record<
 };
 
 const REFERENCE_MEDIA_KINDS: ReferenceMediaKind[] = ["image", "video", "audio"];
+const REFERENCE_MEDIA_ACCEPT: Record<ReferenceMediaKind, string> = {
+  image: "image/png,image/jpeg,image/webp",
+  video: "video/mp4,video/quicktime,video/webm",
+  audio: "audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/x-m4a,audio/ogg",
+};
+const MAX_REFERENCE_MEDIA_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 let referenceMediaRowSeq = 0;
 
@@ -155,7 +164,7 @@ export const clearReferenceMediaDraftStorageError = (
   draft.storageError ? { ...draft, storageError: null } : draft;
 
 const referenceMediaRowActive = (row: ReferenceMediaBindingRow): boolean =>
-  Boolean(row.url.trim() || row.usage.trim());
+  Boolean(row.url.trim() || row.upload || row.usage.trim());
 
 const activeReferenceMediaRows = (
   rows: ReferenceMediaBindingRow[],
@@ -165,11 +174,13 @@ const activeReferenceMediaRows = (
 export const normalizeReferenceMediaRows = (
   rows: ReferenceMediaBindingRow[],
 ): ReferenceMediaBindingRow[] =>
-  activeReferenceMediaRows(rows).map((row) => ({
-    ...row,
-    url: row.url.trim(),
-    usage: row.usage.trim(),
-  }));
+  activeReferenceMediaRows(rows)
+    .map((row) => ({
+      ...row,
+      url: row.url.trim(),
+      usage: row.usage.trim(),
+    }))
+    .sort((left, right) => Number(Boolean(left.upload)) - Number(Boolean(right.upload)));
 
 export const normalizeReferenceMediaRowsByKind = (
   rowsByKind: ReferenceMediaRowsByKind,
@@ -227,8 +238,9 @@ export const referenceMediaGenerateDraftError = (
     }
     for (const [index, row] of rows.entries()) {
       const token = `@${meta.tokenPrefix}_${index + 1}`;
-      if (!row.url) return `${token} 缺少 URL`;
-      if (!validReferenceMediaUrl(row.url)) return `${token} URL 必须以小写 http:// 或 https:// 开头`;
+      if (row.url && row.upload) return `${token} 不能同时使用 URL 和本地文件`;
+      if (!row.url && !row.upload) return `${token} 缺少 URL 或本地文件`;
+      if (row.url && !validReferenceMediaUrl(row.url)) return `${token} URL 必须以小写 http:// 或 https:// 开头`;
       if (!row.usage) return `${token} 缺少用途描述`;
     }
   }
@@ -237,7 +249,7 @@ export const referenceMediaGenerateDraftError = (
     0,
   );
   if (totalMediaCount === 0) {
-    return "至少添加一个图片、视频或音频 URL";
+    return "至少添加一个图片、视频或音频 URL 或本地文件";
   }
   const builtPrompt = buildReferenceMediaPrompt(prompt, normalizedRowsByKind);
   if ([...builtPrompt].length < REFERENCE_MEDIA_PROMPT_MIN_CHARS) {
@@ -630,6 +642,7 @@ export const ReferenceMediaWorkspace: React.FC<{
   onGenerate: () => void | Promise<void>;
   onImport: () => void | Promise<void>;
   onSelectVideo: (id: number) => void;
+  onAdoptVideo: (video: GeneratedVideo) => void | Promise<void>;
   onPollVideo: (video: GeneratedVideo) => void | Promise<void>;
   onPreviewVideoRequest: (video: GeneratedVideo) => void | Promise<void>;
   onToggleVideoFavorite: (video: GeneratedVideo) => void | Promise<void>;
@@ -668,6 +681,7 @@ export const ReferenceMediaWorkspace: React.FC<{
   onGenerate,
   onImport,
   onSelectVideo,
+  onAdoptVideo,
   onPollVideo,
   onPreviewVideoRequest,
   onToggleVideoFavorite,
@@ -678,7 +692,9 @@ export const ReferenceMediaWorkspace: React.FC<{
   onTrimEndChange,
   onTrim,
 }) => {
-  const seedanceReady = activeVideoConfig?.backend === "seedance2-video";
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const referenceMediaSupported =
+    activeVideoConfig?.capabilities?.supports_reference_media === true;
   const durationSupported = isDurationAllowed(durationSecs, durationLimits);
   const rowsByKind: ReferenceMediaRowsByKind = {
     image: imageRows,
@@ -689,8 +705,8 @@ export const ReferenceMediaWorkspace: React.FC<{
   const previewBlockedReason = draftStorageError
     ? `${draftStorageError}；请重新编辑后再查看模型请求`
     : undefined;
-  const generateBlockedReason = !seedanceReady
-    ? "参考媒体模式必须先激活 seedance2-video 视频配置"
+  const generateBlockedReason = !referenceMediaSupported
+    ? "当前视频服务不支持参考媒体生成"
     : durationLimits.configError
       ? durationLimits.configError
     : !durationSupported
@@ -739,6 +755,31 @@ export const ReferenceMediaWorkspace: React.FC<{
       const next = rows.filter((row) => row.id !== rowId);
       setRows(next.length > 0 ? next : [createReferenceMediaBindingRow()]);
     };
+    const selectLocalFile = async (rowId: string, file: File | undefined) => {
+      if (!file) return;
+      setUploadError(null);
+      const allowedMimes = REFERENCE_MEDIA_ACCEPT[kind].split(",");
+      if (!allowedMimes.includes(file.type)) {
+        setUploadError(`${meta.label}文件类型不支持：${file.type || file.name}`);
+        return;
+      }
+      if (file.size > MAX_REFERENCE_MEDIA_UPLOAD_BYTES) {
+        setUploadError(`${meta.label}文件不能超过 20MB`);
+        return;
+      }
+      try {
+        updateRow(rowId, {
+          url: "",
+          upload: {
+            file_name: file.name,
+            mime_type: file.type,
+            data_base64: await readFileAsBase64(file),
+          },
+        });
+      } catch (error) {
+        setUploadError(extractErrorMessage(error, `读取${meta.label}文件失败`));
+      }
+    };
 
     return (
       <section className="border-t border-book-border/35 pt-3">
@@ -780,11 +821,32 @@ export const ReferenceMediaWorkspace: React.FC<{
                 <div className="min-w-0 space-y-1.5">
                   <input
                     value={row.url}
-                    onChange={(event) => updateRow(row.id, { url: event.target.value })}
+                    onChange={(event) => updateRow(row.id, { url: event.target.value, upload: undefined })}
                     className="book-control h-10 w-full rounded-xl px-2.5 text-[11px] sm:h-9"
                     placeholder={`${meta.label} URL（http:// 或 https://）`}
                     aria-label={`${meta.label} ${index + 1} URL`}
                   />
+                  <div className="flex min-w-0 items-center gap-2">
+                    <label className="pyqt-btn-secondary inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1 px-2 text-[11px]">
+                      <Upload size={12} />
+                      本地文件
+                      <input
+                        type="file"
+                        accept={REFERENCE_MEDIA_ACCEPT[kind]}
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.currentTarget.files?.[0];
+                          event.currentTarget.value = "";
+                          void selectLocalFile(row.id, file);
+                        }}
+                      />
+                    </label>
+                    {row.upload && (
+                      <span className="min-w-0 flex-1 truncate text-[10px] text-book-text-sub" title={row.upload.file_name}>
+                        {row.upload.file_name}
+                      </span>
+                    )}
+                  </div>
                   <textarea
                     value={row.usage}
                     onChange={(event) => updateRow(row.id, { usage: event.target.value })}
@@ -797,6 +859,7 @@ export const ReferenceMediaWorkspace: React.FC<{
             );
           })}
         </div>
+        {uploadError && <div className="mt-2 text-[10px] text-error">{uploadError}</div>}
       </section>
     );
   };
@@ -893,12 +956,12 @@ export const ReferenceMediaWorkspace: React.FC<{
                   </div>
                 </div>
               </details>
-              {!seedanceReady && (
+              {!referenceMediaSupported && (
                 <div role="status" className="rounded-xl border border-warning/40 bg-warning-bg px-2.5 py-2 text-[11px] text-warning">
                   当前视频服务不支持参考媒体生成，请先选择支持该模式的配置。
                 </div>
               )}
-              {seedanceReady && !durationLimits.configError && !durationSupported && (
+              {referenceMediaSupported && !durationLimits.configError && !durationSupported && (
                 <div role="status" className="rounded-xl border border-warning/40 bg-warning-bg px-2.5 py-2 text-[11px] text-warning">
                   当前时长不在视频服务支持范围内。
                 </div>
@@ -946,6 +1009,7 @@ export const ReferenceMediaWorkspace: React.FC<{
         trimEnd={trimEnd}
         acting={acting}
         onSelectVideo={onSelectVideo}
+        onAdoptVideo={onAdoptVideo}
         onPollVideo={onPollVideo}
         onPreviewVideoRequest={onPreviewVideoRequest}
         onToggleVideoFavorite={onToggleVideoFavorite}

@@ -1,5 +1,5 @@
-use super::super::*;
-use super::fixtures::{character_sync_context_for_test, discovery_chapter};
+use super::fixtures::{character_profile_for_test, discovery_chapter};
+use super::prelude::*;
 use serde_json::json;
 use std::collections::BTreeSet;
 
@@ -86,14 +86,14 @@ fn analysis_sync_character_names_include_discovery_result() {
 
 #[test]
 fn profile_sync_skip_reason_skips_future_synced_profile() {
-    let mut context = character_sync_context_for_test("陈恪");
-    context.profile.last_synced_chapter = 3;
+    let mut profile = character_profile_for_test("陈恪");
+    profile.last_synced_chapter = 3;
 
     assert_eq!(
-        profile_sync_skip_reason(&context.profile, 2),
+        profile_sync_skip_reason(&profile, 2),
         Some("already_synced_past_target")
     );
-    let summary = sync_skip_summary(&context.profile, 2);
+    let summary = sync_skip_summary(&profile, 2);
     assert_eq!(summary["synced_chapter"], 3);
     assert_eq!(summary["target_chapter"], 2);
     assert_eq!(summary["reason"], "already_synced_past_target");
@@ -101,18 +101,18 @@ fn profile_sync_skip_reason_skips_future_synced_profile() {
 
 #[test]
 fn analysis_sync_range_resyncs_already_covered_target_chapter() {
-    let mut context = character_sync_context_for_test("陈恪");
-    context.profile.last_synced_chapter = 5;
+    let mut profile = character_profile_for_test("陈恪");
+    profile.last_synced_chapter = 5;
 
-    assert_eq!(character_sync_start_chapter(&context.profile, 2), None);
+    assert_eq!(character_sync_start_chapter(&profile, 2), None);
     assert_eq!(
-        profile_sync_skip_reason(&context.profile, 2),
+        profile_sync_skip_reason(&profile, 2),
         Some("already_synced_past_target")
     );
-    assert_eq!(analysis_profile_sync_skip_reason(&context.profile, 2), None);
+    assert_eq!(analysis_profile_sync_skip_reason(&profile, 2), None);
     assert_eq!(
         character_sync_range(
-            &context.profile,
+            &profile,
             2,
             CharacterSyncRangeMode::AnalysisResyncFromTarget,
         ),
@@ -125,22 +125,22 @@ fn analysis_sync_range_resyncs_already_covered_target_chapter() {
 
 #[test]
 fn character_sync_start_chapter_respects_first_seen_chapter() {
-    let mut context = character_sync_context_for_test("西市胡商");
-    context.profile.base_attributes = json!({
+    let mut profile = character_profile_for_test("西市胡商");
+    profile.base_attributes = json!({
         "explicit_attributes": {
             "first_seen_chapter": 2
         },
         "implicit_attributes": {},
         "social_attributes": {}
     });
-    context.profile.current_state = context.profile.base_attributes.clone();
-    context.profile.last_synced_chapter = 0;
+    profile.current_state = profile.base_attributes.clone();
+    profile.last_synced_chapter = 0;
 
-    assert_eq!(profile_first_seen_chapter(&context.profile), Some(2));
-    assert_eq!(character_sync_start_chapter(&context.profile, 2), Some(2));
+    assert_eq!(profile_first_seen_chapter(&profile), Some(2));
+    assert_eq!(character_sync_start_chapter(&profile, 2), Some(2));
     assert_eq!(
         character_sync_range(
-            &context.profile,
+            &profile,
             2,
             CharacterSyncRangeMode::AnalysisResyncFromTarget,
         ),
@@ -153,32 +153,32 @@ fn character_sync_start_chapter_respects_first_seen_chapter() {
 
 #[test]
 fn character_sync_start_chapter_skips_target_before_first_seen() {
-    let mut context = character_sync_context_for_test("西市胡商");
-    context.profile.base_attributes = json!({
+    let mut profile = character_profile_for_test("西市胡商");
+    profile.base_attributes = json!({
         "explicit_attributes": {
             "first_seen_chapter": 2
         },
         "implicit_attributes": {},
         "social_attributes": {}
     });
-    context.profile.current_state = context.profile.base_attributes.clone();
-    context.profile.last_synced_chapter = 0;
+    profile.current_state = profile.base_attributes.clone();
+    profile.last_synced_chapter = 0;
 
     assert_eq!(
-        profile_sync_skip_reason(&context.profile, 1),
+        profile_sync_skip_reason(&profile, 1),
         Some("target_before_first_seen")
     );
-    assert_eq!(character_sync_start_chapter(&context.profile, 1), None);
-    let summary = sync_skip_summary(&context.profile, 1);
+    assert_eq!(character_sync_start_chapter(&profile, 1), None);
+    let summary = sync_skip_summary(&profile, 1);
     assert_eq!(summary["first_seen_chapter"], 2);
     assert_eq!(summary["reason"], "target_before_first_seen");
     assert_eq!(
-        analysis_profile_sync_skip_reason(&context.profile, 1),
+        analysis_profile_sync_skip_reason(&profile, 1),
         Some("target_before_first_seen")
     );
     assert_eq!(
         character_sync_range(
-            &context.profile,
+            &profile,
             1,
             CharacterSyncRangeMode::AnalysisResyncFromTarget,
         ),
@@ -230,13 +230,14 @@ fn validate_character_sync_target_chapter_rejects_empty_project_scope() {
 
 #[test]
 fn validate_contiguous_sync_range_accepts_complete_range() {
-    validate_contiguous_sync_range(2, 4, &[2, 3, 4]).expect("complete sync range should pass");
+    validate_contiguous_character_sync_range(2, 4, &[2, 3, 4])
+        .expect("complete sync range should pass");
 }
 
 #[test]
 fn validate_contiguous_sync_range_rejects_missing_chapters() {
-    let err =
-        validate_contiguous_sync_range(1, 4, &[1, 3]).expect_err("missing chapters should fail");
+    let err = validate_contiguous_character_sync_range(1, 4, &[1, 3])
+        .expect_err("missing chapters should fail");
 
     assert!(err.contains("同步范围不完整"));
     assert!(err.contains("第 2 章"));

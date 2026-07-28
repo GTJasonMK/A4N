@@ -5,7 +5,7 @@ use std::time::Instant;
 use a4n_capabilities::LlmClient;
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest};
-use a4n_queue::priority::{TaskPriority, TaskQueue, TaskType};
+use a4n_queue::priority::{TaskKind, TaskPriority};
 use futures::Stream;
 
 use super::super::budget::ensure_max_tokens_within_model_cap;
@@ -39,7 +39,7 @@ impl DynamicLlmProvider {
         )?;
         let planner = resolved_model.planner();
         let trace_context =
-            prepare_dynamic_llm_trace_context(&self.orchestrator, &planner, &mut request).await?;
+            prepare_dynamic_llm_trace_context(&self.facade, &planner, &mut request).await?;
         let trace_context =
             require_sidecar_business_trace(trace_context.as_ref(), "LLM sidecar stream 请求")?
                 .clone();
@@ -69,16 +69,19 @@ impl DynamicLlmProvider {
         let sidecar_request_id = sidecar_request.request_id.clone();
         let started = Instant::now();
         let submitted_id = self
-            .task_queue
-            .submit(TaskType::LlmCall, TaskPriority::Medium, None)
+            .facade
+            .queue_submit(TaskKind::LlmCall, TaskPriority::Medium, None)
             .await?;
-        let mut submitted_guard = self.task_queue.submitted_task_guard(submitted_id.clone());
+        let mut submitted_guard = self.facade.queue_submitted_task_guard(submitted_id.clone());
         let Some(permit) = self
-            .task_queue
-            .acquire_task_with_cancel(&submitted_id, tokio_util::sync::CancellationToken::new())
+            .facade
+            .queue_acquire_task_with_cancel(
+                &submitted_id,
+                tokio_util::sync::CancellationToken::new(),
+            )
             .await?
         else {
-            let cancel_result = self.task_queue.cancel(&submitted_id).await;
+            let cancel_result = self.facade.queue_cancel(&submitted_id).await;
             submitted_guard.disarm();
             return match cancel_result {
                 Ok(()) => Err(AppError::Cancelled),
@@ -89,18 +92,19 @@ impl DynamicLlmProvider {
         };
         submitted_guard.disarm();
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, rx) = tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
         let stream_tx = tx.clone();
         tokio::spawn(async move {
             if let Err(error) = client.stream(sidecar_request, stream_tx.clone()).await {
-                let _ = stream_tx.send(sidecar_failed_event(sidecar_request_id, error));
+                let _ = stream_tx
+                    .send(sidecar_failed_event(sidecar_request_id, error))
+                    .await;
             }
         });
 
         Ok(Box::pin(QueueTrackedSidecarLlmStream::new(
             rx,
-            self.orchestrator.clone(),
-            self.task_queue.clone(),
+            self.facade.clone(),
             permit,
             Some(trace_context),
             model_name,

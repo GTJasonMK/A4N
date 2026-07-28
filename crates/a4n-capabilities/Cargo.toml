@@ -3,6 +3,9 @@ name = "a4n-capabilities"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+test-support = []
+
 [dependencies]
 a4n-export-core = { path = "../a4n-export-core" }
 a4n-import-core = { path = "../a4n-import-core" }

@@ -2,7 +2,6 @@ mod batch;
 mod contracts;
 mod epub;
 mod pdf;
-mod rules;
 mod scopes;
 mod text;
 
@@ -21,6 +20,3 @@ pub use scopes::{
 pub use text::{
     export_characters_json_data, export_markdown_data, export_outline_json_data, export_txt_data,
 };
-
-#[cfg(test)]
-mod tests;

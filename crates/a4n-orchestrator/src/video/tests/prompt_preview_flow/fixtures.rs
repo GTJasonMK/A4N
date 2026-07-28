@@ -68,6 +68,7 @@ fn preview_options() -> ChapterVideoPromptOptions {
         style: "电影感写实".to_string(),
         prompt_output_language: PromptOutputLanguage::ZhCn,
         prompt_batch_size: 1,
+        target_shot_number: None,
         duration_secs: 4,
         duration_secs_options: vec![4],
         aspect_ratio: "16:9".to_string(),

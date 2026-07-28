@@ -1,7 +1,50 @@
 use a4n_core::config::app_config::AppConfig;
-use sea_orm::DatabaseConnection;
-#[cfg(not(feature = "migration"))]
-use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+use sea_orm::{
+    ConnectOptions, ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, Statement,
+};
+use std::time::Duration;
+
+const GENERATION_OWNER_LOCK_NAMESPACE: i32 = 1_093_946_951;
+const GENERATION_OWNER_LOCK_KEY: i32 = 1;
+
+pub(super) async fn acquire_generation_owner_lock(
+    database_url: &str,
+) -> Result<DatabaseConnection, a4n_core::error::AppError> {
+    let mut options = ConnectOptions::new(database_url.to_string());
+    options
+        .max_connections(1)
+        .min_connections(1)
+        .idle_timeout(Duration::from_secs(10 * 365 * 24 * 60 * 60))
+        .max_lifetime(Duration::from_secs(10 * 365 * 24 * 60 * 60));
+    let db = Database::connect(options)
+        .await
+        .map_err(a4n_core::error::AppError::Database)?;
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT pg_try_advisory_lock($1, $2) AS acquired",
+            [
+                GENERATION_OWNER_LOCK_NAMESPACE.into(),
+                GENERATION_OWNER_LOCK_KEY.into(),
+            ],
+        ))
+        .await
+        .map_err(a4n_core::error::AppError::Database)?
+        .ok_or_else(|| {
+            a4n_core::error::AppError::ConfigError(
+                "generation Host owner lock 查询未返回结果".to_string(),
+            )
+        })?;
+    let acquired: bool = row
+        .try_get("", "acquired")
+        .map_err(a4n_core::error::AppError::Database)?;
+    if !acquired {
+        return Err(a4n_core::error::AppError::ConfigError(
+            "同一 PostgreSQL 数据库已有 generation Host owner".to_string(),
+        ));
+    }
+    Ok(db)
+}
 
 #[cfg(feature = "migration")]
 pub(super) async fn run_startup_migrations(
@@ -58,4 +101,15 @@ pub(super) fn validate_runtime_config(config: &AppConfig) -> Result<(), a4n_core
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generation_owner_lock_key_is_fixed() {
+        assert_eq!(GENERATION_OWNER_LOCK_NAMESPACE, 1_093_946_951);
+        assert_eq!(GENERATION_OWNER_LOCK_KEY, 1);
+    }
 }

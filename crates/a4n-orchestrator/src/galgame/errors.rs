@@ -5,7 +5,7 @@ use a4n_db::galgame::{
     GalgameProjectRecordError, GalgameSceneRecordError, GalgameScriptRecordError,
 };
 
-pub(super) fn galgame_project_record_error(err: GalgameProjectRecordError) -> AppError {
+pub(crate) fn galgame_project_record_error(err: GalgameProjectRecordError) -> AppError {
     match err {
         GalgameProjectRecordError::NotFound(message) => AppError::NotFound(message),
         GalgameProjectRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
@@ -13,7 +13,7 @@ pub(super) fn galgame_project_record_error(err: GalgameProjectRecordError) -> Ap
     }
 }
 
-pub(super) fn galgame_context_record_error(err: GalgameContextRecordError) -> AppError {
+pub(crate) fn galgame_context_record_error(err: GalgameContextRecordError) -> AppError {
     match err {
         GalgameContextRecordError::NotFound(message) => AppError::NotFound(message),
         GalgameContextRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
@@ -21,14 +21,14 @@ pub(super) fn galgame_context_record_error(err: GalgameContextRecordError) -> Ap
     }
 }
 
-pub(super) fn galgame_script_record_error(err: GalgameScriptRecordError) -> AppError {
+pub(crate) fn galgame_script_record_error(err: GalgameScriptRecordError) -> AppError {
     match err {
         GalgameScriptRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
         GalgameScriptRecordError::Database(err) => AppError::Database(err),
     }
 }
 
-pub(super) fn galgame_asset_plan_spec_record_error(
+pub(crate) fn galgame_asset_plan_spec_record_error(
     err: GalgameAssetPlanSpecRecordError,
 ) -> AppError {
     match err {
@@ -40,7 +40,7 @@ pub(super) fn galgame_asset_plan_spec_record_error(
     }
 }
 
-pub(super) fn galgame_generation_record_error(err: GalgameGenerationRecordError) -> AppError {
+pub(crate) fn galgame_generation_record_error(err: GalgameGenerationRecordError) -> AppError {
     match err {
         GalgameGenerationRecordError::NotFound(message) => AppError::NotFound(message),
         GalgameGenerationRecordError::InvalidArgument(message) => {
@@ -50,7 +50,7 @@ pub(super) fn galgame_generation_record_error(err: GalgameGenerationRecordError)
     }
 }
 
-pub(super) fn galgame_media_record_error(err: GalgameMediaRecordError) -> AppError {
+pub(crate) fn galgame_media_record_error(err: GalgameMediaRecordError) -> AppError {
     match err {
         GalgameMediaRecordError::NotFound(message) => AppError::NotFound(message),
         GalgameMediaRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
@@ -58,7 +58,7 @@ pub(super) fn galgame_media_record_error(err: GalgameMediaRecordError) -> AppErr
     }
 }
 
-pub(super) fn galgame_line_record_error(err: GalgameLineRecordError) -> AppError {
+pub(crate) fn galgame_line_record_error(err: GalgameLineRecordError) -> AppError {
     match err {
         GalgameLineRecordError::NotFound(message) => AppError::NotFound(message),
         GalgameLineRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
@@ -66,7 +66,7 @@ pub(super) fn galgame_line_record_error(err: GalgameLineRecordError) -> AppError
     }
 }
 
-pub(super) fn galgame_line_reorder_record_error(err: GalgameLineReorderRecordError) -> AppError {
+pub(crate) fn galgame_line_reorder_record_error(err: GalgameLineReorderRecordError) -> AppError {
     match err {
         GalgameLineReorderRecordError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
@@ -75,7 +75,7 @@ pub(super) fn galgame_line_reorder_record_error(err: GalgameLineReorderRecordErr
     }
 }
 
-pub(super) fn galgame_scene_record_error(err: GalgameSceneRecordError) -> AppError {
+pub(crate) fn galgame_scene_record_error(err: GalgameSceneRecordError) -> AppError {
     match err {
         GalgameSceneRecordError::NotFound(message) => AppError::NotFound(message),
         GalgameSceneRecordError::Database(err) => AppError::Database(err),

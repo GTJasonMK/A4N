@@ -6,6 +6,8 @@ use a4n_prompt::engine::PromptEntry;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use sea_orm::*;
 
+use crate::project::{PROJECT_KIND_TEXT, SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT};
+
 use super::super::ChapterGenerationService;
 
 pub(super) async fn setup_db() -> DatabaseConnection {
@@ -48,6 +50,9 @@ pub(super) async fn insert_project(db: &DatabaseConnection) -> novel_project::Mo
         title: Set("章节清理测试".to_string()),
         description: Set("验证空章节不会残留".to_string()),
         project_type: Set("novel_long".to_string()),
+        project_kind: Set(PROJECT_KIND_TEXT.to_string()),
+        source_mode: Set(SOURCE_MODE_SELF.to_string()),
+        source_sync_status: Set(SOURCE_SYNC_CURRENT.to_string()),
         status: Set("writing".to_string()),
         target_chapters: Set(10),
         current_chapter: Set(0),

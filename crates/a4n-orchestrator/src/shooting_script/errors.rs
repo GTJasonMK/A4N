@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_db::{project::ResolveChapterSourceError, shooting_script::ShootingScriptDbError};
 
-pub(super) fn resolve_source_error(error: ResolveChapterSourceError) -> AppError {
+pub(crate) fn resolve_source_error(error: ResolveChapterSourceError) -> AppError {
     match error {
         ResolveChapterSourceError::InvalidArgument(message) => AppError::InvalidArgument(message),
         ResolveChapterSourceError::InvalidState(message) => AppError::InvalidState {
@@ -13,7 +13,7 @@ pub(super) fn resolve_source_error(error: ResolveChapterSourceError) -> AppError
     }
 }
 
-pub(super) fn shooting_script_db_error(error: ShootingScriptDbError) -> AppError {
+pub(crate) fn shooting_script_db_error(error: ShootingScriptDbError) -> AppError {
     match error {
         ShootingScriptDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
         ShootingScriptDbError::InvalidState(message) => AppError::InvalidState {

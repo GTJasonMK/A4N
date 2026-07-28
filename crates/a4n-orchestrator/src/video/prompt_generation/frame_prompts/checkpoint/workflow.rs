@@ -21,7 +21,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn load_completed_v
     let input_fingerprint_sha256 =
         generation_checkpoint_fingerprint_sha256(input_fingerprint_json)?;
     completed_workflow_checkpoint_by_fingerprint(
-        service.db.connection(),
+        service.database.connection(),
         workflow_run_id,
         step_key,
         &input_fingerprint_sha256,
@@ -51,7 +51,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn save_completed_v
     let input_fingerprint_sha256 =
         generation_checkpoint_fingerprint_sha256(&input_fingerprint_json)?;
     upsert_workflow_checkpoint(
-        service.db.connection(),
+        service.database.connection(),
         UpsertWorkflowCheckpointInput {
             workflow_run_id,
             step_key,

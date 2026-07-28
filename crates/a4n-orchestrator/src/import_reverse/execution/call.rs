@@ -23,7 +23,7 @@ pub(super) async fn execute_import_reverse_call(
         fingerprint_json,
     } = prepared;
     if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-        context.db.connection(),
+        context.database.connection(),
         workflow_run_id,
         &call_key,
         &fingerprint_json,
@@ -36,7 +36,7 @@ pub(super) async fn execute_import_reverse_call(
         return restored_import_reverse_checkpoint(checkpoint_json, &prompt_name);
     }
 
-    let response = context.llm.chat(request.clone()).await?;
+    let response = context.stream_complete_llm(request.clone()).await?;
     if is_truncated_finish_reason(response.finish_reason.as_deref()) {
         return Err(AppError::InvalidArgument(format!(
             "{prompt_name} 输出达到当前导入反推 max_tokens 上限，返回 JSON 被截断；请在设置页调大对应输出档位，或缩短导入样本后重试"
@@ -71,7 +71,7 @@ pub(super) async fn execute_import_reverse_call(
         .transpose()
         .map_err(AppError::Serialization)?;
     workflow::save_completed_llm_call_checkpoint(
-        context.db.connection(),
+        context.database.connection(),
         CompletedLlmCallCheckpointInput {
             workflow_run_id,
             call_key,

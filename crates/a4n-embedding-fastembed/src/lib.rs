@@ -18,6 +18,7 @@ pub use self::download::{
 pub use self::models::{
     DEFAULT_FASTEMBED_MODEL, FastEmbedLocalModel, delete_fastembed_model,
     fastembed_model_dimension, list_fastembed_local_models,
+    remove_incomplete_fastembed_model_caches,
 };
 pub use self::provider::FastEmbedProvider;
 

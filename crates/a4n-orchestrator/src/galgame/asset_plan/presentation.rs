@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-const GALGAME_CG_IMPORTANCE: &[&str] = &["normal", "high", "critical"];
+use super::super::GALGAME_CG_IMPORTANCE;
 
 #[derive(Debug)]
 pub(in crate::galgame) struct GalgameEventCgDirective {

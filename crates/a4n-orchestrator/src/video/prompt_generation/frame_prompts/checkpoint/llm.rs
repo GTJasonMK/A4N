@@ -21,7 +21,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn load_completed_v
     input_fingerprint_json: &Value,
 ) -> Result<Option<Value>, AppError> {
     let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-        service.db.connection(),
+        service.database.connection(),
         workflow_run_id,
         step_key,
         input_fingerprint_json,
@@ -82,7 +82,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn save_completed_v
             .unwrap_or(Value::Null),
     );
     workflow::save_completed_llm_call_checkpoint(
-        service.db.connection(),
+        service.database.connection(),
         CompletedLlmCallCheckpointInput {
             workflow_run_id,
             call_key: step_key,
@@ -117,7 +117,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn save_failed_vide
             .map_err(workflow_checkpoint_contract_app_error)?;
     let request_json = context_aware_chat_request_trace_json(input.request)?;
     upsert_workflow_checkpoint(
-        service.db.connection(),
+        service.database.connection(),
         UpsertWorkflowCheckpointInput {
             workflow_run_id: input.workflow_run_id,
             step_key: input.call_key.clone(),

@@ -16,8 +16,11 @@ pub(super) async fn run_script_adaptation_stage(
     branch_plan_json: &Value,
 ) -> Result<Value, AppError> {
     let stage = GalgamePipelineStartStage::ScriptAdaptation;
-    ensure_galgame_pipeline_not_cancelled(&execution.service.db, execution.options.workflow_run_id)
-        .await?;
+    ensure_galgame_pipeline_not_cancelled(
+        &execution.service.database,
+        execution.options.workflow_run_id,
+    )
+    .await?;
     execution
         .service
         .report_pipeline_progress(

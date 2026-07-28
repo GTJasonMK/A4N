@@ -10,6 +10,7 @@ const TEMP_MEDIA_TTL_ENV: &str = "A4N_TEMP_MEDIA_TTL_MINUTES";
 const TEMP_MEDIA_MAX_BYTES_ENV: &str = "A4N_TEMP_MEDIA_MAX_BYTES";
 const DEFAULT_TEMP_MEDIA_TTL_MINUTES: i64 = 360;
 const DEFAULT_TEMP_MEDIA_MAX_BYTES: usize = 20 * 1024 * 1024;
+const MAX_TEMP_MEDIA_TTL_SECONDS: i64 = 24 * 60 * 60;
 
 pub(super) fn temp_media_upload_token() -> Result<String, ApiError> {
     optional_non_empty_env_string(TEMP_MEDIA_UPLOAD_TOKEN_ENV)
@@ -57,11 +58,48 @@ pub(super) fn normalize_temp_media_public_url(raw: &str) -> Result<String, Strin
 pub(super) fn temp_media_ttl_minutes() -> Result<i64, String> {
     let value =
         optional_non_empty_env_string(TEMP_MEDIA_TTL_ENV).map_err(|error| error.to_string())?;
-    parse_positive_i64_config(
+    let minutes = parse_positive_i64_config(
         TEMP_MEDIA_TTL_ENV,
         value.as_deref(),
         DEFAULT_TEMP_MEDIA_TTL_MINUTES,
-    )
+    )?;
+    if minutes > MAX_TEMP_MEDIA_TTL_SECONDS / 60 {
+        return Err(format!(
+            "{TEMP_MEDIA_TTL_ENV} 不能超过 {} 分钟",
+            MAX_TEMP_MEDIA_TTL_SECONDS / 60
+        ));
+    }
+    Ok(minutes)
+}
+
+pub(super) fn temp_media_effective_ttl_seconds(requested: i64) -> Result<i64, String> {
+    let configured = temp_media_ttl_minutes()?;
+    effective_temp_media_ttl_seconds(requested, configured)
+}
+
+pub(super) fn effective_temp_media_ttl_seconds(
+    requested: i64,
+    configured_minutes: i64,
+) -> Result<i64, String> {
+    if !(1..=MAX_TEMP_MEDIA_TTL_SECONDS).contains(&requested) {
+        return Err(format!(
+            "expires_in_seconds 必须在 1 到 {MAX_TEMP_MEDIA_TTL_SECONDS} 之间"
+        ));
+    }
+    let configured = configured_minutes
+        .checked_mul(60)
+        .ok_or_else(|| "临时媒体 TTL 配置超出整数范围".to_string())?;
+    if !(1..=MAX_TEMP_MEDIA_TTL_SECONDS).contains(&configured) {
+        return Err(format!(
+            "服务端临时媒体 TTL 必须在 1 到 {MAX_TEMP_MEDIA_TTL_SECONDS} 秒之间"
+        ));
+    }
+    if requested < configured {
+        return Err(format!(
+            "expires_in_seconds 不能短于服务端临时媒体 TTL：{requested} < {configured}"
+        ));
+    }
+    Ok(configured)
 }
 
 pub(super) fn temp_media_max_bytes() -> Result<usize, String> {

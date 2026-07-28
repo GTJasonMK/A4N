@@ -19,7 +19,7 @@ impl OrchestratorContext {
     ) -> Result<GalgameScriptDetail, AppError> {
         let context = self.load_galgame_context(project_id).await?;
         let read_model = a4n_db::galgame::galgame_script_detail_read_model(
-            self.db.connection(),
+            self.database.connection(),
             context.project.id,
         )
         .await
@@ -30,7 +30,7 @@ impl OrchestratorContext {
 }
 
 /// 将 DB 层剧本详情 read model 装配为对外 `GalgameScriptDetail`。
-pub(in crate::galgame) fn galgame_script_detail_from_read_model(
+pub(crate) fn galgame_script_detail_from_read_model(
     read_model: GalgameScriptDetailReadModel,
 ) -> Result<GalgameScriptDetail, AppError> {
     let GalgameScriptDetailReadModel {
@@ -89,7 +89,7 @@ pub(in crate::galgame) fn galgame_script_detail_from_read_model(
     })
 }
 
-pub(in crate::galgame) fn galgame_media_binding_summaries(
+pub(crate) fn galgame_media_binding_summaries(
     bindings: Vec<media_binding::Model>,
     assets: &BTreeMap<i64, media_asset::Model>,
 ) -> Result<Vec<GalgameMediaBindingSummary>, AppError> {

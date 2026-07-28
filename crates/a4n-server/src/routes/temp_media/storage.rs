@@ -8,7 +8,16 @@ use super::config::temp_media_ttl_minutes;
 const TEMP_MEDIA_DIR: &str = "temp-media/video-inputs";
 
 pub(super) fn temp_media_dir(state: &ServerState) -> PathBuf {
-    storage_paths::data_dir_path(state.runtime()).join(TEMP_MEDIA_DIR)
+    storage_paths::data_dir_path(state.runtime().data_dir()).join(TEMP_MEDIA_DIR)
+}
+
+pub(super) fn find_temp_media_path(state: &ServerState, artifact_id: &str) -> Option<PathBuf> {
+    [
+        "png", "jpg", "webp", "mp4", "mov", "webm", "mp3", "wav", "m4a", "ogg",
+    ]
+    .into_iter()
+    .map(|extension| temp_media_dir(state).join(format!("{artifact_id}.{extension}")))
+    .find(|path| path.is_file())
 }
 
 pub(super) fn is_expired_file(path: &Path) -> Result<bool, String> {

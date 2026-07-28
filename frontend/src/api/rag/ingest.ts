@@ -25,18 +25,26 @@ export const formatRagIngestResultSummary = (result: RagIngestResult): string =>
 export async function ragIngestAll(
   projectId: Id,
   taskId?: string | null,
+  rebuild = false,
 ): Promise<RagIngestResult> {
   if (canUseLocalDesktopEmbedding()) {
-    return ragIngestAllWithLocalDesktopEmbedding(projectId);
+    return ragIngestAllWithLocalDesktopEmbedding(projectId, rebuild);
   }
   return apiInvoke<RagIngestResult>("rag_ingest_all", {
     userId: currentUserId(),
     projectId: idNum(projectId),
+    rebuild,
     taskId: taskId ?? null,
   });
 }
 
-async function ragIngestAllWithLocalDesktopEmbedding(projectId: Id): Promise<RagIngestResult> {
+export const ragRebuildAll = (projectId: Id, taskId?: string | null) =>
+  ragIngestAll(projectId, taskId, true);
+
+async function ragIngestAllWithLocalDesktopEmbedding(
+  projectId: Id,
+  rebuild: boolean,
+): Promise<RagIngestResult> {
   const projectIdNum = idNum(projectId);
   const embeddingConfig = activeLocalEmbeddingConfig();
   if (!embeddingConfig) throw new Error("请先设置默认 Embedding 配置");
@@ -44,6 +52,7 @@ async function ragIngestAllWithLocalDesktopEmbedding(projectId: Id): Promise<Rag
   const prepared = await apiInvoke<ClientRagIngestPrepareOutput>("rag_prepare_ingest_all", {
     userId: currentUserId(),
     projectId: projectIdNum,
+    rebuild,
   });
 
   const uploaded: Array<{ chunk_id: string; embedding: number[] }> = [];

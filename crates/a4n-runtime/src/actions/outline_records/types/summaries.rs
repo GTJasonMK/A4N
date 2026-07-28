@@ -1,4 +1,5 @@
 use a4n_core::models::chapter::{chapter_outline, part_outline};
+pub use a4n_orchestrator::outline::OutlineGenerationProgressSummary as GenerationProgressSummary;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -16,14 +17,6 @@ pub struct PartOutlineSummary {
     pub character_focus: Option<Value>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenerationProgressSummary {
-    pub total_parts: u64,
-    pub completed_parts: u64,
-    pub total_chapter_outlines: u64,
-    pub completed_chapter_outlines: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

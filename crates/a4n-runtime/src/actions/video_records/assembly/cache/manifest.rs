@@ -100,24 +100,3 @@ fn file_modified_unix_millis(metadata: &std::fs::Metadata) -> Result<u64, String
         .map_err(|e| format!("文件修改时间早于 UNIX_EPOCH：{e}"))?;
     u64::try_from(duration.as_millis()).map_err(|_| "文件修改时间超过可记录范围".to_string())
 }
-
-pub(in crate::actions::video_records) fn assembly_dimensions(clips: &[AssemblyClip]) -> (i32, i32) {
-    let first = clips.first();
-    (
-        even_positive_dimension(first.map(|clip| clip.width), 1280),
-        even_positive_dimension(first.map(|clip| clip.height), 720),
-    )
-}
-
-pub(in crate::actions::video_records) fn assembly_fps(clips: &[AssemblyClip]) -> i32 {
-    clips
-        .first()
-        .map(|clip| clip.fps)
-        .filter(|fps| *fps > 0)
-        .unwrap_or(24)
-}
-
-fn even_positive_dimension(value: Option<i32>, default_value: i32) -> i32 {
-    let value = value.filter(|value| *value > 0).unwrap_or(default_value);
-    if value % 2 == 0 { value } else { value + 1 }
-}

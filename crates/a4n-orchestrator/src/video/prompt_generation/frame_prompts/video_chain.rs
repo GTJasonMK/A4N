@@ -48,6 +48,7 @@ async fn generate_chapter_video_prompt_chain(
         source_metadata,
         regenerate_existing,
         prompt_batch_size,
+        target_shot_number,
         style,
         prompt_output_language,
         duration_secs,
@@ -82,6 +83,13 @@ async fn generate_chapter_video_prompt_chain(
         .iter()
         .map(|segment| (segment.segment_number, segment))
         .collect::<HashMap<_, _>>();
+    if let Some(target) = target_shot_number
+        && !segment_by_number.contains_key(&target)
+    {
+        return Err(AppError::InvalidArgument(format!(
+            "片段规划中不存在目标片段 {target}"
+        )));
+    }
 
     let PreparedVideoPromptReuse {
         generation_limit,
@@ -141,6 +149,7 @@ async fn generate_chapter_video_prompt_chain(
             existing_generated_video_prompts: &existing_generated_video_prompts,
             matching_generated_video_shots: &matching_generated_video_shots,
             regenerate_existing,
+            target_shot_number,
         },
         &mut progress,
         &mut chunks,

@@ -52,21 +52,61 @@ pub async fn assemble_chapter_videos(
     }
 
     if context.cache_matches()? {
-        return context.preview(&state.config.data_dir, true);
+        return context.preview(state.data_dir(), true);
     }
 
-    persist_assembly_preview_cache(&context.output_path, &context.manifest_path, || {
-        run_ffmpeg_assemble_videos(
-            &context.clips,
-            &context.output_path,
-            context.manifest.width,
-            context.manifest.height,
-            context.manifest.fps,
-            &context.manifest,
-        )?;
-        write_assembly_cache_manifest(&context.manifest_path, &context.manifest)?;
-        context.preview(&state.config.data_dir, false)
-    })
+    let result =
+        persist_assembly_preview_cache(&context.output_path, &context.manifest_path, || {
+            run_ffmpeg_assemble_videos(
+                &context.clips,
+                &context.output_path,
+                context.manifest.width,
+                context.manifest.height,
+                context.manifest.fps,
+                &context.manifest,
+            )?;
+            write_assembly_cache_manifest(&context.manifest_path, &context.manifest)?;
+            context.preview(state.data_dir(), false)
+        });
+    match result {
+        Ok(value) => Ok(value),
+        Err(error) => {
+            let paths = [
+                data_dir_relative_file_path(state.data_dir(), &context.output_path, "成片预览文件"),
+                data_dir_relative_file_path(
+                    state.data_dir(),
+                    &context.manifest_path,
+                    "成片预览缓存清单",
+                ),
+            ]
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>();
+            match paths {
+                Ok(paths) => {
+                    if let Err(cleanup_error) = state
+                        .project_family()
+                        .insert_file_artifact_cleanup_intent(
+                            project_id,
+                            format!(
+                                "assembly-cache:{}:{}:{}",
+                                project_id, chapter_id, context.manifest.workflow_mode
+                            ),
+                            paths,
+                        )
+                        .await
+                    {
+                        return Err(format!(
+                            "{error}；写入 assembly cache cleanup intent 失败：{cleanup_error}"
+                        ));
+                    }
+                    Err(error)
+                }
+                Err(path_error) => Err(format!(
+                    "{error}；记录 assembly cache cleanup 路径失败：{path_error}"
+                )),
+            }
+        }
+    }
 }
 
 pub async fn load_cached_assembled_chapter_video_preview(
@@ -91,7 +131,7 @@ pub async fn load_cached_assembled_chapter_video_preview(
     if !context.cache_matches()? {
         return Ok(None);
     }
-    context.preview(&state.config.data_dir, true).map(Some)
+    context.preview(state.data_dir(), true).map(Some)
 }
 
 fn read_assembled_video_preview(

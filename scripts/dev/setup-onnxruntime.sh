@@ -39,9 +39,26 @@ case "$(uname -s)-$(uname -m)" in
     Linux-x86_64)
         ARCHIVE_NAME="onnxruntime-linux-x64-${VERSION}.tgz"
         ARCHIVE_SHA256="43725474ba5663642e17684717946693850e2005efbd724ac72da278fead25e6"
+        ARCHIVE_FORMAT="tgz"
+        SOURCE_DIR_NAME="onnxruntime-linux-x64-${VERSION}"
+        RUNTIME_LIBRARY="libonnxruntime.so"
+        ;;
+    Darwin-arm64)
+        ARCHIVE_NAME="onnxruntime-osx-arm64-${VERSION}.tgz"
+        ARCHIVE_SHA256="0af4fa503e8ea285245b47ee42d0a7461b8156a81270857da0c1d4ecf858abde"
+        ARCHIVE_FORMAT="tgz"
+        SOURCE_DIR_NAME="onnxruntime-osx-arm64-${VERSION}"
+        RUNTIME_LIBRARY="libonnxruntime.dylib"
+        ;;
+    MINGW*-x86_64|MSYS*-x86_64|CYGWIN*-x86_64)
+        ARCHIVE_NAME="onnxruntime-win-x64-${VERSION}.zip"
+        ARCHIVE_SHA256="8e3e9c826375352e29cb2614fe44f3d7a4b0ff7b8028ad7a456af9d949a7e8b0"
+        ARCHIVE_FORMAT="zip"
+        SOURCE_DIR_NAME="onnxruntime-win-x64-${VERSION}"
+        RUNTIME_LIBRARY="onnxruntime.dll"
         ;;
     *)
-        die "自动安装目前仅支持 Linux x86_64；请手动安装 ONNX Runtime ${VERSION} 并设置 A4N_ONNXRUNTIME_ROOT"
+        die "自动安装目前仅支持 Linux/Windows x86_64 和 macOS arm64；请手动安装 ONNX Runtime ${VERSION} 并设置 A4N_ONNXRUNTIME_ROOT"
         ;;
 esac
 
@@ -57,8 +74,11 @@ if [[ -e "$INSTALL_DIR" ]] && ! $FORCE; then
     die "安装目录已存在但内容不完整或版本不匹配: $INSTALL_DIR；确认无需保留后使用 --force 重装"
 fi
 
-require_command sha256sum
-require_command tar
+if [[ "$ARCHIVE_FORMAT" == "zip" ]]; then
+    require_command unzip
+else
+    require_command tar
+fi
 
 parent_dir="$(dirname "$INSTALL_DIR")"
 mkdir -p "$parent_dir"
@@ -79,7 +99,13 @@ else
     die "未找到下载工具: wget 或 curl"
 fi
 
-actual_sha256="$(sha256sum "$archive" | awk '{print $1}')"
+if command -v sha256sum >/dev/null 2>&1; then
+    actual_sha256="$(sha256sum "$archive" | awk '{print $1}')"
+elif command -v shasum >/dev/null 2>&1; then
+    actual_sha256="$(shasum -a 256 "$archive" | awk '{print $1}')"
+else
+    die "未找到 SHA-256 工具: sha256sum 或 shasum"
+fi
 if [[ "$actual_sha256" != "$ARCHIVE_SHA256" ]]; then
     die "ONNX Runtime 安装包校验失败：得到 $actual_sha256，预期 $ARCHIVE_SHA256"
 fi
@@ -87,10 +113,14 @@ log_ok "SHA-256 校验通过"
 
 extract_dir="$work_dir/extracted"
 mkdir -p "$extract_dir"
-tar -xzf "$archive" -C "$extract_dir"
-source_dir="$extract_dir/onnxruntime-linux-x64-${VERSION}"
+if [[ "$ARCHIVE_FORMAT" == "zip" ]]; then
+    unzip -q "$archive" -d "$extract_dir"
+else
+    tar -xzf "$archive" -C "$extract_dir"
+fi
+source_dir="$extract_dir/$SOURCE_DIR_NAME"
 [[ -r "$source_dir/VERSION_NUMBER" ]] || die "安装包缺少 VERSION_NUMBER"
-[[ -r "$source_dir/lib/libonnxruntime.so" ]] || die "安装包缺少 libonnxruntime.so"
+[[ -r "$source_dir/lib/$RUNTIME_LIBRARY" ]] || die "安装包缺少 $RUNTIME_LIBRARY"
 
 if [[ -e "$INSTALL_DIR" ]]; then
     rm -rf "$INSTALL_DIR"

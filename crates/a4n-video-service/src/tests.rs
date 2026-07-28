@@ -3,9 +3,8 @@ use crate::events::*;
 use crate::protocol::*;
 use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
-    PROTOCOL_VERSION, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
-    ServiceStatus, ServiceTaskEventKind,
-    VIDEO_PROVIDER_CAPABILITY_VERSION as VIDEO_CAPABILITY_VERSION,
+    CapabilityTaskEventKind, PROTOCOL_VERSION, ServiceError, ServiceErrorCode, ServiceRequest,
+    ServiceResponse, ServiceStatus, VIDEO_PROVIDER_CAPABILITY_VERSION as VIDEO_CAPABILITY_VERSION,
 };
 use a4n_video::VideoGenerationRequest;
 use serde_json::json;
@@ -13,7 +12,7 @@ use serde_json::json;
 #[test]
 fn video_generation_events_distinguish_submission_completion_from_failure() {
     let progress = progress_generation_event("task-1".to_string(), 1);
-    assert_eq!(progress.event_kind, ServiceTaskEventKind::Progress);
+    assert_eq!(progress.event_kind, CapabilityTaskEventKind::Progress);
     assert_eq!(
         progress.payload.as_ref().unwrap()["message"],
         "video sidecar 正在提交 provider 请求"
@@ -30,7 +29,7 @@ fn video_generation_events_distinguish_submission_completion_from_failure() {
         },
     )
     .expect("completed event");
-    assert_eq!(completed.event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(completed.event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(
         completed.payload.as_ref().unwrap()["provider_job_id"],
         "provider-job-1"
@@ -46,7 +45,7 @@ fn video_generation_events_distinguish_submission_completion_from_failure() {
             retryable: Some(false),
         },
     );
-    assert_eq!(failed.event_kind, ServiceTaskEventKind::Failed);
+    assert_eq!(failed.event_kind, CapabilityTaskEventKind::Failed);
     assert_eq!(failed.error.unwrap().code, ServiceErrorCode::ProviderError);
 }
 
@@ -226,6 +225,7 @@ fn video_payload(api_key: &str) -> VideoProviderPayload {
         base_url: "https://provider.example/v1".to_string(),
         api_key: api_key.to_string(),
         provider_options_json: None,
+        provider_idempotency_key_sha256: None,
         request: VideoGenerationRequest {
             prompt: "test prompt".to_string(),
             negative_prompt: None,
@@ -248,6 +248,7 @@ fn video_poll_payload(api_key: &str) -> VideoPollPayload {
         base_url: "https://provider.example/v1".to_string(),
         api_key: api_key.to_string(),
         provider_options_json: None,
+        project_id: None,
         job_id: "job-1".to_string(),
     }
 }

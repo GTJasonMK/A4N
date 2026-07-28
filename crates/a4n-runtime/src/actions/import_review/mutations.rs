@@ -10,8 +10,8 @@ pub async fn update_import_status(
 ) -> Result<ImportReviewSummary, AppError> {
     access::verify_review_access(state, user_id, review_id).await?;
     let updated = state
-        .orchestrator
-        .update_import_review_status(review_id, &input.status)
+        .import_review()
+        .update_import_review_status_validated(review_id, &input.status)
         .await?;
     projections::import_review_summary(&updated)
 }
@@ -22,7 +22,7 @@ pub async fn delete_import_review(
     review_id: i64,
 ) -> Result<(), AppError> {
     access::verify_review_access(state, user_id, review_id).await?;
-    state.orchestrator.delete_import_review(review_id).await
+    state.import_review().delete_import_review(review_id).await
 }
 
 pub async fn reject_import_review(
@@ -32,8 +32,8 @@ pub async fn reject_import_review(
 ) -> Result<ImportReviewSummary, AppError> {
     access::verify_review_access(state, user_id, review_id).await?;
     let updated = state
-        .orchestrator
-        .update_import_review_status(review_id, "rejected")
+        .import_review()
+        .reject_import_review(review_id)
         .await?;
     projections::import_review_summary(&updated)
 }

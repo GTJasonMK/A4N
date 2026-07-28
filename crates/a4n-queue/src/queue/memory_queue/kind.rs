@@ -1,4 +1,4 @@
-use crate::queue::priority::TaskType;
+use crate::queue::priority::TaskKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum QueueKind {
@@ -9,15 +9,17 @@ pub(super) enum QueueKind {
     Background,
 }
 
-pub(super) fn queue_kind_for_task_type(task_type: &TaskType) -> QueueKind {
+pub(super) fn queue_kind_for_task_type(task_type: &TaskKind) -> QueueKind {
     match task_type {
-        TaskType::LlmCall => QueueKind::Llm,
-        TaskType::ImageGeneration => QueueKind::Image,
-        TaskType::VideoGeneration | TaskType::VideoPoll | TaskType::Assembly => QueueKind::Video,
-        TaskType::EmbeddingCall | TaskType::EmbeddingDownload => QueueKind::Embedding,
-        TaskType::RagIngestion
-        | TaskType::ImportAnalysis
-        | TaskType::ExportGeneration
-        | TaskType::SourceSync => QueueKind::Background,
+        TaskKind::LlmCall | TaskKind::TextGeneration => QueueKind::Llm,
+        TaskKind::ImageGeneration => QueueKind::Image,
+        TaskKind::VideoGeneration | TaskKind::VideoPoll | TaskKind::Assembly => QueueKind::Video,
+        TaskKind::EmbeddingCall | TaskKind::EmbeddingDownload => QueueKind::Embedding,
+        TaskKind::RagIngestion
+        | TaskKind::ImportAnalysis
+        | TaskKind::ExportGeneration
+        | TaskKind::SourceSync
+        | TaskKind::GalgameGeneration
+        | TaskKind::MangaGeneration => QueueKind::Background,
     }
 }

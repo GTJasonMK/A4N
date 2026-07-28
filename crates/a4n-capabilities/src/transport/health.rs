@@ -1,17 +1,21 @@
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceHealth, validate_service_health_envelope,
+    PROTOCOL_VERSION, SIDECAR_HOST_PROTOCOL_VERSION_HEADER, ServiceError, ServiceErrorCode,
+    ServiceHealth, validate_service_health_envelope,
 };
 
 use super::HttpSidecarTransport;
-use super::errors::transport_error;
+use super::errors::{timeout_error, transport_error};
 use crate::contracts::CapabilityResult;
 
 impl HttpSidecarTransport {
     pub(crate) async fn health(&self) -> CapabilityResult<ServiceHealth> {
         validate_health_expectation(self.expected_service_name, self.expected_capability_version)?;
-        let health = self
-            .client
-            .get(self.url("/healthz"))
+        let client = self.request_client()?;
+        let health = tokio::time::timeout(self.health_timeout, async {
+            self.authorize(client.get(self.url("/healthz")).header(
+                SIDECAR_HOST_PROTOCOL_VERSION_HEADER,
+                PROTOCOL_VERSION.to_string(),
+            ))
             .send()
             .await
             .map_err(transport_error)?
@@ -19,7 +23,10 @@ impl HttpSidecarTransport {
             .map_err(transport_error)?
             .json::<ServiceHealth>()
             .await
-            .map_err(transport_error)?;
+            .map_err(transport_error)
+        })
+        .await
+        .map_err(|_| timeout_error("health request"))??;
         validate_service_health(
             &health,
             self.expected_service_name,

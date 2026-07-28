@@ -35,7 +35,7 @@ import type { ImageForm } from "./image/types";
  *
  * 注意：A4N 后端 image_gen_config 只存 name / backend / base_url / api_key_encrypted /
  * model / max_concurrent / default_width / default_height —— 没有 sampling steps 等推理参数。
- * 调用方在每次 generate_scene_image / generate_page_image 时按需传递。
+ * 调用方在每次 image_scene / image_page 生成时按需传递。
  */
 
 interface ImageTabProps {

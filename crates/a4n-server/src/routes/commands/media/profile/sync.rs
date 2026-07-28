@@ -1,4 +1,4 @@
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use serde_json::Value;
 
 use super::super::super::{
@@ -26,14 +26,14 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
     let task = register_web_task(
         state,
         task_id.clone(),
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         scope.project_id,
         scope.total,
         "正在准备场景档案同步",
     )
     .await;
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-    let reporter = web_fire_and_forget_progress_reporter(state, task.clone(), task_id.clone());
+    let reporter = web_fire_and_forget_progress_reporter(task.clone());
     let progress = scene_profile_sync_actions::SceneProfileSyncProgress::new(
         Some(&reporter),
         cancel_token.as_ref(),
@@ -53,7 +53,6 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
             result,
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),
         ),
-        "场景档案同步完成",
     )
     .await?;
     Ok(value)

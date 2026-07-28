@@ -61,11 +61,15 @@ impl OrchestratorContext {
             trace_context.call_key = Some(call_key.clone());
             trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
         }
-        workflow::mark_workflow_current_step(self.db.connection(), workflow_run_id, &call_key)
-            .await
-            .map_err(workflow_write_app_error)?;
+        workflow::mark_workflow_current_step(
+            self.database.connection(),
+            workflow_run_id,
+            &call_key,
+        )
+        .await
+        .map_err(workflow_write_app_error)?;
         let chapters = if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-            self.db.connection(),
+            self.database.connection(),
             workflow_run_id,
             &call_key,
             &fingerprint_json,
@@ -78,7 +82,8 @@ impl OrchestratorContext {
                     .map_err(workflow_checkpoint_contract_app_error)?;
             restored_beat_mapping_checkpoint(checkpoint_json, &prepared)?
         } else {
-            let response = self.llm.chat(request.clone()).await?;
+            let response =
+                crate::outline::execute_outline_llm_call(self, request.clone(), &call_key).await?;
             let content = response.message.content;
             ensure_response_not_truncated(
                 response.finish_reason.as_deref(),
@@ -112,7 +117,7 @@ impl OrchestratorContext {
             let repair_artifact = repaired.artifact_summary();
             let chapters = repaired.output;
             workflow::save_completed_llm_call_checkpoint(
-                self.db.connection(),
+                self.database.connection(),
                 CompletedLlmCallCheckpointInput {
                     workflow_run_id,
                     call_key,
@@ -179,7 +184,7 @@ impl OrchestratorContext {
             )?;
         }
         sync_chapter_outlines_by_number_transaction(
-            &self.db,
+            &self.database,
             project_id,
             Some(prepared.part.id),
             chapters,

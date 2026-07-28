@@ -1,13 +1,15 @@
-use super::{
-    FreeformGeneratedResetTargets, MissingCanvasRef, clear_reset_generated_ref_payload,
-    is_freeform_generated_media_asset, is_freeform_imported_canvas_image,
-    is_freeform_imported_canvas_video, optional_text, project_list_offset, required_optional_text,
-    reset_missing_canvas_ref_for_node,
-};
 use a4n_core::models::{
     ai::{generated_image, generated_video},
     canvas::canvas_node,
     media::media_asset,
+};
+use a4n_orchestrator::canvas::{
+    MissingCanvasRef, clear_reset_generated_ref_payload, reset_missing_canvas_ref_for_node,
+};
+use a4n_orchestrator::project::{
+    FreeformGeneratedResetTargets, is_freeform_generated_media_asset,
+    is_freeform_imported_canvas_image, is_freeform_imported_canvas_video, optional_text,
+    project_list_offset, required_optional_text,
 };
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use serde_json::json;

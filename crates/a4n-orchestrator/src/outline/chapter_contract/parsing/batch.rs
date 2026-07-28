@@ -6,7 +6,7 @@ use super::super::fields::{
 };
 use super::json::{parse_outline_json_object, reject_keys, reject_unknown_keys};
 
-pub(in crate::outline) fn parse_chapter_outline_batch(
+pub fn parse_chapter_outline_batch(
     content: &str,
     start_chapter: i32,
     count: i32,

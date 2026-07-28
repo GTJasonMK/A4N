@@ -16,6 +16,9 @@ const RUN_STATUS_FAILED: &str = "failed";
 
 mod validation;
 use validation::*;
+pub use validation::{
+    canonical_json_bytes, canonical_json_sha256, canonical_json_text, verify_canonical_json_sha256,
+};
 
 mod types;
 pub use types::*;
@@ -29,6 +32,15 @@ pub use refs::*;
 
 mod prompts;
 pub use prompts::*;
+
+mod tasks;
+pub use tasks::*;
+
+mod task_lifecycle;
+pub use task_lifecycle::*;
+
+mod lifecycle_gate;
+pub use lifecycle_gate::*;
 
 #[cfg(test)]
 mod tests;

@@ -2,7 +2,7 @@ use a4n_core::models::project::novel_project;
 use a4n_orchestrator::collaboration::ProjectAccessInfo;
 use a4n_orchestrator::project::ProjectFamilyMetadata;
 
-use super::super::contracts::{ProjectProgressStatus, ProjectProgressSummary, ProjectSummary};
+use super::super::contracts::{ProjectProgressSummary, ProjectSummary};
 
 pub(in crate::actions::project_records::summaries) fn to_summary(
     project: &novel_project::Model,
@@ -39,7 +39,7 @@ pub(in crate::actions::project_records::summaries) fn to_summary(
             label: "进度待计算".to_string(),
             current: None,
             total: None,
-            status: ProjectProgressStatus::Idle,
+            status: "idle".to_string(),
             detail: None,
         },
         created_at: Some(project.created_at.to_string()),

@@ -11,9 +11,14 @@ pub(crate) async fn ingest(
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
     }
+    let payload = request.payload.clone();
+    let store = state.store.clone();
     let result = state
-        .store
-        .add_embeddings(&request.payload.collection, request.payload.records.clone())
+        .persist_mutation("ingest", async move {
+            store
+                .add_embeddings(&payload.collection, payload.records)
+                .await
+        })
         .await
         .map(|written| IngestOutput { written });
     Json(result_response(&request, result))

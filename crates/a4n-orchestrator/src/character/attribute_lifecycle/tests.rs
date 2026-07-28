@@ -6,7 +6,7 @@ use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
 };
 
-use super::{CharacterAttributeLifecycleError, execution::implicit_review_attribute_event};
+use super::{CharacterAttributeLifecycleError, implicit_review_attribute_event};
 
 fn profile() -> protagonist_profile::Model {
     let now = chrono::Utc::now().naive_utc();

@@ -6,7 +6,7 @@ use std::sync::{
 use a4n_capabilities::{
     CapabilityClient, CapabilityResult, EmbeddingClient, JsonRequest, JsonResponse,
 };
-use a4n_service_protocol::{ServiceHealth, ServiceTaskEvent};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
 
 use super::{media::RequestLedger, unexpected_call};
@@ -92,7 +92,7 @@ impl EmbeddingClient for PendingEmbeddingDownloadClient {
     async fn download_model_events(
         &self,
         request: JsonRequest,
-        _events: tokio::sync::mpsc::UnboundedSender<ServiceTaskEvent>,
+        _events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.state.requests.record(request);
         let _drop_signal = StreamDropSignal(Arc::clone(&self.state));
@@ -175,7 +175,7 @@ impl EmbeddingClient for RecordingEmbeddingClient {
     async fn download_model_events(
         &self,
         _request: JsonRequest,
-        _events: tokio::sync::mpsc::UnboundedSender<ServiceTaskEvent>,
+        _events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         Err(unexpected_call(
             "RecordingEmbeddingClient",

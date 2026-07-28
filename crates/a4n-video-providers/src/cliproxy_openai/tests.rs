@@ -1,7 +1,8 @@
 use super::provider::CliProxyOpenAiVideoProvider;
 use super::response::*;
-use a4n_video::VideoGenerationRequest;
+use a4n_video::{VideoGenerationRequest, VideoJobDeleteOutcome, VideoProvider};
 use serde_json::json;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 fn request() -> VideoGenerationRequest {
     VideoGenerationRequest {
@@ -185,4 +186,43 @@ fn openai_content_route_is_only_used_for_openai_wrapper_base_url() {
         wrapper.content_url("job-1"),
         "http://127.0.0.1:8317/openai/v1/videos/job-1/content?variant=video"
     );
+}
+
+#[tokio::test]
+async fn delete_uses_openai_video_endpoint_and_treats_not_found_as_idempotent() {
+    for (status, expected) in [
+        ("200 OK", VideoJobDeleteOutcome::Deleted),
+        ("404 Not Found", VideoJobDeleteOutcome::NotFound),
+    ] {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("delete provider listener");
+        let addr = listener.local_addr().expect("delete provider address");
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("delete request");
+            let mut request = vec![0; 4096];
+            let size = stream
+                .read(&mut request)
+                .await
+                .expect("read delete request");
+            let request = String::from_utf8_lossy(&request[..size]);
+            assert!(request.starts_with("DELETE /openai/v1/videos/job-42 HTTP/1.1"));
+            assert!(
+                request
+                    .to_ascii_lowercase()
+                    .contains("authorization: bearer key")
+            );
+            stream
+                .write_all(
+                    format!("HTTP/1.1 {status}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+                        .as_bytes(),
+                )
+                .await
+                .expect("write delete response");
+        });
+        let provider = CliProxyOpenAiVideoProvider::new(&format!("http://{addr}/openai/v1"), "key");
+
+        assert_eq!(provider.delete("job-42").await.unwrap(), expected);
+        server.await.expect("delete provider task");
+    }
 }

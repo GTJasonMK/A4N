@@ -3,12 +3,17 @@ use crate::actions::video_generation::media::remove_partial_video_file;
 use crate::file_utils::remove_created_file_on_error_sync;
 use std::path::Path;
 
+use super::expiry::assembly_cache_is_fresh;
+
 pub(in crate::actions::video_records) fn assembly_cache_matches(
     output_path: &Path,
     manifest_path: &Path,
     expected: &AssemblyCacheManifest,
 ) -> Result<bool, String> {
-    if !output_path.is_file() || !manifest_path.is_file() {
+    if !output_path.is_file()
+        || !manifest_path.is_file()
+        || !assembly_cache_is_fresh(manifest_path)?
+    {
         return Ok(false);
     }
     let bytes =

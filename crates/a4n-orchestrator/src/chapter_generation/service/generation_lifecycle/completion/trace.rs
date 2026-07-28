@@ -6,17 +6,22 @@ use a4n_llm::trace::{chat_request_messages_json, text_response_summary_json};
 use crate::chapter_generation::service::ChapterGenerationService;
 use crate::generation::generation_error;
 use a4n_llm::trace::context_aware_chat_request_trace_json;
+use sea_orm::ConnectionTrait;
 
 impl ChapterGenerationService {
-    pub(in crate::chapter_generation::service) async fn record_chapter_generation_trace(
+    pub(in crate::chapter_generation) async fn record_chapter_generation_trace<C>(
         &self,
         chapter: &a4n_core::models::chapter::chapter::Model,
         chapter_outline: &str,
         content: &str,
         trace: ChapterGenerationTrace,
-    ) -> Result<(), AppError> {
+        db: &C,
+    ) -> Result<(), AppError>
+    where
+        C: ConnectionTrait,
+    {
         a4n_db::generation::record_completed_generation_run(
-            self.db.as_ref(),
+            db,
             RecordCompletedGenerationRunInput {
                 project_id: chapter.project_id,
                 workflow: "chapter_generation".to_string(),

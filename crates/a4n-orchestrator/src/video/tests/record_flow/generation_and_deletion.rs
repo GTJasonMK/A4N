@@ -1,7 +1,9 @@
 #[tokio::test]
 async fn delete_missing_video_returns_not_found_without_touching_prompt_reference() {
     let db = Arc::new(setup_db().await);
-    let prompt = insert_video_prompt(db.as_ref(), 1, 1, Some(999)).await;
+    let project = insert_video_project(db.as_ref(), "视频项目").await;
+    let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
+    let prompt = insert_video_prompt(db.as_ref(), project.id, chapter.id, Some(999)).await;
 
     let err = a4n_db::video::delete_generated_video_record(db.as_ref(), 999)
         .await
@@ -21,13 +23,15 @@ async fn delete_missing_video_returns_not_found_without_touching_prompt_referenc
 #[tokio::test]
 async fn delete_missing_video_references_clears_stale_prompt_lock() {
     let db = Arc::new(setup_db().await);
-    let prompt = insert_video_prompt(db.as_ref(), 1, 1, Some(999)).await;
+    let project = insert_video_project(db.as_ref(), "视频项目").await;
+    let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
+    let prompt = insert_video_prompt(db.as_ref(), project.id, chapter.id, Some(999)).await;
 
     let project_ids = a4n_db::video::missing_video_reference_project_ids(db.as_ref(), 999)
         .await
         .map_err(crate::video::video_db_error)
         .unwrap();
-    assert_eq!(project_ids, vec![1]);
+    assert_eq!(project_ids, vec![project.id]);
 
     let cleared = a4n_db::video::delete_missing_generated_video_references_record(db.as_ref(), 999)
         .await

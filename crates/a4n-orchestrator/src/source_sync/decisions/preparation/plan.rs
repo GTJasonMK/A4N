@@ -24,7 +24,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
     galgame_execution: GalgameSourceSyncExecutionContext<'_>,
 ) -> Result<GalgameSceneRegenerationPlan, AppError> {
     let source = a4n_db::source_sync::galgame_scene_regeneration_source_record(
-        service.db.connection(),
+        service.database.connection(),
         run,
         conflict,
         payload.galgame_scene_id,

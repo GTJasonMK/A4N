@@ -41,6 +41,10 @@ pub struct Model {
     /// 状态：draft / blueprint_ready / part_outlines_ready / chapter_outlines_ready / writing / completed
     pub status: String,
 
+    /// 内部破坏性操作门禁：active / deleting / resetting
+    #[serde(skip)]
+    pub lifecycle_gate: String,
+
     /// 创作进度
     pub target_chapters: i32,
     pub current_chapter: i32,

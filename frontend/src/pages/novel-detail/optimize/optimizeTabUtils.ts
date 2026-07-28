@@ -187,7 +187,6 @@ export function progressEventToStreamItem(event: ProgressTimelineItem): StreamIt
     title,
     content: event.message || progressStatusLabel(event.status),
     timestamp: event.timestamp,
-    taskId: event.taskId ?? null,
     status: event.status,
     current: event.current,
     total: event.total,

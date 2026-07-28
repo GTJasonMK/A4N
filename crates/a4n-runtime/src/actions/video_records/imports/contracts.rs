@@ -2,50 +2,10 @@ use super::prelude::*;
 
 pub(super) const MAX_UPLOAD_VIDEO_BYTES: usize = 512 * 1024 * 1024;
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UploadChapterVideoInput {
-    pub file_name: String,
-    pub mime_type: String,
-    pub data_base64: String,
-    pub prompt_id: i64,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UploadReferenceMediaVideoInput {
-    pub file_name: String,
-    pub mime_type: String,
-    pub data_base64: String,
-    pub prompt: String,
-    pub duration_secs: i32,
-    pub aspect_ratio: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UploadAssemblyInsertVideoInput {
-    pub file_name: String,
-    pub mime_type: String,
-    pub data_base64: String,
-    #[serde(default)]
-    pub insert_after_video_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ImportCanvasVideoInput {
-    #[serde(default)]
-    pub file_path: Option<String>,
-    #[serde(default)]
-    pub file_name: Option<String>,
-    #[serde(default)]
-    pub mime_type: Option<String>,
-    #[serde(default)]
-    pub data_base64: Option<String>,
-    #[serde(default)]
-    pub prompt: Option<String>,
-}
+pub use a4n_api_contract::video::{
+    ImportCanvasVideoInput, UploadAssemblyInsertVideoInput, UploadChapterVideoInput,
+    UploadReferenceMediaVideoInput,
+};
 
 pub(in crate::actions::video_records) struct ImportedVideoSource {
     pub(in crate::actions::video_records) path: PathBuf,

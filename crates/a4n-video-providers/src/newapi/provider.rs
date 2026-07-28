@@ -12,7 +12,7 @@ use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, Vi
 
 use crate::download::download_video_url;
 use crate::format::{detect_video_format_from_bytes, normalize_video_format_str};
-use crate::response::parse_json_response;
+use crate::response::{parse_json_response, parse_json_response_allow_not_found};
 
 pub struct NewApiVideoProvider {
     base_url: String,
@@ -102,11 +102,20 @@ impl NewApiVideoProvider {
         Self::request_body(req)
     }
 
-    async fn send_json(&self, url: &str, body: Value) -> Result<Value, AppError> {
+    async fn send_json(
+        &self,
+        url: &str,
+        body: Value,
+        provider_idempotency_key_sha256: Option<&str>,
+    ) -> Result<Value, AppError> {
         let mut req = self.client.post(url).json(&body);
         if !self.api_key.is_empty() {
             req = req.bearer_auth(&self.api_key);
         }
+        let req = crate::idempotency::with_provider_idempotency_key(
+            req,
+            provider_idempotency_key_sha256,
+        )?;
         let resp = req
             .send()
             .await
@@ -124,6 +133,17 @@ impl NewApiVideoProvider {
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("New API 视频任务查询失败：{e}")))?;
         parse_json_response(resp, "New API 视频任务查询").await
+    }
+
+    async fn get_status_json(&self, url: &str) -> Result<Option<Value>, AppError> {
+        let mut req = self.client.get(url);
+        if !self.api_key.is_empty() {
+            req = req.bearer_auth(&self.api_key);
+        }
+        let resp = req.send().await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("New API 视频任务状态查询失败：{e}"))
+        })?;
+        parse_json_response_allow_not_found(resp, "New API 视频任务状态查询").await
     }
 
     async fn decode_result(
@@ -166,6 +186,7 @@ impl VideoProvider for NewApiVideoProvider {
     async fn generate(
         &self,
         req: VideoGenerationRequest,
+        provider_idempotency_key_sha256: Option<&str>,
     ) -> Result<VideoGenerationResult, AppError> {
         if self.base_url.is_empty() {
             return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
@@ -173,7 +194,9 @@ impl VideoProvider for NewApiVideoProvider {
         let url = self.generation_url();
         let body = Self::request_body(&req)?;
         tracing::debug!("newapi video generate POST {url} model={}", req.model);
-        let v = self.send_json(&url, body).await?;
+        let v = self
+            .send_json(&url, body, provider_idempotency_key_sha256)
+            .await?;
         let task_id = extract_task_id(&v)?;
 
         if let Some(result) = self.decode_result(&v, task_id.clone()).await? {
@@ -232,6 +255,45 @@ impl VideoProvider for NewApiVideoProvider {
             return Ok(VideoJobState::Failed(extract_failure_message(&v)));
         }
 
+        Err(AppError::Internal(anyhow::anyhow!(
+            "未知 New API 视频任务 status={status}"
+        )))
+    }
+
+    async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
+        if self.base_url.is_empty() {
+            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+        }
+        let value = self.get_status_json(&self.job_url(job_id)).await?;
+        let Some(value) = value else {
+            return Ok(a4n_video::VideoJobStatus::NotFound);
+        };
+        let status = extract_status(&value)
+            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("New API 视频任务响应缺少 status")))?
+            .to_ascii_lowercase();
+        if matches!(
+            status.as_str(),
+            "queued" | "pending" | "submitted" | "starting"
+        ) {
+            return Ok(a4n_video::VideoJobStatus::Pending);
+        }
+        if matches!(status.as_str(), "running" | "in_progress" | "processing") {
+            return Ok(a4n_video::VideoJobStatus::Running);
+        }
+        if matches!(status.as_str(), "cancelled" | "canceled") {
+            return Ok(a4n_video::VideoJobStatus::Cancelled);
+        }
+        if matches!(status.as_str(), "failed" | "failure" | "expired" | "error") {
+            return Ok(a4n_video::VideoJobStatus::Failed(extract_failure_message(
+                &value,
+            )));
+        }
+        if matches!(
+            status.as_str(),
+            "completed" | "complete" | "succeeded" | "success" | "done"
+        ) {
+            return Ok(a4n_video::VideoJobStatus::Completed);
+        }
         Err(AppError::Internal(anyhow::anyhow!(
             "未知 New API 视频任务 status={status}"
         )))

@@ -1,4 +1,3 @@
-import { hasRecentBlueprintGenerationPending } from "./blueprintPending";
 import { getProjectCapabilities, resolveWorkflowStage } from "./projectStatus";
 
 export interface RoutedProject {
@@ -151,7 +150,6 @@ export const getProjectHomeEntryRoute = (project: RoutedProject): string => {
   const id = projectId(project);
   if (projectKind(project) !== "text") return getProjectPrimaryRoute(project);
   if (isDraftLikeProject(project)) return `/inspiration/${id}`;
-  if (hasRecentBlueprintGenerationPending("novel", id)) return `/inspiration/${id}`;
 
   const stage = resolveWorkflowStage(project.status);
   if (stage === "writing" || stage === "completed") {
@@ -161,10 +159,8 @@ export const getProjectHomeEntryRoute = (project: RoutedProject): string => {
 };
 
 export const getProjectHomeEntryLabel = (project: RoutedProject): string => {
-  const id = projectId(project);
   if (projectKind(project) !== "text") return getProjectPrimaryLabel(project);
   if (isDraftLikeProject(project)) return "继续灵感对话";
-  if (hasRecentBlueprintGenerationPending("novel", id)) return "检查蓝图结果";
 
   const stage = resolveWorkflowStage(project.status);
   if (stage === "writing" || stage === "completed") {

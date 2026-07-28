@@ -1,10 +1,9 @@
 use serde_json::{Value, json};
 
 use super::super::{
-    ApiError, ServerState, TaskType, command_input, embedding_model_actions, emit_workflow_error,
-    finish_web_task, i64_arg, optional_string_field, rag_search_actions, register_web_task,
-    sanitize_optional_task_id, spawn_embedding_download_progress_bridge, task_records_actions,
-    web_fire_and_forget_progress_reporter,
+    ApiError, ServerState, TaskKind, command_input, embedding_model_actions, finish_web_task,
+    i64_arg, optional_bool_field, optional_string_field, rag_search_actions, register_web_task,
+    sanitize_optional_task_id, task_records_actions, web_fire_and_forget_progress_reporter,
 };
 
 pub(in crate::routes::commands) async fn rag_enhanced_search(
@@ -66,6 +65,7 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
 ) -> Result<Value, ApiError> {
     let project_id = i64_arg(args, "projectId")?;
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
+    let rebuild = optional_bool_field(args, "rebuild")?;
     let scope =
         a4n_runtime::rag_ingest::rag_ingest_task_scope(state.runtime(), user_id, project_id)
             .await
@@ -73,15 +73,14 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
     let task = register_web_task(
         state,
         task_id.clone(),
-        TaskType::RagIngestion,
+        TaskKind::RagIngestion,
         scope.project_id,
         scope.total,
         "准备同步 RAG 数据",
     )
     .await;
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-    let report_progress =
-        web_fire_and_forget_progress_reporter(state, task.clone(), task_id.clone());
+    let report_progress = web_fire_and_forget_progress_reporter(task.clone());
     let reporter: a4n_runtime::rag_ingest::RagProgressReporter<'_> = task_id
         .as_ref()
         .map(|_| &report_progress as &(dyn Fn(u32, u32, &str) + Send + Sync));
@@ -95,6 +94,7 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
         user_id,
         project_id,
         task_id.as_deref(),
+        rebuild,
         Some(&mut progress),
     )
     .await
@@ -105,7 +105,7 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
             a4n_core::error::AppError::Internal(anyhow::anyhow!(err))
         }
     });
-    let value = finish_web_task(state, task_id, result, "RAG 同步完成").await?;
+    let value = finish_web_task(state, task_id, result).await?;
     Ok(value)
 }
 
@@ -115,10 +115,16 @@ pub(in crate::routes::commands) async fn rag_prepare_ingest_all(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let project_id = i64_arg(args, "projectId")?;
+    let rebuild = optional_bool_field(args, "rebuild")?;
     Ok(json!(
-        a4n_runtime::rag_ingest::rag_prepare_ingest_all(state.runtime(), user_id, project_id)
-            .await
-            .map_err(ApiError::bad_request)?
+        a4n_runtime::rag_ingest::rag_prepare_ingest_all(
+            state.runtime(),
+            user_id,
+            project_id,
+            rebuild,
+        )
+        .await
+        .map_err(ApiError::bad_request)?
     ))
 }
 
@@ -177,24 +183,52 @@ pub(in crate::routes::commands) async fn download_embedding_model(
     let task = register_web_task(
         state,
         task_id.clone(),
-        TaskType::EmbeddingDownload,
+        TaskKind::EmbeddingDownload,
         None,
         scope.total,
         scope.initial_message,
     )
     .await;
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-    let progress_tx = task_id
-        .as_ref()
-        .map(|task_id| spawn_embedding_download_progress_bridge(state, task_id, task.clone()));
-    let result = embedding_model_actions::download_embedding_model(
+    let (progress_tx, progress_worker) = match task.as_ref() {
+        Some(task) => {
+            let (tx, mut rx) =
+                tokio::sync::mpsc::unbounded_channel::<embedding_model_actions::DownloadProgress>();
+            let task = task.clone();
+            let worker = tokio::spawn(async move {
+                while let Some(progress) = rx.recv().await {
+                    task.update_progress_bytes(
+                        progress.downloaded_bytes,
+                        progress.total_bytes,
+                        scope.total,
+                        &progress.message,
+                    );
+                }
+            });
+            (Some(tx), Some(worker))
+        }
+        None => (None, None),
+    };
+    let mut result = embedding_model_actions::download_embedding_model(
         state.runtime(),
         input,
         progress_tx,
         cancel_token,
     )
     .await;
-    let summary = finish_web_task(state, task_id, result, "模型已下载并完成初始化").await?;
+    if let Some(worker) = progress_worker {
+        if let Err(join_error) = worker.await {
+            let bridge_error = format!("模型下载进度事件任务异常退出: {join_error}");
+            result = Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
+                "{}",
+                match result {
+                    Ok(_) => bridge_error,
+                    Err(error) => format!("{error}；{bridge_error}"),
+                }
+            )));
+        }
+    }
+    let summary = finish_web_task(state, task_id, result).await?;
     Ok(json!(summary))
 }
 
@@ -211,7 +245,6 @@ pub(in crate::routes::commands) async fn cancel_embedding_model_download(
             "模型下载任务不存在或已结束：{task_id}"
         )));
     }
-    emit_workflow_error(state, &task_id, "cancelled", "模型下载已停止", false).await;
     Ok(Value::Null)
 }
 

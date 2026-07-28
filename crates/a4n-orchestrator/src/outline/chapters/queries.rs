@@ -11,7 +11,7 @@ impl OrchestratorContext {
         chapter_number: i32,
     ) -> Result<Option<chapter_outline::Model>, AppError> {
         let outlines = project_db::chapter_outlines_for_project_chapter_number(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             chapter_number,
         )
@@ -37,7 +37,7 @@ impl OrchestratorContext {
         outline_id: i64,
     ) -> Result<(), AppError> {
         let conflicts = project_db::chapter_outlines_for_project_chapter_number(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             chapter_number,
         )

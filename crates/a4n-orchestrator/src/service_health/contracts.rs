@@ -1,4 +1,4 @@
-use a4n_service_manager::ServiceMode;
+use a4n_service_manager::{ManagedSidecarState, ServiceMode};
 use a4n_service_protocol::{HealthStatus, ServiceErrorCode, ServiceHealth};
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +31,9 @@ pub struct ManagedServiceHealthSummary {
     pub service_version: Option<String>,
     pub protocol_version: Option<u32>,
     pub capability_version: Option<String>,
+    pub restart_count: Option<u32>,
+    pub supervisor_state: Option<ManagedSidecarState>,
+    pub last_error: Option<String>,
     pub error_code: Option<ServiceErrorCode>,
     pub error_message: Option<String>,
 }

@@ -3,11 +3,9 @@ mod pacing;
 mod records;
 mod regeneration;
 
-pub use generation::{
-    generate_part_chapter_outlines, preview_generate_part_chapter_outlines_request,
-};
+pub use generation::preview_generate_part_chapter_outlines_request;
 #[cfg(test)]
 pub(super) use pacing::build_chapter_outlines_pacing;
 pub use pacing::get_chapter_outlines_pacing;
 pub use records::{delete_latest_chapter_outlines, list_chapter_outlines, update_chapter_outline};
-pub use regeneration::{preview_regenerate_chapter_outline_request, regenerate_chapter_outline};
+pub use regeneration::preview_regenerate_chapter_outline_request;

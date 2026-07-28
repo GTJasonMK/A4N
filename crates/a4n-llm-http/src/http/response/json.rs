@@ -6,6 +6,7 @@ pub(super) fn json_response_preview(value: &Value, max_chars: usize) -> String {
     response_preview(&value.to_string(), max_chars)
 }
 
+#[cfg(test)]
 pub(in crate::http) fn parse_response_json(body: &str, label: &str) -> Result<Value, AppError> {
     serde_json::from_str::<Value>(body).map_err(|error| {
         internal_error(format!(
@@ -22,15 +23,6 @@ pub(in crate::http) fn required_object<'a>(
     value
         .as_object()
         .ok_or_else(|| internal_error(format!("LLM 响应缺少对象字段 {field}")))
-}
-
-pub(in crate::http) fn required_string<'a>(
-    value: &'a Value,
-    field: &str,
-) -> Result<&'a str, AppError> {
-    value
-        .as_str()
-        .ok_or_else(|| internal_error(format!("LLM 响应缺少字符串字段 {field}")))
 }
 
 pub(in crate::http) fn required_usize(value: &Value, field: &str) -> Result<usize, AppError> {

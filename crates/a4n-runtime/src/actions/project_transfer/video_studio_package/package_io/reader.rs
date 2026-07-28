@@ -1,17 +1,16 @@
 use serde_json::Value;
 
-use crate::state::AppState;
-
 use super::super::{ImportMediaPayload, MANIFEST_PATH, VideoStudioProjectPackage};
 use super::payload::read_media_payloads_from_entries;
 
 pub(in super::super) async fn read_video_studio_package_bytes(
-    state: &AppState,
+    runtime_profile: crate::state::RuntimeProfile,
+    capabilities: &a4n_capabilities::A4nCapabilities,
     bytes: Vec<u8>,
 ) -> Result<(VideoStudioProjectPackage, ImportMediaPayload), String> {
     let (manifest, media_bytes) = crate::sidecar_clients::read_import_media_package_zip(
-        state.runtime_profile,
-        state.capabilities(),
+        runtime_profile,
+        capabilities,
         bytes,
         MANIFEST_PATH,
         "视频画布项目包",

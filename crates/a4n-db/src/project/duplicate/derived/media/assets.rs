@@ -54,6 +54,7 @@ where
         let copied = media_asset::ActiveModel {
             project_id: Set(new_project_id),
             root_project_id: Set(root_project_id),
+            source_snapshot_id: Set(Some(duplicated_snapshot.snapshot.id)),
             source_chapter_id: Set(asset.source_chapter_id),
             source_snapshot_chapter_id: Set(source_snapshot_chapter_id),
             media_kind: Set(asset.media_kind),

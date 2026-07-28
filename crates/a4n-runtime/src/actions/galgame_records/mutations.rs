@@ -1,4 +1,4 @@
-use crate::{AppState, actions::access};
+use crate::AppState;
 use a4n_core::models::galgame::{galgame_choice, galgame_line};
 use a4n_orchestrator::galgame::{
     InsertGalgameLineInput, ReorderGalgameLinesInput, UpdateGalgameChoicesInput,
@@ -18,9 +18,9 @@ pub async fn update_galgame_line(
     project_id: i64,
     input: UpdateGalgameLineInput,
 ) -> Result<galgame_line::Model, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
     state
-        .update_galgame_line(project_id, input)
+        .galgame()
+        .update_galgame_line_for_user_validated(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -31,9 +31,9 @@ pub async fn insert_galgame_line(
     project_id: i64,
     input: InsertGalgameLineInput,
 ) -> Result<galgame_line::Model, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
     state
-        .insert_galgame_line(project_id, input)
+        .galgame()
+        .insert_galgame_line_for_user_validated(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -44,9 +44,9 @@ pub async fn update_galgame_scene(
     project_id: i64,
     input: UpdateGalgameSceneInput,
 ) -> Result<a4n_core::models::galgame::galgame_scene::Model, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
     state
-        .update_galgame_scene(project_id, input)
+        .galgame()
+        .update_galgame_scene_for_user_validated(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -57,10 +57,9 @@ pub async fn delete_galgame_line(
     project_id: i64,
     input: DeleteGalgameLineInput,
 ) -> Result<(), String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
     state
-        .orchestrator
-        .delete_galgame_line(project_id, input.line_id)
+        .galgame()
+        .delete_galgame_line_for_user_validated(user_id, project_id, input.line_id)
         .await
         .map_err(|err| err.to_string())
 }
@@ -71,10 +70,9 @@ pub async fn reorder_galgame_lines(
     project_id: i64,
     input: ReorderGalgameLinesInput,
 ) -> Result<Vec<galgame_line::Model>, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
     state
-        .orchestrator
-        .reorder_galgame_lines(project_id, input)
+        .galgame()
+        .reorder_galgame_lines_for_user_validated(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -85,9 +83,9 @@ pub async fn update_galgame_choices(
     project_id: i64,
     input: UpdateGalgameChoicesInput,
 ) -> Result<Vec<galgame_choice::Model>, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
     state
-        .update_galgame_choices(project_id, input)
+        .galgame()
+        .update_galgame_choices_for_user_validated(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }

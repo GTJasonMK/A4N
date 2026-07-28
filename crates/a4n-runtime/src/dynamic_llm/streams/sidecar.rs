@@ -1,31 +1,28 @@
 use std::{
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
     time::Instant,
 };
 
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext};
-use a4n_orchestrator::OrchestratorContext;
-use a4n_orchestrator::task_queue::PersistentTaskQueue;
+use a4n_orchestrator::DynamicProviderFacade;
 use a4n_queue::priority::TaskPermit;
-use a4n_service_protocol::{ServiceTaskEvent, ServiceTaskEventKind};
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
 use futures::Stream;
 
 use super::events::{chat_chunk_from_sidecar_event, sidecar_event_error, usage_from_sidecar_value};
 use super::terminal::{QueueTrackedStreamTerminal, StreamKind};
 
 pub(in crate::dynamic_llm) struct QueueTrackedSidecarLlmStream {
-    events: tokio::sync::mpsc::UnboundedReceiver<ServiceTaskEvent>,
+    events: tokio::sync::mpsc::Receiver<CapabilityTaskEvent>,
     terminal: QueueTrackedStreamTerminal,
 }
 
 impl QueueTrackedSidecarLlmStream {
     pub(in crate::dynamic_llm) fn new(
-        events: tokio::sync::mpsc::UnboundedReceiver<ServiceTaskEvent>,
-        orchestrator: OrchestratorContext,
-        task_queue: Arc<PersistentTaskQueue>,
+        events: tokio::sync::mpsc::Receiver<CapabilityTaskEvent>,
+        facade: DynamicProviderFacade,
         permit: TaskPermit,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
@@ -35,8 +32,7 @@ impl QueueTrackedSidecarLlmStream {
             events,
             terminal: QueueTrackedStreamTerminal::new(
                 StreamKind::Sidecar,
-                orchestrator,
-                task_queue,
+                facade,
                 permit,
                 trace_context,
                 model_name,
@@ -76,7 +72,7 @@ impl Stream for QueueTrackedSidecarLlmStream {
                 Poll::Pending => return Poll::Pending,
             };
             match event.event_kind {
-                ServiceTaskEventKind::Chunk => {
+                CapabilityTaskEventKind::Chunk => {
                     let chunk = match chat_chunk_from_sidecar_event(event) {
                         Ok(chunk) => chunk,
                         Err(error) => {
@@ -87,13 +83,13 @@ impl Stream for QueueTrackedSidecarLlmStream {
                     self.terminal.observe_chunk(&chunk);
                     return Poll::Ready(Some(Ok(chunk)));
                 }
-                ServiceTaskEventKind::Usage => {
+                CapabilityTaskEventKind::Usage => {
                     if let Err(error) = self.apply_usage_value(event.usage_delta) {
                         self.terminal.start_failed(error);
                         return self.terminal.poll(cx);
                     }
                 }
-                ServiceTaskEventKind::Completed => {
+                CapabilityTaskEventKind::Completed => {
                     if let Err(error) = self.apply_usage_value(event.final_usage) {
                         self.terminal.start_failed(error);
                         return self.terminal.poll(cx);
@@ -104,16 +100,16 @@ impl Stream for QueueTrackedSidecarLlmStream {
                     self.terminal.start_success();
                     return self.terminal.poll(cx);
                 }
-                ServiceTaskEventKind::Failed => {
+                CapabilityTaskEventKind::Failed => {
                     let error = sidecar_event_error(event);
                     self.terminal.start_failed(error);
                     return self.terminal.poll(cx);
                 }
-                ServiceTaskEventKind::Progress
-                | ServiceTaskEventKind::StructuredProgress
-                | ServiceTaskEventKind::Checkpoint
-                | ServiceTaskEventKind::Artifact
-                | ServiceTaskEventKind::CancelAck => {}
+                CapabilityTaskEventKind::Progress
+                | CapabilityTaskEventKind::StructuredProgress
+                | CapabilityTaskEventKind::Checkpoint
+                | CapabilityTaskEventKind::Artifact
+                | CapabilityTaskEventKind::CancelAck => {}
             }
         }
     }

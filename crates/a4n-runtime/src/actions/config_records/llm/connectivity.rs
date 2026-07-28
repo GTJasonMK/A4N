@@ -17,7 +17,7 @@ pub async fn test_llm_config(state: &AppState, config_id: i64) -> Result<bool, S
     let provider = state
         .dynamic_llm_provider_for_profile()
         .map_err(|error| error.to_string())?;
-    if state.runtime_profile.uses_sidecars() {
+    if state.runtime_profile().uses_sidecars() {
         return provider
             .probe_with_config_id(Some(config_id), request)
             .await
@@ -71,7 +71,7 @@ async fn resolve_llm_config_for_connectivity_test(
         return Ok(config);
     }
     state
-        .orchestrator
+        .settings()
         .llm_config_record_by_id(config_id)
         .await
         .map_err(app_error_message)

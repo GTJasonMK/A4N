@@ -4,7 +4,7 @@ import { extractErrorMessage } from "../../../api";
 import {
   createInviteCode,
   createAdminUser,
-  deleteUser,
+  disableUser,
   getTokenSummary,
   getUserUsage,
   listInviteCodes,
@@ -330,7 +330,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
       });
       if (!ok) return;
       if (!isCurrentCaller(requestCallerUserId)) return;
-      await deleteUser(requestCallerUserId, u.id);
+      await disableUser(requestCallerUserId, u.id);
       if (!isCurrentCaller(requestCallerUserId)) return;
       addToast("已禁用", "success");
       await load();

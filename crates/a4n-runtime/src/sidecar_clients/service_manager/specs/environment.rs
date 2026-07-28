@@ -11,16 +11,18 @@ pub(in crate::sidecar_clients) fn sidecar_url_for_service(name: &str) -> Result<
 pub(in crate::sidecar_clients::service_manager) fn sidecar_url_from_spec(
     spec: SidecarServiceSpec,
 ) -> Result<String, String> {
-    if let Some(url) = parse_sidecar_url_env(spec.url_env, optional_env_string(spec.url_env)?)? {
+    if let Some(url) =
+        parse_sidecar_url_env(spec.url_env.as_str(), optional_env_string(&spec.url_env)?)?
+    {
         return Ok(url);
     }
     let addr = parse_sidecar_addr_env(
-        spec.addr_env,
-        optional_env_string(spec.addr_env)?.as_deref(),
-        spec.default_addr,
+        &spec.addr_env,
+        optional_env_string(&spec.addr_env)?.as_deref(),
+        &spec.default_addr,
     )?;
     if addr == spec.default_addr {
-        Ok(spec.default_url.to_string())
+        Ok(spec.default_url)
     } else {
         Ok(format!("http://{addr}"))
     }

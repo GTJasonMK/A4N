@@ -18,7 +18,7 @@ import {
   type CharacterProfile,
 } from "../api/character";
 import type { ModelRequestPreview } from "../api/requestPreview";
-import { createProgressTaskId, useProgressTask } from "../hooks/useProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { CharacterDetailContent } from "./character-detail-dialog/CharacterDetailContent";
 import { CharacterDetailTabs } from "./character-detail-dialog/CharacterDetailTabs";
@@ -327,16 +327,16 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         return;
       }
       const cacheKey = conflictCacheKey;
-      const taskId = createProgressTaskId("character-conflict", requestProjectId);
+      const taskId = allocateHostTaskId("character-conflict", requestProjectId);
       setLoadingTab("conflict");
       try {
         const rows = await runProgressTask(
           {
+          cancelTaskId: taskId,
             title: "角色一致性检查",
             startMessage: "正在准备角色一致性检查",
             successMessage: "角色一致性检查完成",
             errorMessage: "角色一致性检查失败",
-            taskId,
             total: 4,
             cancelLabel: "停止检查",
             runningHint: "角色任务执行过程中已完成的数据会保留",
@@ -464,16 +464,16 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     }
     const requestSeq = syncSeqRef.current + 1;
     syncSeqRef.current = requestSeq;
-    const taskId = createProgressTaskId("character-sync", requestProjectId);
+    const taskId = allocateHostTaskId("character-sync", requestProjectId);
     setSyncing(true);
     try {
       const result = await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: `同步角色 · ${requestName}`,
           startMessage: "正在准备角色同步",
           successMessage: "角色同步完成",
           errorMessage: "同步失败",
-          taskId,
           total: 7,
           cancelLabel: "停止同步",
           runningHint: "角色任务执行过程中已完成的数据会保留",
@@ -486,7 +486,6 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
             requestProjectId,
             requestName,
             requestChapterNumber,
-            taskId,
           );
         },
       );

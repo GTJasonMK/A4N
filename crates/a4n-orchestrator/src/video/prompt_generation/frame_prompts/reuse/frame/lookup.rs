@@ -17,7 +17,7 @@ pub(in crate::video) async fn boundary_frame_rows_for_image_lookup(
         context,
     } = query;
     let rows = a4n_db::video::chapter_video_prompt_workflow_records(
-        service.db.connection(),
+        service.database.connection(),
         project_id,
         chapter_id,
         context.prompt_type,

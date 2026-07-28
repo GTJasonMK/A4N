@@ -19,7 +19,7 @@ where
 {
     let result = build_output().and_then(|output| {
         persist_created_media_file(
-            &state.config.data_dir,
+            state.data_dir(),
             &output,
             render,
             file_label,
@@ -32,7 +32,7 @@ where
         Ok(result) => Ok(result),
         Err(error) => Err(append_secondary_error(
             error,
-            delete_video_record_error(state, record_id).await,
+            delete_video_record_error(&state.video(), record_id).await,
         )),
     }
 }

@@ -15,17 +15,17 @@ import {
   deleteChapterVideoPrompt,
   deleteChapterVideoPromptGroup,
   deleteVideo,
-  generateChapterVideo,
-  generateChapterVideosBatch,
   optimizeChapterVideoPrompt,
   pollVideoJob,
   previewChapterVideoRequest,
   previewVideoProviderRequestByVideoId,
+  startVideoGeneration,
   toggleVideoFavorite,
   trimVideo,
   updateChapterVideoPrompt,
   updateVideo,
   uploadChapterVideo,
+  verifyVideoGenerationResult,
   type ChapterVideoPrompt,
   type DownstreamConflictStrategy,
   type GeneratedVideo,
@@ -33,11 +33,10 @@ import {
   type UpdateVideoInput,
 } from "../../../api/video";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
-import {
-  createProgressTaskId,
-  type RunProgressTask,
-} from "../../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
+import type { RunProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
+import { asJsonRecord } from "../../../utils/jsonRecord";
 import { nonEmptyText } from "../../../utils/text";
 import { pickLocalFile, readFileAsBase64 } from "../../../utils/fileUpload";
 import {
@@ -118,7 +117,7 @@ const videoPromptStage = (prompt: ChapterVideoPrompt): number | null =>
   VIDEO_PROMPT_STAGE_BY_TYPE[prompt.prompt_type] ?? null;
 
 const promptIsSharedVideoUpstream = (prompt: ChapterVideoPrompt): boolean =>
-  videoWorkflowModeOfPrompt(prompt) === "boundary_frames" &&
+  prompt.workflow_mode === "shared_segment_plan" &&
   prompt.prompt_type === "frame_segment_plan";
 
 const promptSameGenerationChain = (
@@ -348,7 +347,11 @@ export function useVideoRecordActions({
       return "Chat 生视频模式不使用应用内 provider 生成，请复制提示词到外部 Chat 后导入视频";
     }
     if (prompt.status === "running") return `视频提示词 #${prompt.id} 正在运行`;
-    if (prompt.generated_video_id != null) return "该视频提示词已关联视频";
+    if (
+      asJsonRecord(prompt.metadata_json)?.continuity_stale === true
+    ) {
+      return "该首帧续接方案的来源视频已被替换，请重新选择续接来源";
+    }
     const promptSourceHash = extractPromptSourceHash(prompt.metadata_json);
     if (
       promptSourceHash &&
@@ -707,60 +710,46 @@ export function useVideoRecordActions({
     const requestScope = actionScopeKey;
     const actionKey = `generate-video-${targetPrompt.id}`;
     if (!beginAction(actionKey)) return;
-    const taskId = createProgressTaskId("video-generate", projectId);
-    setVideoTaskId(taskId);
-    let providerPending = false;
-    let failedVideoId: number | null = null;
     try {
-      await runProgressTask(
+      const handle = await startVideoGeneration({
+        project_id: projectId,
+        operation: {
+          kind: "chapter",
+          chapter_id: chapter.id,
+          prompt_id: targetPrompt.id,
+          config_id: null,
+        },
+      });
+      setVideoTaskId(handle.task_id);
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "生成视频",
           startMessage: "正在准备视频生成",
           successMessage: "视频生成完成",
           errorMessage: "视频生成失败",
           total: 7,
-          taskId,
           cancelLabel: "停止生成",
         },
-        async () => {
-          const row = await generateChapterVideo(
+        async (task) => {
+          const [row] = await verifyVideoGenerationResult(
+            task,
             projectId,
             chapter.id,
-            targetPrompt.id,
-            null,
-            taskId,
           );
-          providerPending = hasPendingProviderJob(row);
-          if (row.status === "failed") {
-            failedVideoId = row.id;
-            if (!isCurrentActionScope(requestScope)) return;
-            setPendingVideoId(null);
-          } else {
-            if (!isCurrentActionScope(requestScope)) return;
-            setSelectedVideoId(row.id);
-            setPendingVideoId(providerPending ? row.id : null);
-          }
+          if (!row) throw new Error("视频生成已结束，但没有正式视频结果");
+          if (!isCurrentActionScope(requestScope)) return;
+          setSelectedVideoId(row.id);
+          setPendingVideoId(null);
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
-      if (failedVideoId != null) {
-        addToast("视频生成失败，可优化视频提示词后重新生成", "error");
-      } else {
-        addToast(
-          providerPending
-            ? "视频任务已提交到供应商，等待生成结果，可稍后轮询"
-            : "视频生成完成",
-          "success",
-        );
-      }
+      addToast("视频生成完成", "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       const message = extractErrorMessage(err, "视频生成失败");
-      if (failedVideoId != null && !isCancelledOperation(message)) {
-        addToast("视频生成失败，可优化视频提示词后重新生成", "error");
-      } else if (!isCancelledOperation(message)) {
-        addToast(message, "error");
-      }
+      if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       await loadAll();
       if (isCurrentActionScope(requestScope)) {
@@ -780,19 +769,17 @@ export function useVideoRecordActions({
       addToast(durationLimits.configError, "error");
       return;
     }
-    const missingVideoPrompts = prompts.filter(
-      (prompt) =>
-        prompt.prompt_type === "video_prompt" &&
-        prompt.generated_video_id == null,
+    const videoPrompts = prompts.filter(
+      (prompt) => prompt.prompt_type === "video_prompt",
     );
-    const targetPrompts = missingVideoPrompts
+    const targetPrompts = videoPrompts
       .filter(videoPromptSupportsProviderGeneration)
       .sort((a, b) => a.shot_number - b.shot_number || a.id - b.id);
     if (targetPrompts.length === 0) {
       addToast(
-        missingVideoPrompts.length > 0
+        videoPrompts.length > 0
           ? "当前视频提示词不支持应用内 provider 批量生成，请复制提示词到外部工具生成后导入视频"
-          : "所有视频提示词都已生成视频，无需继续生成",
+          : "当前没有可生成的视频提示词",
         "error",
       );
       return;
@@ -810,51 +797,42 @@ export function useVideoRecordActions({
     const requestScope = actionScopeKey;
     const actionKey = "generate-all-videos";
     if (!beginAction(actionKey)) return;
-    const taskId = createProgressTaskId("video-generate-all", projectId);
-    setVideoTaskId(taskId);
-    let lastVideoId: number | null = null;
-    let lastPendingVideoId: number | null = null;
     try {
-      const result = await runProgressTask(
+      const handle = await startVideoGeneration({
+        project_id: projectId,
+        operation: {
+          kind: "chapter_batch",
+          chapter_id: chapter.id,
+          prompt_ids: targetPrompts.map((prompt) => prompt.id),
+          config_id: null,
+        },
+      });
+      setVideoTaskId(handle.task_id);
+      const generated = await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "生成全部视频",
           startMessage: `正在准备生成 ${targetPrompts.length} 条视频`,
           successMessage: "全部视频生成任务处理完成",
           errorMessage: "生成全部视频失败",
           total: Math.max(1, targetPrompts.length * 7),
-          taskId,
           cancelLabel: "停止生成",
         },
-        () =>
-          generateChapterVideosBatch(
-            projectId,
-            chapter.id,
-            {
-              prompt_ids: targetPrompts.map((prompt) => prompt.id),
-              config_id: null,
-            },
-            taskId,
-          ),
+        async (task) => verifyVideoGenerationResult(task, projectId, chapter.id),
       );
-      for (const video of result.videos) {
-        lastVideoId = video.id;
-        if (hasPendingProviderJob(video)) lastPendingVideoId = video.id;
-      }
+      const lastVideoId = generated[generated.length - 1]?.id ?? null;
       if (!isCurrentActionScope(requestScope)) return;
       if (lastVideoId != null) setSelectedVideoId(lastVideoId);
-      setPendingVideoId(lastPendingVideoId);
-      if (result.failed_count > 0) {
+      setPendingVideoId(null);
+      const failedCount = targetPrompts.length - generated.length;
+      if (failedCount > 0) {
         addToast(
-          `已处理 ${targetPrompts.length} 条视频提示词，其中 ${result.failed_count} 条生成失败，可优化提示词后重试`,
+          `已处理 ${targetPrompts.length} 条视频提示词，其中 ${failedCount} 条生成失败，可优化提示词后重试`,
           "error",
         );
       } else {
-        addToast(
-          result.pending_count > 0
-            ? `已提交 ${result.success_count} 条视频任务，其中 ${result.pending_count} 条等待供应商生成结果`
-            : `已生成 ${result.success_count} 条视频`,
-          "success",
-        );
+        addToast(`已生成 ${generated.length} 条视频`, "success");
       }
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
@@ -884,10 +862,6 @@ export function useVideoRecordActions({
         `视频提示词 #${selectedPrompt.id} 正在运行，不能导入视频`,
         "error",
       );
-      return false;
-    }
-    if (selectedPrompt.generated_video_id != null) {
-      addToast("该视频提示词已关联视频，请先删除对应视频后再导入", "error");
       return false;
     }
     if (selectedPromptStale) {

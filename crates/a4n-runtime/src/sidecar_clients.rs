@@ -42,6 +42,6 @@ pub(crate) use service_manager::{
     runtime_capabilities, runtime_service_manager, start_managed_sidecars,
 };
 pub(crate) use video::{
-    discover_video_models, generate_video, poll_video, preview_video_provider_request,
-    probe_video_config,
+    delete_video_job, discover_video_models, generate_video, poll_video,
+    preview_video_provider_request, probe_video_config, video_job_status,
 };

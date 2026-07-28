@@ -3,7 +3,6 @@ use a4n_core::{
     config::{CreateImageConfigParams, UpdateImageConfigParams, validate_image_config_params},
     models::ai::image_gen_config,
 };
-use a4n_orchestrator::config::{ImageConfigCreateRecordInput, ImageConfigUpdateRecordInput};
 
 pub(super) fn image_config_summary(config: &image_gen_config::Model) -> ImageConfigSummary {
     ImageConfigSummary {
@@ -25,58 +24,6 @@ pub(super) fn image_config_summary(config: &image_gen_config::Model) -> ImageCon
         created_at: Some(config.created_at.to_string()),
         updated_at: Some(config.updated_at.to_string()),
     }
-}
-
-pub(super) fn image_create_record_input(
-    input: ImageConfigInput,
-) -> Result<ImageConfigCreateRecordInput, String> {
-    let params =
-        validate_image_config_params(image_config_params(input)).map_err(|err| err.to_string())?;
-    Ok(ImageConfigCreateRecordInput {
-        name: params.name,
-        backend: params.backend,
-        base_url: params.base_url,
-        api_key_encrypted: params.api_key_encrypted,
-        model: params.model,
-        max_concurrent: params.max_concurrent,
-        default_width: params.default_width,
-        default_height: params.default_height,
-        provider_options_json: params.provider_options_json,
-    })
-}
-
-pub(super) fn image_update_record_input(
-    existing: &image_gen_config::Model,
-    input: UpdateImageConfigInput,
-) -> Result<ImageConfigUpdateRecordInput, String> {
-    let params = image_update_config_params(input);
-    let api_key_encrypted = params
-        .api_key_encrypted
-        .clone()
-        .unwrap_or_else(|| existing.api_key_encrypted.clone());
-    let params = validate_image_config_params(CreateImageConfigParams {
-        name: params.name,
-        backend: params.backend,
-        base_url: params.base_url,
-        api_key_encrypted,
-        model: params.model,
-        max_concurrent: params.max_concurrent,
-        default_width: params.default_width,
-        default_height: params.default_height,
-        provider_options_json: params.provider_options_json,
-    })
-    .map_err(|err| err.to_string())?;
-    Ok(ImageConfigUpdateRecordInput {
-        name: params.name,
-        backend: params.backend,
-        base_url: params.base_url,
-        api_key_encrypted: params.api_key_encrypted,
-        model: params.model,
-        max_concurrent: params.max_concurrent,
-        default_width: params.default_width,
-        default_height: params.default_height,
-        provider_options_json: params.provider_options_json,
-    })
 }
 
 fn image_config_params(input: ImageConfigInput) -> CreateImageConfigParams {
@@ -147,4 +94,17 @@ mod tests {
             Some(Some("sk-new".to_string()))
         );
     }
+}
+
+pub(super) fn image_create_params(
+    input: ImageConfigInput,
+) -> Result<CreateImageConfigParams, String> {
+    validate_image_config_params(image_config_params(input)).map_err(|err| err.to_string())
+}
+
+pub(super) fn image_update_params(
+    _existing: &image_gen_config::Model,
+    input: UpdateImageConfigInput,
+) -> Result<UpdateImageConfigParams, String> {
+    Ok(image_update_config_params(input))
 }

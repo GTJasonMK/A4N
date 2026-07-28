@@ -1,5 +1,54 @@
-mod call;
-mod rules;
-mod workflow;
+use crate::{AppState, prompt_renderer::RuntimePromptRenderer};
+use a4n_core::error::AppError;
+use a4n_orchestrator::character::{
+    CharacterConflictCheckInput, CharacterConflictProgressReporter, CharacterConflictTaskScope,
+};
+use serde_json::Value;
 
-pub use workflow::{character_conflict_task_scope, check_character_conflict};
+pub async fn character_conflict_task_scope(
+    state: &AppState,
+    user_id: i64,
+    project_id: i64,
+    name: &str,
+    start_chapter: Option<i32>,
+    end_chapter: Option<i32>,
+) -> Result<CharacterConflictTaskScope, AppError> {
+    state
+        .character()
+        .character_conflict_task_scope_validated(
+            user_id,
+            &CharacterConflictCheckInput {
+                project_id,
+                name: name.to_string(),
+                start_chapter,
+                end_chapter,
+            },
+        )
+        .await
+}
+
+pub async fn check_character_conflict(
+    state: &AppState,
+    user_id: i64,
+    project_id: i64,
+    name: &str,
+    start_chapter: Option<i32>,
+    end_chapter: Option<i32>,
+    progress: CharacterConflictProgressReporter<'_>,
+) -> Result<Vec<Value>, AppError> {
+    let prompt_renderer = RuntimePromptRenderer::new(state);
+    state
+        .character()
+        .check_character_conflict_validated(
+            user_id,
+            CharacterConflictCheckInput {
+                project_id,
+                name: name.to_string(),
+                start_chapter,
+                end_chapter,
+            },
+            &prompt_renderer,
+            progress,
+        )
+        .await
+}

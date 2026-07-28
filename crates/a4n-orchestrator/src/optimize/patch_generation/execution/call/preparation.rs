@@ -33,7 +33,7 @@ pub(super) async fn prepare_patch_generation_call(
     service
         .record_llm_request(session_id, "局部补丁生成", &llm_request_payload)
         .await?;
-    workflow::mark_workflow_current_step(service.db.connection(), workflow_run_id, &call_key)
+    workflow::mark_workflow_current_step(service.database.connection(), workflow_run_id, &call_key)
         .await
         .map_err(workflow_write_app_error)?;
     Ok(PreparedPatchGenerationCall {

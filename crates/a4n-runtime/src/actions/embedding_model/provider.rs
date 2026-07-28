@@ -1,5 +1,4 @@
-use super::{contracts::LocalEmbeddingConfigInput, rules::required_text};
-use crate::AppState;
+use super::{contracts::LocalEmbeddingConfigInput, host_adapter::required_text};
 use a4n_core::error::AppError;
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider};
 #[cfg(feature = "local-embedding")]
@@ -7,10 +6,6 @@ use a4n_embedding_fastembed::FastEmbedProvider;
 use std::{path::PathBuf, sync::Arc};
 
 use super::runtime::LocalEmbeddingProviderRuntime;
-
-pub(super) fn fastembed_cache_dir(state: &AppState) -> PathBuf {
-    fastembed_cache_dir_from_config(&state.config)
-}
 
 pub(super) fn fastembed_cache_dir_from_config(
     config: &a4n_core::config::app_config::AppConfig,

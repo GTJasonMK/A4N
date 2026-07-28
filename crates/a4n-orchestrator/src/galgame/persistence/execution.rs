@@ -61,7 +61,7 @@ impl OrchestratorContext {
 
         let record_input = galgame_script_record_input(&context, plan)?;
         a4n_db::galgame::replace_galgame_script_for_project_record(
-            self.db.connection(),
+            self.database.connection(),
             context.project.id,
             record_input,
         )

@@ -1,5 +1,5 @@
-use super::{TaskPriority, TaskStatus, TaskType};
-use a4n_core::event::sse::ProgressMeta;
+use super::{TaskKind, TaskPriority, TaskStatus};
+use a4n_core::event::progress::ProgressMeta;
 use serde::{Deserialize, Serialize};
 
 /// 任务进度
@@ -28,7 +28,7 @@ impl TaskProgress {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskInfo {
     pub id: String,
-    pub task_type: TaskType,
+    pub task_type: TaskKind,
     pub priority: TaskPriority,
     pub status: TaskStatus,
     pub project_id: Option<i64>,

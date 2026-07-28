@@ -1,5 +1,4 @@
 mod input;
-mod rules;
 mod task;
 
 mod generation;

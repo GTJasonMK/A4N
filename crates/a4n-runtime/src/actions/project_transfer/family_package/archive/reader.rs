@@ -1,17 +1,16 @@
 use serde_json::Value;
 
-use crate::state::AppState;
-
-use super::super::{ImportMediaPayload, MANIFEST_PATH, ProjectFamilyPackage};
+use super::super::{FamilyImportMediaPayload, MANIFEST_PATH, ProjectFamilyPackage};
 use super::payload::read_media_payloads_from_entries;
 
-pub(super) async fn read_project_family_package_bytes(
-    state: &AppState,
+pub(in crate::actions::project_transfer::family_package) async fn read_project_family_package_bytes(
+    runtime_profile: crate::state::RuntimeProfile,
+    capabilities: &a4n_capabilities::A4nCapabilities,
     bytes: Vec<u8>,
-) -> Result<(ProjectFamilyPackage, ImportMediaPayload), String> {
+) -> Result<(ProjectFamilyPackage, FamilyImportMediaPayload), String> {
     let (manifest, media_bytes) = crate::sidecar_clients::read_import_media_package_zip(
-        state.runtime_profile,
-        state.capabilities(),
+        runtime_profile,
+        capabilities,
         bytes,
         MANIFEST_PATH,
         "项目族导入包",
@@ -26,7 +25,7 @@ pub(super) async fn read_project_family_package_bytes(
 #[cfg(test)]
 pub(super) fn read_project_family_package_reader<R: std::io::Read + std::io::Seek>(
     reader: R,
-) -> Result<(ProjectFamilyPackage, ImportMediaPayload), String> {
+) -> Result<(ProjectFamilyPackage, FamilyImportMediaPayload), String> {
     let (manifest, media_bytes) = a4n_import_core::read_media_package_zip_reader(
         reader,
         MANIFEST_PATH,

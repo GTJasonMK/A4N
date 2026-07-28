@@ -1,13 +1,12 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::super::sha256_hex;
+use super::super::canonical_json_sha256;
 
 pub fn generation_checkpoint_fingerprint_sha256(
     value: &Value,
 ) -> Result<String, serde_json::Error> {
-    let serialized = serde_json::to_string(value)?;
-    Ok(sha256_hex(&serialized))
+    canonical_json_sha256(value)
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

@@ -6,7 +6,7 @@ use a4n_core::models::chapter::{chapter_outline, part_outline};
 use a4n_core::models::project::{blueprint_character, blueprint_relationship, novel_blueprint};
 use serde_json::{Value, json};
 
-pub(in crate::outline) fn outline_blueprint_context_json(
+pub fn outline_blueprint_context_json(
     blueprint: &novel_blueprint::Model,
     characters: &[blueprint_character::Model],
     relationships: &[blueprint_relationship::Model],
@@ -43,7 +43,7 @@ pub(in crate::outline) fn outline_blueprint_context_json(
     value
 }
 
-pub(in crate::outline) fn part_context_json(part: &part_outline::Model) -> Value {
+pub fn part_context_json(part: &part_outline::Model) -> Value {
     json!({
         "part_number": part.part_number,
         "title": part.title.clone(),
@@ -56,7 +56,7 @@ pub(in crate::outline) fn part_context_json(part: &part_outline::Model) -> Value
     })
 }
 
-pub(in crate::outline) fn chapter_outline_context_json(outline: &chapter_outline::Model) -> Value {
+pub fn chapter_outline_context_json(outline: &chapter_outline::Model) -> Value {
     json!({
         "chapter_number": outline.chapter_number,
         "title": outline.title.clone(),

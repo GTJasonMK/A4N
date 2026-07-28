@@ -1,6 +1,5 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
 use a4n_db::DbHandle;
@@ -12,38 +11,163 @@ use serde::{Deserialize, Serialize};
 use crate::chapter_generation::ChapterGenerationService;
 use crate::task_queue::PersistentTaskQueue;
 
+mod admin;
+mod asset;
+mod asset_lineage_sync;
+mod auth;
+mod canvas;
+mod chapter_content;
+mod character;
+mod collaboration;
 mod construction;
+pub mod dynamic_provider;
+mod export;
+mod galgame;
+mod generation;
+pub(crate) use generation::GenerationTaskExecution;
+pub use generation::{
+    GenerationTaskAccessError, GenerationTaskHistorySummaries, GenerationTaskStart,
+    generation_task_summary,
+};
+mod import_reverse;
+mod import_review;
+mod inspiration;
+mod llm_context;
+mod manga;
+mod optimize;
+mod outline;
+mod profile_material;
+mod project_blueprint;
+mod project_chapter_context;
+mod project_chapter_records;
+mod project_dependency_graph;
+mod project_duplication;
+mod project_family;
+mod project_family_transfer;
+mod project_mutation;
+mod project_outline_records;
+mod project_read;
+mod project_scene_records;
+mod project_status;
+mod prompt_engine;
+mod prompt_override;
+mod providers;
+mod rag;
+mod rag_store;
+mod scene_profile;
 mod service_health;
+mod settings;
+mod shooting_script;
+mod source_sync;
+mod task_queue;
+mod text_anchor;
 mod unavailable_providers;
+mod video;
+mod video_studio_transfer;
+mod workflow;
 
+use admin::AdminApplication;
+use asset::AssetApplication;
+use asset_lineage_sync::AssetLineageSyncApplication;
+use auth::AuthApplication;
+use canvas::CanvasApplication;
+use chapter_content::ChapterContentApplication;
+use character::CharacterApplication;
+use collaboration::CollaborationApplication;
+use export::ExportApplication;
+use galgame::GalgameApplication;
+use generation::GenerationApplication;
+use import_reverse::ImportReverseApplication;
+use import_review::ImportReviewApplication;
+use inspiration::InspirationApplication;
+use llm_context::LlmContextApplication;
+use manga::MangaApplication;
+use optimize::OptimizeApplication;
+use outline::OutlineApplication;
+use profile_material::ProfileMaterialApplication;
+use project_blueprint::ProjectBlueprintApplication;
+use project_chapter_context::ProjectChapterContextApplication;
+use project_chapter_records::ProjectChapterRecordsApplication;
+use project_dependency_graph::ProjectDependencyGraphApplication;
+use project_duplication::ProjectDuplicationApplication;
+use project_family::ProjectFamilyApplication;
+use project_mutation::ProjectMutationApplication;
+use project_outline_records::ProjectOutlineRecordsApplication;
+use project_read::ProjectReadApplication;
+use project_scene_records::ProjectSceneRecordsApplication;
+use project_status::ProjectStatusApplication;
+pub use prompt_engine::PromptRegistryCategory;
+use prompt_override::PromptOverrideApplication;
+use rag::RagApplication;
+use scene_profile::SceneProfileApplication;
+use settings::ConfigApplication;
+use shooting_script::ShootingScriptApplication;
+use source_sync::SourceSyncApplication;
+use text_anchor::TextAnchorApplication;
 use unavailable_providers::{BootstrapUnavailableEmbedding, BootstrapUnavailableLlm};
+use video::VideoApplication;
+use workflow::WorkflowApplication;
 
-pub type ManagedServicePidMap = Arc<RwLock<HashMap<String, u32>>>;
-
-/// 阶段 11：宿主业务编排上下文。
-///
-/// 除数据库/capability/service manager 外，还承载原 AppState 中的进程内运行时字段，
-/// 使 tauri/server 可只依赖本类型作为业务入口，而不再穿透 services/provider。
+/// 宿主业务编排上下文：领域 application owner + 基础设施能力。
 #[derive(Clone)]
 pub struct OrchestratorContext {
-    pub(crate) db: DbHandle,
+    /// 仅供尚未迁入 application owner 的遗留领域路径；runtime 不得直连。
+    pub(crate) database: DbHandle,
+    admin: AdminApplication,
+    asset: AssetApplication,
+    asset_lineage_sync: AssetLineageSyncApplication,
+    auth: AuthApplication,
+    canvas: CanvasApplication,
+    chapter_content: ChapterContentApplication,
+    character: CharacterApplication,
+    collaboration: CollaborationApplication,
+    export: ExportApplication,
+    galgame: GalgameApplication,
+    generation: GenerationApplication,
+    import_reverse: ImportReverseApplication,
+    import_review: ImportReviewApplication,
+    inspiration: InspirationApplication,
+    llm_context: LlmContextApplication,
+    manga: MangaApplication,
+    optimize: OptimizeApplication,
+    outline: OutlineApplication,
+    profile_material: ProfileMaterialApplication,
+    project_blueprint: ProjectBlueprintApplication,
+    project_chapter_context: ProjectChapterContextApplication,
+    project_chapter_records: ProjectChapterRecordsApplication,
+    project_dependency_graph: ProjectDependencyGraphApplication,
+    project_duplication: ProjectDuplicationApplication,
+    project_family: ProjectFamilyApplication,
+    project_mutation: ProjectMutationApplication,
+    project_outline_records: ProjectOutlineRecordsApplication,
+    project_read: ProjectReadApplication,
+    project_scene_records: ProjectSceneRecordsApplication,
+    project_status: ProjectStatusApplication,
+    prompt_override: PromptOverrideApplication,
+    rag: RagApplication,
+    scene_profile: SceneProfileApplication,
+    settings: ConfigApplication,
+    shooting_script: ShootingScriptApplication,
+    source_sync: SourceSyncApplication,
+    text_anchor: TextAnchorApplication,
+    video: VideoApplication,
+    workflow: WorkflowApplication,
     capabilities: A4nCapabilities,
     service_manager: Arc<ServiceManager>,
     service_pid_dir: Option<PathBuf>,
-    managed_service_pids: Option<ManagedServicePidMap>,
 
-    /// 应用配置（含 data_dir）。
-    pub config: a4n_core::config::app_config::AppConfig,
-    pub event_bus: Arc<a4n_core::event::bridge::BroadcastEventBus>,
-    pub task_manager: Arc<a4n_core::event::channel::TaskManager>,
+    /// 应用配置（含 data_dir）；仅 context 子树与用途方法可访问。
+    config: a4n_core::config::app_config::AppConfig,
+    event_bus: Arc<a4n_core::event::bridge::BroadcastEventBus>,
+    task_manager: Arc<a4n_core::event::channel::TaskManager>,
     /// 章节生成服务（进程内 generation lock，必须共享实例）。
-    pub chapter: ChapterGenerationService,
-    pub(crate) rag_store: Arc<dyn VectorStore>,
-    pub task_queue: Arc<PersistentTaskQueue>,
-    pub llm: Arc<dyn a4n_llm::provider::LlmProvider>,
-    pub engine: Arc<dyn a4n_prompt::engine::PromptEngine>,
-    pub embedding: Arc<dyn a4n_embedding::provider::EmbeddingProvider>,
-    pub snapshot_store: Arc<a4n_db::character::snapshot_store::Sha256SnapshotStore>,
+    chapter: ChapterGenerationService,
+    rag_store: Arc<dyn VectorStore>,
+    task_queue: Arc<PersistentTaskQueue>,
+    llm: Arc<dyn a4n_llm::provider::LlmProvider>,
+    engine: Arc<dyn a4n_prompt::engine::PromptEngine>,
+    embedding: Arc<dyn a4n_embedding::provider::EmbeddingProvider>,
+    snapshot_store: Arc<a4n_db::character::snapshot_store::Sha256SnapshotStore>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

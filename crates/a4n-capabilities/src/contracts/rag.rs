@@ -1,4 +1,4 @@
-use a4n_service_protocol::ServiceTaskEvent;
+use a4n_service_protocol::CapabilityTaskEvent;
 use async_trait::async_trait;
 
 use super::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse};
@@ -11,7 +11,7 @@ pub trait RagClient: CapabilityClient {
     async fn ingest_events(
         &self,
         request: JsonRequest,
-        events: tokio::sync::mpsc::UnboundedSender<ServiceTaskEvent>,
+        events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()>;
     async fn search(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
     async fn delete(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;

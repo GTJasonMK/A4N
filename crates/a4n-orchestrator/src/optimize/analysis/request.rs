@@ -9,7 +9,7 @@ pub(in crate::optimize) struct AnalysisSessionPromptBundle {
 }
 
 impl OrchestratorContext {
-    pub async fn build_analysis_preview_request(
+    pub(crate) async fn build_analysis_preview_request(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -55,7 +55,7 @@ impl OrchestratorContext {
             .render_prompt("content_optimization", &prompt_vars, Some(project_id))
             .await?;
         let analysis_context = build_content_optimization_context(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             chapter_id,
             &permissions,

@@ -5,10 +5,6 @@ use super::*;
 
 #[async_trait]
 impl LlmProvider for DynamicLlmProvider {
-    async fn chat(&self, request: ChatRequest) -> Result<ChatResponse, AppError> {
-        self.chat_with_config_id(None, request).await
-    }
-
     async fn chat_stream(
         &self,
         request: ChatRequest,
@@ -54,9 +50,9 @@ impl LlmProvider for DynamicLlmProvider {
         if self.sidecar_client.is_some() {
             return self.probe_with_config_id(None, request).await;
         }
-        self.chat_with_config_id(None, request)
+        a4n_llm::provider::collect_chat_stream(self, request)
             .await
-            .map(|response| !response.message.content.is_empty())
+            .map(|response| !response.message.content.trim().is_empty())
     }
 
     fn model_name(&self) -> &str {

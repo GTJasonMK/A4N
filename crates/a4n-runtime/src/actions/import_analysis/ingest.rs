@@ -1,7 +1,5 @@
 use a4n_core::models::project::import_review_queue;
-use a4n_orchestrator::import_analysis::{
-    StartImportAnalysisInput, ingest::create_import_analysis_reviews,
-};
+use a4n_orchestrator::import_analysis::StartImportAnalysisInput;
 
 use crate::{actions::access, state::AppState};
 
@@ -12,5 +10,8 @@ pub async fn start_import_analysis(
     input: StartImportAnalysisInput,
 ) -> Result<Vec<import_review_queue::Model>, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
-    create_import_analysis_reviews(&state.orchestrator, project_id, input).await
+    state
+        .import_analysis()
+        .create_import_analysis_reviews(project_id, input)
+        .await
 }

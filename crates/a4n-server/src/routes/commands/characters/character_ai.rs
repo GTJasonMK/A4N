@@ -1,7 +1,7 @@
 use serde_json::{Value, json};
 
 use super::super::{
-    ApiError, ServerState, TaskType, character_ai_actions, character_conflict_actions,
+    ApiError, ServerState, TaskKind, character_ai_actions, character_conflict_actions,
     finish_web_task, i64_arg, optional_i32_field, optional_string_field, register_web_task,
     required_json_i32, sanitize_optional_task_id, string_action_result, string_arg, to_value,
     web_fire_and_forget_progress_reporter, web_progress_reporter,
@@ -31,15 +31,14 @@ macro_rules! character_ai_web_task_command {
             let task = register_web_task(
                 $state,
                 task_id.clone(),
-                TaskType::LlmCall,
+                TaskKind::LlmCall,
                 scope.project_id,
                 scope.total,
                 $start_message,
             )
             .await;
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-            let reporter =
-                web_fire_and_forget_progress_reporter($state, task.clone(), task_id.clone());
+            let reporter = web_fire_and_forget_progress_reporter(task.clone());
             let runtime_progress = character_ai_actions::CharacterAiProgress::new(
                 Some(&reporter),
                 cancel_token.as_ref(),
@@ -53,7 +52,6 @@ macro_rules! character_ai_web_task_command {
                     result,
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),
                 ),
-                $success_message,
             )
             .await?;
             Ok(value)
@@ -80,21 +78,53 @@ macro_rules! character_ai_web_preview_command {
     };
 }
 
-character_ai_web_task_command!(
-    discover_character_profiles,
-    |state, user_id, args, project_id, progress|,
-    character_ai_actions::character_discovery_task_scope,
-    "正在准备角色发现",
-    "角色发现完成",
-    (chapter_number: Option<i32> = optional_i32_field(args, "chapterNumber")?),
-    character_ai_actions::discover_character_profiles_for_chapters(
+pub(in crate::routes::commands) async fn discover_character_profiles(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    let chapter_number = optional_i32_field(args, "chapterNumber")?;
+    let scope = character_ai_actions::character_discovery_task_scope(
         state.runtime(),
         user_id,
         project_id,
         chapter_number,
-        Some(progress),
-    ),
-);
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
+    let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
+    let task = register_web_task(
+        state,
+        task_id.clone(),
+        TaskKind::LlmCall,
+        scope.project_id,
+        scope.total,
+        "正在准备角色发现",
+    )
+    .await;
+    let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
+    let reporter = web_fire_and_forget_progress_reporter(task.clone());
+    let runtime_progress =
+        character_ai_actions::CharacterAiProgress::new(Some(&reporter), cancel_token.as_ref());
+    let result = character_ai_actions::discover_character_profiles_for_chapters(
+        state.runtime(),
+        user_id,
+        project_id,
+        chapter_number,
+        Some(&runtime_progress),
+    )
+    .await;
+    finish_web_task(
+        state,
+        task_id,
+        string_action_result(
+            result,
+            task.as_ref().is_some_and(|handle| handle.is_cancelled()),
+        ),
+    )
+    .await
+}
 
 character_ai_web_preview_command!(
     preview_discover_character_profiles_request,
@@ -195,6 +225,9 @@ pub(in crate::routes::commands) async fn check_character_conflict(
         state.runtime(),
         user_id,
         project_id,
+        &name,
+        start_chapter,
+        end_chapter,
     )
     .await
     .map_err(|err| ApiError::bad_request(err.to_string()))?;
@@ -202,13 +235,13 @@ pub(in crate::routes::commands) async fn check_character_conflict(
     let task = register_web_task(
         state,
         task_id.clone(),
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         scope.project_id,
         scope.total,
         "正在准备角色一致性检查",
     )
     .await;
-    let progress = web_progress_reporter(state, task, task_id.clone());
+    let progress = web_progress_reporter(task);
     let result = character_conflict_actions::check_character_conflict(
         state.runtime(),
         user_id,
@@ -219,7 +252,7 @@ pub(in crate::routes::commands) async fn check_character_conflict(
         &progress,
     )
     .await;
-    let rows = finish_web_task(state, task_id, result, "一致性检查完成").await?;
+    let rows = finish_web_task(state, task_id, result).await?;
     Ok(json!(rows))
 }
 

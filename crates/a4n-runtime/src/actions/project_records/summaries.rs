@@ -14,7 +14,7 @@ pub(super) async fn project_record_by_id(
     project_id: i64,
 ) -> Result<novel_project::Model, String> {
     state
-        .orchestrator
+        .project_read()
         .project_by_id(project_id)
         .await
         .map_err(app_error_message)?

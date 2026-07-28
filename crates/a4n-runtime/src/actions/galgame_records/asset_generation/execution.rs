@@ -1,20 +1,30 @@
 use super::{
-    AppState, GALGAME_TARGET_BACKGROUND, GALGAME_TARGET_CG, GALGAME_TARGET_PORTRAIT_EXPRESSION,
-    GalgameAssetGenerationSummary, GalgameAssetPlan, GalgameProjectInput,
-    RunGalgameAssetGenerationInput, access, run_galgame_portrait_spec_generation,
-    run_galgame_visual_spec_generation,
+    AppState, GalgameAssetGenerationSummary, GalgameAssetPlan, GalgameProjectInput,
+    RunGalgameAssetGenerationInput,
 };
-use a4n_core::models::generation::generation_spec;
-use std::collections::BTreeSet;
+use crate::actions::{image_generation, portrait_generation};
+use crate::file_utils::canonicalize_data_file_path;
+use crate::prompt_renderer::RuntimePromptRenderer;
+use a4n_core::error::AppError;
+use a4n_orchestrator::{
+    galgame::{
+        GalgameAssetGenerationHostPort, GalgamePortraitImageGenerationInput,
+        GalgameVisualImageGenerationInput,
+    },
+    media::GeneratedImageSummary,
+    portrait::PortraitSummary,
+};
+use a4n_prompt::rendering::PromptRenderer;
+use async_trait::async_trait;
 
 pub async fn plan_galgame_assets(
     state: &AppState,
     user_id: i64,
     input: GalgameProjectInput,
 ) -> Result<GalgameAssetPlan, String> {
-    access::verify_project_editor_string(state, user_id, input.project_id).await?;
     state
-        .plan_galgame_assets(input.project_id)
+        .galgame()
+        .plan_galgame_assets_for_user_validated(user_id, input.project_id)
         .await
         .map_err(|err| err.to_string())
 }
@@ -24,89 +34,92 @@ pub async fn run_galgame_asset_generation(
     user_id: i64,
     input: RunGalgameAssetGenerationInput,
 ) -> Result<GalgameAssetGenerationSummary, String> {
-    access::verify_project_editor_string(state, user_id, input.project_id).await?;
-    validate_run_galgame_asset_generation_input(&input)?;
-
-    let specs = load_galgame_asset_specs(state, &input).await?;
-    let mut summary = GalgameAssetGenerationSummary {
-        project_id: input.project_id,
-        generated_count: 0,
-        skipped_completed_count: 0,
-        items: Vec::with_capacity(specs.len()),
-    };
-    for spec in specs {
-        let (item, generated) = match spec.target_kind.as_str() {
-            GALGAME_TARGET_BACKGROUND | GALGAME_TARGET_CG => {
-                run_galgame_visual_spec_generation(state, user_id, &input, &spec).await?
-            }
-            GALGAME_TARGET_PORTRAIT_EXPRESSION => {
-                run_galgame_portrait_spec_generation(state, user_id, &spec).await?
-            }
-            other => {
-                return Err(format!(
-                    "Galgame 资产生成不支持 target_kind: spec_id={}, target_kind={other}",
-                    spec.id
-                ));
-            }
-        };
-        if generated {
-            summary.generated_count += 1;
-        } else {
-            summary.skipped_completed_count += 1;
-        }
-        summary.items.push(item);
-    }
-    Ok(summary)
-}
-
-pub(super) fn validate_run_galgame_asset_generation_input(
-    input: &RunGalgameAssetGenerationInput,
-) -> Result<(), String> {
-    if let Some(limit) = input.limit
-        && limit == 0
-    {
-        return Err("limit 必须大于 0".to_string());
-    }
-    let mut seen = BTreeSet::new();
-    for spec_id in &input.generation_spec_ids {
-        if *spec_id <= 0 {
-            return Err("generation_spec_ids 必须全部是正整数".to_string());
-        }
-        if !seen.insert(*spec_id) {
-            return Err(format!("generation_spec_ids 不能包含重复 ID: {spec_id}"));
-        }
-    }
-    Ok(())
-}
-
-pub(super) async fn load_galgame_asset_specs(
-    state: &AppState,
-    input: &RunGalgameAssetGenerationInput,
-) -> Result<Vec<generation_spec::Model>, String> {
+    let host_port = RuntimeGalgameAssetGenerationHostPort { state };
     state
-        .orchestrator
-        .galgame_asset_generation_specs(
-            input.project_id,
-            &[
-                GALGAME_TARGET_BACKGROUND,
-                GALGAME_TARGET_CG,
-                GALGAME_TARGET_PORTRAIT_EXPRESSION,
-            ],
-            &input.generation_spec_ids,
-            input.limit,
+        .galgame()
+        .run_galgame_asset_generation_for_user_validated(&host_port, user_id, input)
+        .await
+        .map_err(crate::actions::app_error_message)
+}
+
+struct RuntimeGalgameAssetGenerationHostPort<'a> {
+    state: &'a AppState,
+}
+
+#[async_trait]
+impl GalgameAssetGenerationHostPort for RuntimeGalgameAssetGenerationHostPort<'_> {
+    async fn render_image_prompt(
+        &self,
+        template_name: &str,
+        variables: &std::collections::HashMap<String, serde_json::Value>,
+        project_id: i64,
+    ) -> Result<String, AppError> {
+        RuntimePromptRenderer::new(self.state)
+            .render_prompt(template_name, variables, Some(project_id))
+            .await
+            .map_err(|error| AppError::InvalidState {
+                current: "galgame_prompt_renderer".to_string(),
+                operation: error.to_string(),
+            })
+    }
+
+    async fn generate_visual_image(
+        &self,
+        user_id: i64,
+        input: GalgameVisualImageGenerationInput,
+    ) -> Result<GeneratedImageSummary, AppError> {
+        image_generation::generate_galgame_image(
+            self.state,
+            user_id,
+            image_generation::GenerateGalgameImageInput {
+                project_id: input.project_id,
+                prompt: input.prompt,
+                image_type: input.image_type,
+                config_id: input.config_id,
+                chapter_id: input.chapter_id,
+                generation_spec_id: input.generation_spec_id,
+                target_kind: input.target_kind,
+                target_entity_kind: input.target_entity_kind,
+                target_entity_id: input.target_entity_id,
+                workflow_run_id: None,
+            },
+            None,
         )
         .await
-        .map_err(crate::actions::app_error_message)
+        .map_err(generation_host_error)
+    }
+
+    async fn generate_portrait_image(
+        &self,
+        user_id: i64,
+        input: GalgamePortraitImageGenerationInput,
+    ) -> Result<PortraitSummary, AppError> {
+        portrait_generation::generate_portrait_inline(
+            self.state,
+            user_id,
+            portrait_generation::GeneratePortraitInput {
+                project_id: input.project_id,
+                character_name: input.character_name,
+                style: Some(input.style),
+                expressions: Some(vec![input.expression]),
+                pose: input.pose,
+                reference_image_ids: input.reference_image_ids,
+            },
+        )
+        .await
+        .map_err(generation_host_error)
+    }
+
+    fn validate_data_file(&self, relative_path: &str, label: &str) -> Result<(), AppError> {
+        canonicalize_data_file_path(self.state.data_dir(), relative_path, label)
+            .map(|_| ())
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))
+    }
 }
 
-pub(super) async fn mark_galgame_generation_spec_status(
-    state: &AppState,
-    generation_spec_id: i64,
-    status: &str,
-) -> Result<(), String> {
-    state
-        .orchestrator
-        .mark_galgame_generation_spec_status_record(generation_spec_id, status)
-        .await
-        .map_err(crate::actions::app_error_message)
+fn generation_host_error(operation: String) -> AppError {
+    AppError::InvalidState {
+        current: "galgame_asset_generation_host".to_string(),
+        operation,
+    }
 }

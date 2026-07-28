@@ -2,13 +2,16 @@ use std::{
     convert::Infallible,
     net::SocketAddr,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
-use a4n_capabilities::{CapabilityClient, HttpLlmClient, JsonRequest, LlmClient};
+use a4n_capabilities::{
+    CapabilityClient, EVENT_QUEUE_CAPACITY, HttpLlmClient, JsonRequest, LlmClient,
+};
 use a4n_llm::provider::ChatRequest;
 use a4n_service_protocol::{
-    HealthStatus, LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME, PROTOCOL_VERSION,
-    ServiceErrorCode, ServiceRequest, ServiceStatus, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, HealthStatus, LLM_CHAT_CAPABILITY_VERSION,
+    LLM_SERVICE_NAME, PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest,
 };
 use axum::{
     Json, Router,
@@ -21,6 +24,7 @@ use axum::{
 use futures::{future::pending, stream};
 use serde::Serialize;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use tokio::{
     sync::oneshot,
     task::JoinHandle,
@@ -78,6 +82,22 @@ impl TestHttpServer {
             .expect("loopback HTTP server task should join")
             .expect("loopback HTTP server should stop cleanly");
     }
+}
+
+async fn collect_stream_events(
+    client: &impl LlmClient,
+    request: JsonRequest,
+) -> Vec<CapabilityTaskEvent> {
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
+    client
+        .stream(request, event_tx)
+        .await
+        .expect("terminal event should complete typed transport");
+    let mut events = Vec::new();
+    while let Some(event) = event_rx.recv().await {
+        events.push(event);
+    }
+    events
 }
 
 fn invalid_provider_payload() -> LlmChatPayload {
@@ -224,10 +244,7 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
     let mut root_without_project = service_request(invalid_provider_payload());
     root_without_project.project_id = None;
     root_without_project.root_project_id = Some(3);
-    let root_response = client
-        .chat(json_request(root_without_project))
-        .await
-        .expect("protocol rejection should be returned as a service response");
+    let root_events = collect_stream_events(&client, json_request(root_without_project)).await;
 
     let mut unredacted_snapshot = service_request(invalid_provider_payload());
     unredacted_snapshot.runtime_config_snapshot = Some(json!({
@@ -236,14 +253,12 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
             "base_url": "https://private-provider.example/v1"
         }
     }));
-    let snapshot_response = client
-        .chat(json_request(unredacted_snapshot))
-        .await
-        .expect("snapshot rejection should be returned as a service response");
+    let snapshot_events = collect_stream_events(&client, json_request(unredacted_snapshot)).await;
 
     let mut incompatible_capability = service_request(invalid_provider_payload());
     incompatible_capability.capability_version = "llm-chat-v0".to_string();
-    let capability_response = client.chat(json_request(incompatible_capability)).await;
+    let capability_events =
+        collect_stream_events(&client, json_request(incompatible_capability)).await;
 
     server.stop().await;
 
@@ -255,57 +270,62 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
         LLM_CHAT_CAPABILITY_VERSION
     );
 
-    let capability_response =
-        capability_response.expect("capability mismatch should be returned as a service response");
-    for response in [&root_response, &snapshot_response, &capability_response] {
-        let response_text =
-            serde_json::to_string(response).expect("service response should serialize");
+    for events in [&root_events, &snapshot_events, &capability_events] {
+        let response_text = serde_json::to_string(events).expect("events should serialize");
         assert!(!response_text.contains("payload-provider-secret"));
         assert!(!response_text.contains("not a provider URL"));
     }
 
-    let snapshot_text =
-        serde_json::to_string(&snapshot_response).expect("snapshot response should serialize");
+    let snapshot_text = serde_json::to_string(&snapshot_events).expect("events should serialize");
     assert!(!snapshot_text.contains("snapshot-secret"));
     assert!(!snapshot_text.contains("private-provider.example"));
 
-    assert_eq!(root_response.status, ServiceStatus::Error);
-    assert_eq!(root_response.trace_id.as_deref(), Some("trace-1"));
+    assert_eq!(root_events.len(), 1);
+    assert_eq!(root_events[0].event_kind, CapabilityTaskEventKind::Failed);
     assert_eq!(
-        root_response.error.as_ref().map(|error| error.code.clone()),
+        root_events[0]
+            .error
+            .as_ref()
+            .map(|error| error.code.clone()),
         Some(ServiceErrorCode::ConfigurationError)
     );
-    assert!(root_response.error.as_ref().is_some_and(|error| {
+    assert!(root_events[0].error.as_ref().is_some_and(|error| {
         error
             .message
             .contains("root_project_id requires project_id")
             && error.retryable == Some(false)
     }));
 
-    assert_eq!(snapshot_response.status, ServiceStatus::Error);
-    assert_eq!(snapshot_response.trace_id.as_deref(), Some("trace-1"));
+    assert_eq!(snapshot_events.len(), 1);
     assert_eq!(
-        snapshot_response
+        snapshot_events[0].event_kind,
+        CapabilityTaskEventKind::Failed
+    );
+    assert_eq!(
+        snapshot_events[0]
             .error
             .as_ref()
             .map(|error| error.code.clone()),
         Some(ServiceErrorCode::ConfigurationError)
     );
-    assert!(snapshot_response.error.as_ref().is_some_and(|error| {
+    assert!(snapshot_events[0].error.as_ref().is_some_and(|error| {
         error.message.contains("unredacted sensitive fields") && error.retryable == Some(false)
     }));
 
-    assert_eq!(capability_response.status, ServiceStatus::Error);
-    assert_eq!(capability_response.trace_id.as_deref(), Some("trace-1"));
+    assert_eq!(capability_events.len(), 1);
     assert_eq!(
-        capability_response
+        capability_events[0].event_kind,
+        CapabilityTaskEventKind::Failed
+    );
+    assert_eq!(
+        capability_events[0]
             .error
             .as_ref()
             .map(|error| error.code.clone()),
         Some(ServiceErrorCode::VersionMismatch)
     );
     assert!(
-        capability_response
+        capability_events[0]
             .error
             .as_ref()
             .is_some_and(|error| error.retryable == Some(false))
@@ -331,7 +351,7 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks_and_final_usage() {
         request: ChatRequest::system_user("system", "stream ping", None, Some(16), None)
             .with_stream_usage(),
     });
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
 
     client
         .stream(json_request(request), event_tx)
@@ -367,13 +387,13 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks_and_final_usage() {
     assert!(!events_text.contains(&provider_base_url));
 
     assert_eq!(events[0].task_id, "test-request");
-    assert_eq!(events[0].event_kind, ServiceTaskEventKind::Chunk);
+    assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[0].sequence, 1);
     assert_eq!(events[0].chunk_index, Some(0));
     assert_eq!(events[0].chunk_delta.as_deref(), Some("hel"));
     assert_eq!(events[0].usage_delta, None);
 
-    assert_eq!(events[1].event_kind, ServiceTaskEventKind::Chunk);
+    assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[1].sequence, 2);
     assert_eq!(events[1].chunk_index, Some(1));
     assert_eq!(events[1].chunk_delta.as_deref(), Some("lo"));
@@ -387,7 +407,7 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks_and_final_usage() {
         Some(json!(5))
     );
 
-    assert_eq!(events[2].event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(events[2].sequence, 3);
     assert_eq!(events[2].chunk_delta, None);
     assert_eq!(events[2].finish_reason.as_deref(), Some("stop"));
@@ -423,7 +443,7 @@ async fn closed_typed_event_receiver_drops_gateway_and_provider_http_streams() {
         },
         request: ChatRequest::system_user("system", "cancel ping", None, Some(16), None),
     });
-    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (event_tx, event_rx) = tokio::sync::mpsc::channel(EVENT_QUEUE_CAPACITY);
     drop(event_rx);
 
     let error = timeout(
@@ -453,5 +473,167 @@ async fn closed_typed_event_receiver_drops_gateway_and_provider_http_streams() {
     assert_eq!(
         provider_request.authorization.as_deref(),
         Some("Bearer fake-cancel-secret")
+    );
+}
+
+#[derive(Clone)]
+struct BaselineFakeProviderState {
+    chunks: Arc<Vec<String>>,
+}
+
+fn baseline_fake_provider_router(chunks: Vec<String>) -> Router {
+    Router::new()
+        .route("/chat/completions", post(baseline_fake_chat_completions))
+        .with_state(BaselineFakeProviderState {
+            chunks: Arc::new(chunks),
+        })
+}
+
+async fn baseline_fake_chat_completions(
+    State(state): State<BaselineFakeProviderState>,
+) -> impl IntoResponse {
+    let last_index = state.chunks.len().saturating_sub(1);
+    let mut frames = state
+        .chunks
+        .iter()
+        .enumerate()
+        .map(|(index, content)| {
+            let finish_reason = (index == last_index).then_some("stop");
+            let payload = json!({
+                "choices": [{
+                    "index": 0,
+                    "delta": {"content": content},
+                    "finish_reason": finish_reason,
+                }]
+            });
+            Ok::<_, Infallible>(Bytes::from(format!("data: {payload}\n\n")))
+        })
+        .collect::<Vec<_>>();
+    frames.push(Ok(Bytes::from_static(b"data: [DONE]\n\n")));
+
+    (
+        [(header::CONTENT_TYPE, "text/event-stream")],
+        Body::from_stream(stream::iter(frames)),
+    )
+}
+
+async fn run_stream_baseline(
+    chunks: Vec<String>,
+) -> (
+    Vec<a4n_service_protocol::CapabilityTaskEvent>,
+    Duration,
+    Duration,
+) {
+    let event_capacity = chunks.len() + 1;
+    let provider = TestHttpServer::start(baseline_fake_provider_router(chunks)).await;
+    let gateway = TestHttpServer::start(build_router()).await;
+    let client = gateway.client();
+    let request = service_request(LlmChatPayload {
+        provider: super::HttpLlmProviderConfig {
+            base_url: provider.base_url(),
+            model: "fake-baseline-model".to_string(),
+            api_key: None,
+            timeout_secs: 30,
+            request_options_json: None,
+        },
+        request: ChatRequest::system_user("system", "baseline", None, None, None),
+    });
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(event_capacity);
+    let started_at = Instant::now();
+    let mut producer =
+        tokio::spawn(async move { client.stream(json_request(request), event_tx).await });
+
+    let first_event = timeout(Duration::from_secs(10), event_rx.recv())
+        .await
+        .expect("baseline stream should publish its first event before timeout")
+        .expect("baseline stream should not close before its first event");
+    let first_event_latency = started_at.elapsed();
+
+    timeout(Duration::from_secs(30), &mut producer)
+        .await
+        .expect("old unbounded event producer should finish while the consumer is paused")
+        .expect("baseline stream task should join")
+        .expect("baseline stream should complete");
+    let producer_elapsed = started_at.elapsed();
+
+    let mut events = vec![first_event];
+    while let Some(event) = event_rx.recv().await {
+        events.push(event);
+    }
+
+    gateway.stop().await;
+    provider.stop().await;
+
+    (events, first_event_latency, producer_elapsed)
+}
+
+fn sha256_hex(text: &str) -> String {
+    format!("{:x}", Sha256::digest(text.as_bytes()))
+}
+
+#[tokio::test]
+#[ignore = "manual stage-0 streaming baseline"]
+async fn reports_stage_0_streaming_baseline() {
+    let small_chunks = (0..10_000)
+        .map(|index| {
+            let byte = b'a' + (index % 26) as u8;
+            String::from_utf8(vec![byte; index % 8 + 1]).expect("ASCII chunk should be UTF-8")
+        })
+        .collect::<Vec<_>>();
+    let expected_small = small_chunks.concat();
+    let (small_events, small_first_latency, small_producer_elapsed) =
+        run_stream_baseline(small_chunks).await;
+    let observed_small = small_events
+        .iter()
+        .filter_map(|event| event.chunk_delta.as_deref())
+        .collect::<String>();
+    let small_chunk_events = small_events
+        .iter()
+        .filter(|event| event.event_kind == CapabilityTaskEventKind::Chunk)
+        .count();
+
+    assert_eq!(small_chunk_events, 10_000);
+    assert_eq!(small_events.len(), 10_001);
+    assert_eq!(observed_small, expected_small);
+    assert_eq!(sha256_hex(&observed_small), sha256_hex(&expected_small));
+    assert_eq!(
+        small_events.last().map(|event| &event.event_kind),
+        Some(&CapabilityTaskEventKind::Completed)
+    );
+    eprintln!(
+        "BASELINE_STREAM_10000 first_event_us={} producer_elapsed_ms={} upstream_chunks=10000 chunk_events={} total_events={} final_bytes={} sha256={} slow_consumer=producer_completed_while_receiver_paused",
+        small_first_latency.as_micros(),
+        small_producer_elapsed.as_millis(),
+        small_chunk_events,
+        small_events.len(),
+        observed_small.len(),
+        sha256_hex(&observed_small),
+    );
+
+    let one_mib_chunks = vec!["x".repeat(1024); 1024];
+    let expected_one_mib = one_mib_chunks.concat();
+    let (one_mib_events, one_mib_first_latency, one_mib_producer_elapsed) =
+        run_stream_baseline(one_mib_chunks).await;
+    let observed_one_mib = one_mib_events
+        .iter()
+        .filter_map(|event| event.chunk_delta.as_deref())
+        .collect::<String>();
+    let one_mib_chunk_events = one_mib_events
+        .iter()
+        .filter(|event| event.event_kind == CapabilityTaskEventKind::Chunk)
+        .count();
+
+    assert_eq!(one_mib_chunk_events, 1024);
+    assert_eq!(one_mib_events.len(), 1025);
+    assert_eq!(observed_one_mib, expected_one_mib);
+    assert_eq!(sha256_hex(&observed_one_mib), sha256_hex(&expected_one_mib));
+    eprintln!(
+        "BASELINE_STREAM_1M first_event_us={} producer_elapsed_ms={} upstream_chunks=1024 chunk_events={} total_events={} final_bytes={} sha256={} slow_consumer=producer_completed_while_receiver_paused",
+        one_mib_first_latency.as_micros(),
+        one_mib_producer_elapsed.as_millis(),
+        one_mib_chunk_events,
+        one_mib_events.len(),
+        observed_one_mib.len(),
+        sha256_hex(&observed_one_mib),
     );
 }

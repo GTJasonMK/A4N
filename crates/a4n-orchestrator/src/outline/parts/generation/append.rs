@@ -26,7 +26,7 @@ impl OrchestratorContext {
             workflow_run_id,
         } = input;
         let context = load_part_generation_context(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             part_count,
             chapters_per_part,
@@ -75,7 +75,7 @@ impl OrchestratorContext {
                 })
                 .await?;
             let part = insert_part_outline_from_json(
-                self.db.connection(),
+                self.database.connection(),
                 project_id,
                 part_num,
                 start_ch,

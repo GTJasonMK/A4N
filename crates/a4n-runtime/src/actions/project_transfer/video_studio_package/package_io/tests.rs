@@ -32,6 +32,7 @@ fn freeform_project() -> novel_project::Model {
         source_sync_status: SOURCE_SYNC_CURRENT.to_string(),
         derived_project_status: None,
         status: "draft".to_string(),
+        lifecycle_gate: "active".to_string(),
         target_chapters: 1,
         current_chapter: 1,
         total_chapters: None,

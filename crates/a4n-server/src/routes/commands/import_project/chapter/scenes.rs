@@ -4,7 +4,7 @@ use crate::routes::commands::{
     web_progress_reporter,
 };
 use crate::state::ServerState;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use serde_json::{Value, json};
 
 pub(in crate::routes::commands) async fn list_chapter_scenes(
@@ -67,17 +67,17 @@ pub(in crate::routes::commands) async fn generate_chapter_scene(
     let task = register_web_task(
         state,
         task_id.clone(),
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         scope.project_id,
         scope.total,
         "正在准备场景生成",
     )
     .await;
-    let progress = web_progress_reporter(state, task, task_id.clone());
+    let progress = web_progress_reporter(task);
     let result =
         chapter_scene_actions::generate_chapter_scene(state.runtime(), user_id, input, &progress)
             .await;
-    let scene = finish_web_task(state, task_id, result, "场景已生成").await?;
+    let scene = finish_web_task(state, task_id, result).await?;
     Ok(json!(scene))
 }
 

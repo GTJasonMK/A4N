@@ -3,7 +3,7 @@ use a4n_llm::provider::ChatRequest;
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
-pub(super) fn required_message_content(content: &str) -> Result<&str, AppError> {
+pub fn required_message_content(content: &str) -> Result<&str, AppError> {
     let content = content.trim();
     if content.is_empty() {
         Err(AppError::InvalidArgument("消息内容不能为空".to_string()))

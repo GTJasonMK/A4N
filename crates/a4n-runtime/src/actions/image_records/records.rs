@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     actions::{
-        access, app_error_message,
+        app_error_message,
         image_generation::{GeneratedImageSummary, to_summary},
     },
 };
@@ -15,16 +15,10 @@ pub async fn update_image(
     image_id: i64,
     input: UpdateGeneratedImageInput,
 ) -> Result<GeneratedImageSummary, String> {
-    let existing = state
-        .orchestrator
-        .generated_image_by_id(image_id)
-        .await
-        .map_err(app_error_message)?
-        .ok_or_else(|| "图片不存在".to_string())?;
-    access::verify_project_editor_string(state, user_id, existing.project_id).await?;
     let row = state
-        .orchestrator
-        .update_generated_image_record(
+        .media()
+        .update_generated_image_for_user_validated(
+            user_id,
             image_id,
             UpdateImageRecord {
                 prompt: input.prompt,
@@ -48,10 +42,9 @@ pub async fn toggle_image_favorite(
     user_id: i64,
     image_id: i64,
 ) -> Result<GeneratedImageSummary, String> {
-    image_project_id_for_user(state, user_id, image_id).await?;
     let row = state
-        .orchestrator
-        .toggle_generated_image_favorite(image_id)
+        .media()
+        .toggle_generated_image_favorite_for_user_validated(user_id, image_id)
         .await
         .map_err(app_error_message)?;
     Ok(to_summary(&row))
@@ -63,10 +56,10 @@ pub async fn score_image(
     image_id: i64,
     score: f32,
 ) -> Result<GeneratedImageSummary, String> {
-    image_project_id_for_user(state, user_id, image_id).await?;
     let row = state
-        .orchestrator
-        .update_generated_image_record(
+        .media()
+        .update_generated_image_for_user_validated(
+            user_id,
             image_id,
             UpdateImageRecord {
                 ai_score: Some(score),
@@ -76,19 +69,4 @@ pub async fn score_image(
         .await
         .map_err(app_error_message)?;
     Ok(to_summary(&row))
-}
-
-async fn image_project_id_for_user(
-    state: &AppState,
-    user_id: i64,
-    image_id: i64,
-) -> Result<i64, String> {
-    let image = state
-        .orchestrator
-        .generated_image_by_id(image_id)
-        .await
-        .map_err(app_error_message)?
-        .ok_or_else(|| "图片不存在".to_string())?;
-    access::verify_project_editor_string(state, user_id, image.project_id).await?;
-    Ok(image.project_id)
 }

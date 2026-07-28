@@ -1,6 +1,8 @@
 use a4n_embedding::provider::EmbeddingModelIdentity;
-use a4n_embedding_fastembed::DEFAULT_FASTEMBED_MODEL;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "fastembed")]
+use a4n_embedding_fastembed::DEFAULT_FASTEMBED_MODEL;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -21,12 +23,14 @@ pub(crate) struct EmbedTextsOutput {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg(feature = "fastembed")]
 pub(crate) struct ModelPayload {
     pub(crate) operation: String,
     #[serde(default = "default_fastembed_model")]
     pub(crate) model: String,
 }
 
+#[cfg(feature = "fastembed")]
 impl ModelPayload {
     pub(crate) fn validate_operation(
         &self,
@@ -42,6 +46,7 @@ impl ModelPayload {
     }
 }
 
+#[cfg(feature = "fastembed")]
 fn default_fastembed_model() -> String {
     DEFAULT_FASTEMBED_MODEL.to_string()
 }

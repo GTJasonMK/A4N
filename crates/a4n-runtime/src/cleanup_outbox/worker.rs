@@ -1,58 +1,216 @@
-use super::claim::process_claimed_cleanup;
-use super::claim::process_claimed_media_workflow_reset;
+use super::claim::{
+    process_claimed_cleanup, process_claimed_file_artifact_cleanup,
+    process_claimed_generation_cleanup, process_claimed_media_workflow_reset,
+};
 use crate::AppState;
 use crate::actions::app_error_message;
 use std::time::Duration;
 
 const STARTUP_DRAIN_LIMIT: usize = 100;
+const CLEANUP_AUDIT_TTL_LIMIT: usize = 100;
+const GENERATION_SNAPSHOT_TTL_LIMIT: usize = 100;
+const GENERATION_TASK_TREE_TTL_LIMIT: usize = 32;
 const WORKER_INTERVAL: Duration = Duration::from_secs(30);
 
-pub async fn drain_project_cleanup_for(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CleanupKind {
+    FileArtifact,
+    MediaWorkflowReset,
+    ProjectDeletion,
+    Generation,
+}
+
+const CLEANUP_KINDS: [CleanupKind; 4] = [
+    CleanupKind::FileArtifact,
+    CleanupKind::MediaWorkflowReset,
+    CleanupKind::ProjectDeletion,
+    CleanupKind::Generation,
+];
+
+fn next_cleanup_kind(index: &mut usize) -> CleanupKind {
+    let kind = CLEANUP_KINDS[*index];
+    *index = (*index + 1) % CLEANUP_KINDS.len();
+    kind
+}
+
+pub async fn drain_cleanup_outbox(
     state: &AppState,
     project_id: Option<i64>,
     limit: usize,
 ) -> Result<usize, String> {
     let mut processed = 0;
-    while processed < limit {
-        if let Some(claim) = state
-            .orchestrator
-            .claim_media_workflow_v2_reset(project_id)
-            .await
-            .map_err(app_error_message)?
-        {
-            process_claimed_media_workflow_reset(state, claim).await?;
-            processed += 1;
-            continue;
+    let mut first_error = None;
+    let mut next_kind = 0;
+    let mut empty_kinds = 0;
+    while processed < limit && empty_kinds < CLEANUP_KINDS.len() {
+        let kind = next_cleanup_kind(&mut next_kind);
+        let mut claimed = false;
+        match kind {
+            CleanupKind::FileArtifact => {
+                if let Some(claim) = state
+                    .project_family()
+                    .claim_file_artifact_cleanup(project_id)
+                    .await
+                    .map_err(app_error_message)?
+                {
+                    claimed = true;
+                    let id = claim.record.id;
+                    if let Err(error) = process_claimed_file_artifact_cleanup(state, claim).await {
+                        tracing::warn!(cleanup_id = id, error = %error, "文件 artifact cleanup 处理失败，继续 drain 其他任务");
+                        first_error
+                            .get_or_insert(format!("file_artifact_cleanup id={id}: {error}"));
+                    }
+                }
+            }
+            CleanupKind::MediaWorkflowReset => {
+                if let Some(claim) = state
+                    .project_family()
+                    .claim_media_workflow_v2_reset(project_id)
+                    .await
+                    .map_err(app_error_message)?
+                {
+                    claimed = true;
+                    let id = claim.record.id;
+                    if let Err(error) = process_claimed_media_workflow_reset(state, claim).await {
+                        tracing::warn!(cleanup_id = id, error = %error, "媒体工作流 reset cleanup 处理失败，继续 drain 其他任务");
+                        first_error
+                            .get_or_insert(format!("media_workflow_v2_reset id={id}: {error}"));
+                    }
+                }
+            }
+            CleanupKind::ProjectDeletion => {
+                if let Some(claim) = state
+                    .project_family()
+                    .claim_project_deletion_cleanup(project_id)
+                    .await
+                    .map_err(app_error_message)?
+                {
+                    claimed = true;
+                    let id = claim.record.id;
+                    if let Err(error) = process_claimed_cleanup(state, claim).await {
+                        tracing::warn!(cleanup_id = id, error = %error, "项目删除 cleanup 处理失败，继续 drain 其他任务");
+                        first_error.get_or_insert(format!("project_delete id={id}: {error}"));
+                    }
+                }
+            }
+            CleanupKind::Generation => {
+                if let Some(claim) = state
+                    .project_family()
+                    .claim_generation_cleanup(project_id)
+                    .await
+                    .map_err(app_error_message)?
+                {
+                    claimed = true;
+                    let id = claim.record.id;
+                    if let Err(error) = process_claimed_generation_cleanup(state, claim).await {
+                        tracing::warn!(cleanup_id = id, error = %error, "generation cleanup 处理失败，继续 drain 其他任务");
+                        first_error.get_or_insert(format!("generation cleanup id={id}: {error}"));
+                    }
+                }
+            }
         }
-        let Some(claim) = state
-            .orchestrator
-            .claim_project_deletion_cleanup(project_id)
-            .await
-            .map_err(app_error_message)?
-        else {
-            break;
-        };
-        process_claimed_cleanup(state, claim).await?;
-        processed += 1;
+        if claimed {
+            processed += 1;
+            empty_kinds = 0;
+        } else {
+            empty_kinds += 1;
+        }
     }
-    Ok(processed)
-}
-
-pub async fn recover_project_cleanup_outbox(state: &AppState) {
-    if let Err(error) = drain_project_cleanup_for(state, None, STARTUP_DRAIN_LIMIT).await {
-        tracing::warn!(error = %error, "启动恢复项目 cleanup outbox 失败");
+    match first_error {
+        Some(error) => Err(error),
+        None => Ok(processed),
     }
 }
 
-pub fn spawn_project_cleanup_worker(state: AppState) {
+#[cfg(test)]
+mod tests {
+    use super::{CleanupKind, next_cleanup_kind};
+
+    #[test]
+    fn cleanup_kinds_rotate_before_repeating() {
+        let mut index = 0;
+        let order = (0..8)
+            .map(|_| next_cleanup_kind(&mut index))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            order,
+            vec![
+                CleanupKind::FileArtifact,
+                CleanupKind::MediaWorkflowReset,
+                CleanupKind::ProjectDeletion,
+                CleanupKind::Generation,
+                CleanupKind::FileArtifact,
+                CleanupKind::MediaWorkflowReset,
+                CleanupKind::ProjectDeletion,
+                CleanupKind::Generation,
+            ]
+        );
+    }
+}
+
+pub async fn recover_cleanup_outbox(state: &AppState) {
+    if let Err(error) = drain_cleanup_outbox(state, None, STARTUP_DRAIN_LIMIT).await {
+        tracing::warn!(error = %error, "启动恢复 cleanup outbox 失败");
+    }
+    expire_generation_snapshot_bodies(state).await;
+    purge_expired_generation_task_trees(state).await;
+    purge_completed_cleanup_audits(state).await;
+}
+
+pub fn spawn_cleanup_worker(state: AppState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(WORKER_INTERVAL);
         interval.tick().await;
         loop {
             interval.tick().await;
-            if let Err(error) = drain_project_cleanup_for(&state, None, STARTUP_DRAIN_LIMIT).await {
-                tracing::warn!(error = %error, "后台恢复项目 cleanup outbox 失败");
+            if let Err(error) = drain_cleanup_outbox(&state, None, STARTUP_DRAIN_LIMIT).await {
+                tracing::warn!(error = %error, "后台恢复 cleanup outbox 失败");
             }
+            expire_generation_snapshot_bodies(&state).await;
+            purge_expired_generation_task_trees(&state).await;
+            purge_completed_cleanup_audits(&state).await;
         }
     });
+}
+
+async fn expire_generation_snapshot_bodies(state: &AppState) {
+    match state
+        .generation_tasks()
+        .expire_snapshot_bodies(GENERATION_SNAPSHOT_TTL_LIMIT)
+        .await
+    {
+        Ok(expired) if expired > 0 => {
+            tracing::info!(expired, "generation terminal snapshot 正文已按 TTL 清理")
+        }
+        Ok(_) => {}
+        Err(error) => tracing::warn!(error = %error, "generation terminal snapshot TTL 清理失败"),
+    }
+}
+
+async fn purge_expired_generation_task_trees(state: &AppState) {
+    match state
+        .generation_tasks()
+        .purge_expired_task_trees(GENERATION_TASK_TREE_TTL_LIMIT)
+        .await
+    {
+        Ok(deleted) if deleted > 0 => {
+            tracing::info!(deleted, "generation task tree 已按审计保留期清理")
+        }
+        Ok(_) => {}
+        Err(error) => tracing::warn!(error = %error, "generation task tree TTL 清理失败"),
+    }
+}
+
+async fn purge_completed_cleanup_audits(state: &AppState) {
+    match state
+        .project_family()
+        .purge_completed_cleanup_audits(CLEANUP_AUDIT_TTL_LIMIT)
+        .await
+    {
+        Ok(deleted) if deleted > 0 => {
+            tracing::info!(deleted, "cleanup outbox 已完成审计记录已按 TTL 清理")
+        }
+        Ok(_) => {}
+        Err(error) => tracing::warn!(error = %error, "cleanup outbox 审计 TTL 清理失败"),
+    }
 }

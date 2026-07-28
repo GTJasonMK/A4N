@@ -5,47 +5,323 @@ mod preparation;
 mod schema;
 
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
-use a4n_core::{error::AppError, models::project::novel_blueprint};
-use a4n_prompt::rendering::PromptRenderer;
-use serde_json::Value;
+use a4n_api_contract::{
+    blueprint::StartBlueprintRefinementInput, generation_tasks::GenerationTaskHandle,
+};
+use a4n_core::error::AppError;
+use a4n_service_protocol::{
+    GenerationError, GenerationResultRef, ProgressEvent, ProgressPhaseKind, ProgressSeverity,
+    StreamTextHash,
+};
+use futures::future::BoxFuture;
 
 use crate::OrchestratorContext;
+use crate::blueprint::BlueprintRefinementApplicationContext;
+use crate::generation::{
+    checkpoint::{DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointWriter},
+    events::{GenerationEventPublisher, SessionGenerationEventPublisher},
+    generation_public_error,
+    terminal::CompletionDescriptor,
+};
+use crate::workflow::WorkflowRunFinalizeOutcome;
 
 use self::call::execute_blueprint_refine_call;
 use self::contracts::BlueprintRefinementPersistenceInput;
-use self::persistence::persist_blueprint_refinement;
+use self::persistence::{
+    BlueprintRefinementCompletionOutcome, persist_blueprint_refinement_in_transaction,
+};
 use self::preparation::prepare_blueprint_refine;
-use super::finalization::finalize_refine_workflow;
 
 impl OrchestratorContext {
-    pub async fn refine_blueprint(
+    pub async fn run_blueprint_refinement_task(
         &self,
-        project_id: i64,
-        focus: Option<&str>,
-        prompt_renderer: &dyn PromptRenderer,
-        variables: &HashMap<String, Value>,
-    ) -> Result<novel_blueprint::Model, AppError> {
-        let prepared =
-            prepare_blueprint_refine(self, project_id, focus, prompt_renderer, variables).await?;
+        context: BlueprintRefinementApplicationContext<'_>,
+        _user_id: i64,
+        input: StartBlueprintRefinementInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String> {
+        let Some(execution) = self
+            .acquire_generation_task_execution(&handle)
+            .await
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(());
+        };
+        let session = execution.session.clone();
+        let cancel_token = execution.permit.cancellation_token();
+        let replenisher = Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
+            self.database.shared_connection(),
+        ));
+        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
+        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let variables = input
+            .variables
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+        if let Err(error) = publish_refinement_progress(
+            &publisher,
+            "blueprint_refine_prepare",
+            ProgressPhaseKind::Prepare,
+            "正在准备蓝图优化上下文",
+        )
+        .await
+        {
+            return fail_blueprint_refinement_execution(self, execution, None, error).await;
+        }
+        let prepared = match prepare_blueprint_refine(
+            self,
+            input.project_id,
+            &handle.task_id,
+            input.focus.as_deref(),
+            context.prompt_renderer,
+            &variables,
+        )
+        .await
+        {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                return fail_blueprint_refinement_execution(
+                    self,
+                    execution,
+                    None,
+                    app_generation_error(
+                        "generation_request_invalid",
+                        "blueprint_refine_prepare",
+                        error,
+                    ),
+                )
+                .await;
+            }
+        };
         let workflow_run_id = prepared.workflow_run_id;
-
-        let result = async {
-            let parsed = execute_blueprint_refine_call(self, &prepared).await?;
-            persist_blueprint_refinement(
+        if let Err(error) = publish_refinement_progress(
+            &publisher,
+            "blueprint_refine_stream",
+            ProgressPhaseKind::Stream,
+            "正在流式生成蓝图优化结果",
+        )
+        .await
+        {
+            return fail_blueprint_refinement_execution(
                 self,
-                BlueprintRefinementPersistenceInput {
-                    project_id,
-                    blueprint: prepared.blueprint,
-                    next_version: prepared.next_version,
-                    parsed,
+                execution,
+                Some(workflow_run_id),
+                error,
+            )
+            .await;
+        }
+        let output = match execute_blueprint_refine_call(
+            self,
+            &prepared,
+            &publisher,
+            &session,
+            &checkpoint_writer,
+            cancel_token.clone(),
+        )
+        .await
+        {
+            Ok(output) => output,
+            Err(error) => {
+                let code = if matches!(error, AppError::Cancelled) {
+                    "generation_interrupted"
+                } else {
+                    "generation_validation_failed"
+                };
+                return fail_blueprint_refinement_execution(
+                    self,
+                    execution,
+                    Some(workflow_run_id),
+                    app_generation_error(code, "blueprint_refine_call", error),
+                )
+                .await;
+            }
+        };
+        if let Err(error) = checkpoint_writer
+            .persist_if_due(
+                &session,
+                crate::generation::checkpoint::GenerationCheckpointMetadata {
+                    step_key: Some("blueprint_refinement".to_string()),
+                    call_key: Some(prepared.call_key.clone()),
+                    provider_model: Some(self.llm_model_name()),
+                    ..Default::default()
                 },
+                true,
             )
             .await
+        {
+            return fail_blueprint_refinement_execution(
+                self,
+                execution,
+                Some(workflow_run_id),
+                generation_public_error("generation_checkpoint_unavailable", "checkpoint", error),
+            )
+            .await;
         }
-        .await;
+        if let Err(error) = publish_refinement_progress(
+            &publisher,
+            "blueprint_refine_validate",
+            ProgressPhaseKind::Validate,
+            "正在校验蓝图优化结果",
+        )
+        .await
+        {
+            return fail_blueprint_refinement_execution(
+                self,
+                execution,
+                Some(workflow_run_id),
+                error,
+            )
+            .await;
+        }
 
-        finalize_refine_workflow(self, workflow_run_id, &result).await?;
-        result
+        let completion_slot: Arc<Mutex<Option<BlueprintRefinementCompletionOutcome>>> =
+            Arc::new(Mutex::new(None));
+        let completion_slot_for_tx = Arc::clone(&completion_slot);
+        let completion_input = BlueprintRefinementPersistenceInput {
+            project_id: input.project_id,
+            blueprint: prepared.blueprint.clone(),
+            next_version: prepared.next_version.clone(),
+            parsed: output.parsed,
+        };
+        let snapshot = session.snapshot();
+        let final_text_hashes = snapshot
+            .streams
+            .iter()
+            .find(|stream| stream.stream_id == "raw_json")
+            .map(|stream| StreamTextHash {
+                stream_id: stream.stream_id.clone(),
+                utf8_bytes: stream.text.len() as u64,
+                sha256: stream.sha256.clone(),
+            })
+            .into_iter()
+            .collect::<Vec<_>>();
+        let final_usage = output.usage.or(snapshot.usage.clone());
+        let finish_reason = output.finish_reason;
+        let completion = execution
+            .terminal
+            .complete_with(&session, move |tx| {
+                Box::pin(async move {
+                    let outcome =
+                        persist_blueprint_refinement_in_transaction(tx, completion_input).await?;
+                    let descriptor = CompletionDescriptor {
+                        result_ref: Some(GenerationResultRef {
+                            kind: "novel_blueprint".to_string(),
+                            id: outcome.blueprint.id.to_string(),
+                            revision: outcome.blueprint.current_version.clone(),
+                        }),
+                        final_text_hashes,
+                        final_usage,
+                        finish_reason: Some(finish_reason),
+                        summary: Some("蓝图优化已保存".to_string()),
+                        batch_summary: None,
+                    };
+                    *completion_slot_for_tx
+                        .lock()
+                        .map_err(|_| AppError::InvalidState {
+                            current: "completion_slot_poisoned".to_string(),
+                            operation: "保存蓝图优化结果".to_string(),
+                        })? = Some(outcome);
+                    Ok(descriptor)
+                }) as BoxFuture<'_, Result<CompletionDescriptor, AppError>>
+            })
+            .await;
+        if let Err(error) = completion {
+            return fail_blueprint_refinement_execution(
+                self,
+                execution,
+                Some(workflow_run_id),
+                generation_public_error(error.code(), "blueprint_refine_persist", error),
+            )
+            .await;
+        }
+        let task_id = execution.permit.task_id().to_string();
+        if let Err(error) = execution
+            .queue
+            .complete_generation_task(execution.permit)
+            .await
+        {
+            return Err(format!(
+                "generation queue 完成投影失败 ({task_id}): {error}"
+            ));
+        }
+        let outcome = completion_slot
+            .lock()
+            .map_err(|_| "蓝图优化结果槽位损坏".to_string())?
+            .take()
+            .ok_or_else(|| "generation completed 但缺少蓝图优化结果".to_string())?;
+        self.publish_internal_event(a4n_core::event::bridge::InternalEvent::BlueprintUpdated {
+            project_id: input.project_id,
+            version: outcome.blueprint.current_version.clone(),
+        })
+        .await
+        .map_err(|error| format!("蓝图优化已保存，但蓝图更新事件发布失败: {error}"))?;
+        self.finalize_workflow_run_outcome_validated(
+            workflow_run_id,
+            WorkflowRunFinalizeOutcome::Completed,
+            None,
+        )
+        .await
+        .map_err(|error| format!("蓝图优化已保存，但 workflow 完成状态写入失败: {error}"))?;
+        Ok(())
     }
+}
+
+async fn publish_refinement_progress(
+    publisher: &dyn GenerationEventPublisher,
+    stage_code: &str,
+    phase_kind: ProgressPhaseKind,
+    message: &str,
+) -> Result<(), GenerationError> {
+    publisher
+        .progress(ProgressEvent {
+            stage_code: stage_code.to_string(),
+            phase_kind,
+            message: message.to_string(),
+            current: None,
+            total: None,
+            unit_label: None,
+            item_key: None,
+            item_index: None,
+            item_total: None,
+            severity: ProgressSeverity::Info,
+            estimated: false,
+        })
+        .await
+        .map_err(|error| generation_public_error(error.code(), stage_code, error))
+}
+
+async fn fail_blueprint_refinement_execution(
+    orchestrator: &OrchestratorContext,
+    execution: crate::context::GenerationTaskExecution,
+    workflow_run_id: Option<i64>,
+    error: GenerationError,
+) -> Result<(), String> {
+    let outcome = if execution.session.snapshot().status
+        == a4n_service_protocol::GenerationTaskStatus::Cancelling
+    {
+        WorkflowRunFinalizeOutcome::Cancelled
+    } else {
+        WorkflowRunFinalizeOutcome::Failed
+    };
+    let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
+        orchestrator
+            .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, Some(&error.message))
+            .await
+            .err()
+    } else {
+        None
+    };
+    let mut message = execution.fail(error).await;
+    if let Some(error) = workflow_error {
+        message.push_str(&format!("; 记录蓝图优化 workflow 终态失败: {error}"));
+    }
+    Err(message)
+}
+
+fn app_generation_error(code: &str, stage_code: &str, error: impl ToString) -> GenerationError {
+    generation_public_error(code, stage_code, error)
 }

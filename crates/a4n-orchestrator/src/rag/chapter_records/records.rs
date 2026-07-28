@@ -2,20 +2,10 @@ use a4n_core::{chapter_analysis::analysis_rag_items, models::chapter::chapter, r
 use a4n_embedding::provider::EmbeddingProvider;
 
 use super::{chunks::chapter_rag_chunks_with_provider, contracts::ChapterRagChunkingMode};
-use crate::{OrchestratorContext, rag::RagRecord};
-
-impl OrchestratorContext {
-    pub async fn chapter_rag_records(
-        &self,
-        chapter: &chapter::Model,
-        mode: ChapterRagChunkingMode,
-    ) -> Result<Vec<RagRecord>, String> {
-        chapter_rag_records_with_provider(chapter, self.embedding.as_ref(), mode).await
-    }
-}
+use crate::rag::RagRecord;
 
 #[cfg(test)]
-pub(super) async fn expected_chapter_rag_record_ids_with_provider(
+pub async fn expected_chapter_rag_record_ids_with_provider(
     chapter: &chapter::Model,
     provider: &dyn EmbeddingProvider,
     mode: ChapterRagChunkingMode,
@@ -27,7 +17,7 @@ pub(super) async fn expected_chapter_rag_record_ids_with_provider(
         .collect())
 }
 
-pub(super) async fn chapter_rag_records_with_provider(
+pub async fn chapter_rag_records_with_provider(
     chapter: &chapter::Model,
     provider: &dyn EmbeddingProvider,
     mode: ChapterRagChunkingMode,

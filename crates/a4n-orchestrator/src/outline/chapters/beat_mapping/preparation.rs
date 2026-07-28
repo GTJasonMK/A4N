@@ -44,7 +44,7 @@ pub(super) async fn prepare_beat_mapping(
     }
 
     let context =
-        load_chapter_outline_generation_context(service.db.connection(), project_id).await?;
+        load_chapter_outline_generation_context(service.database.connection(), project_id).await?;
     validate_requested_part_context(&context.parts, part.start_chapter, part.end_chapter)?;
     ensure_focus_part_in_context(Some(&part), &context.parts)?;
 

@@ -2,12 +2,15 @@ import { apiInvoke } from "../index";
 import { readCurrentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
 import type {
+  GenerationTaskHandle,
+  StartOptimizeAnalysisGenerationInput,
+} from "../generated/generationContracts";
+import type {
   AnalyzeChapterInput,
   CreateOptimizationChatSessionInput,
   OptimizeSession,
   PrepareOptimizationAnalysisSessionInput,
 } from "./types";
-import { type ApiId as Id, idNum } from "../shared";
 
 const currentUserId = (): number => {
   const id = readCurrentUserId();
@@ -42,14 +45,12 @@ export async function prepareOptimizationAnalysisSession(
   });
 }
 
-export async function executeOptimizationAnalysisSession(
-  sessionId: Id,
-  taskId?: string | null,
-): Promise<OptimizeSession> {
-  return apiInvoke<OptimizeSession>("execute_optimization_analysis_session", {
+export async function startOptimizeAnalysisGeneration(
+  input: StartOptimizeAnalysisGenerationInput,
+): Promise<GenerationTaskHandle> {
+  return apiInvoke<GenerationTaskHandle>("start_optimize_analysis_generation", {
     userId: currentUserId(),
-    sessionId: idNum(sessionId),
-    taskId: taskId ?? null,
+    input,
   });
 }
 

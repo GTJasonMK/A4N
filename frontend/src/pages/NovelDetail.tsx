@@ -42,7 +42,7 @@ import { BackButton } from "../components/ui/BackButton";
 import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
 import { PageHeader } from "../components/shell/PageHeader";
-import { createProgressTaskId, useProgressTask } from "../hooks/useProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
 import {
@@ -274,17 +274,17 @@ export const NovelDetail: React.FC = () => {
       requestSeq = ragSeqRef.current + 1;
       ragSeqRef.current = requestSeq;
       const activeRequestSeq = requestSeq;
-      const taskId = createProgressTaskId("rag-ingest-all", requestProjectId);
+      const taskId = allocateHostTaskId("rag-ingest-all", requestProjectId);
       setActionsOpen(false);
       setRagSyncing(true);
       const result = await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: "同步资料索引",
           startMessage: "正在统计待同步内容…",
           successMessage: "资料索引同步完成",
           errorMessage: "资料索引同步失败",
           total: 1,
-          taskId,
           cancelLabel: "停止同步",
           runningHint: "同步过程中请保持当前窗口打开",
           formatProgress: formatRagProgress,

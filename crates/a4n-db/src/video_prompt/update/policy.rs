@@ -39,6 +39,7 @@ where
         negative_prompt,
         duration_secs,
         reference_image_ids_json,
+        metadata_patch,
     } = input;
     let prompt = video::chapter_video_prompt_record(db, prompt_id).await?;
     if prompt.status == "running" {
@@ -80,7 +81,8 @@ where
         || duration_secs.is_some_and(|value| prompt.duration_secs != value)
         || reference_image_ids_json
             .as_ref()
-            .is_some_and(|value| prompt.reference_image_ids_json != *value);
+            .is_some_and(|value| prompt.reference_image_ids_json != *value)
+        || metadata_patch.is_some();
     let final_visual_prompt = visual_prompt
         .as_deref()
         .unwrap_or(prompt.visual_prompt.as_str())
@@ -94,7 +96,7 @@ where
     let final_reference_image_ids_json = reference_image_ids_json
         .clone()
         .unwrap_or_else(|| prompt.reference_image_ids_json.clone());
-    let metadata_json = sync_chapter_video_prompt_metadata_after_update(
+    let mut metadata_json = sync_chapter_video_prompt_metadata_after_update(
         &prompt.prompt_type,
         prompt.metadata_json.clone(),
         &final_visual_prompt,
@@ -102,6 +104,23 @@ where
         final_duration_secs,
         final_reference_image_ids_json.as_ref(),
     )?;
+    if let Some(serde_json::Value::Object(patch)) = metadata_patch {
+        let root = metadata_json
+            .get_or_insert_with(|| serde_json::Value::Object(Default::default()))
+            .as_object_mut()
+            .ok_or_else(|| {
+                VideoDbError::InvalidArgument(
+                    "视频提示词 metadata_json 必须是对象，不能保存片段执行设置".to_string(),
+                )
+            })?;
+        for (key, value) in patch {
+            if value.is_null() {
+                root.remove(&key);
+            } else {
+                root.insert(key, value);
+            }
+        }
+    }
     video::update_chapter_video_prompt_record(
         db,
         prompt,

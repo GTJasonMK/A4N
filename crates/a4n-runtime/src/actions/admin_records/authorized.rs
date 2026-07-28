@@ -86,9 +86,9 @@ admin_record_command!(
 );
 
 admin_record_command!(
-    delete_user_for_admin(user_id: i64) -> (),
+    disable_user_for_admin(user_id: i64) -> (),
     AdminPermission::ManageUsers,
-    |state, caller_user_id| users::delete_user(state, caller_user_id, user_id),
+    |state, caller_user_id| users::disable_user(state, caller_user_id, user_id),
 );
 
 admin_record_command!(

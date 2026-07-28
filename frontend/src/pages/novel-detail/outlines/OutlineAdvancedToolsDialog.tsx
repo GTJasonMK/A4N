@@ -3,8 +3,8 @@ import { Eye, Loader2, SlidersHorizontal } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
-import type { RunProgressTask } from "../../../hooks/useProgressTask";
 import { OutlineAdvancedPanel } from "./OutlineAdvancedPanel";
+import type { RunOutlineGeneration } from "./useOutlineGeneration";
 import {
   DELETE_LATEST_CHAPTER_OUTLINES_ACTION,
   DELETE_LATEST_PARTS_ACTION,
@@ -23,7 +23,7 @@ interface OutlineAdvancedToolsDialogProps {
   delChapterCount: number;
   delActing: string | null;
   regenLastPart: boolean;
-  runProgressTask: RunProgressTask;
+  runGeneration: RunOutlineGeneration;
   disabled?: boolean;
   onClose: () => void;
   onDelPartCountChange: (value: number) => void;
@@ -46,7 +46,7 @@ export function OutlineAdvancedToolsDialog({
   delChapterCount,
   delActing,
   regenLastPart,
-  runProgressTask,
+  runGeneration,
   disabled = false,
   onClose,
   onDelPartCountChange,
@@ -94,7 +94,7 @@ export function OutlineAdvancedToolsDialog({
           parts={parts}
           partCount={typeof partCount === "number" ? partCount : null}
           chaptersPerPart={typeof chaptersPerPart === "number" ? chaptersPerPart : null}
-          runProgressTask={runProgressTask}
+          runGeneration={runGeneration}
           disabled={advancedPanelDisabled}
           onChanged={onChanged}
           onBusyChange={handleAdvancedBusyChange}

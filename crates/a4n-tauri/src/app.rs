@@ -7,7 +7,20 @@ pub(crate) fn run() {
     logging::init(early_log_dir).expect("日志系统初始化失败");
 
     tauri::Builder::default()
+        .manage(commands::generation_tasks::GenerationSubscriptionRegistry::default())
         .register_uri_scheme_protocol("a4n-media", media_protocol::handle_request)
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                // 与 process 证据共用唯一清理入口，禁止旁路 cancel_window。
+                commands::generation_tasks::handle_window_destroyed(
+                    window
+                        .app_handle()
+                        .state::<commands::generation_tasks::GenerationSubscriptionRegistry>()
+                        .inner(),
+                    window.label(),
+                );
+            }
+        })
         .setup(|app| {
             if environment::remote_api_only().map_err(std::io::Error::other)? {
                 setup_remote_api_mode(app)?;
@@ -36,7 +49,7 @@ fn setup_remote_api_mode(app: &mut tauri::App) -> Result<(), Box<dyn std::error:
 
 fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let app_state = tauri::async_runtime::block_on(setup::initialize(app.handle()))?;
-    window::create_main_window(app, &app_state.orchestrator.config)?;
+    window::create_main_window(app, app_state.host_app_config())?;
     app.manage(app_state);
     tracing::info!("A4N 应用启动完成");
     Ok(())

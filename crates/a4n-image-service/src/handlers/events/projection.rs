@@ -1,15 +1,15 @@
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceTaskEvent, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError, ServiceErrorCode,
     redact_sensitive_message,
 };
 use serde_json::{Value, json};
 
 use crate::contracts::ImageGenerationOutput;
 
-pub(crate) fn progress_generation_event(task_id: String, sequence: u64) -> ServiceTaskEvent {
+pub(crate) fn progress_generation_event(task_id: String, sequence: u64) -> CapabilityTaskEvent {
     image_generation_event(
         task_id,
-        ServiceTaskEventKind::Progress,
+        CapabilityTaskEventKind::Progress,
         sequence,
         None,
         Some(json!({
@@ -24,7 +24,7 @@ pub(crate) fn completed_generation_event(
     task_id: String,
     sequence: u64,
     output: ImageGenerationOutput,
-) -> Result<ServiceTaskEvent, ServiceError> {
+) -> Result<CapabilityTaskEvent, ServiceError> {
     let payload = serde_json::to_value(output).map_err(|error| ServiceError {
         code: ServiceErrorCode::Internal,
         message: redact_sensitive_message(format!(
@@ -34,7 +34,7 @@ pub(crate) fn completed_generation_event(
     })?;
     Ok(image_generation_event(
         task_id,
-        ServiceTaskEventKind::Completed,
+        CapabilityTaskEventKind::Completed,
         sequence,
         None,
         Some(payload),
@@ -45,10 +45,10 @@ pub(crate) fn failed_generation_event(
     task_id: String,
     sequence: u64,
     error: ServiceError,
-) -> ServiceTaskEvent {
+) -> CapabilityTaskEvent {
     image_generation_event(
         task_id,
-        ServiceTaskEventKind::Failed,
+        CapabilityTaskEventKind::Failed,
         sequence,
         Some(error),
         None,
@@ -57,12 +57,12 @@ pub(crate) fn failed_generation_event(
 
 fn image_generation_event(
     task_id: String,
-    event_kind: ServiceTaskEventKind,
+    event_kind: CapabilityTaskEventKind,
     sequence: u64,
     error: Option<ServiceError>,
     payload: Option<Value>,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id,
         event_kind,
         sequence,

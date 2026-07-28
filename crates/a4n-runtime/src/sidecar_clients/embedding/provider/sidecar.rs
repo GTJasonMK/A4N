@@ -3,8 +3,8 @@ use std::sync::Arc;
 use a4n_capabilities::EmbeddingClient;
 use a4n_core::{error::AppError, models::ai::embedding_config};
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider};
-use a4n_orchestrator::{OrchestratorContext, task_queue::PersistentTaskQueue};
-use a4n_queue::priority::{TaskPriority, TaskType};
+use a4n_orchestrator::DynamicProviderFacade;
+use a4n_queue::priority::{TaskKind, TaskPriority};
 use async_trait::async_trait;
 
 use crate::{dynamic_embedding, runtime_config};
@@ -20,8 +20,7 @@ use super::super::contracts::{
 pub(in crate::sidecar_clients::embedding) struct SidecarEmbeddingProvider {
     metadata_dimension: usize,
     metadata_batch_size: usize,
-    task_queue: Arc<PersistentTaskQueue>,
-    orchestrator: OrchestratorContext,
+    facade: DynamicProviderFacade,
     client: Arc<dyn EmbeddingClient>,
 }
 
@@ -29,15 +28,13 @@ impl SidecarEmbeddingProvider {
     pub(super) fn new(
         metadata_dimension: usize,
         metadata_batch_size: usize,
-        task_queue: Arc<PersistentTaskQueue>,
-        orchestrator: OrchestratorContext,
+        facade: DynamicProviderFacade,
         client: Arc<dyn EmbeddingClient>,
     ) -> Self {
         Self {
             metadata_dimension,
             metadata_batch_size,
-            task_queue,
-            orchestrator,
+            facade,
             client,
         }
     }
@@ -47,7 +44,7 @@ impl SidecarEmbeddingProvider {
             return Ok(model);
         }
 
-        self.orchestrator.default_embedding_config().await
+        self.facade.default_embedding_config().await
     }
 
     pub(in crate::sidecar_clients::embedding) fn validate_sidecar_backend(
@@ -91,9 +88,9 @@ impl SidecarEmbeddingProvider {
         let payload = self.embedding_payload(&model, texts)?;
         let client = self.client.clone();
         let response = self
-            .task_queue
-            .run_tracked(
-                TaskType::EmbeddingCall,
+            .facade
+            .queue_run_tracked(
+                TaskKind::EmbeddingCall,
                 TaskPriority::Low,
                 None,
                 || async move {

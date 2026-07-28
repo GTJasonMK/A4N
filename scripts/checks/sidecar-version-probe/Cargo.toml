@@ -1,0 +1,10 @@
+[package]
+name = "a4n-sidecar-version-probe"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+a4n-capabilities = { path = "source/crates/a4n-capabilities" }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

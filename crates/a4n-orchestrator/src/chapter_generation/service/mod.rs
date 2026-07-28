@@ -2,17 +2,18 @@
 //!
 //! 对应文档 05-章节生成系统
 
-mod generation;
+pub(in crate::chapter_generation) mod generation;
 mod generation_lifecycle;
 mod locks;
 mod records;
-mod response_contract;
 mod response_json;
 
 #[cfg(test)]
 mod tests;
 
-pub use generation::ChapterGenerationStreamInput;
+pub(in crate::chapter_generation) use generation_lifecycle::{
+    ChapterGenerationSession, ChapterGenerationTrace,
+};
 
 use dashmap::DashMap;
 use std::sync::Arc;
@@ -20,7 +21,6 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use a4n_db::SharedDatabaseConnection;
 use locks::chapter_generation_lock_is_active;
-use response_contract::ensure_chapter_response_not_truncated;
 
 type ChapterGenerationKey = (i64, i32);
 type ChapterGenerationLock = Arc<AsyncMutex<()>>;

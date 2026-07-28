@@ -1,13 +1,12 @@
 use crate::commands::request_preview::ModelRequestPreview;
 use crate::progress_task::WorkflowProgressTask;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::character_conflict as character_conflict_actions;
 use serde_json::Value;
-use tauri::{State, Window};
+use tauri::State;
 
 pub(super) async fn check_character_conflict_impl(
-    window: Window,
     state: State<'_, AppState>,
     user_id: i64,
     project_id: i64,
@@ -20,14 +19,16 @@ pub(super) async fn check_character_conflict_impl(
         state.inner(),
         user_id,
         project_id,
+        &name,
+        start_chapter,
+        end_chapter,
     )
     .await
     .map_err(|err| err.to_string())?;
     let progress = WorkflowProgressTask::new(
-        window,
         state.inner(),
         task_id,
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         Some(scope.project_id),
         scope.total,
         "正在准备角色一致性检查",
@@ -49,12 +50,7 @@ pub(super) async fn check_character_conflict_impl(
     )
     .await
     .map_err(|err| err.to_string());
-    progress.finish_result(
-        state.inner(),
-        &result,
-        "character_conflict_failed",
-        |rows| format!("一致性检查完成：{} 个矛盾项", rows.len()),
-    );
+    progress.remove(state.inner());
     result
 }
 

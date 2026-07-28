@@ -15,7 +15,7 @@ pub(crate) async fn ingest_blueprints_inner(
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
     let blueprints = state
-        .orchestrator
+        .rag()
         .novel_blueprints_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -56,7 +56,7 @@ pub(crate) async fn ingest_blueprint_metadata_inner(
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
     let blueprints = state
-        .orchestrator
+        .rag()
         .novel_blueprints_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;

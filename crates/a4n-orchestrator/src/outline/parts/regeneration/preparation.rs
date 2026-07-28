@@ -20,7 +20,7 @@ pub(super) async fn prepare_last_part_regeneration(
     project_id: i64,
 ) -> Result<PreparedPartRegeneration, AppError> {
     let context =
-        load_part_generation_context(service.db.connection(), project_id, None, None).await?;
+        load_part_generation_context(service.database.connection(), project_id, None, None).await?;
     let target = context
         .parts
         .last()
@@ -41,7 +41,7 @@ pub(super) async fn prepare_part_regeneration_by_id(
         )));
     }
     let context =
-        load_part_generation_context(service.db.connection(), project_id, None, None).await?;
+        load_part_generation_context(service.database.connection(), project_id, None, None).await?;
     prepare_part_regeneration(project_id, target, context, false)
 }
 

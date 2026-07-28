@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_core::event::sse::{ProgressMeta, ProgressPhaseKind, ProgressTaskKind};
+use a4n_core::event::progress::{ProgressMeta, ProgressPhaseKind};
 use a4n_db::{
     DbHandle,
     workflow::{
@@ -23,10 +23,10 @@ impl OrchestratorContext {
         current: u32,
         message: &str,
     ) -> Result<(), AppError> {
-        ensure_galgame_pipeline_not_cancelled(&self.db, workflow_run_id).await?;
+        ensure_galgame_pipeline_not_cancelled(&self.database, workflow_run_id).await?;
         let update = galgame_progress_update(stage, current, message)?;
         record_workflow_progress_event(
-            self.db.connection(),
+            self.database.connection(),
             WorkflowProgressEventInput {
                 workflow_run_id,
                 task_id,
@@ -45,7 +45,7 @@ impl OrchestratorContext {
     }
 }
 
-pub(super) fn galgame_progress_update(
+pub(crate) fn galgame_progress_update(
     stage: GalgamePipelineStartStage,
     current: u32,
     message: &str,
@@ -75,7 +75,7 @@ fn galgame_progress_meta(stage: GalgamePipelineStartStage, message: &str) -> Pro
         GalgamePipelineStartStage::AssetGeneration => ProgressPhaseKind::AssetGeneration,
     };
     ProgressMeta::new(
-        ProgressTaskKind::GalgameGeneration,
+        "galgame_generation",
         stage.key(),
         galgame_stage_label(stage),
         phase,

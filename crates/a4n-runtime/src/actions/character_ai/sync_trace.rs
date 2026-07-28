@@ -1,11 +1,13 @@
-use crate::state::AppState;
 use a4n_core::config::app_config::llm_token_profiles;
 use a4n_llm::provider::ChatMessage;
+use a4n_orchestrator::character::{
+    CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
+};
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
 pub(super) fn record_character_sync_llm_trace(
-    state: &AppState,
+    log_dir: &Path,
     profile_name: &str,
     phase: &str,
     messages: &[ChatMessage],
@@ -14,7 +16,7 @@ pub(super) fn record_character_sync_llm_trace(
     parse_error: Option<&str>,
 ) -> Option<String> {
     match write_character_sync_llm_trace(
-        &state.config.log_dir,
+        log_dir,
         profile_name,
         phase,
         messages,
@@ -44,6 +46,30 @@ pub(super) fn record_character_sync_llm_trace(
             );
             None
         }
+    }
+}
+
+pub(crate) struct RuntimeCharacterProfileSyncStageTracePort<'a> {
+    log_dir: &'a Path,
+}
+
+impl<'a> RuntimeCharacterProfileSyncStageTracePort<'a> {
+    pub(crate) fn new(log_dir: &'a Path) -> Self {
+        Self { log_dir }
+    }
+}
+
+impl CharacterProfileSyncStageTracePort for RuntimeCharacterProfileSyncStageTracePort<'_> {
+    fn record_stage_trace(&self, input: CharacterProfileSyncStageTraceInput) -> Option<String> {
+        record_character_sync_llm_trace(
+            self.log_dir,
+            &input.profile_name,
+            &input.phase,
+            &input.messages,
+            &input.response_content,
+            input.temperature,
+            input.parse_error.as_deref(),
+        )
     }
 }
 

@@ -2,8 +2,9 @@ use crate::contracts::IngestOutput;
 use crate::handlers::{completed_ingest_event, failed_ingest_event, progress_ingest_event};
 use crate::protocol::{error_response, service_error, validate_service_request};
 use a4n_service_protocol::{
-    PROTOCOL_VERSION, RAG_INDEX_CAPABILITY_VERSION as RAG_CAPABILITY_VERSION, ServiceErrorCode,
-    ServiceRequest, ServiceResponse, ServiceStatus, ServiceTaskEventKind,
+    CapabilityTaskEventKind, PROTOCOL_VERSION,
+    RAG_INDEX_CAPABILITY_VERSION as RAG_CAPABILITY_VERSION, ServiceErrorCode, ServiceRequest,
+    ServiceResponse, ServiceStatus,
 };
 
 #[test]
@@ -50,7 +51,7 @@ fn rejects_secret_forwarding_policy() {
 #[test]
 fn rag_ingest_events_distinguish_progress_completion_and_failure() {
     let progress = progress_ingest_event("request-1".to_string(), 1, 3);
-    assert_eq!(progress.event_kind, ServiceTaskEventKind::Progress);
+    assert_eq!(progress.event_kind, CapabilityTaskEventKind::Progress);
     assert_eq!(progress.payload.as_ref().unwrap()["total"], 3);
     assert_eq!(
         progress.payload.as_ref().unwrap()["message"],
@@ -59,7 +60,7 @@ fn rag_ingest_events_distinguish_progress_completion_and_failure() {
 
     let completed = completed_ingest_event("request-1".to_string(), 2, IngestOutput { written: 3 })
         .expect("completed event");
-    assert_eq!(completed.event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(completed.event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(completed.payload.as_ref().unwrap()["written"], 3);
     assert!(completed.artifact_refs.is_empty());
 
@@ -70,7 +71,7 @@ fn rag_ingest_events_distinguish_progress_completion_and_failure() {
             "Authorization: Bearer private-token".to_string(),
         )),
     );
-    assert_eq!(failed.event_kind, ServiceTaskEventKind::Failed);
+    assert_eq!(failed.event_kind, CapabilityTaskEventKind::Failed);
     let error = failed.error.expect("failed event error");
     assert_eq!(error.code, ServiceErrorCode::ProviderError);
     assert!(!error.message.contains("private-token"));

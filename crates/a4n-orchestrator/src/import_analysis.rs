@@ -1,3 +1,4 @@
+mod application;
 pub mod blueprint;
 pub mod chapter_outline;
 mod contracts;

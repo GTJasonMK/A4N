@@ -38,6 +38,27 @@ HEALTH_TIMEOUT_SECONDS="${A4N_SERVICE_HEALTH_TIMEOUT_SECONDS:-30}"
 STATUS_ONLY=false
 SERVICE_MODULES=(prompt llm embedding rag image video import export)
 
+ensure_sidecar_auth_token() {
+    local token_file="$SERVICE_DIR/auth-token"
+    mkdir -p "$SERVICE_DIR"
+    if [[ -n "${A4N_SIDECAR_AUTH_TOKEN:-}" ]]; then
+        umask 077
+        printf '%s\n' "$A4N_SIDECAR_AUTH_TOKEN" >"$token_file"
+        export A4N_SIDECAR_AUTH_TOKEN
+        return 0
+    fi
+    if [[ -s "$token_file" ]]; then
+        A4N_SIDECAR_AUTH_TOKEN="$(tr -d '[:space:]' <"$token_file")"
+    else
+        A4N_SIDECAR_AUTH_TOKEN="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
+        [[ -n "$A4N_SIDECAR_AUTH_TOKEN" ]] || die "无法生成 sidecar 认证 token"
+        umask 077
+        printf '%s\n' "$A4N_SIDECAR_AUTH_TOKEN" >"$token_file"
+    fi
+    [[ -n "$A4N_SIDECAR_AUTH_TOKEN" ]] || die "sidecar 认证 token 为空: $token_file"
+    export A4N_SIDECAR_AUTH_TOKEN
+}
+
 module_package() {
     case "$1" in
         prompt) printf '%s\n' "a4n-prompt-service" ;;
@@ -349,6 +370,7 @@ fi
 
 validate_wait_timeout
 guard_build_cache
+ensure_sidecar_auth_token
 
 IFS=',' read -r -a modules <<<"$modules_arg"
 for module in "${modules[@]}"; do

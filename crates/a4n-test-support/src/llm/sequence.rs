@@ -3,9 +3,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use a4n_core::error::AppError;
-use a4n_llm::provider::{
-    ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmProvider, MessageRole, ModelCapabilities,
-};
+use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, MessageRole, ModelCapabilities};
 use async_trait::async_trait;
 use futures::{Stream, stream};
 
@@ -28,15 +26,11 @@ impl SequenceLlmProvider {
 
 #[async_trait]
 impl LlmProvider for SequenceLlmProvider {
-    async fn chat(&self, _request: ChatRequest) -> Result<ChatResponse, AppError> {
-        Ok(sequence_response(pop_reply(&self.replies)?))
-    }
-
     async fn chat_stream(
         &self,
         _request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
-        Ok(Box::pin(stream::empty()))
+        Ok(reply_stream(pop_reply(&self.replies)?))
     }
 
     async fn test_connection(&self) -> Result<bool, AppError> {
@@ -80,21 +74,17 @@ impl CapturingSequenceLlmProvider {
 
 #[async_trait]
 impl LlmProvider for CapturingSequenceLlmProvider {
-    async fn chat(&self, request: ChatRequest) -> Result<ChatResponse, AppError> {
+    async fn chat_stream(
+        &self,
+        request: ChatRequest,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
         self.user_messages
             .lock()
             .expect("captured LLM user-message lock should not be poisoned")
             .extend(request.messages.iter().filter_map(|message| {
                 matches!(&message.role, MessageRole::User).then(|| message.content.clone())
             }));
-        Ok(sequence_response(pop_reply(&self.replies)?))
-    }
-
-    async fn chat_stream(
-        &self,
-        _request: ChatRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
-        Ok(Box::pin(stream::empty()))
+        Ok(reply_stream(pop_reply(&self.replies)?))
     }
 
     async fn test_connection(&self) -> Result<bool, AppError> {
@@ -122,12 +112,17 @@ fn pop_reply(replies: &Mutex<VecDeque<String>>) -> Result<String, AppError> {
         .ok_or_else(|| AppError::Internal(anyhow::anyhow!("测试 LLM 响应已耗尽")))
 }
 
-fn sequence_response(content: String) -> ChatResponse {
-    ChatResponse {
-        message: ChatMessage::assistant(content),
-        usage: None,
+fn reply_stream(
+    content: String,
+) -> Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>> {
+    Box::pin(stream::iter([Ok(ChatChunk {
+        content: Some(content),
+        reasoning_content: None,
+        tool_calls: None,
         finish_reason: Some("stop".to_string()),
-    }
+        index: 0,
+        usage: None,
+    })]))
 }
 
 fn sequence_capabilities() -> ModelCapabilities {

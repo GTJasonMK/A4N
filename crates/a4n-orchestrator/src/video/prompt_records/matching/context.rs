@@ -188,9 +188,8 @@ pub(super) fn expected_contract_version(
     prompt_type: &str,
 ) -> Option<&'static str> {
     match (expected_workflow_mode, prompt_type) {
-        ("boundary_frames", "frame_segment_plan" | "video_prompt") => {
-            Some(FRAME_SEGMENT_PLAN_CONTRACT_VERSION)
-        }
+        ("shared_segment_plan", "frame_segment_plan") => Some(FRAME_SEGMENT_PLAN_CONTRACT_VERSION),
+        ("boundary_frames", "video_prompt") => Some(FRAME_SEGMENT_PLAN_CONTRACT_VERSION),
         ("boundary_frames", "frame_prompt") | ("chat_video", "chat_video_frame_prompt") => {
             Some(BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION)
         }
@@ -209,7 +208,8 @@ pub(in crate::video::prompt_records) fn expected_prompt_workflow_mode(
     prompt_type: &str,
 ) -> Option<&'static str> {
     match prompt_type {
-        "frame_segment_plan" | "frame_prompt" => Some("boundary_frames"),
+        "frame_segment_plan" => Some("shared_segment_plan"),
+        "frame_prompt" => Some("boundary_frames"),
         "first_frame_prompt" => Some("first_frame_chain"),
         "chat_video_frame_prompt" => Some("chat_video"),
         "storyboard_prompt" => Some("storyboard"),

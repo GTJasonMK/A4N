@@ -15,7 +15,7 @@ import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import {
-  createProgressTaskId,
+  allocateHostTaskId,
   useProgressTask,
 } from "../../hooks/useProgressTask";
 import { ScriptContent } from "./shooting-script/ScriptContent";
@@ -98,15 +98,15 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     }
     setGenerating(true);
     try {
-      const taskId = createProgressTaskId("chapter-shooting-script", projectId);
+      const taskId = allocateHostTaskId("chapter-shooting-script", projectId);
       const generated = await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: "生成结构化拍摄剧本",
           startMessage: "正在准备剧本改编",
           successMessage: "结构化拍摄剧本生成完成",
           errorMessage: "结构化拍摄剧本生成失败",
           total: 100,
-          taskId,
           cancelLabel: "停止生成",
           runningHint: "生成过程中会保留已完成的阶段，可在下次继续恢复",
         },

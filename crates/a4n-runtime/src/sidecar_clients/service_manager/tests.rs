@@ -1,9 +1,11 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use a4n_core::config::app_config::AppConfig;
-use a4n_service_manager::ServiceMode;
+use a4n_service_manager::{RemoteSecurityConfig, ServiceMode};
+use a4n_service_protocol::SIDECAR_AUTH_TOKEN_ENV;
 
 use crate::state::RuntimeProfile;
 
@@ -11,7 +13,10 @@ use super::binaries::{
     current_tauri_target_triples, sidecar_binary_path_in_dirs, sidecar_platform_executable_name,
     tauri_sidecar_executable_name,
 };
-use super::configs::runtime_service_configs;
+use super::configs::{
+    build_remote_service, remote_security_env_prefix, reserve_managed_loopback_addr,
+    runtime_service_configs,
+};
 use super::specs::{parse_managed_sidecars_env, parse_sidecar_addr_env, parse_sidecar_url_env};
 
 struct TestSidecarDir {
@@ -91,6 +96,58 @@ fn managed_sidecars_env_is_strictly_parsed() {
     let error = parse_managed_sidecars_env(Some("ture"))
         .expect_err("invalid managed-sidecar mode must not silently select remote mode");
     assert!(error.contains("A4N_MANAGED_SIDECARS 必须是"));
+}
+
+#[test]
+fn managed_sidecars_reserve_distinct_loopback_ports() {
+    let mut reserved = HashSet::new();
+    let first = reserve_managed_loopback_addr(&mut reserved).expect("reserve first sidecar port");
+    let second = reserve_managed_loopback_addr(&mut reserved).expect("reserve second sidecar port");
+
+    assert!(first.ip().is_loopback());
+    assert!(second.ip().is_loopback());
+    assert_ne!(first, second);
+}
+
+#[test]
+fn remote_service_uses_service_scoped_security_instead_of_local_bootstrap() {
+    assert_eq!(remote_security_env_prefix("prompt"), "A4N_REMOTE_PROMPT");
+    let config = build_remote_service(
+        "prompt",
+        "https://prompt.example.test".to_string(),
+        RemoteSecurityConfig {
+            auth_token_env: Some("A4N_REMOTE_PROMPT_TOKEN".to_string()),
+            ..Default::default()
+        },
+        Some("local-script-token"),
+    );
+
+    assert_eq!(
+        config.remote_security.auth_token_env.as_deref(),
+        Some("A4N_REMOTE_PROMPT_TOKEN")
+    );
+    assert!(!config.env.contains_key(SIDECAR_AUTH_TOKEN_ENV));
+    config
+        .validate()
+        .expect("service-scoped remote credentials should pass manager validation");
+
+    let local = build_remote_service(
+        "prompt",
+        "http://127.0.0.1:47641".to_string(),
+        RemoteSecurityConfig::default(),
+        Some("local-script-token"),
+    );
+    assert_eq!(
+        local.remote_security.auth_token_env.as_deref(),
+        Some(SIDECAR_AUTH_TOKEN_ENV)
+    );
+    assert_eq!(
+        local.env.get(SIDECAR_AUTH_TOKEN_ENV).map(String::as_str),
+        Some("local-script-token")
+    );
+    local
+        .validate()
+        .expect("loopback script-owned sidecars should keep the local bootstrap token");
 }
 
 #[test]

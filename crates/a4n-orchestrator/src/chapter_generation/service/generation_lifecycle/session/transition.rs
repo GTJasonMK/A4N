@@ -6,7 +6,7 @@ use super::{ChapterGenerationSession, ExistingChapterGeneration};
 use crate::chapter_generation::service::ChapterGenerationService;
 
 impl ChapterGenerationService {
-    pub(in crate::chapter_generation::service) async fn begin_generation(
+    pub(in crate::chapter_generation) async fn begin_generation(
         &self,
         project_id: i64,
         chapter_number: i32,
@@ -29,18 +29,18 @@ impl ChapterGenerationService {
         })
     }
 
-    pub(in crate::chapter_generation::service) async fn restore_generation_status(
+    pub(in crate::chapter_generation) async fn restore_generation_status_ref(
         &self,
-        session: ChapterGenerationSession,
+        session: &ChapterGenerationSession,
     ) {
-        let Some(existing_chapter) = session.existing_chapter else {
+        let Some(existing_chapter) = session.existing_chapter.as_ref() else {
             return;
         };
 
         if let Err(err) = a4n_db::chapter_content::restore_chapter_generation_status_record(
             self.db.as_ref(),
             existing_chapter.id,
-            existing_chapter.previous_status,
+            existing_chapter.previous_status.clone(),
             Utc::now().naive_utc(),
         )
         .await

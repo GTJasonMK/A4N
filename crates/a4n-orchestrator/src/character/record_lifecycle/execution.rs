@@ -13,7 +13,7 @@ impl OrchestratorContext {
         profile_id: i64,
     ) -> Result<CharacterProfileRecordDeletionResult, CharacterRecordLifecycleError> {
         let deletion =
-            a4n_db::character::delete_profile_cascade_transaction(self.db.connection(), profile_id)
+            a4n_db::character::delete_profile_cascade_transaction(self.database.connection(), profile_id)
                 .await
                 .map_err(character_profile_delete_error)
                 .map_err(CharacterRecordLifecycleError::Persistence)?;
@@ -30,7 +30,7 @@ impl OrchestratorContext {
         chapter_number: i32,
     ) -> Result<CharacterTimelineRollbackLifecycleResult, CharacterRecordLifecycleError> {
         let rollback = a4n_db::character::rollback_profile_to_chapter(
-            self.db.connection(),
+            self.database.connection(),
             profile_id,
             chapter_number,
         )

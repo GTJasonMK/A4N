@@ -2,53 +2,21 @@ import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, integerNum, type ApiId as Id } from "./shared";
-import type { GeneratedImage } from "./image";
 import type { DownstreamConflictStrategy } from "./dependencyConflict";
 import { getLocalImageConfig } from "./localRuntimeSettings";
 import { buildRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../utils/runtimeMode";
 import { SYSTEM_IMAGE_CONFIG_ID } from "./image";
+import type {
+  ObjectProfileInput as ApiObjectProfileInput,
+  ObjectProfileSummary,
+} from "./generated/host";
 
-export interface ObjectProfile {
-  id: number;
-  project_id: number;
-  name: string;
-  normalized_name: string;
-  aliases_json: unknown;
-  object_type: string;
-  importance: string;
-  visual_description: string;
-  material_and_state: string;
-  story_usage: string;
-  visual_usage: string;
-  generation_usage: string;
-  location_context: string | null;
-  first_seen_chapter: number;
-  last_seen_chapter: number;
-  evidence_json: unknown;
-  image_prompt_seed: string;
-  generated_image_count: number;
-  created_at: string | null;
-  updated_at: string | null;
-}
+export type ObjectProfile = ObjectProfileSummary;
 
-export interface ObjectProfileInput {
-  name: string;
-  aliases?: string[];
-  object_type: string;
-  importance: string;
-  visual_description: string;
-  material_and_state: string;
-  story_usage: string;
-  visual_usage: string;
-  generation_usage: string;
-  location_context?: string | null;
-  first_seen_chapter: number;
-  last_seen_chapter: number;
-  evidence?: string[];
-  image_prompt_seed: string;
+export type ObjectProfileInput = Omit<ApiObjectProfileInput, "downstream_strategy"> & {
   downstream_strategy?: DownstreamConflictStrategy;
-}
+};
 
 interface ObjectProfileImageInput {
   object_profile_id: number;
@@ -137,25 +105,6 @@ function normalizeObjectProfileInput(input: ObjectProfileInput): Required<Object
     image_prompt_seed: input.image_prompt_seed,
     downstream_strategy: input.downstream_strategy ?? "reject",
   };
-}
-
-export async function generateObjectProfileImage(
-  input: ObjectProfileImageInput,
-  taskId?: string | null,
-): Promise<GeneratedImage> {
-  const configId = normalizeImageConfigId(input.config_id);
-  return apiInvoke<GeneratedImage>("generate_object_profile_image", {
-    userId: currentUserId(),
-    input: { ...input, config_id: configId },
-    taskId: taskId ?? null,
-    ...(usesLocalRuntimeSettings() && configId != null
-      ? {
-          runtime_config_snapshot: buildRuntimeConfigSnapshot({
-            image: getLocalImageConfig(configId),
-          }),
-        }
-      : {}),
-  });
 }
 
 export async function generateObjectProfileImagePrompt(

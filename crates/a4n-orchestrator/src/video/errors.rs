@@ -1,6 +1,6 @@
 use a4n_core::error::AppError;
 
-pub(super) fn video_llm_step_error(prompt_name: &str, err: AppError) -> AppError {
+pub(crate) fn video_llm_step_error(prompt_name: &str, err: AppError) -> AppError {
     match err {
         AppError::Timeout(message) => {
             AppError::Timeout(format!("视频提示词步骤 {prompt_name} 超时：{message}"))

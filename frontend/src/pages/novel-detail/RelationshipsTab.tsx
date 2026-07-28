@@ -17,7 +17,11 @@ import {
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
-import { listenAppEvent, type UnlistenFn } from "../../api/runtime";
+import {
+  canListenAppEvents,
+  listenAppEvent,
+  type UnlistenFn,
+} from "../../api/runtime";
 import { listProfiles, type CharacterProfile } from "../../api/character";
 import {
   characterAttributeEntries,
@@ -210,6 +214,8 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   }, [projectId]);
 
   useEffect(() => {
+    if (!canListenAppEvents()) return;
+
     let disposed = false;
     let unlisten: UnlistenFn | null = null;
 

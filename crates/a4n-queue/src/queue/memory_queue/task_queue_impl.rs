@@ -5,48 +5,39 @@ use uuid::Uuid;
 
 use super::{MemoryTaskQueue, waiting};
 use crate::queue::priority::{
-    QueueSlotStats, QueueStats, TaskInfo, TaskPermit, TaskPriority, TaskQueue, TaskStatus, TaskType,
+    QueueSlotStats, QueueStats, TaskInfo, TaskKind, TaskPermit, TaskPriority, TaskQueue, TaskStatus,
 };
 
 #[async_trait]
 impl TaskQueue for MemoryTaskQueue {
     async fn submit(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
         let task_id = Uuid::new_v4().to_string();
         let now = chrono::Utc::now().naive_utc();
 
-        self.tasks.insert(
-            task_id.clone(),
-            TaskInfo {
-                id: task_id.clone(),
-                task_type,
-                priority,
-                status: TaskStatus::Pending,
-                project_id,
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: None,
-                progress: None,
-                created_at: now,
-                started_at: None,
-                completed_at: None,
-            },
-        );
-        self.cancel_tokens
-            .insert(task_id.clone(), CancellationToken::new());
-
-        self.waiting
-            .write()
-            .push(waiting::WaitingTask::new(priority, task_id.clone()));
+        self.submit_persisted(TaskInfo {
+            id: task_id.clone(),
+            task_type,
+            priority,
+            status: TaskStatus::Pending,
+            project_id,
+            root_project_id: None,
+            source_snapshot_id: None,
+            task_scope: None,
+            progress: None,
+            created_at: now,
+            started_at: None,
+            completed_at: None,
+        })?;
 
         Ok(task_id)
     }
 
-    async fn acquire(&self, task_type: TaskType) -> Result<TaskPermit, AppError> {
+    async fn acquire(&self, task_type: TaskKind) -> Result<TaskPermit, AppError> {
         self.acquire_with_cancel(task_type, CancellationToken::new())
             .await
             .map(|opt| opt.unwrap())
@@ -54,7 +45,7 @@ impl TaskQueue for MemoryTaskQueue {
 
     async fn acquire_with_cancel(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         cancel_token: CancellationToken,
     ) -> Result<Option<TaskPermit>, AppError> {
         self.acquire_next_queued_task(task_type, cancel_token).await

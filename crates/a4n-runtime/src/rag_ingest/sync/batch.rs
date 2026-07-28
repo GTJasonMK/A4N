@@ -94,14 +94,14 @@ pub(in crate::rag_ingest) async fn sync_labeled_records_concurrent(
     }
 
     let project_id = sync.project_id();
-    let batch_size = state.embedding.batch_size().max(1);
+    let batch_size = state.rag().embedding_batch_size().max(1);
     let batches = pending
         .chunks(batch_size)
         .map(<[PreparedLabeledRagRecord]>::to_vec)
         .collect::<Vec<_>>();
     let mut pending_stream = stream::iter(batches.into_iter().map(|batch| async move {
         let result = state
-            .orchestrator
+            .rag()
             .store_prepared_rag_records(project_id, batch.iter().map(|item| &item.prepared))
             .await
             .map_err(|error| error.to_string());
@@ -148,7 +148,9 @@ pub(in crate::rag_ingest) async fn sync_data_type_records(
     progress: &mut Option<&mut RagIngestProgress<'_>>,
     cleanup_label: &str,
 ) -> Result<u32, String> {
-    let mut sync = RagSyncContext::for_data_type(&state.orchestrator, project_id, data_type)
+    let mut sync = state
+        .rag()
+        .rag_sync_context_for_data_type(project_id, data_type)
         .await
         .map_err(|error| error.to_string())?;
     let processed =

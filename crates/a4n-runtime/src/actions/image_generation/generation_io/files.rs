@@ -3,7 +3,7 @@ use a4n_core::files::paths::ProjectPaths;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
-pub(super) fn persist_generated_image_file(
+pub(in crate::actions::image_generation) fn persist_generated_image_file(
     data_dir: &Path,
     project_id: i64,
     chapter_id: Option<i64>,

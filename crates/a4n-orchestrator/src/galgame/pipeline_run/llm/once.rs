@@ -42,9 +42,13 @@ impl OrchestratorContext {
         F: Fn(Value) -> Result<Value, AppError>,
     {
         let prepared = prepare_galgame_llm_once(&input).await?;
-        mark_workflow_current_step(self.db.connection(), input.workflow_run_id, &input.step_key)
-            .await
-            .map_err(workflow_write_app_error)?;
+        mark_workflow_current_step(
+            self.database.connection(),
+            input.workflow_run_id,
+            &input.step_key,
+        )
+        .await
+        .map_err(workflow_write_app_error)?;
         if let Some(restored) = restore_galgame_llm_once(self, &input, &prepared, &validate).await?
         {
             return Ok(restored);

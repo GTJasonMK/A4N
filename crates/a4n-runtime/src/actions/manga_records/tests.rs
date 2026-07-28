@@ -1,10 +1,7 @@
-use super::{
-    OptimizeMangaPromptInput, OptimizedMangaPromptFields, UpdateMangaPromptInput,
-    layout::{
-        bind_reference_asset_in_layout, optional_layout_string, required_layout_bool,
-        required_layout_i32, required_layout_string,
-    },
-    optimization::manga_prompt_optimization_checkpoint_output,
+use super::{OptimizeMangaPromptInput, UpdateMangaPromptInput};
+use a4n_orchestrator::manga::{
+    bind_reference_asset_in_layout, optional_layout_string, required_layout_bool,
+    required_layout_i32, required_layout_string,
 };
 use serde_json::{Value, json};
 
@@ -100,44 +97,4 @@ fn manga_prompt_inputs_reject_unknown_fields() {
     }))
     .expect_err("unknown optimize input fields should fail");
     assert!(optimize_err.to_string().contains("unknown field"));
-}
-
-#[test]
-fn manga_prompt_optimization_output_rejects_unknown_fields() {
-    let err = serde_json::from_value::<OptimizedMangaPromptFields>(json!({
-        "image_prompt": "优化后的漫画整页提示词",
-        "legacy_notes": "旧字段",
-    }))
-    .expect_err("unknown optimized fields should fail");
-    assert!(err.to_string().contains("unknown field"));
-}
-
-#[test]
-fn manga_prompt_optimization_checkpoint_revalidates_parsed_output() {
-    let checkpoint = json!({
-        "response_content": r#"{"image_prompt":"优化后的漫画整页提示词"}"#,
-        "parsed_output": {"image_prompt": "优化后的漫画整页提示词"},
-        "usage": null,
-        "finish_reason": "stop",
-    });
-    let (output, usage, finish_reason) =
-        manga_prompt_optimization_checkpoint_output(&checkpoint, "optimize_manga_prompt:prompt:1")
-            .expect("valid checkpoint should restore");
-    assert_eq!(output.image_prompt, "优化后的漫画整页提示词");
-    assert_eq!(usage, None);
-    assert_eq!(finish_reason.as_deref(), Some("stop"));
-}
-
-#[test]
-fn manga_prompt_optimization_checkpoint_restores_repaired_parsed_output() {
-    let checkpoint = json!({
-        "response_content": r#"{"image_prompt":"响应里的提示词"}"#,
-        "parsed_output": {"image_prompt": "断点里的提示词"},
-        "usage": null,
-        "finish_reason": "stop",
-    });
-    let (output, _, _) =
-        manga_prompt_optimization_checkpoint_output(&checkpoint, "optimize_manga_prompt:prompt:1")
-            .expect("repaired checkpoint should restore parsed_output");
-    assert_eq!(output.image_prompt, "断点里的提示词");
 }

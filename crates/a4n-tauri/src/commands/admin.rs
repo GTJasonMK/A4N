@@ -100,8 +100,8 @@ admin_command!(
 );
 
 admin_command!(
-    delete_user(user_id: i64) -> (),
-    |state, caller_user_id| admin_records::delete_user_for_admin(&state, caller_user_id, user_id),
+    disable_user(user_id: i64) -> (),
+    |state, caller_user_id| admin_records::disable_user_for_admin(&state, caller_user_id, user_id),
 );
 
 admin_command!(

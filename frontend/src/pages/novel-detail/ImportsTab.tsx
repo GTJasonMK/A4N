@@ -35,7 +35,7 @@ import {
   type ProjectImportAnalysisProgress,
 } from "../../api/import";
 import type { ModelRequestPreview } from "../../api/requestPreview";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { ImportFilePanel } from "./imports/ImportFilePanel";
 import { ImportReviewDetailPanel } from "./imports/ImportReviewDetailPanel";
@@ -896,7 +896,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     }
     reverseBusyRef.current = true;
     const requestSeq = nextSequence(reverseSeqRef);
-    const taskId = createProgressTaskId(
+    const taskId = allocateHostTaskId(
       `import-reverse-${requestReverseType}-${apply ? "apply" : "preview"}`,
       requestProjectId,
     );
@@ -917,11 +917,11 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     try {
       const result = await runReverseProgressTask(
         {
+          cancelTaskId: taskId,
           title: apply ? `反推并应用${reverseLabel}` : `反推${reverseLabel}`,
           startMessage: `正在准备反推${reverseLabel}`,
           successMessage: apply ? `反推${reverseLabel}结果已应用` : `反推${reverseLabel}完成`,
           errorMessage: "反推失败",
-          taskId,
           total: apply ? 4 : 3,
           cancelLabel: "停止反推",
           runningHint: "反推停止后，已经应用的数据会保留",

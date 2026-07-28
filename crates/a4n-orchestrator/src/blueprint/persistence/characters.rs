@@ -1,29 +1,7 @@
 use a4n_core::blueprint::ParsedBlueprintCharacter;
-use a4n_core::error::AppError;
 use a4n_db::project::BlueprintCharacterDraft;
-use chrono::Utc;
 
-use crate::blueprint::{OrchestratorContext, blueprint_sync_error};
-
-impl OrchestratorContext {
-    pub(in crate::blueprint) async fn replace_blueprint_characters(
-        &self,
-        project_id: i64,
-        characters: &[ParsedBlueprintCharacter],
-    ) -> Result<(), AppError> {
-        a4n_db::project::sync_blueprint_characters(
-            self.db.connection(),
-            project_id,
-            blueprint_character_drafts(characters),
-            Utc::now().naive_utc(),
-        )
-        .await
-        .map_err(blueprint_sync_error)?;
-        Ok(())
-    }
-}
-
-fn blueprint_character_drafts(
+pub fn blueprint_character_drafts(
     characters: &[ParsedBlueprintCharacter],
 ) -> Vec<BlueprintCharacterDraft> {
     characters

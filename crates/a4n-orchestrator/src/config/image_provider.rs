@@ -45,8 +45,7 @@ fn image_provider_api_key<'a>(
     Ok(api_key.unwrap_or(""))
 }
 
-#[cfg(feature = "embedded-media-providers")]
-fn image_backend_requires_api_key(backend: &str) -> bool {
+pub fn image_backend_requires_api_key(backend: &str) -> bool {
     matches!(
         backend,
         "openai-compatible-image"

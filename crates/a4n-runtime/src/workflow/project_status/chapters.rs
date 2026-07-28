@@ -1,5 +1,4 @@
 use crate::state::AppState;
-use crate::workflow::chapter_cleanup::preflight_chapter_derived_cleanup;
 
 pub async fn validate_chapter_generation_ready(
     state: &AppState,
@@ -7,9 +6,13 @@ pub async fn validate_chapter_generation_ready(
     chapter_number: i32,
 ) -> Result<(), String> {
     state
-        .orchestrator
+        .project_chapter_records()
         .validate_chapter_generation_readiness(project_id, chapter_number)
         .await?;
 
-    preflight_chapter_derived_cleanup(state, project_id, chapter_number).await
+    state
+        .chapter_content()
+        .preflight_chapter_content_change_validated(project_id, chapter_number)
+        .await
+        .map_err(|error| error.to_string())
 }

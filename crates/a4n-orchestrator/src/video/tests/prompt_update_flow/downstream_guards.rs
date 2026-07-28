@@ -149,7 +149,7 @@ async fn delete_prompt_rejects_segment_plan_when_frame_prompts_exist() {
         err,
         AppError::InvalidArgument(message)
             if message.contains("后续首帧提示词")
-                && message.contains("不能删除首帧串联片段规划")
+                && message.contains("不能删除视频片段规划")
     ));
     let stored = chapter_video_prompt::Entity::find_by_id(segment.id)
         .one(db.as_ref())

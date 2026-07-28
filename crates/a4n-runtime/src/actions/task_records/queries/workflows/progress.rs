@@ -20,8 +20,7 @@ pub async fn get_workflow_progress_events(
     };
     verify_task_access(state, user_id, &task_id).await?;
     if let Some(snapshot) = state
-        .task_manager
-        .list_active_snapshots()
+        .active_task_snapshots()
         .into_iter()
         .find(|snapshot| snapshot.task_id == task_id)
     {
@@ -37,7 +36,7 @@ pub async fn get_workflow_progress_events(
             .collect());
     }
     if let Some(task) = state
-        .orchestrator
+        .workflow()
         .persisted_task_by_id(&task_id)
         .await
         .map_err(app_error_message)?
@@ -55,13 +54,13 @@ async fn workflow_progress_events_for_user(
     limit: usize,
 ) -> Result<Vec<TaskProgressEventSummary>, String> {
     let run = state
-        .orchestrator
+        .workflow()
         .workflow_run_summary(workflow_run_id)
         .await
         .map_err(app_error_message)?;
     verify_workflow_run_summary_access(state, user_id, &run).await?;
     state
-        .orchestrator
+        .workflow()
         .workflow_progress_events(workflow_run_id, limit)
         .await
         .map_err(app_error_message)

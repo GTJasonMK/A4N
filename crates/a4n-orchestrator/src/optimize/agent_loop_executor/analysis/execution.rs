@@ -1,16 +1,16 @@
 use super::super::{
     AGENT_LOOP_RUNAWAY_GUARD_STEPS, AgentLoopAction, AgentLoopDecisionRequest,
-    AgentLoopThinkObservationInput, AppError, EVENT_KIND_ERROR, EVENT_STATUS_FAILED,
-    ExplicitAnalysisAgentLoopInput, FailedAgentLoopToolInput, OrchestratorContext,
-    execute_optimization_runtime_tool, optimization_session, report_optimize_progress,
-    runtime_tool_reads_current_chapter, tool_observation,
+    AgentLoopExecutionError, AgentLoopThinkObservationInput, ExplicitAnalysisAgentLoopInput,
+    FailedAgentLoopToolInput, OptimizeAnalysisTurnExecution, OrchestratorContext,
+    execute_optimization_runtime_tool, runtime_tool_reads_current_chapter, tool_observation,
 };
+use a4n_core::error::AppError;
 
 impl OrchestratorContext {
     pub(in crate::optimize) async fn run_explicit_analysis_agent_loop(
         &self,
-        input: ExplicitAnalysisAgentLoopInput<'_, '_, '_>,
-    ) -> Result<optimization_session::Model, AppError> {
+        input: ExplicitAnalysisAgentLoopInput<'_>,
+    ) -> Result<OptimizeAnalysisTurnExecution, AgentLoopExecutionError> {
         let ExplicitAnalysisAgentLoopInput {
             turn_id,
             session,
@@ -18,30 +18,22 @@ impl OrchestratorContext {
             base_user_message,
             analysis_context,
             workflow_run_id,
-            progress,
-            stream,
+            generation,
         } = input;
         self.save_agent_event(
             session.id,
             "启动显式 Agent Loop：由模型选择读取上下文、调用工具或输出 final。",
         )
         .await?;
-        if let Err(err) = report_optimize_progress(progress, 1, 5, "正在准备 Agent Loop") {
-            self.cancel_session(session.id).await?;
-            return Err(err);
-        }
 
         let mut observations = Vec::new();
         let mut has_read_current_chapter = false;
         for step in 1..=AGENT_LOOP_RUNAWAY_GUARD_STEPS {
             let phase = format!("内容优化 Agent Loop #{step}");
-            let progress_message = format!("正在等待 Agent 第 {step} 步决策");
             let decision = self
                 .request_agent_loop_decision(
                     turn_id,
                     session.id,
-                    progress,
-                    stream,
                     AgentLoopDecisionRequest {
                         project_id: session.project_id,
                         workflow: "content_optimization_agent_loop",
@@ -52,14 +44,9 @@ impl OrchestratorContext {
                         step,
                         build_error_label: "Agent Loop",
                         request_event_label: "Agent Loop",
-                        llm_error_label: "LLM Agent Loop",
                         parse_error_label: "Agent Loop",
-                        progress_current: 2,
-                        progress_total: 5,
-                        progress_message: &progress_message,
-                        release_operation: Some("内容优化 Agent Loop"),
-                        cancel_session_on_progress_error: true,
                         workflow_run_id,
+                        generation,
                     },
                 )
                 .await?;
@@ -83,7 +70,6 @@ impl OrchestratorContext {
                             decision: &decision,
                             think_event_prefix: "Agent 思考",
                             error_context: "Agent Loop",
-                            release_operation: Some("内容优化 Agent Loop"),
                         })
                         .await?,
                     );
@@ -96,7 +82,6 @@ impl OrchestratorContext {
                             step,
                             &decision,
                             "Agent Loop",
-                            Some("内容优化 Agent Loop"),
                         )
                         .await?;
                     let result = match execute_optimization_runtime_tool(
@@ -149,12 +134,13 @@ impl OrchestratorContext {
                     return self
                         .finish_explicit_analysis_agent_loop(
                             session,
+                            turn_id,
                             decision.arguments,
                             &analysis_context,
                             has_read_current_chapter,
-                            progress,
                         )
-                        .await;
+                        .await
+                        .map_err(AgentLoopExecutionError::App);
                 }
             }
         }
@@ -164,16 +150,14 @@ impl OrchestratorContext {
         );
         self.append_turn_event(
             turn_id,
-            EVENT_KIND_ERROR,
-            EVENT_STATUS_FAILED,
+            super::super::EVENT_KIND_ERROR,
+            super::super::EVENT_STATUS_FAILED,
             &err.to_string(),
             None,
         )
         .await?;
         self.save_agent_event(session.id, &format!("Agent Loop 未完成：{err}"))
             .await?;
-        self.release_in_progress_session_after_failure(session.id, "内容优化 Agent Loop", &err)
-            .await?;
-        Err(err)
+        Err(AgentLoopExecutionError::App(err))
     }
 }

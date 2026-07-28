@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::part_outline;
 
-pub(in crate::outline) fn validate_requested_part_context(
+pub fn validate_requested_part_context(
     parts: &[part_outline::Model],
     start_chapter: i32,
     end_chapter: i32,
@@ -22,7 +22,7 @@ pub(in crate::outline) fn validate_requested_part_context(
     Ok(())
 }
 
-pub(in crate::outline) fn requested_part_for_chapter(
+pub fn requested_part_for_chapter(
     parts: &[part_outline::Model],
     chapter_number: i32,
 ) -> Result<Option<&part_outline::Model>, AppError> {
@@ -38,7 +38,7 @@ pub(in crate::outline) fn requested_part_for_chapter(
     Ok(first)
 }
 
-pub(in crate::outline) fn ensure_focus_part_in_context(
+pub fn ensure_focus_part_in_context(
     focus_part: Option<&part_outline::Model>,
     parts: &[part_outline::Model],
 ) -> Result<(), AppError> {
@@ -55,9 +55,7 @@ pub(in crate::outline) fn ensure_focus_part_in_context(
     }
 }
 
-pub(in crate::outline) fn required_part_summary(
-    part: &part_outline::Model,
-) -> Result<&str, AppError> {
+pub fn required_part_summary(part: &part_outline::Model) -> Result<&str, AppError> {
     part.summary
         .as_deref()
         .map(str::trim)
@@ -70,7 +68,7 @@ pub(in crate::outline) fn required_part_summary(
         })
 }
 
-pub(in crate::outline) fn validate_chapter_generation_range(
+pub fn validate_chapter_generation_range(
     part: &part_outline::Model,
     start_chapter: i32,
     count: i32,

@@ -7,13 +7,11 @@ import {
   type SetStateAction,
 } from "react";
 import { extractErrorMessage } from "../../../api";
-import { cancelWorkflow } from "../../../api/streaming";
 import {
   applyOptimizationPatches,
   createOptimizationAnalysisSession,
   createOptimizationChatSession,
   deleteOptimizeSession,
-  executeOptimizationAnalysisSession,
   getOptimizeSession,
   listOptimizePatchSets,
   prepareOptimizationAnalysisSession,
@@ -21,25 +19,32 @@ import {
   previewPrepareOptimizationAnalysisSessionRequest,
   previewProposeOptimizationPatchesRequest,
   previewSendOptimizationMessageRequest,
-  proposeOptimizationPatches,
   recordOptimizeAgentEvent,
   rejectPendingOptimizePatchSets,
-  sendOptimizationMessage,
+  listOptimizeTurns,
+  optimizeGenerationTarget,
+  startOptimizeAnalysisGeneration,
+  startOptimizeChatGeneration,
+  startOptimizePatchGeneration,
   type OptimizationAgentPermissions,
   type OptimizationPatch,
 } from "../../../api/optimize";
+import { generationClient } from "../../../api/generationTasks";
+import type { GenerationTaskHandle } from "../../../api/generated/generationContracts";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { promptDialog } from "../../../components/feedback/PromptDialog";
 import type { ToastType } from "../../../components/feedback/Toast";
-import {
-  createProgressTaskId,
-  type RunProgressTask,
-} from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
+import { sha256Hex } from "../../../utils/contentHash";
+import {
+  generationTaskRecoveryIssue,
+  resolveFormalResultRecovery,
+} from "../../../utils/generationEventReducer";
+import { generationTaskKey, useGenerationTasksStore } from "../../../store/generationTasks";
+import { useGenerationTask } from "../../../hooks/useGenerationTask";
 import type { OptimizationPatchPreviewController } from "./patchPreviewTypes";
 import {
   chapterOptionLabel,
-  formatPatchProposalSummary,
   isReusableAgentSession,
   latestPendingPatchProposal,
   parseOptimizeIssues,
@@ -47,7 +52,6 @@ import {
   requireSessionName,
   sessionDisplayName,
   type OptimizeSubmitKind,
-  upsertTurn,
 } from "./optimizeTabUtils";
 import type { useOptimizeActivityStream } from "./useOptimizeActivityStream";
 import type { useOptimizePatchReviewState } from "./useOptimizePatchReviewState";
@@ -64,12 +68,11 @@ interface UseOptimizeActionsParams {
   setInput: Dispatch<SetStateAction<string>>;
   agentPermissions: OptimizationAgentPermissions;
   setAgentPermissions: Dispatch<SetStateAction<OptimizationAgentPermissions>>;
-  optimizeTaskId: string | null;
-  setOptimizeTaskId: Dispatch<SetStateAction<string | null>>;
+  optimizeGenerationHandle: GenerationTaskHandle | null;
+  setOptimizeGenerationHandle: Dispatch<SetStateAction<GenerationTaskHandle | null>>;
   setCancellingOptimize: Dispatch<SetStateAction<boolean>>;
   taskRunning: boolean;
   addToast: AddToast;
-  runProgressTask: RunProgressTask;
   onChapterContentChanged?: (chapterId: number) => void | Promise<void>;
   onPatchPreviewChange?: (
     preview: OptimizationPatchPreviewController | null,
@@ -85,12 +88,11 @@ export function useOptimizeActions({
   setInput,
   agentPermissions,
   setAgentPermissions,
-  optimizeTaskId,
-  setOptimizeTaskId,
+  optimizeGenerationHandle,
+  setOptimizeGenerationHandle,
   setCancellingOptimize,
   taskRunning,
   addToast,
-  runProgressTask,
   onChapterContentChanged,
   onPatchPreviewChange,
   sessionState,
@@ -116,7 +118,6 @@ export function useOptimizeActions({
   const {
     appendLlmStreamChunk,
     appendLocalItem,
-    appendProgressTimelineEvent,
     clearLlmStreamPreview,
   } = activityStream;
   const {
@@ -130,6 +131,24 @@ export function useOptimizeActions({
   } = patchReviewState;
   const actionBusyRef = useRef<string | null>(null);
   const cancelBusyRef = useRef(false);
+  const generationHandleRef = useRef<GenerationTaskHandle | null>(optimizeGenerationHandle);
+  const generationSessionIdRef = useRef<number | null>(null);
+  const generationKindRef = useRef<"optimization_chat" | "optimization_analysis" | "optimization_patch" | null>(null);
+  const handledGenerationTerminalRef = useRef<string | null>(null);
+  const generationRestoreBusyRef = useRef(false);
+  const rawPreviewRef = useRef<{
+    key: string;
+    taskId: string;
+    text: string;
+  } | null>(null);
+  const generationTask = useGenerationTask({
+    handle: optimizeGenerationHandle,
+    autoSubscribe: optimizeGenerationHandle != null,
+  });
+
+  useEffect(() => {
+    generationHandleRef.current = optimizeGenerationHandle;
+  }, [optimizeGenerationHandle]);
 
   useEffect(() => {
     actionBusyRef.current = null;
@@ -138,10 +157,325 @@ export function useOptimizeActions({
   }, [projectId, activeChapter?.id, setCancellingOptimize]);
 
   useEffect(() => {
-    if (optimizeTaskId != null) return;
+    if (optimizeGenerationHandle != null) return;
     cancelBusyRef.current = false;
     setCancellingOptimize(false);
-  }, [optimizeTaskId, setCancellingOptimize]);
+  }, [optimizeGenerationHandle, setCancellingOptimize]);
+
+  useEffect(() => {
+    const preview = rawPreviewRef.current;
+    if (preview) clearLlmStreamPreview(preview.taskId);
+    generationHandleRef.current = null;
+    generationSessionIdRef.current = null;
+    generationKindRef.current = null;
+    handledGenerationTerminalRef.current = null;
+    generationRestoreBusyRef.current = false;
+    rawPreviewRef.current = null;
+    setOptimizeGenerationHandle(null);
+  }, [clearLlmStreamPreview, projectId, setOptimizeGenerationHandle]);
+
+  useEffect(() => {
+    if (generationHandleRef.current || generationRestoreBusyRef.current) return;
+    let cancelled = false;
+    generationRestoreBusyRef.current = true;
+    void generationClient.listActive(projectId).then((summaries) => {
+      if (cancelled || generationHandleRef.current) return;
+      const activeTasks = summaries.flatMap((summary) => {
+        const target = optimizeGenerationTarget(summary, projectId);
+        return target == null ? [] : [{ handle: summary.handle, ...target }];
+      });
+      const active = activeTasks.find(
+        (task) => task.sessionId === activeSessionIdRef.current,
+      )
+        ?? activeTasks[0];
+      if (!active) return;
+      generationHandleRef.current = active.handle;
+      generationSessionIdRef.current = active.sessionId;
+      generationKindRef.current = active.kind;
+      handledGenerationTerminalRef.current = null;
+      rawPreviewRef.current = null;
+      setActiveSessionIdentity(active.sessionId);
+      setOptimizeGenerationHandle(active.handle);
+    }).catch((error) => {
+      if (!cancelled) {
+        addToast(extractErrorMessage(error, "恢复内容优化对话任务失败"), "error");
+      }
+    }).finally(() => {
+      if (!cancelled) generationRestoreBusyRef.current = false;
+    });
+    return () => {
+      cancelled = true;
+      generationRestoreBusyRef.current = false;
+    };
+  }, [
+    activeSessionIdRef,
+    addToast,
+    projectId,
+    setActiveSessionIdentity,
+    setOptimizeGenerationHandle,
+  ]);
+
+  const rawGenerationText = generationTask.text("raw_json");
+
+  useEffect(() => {
+    const previous = rawPreviewRef.current;
+    if (!optimizeGenerationHandle) {
+      if (previous) clearLlmStreamPreview(previous.taskId);
+      rawPreviewRef.current = null;
+      return;
+    }
+
+    const key = generationTaskKey(
+      optimizeGenerationHandle.task_id,
+      optimizeGenerationHandle.attempt,
+    );
+    const reset = !previous
+      || previous.key !== key
+      || !rawGenerationText.startsWith(previous.text);
+    if (reset) {
+      if (previous) clearLlmStreamPreview(previous.taskId);
+      rawPreviewRef.current = {
+        key,
+        taskId: optimizeGenerationHandle.task_id,
+        text: "",
+      };
+    }
+
+    const current = rawPreviewRef.current;
+    if (!current || rawGenerationText.length === current.text.length) return;
+    appendLlmStreamChunk(
+      optimizeGenerationHandle.task_id,
+      rawGenerationText.slice(current.text.length),
+    );
+    rawPreviewRef.current = { ...current, text: rawGenerationText };
+  }, [
+    appendLlmStreamChunk,
+    clearLlmStreamPreview,
+    optimizeGenerationHandle,
+    rawGenerationText,
+  ]);
+
+  useEffect(() => {
+    const recoveryIssue = generationTaskRecoveryIssue(generationTask);
+    if (
+      !optimizeGenerationHandle
+      || (!generationTask.terminalReceived
+        && !recoveryIssue)
+    ) return;
+    const key = generationTaskKey(
+      optimizeGenerationHandle.task_id,
+      optimizeGenerationHandle.attempt,
+    );
+    const current = generationHandleRef.current;
+    if (!current || generationTaskKey(current.task_id, current.attempt) !== key) return;
+    if (handledGenerationTerminalRef.current === key) return;
+    handledGenerationTerminalRef.current = key;
+
+    const sessionId = generationSessionIdRef.current;
+    const generationKind = generationKindRef.current;
+    const isCurrentTask = () => {
+      const latest = generationHandleRef.current;
+      return latest != null && generationTaskKey(latest.task_id, latest.attempt) === key;
+    };
+    const clearGeneration = () => {
+      clearLlmStreamPreview(optimizeGenerationHandle.task_id);
+      rawPreviewRef.current = null;
+      generationHandleRef.current = null;
+      generationSessionIdRef.current = null;
+      generationKindRef.current = null;
+      cancelBusyRef.current = false;
+      setCancellingOptimize(false);
+      setOptimizeGenerationHandle(null);
+    };
+
+    const finish = async () => {
+      if (sessionId == null) {
+        throw new Error("内容优化 generation 缺少目标会话");
+      }
+      if (generationKind == null) {
+        throw new Error("内容优化 generation 缺少任务类型");
+      }
+
+      if (generationTask.taskStatus === "completed" || recoveryIssue) {
+        const resultRef = generationTask.resultRef;
+        if (!resultRef) {
+          const missingRef = resolveFormalResultRecovery({
+            recoveryIssue,
+            consistent: false,
+            hasPersisted: false,
+            hasResultRef: false,
+            domain: "optimize_turn",
+          });
+          if (missingRef.shouldMarkConsistencyError) {
+            useGenerationTasksStore.getState().dispatch(key, {
+              type: "client_state",
+              state: "consistency_error",
+            });
+          }
+          throw new Error(missingRef.message);
+        }
+        const [nextSession, nextTurns, patchSets] = await Promise.all([
+          getOptimizeSession(sessionId),
+          listOptimizeTurns(sessionId),
+          listOptimizePatchSets(sessionId),
+        ]);
+        const resultId = resultRef ? Number(resultRef.id) : NaN;
+        const persisted = resultRef?.kind === "optimization_turn"
+          && Number.isSafeInteger(resultId)
+          && resultId > 0
+          ? nextTurns.find(
+              (turn) => turn.id === resultId
+                && turn.session_id === sessionId
+                && turn.status === "completed",
+            ) ?? null
+          : null;
+        const revision = persisted?.final_reply
+          ? await sha256Hex(persisted.final_reply)
+          : null;
+        if (!isCurrentTask()) return;
+        await refreshSessions();
+        if (activeSessionIdRef.current === sessionId) {
+          setActiveSession(nextSession);
+          setTurns(nextTurns);
+        }
+        const recovery = resolveFormalResultRecovery({
+          recoveryIssue,
+          consistent: Boolean(persisted && revision === resultRef.revision),
+          hasPersisted: Boolean(persisted),
+          hasResultRef: true,
+          domain: "optimize_turn",
+        });
+        if (recovery.shouldMarkConsistencyError) {
+          useGenerationTasksStore.getState().dispatch(key, {
+            type: "client_state",
+            state: "consistency_error",
+          });
+        }
+        if (recovery.kind === "unrecoverable" || !persisted) {
+          throw new Error(
+            recovery.kind === "unrecoverable"
+              ? recovery.message
+              : "生成结果一致性校验失败，正式 Turn 不可用",
+          );
+        }
+        // readonly：正式 Turn 已加载到 session/turns，只读核对并显式告警，不发成功 toast。
+        if (recovery.kind === "readonly") {
+          if (!isCurrentTask()) return;
+          appendLocalItem({
+            kind: "error",
+            title: "结果校验失败",
+            content: recovery.warning ?? recovery.message,
+          });
+          clearGeneration();
+          addToast(recovery.message, "error");
+          return;
+        }
+
+        if (activeSessionIdRef.current === sessionId) {
+          const patchSet = generationKind === "optimization_patch"
+            ? patchSets.find(
+                (item) => item.turn_id === resultId && item.status === "pending",
+              ) ?? null
+            : null;
+          const proposal = patchSet
+            ? {
+                session_id: patchSet.session_id,
+                project_id: nextSession.project_id,
+                chapter_id: patchSet.chapter_id,
+                base_content_hash: patchSet.base_content_hash,
+                summary: patchSet.summary,
+                patches: patchSet.patches,
+              }
+            : generationKind === "optimization_patch"
+              ? null
+              : latestPendingPatchProposal(patchSets, nextSession.project_id);
+          setPendingPatchState(
+            proposal,
+            proposal ? chapterContentById(proposal.chapter_id) : null,
+          );
+          if (generationKind === "optimization_patch" && !proposal) {
+            appendLocalItem({
+              kind: "agent",
+              title: "没有安全补丁",
+              content: persisted.final_reply || "模型没有生成可安全唯一定位的局部补丁。",
+            });
+          }
+        }
+        if (!isCurrentTask()) return;
+        clearGeneration();
+        addToast(
+          generationKind === "optimization_analysis"
+            ? "内容优化分析完成"
+            : generationKind === "optimization_patch"
+              ? "局部修复补丁已生成"
+              : "内容优化 Agent 对话完成",
+          "success",
+        );
+        return;
+      }
+
+      const taskLabel = generationKind === "optimization_analysis"
+        ? "内容优化分析"
+        : generationKind === "optimization_patch"
+          ? "局部补丁生成"
+          : "内容优化 Agent 对话";
+      const message = generationTask.taskStatus === "cancelled"
+        ? `${taskLabel}已取消`
+        : generationTask.taskStatus === "interrupted"
+          ? `${taskLabel}已中断`
+          : generationTask.error?.message?.trim() || `${taskLabel}失败`;
+      await refreshSessions();
+      if (activeSessionIdRef.current === sessionId) {
+        await openSession(sessionId);
+      }
+      if (!isCurrentTask()) return;
+      appendLocalItem({
+        kind: generationTask.taskStatus === "cancelled" ? "agent" : "error",
+        title: generationTask.taskStatus === "cancelled" ? "任务已停止" : "执行失败",
+        content: message,
+      });
+      clearGeneration();
+      addToast(message, generationTask.taskStatus === "cancelled" ? "info" : "error");
+    };
+
+    void finish().catch((error) => {
+      if (!isCurrentTask()) return;
+      if (!recoveryIssue) {
+        useGenerationTasksStore.getState().dispatch(key, {
+          type: "client_state",
+          state: "consistency_error",
+        });
+      }
+      const message = extractErrorMessage(error, "内容优化 generation 结果校验失败");
+      appendLocalItem({
+        kind: "error",
+        title: "结果校验失败",
+        content: message,
+      });
+      clearGeneration();
+      addToast(message, "error");
+    });
+  }, [
+    activeSessionIdRef,
+    addToast,
+    appendLocalItem,
+    chapterContentById,
+    clearLlmStreamPreview,
+    generationTask.error,
+    generationTask.clientState,
+    generationTask.recoveryState,
+    generationTask.resultRef,
+    generationTask.taskStatus,
+    generationTask.terminalReceived,
+    openSession,
+    optimizeGenerationHandle,
+    refreshSessions,
+    setActiveSession,
+    setCancellingOptimize,
+    setOptimizeGenerationHandle,
+    setPendingPatchState,
+    setTurns,
+  ]);
 
   const beginAction = useCallback((key: string): boolean => {
     if (actionBusyRef.current) return false;
@@ -211,115 +545,52 @@ export function useOptimizeActions({
       setActiveSessionIdentity(session.id);
       await refreshSessions();
       await openSession(session.id);
-
-      const taskId = createProgressTaskId("optimize-analysis", projectId);
-      setOptimizeTaskId(taskId);
-      const updated = await runProgressTask(
-        {
-          title: "内容优化分析",
-          startMessage: "正在执行内容优化分析",
-          successMessage: "内容优化分析完成",
-          errorMessage: "分析失败",
-          taskId,
-          total: 5,
-          onTimelineEvent: appendProgressTimelineEvent,
-          onChunk: (delta) => appendLlmStreamChunk(taskId, delta),
-        },
-        () => executeOptimizationAnalysisSession(session.id, taskId),
-      ).finally(() => {
-        clearLlmStreamPreview(taskId);
-      });
-      setActiveSessionIdentity(updated.id);
-      await refreshSessions();
-      await openSession(updated.id);
-      addToast("内容优化分析完成", "success");
-      return updated.id;
+      const handle = await generationClient.start((meta) =>
+        startOptimizeAnalysisGeneration({ meta, session_id: session.id }),
+      );
+      generationHandleRef.current = handle;
+      generationSessionIdRef.current = session.id;
+      generationKindRef.current = "optimization_analysis";
+      handledGenerationTerminalRef.current = null;
+      rawPreviewRef.current = null;
+      setOptimizeGenerationHandle(handle);
+      return session.id;
     },
     [
       activeChapter,
-      addToast,
       agentPermissions,
-      appendProgressTimelineEvent,
-      appendLlmStreamChunk,
-      clearLlmStreamPreview,
       openSession,
       projectId,
       refreshSessions,
-      runProgressTask,
       setActiveSessionIdentity,
-      setOptimizeTaskId,
+      setOptimizeGenerationHandle,
     ],
   );
 
   const runChat = useCallback(
     async (sessionId: number, instruction: string) => {
-      const baseContent = activeChapter?.content ?? null;
-      const taskId = createProgressTaskId("optimize-chat", projectId);
-      setOptimizeTaskId(taskId);
-      const result = await runProgressTask(
-        {
-          title: "内容优化 Agent 对话",
-          startMessage: "正在准备内容优化 Agent 对话",
-          successMessage: "Agent 已回复",
-          errorMessage: "Agent 对话失败",
-          taskId,
-          total: 4,
-          onTimelineEvent: appendProgressTimelineEvent,
-          onChunk: (delta) => appendLlmStreamChunk(taskId, delta),
-        },
-        () =>
-          sendOptimizationMessage(
-            {
-              session_id: sessionId,
-              message: instruction,
-              permissions: agentPermissions,
-            },
-            taskId,
-          ),
-      ).finally(() => {
-        clearLlmStreamPreview(taskId);
-      });
-      setTurns((current) => upsertTurn(current, result.turn));
+      const handle = await generationClient.start((meta) =>
+        startOptimizeChatGeneration({
+          meta,
+          request: {
+            session_id: sessionId,
+            message: instruction,
+            permissions: agentPermissions,
+          },
+        }),
+      );
+      generationHandleRef.current = handle;
+      generationSessionIdRef.current = sessionId;
+      generationKindRef.current = "optimization_chat";
+      handledGenerationTerminalRef.current = null;
+      rawPreviewRef.current = null;
       setActiveSessionIdentity(sessionId);
-      await load();
-      await Promise.all([
-        getOptimizeSession(sessionId),
-        listOptimizePatchSets(sessionId),
-      ])
-        .then(([session, patchSets]) => {
-          setActiveSession(session);
-          const proposal = latestPendingPatchProposal(patchSets, session.project_id);
-          setPendingPatchState(
-            proposal,
-            proposal ? baseContent ?? chapterContentById(proposal.chapter_id) : null,
-          );
-        })
-        .catch((err) => {
-          appendLocalItem({
-            kind: "error",
-            title: "状态刷新失败",
-            content: extractErrorMessage(err, "Agent 已回复，但刷新会话状态失败"),
-          });
-        });
-      await refreshSessions();
+      setOptimizeGenerationHandle(handle);
     },
     [
-      activeChapter?.content,
       agentPermissions,
-      appendLocalItem,
-      appendProgressTimelineEvent,
-      appendLlmStreamChunk,
-      chapterContentById,
-      clearLlmStreamPreview,
-      load,
-      projectId,
-      refreshSessions,
-      runProgressTask,
-      setActiveSession,
-      setPendingPatchState,
       setActiveSessionIdentity,
-      setOptimizeTaskId,
-      setTurns,
+      setOptimizeGenerationHandle,
     ],
   );
 
@@ -391,70 +662,28 @@ export function useOptimizeActions({
     async (sessionId: number, instruction?: string | null) => {
       const latestSession = await getOptimizeSession(sessionId);
       setActiveSession(latestSession);
-      const baseContent = activeChapter?.content ?? null;
-      const taskId = createProgressTaskId("optimize-patch", projectId);
-      setOptimizeTaskId(taskId);
-      const proposal = await runProgressTask(
-        {
-          title: "生成局部修复补丁",
-          startMessage: "正在准备局部修复补丁",
-          successMessage: "局部修复补丁已生成",
-          errorMessage: "生成局部补丁失败",
-          taskId,
-          total: 4,
-          onTimelineEvent: appendProgressTimelineEvent,
-          onChunk: (delta) => appendLlmStreamChunk(taskId, delta),
-        },
-        () =>
-          proposeOptimizationPatches(
-            {
+      const handle = await generationClient.start((meta) =>
+        startOptimizePatchGeneration({
+          meta,
+          request: {
               session_id: sessionId,
               issue_ids: null,
               agent_instruction: instruction?.trim() || null,
-            },
-            taskId,
-          ),
-      ).finally(() => {
-        clearLlmStreamPreview(taskId);
-      });
-      await refreshSessions();
-      await openSession(sessionId);
-      if (proposal.patches.length === 0) {
-        clearPendingPatchState();
-        appendLocalItem({
-          kind: "agent",
-          title: "没有安全补丁",
-          content: proposal.summary || "模型没有找到可安全定位的局部文章补丁。",
-        });
-        return;
-      }
-      setPendingPatchState(
-        proposal,
-        baseContent ?? chapterContentById(proposal.chapter_id),
+          },
+        }),
       );
-      appendLocalItem({
-        kind: "tool",
-        title: "补丁方案",
-        content: formatPatchProposalSummary(proposal),
-        detail: JSON.stringify(proposal, null, 2),
-        detailLabel: "查看补丁 JSON",
-      });
+      generationHandleRef.current = handle;
+      generationSessionIdRef.current = sessionId;
+      generationKindRef.current = "optimization_patch";
+      handledGenerationTerminalRef.current = null;
+      rawPreviewRef.current = null;
+      setActiveSessionIdentity(sessionId);
+      setOptimizeGenerationHandle(handle);
     },
     [
-      activeChapter?.content,
-      appendLocalItem,
-      appendProgressTimelineEvent,
-      appendLlmStreamChunk,
-      chapterContentById,
-      clearPendingPatchState,
-      clearLlmStreamPreview,
-      openSession,
-      projectId,
-      refreshSessions,
-      runProgressTask,
       setActiveSession,
-      setPendingPatchState,
-      setOptimizeTaskId,
+      setActiveSessionIdentity,
+      setOptimizeGenerationHandle,
     ],
   );
 
@@ -470,30 +699,13 @@ export function useOptimizeActions({
 
       const actionKey = "apply-patches";
       if (!beginAction(actionKey)) return;
-      const taskId = createProgressTaskId("optimize-patch-apply", projectId);
-      setOptimizeTaskId(taskId);
       try {
-        const result = await runProgressTask(
-          {
-            title: "应用局部补丁",
-            startMessage: "正在校验局部补丁",
-            successMessage: "局部补丁已应用",
-            errorMessage: "应用局部补丁失败",
-            taskId,
-            total: 3,
-            onTimelineEvent: appendProgressTimelineEvent,
-          },
-          () =>
-            applyOptimizationPatches(
-              {
-                session_id: proposal.session_id,
-                base_content_hash: proposal.base_content_hash,
-                patches,
-                confirmed_apply: true,
-              },
-              taskId,
-            ),
-        );
+        const result = await applyOptimizationPatches({
+          session_id: proposal.session_id,
+          base_content_hash: proposal.base_content_hash,
+          patches,
+          confirmed_apply: true,
+        });
         clearPendingPatchState();
         appendLocalItem({
           kind: "tool",
@@ -513,14 +725,12 @@ export function useOptimizeActions({
         });
         addToast(message, isCancelledOperation(message) ? "info" : "error");
       } finally {
-        setOptimizeTaskId(null);
         setCancellingOptimize(false);
         finishAction(actionKey);
       }
     },
     [
       appendLocalItem,
-      appendProgressTimelineEvent,
       beginAction,
       clearPendingPatchState,
       addToast,
@@ -529,11 +739,8 @@ export function useOptimizeActions({
       onChapterContentChanged,
       openSession,
       pendingPatchProposal,
-      projectId,
       refreshSessions,
-      runProgressTask,
       setCancellingOptimize,
-      setOptimizeTaskId,
       taskRunning,
     ],
   );
@@ -731,7 +938,6 @@ export function useOptimizeActions({
         }
         await refreshSessions().catch(() => undefined);
       } finally {
-        setOptimizeTaskId(null);
         setCancellingOptimize(false);
         finishAction(actionKey);
       }
@@ -753,7 +959,6 @@ export function useOptimizeActions({
       runProposePatches,
       setCancellingOptimize,
       setInput,
-      setOptimizeTaskId,
       taskRunning,
       turns,
     ],
@@ -856,7 +1061,7 @@ export function useOptimizeActions({
   );
 
   const handleCancelOptimizeTask = useCallback(async () => {
-    if (!optimizeTaskId) return;
+    if (!generationHandleRef.current) return;
     if (cancelBusyRef.current) return;
     cancelBusyRef.current = true;
     setCancellingOptimize(true);
@@ -866,7 +1071,7 @@ export function useOptimizeActions({
       content: "已请求停止当前 Agent 任务，正在等待后端到达取消点。",
     });
     try {
-      const sessionId = activeSessionIdRef.current;
+      const sessionId = generationSessionIdRef.current ?? activeSessionIdRef.current;
       if (sessionId) {
         await recordOptimizeAgentEvent(
           sessionId,
@@ -879,7 +1084,7 @@ export function useOptimizeActions({
           });
         });
       }
-      await cancelWorkflow(optimizeTaskId);
+      await generationTask.cancel();
     } catch (err) {
       const message = extractErrorMessage(err, "停止优化任务失败");
       appendLocalItem({
@@ -895,7 +1100,7 @@ export function useOptimizeActions({
     activeSessionIdRef,
     addToast,
     appendLocalItem,
-    optimizeTaskId,
+    generationTask,
     setCancellingOptimize,
   ]);
 

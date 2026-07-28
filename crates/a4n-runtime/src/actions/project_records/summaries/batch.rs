@@ -5,7 +5,7 @@ use a4n_orchestrator::project::{ProjectFamilyMetadataQuery, ProjectProgressQuery
 use crate::AppState;
 use crate::actions::app_error_message;
 
-use super::super::contracts::ProjectSummary;
+use super::super::contracts::{ProjectSummary, contract_progress_summary};
 use super::projection::{apply_project_access_info, apply_project_family_metadata, to_summary};
 
 pub async fn project_summaries_with_family_for_user(
@@ -18,7 +18,7 @@ pub async fn project_summaries_with_family_for_user(
         .map(ProjectFamilyMetadataQuery::from_project)
         .collect();
     let family_metadata_by_project_id = state
-        .orchestrator
+        .project_read()
         .project_family_metadata_batch(&family_queries)
         .await
         .map_err(app_error_message)?;
@@ -27,7 +27,7 @@ pub async fn project_summaries_with_family_for_user(
         .map(ProjectAccessInfoQuery::from_project)
         .collect();
     let access_infos = state
-        .orchestrator
+        .collaboration()
         .project_access_info_batch(&access_queries, user_id)
         .await
         .map_err(app_error_message)?;
@@ -36,7 +36,7 @@ pub async fn project_summaries_with_family_for_user(
         .map(ProjectProgressQuery::from_project)
         .collect();
     let progress_by_project_id = state
-        .orchestrator
+        .project_read()
         .project_progress_summaries(&progress_queries)
         .await
         .map_err(app_error_message)?;
@@ -44,10 +44,12 @@ pub async fn project_summaries_with_family_for_user(
     let mut summaries = Vec::with_capacity(projects.len());
     for project in projects {
         let mut summary = to_summary(project);
-        summary.progress = progress_by_project_id
-            .get(&project.id)
-            .cloned()
-            .ok_or_else(|| format!("项目缺少进度摘要: {}", project.id))?;
+        summary.progress = contract_progress_summary(
+            progress_by_project_id
+                .get(&project.id)
+                .cloned()
+                .ok_or_else(|| format!("项目缺少进度摘要: {}", project.id))?,
+        );
         let family_metadata = family_metadata_by_project_id
             .get(&project.id)
             .ok_or_else(|| format!("项目缺少族元数据: {}", project.id))?;

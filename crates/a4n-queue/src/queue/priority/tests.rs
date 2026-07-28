@@ -13,22 +13,25 @@ fn storage_enums_round_trip_and_reject_unknown_values() {
         assert_eq!(TaskPriority::parse_storage(storage).unwrap(), priority);
     }
 
-    for (task_type, storage) in [
-        (TaskType::LlmCall, "llm_call"),
-        (TaskType::ImageGeneration, "image_generation"),
-        (TaskType::VideoGeneration, "video_generation"),
-        (TaskType::VideoPoll, "video_poll"),
-        (TaskType::SourceSync, "source_sync"),
-        (TaskType::Assembly, "assembly"),
-        (TaskType::EmbeddingCall, "embedding_call"),
-        (TaskType::RagIngestion, "rag_ingestion"),
-        (TaskType::ImportAnalysis, "import_analysis"),
-        (TaskType::ExportGeneration, "export_generation"),
-        (TaskType::EmbeddingDownload, "embedding_download"),
+    for (task_kind, storage) in [
+        (TaskKind::LlmCall, "llm_call"),
+        (TaskKind::ImageGeneration, "image_generation"),
+        (TaskKind::VideoGeneration, "video_generation"),
+        (TaskKind::VideoPoll, "video_poll"),
+        (TaskKind::SourceSync, "source_sync"),
+        (TaskKind::Assembly, "assembly"),
+        (TaskKind::EmbeddingCall, "embedding_call"),
+        (TaskKind::RagIngestion, "rag_ingestion"),
+        (TaskKind::ImportAnalysis, "import_analysis"),
+        (TaskKind::ExportGeneration, "export_generation"),
+        (TaskKind::EmbeddingDownload, "embedding_download"),
+        (TaskKind::GalgameGeneration, "galgame_generation"),
+        (TaskKind::MangaGeneration, "manga_generation"),
+        (TaskKind::TextGeneration, "text_generation"),
     ] {
-        assert_eq!(task_type.as_str(), storage);
-        assert_eq!(TaskType::parse(storage), Some(task_type));
-        assert_eq!(TaskType::parse_storage(storage).unwrap(), task_type);
+        assert_eq!(task_kind.as_str(), storage);
+        assert_eq!(TaskKind::parse(storage), Some(task_kind));
+        assert_eq!(TaskKind::parse_storage(storage).unwrap(), task_kind);
     }
 
     assert_eq!(
@@ -38,7 +41,7 @@ fn storage_enums_round_trip_and_reject_unknown_values() {
         "参数无效：未知任务优先级: urgent"
     );
     assert_eq!(
-        TaskType::parse_storage("render")
+        TaskKind::parse_storage("render")
             .expect_err("unknown task type must fail")
             .to_string(),
         "参数无效：未知任务类型: render"
@@ -98,18 +101,18 @@ fn task_permit_reports_complete_fail_and_implicit_drop() {
 
     let completed = TaskPermit::new(
         "complete-task".to_string(),
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         TaskPriority::High,
         record(events.clone()),
     );
     assert_eq!(completed.task_id(), "complete-task");
-    assert_eq!(completed.task_type(), &TaskType::LlmCall);
+    assert_eq!(completed.task_type(), &TaskKind::LlmCall);
     assert_eq!(completed.priority(), TaskPriority::High);
     completed.complete();
 
     TaskPermit::new(
         "failed-task".to_string(),
-        TaskType::ImageGeneration,
+        TaskKind::ImageGeneration,
         TaskPriority::Medium,
         record(events.clone()),
     )
@@ -117,7 +120,7 @@ fn task_permit_reports_complete_fail_and_implicit_drop() {
 
     drop(TaskPermit::new(
         "dropped-task".to_string(),
-        TaskType::RagIngestion,
+        TaskKind::RagIngestion,
         TaskPriority::Low,
         record(events.clone()),
     ));

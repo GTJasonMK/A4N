@@ -1,7 +1,4 @@
-use super::{
-    CancelWorkflowInput, WorkflowProgressEventsInput,
-    projections::{validate_optional_project_id, validate_task_history_limit},
-};
+use super::{CancelWorkflowInput, WorkflowProgressEventsInput};
 use serde_json::json;
 
 #[test]
@@ -44,28 +41,5 @@ fn workflow_progress_events_input_accepts_task_or_workflow_run_id() {
             .unwrap_err()
             .to_string()
             .contains("unknown field")
-    );
-}
-
-#[test]
-fn task_history_limit_must_be_positive() {
-    assert!(validate_task_history_limit(1).is_ok());
-    assert_eq!(
-        validate_task_history_limit(0).unwrap_err(),
-        "limit 必须大于 0"
-    );
-}
-
-#[test]
-fn optional_project_id_must_be_positive_when_present() {
-    assert!(validate_optional_project_id(None).is_ok());
-    assert!(validate_optional_project_id(Some(1)).is_ok());
-    assert_eq!(
-        validate_optional_project_id(Some(0)).unwrap_err(),
-        "project_id 必须大于 0"
-    );
-    assert_eq!(
-        validate_optional_project_id(Some(-1)).unwrap_err(),
-        "project_id 必须大于 0"
     );
 }

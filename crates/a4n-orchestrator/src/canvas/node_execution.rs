@@ -1,0 +1,265 @@
+use a4n_core::error::AppError;
+use serde_json::Value;
+
+use crate::{
+    OrchestratorContext,
+    workflow::{
+        UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
+        WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING, WorkflowProgressEventInput,
+    },
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CanvasNodeRunHandle {
+    pub workflow_run_id: i64,
+    pub finalize_on_success: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanvasNodeRunSummary {
+    pub workflow_run_id: i64,
+    pub project_id: i64,
+    pub graph_id: i64,
+    pub mode: String,
+    pub status: String,
+    pub error_message: Option<String>,
+}
+
+pub(crate) struct CanvasNodeLifecycle {
+    pub(crate) run: CanvasNodeRunHandle,
+    pub(crate) project_id: i64,
+    pub(crate) graph_id: i64,
+    pub(crate) mode: String,
+    pub(crate) step_key: String,
+    pub(crate) input_json: Value,
+    pub(crate) generation_spec_id: Option<i64>,
+}
+
+impl OrchestratorContext {
+    pub(crate) async fn start_canvas_node_execution(
+        &self,
+        project_id: i64,
+        graph_id: i64,
+        mode: &str,
+        step_key: String,
+        input_json: Value,
+        shared_run: Option<CanvasNodeRunHandle>,
+    ) -> Result<CanvasNodeLifecycle, AppError> {
+        let run = if let Some(run) = shared_run {
+            self.record_canvas_node_checkpoint(
+                run.workflow_run_id,
+                step_key.clone(),
+                WORKFLOW_STATUS_RUNNING,
+                input_json.clone(),
+                None,
+                None,
+                false,
+            )
+            .await?;
+            run
+        } else {
+            let run = self
+                .begin_canvas_node_step_workflow_validated(
+                    project_id,
+                    graph_id,
+                    mode,
+                    &step_key,
+                    input_json.clone(),
+                )
+                .await?;
+            CanvasNodeRunHandle {
+                workflow_run_id: run.id,
+                finalize_on_success: true,
+            }
+        };
+        Ok(CanvasNodeLifecycle {
+            run,
+            project_id,
+            graph_id,
+            mode: mode.to_string(),
+            step_key,
+            input_json,
+            generation_spec_id: None,
+        })
+    }
+
+    pub(crate) async fn record_canvas_node_checkpoint(
+        &self,
+        workflow_run_id: i64,
+        step_key: String,
+        status: &str,
+        input_json: Value,
+        artifacts_json: Option<Value>,
+        error_message: Option<String>,
+        completed: bool,
+    ) -> Result<(), AppError> {
+        if status != WORKFLOW_STATUS_COMPLETED {
+            self.mark_workflow_current_step(workflow_run_id, &step_key)
+                .await?;
+        }
+        self.upsert_workflow_checkpoint(UpsertWorkflowCheckpointInput {
+            workflow_run_id,
+            step_key: step_key.clone(),
+            step_order: 0,
+            status: status.to_string(),
+            input_fingerprint_sha256: None,
+            input_fingerprint_json: Some(input_json),
+            checkpoint_json: artifacts_json.clone(),
+            artifacts_json,
+            generation_run_ids_json: None,
+            error_message,
+            completed,
+        })
+        .await?;
+        let message = match status {
+            WORKFLOW_STATUS_RUNNING => format!("画布节点运行中: {step_key}"),
+            WORKFLOW_STATUS_COMPLETED => format!("画布节点已完成: {step_key}"),
+            WORKFLOW_STATUS_FAILED => format!("画布节点失败: {step_key}"),
+            WORKFLOW_STATUS_CANCELLED => format!("画布节点已取消: {step_key}"),
+            other => format!("画布节点状态 {other}: {step_key}"),
+        };
+        self.record_workflow_progress_event(WorkflowProgressEventInput {
+            workflow_run_id,
+            task_id: None,
+            current: if status == WORKFLOW_STATUS_RUNNING {
+                0
+            } else {
+                1
+            },
+            total: 1,
+            message: &message,
+            meta: None,
+        })
+        .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn finish_canvas_node_success(
+        &self,
+        lifecycle: &CanvasNodeLifecycle,
+    ) -> Result<CanvasNodeRunSummary, AppError> {
+        let (completed, status) = self
+            .complete_canvas_node_workflow_validated(
+                lifecycle.run.workflow_run_id,
+                lifecycle.run.finalize_on_success,
+            )
+            .await?;
+        Ok(CanvasNodeRunSummary {
+            workflow_run_id: completed
+                .as_ref()
+                .map(|run| run.id)
+                .unwrap_or(lifecycle.run.workflow_run_id),
+            project_id: lifecycle.project_id,
+            graph_id: lifecycle.graph_id,
+            mode: lifecycle.mode.clone(),
+            status,
+            error_message: None,
+        })
+    }
+
+    pub(crate) async fn fail_canvas_node(
+        &self,
+        lifecycle: CanvasNodeLifecycle,
+        primary: AppError,
+    ) -> Result<CanvasNodeRunSummary, AppError> {
+        let message = primary.to_string();
+        let mut state_errors = Vec::new();
+        if let Some(spec_id) = lifecycle.generation_spec_id
+            && let Err(error) = self
+                .mark_canvas_generation_spec_status_record(spec_id, WORKFLOW_STATUS_FAILED)
+                .await
+        {
+            state_errors.push(format!("generation spec 失败状态写入失败: {error}"));
+        }
+        if let Err(error) = self
+            .record_canvas_node_checkpoint(
+                lifecycle.run.workflow_run_id,
+                lifecycle.step_key,
+                WORKFLOW_STATUS_FAILED,
+                lifecycle.input_json,
+                None,
+                Some(message.clone()),
+                true,
+            )
+            .await
+        {
+            state_errors.push(format!("节点失败 checkpoint 写入失败: {error}"));
+        }
+        let failed = match self
+            .fail_workflow_run_validated(lifecycle.run.workflow_run_id, Some(message.as_str()))
+            .await
+        {
+            Ok(run) => Some(run),
+            Err(error) => {
+                state_errors.push(format!("workflow 失败状态写入失败: {error}"));
+                None
+            }
+        };
+        if !state_errors.is_empty() {
+            return Err(AppError::Internal(anyhow::anyhow!(
+                "{message}；{}",
+                state_errors.join("；")
+            )));
+        }
+        let failed = failed.expect("state_errors 为空时 workflow failure 必须存在");
+        Ok(CanvasNodeRunSummary {
+            workflow_run_id: failed.id,
+            project_id: lifecycle.project_id,
+            graph_id: lifecycle.graph_id,
+            mode: lifecycle.mode,
+            status: failed.status,
+            error_message: Some(message),
+        })
+    }
+
+    pub(crate) async fn cancel_canvas_node(
+        &self,
+        lifecycle: CanvasNodeLifecycle,
+        message: &str,
+    ) -> Result<CanvasNodeRunSummary, AppError> {
+        let mut state_errors = Vec::new();
+        if let Some(spec_id) = lifecycle.generation_spec_id
+            && let Err(error) = self
+                .mark_canvas_generation_spec_status_record(spec_id, WORKFLOW_STATUS_CANCELLED)
+                .await
+        {
+            state_errors.push(format!("generation spec 取消状态写入失败: {error}"));
+        }
+        if let Err(error) = self
+            .record_canvas_node_checkpoint(
+                lifecycle.run.workflow_run_id,
+                lifecycle.step_key,
+                WORKFLOW_STATUS_CANCELLED,
+                lifecycle.input_json,
+                None,
+                Some(message.to_string()),
+                true,
+            )
+            .await
+        {
+            state_errors.push(format!("节点取消 checkpoint 写入失败: {error}"));
+        }
+        if !state_errors.is_empty() {
+            return Err(AppError::Internal(anyhow::anyhow!(
+                "{message}；{}",
+                state_errors.join("；")
+            )));
+        }
+        Ok(CanvasNodeRunSummary {
+            workflow_run_id: lifecycle.run.workflow_run_id,
+            project_id: lifecycle.project_id,
+            graph_id: lifecycle.graph_id,
+            mode: lifecycle.mode,
+            status: WORKFLOW_STATUS_CANCELLED.to_string(),
+            error_message: Some(message.to_string()),
+        })
+    }
+
+    pub(crate) async fn canvas_workflow_run_is_cancelled(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<bool, AppError> {
+        Ok(self.workflow_run_model_by_id(workflow_run_id).await?.status
+            == WORKFLOW_STATUS_CANCELLED)
+    }
+}

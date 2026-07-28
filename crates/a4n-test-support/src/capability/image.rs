@@ -3,7 +3,7 @@ use std::sync::Arc;
 use a4n_capabilities::{
     CapabilityClient, CapabilityResult, ImageClient, JsonRequest, JsonResponse,
 };
-use a4n_service_protocol::{ServiceHealth, ServiceTaskEvent};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
 
 use super::{
@@ -14,7 +14,7 @@ use super::{
 #[derive(Clone, Default)]
 pub struct RecordingImageClient {
     state: Arc<RecordingImageClientState>,
-    generate_events: Option<Vec<ServiceTaskEvent>>,
+    generate_events: Option<Vec<CapabilityTaskEvent>>,
     preview_response: Option<JsonResponse>,
     probe_response: Option<JsonResponse>,
 }
@@ -31,7 +31,7 @@ impl RecordingImageClient {
         Self::default()
     }
 
-    pub fn with_generate_events(mut self, events: Vec<ServiceTaskEvent>) -> Self {
+    pub fn with_generate_events(mut self, events: Vec<CapabilityTaskEvent>) -> Self {
         self.generate_events = Some(events);
         self
     }
@@ -88,7 +88,7 @@ impl ImageClient for RecordingImageClient {
     async fn generate_events(
         &self,
         request: JsonRequest,
-        events: tokio::sync::mpsc::UnboundedSender<ServiceTaskEvent>,
+        events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.state.generate_requests.record(request.clone());
         send_configured_events(
@@ -98,6 +98,7 @@ impl ImageClient for RecordingImageClient {
             &request.request_id,
             &events,
         )
+        .await
     }
 
     async fn preview_request(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {

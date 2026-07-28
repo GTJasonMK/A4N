@@ -1,5 +1,5 @@
 use super::*;
-use crate::event::sse::ProgressMeta;
+use crate::event::progress::ProgressMeta;
 use parking_lot::RwLock;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ pub struct TaskHandle {
     pub cancel_token: CancellationToken,
     pub progress: Arc<RwLock<TaskProgress>>,
     pub progress_events: Arc<RwLock<VecDeque<TaskProgressEvent>>>,
-    pub task_type: TaskType,
+    pub task_type: TaskKind,
     pub project_id: Option<i64>,
     pub root_project_id: Option<i64>,
     pub source_snapshot_id: Option<i64>,
@@ -38,7 +38,7 @@ impl TaskHandle {
             total,
             message,
             Some(self.task_type.progress_meta(message)),
-        );
+        )
     }
 
     pub fn update_progress_with_meta(
@@ -75,5 +75,27 @@ impl TaskHandle {
         while events.len() > MAX_TASK_PROGRESS_EVENTS {
             events.pop_front();
         }
+    }
+
+    pub fn update_progress_bytes(
+        &self,
+        current: u64,
+        total: u64,
+        progress_total: u32,
+        message: &str,
+    ) {
+        let progress_total = progress_total.max(1);
+        let scaled_current = if total > 0 {
+            let scaled =
+                (u128::from(current.min(total)) * u128::from(progress_total)) / u128::from(total);
+            u32::try_from(scaled).expect("scaled byte progress is bounded by progress_total")
+        } else {
+            0
+        };
+        let meta =
+            self.task_type
+                .progress_meta(message)
+                .with_unit("字节", Some(current), Some(total));
+        self.update_progress_with_meta(scaled_current, progress_total, message, Some(meta));
     }
 }

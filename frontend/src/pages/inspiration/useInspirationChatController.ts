@@ -9,37 +9,38 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
+import { generationClient } from "../../api/generationTasks";
 import {
-  listenAppEvent,
-  type UnlistenFn,
-} from "../../api/runtime";
-import { getBlueprint } from "../../api/blueprint";
-import {
-  converseInspiration,
-  converseInspirationStream,
   getInspirationHistory,
+  inspirationGenerationProject,
   previewInspirationRequest,
+  startInspirationGeneration,
 } from "../../api/inspiration";
+import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { getProject, type NovelProject } from "../../api/project";
+import { useGenerationTask } from "../../hooks/useGenerationTask";
+import {
+  generationTaskKey,
+  useGenerationTasksStore,
+} from "../../store/generationTasks";
+import { sha256Hex } from "../../utils/contentHash";
+import {
+  generationTaskRecoveryIssue,
+  resolveFormalResultRecovery,
+} from "../../utils/generationEventReducer";
 import { logger } from "../../utils/logger";
 import { isImeCompositionActive } from "../../utils/ime";
 import { getProjectHomeEntryRoute } from "../../utils/projectRouting";
 import {
-  clearBlueprintPending,
   DEFAULT_INPUT_PLACEHOLDER,
-  eventMessage,
-  eventMessageOrNull,
   firstString,
   msgId,
   normalizeHistoryMessage,
-  readBlueprintPending,
   readChatCache,
   splitSummaryLines,
-  taskId,
   welcomeMessage,
   writeChatCache,
-  type WorkflowEvent,
 } from "./inspirationChatUtils";
 import {
   getStreamingResponsePreview,
@@ -63,7 +64,7 @@ export const useInspirationChatController = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [useStream, setUseStream] = useState(true);
+  const [generationHandle, setGenerationHandle] = useState<GenerationTaskHandle | null>(null);
   const [inputPlaceholder, setInputPlaceholder] = useState(DEFAULT_INPUT_PLACEHOLDER);
   const [inputActive, setInputActive] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
@@ -78,7 +79,15 @@ export const useInspirationChatController = () => {
   const mountedRef = useRef(true);
   const sendSeqRef = useRef(0);
   const sendingRef = useRef(false);
+  const generationHandleRef = useRef<GenerationTaskHandle | null>(null);
+  const generationAssistantIdRef = useRef<string | null>(null);
+  const handledTerminalRef = useRef<string | null>(null);
   const requestPreviewSeqRef = useRef(0);
+
+  const generationTask = useGenerationTask({
+    handle: generationHandle,
+    autoSubscribe: generationHandle != null,
+  });
 
   activeProjectIdRef.current = projectId;
 
@@ -87,6 +96,8 @@ export const useInspirationChatController = () => {
     return () => {
       mountedRef.current = false;
       sendingRef.current = false;
+      generationHandleRef.current = null;
+      generationAssistantIdRef.current = null;
     };
   }, []);
 
@@ -133,7 +144,7 @@ export const useInspirationChatController = () => {
     nextQuestion,
     addToast,
   });
-  const { showBlueprintConfirmation, stage } = blueprintWorkflow;
+  const { stage } = blueprintWorkflow;
 
   const applyParsedAssistant = useCallback((assistantId: string, rawResponse: string) => {
     const parsed = parseInspirationResponse(rawResponse);
@@ -170,6 +181,10 @@ export const useInspirationChatController = () => {
     setInput("");
     setSending(false);
     sendingRef.current = false;
+    generationHandleRef.current = null;
+    generationAssistantIdRef.current = null;
+    handledTerminalRef.current = null;
+    setGenerationHandle(null);
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
     setRequestPreviewData(null);
@@ -212,18 +227,6 @@ export const useInspirationChatController = () => {
           setMessages([welcomeMessage(p.title)]);
         }
 
-        const pending = readBlueprintPending(projectId);
-        if (pending) {
-          const existingBlueprint = await getBlueprint(projectId);
-          if (cancelled) return;
-          if (existingBlueprint) {
-            clearBlueprintPending(projectId);
-            showBlueprintConfirmation(existingBlueprint);
-            addToast("检测到上次蓝图已生成，已恢复到确认页", "success");
-          } else {
-            addToast("上次蓝图生成可能仍未完成；如果稍后进入项目详情看到蓝图，说明后端已完成。", "info");
-          }
-        }
       } catch (err) {
         if (cancelled) return;
         addToast(extractErrorMessage(err, "加载项目失败"), "error");
@@ -234,7 +237,45 @@ export const useInspirationChatController = () => {
     return () => {
       cancelled = true;
     };
-  }, [projectId, addToast, navigate, showBlueprintConfirmation]);
+  }, [projectId, addToast, navigate]);
+
+  useEffect(() => {
+    if (!project || project.id !== projectId || generationHandleRef.current) return;
+    let cancelled = false;
+    void generationClient.listActive(projectId).then((summaries) => {
+      if (cancelled || !isCurrentProject(projectId) || generationHandleRef.current) return;
+      const active = summaries.find(
+        (summary) => inspirationGenerationProject(summary, projectId) === projectId,
+      );
+      if (!active) return;
+      const assistantId = `generation-${active.handle.task_id}`;
+      generationHandleRef.current = active.handle;
+      generationAssistantIdRef.current = assistantId;
+      handledTerminalRef.current = null;
+      sendingRef.current = true;
+      setGenerationHandle(active.handle);
+      setSending(true);
+      setMessages((prev) => prev.some((message) => message.id === assistantId)
+        ? prev
+        : [
+            ...prev,
+            {
+              id: assistantId,
+              role: "assistant",
+              content: "",
+              streaming: true,
+              createdAt: Date.now(),
+            },
+          ]);
+    }).catch((error) => {
+      if (!cancelled && isCurrentProject(projectId)) {
+        addToast(extractErrorMessage(error, "恢复灵感对话任务失败"), "error");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [addToast, isCurrentProject, project, projectId]);
 
   useEffect(() => {
     if (!Number.isFinite(projectId) || projectId <= 0) return;
@@ -247,6 +288,173 @@ export const useInspirationChatController = () => {
     }
   }, [messages, stage]);
 
+  const streamedText = generationTask.text("raw_json");
+
+  useEffect(() => {
+    const assistantId = generationAssistantIdRef.current;
+    if (!generationHandle || !assistantId || !streamedText) return;
+    const preview = getStreamingResponsePreview(streamedText);
+    setMessages((prev) => {
+      const next: Message = {
+        id: assistantId,
+        role: "assistant",
+        content: preview.content,
+        rawContent: streamedText,
+        streaming: true,
+        streamingOptions: preview.options,
+        optionsPending: preview.optionsPending,
+        createdAt: Date.now(),
+      };
+      return prev.some((message) => message.id === assistantId)
+        ? prev.map((message) => message.id === assistantId ? { ...message, ...next } : message)
+        : [...prev, next];
+    });
+  }, [generationHandle, streamedText]);
+
+  useEffect(() => {
+    const recoveryIssue = generationTaskRecoveryIssue(generationTask);
+    if (
+      !generationHandle
+      || (!generationTask.terminalReceived
+        && !recoveryIssue)
+    ) return;
+    const key = generationTaskKey(generationHandle.task_id, generationHandle.attempt);
+    const current = generationHandleRef.current;
+    if (!current || generationTaskKey(current.task_id, current.attempt) !== key) return;
+    if (handledTerminalRef.current === key) return;
+    handledTerminalRef.current = key;
+    const assistantId = generationAssistantIdRef.current ?? `generation-${generationHandle.task_id}`;
+    const requestProjectId = projectId;
+
+    const finish = async () => {
+      if (generationTask.taskStatus === "completed" || recoveryIssue) {
+        const resultRef = generationTask.resultRef;
+        const resultId = resultRef ? Number(resultRef.id) : NaN;
+        const canResolveResult = resultRef?.kind === "inspiration_message"
+          && Number.isSafeInteger(resultId);
+        const history = canResolveResult
+          ? await getInspirationHistory(requestProjectId, 80)
+          : [];
+        const persisted = canResolveResult
+          ? history.find((message) => message.id === resultId && message.role === "assistant") ?? null
+          : null;
+        const revision = persisted ? await sha256Hex(persisted.content) : null;
+        const latest = generationHandleRef.current;
+        if (
+          !latest
+          || generationTaskKey(latest.task_id, latest.attempt) !== key
+          || !isCurrentProject(requestProjectId)
+        ) {
+          return;
+        }
+        const consistent = Boolean(persisted && revision === resultRef?.revision);
+        const recovery = resolveFormalResultRecovery({
+          recoveryIssue,
+          consistent,
+          hasPersisted: Boolean(persisted),
+          hasResultRef: Boolean(resultRef),
+          domain: "inspiration_message",
+        });
+        if (recovery.shouldMarkConsistencyError) {
+          useGenerationTasksStore.getState().dispatch(key, {
+            type: "client_state",
+            state: "consistency_error",
+          });
+        }
+        setMessages((prev) => prev.some((message) => message.id === assistantId)
+          ? prev
+          : [
+              ...prev,
+              {
+                id: assistantId,
+                role: "assistant",
+                content: "",
+                streaming: true,
+                createdAt: Date.now(),
+              },
+            ]);
+        if (persisted) {
+          applyParsedAssistant(assistantId, persisted.content);
+          if (recovery.kind !== "ok") {
+            const consistencyWarning = recovery.warning ?? recovery.message;
+            setMessages((prev) => prev.map((message) => message.id === assistantId
+              ? { ...message, consistencyWarning }
+              : message));
+            addToast(consistencyWarning, "error");
+          }
+        } else if (recovery.kind !== "ok") {
+          const unavailableMessage = recovery.message;
+          setMessages((prev) => prev.map((message) => message.id === assistantId
+            ? {
+                ...message,
+                content: unavailableMessage,
+                consistencyWarning: unavailableMessage,
+                streaming: false,
+              }
+            : message));
+          addToast(unavailableMessage, "error");
+        }
+      } else {
+        const message = generationTask.taskStatus === "cancelled"
+          ? "灵感对话已取消"
+          : generationTask.taskStatus === "interrupted"
+            ? "灵感对话已中断"
+            : generationTask.error?.message?.trim() || "灵感对话失败";
+        setMessages((prev) => {
+          const failed: Message = {
+            id: assistantId,
+            role: "assistant",
+            content: `❌ ${message}`,
+            streaming: false,
+            createdAt: Date.now(),
+          };
+          return prev.some((item) => item.id === assistantId)
+            ? prev.map((item) => item.id === assistantId ? { ...item, ...failed } : item)
+            : [...prev, failed];
+        });
+        if (generationTask.taskStatus !== "cancelled") addToast(message, "error");
+      }
+
+      const latest = generationHandleRef.current;
+      if (!latest || generationTaskKey(latest.task_id, latest.attempt) !== key) return;
+      generationHandleRef.current = null;
+      generationAssistantIdRef.current = null;
+      setGenerationHandle(null);
+      sendingRef.current = false;
+      setSending(false);
+      inputRef.current?.focus();
+    };
+
+    void finish().catch((error) => {
+      const latest = generationHandleRef.current;
+      if (!latest || generationTaskKey(latest.task_id, latest.attempt) !== key) return;
+      logger.scoped("InspirationChat").error("generation finalization failed", { error });
+      const message = extractErrorMessage(error, "灵感对话结果校验失败");
+      setMessages((prev) => prev.map((item) => item.id === assistantId
+        ? { ...item, content: `❌ ${message}`, streaming: false }
+        : item));
+      addToast(message, "error");
+      generationHandleRef.current = null;
+      generationAssistantIdRef.current = null;
+      setGenerationHandle(null);
+      sendingRef.current = false;
+      setSending(false);
+      inputRef.current?.focus();
+    });
+  }, [
+    addToast,
+    applyParsedAssistant,
+    generationHandle,
+    generationTask.error,
+    generationTask.clientState,
+    generationTask.recoveryState,
+    generationTask.resultRef,
+    generationTask.taskStatus,
+    generationTask.terminalReceived,
+    isCurrentProject,
+    projectId,
+  ]);
+
   const handleSend = async (text?: string) => {
     const value = (text ?? input).trim();
     if (!value || sendingRef.current) return;
@@ -254,7 +462,6 @@ export const useInspirationChatController = () => {
     const requestSeq = sendSeqRef.current + 1;
     sendSeqRef.current = requestSeq;
     sendingRef.current = true;
-    const requestUseStream = useStream;
 
     const userMessage: Message = {
       id: msgId(),
@@ -267,149 +474,28 @@ export const useInspirationChatController = () => {
       id: assistantId,
       role: "assistant",
       content: "",
-      streaming: requestUseStream,
+      streaming: true,
       createdAt: Date.now(),
     };
 
-    setMessages((prev) =>
-      requestUseStream ? [...prev, userMessage, assistantMessage] : [...prev, userMessage],
-    );
+    generationAssistantIdRef.current = assistantId;
+    handledTerminalRef.current = null;
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setInput("");
     setSending(true);
 
-    let unlisten: UnlistenFn | null = null;
-    let streamedText = "";
-    let nextChunkIndex = 0;
-    let streamTerminated = false;
-    const pendingChunks = new Map<number, string>();
-
-    const appendOrderedChunks = (): boolean => {
-      let changed = false;
-      while (pendingChunks.has(nextChunkIndex)) {
-        const chunk = pendingChunks.get(nextChunkIndex);
-        pendingChunks.delete(nextChunkIndex);
-        if (chunk) {
-          streamedText += chunk;
-          changed = true;
-        }
-        nextChunkIndex += 1;
-      }
-      return changed;
-    };
-
     try {
-      if (requestUseStream) {
-        const currentTaskId = taskId(requestProjectId);
-        unlisten = await listenAppEvent<WorkflowEvent>(`workflow:${currentTaskId}`, (event) => {
-          if (!isCurrentSend(requestProjectId, requestSeq)) return;
-          const payload = event.payload;
-          if (payload.type === "Chunk") {
-            if (streamTerminated) return;
-            const data = (payload as {
-              type: "Chunk";
-              data: { content?: unknown; index?: unknown };
-            }).data;
-            if (typeof data.content !== "string") {
-              addToast("流式响应缺少内容片段", "error");
-              return;
-            }
-            const index =
-              typeof data.index === "number" ? data.index : Number(data.index);
-            if (!Number.isInteger(index) || index < 0) {
-              addToast("流式响应缺少有效片段序号", "error");
-              return;
-            }
-            const delta = data.content;
-            if (!delta) return;
-            if (index < nextChunkIndex || pendingChunks.has(index)) return;
-            pendingChunks.set(index, delta);
-            if (!appendOrderedChunks()) return;
-            const preview = getStreamingResponsePreview(streamedText);
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? {
-                      ...m,
-                      content: preview.content,
-                      rawContent: streamedText,
-                      streaming: true,
-                      streamingOptions: preview.options,
-                      optionsPending: preview.optionsPending,
-                    }
-                  : m,
-              ),
-            );
-          } else if (payload.type === "Complete") {
-            streamTerminated = true;
-            const streamedResponse = firstString(streamedText);
-            const fullResponse = eventMessageOrNull(payload.data) ?? streamedResponse;
-            if (fullResponse) {
-              applyParsedAssistant(assistantId, fullResponse);
-            } else {
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)),
-              );
-            }
-          } else if (payload.type === "Error") {
-            streamTerminated = true;
-            const message = eventMessage(payload.data, "流式响应事件缺少错误信息");
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? {
-                      ...m,
-                      content: `❌ ${message}`,
-                      streaming: false,
-                    }
-                  : m,
-              ),
-            );
-          }
-        });
-
-        const response = await converseInspirationStream({
+      const handle = await generationClient.start((meta) =>
+        startInspirationGeneration({
+          meta,
           project_id: requestProjectId,
           message: value,
-          task_id: currentTaskId,
           variables: null,
-        });
-        if (!isCurrentSend(requestProjectId, requestSeq)) return;
-        const finalResponse = firstString(response, streamedText);
-        if (!finalResponse) {
-          throw new Error("AI 未返回内容");
-        }
-        applyParsedAssistant(assistantId, finalResponse);
-      } else {
-        const response = await converseInspiration({
-          project_id: requestProjectId,
-          user_input: value,
-          variables: null,
-        });
-        if (!isCurrentSend(requestProjectId, requestSeq)) return;
-        const finalResponse = response.trim();
-        if (!finalResponse) {
-          throw new Error("AI 未返回内容");
-        }
-        const parsed = parseInspirationResponse(finalResponse);
-        if (parsed.placeholder) {
-          setInputPlaceholder(parsed.placeholder);
-        }
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: msgId(),
-            role: "assistant",
-            content: parsed.content,
-            rawContent: parsed.rawContent,
-            options: parsed.options,
-            isComplete: parsed.isComplete,
-            conversationState: parsed.conversationState,
-            progressSummary: parsed.progressSummary,
-            nextQuestion: parsed.nextQuestion,
-            createdAt: Date.now(),
-          },
-        ]);
-      }
+        }),
+      );
+      if (!isCurrentSend(requestProjectId, requestSeq)) return;
+      generationHandleRef.current = handle;
+      setGenerationHandle(handle);
     } catch (err) {
       if (!isCurrentSend(requestProjectId, requestSeq)) return;
       logger.scoped("InspirationChat").error("converse failed", { err });
@@ -428,15 +514,10 @@ export const useInspirationChatController = () => {
           },
         ];
       });
-    } finally {
-      unlisten?.();
-      if (isCurrentSend(requestProjectId, requestSeq)) {
-        sendingRef.current = false;
-        setSending(false);
-        inputRef.current?.focus();
-      } else if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId) {
-        sendingRef.current = false;
-      }
+      generationAssistantIdRef.current = null;
+      sendingRef.current = false;
+      setSending(false);
+      inputRef.current?.focus();
     }
   };
 
@@ -517,14 +598,15 @@ export const useInspirationChatController = () => {
     sending,
     generating: blueprintWorkflow.generating,
     blueprint: blueprintWorkflow.blueprint,
+    blueprintConsistencyWarning: blueprintWorkflow.blueprintConsistencyWarning,
     refining: blueprintWorkflow.refining,
-    useStream,
-    setUseStream,
     inputPlaceholder,
     blueprintProgressOpen: blueprintWorkflow.blueprintProgressOpen,
     setBlueprintProgressOpen: blueprintWorkflow.setBlueprintProgressOpen,
     blueprintProgress: blueprintWorkflow.blueprintProgress,
     blueprintCancelling: blueprintWorkflow.blueprintCancelling,
+    blueprintStreamText: blueprintWorkflow.blueprintStreamText,
+    blueprintStreamVersion: blueprintWorkflow.blueprintStreamVersion,
     blueprintRequestPreviewOpen: blueprintWorkflow.requestPreviewOpen,
     blueprintRequestPreviewLoading: blueprintWorkflow.requestPreviewLoading,
     blueprintRequestPreviewData: blueprintWorkflow.requestPreviewData,

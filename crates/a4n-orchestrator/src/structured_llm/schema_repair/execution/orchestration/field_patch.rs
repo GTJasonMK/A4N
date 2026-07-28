@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 
 use crate::{
@@ -49,8 +48,7 @@ where
         .as_ref()
         .and_then(|trace| trace.project_id);
     let repair_prompt = context
-        .engine
-        .render_prompt("structured_json_field_repair", &HashMap::new(), project_id)
+        .prompt_render_async("structured_json_field_repair", &HashMap::new(), project_id)
         .await?;
     let patch_request =
         build_schema_field_patch_request(input.request.clone(), &repair_prompt, &report)?;

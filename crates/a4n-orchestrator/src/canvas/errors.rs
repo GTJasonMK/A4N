@@ -1,8 +1,8 @@
 use a4n_core::error::AppError;
 
-use super::VideoStudioProjectImportError;
+use a4n_db::canvas::VideoStudioProjectImportError;
 
-pub(super) fn canvas_db_error(error: a4n_db::canvas::CanvasDbError) -> AppError {
+pub(crate) fn canvas_db_error(error: a4n_db::canvas::CanvasDbError) -> AppError {
     match error {
         a4n_db::canvas::CanvasDbError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
@@ -13,7 +13,7 @@ pub(super) fn canvas_db_error(error: a4n_db::canvas::CanvasDbError) -> AppError 
     }
 }
 
-pub(super) fn video_studio_project_import_error(error: VideoStudioProjectImportError) -> AppError {
+pub(crate) fn video_studio_project_import_error(error: VideoStudioProjectImportError) -> AppError {
     match error {
         VideoStudioProjectImportError::InvalidPackage(message) => {
             AppError::InvalidArgument(message)

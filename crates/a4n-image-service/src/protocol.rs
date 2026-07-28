@@ -1,9 +1,9 @@
 use a4n_core::error::AppError;
 use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
-    IMAGE_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
-    ServiceStatus, redact_sensitive_message, validate_known_service_request_envelope,
-    validate_provider_api_key_secret_policy,
+    EgressDataType, IMAGE_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest,
+    ServiceResponse, ServiceStatus, redact_sensitive_message, validate_egress_scope,
+    validate_known_service_request_envelope, validate_provider_api_key_secret_policy,
 };
 
 use crate::contracts::ImageProviderPayload;
@@ -47,7 +47,13 @@ pub(crate) fn validate_model_discovery_request(
 }
 
 fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    validate_known_service_request_envelope(request, IMAGE_SERVICE_NAME)
+    validate_known_service_request_envelope(request, IMAGE_SERVICE_NAME)?;
+    validate_egress_scope(
+        IMAGE_SERVICE_NAME,
+        EgressDataType::Image,
+        &request.secret_policy.scope,
+    )
+    .map(|_| ())
 }
 
 fn validate_optional_provider_secret_policy<T>(

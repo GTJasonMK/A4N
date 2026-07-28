@@ -22,7 +22,12 @@ where
     active.updated_at = Set(Utc::now().naive_utc());
     let updated = active.update(db).await?;
     if let Some(prompt) = prompt {
-        update_prompt_status_record(db, prompt, status).await?;
+        let prompt_status = if prompt.generated_video_id.is_some() {
+            "completed"
+        } else {
+            status
+        };
+        update_prompt_status_record(db, prompt, prompt_status).await?;
     }
     Ok(updated)
 }

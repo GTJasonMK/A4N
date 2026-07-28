@@ -17,7 +17,7 @@ import {
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { ToastType } from "../../components/feedback/Toast";
 import {
-  createProgressTaskId,
+  allocateHostTaskId,
   useProgressTask,
 } from "../../hooks/useProgressTask";
 
@@ -172,16 +172,16 @@ export function useChapterAnalysisActions({
       const chapter = requireSavedAnalyzableChapter("generate");
       if (!chapter) return;
 
-      const taskId = createProgressTaskId("chapter-analysis", projectId);
+      const taskId = allocateHostTaskId("chapter-analysis", projectId);
       setAnalysisBusy(true);
       const updated = await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: "章节结构化分析",
           startMessage: "正在准备章节分析",
           successMessage: "结构化分析和项目状态已同步",
           errorMessage: "结构化分析失败",
           total: 11,
-          taskId,
           cancelLabel: "停止分析",
           runningHint: "结构化分析过程中已写入的数据会保留",
         },
@@ -190,7 +190,6 @@ export function useChapterAnalysisActions({
             {
               chapter_id: chapter.id,
             },
-            taskId,
           ),
       );
       setChapters((prev) =>
@@ -240,16 +239,16 @@ export function useChapterAnalysisActions({
       const chapter = requireSavedAnalyzableChapter("resume");
       if (!chapter) return;
 
-      const taskId = createProgressTaskId("chapter-analysis-resume", projectId);
+      const taskId = allocateHostTaskId("chapter-analysis-resume", projectId);
       setAnalysisBusy(true);
       const updated = await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: "继续同步章节分析",
           startMessage: "正在准备继续同步",
           successMessage: "结构化分析派生数据已同步",
           errorMessage: "继续同步失败",
           total: 11,
-          taskId,
           cancelLabel: "停止分析",
           runningHint: "结构化分析过程中已写入的数据会保留",
         },
@@ -258,7 +257,6 @@ export function useChapterAnalysisActions({
             {
               chapter_id: chapter.id,
             },
-            taskId,
           ),
       );
       setChapters((prev) =>

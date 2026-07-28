@@ -14,7 +14,7 @@ pub(super) async fn append_character_records(
     expected: &mut ExpectedRagRecords,
 ) -> Result<(), String> {
     let characters = state
-        .orchestrator
+        .rag()
         .blueprint_characters_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -24,7 +24,7 @@ pub(super) async fn append_character_records(
     }
 
     let profiles = state
-        .orchestrator
+        .rag()
         .protagonist_profiles_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -43,7 +43,7 @@ pub(super) async fn append_character_records(
         .collect::<HashMap<_, _>>();
     if !profile_ids.is_empty() {
         let states = state
-            .orchestrator
+            .rag()
             .character_states_for_rag_ingest(&profile_ids)
             .await
             .map_err(|e| e.to_string())?;
@@ -60,7 +60,7 @@ pub(super) async fn append_character_records(
         }
 
         let events = state
-            .orchestrator
+            .rag()
             .attribute_events_for_rag_ingest(&profile_ids)
             .await
             .map_err(|e| e.to_string())?;
@@ -78,7 +78,7 @@ pub(super) async fn append_character_records(
     }
 
     let foreshadowing = state
-        .orchestrator
+        .rag()
         .foreshadowing_items_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -89,7 +89,7 @@ pub(super) async fn append_character_records(
     }
 
     let relationships = state
-        .orchestrator
+        .rag()
         .blueprint_relationships_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;

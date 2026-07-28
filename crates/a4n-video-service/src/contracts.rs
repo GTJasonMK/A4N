@@ -11,6 +11,8 @@ pub(crate) struct VideoProviderPayload {
     pub(crate) api_key: String,
     #[serde(default)]
     pub(crate) provider_options_json: Option<Value>,
+    #[serde(default)]
+    pub(crate) provider_idempotency_key_sha256: Option<String>,
     pub(crate) request: VideoGenerationRequest,
 }
 
@@ -23,6 +25,8 @@ pub(crate) struct VideoPollPayload {
     pub(crate) api_key: String,
     #[serde(default)]
     pub(crate) provider_options_json: Option<Value>,
+    #[serde(default)]
+    pub(crate) project_id: Option<i64>,
     pub(crate) job_id: String,
 }
 
@@ -47,6 +51,24 @@ pub(crate) enum VideoJobOutput {
     Running,
     Completed { result: VideoGenerationOutput },
     Failed { message: String },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub(crate) enum VideoStatusOutput {
+    Pending,
+    Running,
+    Completed,
+    Failed { message: String },
+    Cancelled,
+    NotFound,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub(crate) enum VideoDeleteOutput {
+    Deleted,
+    NotFound,
 }
 
 #[cfg(test)]

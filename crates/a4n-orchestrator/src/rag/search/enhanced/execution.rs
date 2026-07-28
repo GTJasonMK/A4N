@@ -7,45 +7,11 @@ use super::{
     fusion::fuse_enhanced_rag_results,
     rules::{validate_embedding_identity_match, validate_query_vectors},
 };
-use crate::OrchestratorContext;
 use crate::rag::search::execution::{
     hybrid_rag_search_filtered_in_store, hybrid_rag_search_with_embedding_in_store,
 };
 
-impl OrchestratorContext {
-    pub async fn execute_prepared_enhanced_rag_search(
-        &self,
-        project_id: i64,
-        prepared: &PreparedEnhancedRagSearch,
-    ) -> Result<EnhancedRagSearchResult, AppError> {
-        execute_prepared_enhanced_rag_search_in_store(
-            self.rag_store.as_ref(),
-            self.embedding.as_ref(),
-            project_id,
-            prepared,
-        )
-        .await
-    }
-
-    pub async fn execute_prepared_enhanced_rag_search_with_vectors(
-        &self,
-        project_id: i64,
-        prepared: &PreparedEnhancedRagSearch,
-        embedding_identity: &EmbeddingModelIdentity,
-        query_vectors: Vec<Vec<f32>>,
-    ) -> Result<EnhancedRagSearchResult, AppError> {
-        execute_prepared_enhanced_rag_search_with_vectors_in_store(
-            self.rag_store.as_ref(),
-            project_id,
-            prepared,
-            embedding_identity,
-            query_vectors,
-        )
-        .await
-    }
-}
-
-pub(super) async fn execute_prepared_enhanced_rag_search_in_store(
+pub(crate) async fn execute_prepared_enhanced_rag_search_in_store(
     store: &dyn VectorStore,
     provider: &dyn EmbeddingProvider,
     project_id: i64,
@@ -70,7 +36,7 @@ pub(super) async fn execute_prepared_enhanced_rag_search_in_store(
     build_enhanced_rag_search_result(prepared, batches)
 }
 
-pub(super) async fn execute_prepared_enhanced_rag_search_with_vectors_in_store(
+pub(crate) async fn execute_prepared_enhanced_rag_search_with_vectors_in_store(
     store: &dyn VectorStore,
     project_id: i64,
     prepared: &PreparedEnhancedRagSearch,

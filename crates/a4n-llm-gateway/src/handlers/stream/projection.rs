@@ -1,5 +1,5 @@
 use a4n_llm::provider::{ChatChunk, UsageInfo, is_truncated_finish_reason};
-use a4n_service_protocol::{ServiceError, ServiceTaskEvent, ServiceTaskEventKind};
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError};
 
 use crate::protocol::service_error;
 
@@ -7,14 +7,14 @@ pub(super) fn chunk_event(
     task_id: String,
     sequence: u64,
     chunk: ChatChunk,
-) -> Result<ServiceTaskEvent, ServiceError> {
+) -> Result<CapabilityTaskEvent, ServiceError> {
     let usage = chunk.usage.as_ref().map(usage_value).transpose()?;
     let payload = serde_json::to_value(&chunk).map_err(|error| service_error(error.into()))?;
     let finish_reason = chunk.finish_reason;
 
-    Ok(ServiceTaskEvent {
+    Ok(CapabilityTaskEvent {
         task_id,
-        event_kind: ServiceTaskEventKind::Chunk,
+        event_kind: CapabilityTaskEventKind::Chunk,
         sequence,
         chunk_index: Some(u64::from(chunk.index)),
         chunk_delta: chunk.content.or(chunk.reasoning_content),
@@ -36,10 +36,10 @@ pub(super) fn completed_event(
     sequence: u64,
     final_usage: Option<serde_json::Value>,
     finish_reason: Option<String>,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id,
-        event_kind: ServiceTaskEventKind::Completed,
+        event_kind: CapabilityTaskEventKind::Completed,
         sequence,
         chunk_index: None,
         chunk_delta: None,
@@ -58,10 +58,10 @@ pub(super) fn failed_event(
     task_id: String,
     sequence: u64,
     error: ServiceError,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id,
-        event_kind: ServiceTaskEventKind::Failed,
+        event_kind: CapabilityTaskEventKind::Failed,
         sequence,
         chunk_index: None,
         chunk_delta: None,

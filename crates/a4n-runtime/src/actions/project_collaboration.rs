@@ -23,7 +23,7 @@ pub async fn list_project_members(
     project_id: i64,
 ) -> Result<Vec<ProjectMemberSummary>, String> {
     state
-        .orchestrator
+        .collaboration()
         .list_project_members(user_id, project_id)
         .await
         .map_err(app_error_message)
@@ -37,7 +37,7 @@ pub async fn invite_project_member(
 ) -> Result<ProjectInviteSummary, String> {
     let role = parse_role(&input.role)?;
     state
-        .orchestrator
+        .collaboration()
         .invite_project_member(user_id, project_id, &input.username_or_email, role)
         .await
         .map_err(app_error_message)
@@ -49,7 +49,7 @@ pub async fn list_project_invites(
     project_id: i64,
 ) -> Result<Vec<ProjectInviteSummary>, String> {
     state
-        .orchestrator
+        .collaboration()
         .list_project_invites(user_id, project_id)
         .await
         .map_err(app_error_message)
@@ -60,7 +60,7 @@ pub async fn list_my_project_invites(
     user_id: i64,
 ) -> Result<Vec<ProjectInviteSummary>, String> {
     state
-        .orchestrator
+        .collaboration()
         .list_my_project_invites(user_id)
         .await
         .map_err(app_error_message)
@@ -72,7 +72,7 @@ pub async fn accept_project_invite(
     invite_id: i64,
 ) -> Result<ProjectMemberSummary, String> {
     state
-        .orchestrator
+        .collaboration()
         .accept_project_invite(user_id, invite_id)
         .await
         .map_err(app_error_message)
@@ -84,7 +84,7 @@ pub async fn decline_project_invite(
     invite_id: i64,
 ) -> Result<ProjectInviteSummary, String> {
     state
-        .orchestrator
+        .collaboration()
         .decline_project_invite(user_id, invite_id)
         .await
         .map_err(app_error_message)
@@ -97,7 +97,7 @@ pub async fn revoke_project_invite(
     invite_id: i64,
 ) -> Result<ProjectInviteSummary, String> {
     state
-        .orchestrator
+        .collaboration()
         .revoke_project_invite(user_id, project_id, invite_id)
         .await
         .map_err(app_error_message)
@@ -112,7 +112,7 @@ pub async fn update_project_member_role(
 ) -> Result<ProjectMemberSummary, String> {
     let role = parse_role(&input.role)?;
     state
-        .orchestrator
+        .collaboration()
         .update_project_member_role(user_id, project_id, member_user_id, role)
         .await
         .map_err(app_error_message)
@@ -125,7 +125,7 @@ pub async fn remove_project_member(
     member_user_id: i64,
 ) -> Result<(), String> {
     state
-        .orchestrator
+        .collaboration()
         .remove_project_member(user_id, project_id, member_user_id)
         .await
         .map_err(app_error_message)
@@ -133,7 +133,7 @@ pub async fn remove_project_member(
 
 pub async fn leave_project(state: &AppState, user_id: i64, project_id: i64) -> Result<(), String> {
     state
-        .orchestrator
+        .collaboration()
         .leave_project(user_id, project_id)
         .await
         .map_err(app_error_message)

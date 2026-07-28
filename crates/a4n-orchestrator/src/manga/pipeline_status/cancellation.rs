@@ -25,13 +25,13 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn cancel_manga_pipeline(
+    pub(crate) async fn cancel_manga_pipeline_records(
         &self,
         project_id: i64,
         chapter_id: i64,
     ) -> Result<i64, AppError> {
         let count =
-            manga_db::cancel_manga_page_prompts(self.db.connection(), project_id, chapter_id)
+            manga_db::cancel_manga_page_prompts(self.database.connection(), project_id, chapter_id)
                 .await
                 .map_err(manga_pipeline_db_error)?;
 

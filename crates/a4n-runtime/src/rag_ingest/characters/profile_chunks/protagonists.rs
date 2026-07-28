@@ -1,6 +1,6 @@
 use super::super::super::sync::{
-    ExpectedSyncStats as IngestStats, RagIngestProgress, RagSyncContext, cleanup_stale_records,
-    labeled_rag_record, progress_stage, required_record_dimension, sync_labeled_records_concurrent,
+    ExpectedSyncStats as IngestStats, RagIngestProgress, cleanup_stale_records, labeled_rag_record,
+    progress_stage, required_record_dimension, sync_labeled_records_concurrent,
 };
 use crate::state::AppState;
 use a4n_core::rag::RagDataType;
@@ -12,12 +12,13 @@ pub(crate) async fn ingest_protagonists_inner(
     mut progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
-    let mut sync =
-        RagSyncContext::for_data_type(&state.orchestrator, project_id, RagDataType::Protagonist)
-            .await
-            .map_err(|error| error.to_string())?;
+    let mut sync = state
+        .rag()
+        .rag_sync_context_for_data_type(project_id, RagDataType::Protagonist)
+        .await
+        .map_err(|error| error.to_string())?;
     let profiles = state
-        .orchestrator
+        .rag()
         .protagonist_profiles_for_rag_ingest(project_id)
         .await
         .map_err(|error| error.to_string())?;

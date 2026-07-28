@@ -1,6 +1,5 @@
 use a4n_core::error::AppError;
 use a4n_core::models::ai::optimization_session;
-use a4n_db::optimize::OptimizationSessionUpdateInput;
 use a4n_db::workflow::{self, CompletedLlmCallCheckpointInput};
 use a4n_llm::provider::{ChatMessage, ChatResponse};
 use serde_json::{Value, json};
@@ -25,9 +24,7 @@ use super::turns::{
     EVENT_STATUS_COMPLETED, EVENT_STATUS_FAILED, EVENT_STATUS_RUNNING,
 };
 use super::{
-    OptimizeLlmStream, OptimizeProgress, OrchestratorContext, collect_streaming_chat_response,
-    optimize_db_error, optimize_llm_call_input_fingerprint_json, report_optimize_progress,
-    response_content_from_checkpoint,
+    OrchestratorContext, optimize_llm_call_input_fingerprint_json, response_content_from_checkpoint,
 };
 
 mod analysis;

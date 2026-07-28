@@ -1,15 +1,15 @@
 use a4n_core::error::AppError;
-use a4n_service_protocol::{ServiceErrorCode, ServiceTaskEvent, ServiceTaskEventKind};
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode};
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::sidecar_clients::{service_app_error, service_error_app_error};
 
 pub(super) fn handle_rag_ingest_event(
-    event: ServiceTaskEvent,
+    event: CapabilityTaskEvent,
 ) -> Result<Option<WrittenOutput>, AppError> {
     match event.event_kind {
-        ServiceTaskEventKind::Progress | ServiceTaskEventKind::StructuredProgress => {
+        CapabilityTaskEventKind::Progress | CapabilityTaskEventKind::StructuredProgress => {
             let payload = event
                 .payload
                 .ok_or_else(|| service_app_error("rag sidecar ingest progress 事件缺少 payload"))?;
@@ -21,7 +21,7 @@ pub(super) fn handle_rag_ingest_event(
                 .ok_or_else(|| service_app_error("rag sidecar ingest progress 事件缺少 message"))?;
             Ok(None)
         }
-        ServiceTaskEventKind::Completed => {
+        CapabilityTaskEventKind::Completed => {
             let payload = event.payload.ok_or_else(|| {
                 service_app_error("rag sidecar ingest completed 事件缺少 payload")
             })?;
@@ -31,13 +31,13 @@ pub(super) fn handle_rag_ingest_event(
                 ))
             })
         }
-        ServiceTaskEventKind::Failed => {
+        CapabilityTaskEventKind::Failed => {
             let error = event
                 .error
                 .ok_or_else(|| service_app_error("rag sidecar ingest failed 事件缺少 error"))?;
             Err(rag_service_error_app_error(error))
         }
-        ServiceTaskEventKind::CancelAck => Err(AppError::Cancelled),
+        CapabilityTaskEventKind::CancelAck => Err(AppError::Cancelled),
         other => Err(service_app_error(format!(
             "rag sidecar ingest 事件类型不符合合同: {other:?}"
         ))),

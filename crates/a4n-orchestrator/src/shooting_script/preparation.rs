@@ -40,22 +40,22 @@ impl OrchestratorContext {
                 source.source_chapter_id
             )));
         }
-        let skeleton_system_prompt = self.engine.render(
+        let skeleton_system_prompt = self.prompt_render_template(
             CHAPTER_SCREENPLAY_SKELETON_PROMPT,
             &HashMap::new(),
             Some(input.project_id),
         )?;
-        let layout_unit_system_prompt = self.engine.render(
+        let layout_unit_system_prompt = self.prompt_render_template(
             CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
             &HashMap::new(),
             Some(input.project_id),
         )?;
-        let unit_adaptation_system_prompt = self.engine.render(
+        let unit_adaptation_system_prompt = self.prompt_render_template(
             CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT,
             &HashMap::new(),
             Some(input.project_id),
         )?;
-        let design_unit_system_prompt = self.engine.render(
+        let design_unit_system_prompt = self.prompt_render_template(
             CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
             &HashMap::new(),
             Some(input.project_id),

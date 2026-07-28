@@ -2,9 +2,6 @@ use a4n_core::error::AppError;
 use a4n_embedding::provider::{EmbeddingModelIdentity, EmbeddingProvider};
 use a4n_rag_core::vector_store::{SearchFilter, SearchResult};
 
-use super::execution::{
-    hybrid_rag_search_filtered_in_store, hybrid_rag_search_with_embedding_in_store,
-};
 use crate::OrchestratorContext;
 
 impl OrchestratorContext {
@@ -16,15 +13,8 @@ impl OrchestratorContext {
         top_k: usize,
         filter: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, AppError> {
-        hybrid_rag_search_filtered_in_store(
-            self.rag_store.as_ref(),
-            project_id,
-            query,
-            provider,
-            top_k,
-            filter,
-        )
-        .await
+        self.rag_search_filtered_with_provider(project_id, query, provider, top_k, filter)
+            .await
     }
 
     pub async fn hybrid_rag_search_with_embedding(
@@ -36,8 +26,7 @@ impl OrchestratorContext {
         top_k: usize,
         filter: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, AppError> {
-        hybrid_rag_search_with_embedding_in_store(
-            self.rag_store.as_ref(),
+        self.rag_search_with_embedding_vector(
             project_id,
             query,
             query_embedding,

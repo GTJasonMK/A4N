@@ -14,7 +14,7 @@ import {
   type ChapterScene,
 } from "../api/chapter";
 import type { ModelRequestPreview } from "../api/requestPreview";
-import { createProgressTaskId, useProgressTask } from "../hooks/useProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
 import { SceneGenerationPanel } from "./scenes-dialog/SceneGenerationPanel";
@@ -263,16 +263,16 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     const requestSeq = generateSeqRef.current + 1;
     generateSeqRef.current = requestSeq;
     const nextNumber = getNextSceneNumber(scenes);
-    const taskId = createProgressTaskId("chapter-scene", chapterId);
+    const taskId = allocateHostTaskId("chapter-scene", chapterId);
     setGenerating(true);
     try {
       const s = await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: `生成场景 ${nextNumber}`,
           startMessage: "正在准备场景生成",
           successMessage: "场景已生成",
           errorMessage: "生成场景失败",
-          taskId,
           total: 4,
           cancelLabel: "停止生成",
           runningHint: "场景生成停止后，已经保存的场景会保留",
@@ -284,7 +284,6 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
               scene_number: nextNumber,
               scene_prompt: genPrompt,
             },
-            taskId,
           ),
       );
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;

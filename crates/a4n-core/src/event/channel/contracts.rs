@@ -1,11 +1,16 @@
-use crate::event::sse::{ProgressMeta, ProgressPhaseKind, ProgressTaskKind};
+use crate::{
+    error::AppError,
+    event::progress::{ProgressMeta, ProgressPhaseKind},
+};
 use serde::Serialize;
 
 pub(super) const MAX_TASK_PROGRESS_EVENTS: usize = 200;
 
-/// 任务类型
-#[derive(Debug, Clone, Serialize)]
-pub enum TaskType {
+/// 进程内任务与持久队列共用的 canonical 任务种类。
+///
+/// 该合同位于 core，避免 queue、runtime、Server 和 Tauri 各自维护一套任务枚举。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub enum TaskKind {
     /// LLM 调用（对话、生成等）
     LlmCall,
     /// 图片生成
@@ -20,9 +25,40 @@ pub enum TaskType {
     ExportGeneration,
     /// 嵌入模型下载
     EmbeddingDownload,
+    /// 视频轮询
+    VideoPoll,
+    /// 来源同步
+    SourceSync,
+    /// 成片组装
+    Assembly,
+    /// 嵌入调用
+    EmbeddingCall,
+    /// RAG 入库
+    ImportAnalysis,
+    /// 漫画生成
+    MangaGeneration,
+    /// 文本生成
+    TextGeneration,
 }
 
-impl TaskType {
+impl TaskKind {
+    const ALL: [Self; 14] = [
+        Self::LlmCall,
+        Self::ImageGeneration,
+        Self::VideoGeneration,
+        Self::VideoPoll,
+        Self::SourceSync,
+        Self::Assembly,
+        Self::EmbeddingCall,
+        Self::RagIngestion,
+        Self::ImportAnalysis,
+        Self::ExportGeneration,
+        Self::EmbeddingDownload,
+        Self::GalgameGeneration,
+        Self::MangaGeneration,
+        Self::TextGeneration,
+    ];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::LlmCall => "llm_call",
@@ -32,55 +68,124 @@ impl TaskType {
             Self::RagIngestion => "rag_ingestion",
             Self::ExportGeneration => "export_generation",
             Self::EmbeddingDownload => "embedding_download",
+            Self::VideoPoll => "video_poll",
+            Self::SourceSync => "source_sync",
+            Self::Assembly => "assembly",
+            Self::EmbeddingCall => "embedding_call",
+            Self::ImportAnalysis => "import_analysis",
+            Self::MangaGeneration => "manga_generation",
+            Self::TextGeneration => "text_generation",
         }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|task_kind| task_kind.as_str() == value)
+    }
+
+    pub fn parse_storage(value: &str) -> Result<Self, AppError> {
+        Self::parse(value)
+            .ok_or_else(|| AppError::InvalidArgument(format!("未知任务类型: {value}")))
     }
 
     pub fn progress_meta(&self, message: &str) -> ProgressMeta {
         let (task_kind, stage_code, stage_label, phase_kind) = match self {
             Self::LlmCall => (
-                ProgressTaskKind::LlmStructuredOutput,
+                self.as_str(),
                 "llm_call",
                 "模型生成",
                 ProgressPhaseKind::ModelStream,
             ),
             Self::ImageGeneration => (
-                ProgressTaskKind::ImageGeneration,
+                self.as_str(),
                 "image_generation",
                 "图片生成",
                 ProgressPhaseKind::AssetGeneration,
             ),
             Self::VideoGeneration => (
-                ProgressTaskKind::VideoGeneration,
+                self.as_str(),
                 "video_generation",
                 "视频生成",
                 ProgressPhaseKind::AssetGeneration,
             ),
             Self::GalgameGeneration => (
-                ProgressTaskKind::GalgameGeneration,
+                self.as_str(),
                 "galgame_pipeline",
                 "Galgame 管线",
                 ProgressPhaseKind::ModelWait,
             ),
             Self::RagIngestion => (
-                ProgressTaskKind::RagIngestion,
+                self.as_str(),
                 "rag_ingestion",
                 "RAG 入库",
                 ProgressPhaseKind::Save,
             ),
             Self::ExportGeneration => (
-                ProgressTaskKind::ExportGeneration,
+                self.as_str(),
                 "export_generation",
                 "导出生成",
                 ProgressPhaseKind::Save,
             ),
             Self::EmbeddingDownload => (
-                ProgressTaskKind::EmbeddingDownload,
+                self.as_str(),
                 "embedding_download",
                 "模型下载",
                 ProgressPhaseKind::Transfer,
             ),
+            Self::VideoPoll => (
+                self.as_str(),
+                "video_poll",
+                "视频轮询",
+                ProgressPhaseKind::ModelWait,
+            ),
+            Self::SourceSync => (
+                self.as_str(),
+                "source_sync",
+                "来源同步",
+                ProgressPhaseKind::Save,
+            ),
+            Self::Assembly => (
+                self.as_str(),
+                "assembly",
+                "成片组装",
+                ProgressPhaseKind::AssetGeneration,
+            ),
+            Self::EmbeddingCall => (
+                self.as_str(),
+                "embedding_call",
+                "嵌入调用",
+                ProgressPhaseKind::ModelWait,
+            ),
+            Self::ImportAnalysis => (
+                self.as_str(),
+                "import_analysis",
+                "导入分析",
+                ProgressPhaseKind::Parse,
+            ),
+            Self::MangaGeneration => (
+                self.as_str(),
+                "manga_generation",
+                "漫画生成",
+                ProgressPhaseKind::AssetGeneration,
+            ),
+            Self::TextGeneration => (
+                self.as_str(),
+                "text_generation",
+                "文本生成",
+                ProgressPhaseKind::ModelStream,
+            ),
         };
         ProgressMeta::new(task_kind, stage_code, stage_label, phase_kind).with_detail(message)
+    }
+}
+
+impl std::str::FromStr for TaskKind {
+    type Err = AppError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::parse_storage(value)
     }
 }
 
@@ -139,7 +244,7 @@ pub struct TaskProgressEvent {
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskSnapshot {
     pub task_id: String,
-    pub task_type: TaskType,
+    pub task_type: TaskKind,
     pub project_id: Option<i64>,
     pub root_project_id: Option<i64>,
     pub source_snapshot_id: Option<i64>,

@@ -37,6 +37,13 @@ pub(super) fn service_manager_error_message(error: &ServiceManagerError) -> Stri
         ServiceManagerError::ServiceIdentityMismatch { expected, actual } => {
             format!("service identity mismatch: expected {expected}, actual {actual}")
         }
+        ServiceManagerError::ServiceBuildMismatch {
+            service,
+            expected,
+            actual,
+        } => {
+            format!("service {service} build mismatch: expected {expected}, actual {actual}")
+        }
         ServiceManagerError::Timeout {
             service,
             timeout_ms,
@@ -52,6 +59,12 @@ pub(super) fn service_manager_error_message(error: &ServiceManagerError) -> Stri
         ServiceManagerError::SpawnFailed { service, .. } => {
             format!("service {service} spawn failed")
         }
+        ServiceManagerError::ReleaseManifestInvalid(_) => {
+            "service release manifest validation failed".to_string()
+        }
+        ServiceManagerError::BinaryIntegrityFailed { service, .. } => {
+            format!("service {service} binary integrity validation failed")
+        }
         ServiceManagerError::StopFailed { service, .. } => {
             format!("service {service} stop failed")
         }
@@ -61,5 +74,11 @@ pub(super) fn service_manager_error_message(error: &ServiceManagerError) -> Stri
             "service {service} startup failed and child cleanup also failed: {}",
             service_manager_error_message(startup.as_ref())
         ),
+        ServiceManagerError::SupervisorTaskFailed { service, .. } => {
+            format!("service {service} supervisor task failed")
+        }
+        ServiceManagerError::RestartLimitExceeded {
+            service, restarts, ..
+        } => format!("service {service} restart limit exceeded after {restarts} attempts"),
     }
 }

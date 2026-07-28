@@ -165,15 +165,6 @@ export const VIDEO_WORKFLOW_MODE_LABELS: Record<ChapterVideoWorkflowMode, string
   reference_media: "参考媒体生成",
 };
 
-export const VIDEO_WORKFLOW_MODE_SUMMARIES: Record<ChapterVideoWorkflowMode, string> =
-  {
-    boundary_frames: "相邻视频执行单元共享边界帧；U 个单元生成 U+1 张边界帧和 U 条视频。",
-    first_frame_chain: "只生成首帧，后续片段使用上一段视频尾帧续接。",
-    storyboard: "每个视频单元生成一张动态多格分镜板，再把分镜板和参考图作为视频参考输入。",
-    chat_video: "生成可复制提示词和建议上传图片，外部 Chat 生成后导入项目。",
-    reference_media: "使用多张图、视频或音频引用，并在提示词里声明用途。",
-  };
-
 export function videoWorkflowModeOfVideo(
   video: GeneratedVideo,
 ): ChapterVideoWorkflowMode | null {
@@ -671,7 +662,7 @@ export function finalVideoExecutionIdentityIsComplete(
 
 export function expectedFrameCountFromSegmentPlanPrompt(
   prompt: ChapterVideoPrompt | null | undefined,
-  workflowMode: VideoWorkflowMode | null,
+  workflowMode: ChapterVideoWorkflowMode,
 ): number | null {
   const metadata = asRecord(prompt?.metadata_json);
   if (!metadata) return null;
@@ -746,7 +737,7 @@ export function boundaryFrameStageMessage(
   segmentPlanPrompt: ChapterVideoPrompt | null,
   framePromptCount: number,
   expectedCount: number | null,
-  workflowMode: VideoWorkflowMode | null = "boundary_frames",
+  workflowMode: ChapterVideoWorkflowMode = "boundary_frames",
 ): string | null {
   const label =
     workflowMode === "first_frame_chain"
@@ -1322,9 +1313,8 @@ export function durationOptionsAllowed(
 
 export const parseVideoWorkflowMode = (
   raw: string,
-): ChapterVideoWorkflowMode | null => {
+): ChapterVideoWorkflowMode => {
   const parsed = JSON.parse(raw) as unknown;
-  if (parsed === null) return null;
   if (
     typeof parsed === "string" &&
     VIDEO_WORKFLOW_MODES.includes(parsed as ChapterVideoWorkflowMode)
@@ -1335,7 +1325,7 @@ export const parseVideoWorkflowMode = (
 };
 
 export const serializeVideoWorkflowMode = (
-  mode: ChapterVideoWorkflowMode | null,
+  mode: ChapterVideoWorkflowMode,
 ): string => JSON.stringify(mode);
 
 export function videoDurationLimitsFromConfig(

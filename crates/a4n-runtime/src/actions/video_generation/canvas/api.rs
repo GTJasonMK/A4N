@@ -1,33 +1,40 @@
+use serde_json::json;
+
+use crate::actions::request_preview::{model_request_preview, provider_request_step};
+
 use super::super::{
-    AppState, GenerateCanvasVideoInput, GeneratedVideoSummary, ModelRequestPreview,
-    VideoGenerationProgress, VideoGenerationProgressCallback, VideoProviderRequestPurpose,
-    VideoRequestImageMode,
+    AppState, GenerateCanvasVideoInput, ModelRequestPreview, RuntimeVideoProviderHostPort,
 };
-use super::execution::generate_canvas_video_inner;
-use super::preview::canvas_video_provider_request_preview;
-use super::request::build_canvas_video_provider_request;
-use tokio_util::sync::CancellationToken;
 
 pub async fn preview_canvas_video_request(
     state: &AppState,
     input: GenerateCanvasVideoInput,
 ) -> Result<ModelRequestPreview, String> {
-    let context = build_canvas_video_provider_request(
-        state,
-        input,
-        VideoProviderRequestPurpose::Preview,
-        VideoRequestImageMode::PreviewPlaceholders,
-    )
-    .await?;
-    canvas_video_provider_request_preview(&context)
-}
-
-pub async fn generate_canvas_video(
-    state: &AppState,
-    input: GenerateCanvasVideoInput,
-    progress: Option<VideoGenerationProgressCallback<'_>>,
-    cancel_token: CancellationToken,
-) -> Result<GeneratedVideoSummary, String> {
-    let mut progress = VideoGenerationProgress::new(progress, cancel_token);
-    generate_canvas_video_inner(state, input, &mut progress).await
+    let host_port = RuntimeVideoProviderHostPort::new(state);
+    let preview = state
+        .canvas()
+        .preview_canvas_video_request_validated(input, &host_port)
+        .await
+        .map_err(|error| error.to_string())?;
+    let payload = json!({
+        "config_id": preview.config_id,
+        "provider_backend": preview.provider_backend,
+        "model": preview.model,
+        "graph_id": preview.graph_id,
+        "node_id": preview.node_id,
+        "request": preview.request,
+    });
+    Ok(model_request_preview(
+        "canvas_video_generation",
+        "画布视频模型请求",
+        vec![provider_request_step(
+            "canvas_video",
+            "画布视频 provider 请求",
+            "video_generation_request",
+            Some("canvas_video_prompt".to_string()),
+            "ready",
+            preview.provider_input_note,
+            &payload,
+        )?],
+    ))
 }

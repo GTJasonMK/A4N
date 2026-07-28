@@ -287,7 +287,7 @@ export function useOptimizeSessionState({
         setActiveSession(session);
         setTurns(sessionTurns);
       } catch {
-        // 运行中的刷新只用于让已落库的 Agent 消息更快出现；主任务失败仍由 runProgressTask 显示。
+        // 运行中的刷新只用于让已落库的 Agent 消息更快出现；终态由 generation task 统一处理。
       }
     };
     void refreshActiveSessionMessages();

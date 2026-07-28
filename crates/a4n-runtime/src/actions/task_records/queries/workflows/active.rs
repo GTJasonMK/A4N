@@ -10,7 +10,7 @@ use super::super::super::{
 
 pub async fn list_active_workflows(state: &AppState) -> Result<Vec<WorkflowStateSummary>, String> {
     let tasks = state
-        .orchestrator
+        .workflow()
         .persisted_task_history(None, 0, 100)
         .await
         .map_err(app_error_message)?;
@@ -23,7 +23,7 @@ pub async fn list_active_workflows(state: &AppState) -> Result<Vec<WorkflowState
         .iter()
         .map(|item| item.task_id.clone())
         .collect::<HashSet<_>>();
-    for snapshot in state.task_manager.list_active_snapshots() {
+    for snapshot in state.active_task_snapshots() {
         if seen.insert(snapshot.task_id.clone()) {
             active.push(task_manager_snapshot_to_workflow(snapshot));
         }

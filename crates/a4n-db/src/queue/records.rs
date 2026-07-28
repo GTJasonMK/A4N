@@ -1,13 +1,20 @@
 use super::{PersistTaskQueueRecordInput, QueueDbError, RecoverableQueuedTask};
-use a4n_core::models::task::task_queue;
+use a4n_core::models::{generation::generation_task_checkpoint, task::task_queue};
 use chrono::Utc;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, QueryTrait, Set,
+};
 
 pub async fn recoverable_active_tasks(
     db: &DatabaseConnection,
 ) -> Result<Vec<RecoverableQueuedTask>, QueueDbError> {
+    let generation_task_ids = generation_task_checkpoint::Entity::find()
+        .select_only()
+        .column(generation_task_checkpoint::Column::TaskId)
+        .into_query();
     let tasks = task_queue::Entity::find()
         .filter(task_queue::Column::Status.is_in(["pending", "running"]))
+        .filter(task_queue::Column::Id.not_in_subquery(generation_task_ids))
         .all(db)
         .await?;
     Ok(tasks

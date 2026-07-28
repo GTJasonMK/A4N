@@ -1,46 +1,67 @@
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatRequest, ChatResponse};
+use a4n_llm::provider::ChatRequest;
 use a4n_prompt::blueprint_generation::ensure_blueprint_response_not_truncated;
 use tokio_util::sync::CancellationToken;
 
 use crate::blueprint::OrchestratorContext;
+use crate::generation::{
+    checkpoint::{GenerationCheckpointMetadata, GenerationCheckpointWriter},
+    events::{GenerationEventPublisher, GenerationTaskSession},
+    generation_finish_reason_text,
+    stream::{LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation},
+};
 
 use super::super::contracts::BlueprintStageSpec;
 use super::contracts::BlueprintStageLlmOutput;
 use super::rules::ensure_not_cancelled;
+use std::sync::Arc;
 
 pub(super) async fn generate_blueprint_stage_output(
     context: &OrchestratorContext,
     request: ChatRequest,
     spec: &BlueprintStageSpec,
-    cancel_token: Option<&CancellationToken>,
+    publisher: &dyn GenerationEventPublisher,
+    session: &Arc<GenerationTaskSession>,
+    checkpoint_writer: &GenerationCheckpointWriter,
+    cancel_token: CancellationToken,
 ) -> Result<BlueprintStageLlmOutput, AppError> {
-    let response = chat_with_cancel(context, request, cancel_token).await?;
-    ensure_not_cancelled(cancel_token)?;
-    ensure_blueprint_response_not_truncated(response.finish_reason.as_deref(), spec.title)?;
-    let usage = response
-        .usage
-        .as_ref()
-        .map(serde_json::to_value)
-        .transpose()?;
-    Ok(BlueprintStageLlmOutput {
-        response_content: response.message.content,
-        usage,
-        finish_reason: response.finish_reason,
-    })
-}
-
-async fn chat_with_cancel(
-    context: &OrchestratorContext,
-    request: ChatRequest,
-    cancel_token: Option<&CancellationToken>,
-) -> Result<ChatResponse, AppError> {
-    ensure_not_cancelled(cancel_token)?;
-    match cancel_token {
-        Some(token) => tokio::select! {
-            _ = token.cancelled() => Err(AppError::Cancelled),
-            result = context.llm.chat(request) => result,
+    ensure_not_cancelled(&cancel_token)?;
+    let output = execute_llm_generation(
+        context.llm_backend(),
+        publisher,
+        LlmGenerationRequest {
+            request,
+            stream_id: "raw_json".to_string(),
+            cancellation: cancel_token,
+            checkpoint: Some(LlmGenerationCheckpoint {
+                writer: checkpoint_writer,
+                session,
+                metadata: GenerationCheckpointMetadata {
+                    step_key: Some(format!("blueprint_generation.{}", spec.key)),
+                    call_key: Some(format!("blueprint_generation.{}", spec.key)),
+                    provider_model: Some(context.llm_model_name()),
+                    ..Default::default()
+                },
+            }),
+            usage_base: None,
         },
-        None => context.llm.chat(request).await,
-    }
+    )
+    .await
+    .map_err(|error| {
+        if error.code.as_str() == "generation_interrupted" {
+            AppError::Cancelled
+        } else {
+            AppError::LlmError(error.message)
+        }
+    })?;
+    let finish_reason = generation_finish_reason_text(output.finish_reason);
+    ensure_blueprint_response_not_truncated(Some(finish_reason.as_str()), spec.title)?;
+    Ok(BlueprintStageLlmOutput {
+        response_content: output.content,
+        usage: output
+            .usage
+            .map(|usage| serde_json::to_value(usage))
+            .transpose()?,
+        finish_reason: Some(finish_reason),
+    })
 }

@@ -2,7 +2,7 @@ use a4n_core::error::AppError;
 
 use super::CollaborationDbError;
 
-pub(super) fn collaboration_db_error_to_app_error(error: CollaborationDbError) -> AppError {
+pub fn collaboration_db_error_to_app_error(error: CollaborationDbError) -> AppError {
     match error {
         CollaborationDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
         CollaborationDbError::NotFound(message) => AppError::NotFound(message),

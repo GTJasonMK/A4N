@@ -57,7 +57,7 @@ fn generation_chain_requires_scope_style_and_source_identity() {
     let segment_plan = prompt(
         1,
         "frame_segment_plan",
-        "boundary_frames",
+        "shared_segment_plan",
         Some(source_metadata("same-source")),
     );
     let video_prompt = prompt(

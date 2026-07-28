@@ -5,10 +5,11 @@ mod thumbnails;
 
 pub(super) use self::ffmpeg::capture_video_tail_frame;
 pub(crate) use self::ffmpeg::{ensure_ffmpeg, run_ffmpeg_trim};
+#[cfg(test)]
+pub(super) use self::files::required_video_file_extension;
 pub(crate) use self::files::{
-    append_secondary_error, combine_optional_errors, prompt_id_from_video,
-    remove_partial_video_file, required_video_file_extension, save_video_bytes,
-    video_mime_from_path,
+    append_secondary_error, combine_optional_errors, persist_canvas_video_bytes,
+    prompt_id_from_video, remove_partial_video_file, save_video_bytes, video_mime_from_path,
 };
 pub(super) use self::paths::video_tail_frame_path;
 #[cfg(test)]

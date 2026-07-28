@@ -1,9 +1,7 @@
-use a4n_core::event::bridge::EventBus;
+//! 内部事件日志订阅。
 
-pub(super) async fn spawn_event_logger(
-    event_bus: std::sync::Arc<a4n_core::event::bridge::BroadcastEventBus>,
-) {
-    let mut rx = event_bus.subscribe().await;
+pub(super) async fn spawn_event_logger(state: &a4n_runtime::AppState) {
+    let mut rx = state.subscribe_internal_events().await;
     tokio::spawn(async move {
         loop {
             match rx.recv().await {

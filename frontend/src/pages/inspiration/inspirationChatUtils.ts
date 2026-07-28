@@ -1,11 +1,6 @@
 import type { ProgressDialogStatus } from "../../components/feedback/ProgressDialog";
 import type { InspirationMessage } from "../../api/inspiration";
 import {
-  clearBlueprintGenerationPending,
-  hasRecentBlueprintGenerationPending,
-  markBlueprintGenerationPending,
-} from "../../utils/blueprintPending";
-import {
   readPortableItem,
   writePortableItem,
 } from "../../utils/portableStorage";
@@ -14,24 +9,6 @@ import { parseInspirationResponse } from "./responseParser";
 import type { Message } from "./shared";
 
 export type Stage = "conversation" | "confirm" | "display";
-
-export type WorkflowEvent =
-  | { type: "Chunk"; data: { content: string; index: number } }
-  | {
-      type: "Progress";
-      data: {
-        current: number;
-        total: number;
-        message: string;
-        percent?: number;
-      };
-    }
-  | { type: "Complete"; data: { summary?: string | null } }
-  | {
-      type: "Error";
-      data: { code: string; message: string; recoverable: boolean };
-    }
-  | { type: string; data?: unknown };
 
 export const DEFAULT_INPUT_PLACEHOLDER =
   "说说你的想法…  Enter 发送 / Shift+Enter 换行";
@@ -67,9 +44,6 @@ export const msgId = (() => {
   let n = 0;
   return () => `m-${Date.now()}-${++n}`;
 })();
-
-export const taskId = (projectId: number) =>
-  `inspiration-${projectId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export const readChatCache = (
   projectId: number,
@@ -116,17 +90,6 @@ export const writeChatCache = (
     } satisfies InspirationChatCache),
   );
 };
-
-export const markBlueprintPending = (projectId: number) => {
-  markBlueprintGenerationPending("novel", projectId);
-};
-
-export const clearBlueprintPending = (projectId: number) => {
-  clearBlueprintGenerationPending("novel", projectId);
-};
-
-export const readBlueprintPending = (projectId: number): boolean =>
-  hasRecentBlueprintGenerationPending("novel", projectId);
 
 export const welcomeMessage = (title: string): Message => ({
   id: msgId(),
@@ -220,47 +183,6 @@ export const splitSummaryLines = (value?: string): string[] => {
     .map((line) => line.replace(/^[-*•\d.、\s]+/, "").trim())
     .filter(Boolean);
 };
-
-const nonNegativeInteger = (value: unknown): number | null => {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0)
-    return null;
-  return value;
-};
-
-const positiveInteger = (value: unknown): number | null => {
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0)
-    return null;
-  return value;
-};
-
-export const parseBlueprintProgressEvent = (data: unknown) => {
-  if (!isRecord(data)) {
-    throw new Error("蓝图进度事件格式无效");
-  }
-
-  const current = nonNegativeInteger(data.current);
-  const total = positiveInteger(data.total);
-  const message = firstString(data.message);
-  if (current === null) {
-    throw new Error("蓝图进度事件缺少 current");
-  }
-  if (total === null) {
-    throw new Error("蓝图进度事件缺少 total");
-  }
-  if (!message) {
-    throw new Error("蓝图进度事件缺少 message");
-  }
-
-  return { current, total, message };
-};
-
-export const eventMessageOrNull = (data: unknown): string | null => {
-  if (!isRecord(data)) return null;
-  return firstString(data.message, data.summary) ?? null;
-};
-
-export const eventMessage = (data: unknown, missingMessage: string): string =>
-  eventMessageOrNull(data) ?? missingMessage;
 
 const toChapterCount = (value: unknown): number | null => {
   if (

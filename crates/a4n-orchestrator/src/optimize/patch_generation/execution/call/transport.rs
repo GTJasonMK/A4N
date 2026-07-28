@@ -1,38 +1,77 @@
-use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatRequest, ChatResponse};
+use a4n_llm::provider::{ChatMessage, ChatResponse};
+use a4n_service_protocol::GenerationFinishReason;
 
-use crate::optimize::{
-    OrchestratorContext,
-    streaming::{OptimizeLlmStream, collect_streaming_chat_response},
-    turns::{EVENT_KIND_ERROR, EVENT_STATUS_FAILED, TURN_STATUS_FAILED},
+use crate::{
+    generation::stream::{
+        LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation, provider_usage,
+    },
+    optimize::{
+        AgentLoopExecutionError, OrchestratorContext,
+        turns::{EVENT_KIND_ERROR, EVENT_STATUS_FAILED},
+    },
 };
+
+use super::contracts::PatchGenerationCallInput;
 
 pub(super) async fn call_patch_generation_llm(
     service: &OrchestratorContext,
     session_id: i64,
     turn_id: i64,
-    request: ChatRequest,
-    stream: &mut Option<OptimizeLlmStream<'_>>,
-) -> Result<ChatResponse, AppError> {
-    match collect_streaming_chat_response(service.llm.as_ref(), request, stream).await {
-        Ok(response) => Ok(response),
-        Err(err) => {
+    input: PatchGenerationCallInput<'_, '_>,
+) -> Result<ChatResponse, AgentLoopExecutionError> {
+    let PatchGenerationCallInput {
+        request,
+        generation,
+        ..
+    } = input;
+    let output = match execute_llm_generation(
+        service.llm_backend(),
+        generation.publisher,
+        LlmGenerationRequest {
+            request,
+            stream_id: "raw_json".to_string(),
+            cancellation: generation.cancellation.clone(),
+            checkpoint: Some(LlmGenerationCheckpoint {
+                writer: generation.checkpoint_writer,
+                session: generation.session,
+                metadata: crate::generation::checkpoint::GenerationCheckpointMetadata {
+                    step_key: Some("optimization_patch_generation".to_string()),
+                    provider_model: Some(service.llm_model_name()),
+                    ..Default::default()
+                },
+            }),
+            usage_base: generation.session.snapshot().usage.clone(),
+        },
+    )
+    .await
+    {
+        Ok(output) => output,
+        Err(error) => {
+            let public_message = error.message.clone();
             service
                 .append_turn_event(
                     turn_id,
                     EVENT_KIND_ERROR,
                     EVENT_STATUS_FAILED,
-                    &format!("局部补丁模型调用失败：{err}"),
+                    &format!("局部补丁模型调用失败：{public_message}"),
                     None,
                 )
                 .await?;
             service
-                .fail_turn(turn_id, TURN_STATUS_FAILED, &err.to_string())
+                .save_agent_event(
+                    session_id,
+                    &format!("LLM 局部补丁调用失败：{public_message}"),
+                )
                 .await?;
-            service
-                .save_agent_event(session_id, &format!("LLM 局部补丁调用失败：{err}"))
-                .await?;
-            Err(err)
+            return Err(AgentLoopExecutionError::Generation(error));
         }
-    }
+    };
+    Ok(ChatResponse {
+        message: ChatMessage::assistant(output.content),
+        usage: output.usage.as_ref().map(provider_usage).transpose()?,
+        finish_reason: Some(match output.finish_reason {
+            GenerationFinishReason::Stop => "stop".to_string(),
+            GenerationFinishReason::ToolCallsComplete => "tool_calls".to_string(),
+        }),
+    })
 }

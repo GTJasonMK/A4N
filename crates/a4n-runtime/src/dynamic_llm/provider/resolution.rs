@@ -4,33 +4,26 @@ use a4n_capabilities::LlmClient;
 use a4n_core::error::AppError;
 use a4n_core::models::ai::llm_config;
 use a4n_llm::provider::ChatRequest;
-use a4n_orchestrator::OrchestratorContext;
-use a4n_orchestrator::task_queue::PersistentTaskQueue;
+use a4n_orchestrator::DynamicProviderFacade;
 
 use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 use crate::runtime_config;
 
 impl DynamicLlmProvider {
-    /// 阶段 11E：不再接收数据库连接（配置解析经 orchestrator，旧 db 参数已无用）。
-    pub(crate) fn new(
-        orchestrator: OrchestratorContext,
-        task_queue: Arc<PersistentTaskQueue>,
-    ) -> Self {
+    /// 使用动态 provider 窄 facade 构造（不持有完整编排上下文）。
+    pub(crate) fn new(facade: DynamicProviderFacade) -> Self {
         Self {
-            orchestrator,
-            task_queue,
+            facade,
             sidecar_client: None,
         }
     }
 
     pub(crate) fn new_with_sidecar_client(
-        orchestrator: OrchestratorContext,
-        task_queue: Arc<PersistentTaskQueue>,
+        facade: DynamicProviderFacade,
         sidecar_client: Arc<dyn LlmClient>,
     ) -> Self {
         Self {
-            orchestrator,
-            task_queue,
+            facade,
             sidecar_client: Some(sidecar_client),
         }
     }
@@ -61,7 +54,7 @@ impl DynamicLlmProvider {
             }));
         }
 
-        self.orchestrator.resolve_llm_config(config_id).await
+        self.facade.resolve_llm_config(config_id).await
     }
 
     async fn resolve_system_default_template_with_user_key(
@@ -72,7 +65,7 @@ impl DynamicLlmProvider {
                 "使用系统默认 LLM 需要先在用户配置页填写并保存你的个人 API Key".to_string(),
             )
         })?;
-        let mut model = self.orchestrator.resolve_llm_config(None).await?;
+        let mut model = self.facade.resolve_llm_config(None).await?;
         model.api_key_encrypted = Some(api_key);
         Ok(model)
     }
@@ -94,7 +87,7 @@ impl DynamicLlmProvider {
         };
         let config = match runtime_config::current_llm_max_tokens() {
             Some(config) => config,
-            None => self.orchestrator.llm_max_tokens_config().await?,
+            None => self.facade.llm_max_tokens_config().await?,
         };
         let configured = config.for_profile(profile).ok_or_else(|| {
             AppError::ConfigError(format!("未知的 LLM max_tokens 场景配置: {profile}"))

@@ -51,19 +51,6 @@ fn video_probe_error_mapping_preserves_invalid_duration_message() {
 }
 
 #[test]
-fn assembly_dimensions_use_first_clip_and_force_even_values() {
-    let clips = vec![
-        assembly_clip(1, 1281, 721, 25),
-        assembly_clip(2, 1920, 1080, 30),
-    ];
-
-    assert_eq!(assembly_dimensions(&clips), (1282, 722));
-    assert_eq!(assembly_fps(&clips), 25);
-    assert_eq!(assembly_dimensions(&[]), (1280, 720));
-    assert_eq!(assembly_fps(&[]), 24);
-}
-
-#[test]
 fn assembly_cache_matches_same_manifest_and_output() {
     let data_dir = unique_temp_dir("a4n_assembly_cache_hit");
     std::fs::create_dir_all(&data_dir).expect("create data dir");
@@ -261,5 +248,46 @@ fn assembly_cache_manifest_target_error_removes_tmp_file() {
 
     assert!(error.contains("旧成片预览缓存清单删除失败"));
     assert!(!tmp_path.exists());
+    let _ = std::fs::remove_dir_all(&data_dir);
+}
+
+#[test]
+fn assembly_cache_manifest_is_fresh_after_write() {
+    let data_dir = unique_temp_dir("a4n_assembly_cache_fresh");
+    std::fs::create_dir_all(&data_dir).expect("create cache root");
+    let manifest_path = data_dir.join("assembled.mp4.cache.json");
+    std::fs::write(&manifest_path, b"{}").expect("write manifest");
+
+    assert!(assembly_cache_is_fresh(&manifest_path).expect("check cache freshness"));
+
+    let _ = std::fs::remove_dir_all(&data_dir);
+}
+
+#[test]
+fn expired_assembly_cache_scan_returns_manifest_and_video() {
+    let data_dir = unique_temp_dir("a4n_assembly_cache_expiry_scan");
+    let chapter_dir = data_dir.join("projects/7/videos/chapter_3");
+    std::fs::create_dir_all(&chapter_dir).expect("create chapter video dir");
+    let output = chapter_dir.join("assembled_storyboard.mp4");
+    let manifest = chapter_dir.join("assembled_storyboard.mp4.cache.json");
+    std::fs::write(&output, b"video").expect("write output");
+    std::fs::write(&manifest, b"{}").expect("write manifest");
+
+    let caches = expired_assembly_cache_files(
+        &data_dir,
+        SystemTime::now() + std::time::Duration::from_secs(1),
+    )
+    .expect("scan expired caches");
+
+    assert_eq!(caches.len(), 1);
+    assert_eq!(caches[0].project_id, 7);
+    assert_eq!(
+        caches[0].paths,
+        [
+            "projects/7/videos/chapter_3/assembled_storyboard.mp4.cache.json",
+            "projects/7/videos/chapter_3/assembled_storyboard.mp4",
+        ]
+    );
+
     let _ = std::fs::remove_dir_all(&data_dir);
 }

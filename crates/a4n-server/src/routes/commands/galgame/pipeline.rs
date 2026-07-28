@@ -1,27 +1,24 @@
 use std::sync::Arc;
 
-use a4n_core::event::channel::{TaskHandle, TaskType};
+use a4n_core::event::channel::{TaskHandle, TaskKind};
 use a4n_runtime::host_api::galgame_records as galgame_records_actions;
 use serde_json::Value;
 
 use crate::state::ServerState;
 
 use super::super::{
-    ApiError, command_input, emit_workflow_progress_with_meta, finish_web_task, register_web_task,
-    sanitize_optional_task_id, string_action_result, to_value,
+    ApiError, command_input, finish_web_task, register_web_task, sanitize_optional_task_id,
+    string_action_result, to_value,
 };
 
 fn web_galgame_progress_reporter(
-    state: &ServerState,
     task: Option<Arc<TaskHandle>>,
-    task_id: Option<String>,
 ) -> impl Fn(
     galgame_records_actions::GalgamePipelineProgressUpdate,
 ) -> Result<(), a4n_core::error::AppError>
 + Send
 + Sync
 + 'static {
-    let state = state.clone();
     move |event| {
         if let Some(handle) = task.as_ref() {
             if handle.is_cancelled() {
@@ -33,21 +30,6 @@ fn web_galgame_progress_reporter(
                 &event.message,
                 Some(event.meta.clone()),
             );
-        }
-        if let Some(task_id) = task_id.as_ref() {
-            let state = state.clone();
-            let task_id = task_id.clone();
-            tokio::spawn(async move {
-                emit_workflow_progress_with_meta(
-                    &state,
-                    &task_id,
-                    event.current,
-                    event.total,
-                    &event.message,
-                    Some(event.meta),
-                )
-                .await;
-            });
         }
         Ok(())
     }
@@ -65,13 +47,13 @@ pub(in crate::routes::commands) async fn start_galgame_pipeline(
     let task = register_web_task(
         state,
         task_id.clone(),
-        TaskType::GalgameGeneration,
+        TaskKind::GalgameGeneration,
         Some(input.project_id),
         galgame_records_actions::GALGAME_PIPELINE_TOTAL_STEPS,
         "正在准备 Galgame 管线",
     )
     .await;
-    let progress_reporter = web_galgame_progress_reporter(state, task.clone(), task_id.clone());
+    let progress_reporter = web_galgame_progress_reporter(task.clone());
     let result = string_action_result(
         galgame_records_actions::start_galgame_pipeline_with_progress(
             state.runtime(),
@@ -82,7 +64,7 @@ pub(in crate::routes::commands) async fn start_galgame_pipeline(
         .await,
         task.as_ref().is_some_and(|handle| handle.is_cancelled()),
     );
-    to_value(finish_web_task(state, task_id, result, "Galgame 管线已完成").await?)
+    to_value(finish_web_task(state, task_id, result).await?)
 }
 
 pub(in crate::routes::commands) async fn cancel_galgame_pipeline(

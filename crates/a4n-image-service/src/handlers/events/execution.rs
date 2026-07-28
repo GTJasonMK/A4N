@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use a4n_core::error::AppError;
 use a4n_image_providers::pick_image_provider;
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceRequest, ServiceTaskEvent, redact_sensitive_message,
+    CapabilityTaskEvent, ServiceError, ServiceErrorCode, ServiceRequest, redact_sensitive_message,
 };
 use a4n_sidecar_bootstrap::service_event_line;
 use axum::body::Bytes;
@@ -19,11 +19,14 @@ use crate::protocol::service_error;
 pub(super) fn image_generation_event_stream(
     request: ServiceRequest<ImageProviderPayload>,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> + Send + 'static {
-    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel::<ServiceTaskEvent>();
+    let (event_tx, event_rx) = tokio::sync::mpsc::channel::<CapabilityTaskEvent>(
+        a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY,
+    );
     let task_id = request.request_id.clone();
     tokio::spawn(async move {
         if event_tx
             .send(progress_generation_event(task_id.clone(), 1))
+            .await
             .is_err()
         {
             return;
@@ -63,7 +66,7 @@ pub(super) fn image_generation_event_stream(
                         },
                     ),
                 };
-                if event_tx.send(event).is_err() {
+                if event_tx.send(event).await.is_err() {
                     return;
                 }
             }

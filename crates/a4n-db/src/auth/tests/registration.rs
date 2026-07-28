@@ -17,6 +17,7 @@ async fn register_trims_username_before_uniqueness_check() {
         .unwrap();
 
     assert_eq!(user.username, "alice");
+    assert_eq!(user.lifecycle_gate, "active");
 
     let err = register_user(db.as_ref(), "alice", "alice2@example.com", "pw")
         .await

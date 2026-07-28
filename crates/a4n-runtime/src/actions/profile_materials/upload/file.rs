@@ -1,31 +1,7 @@
-use crate::actions::profile_materials::contracts::{
-    MAX_UPLOAD_IMAGE_BYTES, UploadProfileMaterialImageInput, UploadedProfileMaterialImage,
-};
-use crate::actions::uploaded_image::decode_uploaded_image_data;
 use crate::file_utils::persist_created_media_file;
 use chrono::Utc;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-
-pub(in crate::actions::profile_materials) fn decode_uploaded_profile_material_image(
-    input: &UploadProfileMaterialImageInput,
-) -> Result<UploadedProfileMaterialImage, String> {
-    let decoded = decode_uploaded_image_data(
-        &input.file_name,
-        &input.mime_type,
-        &input.data_base64,
-        MAX_UPLOAD_IMAGE_BYTES,
-    )?;
-
-    Ok(UploadedProfileMaterialImage {
-        bytes: decoded.bytes,
-        mime_type: decoded.mime_type,
-        extension: decoded.extension,
-        width: decoded.width,
-        height: decoded.height,
-        source_file_name: decoded.source_file_name,
-    })
-}
 
 pub(in crate::actions::profile_materials) fn persist_uploaded_profile_material_image(
     data_dir: &Path,
@@ -89,22 +65,35 @@ fn create_uploaded_profile_material_output(
     Err("创建上传素材图失败：文件名冲突过多".to_string())
 }
 
-pub(super) fn remove_uploaded_profile_material_file(path: &Path) -> Result<(), String> {
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(err) => Err(format!("素材图文件清理失败：{}：{err}", path.display())),
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
-pub(in crate::actions::profile_materials) fn append_cleanup_error(
-    primary: String,
-    cleanup_error: Option<String>,
-) -> String {
-    match cleanup_error {
-        Some(cleanup_error) if !cleanup_error.trim().is_empty() => {
-            format!("{primary}；后续清理也失败：{cleanup_error}")
-        }
-        _ => primary,
+    #[test]
+    fn persists_profile_material_under_project_directory() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock after epoch")
+            .as_nanos();
+        let data_dir = std::env::temp_dir().join(format!(
+            "a4n_profile_material_{}_{}",
+            std::process::id(),
+            stamp
+        ));
+        let (path, relative_path, file_size) = persist_uploaded_profile_material_image(
+            &data_dir,
+            7,
+            "scene",
+            42,
+            "png",
+            b"profile-material",
+        )
+        .expect("persist profile material");
+
+        assert!(path.is_file());
+        assert!(relative_path.starts_with("projects/7/images/profile_materials/scene_42_"));
+        assert_eq!(file_size, 16);
+        let _ = std::fs::remove_dir_all(data_dir);
     }
 }

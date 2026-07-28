@@ -8,7 +8,7 @@ use futures::{Stream, stream};
 use tokio_util::sync::CancellationToken;
 
 use crate::provider::{
-    ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmProvider, ModelCapabilities, UsageInfo,
+    ChatChunk, ChatMessage, ChatRequest, LlmProvider, ModelCapabilities, UsageInfo,
 };
 
 use super::{
@@ -57,12 +57,6 @@ impl StreamProvider {
 
 #[async_trait]
 impl LlmProvider for StreamProvider {
-    async fn chat(&self, _request: ChatRequest) -> Result<ChatResponse, AppError> {
-        Err(AppError::LlmError(
-            "unexpected non-stream request".to_string(),
-        ))
-    }
-
     async fn chat_stream(
         &self,
         _request: ChatRequest,

@@ -10,4 +10,9 @@ anyhow = { workspace = true }
 axum = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
+subtle = { workspace = true }
+tower = { workspace = true }
+tracing = { workspace = true }
+tracing-appender = "0.2"
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tokio = { workspace = true }

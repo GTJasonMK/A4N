@@ -8,7 +8,7 @@ use a4n_db::DatabaseConnectionTrait as ConnectionTrait;
 use a4n_db::project as project_db;
 use serde_json::json;
 
-pub(in crate::outline) async fn load_part_generation_context<C>(
+pub async fn load_part_generation_context<C>(
     db: &C,
     project_id: i64,
     requested_part_count: Option<i32>,
@@ -52,7 +52,7 @@ where
     })
 }
 
-pub(in crate::outline) async fn load_chapter_outline_generation_context<C>(
+pub async fn load_chapter_outline_generation_context<C>(
     db: &C,
     project_id: i64,
 ) -> Result<ChapterOutlineGenerationContext, AppError>

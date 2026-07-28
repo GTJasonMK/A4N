@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_queue::priority::{QueueStats, TaskInfo, TaskPermit, TaskPriority, TaskQueue, TaskType};
+use a4n_queue::priority::{QueueStats, TaskInfo, TaskKind, TaskPermit, TaskPriority, TaskQueue};
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
@@ -14,7 +14,7 @@ mod reads;
 impl TaskQueue for PersistentTaskQueue {
     async fn submit(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
@@ -22,14 +22,14 @@ impl TaskQueue for PersistentTaskQueue {
             .await
     }
 
-    async fn acquire(&self, task_type: TaskType) -> Result<TaskPermit, AppError> {
+    async fn acquire(&self, task_type: TaskKind) -> Result<TaskPermit, AppError> {
         let permit = self.inner.acquire(task_type).await?;
         self.mark_permit_running(permit).await
     }
 
     async fn acquire_with_cancel(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         cancel_token: CancellationToken,
     ) -> Result<Option<TaskPermit>, AppError> {
         match self

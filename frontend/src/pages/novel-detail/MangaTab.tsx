@@ -8,19 +8,17 @@ import {
 } from "../../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { extractErrorMessage } from "../../api";
-import {
-  listenAppEvent,
-  type UnlistenFn,
-} from "../../api/runtime";
 import { listChapters } from "../../api/chapter";
 import type { SourceSnapshotChapter } from "../../api/project";
 import { listProfiles, type CharacterProfile } from "../../api/character";
 import { listImagesByProject, type GeneratedImage } from "../../api/image";
 import {
-  generateMissingPortraits,
   listPortraitsByProject,
+  startPortraitGeneration,
+  verifyPortraitGenerationResult,
   type Portrait,
 } from "../../api/portrait";
+import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
 import {
   cancelMangaPipeline,
   deleteMangaByChapter,
@@ -48,7 +46,7 @@ import {
   pipelineStartStageValue,
   type MangaPipelineStartStageOption,
 } from "./manga/mangaTabUtils";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { useProgressTask } from "../../hooks/useProgressTask";
 import {
   hasSystemDefaultLlmApiKey,
   usesLocalRuntimeSettings,
@@ -78,17 +76,7 @@ interface MangaPipelineProgressState {
   error: string | null;
 }
 
-type WorkflowEvent =
-  | {
-      type: "Progress";
-      data: {
-        current: number;
-        total: number;
-        message: string;
-      };
-    }
-  | { type: "Complete"; data: { summary?: string | null } }
-  | { type: "Error"; data: { code?: string; message: string } };
+const MANGA_PIPELINE_POLL_MS = 1500;
 
 const createMangaPipelineProgressState = (): MangaPipelineProgressState => ({
   title: "漫画流水线",
@@ -98,9 +86,6 @@ const createMangaPipelineProgressState = (): MangaPipelineProgressState => ({
   message: "",
   error: null,
 });
-
-const workflowMessageIsCancelled = (message: string): boolean =>
-  isCancelledOperation(message) || message.includes("取消");
 
 const pipelineStatusToProgressStatus = (
   status: PipelineStatus["pipeline_status"],
@@ -129,6 +114,24 @@ const pipelineProgressMessage = (status: PipelineStatus): string => {
   return stage || status.pipeline_status || "漫画流水线运行中";
 };
 
+const progressStateFromPipelineStatus = (
+  status: PipelineStatus,
+  title: string,
+): MangaPipelineProgressState => {
+  const nextStatus = pipelineStatusToProgressStatus(status.pipeline_status);
+  return {
+    title,
+    status: nextStatus,
+    current: status.current ?? 0,
+    total: Math.max(1, status.total ?? 8),
+    message: pipelineProgressMessage(status),
+    error:
+      nextStatus === "error"
+        ? explainMangaPipelineAiConfigError(status.message ?? "漫画流水线失败")
+        : null,
+  };
+};
+
 const mangaPipelineConfigBlockReason = (): string | null => {
   if (
     usesLocalRuntimeSettings() &&
@@ -152,7 +155,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { runProgressTask: runPortraitProgressTask } = useProgressTask();
-  const mangaWorkflowUnlistenRef = useRef<UnlistenFn | null>(null);
   const hasFixedChapterContext = fixedChapter !== undefined;
   const [chapters, setChapters] = useState<ChapterRow[]>([]);
   const [statuses, setStatuses] = useState<Record<number, PipelineStatus | null>>({});
@@ -204,7 +206,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const projectImagesLoadSeqRef = useRef(0);
   const actionSeqRef = useRef(0);
   const previewSeqRef = useRef(0);
-  const workflowSeqRef = useRef(0);
+  const pipelineWatchSeqRef = useRef(0);
   const actionBusyKeyRef = useRef<string | null>(null);
   const previewBusyKeyRef = useRef<string | null>(null);
   const progressCancelBusyKeyRef = useRef<string | null>(null);
@@ -260,9 +262,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     [isProjectCurrent],
   );
 
-  const isWorkflowCurrent = useCallback(
+  const isPipelineWatchCurrent = useCallback(
     (requestProjectId: number, requestSeq: number) =>
-      isProjectCurrent(requestProjectId) && workflowSeqRef.current === requestSeq,
+      isProjectCurrent(requestProjectId) && pipelineWatchSeqRef.current === requestSeq,
     [isProjectCurrent],
   );
 
@@ -309,11 +311,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     return profiles.filter((profile) => !profileIdsWithPortrait.has(profile.id)).length;
   }, [profiles, portraits]);
 
-  const detachMangaWorkflowListener = () => {
-    mangaWorkflowUnlistenRef.current?.();
-    mangaWorkflowUnlistenRef.current = null;
-  };
-
   useEffect(() => {
     selectedChapterIdRef.current = selectedChapter?.id ?? null;
   }, [selectedChapter?.id]);
@@ -329,9 +326,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       projectImagesLoadSeqRef.current += 1;
       actionSeqRef.current += 1;
       previewSeqRef.current += 1;
-      workflowSeqRef.current += 1;
+      pipelineWatchSeqRef.current += 1;
       resetInteractionLocks();
-      detachMangaWorkflowListener();
     };
   }, [resetInteractionLocks]);
 
@@ -346,62 +342,42 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     );
   };
 
-  const attachMangaWorkflowListener = async (
-    taskId: string,
+  /**
+   * 漫画流水线尚未接入统一 generation client；进度与终态只读 getMangaPipelineStatus，
+   * 禁止订阅旧 Host 进度通道。
+   */
+  const watchMangaPipelineStatus = async (
     chapterId: number,
+    taskId: string,
     requestProjectId: number,
-    requestWorkflowSeq: number,
+    requestWatchSeq: number,
+    title: string,
   ) => {
-    detachMangaWorkflowListener();
-    mangaWorkflowUnlistenRef.current = await listenAppEvent<WorkflowEvent>(
-      `workflow:${taskId}`,
-      (event) => {
-        if (!isWorkflowCurrent(requestProjectId, requestWorkflowSeq)) return;
-        const payload = event.payload;
-        if (payload.type === "Progress") {
-          setPipelineProgress((prev) => ({
-            ...prev,
-            status: "running",
-            current: payload.data.current,
-            total: Math.max(1, payload.data.total),
-            message: payload.data.message,
-            error: null,
-          }));
-          return;
+    while (isPipelineWatchCurrent(requestProjectId, requestWatchSeq)) {
+      try {
+        const status = await getMangaPipelineStatus(requestProjectId, chapterId);
+        if (!isPipelineWatchCurrent(requestProjectId, requestWatchSeq)) return;
+        if (status.task_id && status.task_id !== taskId) {
+          // 状态尚未切到本次任务，继续轮询。
+        } else {
+          setStatuses((current) => ({ ...current, [chapterId]: status }));
+          setPipelineProgress(progressStateFromPipelineStatus(status, title));
+          if (pipelineStatusIsTerminal(status.pipeline_status)) {
+            setPipelineTaskId(null);
+            setPipelineChapterId(null);
+            setPipelineCancelling(false);
+            refreshPipelineTarget(chapterId, requestProjectId);
+            return;
+          }
         }
-        if (payload.type === "Complete") {
-          setPipelineProgress((prev) => ({
-            ...prev,
-            status: "success",
-            current: prev.total,
-            message: payload.data.summary ?? "漫画流水线完成",
-            error: null,
-          }));
-          setPipelineTaskId(null);
-          setPipelineChapterId(null);
-          setPipelineCancelling(false);
-          detachMangaWorkflowListener();
-          refreshPipelineTarget(chapterId, requestProjectId);
-          return;
-        }
-        if (payload.type === "Error") {
-          const cancelled =
-            payload.data.code === "cancelled" || workflowMessageIsCancelled(payload.data.message);
-          const message = explainMangaPipelineAiConfigError(payload.data.message);
-          setPipelineProgress((prev) => ({
-            ...prev,
-            status: cancelled ? "cancelled" : "error",
-            message: cancelled ? message : "漫画流水线失败",
-            error: cancelled ? null : message,
-          }));
-          setPipelineTaskId(null);
-          setPipelineChapterId(null);
-          setPipelineCancelling(false);
-          detachMangaWorkflowListener();
-          refreshPipelineTarget(chapterId, requestProjectId);
-        }
-      },
-    );
+      } catch (err) {
+        if (!isPipelineWatchCurrent(requestProjectId, requestWatchSeq)) return;
+        addToast(extractErrorMessage(err, "加载漫画流水线状态失败"), "error");
+      }
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, MANGA_PIPELINE_POLL_MS);
+      });
+    }
   };
 
   const loadCharacterAssets = async (
@@ -571,9 +547,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     projectImagesLoadSeqRef.current += 1;
     actionSeqRef.current += 1;
     previewSeqRef.current += 1;
-    workflowSeqRef.current += 1;
+    pipelineWatchSeqRef.current += 1;
     resetInteractionLocks();
-    detachMangaWorkflowListener();
     setChapters([]);
     setStatuses({});
     setPanels([]);
@@ -752,8 +727,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     if (!beginAction(actionKey)) return;
     const actionSeq = actionSeqRef.current + 1;
     actionSeqRef.current = actionSeq;
-    const workflowSeq = workflowSeqRef.current + 1;
-    workflowSeqRef.current = workflowSeq;
+    const watchSeq = pipelineWatchSeqRef.current + 1;
+    pipelineWatchSeqRef.current = watchSeq;
 
     setActing(actionKey);
     setPipelineProgressOpen(true);
@@ -779,21 +754,27 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       setPipelineTaskId(taskId);
-      await attachMangaWorkflowListener(taskId, chapter.id, requestProjectId, workflowSeq);
-      if (!isActionCurrent(requestProjectId, actionSeq)) return;
       setPipelineProgress((prev) => ({
         ...prev,
         status: "running",
-        message: "后台任务已提交，正在等待阶段进度",
+        message: "后台任务已提交，正在轮询阶段进度",
       }));
-      await loadSingleStatus(chapter.id, requestProjectId);
-      if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      // 启动请求返回后即可释放 acting；进度由状态轮询驱动。
+      setActing(null);
+      endAction(actionKey);
+      void watchMangaPipelineStatus(
+        chapter.id,
+        taskId,
+        requestProjectId,
+        watchSeq,
+        title,
+      );
     } catch (err) {
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       setPipelineTaskId(null);
       setPipelineChapterId(null);
       setPipelineCancelling(false);
-      detachMangaWorkflowListener();
+      pipelineWatchSeqRef.current += 1;
       const message = explainMangaPipelineAiConfigError(
         extractErrorMessage(err, isResume ? "续传流水线失败" : "启动流水线失败"),
       );
@@ -804,7 +785,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         error: message,
       }));
       addToast(message, "error");
-    } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setActing(null);
       endAction(actionKey);
     }
@@ -906,28 +886,30 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     if (!beginAction(actionKey)) return;
     const actionSeq = actionSeqRef.current + 1;
     actionSeqRef.current = actionSeq;
-    const taskId = createProgressTaskId("manga-missing-portraits", requestProjectId);
     setActing("generate-missing-portraits");
     try {
       let createdCount = 0;
-      await runPortraitProgressTask(
+      const handle = await startPortraitGeneration({
+        project_id: requestAssetProjectId,
+        operation: { kind: "generate_missing" },
+      });
+      await runGenerationProgressTaskThen(
+        runPortraitProgressTask,
+        handle,
         {
           title: "补齐角色立绘",
           startMessage: "正在统计缺失立绘的角色…",
           successMessage: "角色立绘补齐完成",
           errorMessage: "补齐立绘失败",
           total: 1,
-          taskId,
           cancelLabel: "停止生成",
-          runningHint: "角色立绘生成过程中请保持当前窗口打开",
         },
-        async ({ setProgress }) => {
+        async (task) => {
+          createdCount = task.artifacts.filter(
+            (artifact) => artifact.artifact_kind === "portrait_image",
+          ).length;
+          await verifyPortraitGenerationResult(task, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress("正在提交角色立绘补齐任务…", 0, 1);
-          const created = await generateMissingPortraits(requestAssetProjectId, taskId);
-          if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          createdCount = created.length;
-          setProgress("正在刷新角色立绘状态…", 1, 1);
           await loadCharacterAssets(requestProjectId, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
@@ -964,44 +946,14 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fixedChapter?.content, fixedChapter?.chapter_number, fixedChapter?.id, fixedChapter?.status]);
 
-  useEffect(() => {
-    if (!pipelineProgressOpen || !selectedStatus) return;
-    if (pipelineChapterId != null && selectedChapter?.id !== pipelineChapterId) return;
-    if (pipelineChapterId != null && !pipelineTaskId) return;
-    if (pipelineTaskId && selectedStatus.task_id !== pipelineTaskId) return;
-
-    const nextStatus = pipelineStatusToProgressStatus(selectedStatus.pipeline_status);
-    setPipelineProgress((prev) => ({
-      ...prev,
-      status: nextStatus,
-      current: selectedStatus.current ?? prev.current,
-      total: selectedStatus.total ?? prev.total,
-      message: pipelineProgressMessage(selectedStatus),
-      error:
-        nextStatus === "error"
-          ? explainMangaPipelineAiConfigError(selectedStatus.message ?? "漫画流水线失败")
-          : null,
-    }));
-
-    if (pipelineStatusIsTerminal(selectedStatus.pipeline_status)) {
-      setPipelineTaskId(null);
-      setPipelineChapterId(null);
-      setPipelineCancelling(false);
-      detachMangaWorkflowListener();
-    }
-  }, [
-    pipelineChapterId,
-    pipelineProgressOpen,
-    pipelineTaskId,
-    selectedChapter?.id,
-    selectedStatus,
-  ]);
-
+  // 详情页状态条：选中章节在运行中时同步刷新列表状态与整页提示词。
+  // 进度对话框期间由 watchMangaPipelineStatus 独占轮询，避免双倍请求。
   useEffect(() => {
     const chapterId = selectedChapter?.id;
     const shouldPoll =
       selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel === true;
     if (!chapterId || !shouldPoll) return;
+    if (pipelineProgressOpen && pipelineChapterId === chapterId && pipelineTaskId) return;
     const timer = window.setInterval(() => {
       if (!isChapterCurrent(projectId, chapterId)) return;
       void loadSingleStatus(chapterId, projectId).catch((err) =>
@@ -1013,7 +965,14 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     }, 2500);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChapter?.id, selectedStatus?.pipeline_status, selectedStatus?.can_cancel]);
+  }, [
+    pipelineChapterId,
+    pipelineProgressOpen,
+    pipelineTaskId,
+    selectedChapter?.id,
+    selectedStatus?.pipeline_status,
+    selectedStatus?.can_cancel,
+  ]);
 
   if (loading) {
     return (

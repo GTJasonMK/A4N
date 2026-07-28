@@ -26,7 +26,7 @@ pub(super) async fn serve(
 ) -> Result<Response, ApiError> {
     let path = media_file::relative_media_path(&query.path).map_err(ApiError::bad_request)?;
     authorize_media_request(&state, &query, &path).await?;
-    let data_dir = storage_paths::data_dir_path(state.runtime());
+    let data_dir = storage_paths::data_dir_path(state.runtime().data_dir());
     let path = data_dir.join(path);
     let path = file_utils::canonicalize_path_in_data_dir(&data_dir, &path, MEDIA_LABEL).map_err(
         |err| {

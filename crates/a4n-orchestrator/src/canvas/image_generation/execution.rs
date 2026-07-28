@@ -1,0 +1,225 @@
+use a4n_core::{error::AppError, source_spans::source_text_hash};
+use a4n_db::canvas::{CanvasImageMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput};
+use a4n_image::ImageGenerationRequest;
+use serde_json::json;
+
+use crate::{
+    OrchestratorContext,
+    media::{
+        ImageGenerationExecutionInput, ImageGenerationHostPort, ImageGenerationPostCommitAction,
+        ImageGenerationProgress, ImageGenerationWorkflowBinding,
+    },
+    project::SOURCE_MODE_FREEFORM,
+    workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
+};
+
+use super::{contracts::CanvasImageNodeExecutionInput, input::build_canvas_image_node_input};
+
+impl OrchestratorContext {
+    pub async fn run_canvas_image_node_validated(
+        &self,
+        input: CanvasImageNodeExecutionInput<'_>,
+        host_port: &dyn ImageGenerationHostPort,
+        progress: &ImageGenerationProgress<'_>,
+    ) -> Result<crate::canvas::CanvasNodeRunSummary, AppError> {
+        let checkpoints = match input.shared_run {
+            Some(run) => Some(self.workflow_checkpoint_models(run.workflow_run_id).await?),
+            None => None,
+        };
+        let image_input =
+            build_canvas_image_node_input(input.node, input.document, checkpoints.as_deref())
+                .map_err(AppError::InvalidArgument)?;
+        let step_key = format!("canvas_node:{}", input.node.id);
+        let input_json = json!({
+            "project_id": input.project_id,
+            "graph_id": input.graph_id,
+            "node_id": input.node.id,
+            "prompt": image_input.prompt,
+            "config_id": image_input.config_id,
+            "canvas_text_asset_id": image_input.canvas_text_asset_id,
+            "source_node_ids": image_input.source_node_ids,
+        });
+        let mut lifecycle = self
+            .start_canvas_node_execution(
+                input.project_id,
+                input.graph_id,
+                input.mode,
+                step_key,
+                input_json,
+                input.shared_run,
+            )
+            .await?;
+
+        let result = async {
+            let spec = self
+                .upsert_canvas_image_generation_spec(&input, &image_input)
+                .await?;
+            lifecycle.generation_spec_id = spec.as_ref().map(|spec| spec.id);
+            let config = host_port
+                .resolve_image_config(image_input.config_id)
+                .await?;
+            let metadata_json = Some(json!({
+                "config_id": config.id,
+                "backend": config.backend,
+                "image_type": "canvas_image",
+                "canvas": {
+                    "graph_id": input.graph_id,
+                    "node_id": input.node.id,
+                    "workflow_run_id": lifecycle.run.workflow_run_id,
+                    "source_node_ids": image_input.source_node_ids,
+                },
+                "source": "video_canvas",
+            }));
+            let outcome = self
+                .run_image_generation_validated(
+                    host_port,
+                    ImageGenerationExecutionInput {
+                        project_id: input.project_id,
+                        chapter_id: None,
+                        image_type: "canvas_image".to_string(),
+                        command: "generate_canvas_image".to_string(),
+                        file_extra: None,
+                        file_context: "图片文件".to_string(),
+                        width: config.default_width,
+                        height: config.default_height,
+                        request: ImageGenerationRequest {
+                            prompt: image_input.prompt.clone(),
+                            width: config.default_width,
+                            height: config.default_height,
+                            model: config.model.clone(),
+                            reference_images: Vec::new(),
+                        },
+                        config,
+                        panel_id: None,
+                        metadata_json,
+                        runtime_config_snapshot: host_port.runtime_config_snapshot(),
+                        workflow: ImageGenerationWorkflowBinding::Attached {
+                            workflow_run_id: lifecycle.run.workflow_run_id,
+                        },
+                        post_commit: ImageGenerationPostCommitAction::None,
+                    },
+                    progress,
+                )
+                .await?;
+            if let Some(spec) = &spec {
+                self.mark_canvas_generation_spec_status_record(spec.id, WORKFLOW_STATUS_COMPLETED)
+                    .await?;
+            }
+            let media_asset_id = self
+                .sync_canvas_image_generation_asset(
+                    input.project_id,
+                    outcome.summary.id,
+                    spec.as_ref().map(|spec| spec.id),
+                )
+                .await?;
+            self.record_canvas_node_checkpoint(
+                lifecycle.run.workflow_run_id,
+                lifecycle.step_key.clone(),
+                WORKFLOW_STATUS_COMPLETED,
+                lifecycle.input_json.clone(),
+                Some(json!({
+                    "data_type": "image",
+                    "generated_image_id": outcome.summary.id,
+                    "file_path": outcome.summary.file_path,
+                    "generation_spec_id": spec.as_ref().map(|spec| spec.id),
+                    "media_asset_id": media_asset_id,
+                })),
+                None,
+                true,
+            )
+            .await?;
+            self.finish_canvas_node_success(&lifecycle).await
+        }
+        .await;
+
+        match result {
+            Ok(summary) => Ok(summary),
+            Err(primary) => {
+                let cancelled = self
+                    .canvas_workflow_run_is_cancelled(lifecycle.run.workflow_run_id)
+                    .await
+                    .map_err(|status_error| {
+                        AppError::Internal(anyhow::anyhow!(
+                            "{primary}；画布 workflow 取消状态复验失败: {status_error}"
+                        ))
+                    })?;
+                if cancelled {
+                    self.cancel_canvas_node(lifecycle, "用户取消画布运行").await
+                } else {
+                    self.fail_canvas_node(lifecycle, primary).await
+                }
+            }
+        }
+    }
+
+    async fn upsert_canvas_image_generation_spec(
+        &self,
+        input: &CanvasImageNodeExecutionInput<'_>,
+        image_input: &super::contracts::CanvasImageNodeInput,
+    ) -> Result<Option<a4n_core::models::generation::generation_spec::Model>, AppError> {
+        let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
+            AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
+        })?;
+        if project.source_mode != SOURCE_MODE_FREEFORM {
+            return Ok(None);
+        }
+        let source_material_json = json!({
+            "prompt": image_input.prompt,
+            "source_node_ids": image_input.source_node_ids,
+        });
+        let source_version_hash = source_text_hash(
+            &serde_json::to_string(&source_material_json)
+                .map_err(|error| AppError::InvalidArgument(error.to_string()))?,
+        );
+        self.upsert_freeform_canvas_generation_spec_record(
+            FreeformCanvasGenerationSpecUpsertInput {
+                project_id: input.project_id,
+                target_entity_id: input.node.id,
+                canvas_text_asset_id: image_input.canvas_text_asset_id,
+                target_kind: "canvas_image".to_string(),
+                target_entity_kind: "canvas_node".to_string(),
+                status: WORKFLOW_STATUS_RUNNING.to_string(),
+                source_version_hash,
+                params_json: json!({
+                    "canvas_graph_id": input.graph_id,
+                    "canvas_node_id": input.node.id,
+                    "source_material": source_material_json,
+                    "params": {
+                        "workflow": "generate_image",
+                        "config_id": image_input.config_id,
+                        "node_config": input.node.config_json,
+                    },
+                }),
+            },
+        )
+        .await
+        .map(Some)
+    }
+
+    async fn sync_canvas_image_generation_asset(
+        &self,
+        project_id: i64,
+        image_id: i64,
+        generation_spec_id: Option<i64>,
+    ) -> Result<Option<i64>, AppError> {
+        let Some(generation_spec_id) = generation_spec_id else {
+            return Ok(None);
+        };
+        let image =
+            self.generated_image_by_id(image_id)
+                .await?
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "image_generated".to_string(),
+                    operation: format!("画布图片产物不存在: {image_id}"),
+                })?;
+        let asset = self
+            .ensure_canvas_image_media_asset_record(CanvasImageMediaAssetEnsureInput {
+                project_id,
+                image,
+                generation_spec_id: Some(generation_spec_id),
+                origin: "generated_canvas_image".to_string(),
+            })
+            .await?;
+        Ok(Some(asset.id))
+    }
+}

@@ -1,6 +1,5 @@
-use crate::events::bridge::EventBridge;
 use crate::progress_task::WorkflowProgressTask;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::config_records::{
     self as config_records_actions, CreateEmbeddingInput, EmbeddingConfigSummary,
@@ -12,7 +11,7 @@ use a4n_runtime::host_api::embedding_model::{
 };
 use a4n_runtime::host_api::task_records;
 use std::sync::Arc;
-use tauri::{State, Window};
+use tauri::State;
 
 tauri_state_command!(
     list_embedding_config,
@@ -82,25 +81,23 @@ pub async fn get_embedding_model_download_info(
 /// 显式下载 fastembed 嵌入模型。该命令会真实初始化模型并写入应用内模型缓存。
 #[tauri::command]
 pub async fn download_embedding_model(
-    window: Window,
     state: State<'_, AppState>,
     input: EmbeddingModelInput,
 ) -> Result<LocalEmbeddingModelSummary, String> {
     let scope = a4n_runtime::host_api::embedding_model::embedding_model_download_task_scope();
     let progress_task = Arc::new(WorkflowProgressTask::new(
-        window,
         state.inner(),
         input.task_id.clone(),
-        TaskType::EmbeddingDownload,
+        TaskKind::EmbeddingDownload,
         None,
         scope.total,
         scope.initial_message,
     ));
     let cancel_token = input.task_id.as_ref().map(|_| progress_task.cancel_token());
-    let progress_tx = input.task_id.as_ref().map(|_| {
+    let (progress_tx, progress_worker) = if input.task_id.is_some() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<DownloadProgress>();
         let progress_task = progress_task.clone();
-        tauri::async_runtime::spawn(async move {
+        let worker = tauri::async_runtime::spawn(async move {
             while let Some(progress) = rx.recv().await {
                 progress_task.progress_bytes(
                     progress.downloaded_bytes,
@@ -110,17 +107,31 @@ pub async fn download_embedding_model(
                 );
             }
         });
-        tx
-    });
+        (Some(tx), Some(worker))
+    } else {
+        (None, None)
+    };
 
-    let summary = match a4n_runtime::host_api::embedding_model::download_embedding_model(
+    let mut result = a4n_runtime::host_api::embedding_model::download_embedding_model(
         state.inner(),
         input.clone(),
         progress_tx,
         cancel_token,
     )
-    .await
-    {
+    .await;
+    if let Some(worker) = progress_worker {
+        if let Err(join_error) = worker.await {
+            let bridge_error = format!("模型下载进度事件任务异常退出: {join_error}");
+            result = Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
+                "{}",
+                match result {
+                    Ok(_) => bridge_error,
+                    Err(error) => format!("{error}；{bridge_error}"),
+                }
+            )));
+        }
+    }
+    let summary = match result {
         Ok(summary) => summary,
         Err(err) => {
             let is_cancelled = matches!(&err, a4n_core::error::AppError::Cancelled);
@@ -129,37 +140,26 @@ pub async fn download_embedding_model(
             } else {
                 err.to_string()
             };
-            let code = if is_cancelled {
-                "cancelled"
-            } else {
-                "download_failed"
-            };
-            progress_task.error(code, &msg);
             progress_task.remove(state.inner());
             return Err(msg);
         }
     };
-    progress_task.complete("模型已下载并完成初始化");
     progress_task.remove(state.inner());
     Ok(summary)
 }
 
-/// 取消正在进行的 fastembed 模型下载，并立刻通知前端进度弹窗进入停止态。
+/// 取消正在进行的 fastembed 模型下载。
 #[tauri::command]
 pub async fn cancel_embedding_model_download(
-    window: Window,
     state: State<'_, AppState>,
     input: CancelEmbeddingModelDownloadInput,
 ) -> Result<(), String> {
     let task_id = a4n_runtime::host_api::embedding_model::required_task_id(input)
         .map_err(|e| e.to_string())?;
-    if !task_records::cancel_registered_task(state.inner(), &task_id) {
-        return Err(format!("模型下载任务不存在或已结束：{task_id}"));
-    }
-
-    EventBridge::new(window)
-        .emit_error(&task_id, "cancelled", "模型下载已停止", false)
-        .map_err(|err| err.to_string())
+    let handle = task_records::get_task_handle(state.inner(), &task_id)
+        .ok_or_else(|| format!("模型下载任务不存在或已结束：{task_id}"))?;
+    handle.cancel();
+    Ok(())
 }
 
 /// 删除 fastembed 本地模型缓存。

@@ -1,16 +1,16 @@
 use a4n_core::error::AppError;
-use a4n_service_protocol::{ServiceErrorCode, ServiceTaskEvent, ServiceTaskEventKind};
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode};
 use serde_json::Value;
 
 use super::contracts::ImageGenerationOutput;
 use crate::sidecar_clients::service_error_string;
 
 pub(super) fn handle_image_generation_event(
-    event: ServiceTaskEvent,
+    event: CapabilityTaskEvent,
     progress: Option<&(dyn Fn(&str) + Send + Sync)>,
 ) -> Result<Option<ImageGenerationOutput>, String> {
     match event.event_kind {
-        ServiceTaskEventKind::Progress | ServiceTaskEventKind::StructuredProgress => {
+        CapabilityTaskEventKind::Progress | CapabilityTaskEventKind::StructuredProgress => {
             let payload = event
                 .payload
                 .ok_or_else(|| "image sidecar progress 事件缺少 payload".to_string())?;
@@ -25,7 +25,7 @@ pub(super) fn handle_image_generation_event(
             }
             Ok(None)
         }
-        ServiceTaskEventKind::Completed => {
+        CapabilityTaskEventKind::Completed => {
             let payload = event
                 .payload
                 .ok_or_else(|| "image sidecar completed 事件缺少 payload".to_string())?;
@@ -33,7 +33,7 @@ pub(super) fn handle_image_generation_event(
                 .map(Some)
                 .map_err(|error| format!("image sidecar completed payload 解析失败: {error}"))
         }
-        ServiceTaskEventKind::Failed => {
+        CapabilityTaskEventKind::Failed => {
             let error = event
                 .error
                 .ok_or_else(|| "image sidecar failed 事件缺少 error".to_string())?;
@@ -43,7 +43,10 @@ pub(super) fn handle_image_generation_event(
                 Err(service_error_string(error))
             }
         }
-        ServiceTaskEventKind::CancelAck => Err(AppError::Cancelled.to_string()),
-        other => Err(format!("image sidecar 生成事件类型不符合合同: {other:?}")),
+        CapabilityTaskEventKind::CancelAck => Err(AppError::Cancelled.to_string()),
+        CapabilityTaskEventKind::Chunk
+        | CapabilityTaskEventKind::Usage
+        | CapabilityTaskEventKind::Checkpoint
+        | CapabilityTaskEventKind::Artifact => Ok(None),
     }
 }

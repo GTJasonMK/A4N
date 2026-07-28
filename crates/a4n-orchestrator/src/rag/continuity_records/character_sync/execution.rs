@@ -23,7 +23,7 @@ pub(super) fn all_records_indexed(indexed_count: usize, expected_count: usize) -
 }
 
 impl OrchestratorContext {
-    pub async fn sync_character_continuity_rag(
+    pub(crate) async fn sync_character_continuity_rag(
         &self,
         input: CharacterSyncRagInput<'_>,
     ) -> CharacterSyncRagSummary {

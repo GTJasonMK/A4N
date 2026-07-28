@@ -71,7 +71,7 @@ pub(super) async fn render_and_chat_trace_with_context(
         });
     }
     let trace_request = request.clone();
-    let response = chat_with_video_cancel(service.llm.as_ref(), request, cancel_token)
+    let response = chat_with_video_cancel(service.llm_backend(), request, cancel_token)
         .await
         .map_err(|err| video_llm_step_error(prompt_name, err))?;
     ensure_video_output_not_truncated(prompt_name, response.finish_reason.as_deref())?;

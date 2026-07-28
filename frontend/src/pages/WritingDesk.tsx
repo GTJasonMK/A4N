@@ -116,6 +116,7 @@ export const WritingDesk: React.FC = () => {
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [profilesRefreshKey, setProfilesRefreshKey] = useState(0);
   const mountedRef = useRef(false);
+  const projectIdRef = useRef(projectId);
   const loadSeqRef = useRef(0);
   const reloadChaptersInFlightRef = useRef<{
     projectId: number;
@@ -127,6 +128,7 @@ export const WritingDesk: React.FC = () => {
   const smartBack = useSmartBack("/");
   const projectIdKey =
     Number.isFinite(projectId) && projectId > 0 ? String(projectId) : "";
+  projectIdRef.current = projectId;
 
   const handleRightPanelChange = useCallback(
     (panel: RightPanel) => {
@@ -389,7 +391,7 @@ export const WritingDesk: React.FC = () => {
     const promise = (async () => {
       try {
         const next = await listChapters(requestProjectId);
-        if (!mountedRef.current || projectId !== requestProjectId) return null;
+        if (!mountedRef.current || projectIdRef.current !== requestProjectId) return null;
         setChapters(next);
         setActiveNumber((current) => {
           if (
@@ -407,7 +409,7 @@ export const WritingDesk: React.FC = () => {
         });
         return next;
       } catch (err) {
-        if (mountedRef.current && projectId === requestProjectId) {
+        if (mountedRef.current && projectIdRef.current === requestProjectId) {
           addToast(extractErrorMessage(err, "刷新章节失败"), "error");
         }
         return null;

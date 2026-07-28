@@ -3,10 +3,11 @@ use a4n_capabilities::{
 };
 use a4n_export_core::{ExportDocumentKind, ExportRenderJsonInput};
 use a4n_service_protocol::{
-    EMBEDDING_CAPABILITY_VERSION, EXPORT_RENDER_CAPABILITY_VERSION,
-    IMAGE_PROVIDER_CAPABILITY_VERSION, LLM_CHAT_CAPABILITY_VERSION, RAG_INDEX_CAPABILITY_VERSION,
-    ServiceErrorCode, ServiceRequestContext, ServiceResponse, ServiceStatus, ServiceTaskEvent,
-    ServiceTaskEventKind, TraceContext, VIDEO_PROVIDER_CAPABILITY_VERSION,
+    CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
+    EXPORT_RENDER_CAPABILITY_VERSION, IMAGE_PROVIDER_CAPABILITY_VERSION,
+    LLM_CHAT_CAPABILITY_VERSION, RAG_INDEX_CAPABILITY_VERSION, ServiceErrorCode,
+    ServiceRequestContext, ServiceResponse, ServiceStatus, TraceContext,
+    VIDEO_PROVIDER_CAPABILITY_VERSION,
 };
 use std::sync::Arc;
 
@@ -30,35 +31,21 @@ async fn recording_llm_probe_returns_configured_response_and_captures_request() 
     assert_eq!(client.probe_call_count(), 1);
     assert_eq!(client.probe_requests(), vec![request.clone()]);
     assert_eq!(client.last_probe_request(), Some(request));
-    assert_eq!(client.chat_call_count(), 0);
 }
 
 #[tokio::test]
 async fn recording_llm_unconfigured_operations_fail_explicitly() {
     let client = RecordingLlmClient::new(response(serde_json::Value::Null));
-    let chat_request = request("chat-request", LLM_CHAT_CAPABILITY_VERSION);
-
-    let chat_error = client
-        .chat(chat_request.clone())
-        .await
-        .expect_err("unconfigured chat must fail");
     let health_error = client
         .health()
         .await
         .expect_err("unconfigured health must fail");
 
-    assert_eq!(chat_error.code, ServiceErrorCode::Internal);
-    assert_eq!(
-        chat_error.message,
-        "unexpected RecordingLlmClient chat call"
-    );
     assert_eq!(health_error.code, ServiceErrorCode::Internal);
     assert_eq!(
         health_error.message,
         "unexpected RecordingLlmClient health call"
     );
-    assert_eq!(client.chat_call_count(), 1);
-    assert_eq!(client.chat_requests(), vec![chat_request]);
     assert_eq!(client.probe_call_count(), 0);
 }
 
@@ -102,7 +89,8 @@ async fn pending_embedding_download_observes_start_and_future_drop() {
     let request = request("embedding-download", EMBEDDING_CAPABILITY_VERSION);
     let task_client = Arc::clone(&client);
     let task_request = request.clone();
-    let (events_tx, _events_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (events_tx, _events_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
     let task = tokio::spawn(async move {
         task_client
             .download_model_events(task_request, events_tx)
@@ -145,9 +133,10 @@ async fn pending_embedding_download_rejects_non_download_operations() {
 #[tokio::test]
 async fn recording_image_generate_events_capture_request_and_bind_task_id() {
     let client = RecordingImageClient::new()
-        .with_generate_events(vec![media_event(ServiceTaskEventKind::Completed, 1)]);
+        .with_generate_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
     let request = request("image-generate", IMAGE_PROVIDER_CAPABILITY_VERSION);
-    let (events_tx, mut events_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (events_tx, mut events_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
 
     client
         .generate_events(request.clone(), events_tx)
@@ -158,7 +147,7 @@ async fn recording_image_generate_events_capture_request_and_bind_task_id() {
     assert_eq!(client.last_generate_request(), Some(request.clone()));
     let event = events_rx.try_recv().expect("configured completed event");
     assert_eq!(event.task_id, request.request_id);
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Completed);
 }
 
 #[tokio::test]
@@ -211,9 +200,10 @@ async fn recording_image_unconfigured_operations_fail_explicitly() {
 #[tokio::test]
 async fn recording_video_generate_events_capture_request_and_bind_task_id() {
     let client = RecordingVideoClient::new()
-        .with_generate_events(vec![media_event(ServiceTaskEventKind::Completed, 1)]);
+        .with_generate_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
     let request = request("video-generate", VIDEO_PROVIDER_CAPABILITY_VERSION);
-    let (events_tx, mut events_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (events_tx, mut events_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
 
     client
         .generate_events(request.clone(), events_tx)
@@ -224,19 +214,22 @@ async fn recording_video_generate_events_capture_request_and_bind_task_id() {
     assert_eq!(client.last_generate_request(), Some(request.clone()));
     let event = events_rx.try_recv().expect("configured completed event");
     assert_eq!(event.task_id, request.request_id);
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Completed);
 }
 
 #[tokio::test]
 async fn recording_video_responses_and_request_ledgers_are_operation_specific() {
     let poll_response = response(serde_json::json!({"operation": "poll"}));
+    let status_response = response(serde_json::json!({"operation": "status"}));
     let preview_response = response(serde_json::json!({"operation": "preview"}));
     let probe_response = response(serde_json::json!({"operation": "probe"}));
     let client = RecordingVideoClient::new()
         .with_poll_response(poll_response.clone())
+        .with_status_response(status_response.clone())
         .with_preview_response(preview_response.clone())
         .with_probe_response(probe_response.clone());
     let poll_request = request("video-poll", VIDEO_PROVIDER_CAPABILITY_VERSION);
+    let status_request = request("video-status", VIDEO_PROVIDER_CAPABILITY_VERSION);
     let preview_request = request("video-preview", VIDEO_PROVIDER_CAPABILITY_VERSION);
     let probe_request = request("video-probe", VIDEO_PROVIDER_CAPABILITY_VERSION);
 
@@ -246,6 +239,13 @@ async fn recording_video_responses_and_request_ledgers_are_operation_specific() 
             .await
             .expect("configured poll response"),
         poll_response
+    );
+    assert_eq!(
+        client
+            .status(status_request.clone())
+            .await
+            .expect("configured status response"),
+        status_response
     );
     assert_eq!(
         client
@@ -262,10 +262,12 @@ async fn recording_video_responses_and_request_ledgers_are_operation_specific() 
         probe_response
     );
     assert_eq!(client.poll_call_count(), 1);
+    assert_eq!(client.status_call_count(), 1);
     assert_eq!(client.preview_call_count(), 1);
     assert_eq!(client.probe_call_count(), 1);
     assert_eq!(client.generate_call_count(), 0);
     assert_eq!(client.last_poll_request(), Some(poll_request));
+    assert_eq!(client.last_status_request(), Some(status_request));
     assert_eq!(client.last_preview_request(), Some(preview_request));
     assert_eq!(client.last_probe_request(), Some(probe_request));
 }
@@ -289,9 +291,10 @@ async fn recording_video_unconfigured_operations_fail_explicitly() {
 #[tokio::test]
 async fn recording_rag_ingest_events_capture_request_and_bind_task_id() {
     let client = RecordingRagClient::new()
-        .with_ingest_events(vec![media_event(ServiceTaskEventKind::Completed, 1)]);
+        .with_ingest_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
     let request = request("rag-ingest", RAG_INDEX_CAPABILITY_VERSION);
-    let (events_tx, mut events_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (events_tx, mut events_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
 
     client
         .ingest_events(request.clone(), events_tx)
@@ -303,7 +306,7 @@ async fn recording_rag_ingest_events_capture_request_and_bind_task_id() {
     assert_eq!(client.last_ingest_events_request(), Some(request.clone()));
     let event = events_rx.try_recv().expect("configured completed event");
     assert_eq!(event.task_id, request.request_id);
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Completed);
 }
 
 #[tokio::test]
@@ -425,8 +428,8 @@ fn response(payload: serde_json::Value) -> a4n_capabilities::JsonResponse {
     }
 }
 
-fn media_event(event_kind: ServiceTaskEventKind, sequence: u64) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+fn media_event(event_kind: CapabilityTaskEventKind, sequence: u64) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id: "configured-task".to_string(),
         event_kind,
         sequence,

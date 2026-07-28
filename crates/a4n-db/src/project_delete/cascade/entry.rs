@@ -21,6 +21,15 @@ pub async fn delete_project_cascade_record(
         .await
         .map_err(ProjectDeleteDbError::from)?
         .ok_or(ProjectDeleteDbError::ProjectNotFound { project_id })?;
+    crate::generation::require_project_lifecycle_gate(
+        &txn,
+        project_id,
+        crate::generation::PROJECT_GATE_DELETING,
+    )
+    .await
+    .map_err(|error| ProjectDeleteDbError::Database {
+        source: sea_orm::DbErr::Custom(error.to_string()),
+    })?;
     if project.project_kind == PROJECT_KIND_TEXT {
         let derived_count = novel_project::Entity::find()
             .filter(novel_project::Column::RootProjectId.eq(project_id))

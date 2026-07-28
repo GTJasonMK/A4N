@@ -2,40 +2,30 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import type { ToastType } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
+import { generationClient } from "../../api/generationTasks";
 import {
-  listenAppEvent,
-  type UnlistenFn,
-} from "../../api/runtime";
+  generationTaskKey,
+  useGenerationTasksStore,
+} from "../../store/generationTasks";
 import {
-  generateChapterStream,
+  chapterGenerationNumber,
+  startChapterGeneration,
   type ChapterData,
 } from "../../api/chapter";
+import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import type { ChapterOutline } from "../../api/outline";
-import { cancelWorkflow } from "../../api/streaming";
-import { isCancelledOperation } from "../../utils/cancellation";
+import { useGenerationTask } from "../../hooks/useGenerationTask";
+import { sha256Hex } from "../../utils/contentHash";
+import {
+  generationTaskRecoveryIssue,
+  resolveFormalResultRecovery,
+} from "../../utils/generationEventReducer";
 import { nonEmptyText } from "../../utils/text";
 import {
   getWritingDraftKey,
   removeWritingDraft,
 } from "../../utils/writingDraft";
 import type { GenerationWordCountRange } from "./generationWordCount";
-
-type WorkflowEvent =
-  | { type: "Chunk"; data: { content?: string; index?: number } }
-  | {
-      type: "Progress";
-      data: {
-        current?: number;
-        total?: number;
-        message?: string;
-        percent?: number;
-      };
-    }
-  | { type: "Complete"; data: { summary?: string | null } }
-  | {
-      type: "Error";
-      data: { code?: string; message?: string; recoverable?: boolean };
-    };
 
 interface UseChapterStreamGenerationParams {
   projectId: number;
@@ -58,14 +48,15 @@ interface UseChapterStreamGenerationParams {
   onShowContentTab: () => void;
 }
 
-const makeChapterStreamTaskId = (projectId: number, chapterNumber: number) =>
-  `chapter-${projectId}-${chapterNumber}-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+interface EditorSnapshot {
+  chapterNumber: number;
+  content: string;
+  isDirty: boolean;
+}
 
-const userFacingStreamError = (error: unknown, fallback: string): string =>
+const userFacingGenerationError = (error: unknown, fallback: string): string =>
   extractErrorMessage(error, fallback)
-    .replace(/workflow:chapter-[^\s，。]+/gi, "正文生成进度通道")
+    .replace(/generation task[^\s，。]*/gi, "正文生成任务")
     .replace(/chapter-\d+-\d+-[^\s，。]+/gi, "当前生成任务");
 
 export const useChapterStreamGeneration = ({
@@ -88,46 +79,121 @@ export const useChapterStreamGeneration = ({
   onDraftRemoved,
   onShowContentTab,
 }: UseChapterStreamGenerationParams) => {
-  const [streamTaskId, setStreamTaskId] = useState<string | null>(null);
-  const [streamTaskChapterNumber, setStreamTaskChapterNumber] = useState<
-    number | null
-  >(null);
+  const [generationHandle, setGenerationHandle] = useState<GenerationTaskHandle | null>(null);
+  const [generationChapterNumber, setGenerationChapterNumber] = useState<number | null>(null);
   const [streamBusy, setStreamBusy] = useState(false);
   const [streamMessage, setStreamMessage] = useState<string | null>(null);
-  const streamUnlistenRef = useRef<UnlistenFn | null>(null);
-  const streamBufferRef = useRef("");
-  const streamTaskIdRef = useRef<string | null>(null);
-  const streamTaskChapterRef = useRef<number | null>(null);
-  const activeNumberRef = useRef<number | null>(null);
+  const [consistencyReadOnlyChapterNumber, setConsistencyReadOnlyChapterNumber] =
+    useState<number | null>(null);
+  const generationHandleRef = useRef<GenerationTaskHandle | null>(null);
+  const generationChapterRef = useRef<number | null>(null);
+  const editorSnapshotRef = useRef<EditorSnapshot | null>(null);
+  const handledTerminalRef = useRef<string | null>(null);
+  const projectIdRef = useRef<number | null>(projectId);
+  const activeNumberRef = useRef<number | null>(activeNumber);
   const streamStartBusyRef = useRef(false);
   const streamCancelBusyRef = useRef(false);
 
+  const generationTask = useGenerationTask({
+    handle: generationHandle,
+    autoSubscribe: generationHandle != null,
+  });
+
   useEffect(() => {
     activeNumberRef.current = activeNumber;
+    setConsistencyReadOnlyChapterNumber(null);
   }, [activeNumber]);
 
-  useEffect(
-    () => () => {
-      streamUnlistenRef.current?.();
-      streamUnlistenRef.current = null;
-    },
-    [],
-  );
+  useEffect(() => () => {
+    projectIdRef.current = null;
+    generationHandleRef.current = null;
+    generationChapterRef.current = null;
+    editorSnapshotRef.current = null;
+  }, []);
 
+  const clearStreamState = useCallback((nextMessage: string | null = null) => {
+    generationHandleRef.current = null;
+    generationChapterRef.current = null;
+    editorSnapshotRef.current = null;
+    handledTerminalRef.current = null;
+    streamCancelBusyRef.current = false;
+    setGenerationHandle(null);
+    setGenerationChapterNumber(null);
+    setStreamBusy(false);
+    setStreamMessage(nextMessage);
+  }, []);
+
+  useEffect(() => {
+    projectIdRef.current = projectId;
+    setConsistencyReadOnlyChapterNumber(null);
+    clearStreamState(null);
+  }, [clearStreamState, projectId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    streamStartBusyRef.current = true;
+    setStreamBusy(true);
+    setStreamMessage("正在恢复章节生成状态…");
+
+    void generationClient.listActive(projectId).then((summaries) => {
+      if (
+        cancelled
+        || projectIdRef.current !== projectId
+        || generationHandleRef.current
+      ) {
+        return;
+      }
+      const active = summaries
+        .map((summary) => ({
+          chapterNumber: chapterGenerationNumber(summary, projectId),
+          handle: summary.handle,
+        }))
+        .find((task) => task.chapterNumber != null);
+      if (!active || active.chapterNumber == null) {
+        setStreamMessage(null);
+        return;
+      }
+      generationHandleRef.current = active.handle;
+      generationChapterRef.current = active.chapterNumber;
+      editorSnapshotRef.current = null;
+      handledTerminalRef.current = null;
+      setGenerationHandle(active.handle);
+      setGenerationChapterNumber(active.chapterNumber);
+      setStreamMessage(`已恢复第 ${active.chapterNumber} 章生成任务`);
+    }).catch((error) => {
+      if (cancelled || projectIdRef.current !== projectId) return;
+      const message = userFacingGenerationError(error, "恢复章节生成状态失败");
+      setStreamMessage(message);
+      addToast(message, "error");
+    }).finally(() => {
+      if (cancelled || projectIdRef.current !== projectId) return;
+      streamStartBusyRef.current = false;
+      setStreamBusy(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addToast, projectId]);
+
+  const streamTaskId = generationHandle?.task_id ?? null;
+  const streamTaskChapterNumber = generationChapterNumber;
   const streamingActiveChapter =
     !!streamTaskId && streamTaskChapterNumber === activeNumber;
   const activeChapterGenerating = activeChapter?.status === "generating";
-  const activeChapterBusy = activeChapterGenerating || streamingActiveChapter;
-  const activeChapterGeneratingMessage = streamingActiveChapter
-    ? "当前章节正在流式生成中，请等待完成后再操作"
+  const consistencyReadOnly = consistencyReadOnlyChapterNumber === activeNumber;
+  const activeChapterBusy = activeChapterGenerating || streamingActiveChapter || consistencyReadOnly;
+  const activeChapterGeneratingMessage = consistencyReadOnly
+    ? "正式章节一致性校验异常，当前仅供只读核对；切换章节后可重新进入编辑"
     : "当前章节正在生成中，请等待完成后再操作";
 
   const generationBlockReason = useMemo(() => {
     if (!activeNumber) return "请先选择章节";
+    if (consistencyReadOnly) return activeChapterGeneratingMessage;
     if (streamTaskId) {
       return streamTaskChapterNumber === activeNumber
-        ? "当前章节正在流式生成中"
-        : `第 ${streamTaskChapterNumber ?? "其他"} 章正在流式生成中，请等待完成后再启动新生成`;
+        ? "当前章节正在生成中"
+        : `第 ${streamTaskChapterNumber ?? "其他"} 章正在生成中，请等待完成后再启动新生成`;
     }
     if (activeChapter?.status === "generating") return "当前章节正在生成中";
     if (!activeOutline) return "当前章节没有章纲，无法生成";
@@ -147,32 +213,177 @@ export const useChapterStreamGeneration = ({
     return null;
   }, [
     activeChapter?.status,
+    activeChapterGeneratingMessage,
     activeNumber,
     activeOutline,
     activeOutlineText,
     activeOutlineTitle,
     chapters,
+    consistencyReadOnly,
     streamTaskChapterNumber,
     streamTaskId,
   ]);
   const canGenerateChapter = !generationBlockReason && !wordCountRangeError;
 
-  const clearStreamState = useCallback((nextMessage: string | null = null) => {
-    streamUnlistenRef.current?.();
-    streamUnlistenRef.current = null;
-    streamBufferRef.current = "";
-    streamTaskIdRef.current = null;
-    streamTaskChapterRef.current = null;
-    streamStartBusyRef.current = false;
-    streamCancelBusyRef.current = false;
-    setStreamTaskChapterNumber(null);
-    setStreamTaskId(null);
-    setStreamMessage(nextMessage);
-  }, []);
+  const streamedText = generationTask.text("main");
+  const progressMessage = generationTask.progress?.message?.trim() ?? "";
+
+  useEffect(() => {
+    if (!generationHandle) return;
+    if (progressMessage) setStreamMessage(progressMessage);
+    if (
+      streamedText
+      && generationChapterRef.current === activeNumberRef.current
+    ) {
+      setEditorState(streamedText, false);
+    }
+  }, [
+    activeNumber,
+    generationHandle,
+    progressMessage,
+    setEditorState,
+    streamedText,
+  ]);
+
+  useEffect(() => {
+    const recoveryIssue = generationTaskRecoveryIssue(generationTask);
+    if (
+      !generationHandle
+      || (!generationTask.terminalReceived
+        && !recoveryIssue)
+    ) return;
+    const key = generationTaskKey(generationHandle.task_id, generationHandle.attempt);
+    const currentHandle = generationHandleRef.current;
+    if (
+      !currentHandle
+      || generationTaskKey(currentHandle.task_id, currentHandle.attempt) !== key
+    ) {
+      return;
+    }
+    if (handledTerminalRef.current === key) return;
+    handledTerminalRef.current = key;
+
+    const chapterNumber = generationChapterRef.current;
+    const snapshot = editorSnapshotRef.current;
+    const status = generationTask.taskStatus;
+    const errorMessage = generationTask.error?.message?.trim();
+    const isCurrentTask = () => {
+      const current = generationHandleRef.current;
+      return current != null
+        && generationTaskKey(current.task_id, current.attempt) === key;
+    };
+
+    const restoreSnapshot = () => {
+      if (snapshot && activeNumberRef.current === snapshot.chapterNumber) {
+        setEditorState(snapshot.content, snapshot.isDirty);
+      }
+    };
+
+    const finish = async () => {
+      let message: string;
+      let toastType: ToastType;
+      if (status === "completed" || recoveryIssue) {
+        const refreshed = await reloadChapters({ force: true });
+        const resultRef = generationTask.resultRef;
+        const resultId = resultRef ? Number(resultRef.id) : NaN;
+        const persisted = resultRef?.kind === "chapter" && Number.isSafeInteger(resultId)
+          ? refreshed?.find((chapter) => chapter.id === resultId) ?? null
+          : null;
+        const persistedHash = persisted ? await sha256Hex(persisted.content) : null;
+        if (!isCurrentTask()) return;
+        const consistent = Boolean(
+          resultRef
+          && resultRef.kind === "chapter"
+          && persisted
+          && chapterNumber != null
+          && persisted.project_id === projectId
+          && persisted.chapter_number === chapterNumber
+          && persistedHash
+          && persistedHash === resultRef.revision,
+        );
+
+        const recovery = resolveFormalResultRecovery({
+          recoveryIssue,
+          consistent,
+          hasPersisted: Boolean(persisted && chapterNumber === persisted.chapter_number),
+          hasResultRef: Boolean(resultRef),
+          domain: "chapter",
+        });
+        if (recovery.kind !== "ok") {
+          if (recovery.shouldMarkConsistencyError) {
+            useGenerationTasksStore.getState().dispatch(
+              generationTaskKey(generationHandle.task_id, generationHandle.attempt),
+              { type: "client_state", state: "consistency_error" },
+            );
+          }
+          if (recovery.kind === "readonly" && persisted) {
+            setEditorState(persisted.content, false);
+            setConsistencyReadOnlyChapterNumber(persisted.chapter_number);
+          } else {
+            restoreSnapshot();
+          }
+          message = recovery.message;
+          toastType = "error";
+        } else {
+          if (persisted && activeNumberRef.current === persisted.chapter_number) {
+            setEditorState(persisted.content, false);
+          }
+          if (projectIdKey && chapterNumber != null) {
+            removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
+            onDraftRemoved();
+          }
+          message = "章节正文生成完成";
+          toastType = "success";
+        }
+      } else {
+        await reloadChapters({ force: true });
+        if (!isCurrentTask()) return;
+        restoreSnapshot();
+        message = status === "cancelled"
+          ? "章节生成已取消"
+          : status === "interrupted"
+            ? "章节生成已中断"
+            : errorMessage || "章节正文生成失败";
+        toastType = status === "cancelled" ? "info" : "error";
+      }
+
+      clearStreamState(message);
+      addToast(message, toastType);
+    };
+
+    void finish().catch((error) => {
+      if (!isCurrentTask()) return;
+      if (!recoveryIssue) {
+        useGenerationTasksStore.getState().dispatch(
+          generationTaskKey(generationHandle.task_id, generationHandle.attempt),
+          { type: "client_state", state: "consistency_error" },
+        );
+      }
+      restoreSnapshot();
+      const message = userFacingGenerationError(error, "章节生成结果校验失败");
+      clearStreamState(message);
+      addToast(message, "error");
+    });
+  }, [
+    addToast,
+    clearStreamState,
+    generationHandle,
+    generationTask.error,
+    generationTask.clientState,
+    generationTask.recoveryState,
+    generationTask.resultRef,
+    generationTask.taskStatus,
+    generationTask.terminalReceived,
+    onDraftRemoved,
+    projectId,
+    projectIdKey,
+    reloadChapters,
+    setEditorState,
+  ]);
 
   const handleStreamStart = useCallback(async () => {
-    if (streamStartBusyRef.current || streamTaskIdRef.current) {
-      addToast(generationBlockReason ?? "章节流式生成中，请等待完成后再操作", "error");
+    if (streamStartBusyRef.current || generationHandleRef.current) {
+      addToast(generationBlockReason ?? "章节生成中，请等待完成后再操作", "error");
       return;
     }
     streamStartBusyRef.current = true;
@@ -195,212 +406,48 @@ export const useChapterStreamGeneration = ({
       const ok = await confirmDialog({
         title: activeChapter?.content?.trim() ? "重新生成章节正文" : "生成章节正文",
         message: activeChapter?.content?.trim()
-          ? `确认用流式生成重新生成第 ${chapterNumber} 章正文？当前正文会被新生成内容覆盖。\n本次正文字数范围：${wordCountRange.min.toLocaleString()}-${wordCountRange.max.toLocaleString()} 字。`
-          : `确认用流式生成第 ${chapterNumber} 章正文？\n本次正文字数范围：${wordCountRange.min.toLocaleString()}-${wordCountRange.max.toLocaleString()} 字。`,
+          ? `确认重新生成第 ${chapterNumber} 章正文？当前正文会被新生成内容覆盖。\n本次正文字数范围：${wordCountRange.min.toLocaleString()}-${wordCountRange.max.toLocaleString()} 字。`
+          : `确认生成第 ${chapterNumber} 章正文？\n本次正文字数范围：${wordCountRange.min.toLocaleString()}-${wordCountRange.max.toLocaleString()} 字。`,
         confirmText: activeChapter?.content?.trim() ? "重新生成" : "生成",
         cancelText: "取消",
         dialogType: activeChapter?.content?.trim() ? "warning" : "normal",
       });
-      if (!ok) return;
+      if (!ok || projectIdRef.current !== projectId) return;
 
-      const taskId = makeChapterStreamTaskId(projectId, chapterNumber);
-      const notes = nonEmptyText(writingNotes);
-      let terminalEventReceived = false;
-      let streamTerminated = false;
-      let streamedText = "";
-      let nextChunkIndex = 0;
-      const pendingChunks = new Map<number, string>();
-      const editorSnapshot = {
+      clearStreamState(null);
+      const snapshot: EditorSnapshot = {
         chapterNumber,
         content: getCurrentEditorContent(),
         isDirty: dirtyRef.current,
       };
-      const restoreEditorSnapshot = () => {
-        if (activeNumberRef.current !== editorSnapshot.chapterNumber) return;
-        setEditorState(editorSnapshot.content, editorSnapshot.isDirty);
-      };
-      const appendOrderedChunks = (): boolean => {
-        let changed = false;
-        while (pendingChunks.has(nextChunkIndex)) {
-          const chunk = pendingChunks.get(nextChunkIndex);
-          pendingChunks.delete(nextChunkIndex);
-          if (chunk) {
-            streamedText += chunk;
-            changed = true;
-          }
-          nextChunkIndex += 1;
-        }
-        if (changed) {
-          streamBufferRef.current = streamedText;
-        }
-        return changed;
-      };
-
-      clearStreamState(null);
-      streamStartBusyRef.current = true;
-      streamTaskIdRef.current = taskId;
+      editorSnapshotRef.current = snapshot;
+      generationChapterRef.current = chapterNumber;
+      setGenerationChapterNumber(chapterNumber);
       setStreamBusy(true);
-      setStreamTaskId(taskId);
-      setStreamMessage("正在启动流式生成…");
-      streamBufferRef.current = "";
-      streamTaskChapterRef.current = chapterNumber;
-      setStreamTaskChapterNumber(chapterNumber);
+      setStreamMessage("正在启动正文生成…");
       onShowContentTab();
 
-      const unlisten = await listenAppEvent<WorkflowEvent>(
-        `workflow:${taskId}`,
-        (event) => {
-          const payload = event.payload;
-          if (payload.type === "Chunk") {
-            if (streamTerminated) return;
-            if (typeof payload.data.content !== "string") {
-              addToast("章节流式事件缺少内容片段", "error");
-              return;
-            }
-            const index =
-              typeof payload.data.index === "number"
-                ? payload.data.index
-                : Number(payload.data.index);
-            if (!Number.isInteger(index) || index < 0) {
-              addToast("章节流式事件缺少有效片段序号", "error");
-              return;
-            }
-            const delta = payload.data.content;
-            if (!delta) return;
-            if (index < nextChunkIndex || pendingChunks.has(index)) return;
-            pendingChunks.set(index, delta);
-            if (!appendOrderedChunks()) return;
-            setStreamMessage("正在生成正文…");
-            if (streamTaskChapterRef.current === activeNumberRef.current) {
-              setEditorState(streamBufferRef.current, false);
-            }
-            return;
-          }
-
-          if (payload.type === "Progress") {
-            const message = payload.data.message?.trim();
-            if (!message) {
-              addToast("章节进度事件缺少消息", "error");
-              return;
-            }
-            setStreamMessage(message);
-            return;
-          }
-
-          if (payload.type === "Complete") {
-            terminalEventReceived = true;
-            streamTerminated = true;
-            const summary = payload.data.summary?.trim();
-            if (!summary) {
-              const message = "章节完成事件缺少摘要";
-              restoreEditorSnapshot();
-              setStreamMessage(message);
-              setStreamBusy(false);
-              addToast(message, "error");
-              clearStreamState(message);
-              return;
-            }
-            setStreamMessage(summary);
-            setStreamBusy(false);
-            setStreamTaskId(null);
-            if (projectIdKey) {
-              removeWritingDraft(
-                getWritingDraftKey(projectIdKey, chapterNumber),
-              );
-              onDraftRemoved();
-            }
-            void (async () => {
-              await reloadChapters({ force: true });
-            })();
-            addToast(summary, "success");
-            clearStreamState(summary);
-            return;
-          }
-
-          if (payload.type === "Error") {
-            const message = payload.data.message?.trim();
-            if (!message) {
-              const malformedMessage = "章节错误事件缺少消息";
-              terminalEventReceived = true;
-              streamTerminated = true;
-              restoreEditorSnapshot();
-              setStreamMessage(malformedMessage);
-              setStreamBusy(false);
-              addToast(malformedMessage, "error");
-              clearStreamState(malformedMessage);
-              return;
-            }
-            if (payload.data.code === "cancelled") {
-              terminalEventReceived = true;
-              streamTerminated = true;
-              restoreEditorSnapshot();
-              setStreamMessage(message);
-              setStreamBusy(false);
-              setStreamTaskId(null);
-              addToast(message, "info");
-              clearStreamState(message);
-              void reloadChapters({ force: true });
-              return;
-            }
-
-            setStreamMessage(message);
-            if (payload.data.recoverable) {
-              addToast(message, "info");
-              return;
-            }
-            terminalEventReceived = true;
-            streamTerminated = true;
-            restoreEditorSnapshot();
-            setStreamBusy(false);
-            setStreamTaskId(null);
-            addToast(message, "error");
-            clearStreamState(message);
-          }
-        },
+      const input = {
+        project_id: projectId,
+        chapter_number: chapterNumber,
+        writing_notes: nonEmptyText(writingNotes),
+        min_word_count: wordCountRange.min,
+        max_word_count: wordCountRange.max,
+        client_rag_context: null,
+      };
+      const handle = await generationClient.start((meta) =>
+        startChapterGeneration({ ...input, meta }),
       );
-      streamUnlistenRef.current = unlisten;
-
-      void generateChapterStream(
-        projectId,
-        chapterNumber,
-        taskId,
-        notes,
-        wordCountRange.min,
-        wordCountRange.max,
-      )
-        .then(async () => {
-          if (terminalEventReceived) return;
-          await reloadChapters({ force: true });
-          const message = "章节流结束但未收到完成事件";
-          setStreamBusy(false);
-          clearStreamState(message);
-          addToast(message, "error");
-        })
-        .catch((err) => {
-          if (!terminalEventReceived) {
-            const message = extractErrorMessage(err, "启动流式生成失败");
-            if (isCancelledOperation(message)) {
-              streamTerminated = true;
-              restoreEditorSnapshot();
-              clearStreamState("章节生成已取消");
-              addToast("章节生成已取消", "info");
-              void reloadChapters({ force: true });
-              return;
-            }
-            streamTerminated = true;
-            restoreEditorSnapshot();
-            clearStreamState(message);
-            addToast(message, "error");
-          }
-        })
-        .finally(() => {
-          setStreamBusy(false);
-        });
-
+      if (projectIdRef.current !== projectId) return;
+      generationHandleRef.current = handle;
+      setGenerationHandle(handle);
+      setStreamMessage("正文生成已启动");
       addToast("正文生成已启动", "success");
-    } catch (err) {
-      clearStreamState(null);
-      addToast(userFacingStreamError(err, "启动流式生成失败"), "error");
+    } catch (error) {
+      if (projectIdRef.current === projectId) {
+        clearStreamState(null);
+        addToast(userFacingGenerationError(error, "启动正文生成失败"), "error");
+      }
     } finally {
       streamStartBusyRef.current = false;
       setStreamBusy(false);
@@ -413,12 +460,9 @@ export const useChapterStreamGeneration = ({
     dirtyRef,
     generationBlockReason,
     getCurrentEditorContent,
-    onDraftRemoved,
     onShowContentTab,
     projectId,
-    projectIdKey,
-    reloadChapters,
-    setEditorState,
+    setStreamMessage,
     wordCountRange,
     wordCountRangeError,
     writingNotes,
@@ -429,27 +473,21 @@ export const useChapterStreamGeneration = ({
       addToast("正在取消章节生成", "error");
       return;
     }
-    const taskId = streamTaskIdRef.current ?? streamTaskId;
-    if (!taskId) return;
+    const handle = generationHandleRef.current ?? generationHandle;
+    if (!handle) return;
     streamCancelBusyRef.current = true;
-    const taskChapter = streamTaskChapterRef.current;
     setStreamBusy(true);
     setStreamMessage("正在取消章节生成…");
     try {
-      await cancelWorkflow(taskId);
+      await generationClient.cancel(handle);
+      setStreamMessage("已发送取消请求，正在等待任务停止…");
       addToast("已发送取消请求", "success");
-      window.setTimeout(() => {
-        if (streamTaskChapterRef.current !== taskChapter) return;
-        clearStreamState("章节生成已取消");
-        void reloadChapters({ force: true });
-      }, 800);
-    } catch (err) {
+    } catch (error) {
       streamCancelBusyRef.current = false;
-      addToast(extractErrorMessage(err, "取消失败"), "error");
-    } finally {
       setStreamBusy(false);
+      addToast(extractErrorMessage(error, "取消失败"), "error");
     }
-  }, [addToast, clearStreamState, reloadChapters, streamTaskId]);
+  }, [addToast, generationHandle]);
 
   return {
     streamTaskId,

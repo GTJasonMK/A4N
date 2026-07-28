@@ -3,7 +3,6 @@ mod tests;
 
 mod execution;
 mod media;
-mod rules;
 
 use serde::Deserialize;
 

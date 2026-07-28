@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import {
+  canListenAppEvents,
   listenAppEvent,
   type UnlistenFn,
 } from "../../api/runtime";
@@ -80,6 +81,8 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   }, [projectId]);
 
   useEffect(() => {
+    if (!canListenAppEvents()) return;
+
     let disposed = false;
     let unlisten: UnlistenFn | null = null;
 

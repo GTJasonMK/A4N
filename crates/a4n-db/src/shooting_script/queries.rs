@@ -1,28 +1,27 @@
 use a4n_core::models::chapter::chapter_shooting_script;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use super::{
     codec::parse_record,
     contracts::{ParsedChapterShootingScript, ShootingScriptDbError},
-    validation::{require_positive, require_text},
+    validation::{require_positive, validate_source},
 };
+use crate::project::ResolvedChapterSource;
 
 pub async fn chapter_shooting_script_for_source<C>(
     db: &C,
-    root_project_id: i64,
-    source_chapter_id: i64,
-    source_revision_key: &str,
+    source: &ResolvedChapterSource,
 ) -> Result<Option<ParsedChapterShootingScript>, ShootingScriptDbError>
 where
     C: ConnectionTrait,
 {
-    require_positive(root_project_id, "root_project_id")?;
-    require_positive(source_chapter_id, "source_chapter_id")?;
-    let source_revision_key = require_text(source_revision_key, "source_revision_key")?;
+    validate_source(source)?;
     chapter_shooting_script::Entity::find()
-        .filter(chapter_shooting_script::Column::RootProjectId.eq(root_project_id))
-        .filter(chapter_shooting_script::Column::SourceChapterId.eq(source_chapter_id))
-        .filter(chapter_shooting_script::Column::SourceRevisionKey.eq(source_revision_key))
+        .filter(chapter_shooting_script::Column::RootProjectId.eq(source.root_project_id))
+        .filter(chapter_shooting_script::Column::SourceChapterId.eq(source.source_chapter_id))
+        .filter(chapter_shooting_script::Column::SourceContentSha256.eq(&source.content_sha256))
+        .order_by_desc(chapter_shooting_script::Column::UpdatedAt)
+        .order_by_desc(chapter_shooting_script::Column::Id)
         .one(db)
         .await?
         .map(parse_record)

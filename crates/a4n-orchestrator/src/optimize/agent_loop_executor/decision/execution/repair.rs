@@ -28,7 +28,7 @@ pub(super) async fn repair_agent_loop_decision(
                 base_call_key: call_key.to_string(),
                 call_order: agent_loop_call_order(request.step)?,
             }),
-            cancel_token: None,
+            cancel_token: Some(request.generation.cancellation),
             progress: None,
             parse_output: &parse_output,
         })
@@ -54,11 +54,6 @@ pub(super) async fn repair_agent_loop_decision(
                     &format!("{} 决策解析失败：{err}", request.parse_error_label),
                 )
                 .await?;
-            if let Some(operation) = request.release_operation {
-                context
-                    .release_in_progress_session_after_failure(session_id, operation, &err)
-                    .await?;
-            }
             Err(err)
         }
     }

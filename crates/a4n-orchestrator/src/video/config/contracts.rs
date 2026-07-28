@@ -1,11 +1,9 @@
 use serde_json::Value;
 
-pub(super) const OPENAI_COMPATIBLE_VIDEO_BACKEND: &str = "openai-compatible-video";
-pub(super) const NEWAPI_VIDEO_BACKEND: &str = "newapi-video";
-pub(super) const GEMINI_VEO_VIDEO_BACKEND: &str = "gemini-veo-video";
-pub(super) const SEEDANCE2_VIDEO_BACKEND: &str = "seedance2-video";
-pub(super) const OPENAI_CHAT_VIDEO_BACKEND: &str = "openai-chat-video";
-pub(super) const CLIPROXY_OPENAI_VIDEO_BACKEND: &str = "cliproxy-openai-video";
+pub use a4n_video::{
+    CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
+    OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
+};
 pub(super) const VIDEO_DURATION_MODE_RANGE: &str = "range";
 pub(super) const VIDEO_DURATION_MODE_FIXED: &str = "fixed";
 

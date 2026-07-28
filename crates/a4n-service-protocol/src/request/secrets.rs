@@ -36,11 +36,29 @@ impl SecretForwardingPolicy {
         }
     }
 
+    pub fn trusted_remote_no_secrets() -> Self {
+        Self {
+            scope: SecretMaterialScope::TrustedRemote,
+            allow_system_secret: false,
+            allow_user_secret: false,
+            allow_upload_token: false,
+        }
+    }
+
+    pub fn denies_all_secrets(&self) -> bool {
+        !self.allow_system_secret && !self.allow_user_secret && !self.allow_upload_token
+    }
+
+    pub fn is_secret_free(&self) -> bool {
+        self.denies_all_secrets()
+            && matches!(
+                self.scope,
+                SecretMaterialScope::None | SecretMaterialScope::TrustedRemote
+            )
+    }
+
     pub fn is_deny_all(&self) -> bool {
-        self.scope == SecretMaterialScope::None
-            && !self.allow_system_secret
-            && !self.allow_user_secret
-            && !self.allow_upload_token
+        self.scope == SecretMaterialScope::None && self.denies_all_secrets()
     }
 
     pub fn is_local_user_secret_only(&self) -> bool {

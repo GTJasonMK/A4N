@@ -217,8 +217,8 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
         ["临时文件", paths.temp_dir],
         ["提示词", paths.prompts_dir],
         ["提示词历史", paths.prompts_git_dir],
-        ["向量索引", paths.lance_dir],
-        ["全文索引", paths.tantivy_dir],
+        ["RAG 索引 (Qdrant URL)", paths.qdrant_url || "（未配置 A4N_QDRANT_URL）"],
+        ["RAG collection", paths.qdrant_collection],
       ]
     : [];
 

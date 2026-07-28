@@ -1,15 +1,21 @@
 use a4n_core::error::AppError;
-use a4n_embedding::provider::DownloadProgress;
 use a4n_service_protocol::{
     EMBEDDING_CAPABILITY_VERSION, PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest,
-    ServiceResponse, ServiceStatus, ServiceTaskEvent, ServiceTaskEventKind,
+    ServiceResponse, ServiceStatus,
 };
 
+#[cfg(feature = "fastembed")]
 use crate::handlers::events::{
     completed_download_event, download_progress_event, event_line, failed_download_event,
 };
-use crate::protocol::{error_response, service_error, validate_service_request};
+#[cfg(feature = "fastembed")]
+use crate::protocol::service_error;
+use crate::protocol::{error_response, validate_service_request};
 use crate::{contracts::EmbedTextsPayload, handlers::embedding::embedding_provider};
+#[cfg(feature = "fastembed")]
+use a4n_embedding::provider::DownloadProgress;
+#[cfg(feature = "fastembed")]
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
 
 #[tokio::test]
 async fn local_hash_embedding_runs_inside_sidecar_contract() {
@@ -57,6 +63,22 @@ fn embedding_sidecar_rejects_api_backend_without_host_fallback() {
 }
 
 #[test]
+fn embedding_sidecar_rejects_zero_batch_size() {
+    let result = embedding_provider(&EmbedTextsPayload {
+        backend: "local_hash".to_string(),
+        model: "local-sha256-hash".to_string(),
+        dimension: 64,
+        batch_size: 0,
+        texts: Vec::new(),
+    });
+
+    assert!(matches!(
+        result,
+        Err(AppError::ConfigError(message)) if message.contains("batch_size 必须大于 0")
+    ));
+}
+
+#[test]
 fn embedding_v2_payload_rejects_removed_host_cache_path() {
     let error = serde_json::from_value::<EmbedTextsPayload>(serde_json::json!({
         "backend": "local_hash",
@@ -72,6 +94,7 @@ fn embedding_v2_payload_rejects_removed_host_cache_path() {
 }
 
 #[test]
+#[cfg(feature = "fastembed")]
 fn download_progress_event_preserves_progress_payload() {
     let event = download_progress_event(
         "download-1".to_string(),
@@ -85,7 +108,7 @@ fn download_progress_event_preserves_progress_payload() {
     )
     .expect("progress event");
     assert_eq!(event.task_id, "download-1");
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Progress);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Progress);
     assert_eq!(event.sequence, 1);
     assert!(event.error.is_none());
     let payload = event.payload.expect("progress payload");
@@ -96,13 +119,14 @@ fn download_progress_event_preserves_progress_payload() {
 }
 
 #[test]
+#[cfg(feature = "fastembed")]
 fn completed_download_event_wraps_model_list_without_error() {
     let event = completed_download_event(
         "download-1".to_string(),
         2,
         serde_json::json!([{ "model": "BAAI/bge-small-zh-v1.5" }]),
     );
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(event.sequence, 2);
     assert!(event.error.is_none());
     assert_eq!(
@@ -112,6 +136,7 @@ fn completed_download_event_wraps_model_list_without_error() {
 }
 
 #[test]
+#[cfg(feature = "fastembed")]
 fn failed_download_event_redacts_secret_material() {
     let event = failed_download_event(
         "download-1".to_string(),
@@ -120,7 +145,7 @@ fn failed_download_event_redacts_secret_material() {
             "base_url=https://provider.example api_key=sk-test".to_string(),
         )),
     );
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Failed);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Failed);
     assert!(event.payload.is_none());
     let message = event.error.expect("failed error").message;
     assert!(message.contains("base_url=[REDACTED]"));
@@ -130,6 +155,7 @@ fn failed_download_event_redacts_secret_material() {
 }
 
 #[test]
+#[cfg(feature = "fastembed")]
 fn event_line_is_newline_delimited_json() {
     let line = event_line(completed_download_event(
         "download-1".to_string(),
@@ -137,10 +163,10 @@ fn event_line_is_newline_delimited_json() {
         serde_json::json!([]),
     ));
     assert_eq!(line.last(), Some(&b'\n'));
-    let event: ServiceTaskEvent =
+    let event: CapabilityTaskEvent =
         serde_json::from_slice(&line[..line.len() - 1]).expect("event json");
     assert_eq!(event.task_id, "download-1");
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Completed);
 }
 
 #[test]
@@ -157,13 +183,16 @@ fn rejects_secret_forwarding_policy_before_json_or_event_work() {
         response.error.expect("json error").code,
         ServiceErrorCode::Unauthorized
     );
-    let event = failed_download_event("request-1".to_string(), 1, error);
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Failed);
-    assert_eq!(event.sequence, 1);
-    assert_eq!(
-        event.error.expect("event error").code,
-        ServiceErrorCode::Unauthorized
-    );
+    #[cfg(feature = "fastembed")]
+    {
+        let event = failed_download_event("request-1".to_string(), 1, error);
+        assert_eq!(event.event_kind, CapabilityTaskEventKind::Failed);
+        assert_eq!(event.sequence, 1);
+        assert_eq!(
+            event.error.expect("event error").code,
+            ServiceErrorCode::Unauthorized
+        );
+    }
 }
 
 #[test]

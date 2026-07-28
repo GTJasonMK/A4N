@@ -1,6 +1,14 @@
 import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import { idNum, type ApiId as Id } from "./shared";
+import type {
+  CreateThemeInput,
+  ImportThemeInput,
+  Theme,
+  UpdateThemeInput,
+} from "./generated/theme";
+
+export type { CreateThemeInput, ImportThemeInput, Theme, ThemeSummary, UpdateThemeInput } from "./generated/theme";
 
 /**
  * Theme API wrapper —— 对齐 crates/a4n-tauri/src/commands/theme.rs
@@ -15,18 +23,6 @@ import { idNum, type ApiId as Id } from "./shared";
  *  - list_user_themes(user_id) 只返回当前用户主题
  *  - import_all_settings(input: { settings_json })
  */
-
-export interface Theme {
-  id: number;
-  user_id: number | null;
-  name: string;
-  mode: string;
-  css_variables: unknown;
-  is_system_default: boolean;
-  is_active: boolean;
-  created_at: string | null;
-  updated_at: string | null;
-}
 
 const currentUserId = (): number => {
   const id = readCurrentUserId();
@@ -65,22 +61,14 @@ export async function getThemeCssVariables(themeId: Id): Promise<string> {
 // ============================================================================
 
 /** 后端 create_theme(input: { name, mode, css_variables }) */
-export async function createTheme(input: {
-  name: string;
-  mode: string;
-  css_variables: unknown;
-}): Promise<Theme> {
+export async function createTheme(input: CreateThemeInput): Promise<Theme> {
   return apiInvoke<Theme>("create_theme", { userId: currentUserId(), input });
 }
 
 /** 后端 update_theme(theme_id, input: { name?, mode?, css_variables? }) —— 平铺 + input */
 export async function updateTheme(
   themeId: Id,
-  input: {
-    name?: string | null;
-    mode?: string | null;
-    css_variables?: unknown | null;
-  },
+  input: UpdateThemeInput,
 ): Promise<Theme> {
   return apiInvoke<Theme>("update_theme", {
     userId: currentUserId(),
@@ -110,11 +98,10 @@ export async function exportTheme(themeId: Id): Promise<string> {
 
 /** 后端 import_theme(input: { theme_json }) */
 export async function importTheme(themeJson: string): Promise<Theme> {
+  const input: ImportThemeInput = { theme_json: themeJson };
   return apiInvoke<Theme>("import_theme", {
     userId: currentUserId(),
-    input: {
-      theme_json: themeJson,
-    },
+    input,
   });
 }
 

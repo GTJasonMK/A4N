@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use a4n_capabilities::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, LlmClient};
-use a4n_service_protocol::{ServiceHealth, ServiceTaskEvent};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
 
 use super::unexpected_call;
@@ -15,7 +15,6 @@ pub struct RecordingLlmClient {
 #[derive(Default)]
 struct RecordingLlmClientState {
     probe_requests: Mutex<Vec<JsonRequest>>,
-    chat_requests: Mutex<Vec<JsonRequest>>,
 }
 
 impl RecordingLlmClient {
@@ -34,27 +33,11 @@ impl RecordingLlmClient {
             .len()
     }
 
-    pub fn chat_call_count(&self) -> usize {
-        self.state
-            .chat_requests
-            .lock()
-            .expect("recording LLM chat-request lock should not be poisoned")
-            .len()
-    }
-
     pub fn probe_requests(&self) -> Vec<JsonRequest> {
         self.state
             .probe_requests
             .lock()
             .expect("recording LLM probe-request lock should not be poisoned")
-            .clone()
-    }
-
-    pub fn chat_requests(&self) -> Vec<JsonRequest> {
-        self.state
-            .chat_requests
-            .lock()
-            .expect("recording LLM chat-request lock should not be poisoned")
             .clone()
     }
 
@@ -77,19 +60,10 @@ impl CapabilityClient for RecordingLlmClient {
 
 #[async_trait]
 impl LlmClient for RecordingLlmClient {
-    async fn chat(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.state
-            .chat_requests
-            .lock()
-            .expect("recording LLM chat-request lock should not be poisoned")
-            .push(request);
-        Err(unexpected_call("RecordingLlmClient", "chat"))
-    }
-
     async fn stream(
         &self,
         _request: JsonRequest,
-        _events: tokio::sync::mpsc::UnboundedSender<ServiceTaskEvent>,
+        _events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         Err(unexpected_call("RecordingLlmClient", "stream"))
     }

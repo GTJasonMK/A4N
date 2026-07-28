@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::rag::RAG_TEXT_INDEX_VERSION;
+use a4n_core::rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION};
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_rag_core::{
     memory_store::MemoryVectorStore,
@@ -142,6 +142,8 @@ fn classifies_hash_index_and_embedding_identity_from_one_owner() {
     let current = identity("current-test");
     let unchanged = json!({
         "content_hash": content_hash,
+        "source_generation": content_hash,
+        "index_format_version": RAG_INDEX_FORMAT_VERSION,
         "text_index_version": RAG_TEXT_INDEX_VERSION,
         "embedding_backend": "LocalHash",
         "embedding_model": "current-test",
@@ -149,6 +151,8 @@ fn classifies_hash_index_and_embedding_identity_from_one_owner() {
     });
     let old_model = json!({
         "content_hash": content_hash,
+        "source_generation": content_hash,
+        "index_format_version": RAG_INDEX_FORMAT_VERSION,
         "text_index_version": RAG_TEXT_INDEX_VERSION,
         "embedding_backend": "LocalHash",
         "embedding_model": "old-test",
@@ -156,6 +160,8 @@ fn classifies_hash_index_and_embedding_identity_from_one_owner() {
     });
     let old_index = json!({
         "content_hash": content_hash,
+        "source_generation": content_hash,
+        "index_format_version": RAG_INDEX_FORMAT_VERSION,
         "text_index_version": "legacy",
         "embedding_backend": "LocalHash",
         "embedding_model": "current-test",
@@ -198,6 +204,8 @@ fn preparing_record_removes_seen_chunk_from_stale_cleanup_scope() {
             "chunk:seen".to_string(),
             json!({
                 "content_hash": content_hash,
+                "source_generation": content_hash,
+                "index_format_version": RAG_INDEX_FORMAT_VERSION,
                 "text_index_version": RAG_TEXT_INDEX_VERSION,
                 "embedding_backend": "LocalHash",
                 "embedding_model": "current-test",

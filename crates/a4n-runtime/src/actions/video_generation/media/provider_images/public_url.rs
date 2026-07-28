@@ -1,32 +1,23 @@
-use super::rules::encode_query_component;
-use crate::AppState;
 use crate::actions::video_generation::media::types::{
     DEFAULT_MEDIA_TOKEN_TTL_MINUTES, MEDIA_TOKEN_TTL_ENV,
 };
 use crate::jwt;
 use a4n_core::config::env::optional_non_empty_env_string;
 use a4n_core::models::ai::generated_image;
+use a4n_orchestrator::video::encode_query_component;
 use std::net::IpAddr;
 
 pub(in crate::actions::video_generation::media) fn image_file_to_provider_media_url(
-    state: &AppState,
+    jwt_secret: &str,
     user_id: i64,
     base: &str,
     image: &generated_image::Model,
 ) -> Result<String, String> {
     let media_path = image.file_path.trim();
-    let secret = state
-        .config
-        .security
-        .jwt_secret
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "A4N_JWT_SECRET 不能为空".to_string())?;
     let token = jwt::create_media_token(
         &user_id.to_string(),
         media_path,
-        secret,
+        jwt_secret,
         media_token_ttl_minutes()?,
     )
     .map_err(|err| err.to_string())?;

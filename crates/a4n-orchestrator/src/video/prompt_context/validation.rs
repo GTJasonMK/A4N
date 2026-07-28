@@ -60,10 +60,16 @@ pub fn validate_prompt_options_with_reference_limit(
         options.video_library_image_ids.len(),
         MAX_VIDEO_LIBRARY_IMAGE_IDS,
     )?;
+    if options.target_shot_number.is_some_and(|value| value <= 0) {
+        return Err(AppError::InvalidArgument(
+            "target_shot_number 必须为正整数".to_string(),
+        ));
+    }
     Ok(ChapterVideoPromptOptions {
         style: style.to_string(),
         prompt_output_language,
         prompt_batch_size: options.prompt_batch_size,
+        target_shot_number: options.target_shot_number,
         duration_secs: options.duration_secs,
         duration_secs_options,
         aspect_ratio: aspect_ratio.to_string(),

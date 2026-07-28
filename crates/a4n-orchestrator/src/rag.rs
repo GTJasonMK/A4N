@@ -4,9 +4,9 @@ mod chapter_records;
 mod character_profile_records;
 mod continuity_records;
 mod outline_records;
-mod read_models;
 mod scene_records;
-mod search;
+pub(crate) mod search;
+pub use search::{EnhancedRagSearchResult, PreparedEnhancedRagSearch};
 mod sync;
 mod write;
 
@@ -39,3 +39,10 @@ pub(crate) use search::{
 };
 pub use sync::*;
 pub use write::{RagEmbeddedInput, RagEmbeddingInput};
+
+pub use chapter_records::records::chapter_rag_records_with_provider;
+pub use write::provider::{
+    embed_and_store_rag_record_in_store, embed_and_store_rag_records_in_store,
+};
+
+pub use write::store_embedded_rag_records_in_store;

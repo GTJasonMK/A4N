@@ -1,15 +1,15 @@
-use crate::AppState;
+use crate::state::SettingsRuntimeFacade;
 use a4n_core::models::ai::video_gen_config;
 
 pub(crate) async fn resolve_video_config(
-    state: &AppState,
+    settings: &SettingsRuntimeFacade<'_>,
     config_id: Option<i64>,
 ) -> Result<video_gen_config::Model, String> {
     if let Some(config) = crate::runtime_config::current_video_model_for_id(config_id) {
         return Ok(config);
     }
     if config_id.is_none() && crate::runtime_config::uses_system_default_video_template() {
-        return resolve_system_default_video_template_with_user_key(state).await;
+        return resolve_system_default_video_template_with_user_key(settings).await;
     }
     if let Some(id) = config_id
         && crate::runtime_config::current_video_snapshot_scope_present()
@@ -27,27 +27,27 @@ pub(crate) async fn resolve_video_config(
         });
     }
 
-    persisted_video_config(state, config_id).await
+    persisted_video_config(settings, config_id).await
 }
 
 async fn resolve_system_default_video_template_with_user_key(
-    state: &AppState,
+    settings: &SettingsRuntimeFacade<'_>,
 ) -> Result<video_gen_config::Model, String> {
     let api_key = crate::runtime_config::current_system_video_api_key().ok_or_else(|| {
         "使用系统默认视频配置需要先在用户配置页填写并保存你的个人 API Key".to_string()
     })?;
-    let mut model = persisted_video_config(state, None).await?;
+    let mut model = persisted_video_config(settings, None).await?;
     model.api_key_encrypted = Some(api_key);
     Ok(model)
 }
 
 async fn persisted_video_config(
-    state: &AppState,
+    settings: &SettingsRuntimeFacade<'_>,
     config_id: Option<i64>,
 ) -> Result<video_gen_config::Model, String> {
     match config_id {
-        Some(id) => state.orchestrator.video_config(id).await,
-        None => state.orchestrator.default_video_config().await,
+        Some(id) => settings.video_config(id).await,
+        None => settings.default_video_config().await,
     }
     .map_err(crate::actions::app_error_message)
 }

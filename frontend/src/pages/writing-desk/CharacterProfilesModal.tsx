@@ -27,7 +27,7 @@ import {
   type ProfileForm,
 } from "./CharacterProfileEditorModal";
 import { CharacterProfileList } from "./CharacterProfileList";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import type { CharacterAttributeCategory } from "../../utils/characterAttributes";
 import { isCancelledOperation } from "../../utils/cancellation";
 
@@ -299,16 +299,16 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     const requestProjectId = projectId;
     const requestSeq = discoverSeqRef.current + 1;
     discoverSeqRef.current = requestSeq;
-    const taskId = createProgressTaskId("character-discover", requestProjectId);
+    const taskId = allocateHostTaskId("character-discover", requestProjectId);
     setDiscovering(true);
     try {
       const result = await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: "发现角色",
           startMessage: "正在准备角色发现",
           successMessage: "角色发现完成",
           errorMessage: "发现角色失败",
-          taskId,
           total: 5,
           cancelLabel: "停止发现",
           runningHint: "角色任务执行过程中已完成的角色数据会保留",
@@ -409,15 +409,15 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!ok || !isCurrentWorkspace(requestProjectId)) return;
       requestSeq = syncSeqRef.current + 1;
       syncSeqRef.current = requestSeq;
-      const taskId = createProgressTaskId("character-sync-all", requestProjectId);
+      const taskId = allocateHostTaskId("character-sync-all", requestProjectId);
       setSyncingAll(true);
       const result = await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: "同步全部角色档案",
           startMessage: "正在准备批量角色同步",
           successMessage: "批量角色同步完成",
           errorMessage: "同步全部角色档案失败",
-          taskId,
           total: Math.max(1, profiles.length * 7),
           cancelLabel: "停止同步",
           runningHint: "角色任务执行过程中已完成的角色数据会保留",

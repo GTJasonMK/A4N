@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatRequest, ChatResponse};
-use a4n_queue::priority::{TaskPriority, TaskType};
+use a4n_queue::priority::{TaskKind, TaskPriority};
 
 use super::super::budget::ensure_max_tokens_within_model_cap;
 use super::super::config::{chat_embedded, chat_via_sidecar, require_sidecar_business_trace};
@@ -34,7 +34,7 @@ impl DynamicLlmProvider {
         )?;
         let planner = resolved_model.planner();
         let trace_context =
-            prepare_dynamic_llm_trace_context(&self.orchestrator, &planner, &mut request).await?;
+            prepare_dynamic_llm_trace_context(&self.facade, &planner, &mut request).await?;
         let sidecar_call = match self.sidecar_client.clone() {
             Some(client) => Some((
                 client,
@@ -56,8 +56,8 @@ impl DynamicLlmProvider {
         );
         let started = Instant::now();
         let result = self
-            .task_queue
-            .run_tracked(TaskType::LlmCall, TaskPriority::Medium, None, {
+            .facade
+            .queue_run_tracked(TaskKind::LlmCall, TaskPriority::Medium, None, {
                 || async move {
                     match sidecar_call {
                         Some((client, trace)) => {
@@ -72,7 +72,7 @@ impl DynamicLlmProvider {
             Ok(response) => {
                 let response_chars = response.message.content.len();
                 record_dynamic_llm_trace(
-                    &self.orchestrator,
+                    &self.facade,
                     trace_context.as_ref(),
                     Some(model_name.as_str()),
                     response.usage.clone(),
@@ -99,7 +99,7 @@ impl DynamicLlmProvider {
             Err(error) => {
                 let message = error.to_string();
                 record_dynamic_llm_trace(
-                    &self.orchestrator,
+                    &self.facade,
                     trace_context.as_ref(),
                     Some(model_name.as_str()),
                     None,

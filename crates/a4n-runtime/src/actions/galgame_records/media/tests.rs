@@ -34,17 +34,6 @@ fn imported_galgame_audio_persistence_keeps_output_and_reports_actual_size() {
 }
 
 #[test]
-fn append_cleanup_error_keeps_binding_and_compensation_failures_visible() {
-    assert_eq!(
-        append_cleanup_error(
-            "Galgame 音频绑定失败".to_string(),
-            Some("Galgame 音频媒体资产回滚失败".to_string()),
-        ),
-        "Galgame 音频绑定失败；后续清理也失败：Galgame 音频媒体资产回滚失败"
-    );
-}
-
-#[test]
 fn galgame_media_asset_source_context_accepts_same_snapshot_without_chapter() {
     let mut asset = media_summary(
         1,
@@ -247,4 +236,12 @@ fn fixed_time() -> NaiveDateTime {
     chrono::DateTime::from_timestamp(1_700_000_000, 0)
         .expect("valid timestamp")
         .naive_utc()
+}
+
+fn validate_galgame_media_asset_source_context(
+    asset: &media_asset::Model,
+    context: &GalgameTargetContext,
+) -> Result<(), String> {
+    a4n_orchestrator::galgame::validate_galgame_media_asset_source_context(asset, context)
+        .map_err(|error| error.to_string())
 }

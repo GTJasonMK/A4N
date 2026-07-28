@@ -1,4 +1,3 @@
-use crate::AppState;
 use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_orchestrator::rag::{
@@ -6,10 +5,12 @@ use a4n_orchestrator::rag::{
     required_top_k,
 };
 
+use crate::state::RagRuntimeFacade;
+
 use super::EnhancedSearchInput;
 
 pub(super) async fn prepare_enhanced_rag_search(
-    state: &AppState,
+    rag: &RagRuntimeFacade<'_>,
     project_id: i64,
     input: EnhancedSearchInput,
 ) -> Result<PreparedEnhancedRagSearch, AppError> {
@@ -17,7 +18,7 @@ pub(super) async fn prepare_enhanced_rag_search(
     let top_k = required_top_k(input.top_k, "rag_enhanced_search")?;
     let data_types = normalize_search_data_types(input.data_types)?;
     prepare_enhanced_rag_search_parts(
-        state,
+        rag,
         project_id,
         &query,
         top_k,
@@ -28,20 +29,18 @@ pub(super) async fn prepare_enhanced_rag_search(
 }
 
 pub(super) async fn prepare_enhanced_rag_search_parts(
-    state: &AppState,
+    rag: &RagRuntimeFacade<'_>,
     project_id: i64,
     base_query: &str,
     top_k: usize,
     chapter_number: Option<i32>,
     data_types: Option<Vec<String>>,
 ) -> Result<PreparedEnhancedRagSearch, AppError> {
-    let queries = state
-        .orchestrator
+    let queries = rag
         .prepare_enhanced_rag_queries(project_id, base_query, chapter_number)
         .await?;
-    let embedding_identity = current_embedding_identity(state).await?;
-    let filter = state
-        .orchestrator
+    let embedding_identity = current_embedding_identity(rag).await?;
+    let filter = rag
         .enhanced_rag_search_filter(project_id, &embedding_identity, data_types)
         .await?;
     Ok(PreparedEnhancedRagSearch {
@@ -55,10 +54,10 @@ pub(super) async fn prepare_enhanced_rag_search_parts(
 }
 
 pub(crate) async fn current_embedding_identity(
-    state: &AppState,
+    rag: &RagRuntimeFacade<'_>,
 ) -> Result<EmbeddingModelIdentity, AppError> {
     if let Some(model) = crate::runtime_config::current_embedding_model() {
         return crate::dynamic_embedding::model_identity_from_config(&model);
     }
-    state.embedding.model_identity().await
+    rag.embedding_model_identity().await
 }

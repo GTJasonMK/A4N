@@ -77,10 +77,10 @@ pub(in crate::http) fn llm_api_status_error(status: StatusCode, body: &str) -> A
     let detail = upstream_error_detail(body);
     match status {
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => AppError::ConfigError(format!(
-            "默认 LLM 配置鉴权失败（{status}）：{detail}。请在设置页更新 API Key、Base URL 或模型名称"
+            "当前 LLM 配置鉴权失败（{status}）：{detail}。请在设置页更新 API Key、Base URL 或模型名称"
         )),
         StatusCode::PAYMENT_REQUIRED => AppError::ConfigError(format!(
-            "默认 LLM 配置对应账号余额不足或额度耗尽（{status}）：{detail}。请充值该供应商账号，或在设置页切换到可用的默认 LLM 配置"
+            "当前 LLM 配置对应账号余额不足或额度耗尽（{status}）：{detail}。请充值该供应商账号，或在设置页切换到可用的 LLM 配置"
         )),
         StatusCode::TOO_MANY_REQUESTS => AppError::LlmError(format!(
             "LLM 服务限流（{status}）：{detail}。请稍后重试或降低并发"

@@ -1,6 +1,4 @@
 use a4n_core::error::AppError;
-use a4n_core::models::ai::optimization_turn;
-use a4n_db::optimize::OptimizationSessionUpdateInput;
 use a4n_llm::provider::ChatRequest;
 
 use super::validation::{ensure_chat_session_accepts_message, required_chat_user_text};
@@ -10,28 +8,26 @@ use crate::optimize::agent_loop::{
 use crate::optimize::chat_loop_executor::ChatAgentLoopInput;
 use crate::optimize::turns::{TURN_STATUS_CANCELLED, TURN_STATUS_FAILED};
 use crate::optimize::{
-    OptimizeAgentPermissions, OptimizeSendUserMessageInput, OrchestratorContext,
-    is_cancelled_optimize_error, optimize_db_error, report_optimize_progress,
+    AgentLoopExecutionError, OptimizeAgentPermissions, OptimizeChatTurnExecution,
+    OptimizeSendUserMessageInput, OrchestratorContext,
 };
 use a4n_prompt::rendering::PromptRenderer;
 
 impl OrchestratorContext {
-    pub async fn send_user_message_with_permissions(
+    pub(in crate::optimize) async fn send_user_message_with_permissions(
         &self,
-        input: OptimizeSendUserMessageInput<'_, '_, '_>,
-    ) -> Result<optimization_turn::Model, AppError> {
+        input: OptimizeSendUserMessageInput<'_, '_>,
+    ) -> Result<OptimizeChatTurnExecution, AgentLoopExecutionError> {
         let OptimizeSendUserMessageInput {
             session_id,
             message,
             permissions_override,
             prompt_renderer,
             workflow_run_id,
-            mut progress,
-            mut stream,
+            generation,
         } = input;
         let user_text = required_chat_user_text(message)?;
 
-        report_optimize_progress(&mut progress, 0, 4, "正在读取优化会话上下文")?;
         let session = self.get_session(session_id).await?;
         ensure_chat_session_accepts_message(&session, "发送内容优化 Agent 对话")?;
 
@@ -49,16 +45,11 @@ impl OrchestratorContext {
             .await?;
         insert_current_chapter_content(&mut chat_context.chat_context, &chapter.content);
 
-        let turn = self
-            .create_turn(session_id, user_text, &chat_context.permissions)
-            .await?;
-        self.save_message(session_id, "user", user_text).await?;
         self.save_agent_event(
             session_id,
             "收到用户消息，正在构建普通对话 Agent Loop 输入。",
         )
         .await?;
-        report_optimize_progress(&mut progress, 1, 4, "正在渲染 Agent 对话提示词")?;
         let (system_prompt, base_user_message) = match self
             .build_chat_agent_prompt_bundle(&session, user_text, &chat_context, prompt_renderer)
             .await
@@ -67,12 +58,13 @@ impl OrchestratorContext {
             Err(err) => {
                 self.save_agent_event(session_id, &format!("渲染普通交互提示词失败：{err}"))
                     .await?;
-                self.fail_turn(turn.id, TURN_STATUS_FAILED, &err.to_string())
-                    .await?;
-                return Err(err);
+                return Err(err.into());
             }
         };
-        match self
+        let turn = self
+            .create_turn(session_id, user_text, &chat_context.permissions)
+            .await?;
+        let reply = match self
             .run_chat_agent_loop(ChatAgentLoopInput {
                 turn_id: turn.id,
                 session: &session,
@@ -80,16 +72,13 @@ impl OrchestratorContext {
                 base_user_message,
                 chat_context: chat_context.chat_context,
                 workflow_run_id,
-                progress: &mut progress,
-                stream: &mut stream,
+                generation,
             })
             .await
         {
-            Ok(reply) => {
-                self.finish_turn(turn.id, &reply).await?;
-            }
+            Ok(reply) => reply,
             Err(err) => {
-                let status = if is_cancelled_optimize_error(&err) {
+                let status = if err.is_cancelled() {
                     TURN_STATUS_CANCELLED
                 } else {
                     TURN_STATUS_FAILED
@@ -98,26 +87,14 @@ impl OrchestratorContext {
                 return Err(err);
             }
         };
-        a4n_db::optimize::update_optimization_session(
-            self.db.connection(),
-            OptimizationSessionUpdateInput {
-                session,
-                status: None,
-                issues: None,
-                agent_permissions: None,
-                agent_instruction: None,
-                fixes_applied: None,
-                summary: None,
-            },
-        )
-        .await
-        .map_err(optimize_db_error)?;
-
-        report_optimize_progress(&mut progress, 4, 4, "Agent 对话已更新")?;
-        self.get_turn(turn.id).await
+        Ok(OptimizeChatTurnExecution {
+            turn_id: turn.id,
+            user_text: user_text.to_string(),
+            final_reply: reply,
+        })
     }
 
-    pub async fn build_send_user_message_preview_request(
+    pub(crate) async fn build_send_user_message_preview_request(
         &self,
         session_id: i64,
         message: &str,

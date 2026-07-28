@@ -1,10 +1,10 @@
 use super::contracts::{AuthResult, RefreshTokenInput, TokenPairSummary};
 use super::projections::{to_session_summary, to_user_summary};
-use super::rules::{required_session_id, required_session_user_id};
 use crate::AppState;
 use crate::jwt;
 use a4n_core::error::AppError;
 use a4n_core::models::user::user;
+use a4n_orchestrator::auth::{required_session_id, required_session_user_id};
 use std::path::Path;
 
 pub async fn user_from_access_token(
@@ -19,7 +19,7 @@ pub async fn user_from_access_token(
         .sub
         .parse::<i64>()
         .map_err(|_| AppError::Unauthorized("访问令牌 subject 不是有效用户 ID".into()))?;
-    state.orchestrator.current_user(user_id).await
+    state.auth().current_user(user_id).await
 }
 
 pub async fn verify_media_token_for_path(
@@ -46,7 +46,7 @@ pub async fn verify_media_token_for_path(
         .sub
         .parse::<i64>()
         .map_err(|_| AppError::Unauthorized("媒体令牌 subject 不是有效用户 ID".into()))?;
-    state.orchestrator.current_user(user_id).await?;
+    state.auth().current_user(user_id).await?;
     Ok(())
 }
 
@@ -63,7 +63,7 @@ pub async fn issue_auth_result(
         secret,
     )?;
     let session = state
-        .orchestrator
+        .auth()
         .create_session(user.id, &pair.refresh_token, user_agent)
         .await?;
     let session_id = session.id.clone();
@@ -98,10 +98,10 @@ pub async fn refresh_token(
     let user_id = required_session_user_id(user_id, "刷新令牌")?;
 
     let session = state
-        .orchestrator
+        .auth()
         .verify_session_refresh_token(user_id, &session_id, &input.refresh_token)
         .await?;
-    let user = state.orchestrator.current_user(user_id).await?;
+    let user = state.auth().current_user(user_id).await?;
     let pair = jwt::refresh_access_token_with_role(
         &input.refresh_token,
         Some(&user.username),
@@ -109,7 +109,7 @@ pub async fn refresh_token(
         secret,
     )?;
     state
-        .orchestrator
+        .auth()
         .rotate_session_refresh_token(session, &input.refresh_token, &pair.refresh_token)
         .await?;
 
@@ -123,12 +123,5 @@ pub async fn refresh_token(
 }
 
 fn jwt_secret(state: &AppState) -> Result<&str, AppError> {
-    state
-        .config
-        .security
-        .jwt_secret
-        .as_deref()
-        .map(str::trim)
-        .filter(|secret| !secret.is_empty())
-        .ok_or_else(|| AppError::ConfigError("A4N_JWT_SECRET 不能为空".into()))
+    state.required_jwt_secret()
 }

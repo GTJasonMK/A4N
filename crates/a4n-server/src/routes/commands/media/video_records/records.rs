@@ -48,6 +48,29 @@ pub(in crate::routes::commands) async fn update_video(
     to_value(updated)
 }
 
+pub(in crate::routes::commands) async fn select_segment_video(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    let chapter_id = i64_arg(args, "chapterId")?;
+    let video_id = i64_arg(args, "videoId")?;
+    let input: a4n_api_contract::video::SelectSegmentVideoInput =
+        command_input(args, "select_segment_video")?;
+    let updated = video_records_actions::select_segment_video(
+        state.runtime(),
+        user_id,
+        project_id,
+        chapter_id,
+        video_id,
+        input,
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
+    to_value(updated)
+}
+
 pub(in crate::routes::commands) async fn delete_video(
     state: &ServerState,
     user_id: i64,

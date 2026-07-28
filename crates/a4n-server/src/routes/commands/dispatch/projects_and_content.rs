@@ -25,8 +25,6 @@ pub(super) async fn try_dispatch(
         "delete_optimize_session" => delete_optimize_session(state, user_id, args).await?,
         "record_optimize_agent_event" => record_optimize_agent_event(state, user_id, args).await?,
         "get_inspiration_history" => get_inspiration_history(state, user_id, args).await?,
-        "converse_inspiration" => converse_inspiration(state, user_id, args).await?,
-        "converse_inspiration_stream" => converse_inspiration_stream(state, user_id, args).await?,
         "preview_inspiration_request" => preview_inspiration_request(state, user_id, args).await?,
         "get_project_import_analysis_progress" => {
             get_project_import_analysis_progress(state, user_id, args).await?
@@ -74,7 +72,6 @@ pub(super) async fn try_dispatch(
         "rollback_project_status" => rollback_project_status(state, user_id, args).await?,
         "get_project_status_history" => get_project_status_history(state, user_id, args).await?,
         "list_chapters" => list_chapters(state, user_id, args).await?,
-        "generate_chapter_stream" => generate_chapter_stream(state, user_id, args).await?,
         "preview_chapter_prompt" => preview_chapter_prompt(state, user_id, args).await?,
         "import_chapter" => import_chapter(state, user_id, args).await?,
         "update_chapter_content" => update_chapter_content(state, user_id, args).await?,
@@ -104,22 +101,18 @@ pub(super) async fn try_dispatch(
             preview_chapter_scene_request(state, user_id, args).await?
         }
         "get_blueprint" => get_blueprint(state, user_id, args).await?,
-        "generate_blueprint" => generate_blueprint(state, user_id, args).await?,
         "preview_generate_blueprint_request" => {
             preview_generate_blueprint_request(state, user_id, args).await?
         }
-        "refine_blueprint" => refine_blueprint(state, user_id, args).await?,
         "preview_refine_blueprint_request" => {
             preview_refine_blueprint_request(state, user_id, args).await?
         }
         "list_blueprint_versions" => list_blueprint_versions(state, user_id, args).await?,
         "diff_blueprint_versions" => diff_blueprint_versions(state, user_id, args).await?,
         "restore_blueprint_version" => restore_blueprint_version(state, user_id, args).await?,
-        "regenerate_part_outline" => regenerate_part_outline(state, user_id, args).await?,
         "preview_regenerate_part_outline_request" => {
             preview_regenerate_part_outline_request(state, user_id, args).await?
         }
-        "continue_part_outlines" => continue_part_outlines(state, user_id, args).await?,
         "preview_continue_part_outlines_request" => {
             preview_continue_part_outlines_request(state, user_id, args).await?
         }
@@ -128,29 +121,18 @@ pub(super) async fn try_dispatch(
         "delete_latest_chapter_outlines" => {
             delete_latest_chapter_outlines(state, user_id, args).await?
         }
-        "generate_part_chapter_outlines" => {
-            generate_part_chapter_outlines(state, user_id, args).await?
-        }
         "preview_generate_part_chapter_outlines_request" => {
             preview_generate_part_chapter_outlines_request(state, user_id, args).await?
-        }
-        "batch_generate_part_outlines" => {
-            batch_generate_part_outlines(state, user_id, args).await?
         }
         "preview_batch_generate_part_outlines_request" => {
             preview_batch_generate_part_outlines_request(state, user_id, args).await?
         }
-        "apply_beat_mapping" => apply_beat_mapping(state, user_id, args).await?,
         "preview_apply_beat_mapping_request" => {
             preview_apply_beat_mapping_request(state, user_id, args).await?
-        }
-        "generate_chapter_outlines_by_count" => {
-            generate_chapter_outlines_by_count(state, user_id, args).await?
         }
         "preview_generate_chapter_outlines_by_count_request" => {
             preview_generate_chapter_outlines_by_count_request(state, user_id, args).await?
         }
-        "regenerate_chapter_outline" => regenerate_chapter_outline(state, user_id, args).await?,
         "preview_regenerate_chapter_outline_request" => {
             preview_regenerate_chapter_outline_request(state, user_id, args).await?
         }

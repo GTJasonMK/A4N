@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 a4n-core = { path = "../a4n-core" }
 a4n-queue = { path = "../a4n-queue" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
 
 anyhow = { workspace = true }
 argon2 = { workspace = true }
@@ -14,6 +15,7 @@ chrono = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_json_canonicalizer = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }

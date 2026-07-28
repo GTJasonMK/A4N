@@ -36,7 +36,7 @@ impl OrchestratorContext {
             .collect::<Vec<_>>();
         if !explicit_reference_ids.is_empty() {
             let explicit_rows = a4n_db::video::video_library_explicit_image_records(
-                self.db.connection(),
+                self.database.connection(),
                 &allowed_project_ids,
                 &explicit_reference_ids,
             )
@@ -96,7 +96,7 @@ impl OrchestratorContext {
         }
 
         let chapter_images = a4n_db::video::video_library_chapter_image_records(
-            self.db.connection(),
+            self.database.connection(),
             &allowed_project_ids,
             chapter_id,
         )
@@ -143,10 +143,12 @@ impl OrchestratorContext {
     ) -> Result<Vec<VideoAssetCandidate>, AppError> {
         let mut relevant_profiles = Vec::new();
         let source_text = source_relevance_text(source);
-        let read_model =
-            a4n_db::video::video_profile_material_read_model(self.db.connection(), project_ids)
-                .await
-                .map_err(AppError::Database)?;
+        let read_model = a4n_db::video::video_profile_material_read_model(
+            self.database.connection(),
+            project_ids,
+        )
+        .await
+        .map_err(AppError::Database)?;
 
         for scene in read_model.scenes {
             if let Some(relevance_rank) =

@@ -1,6 +1,10 @@
-use crate::contracts::{VideoGenerationOutput, VideoJobOutput, VideoProviderPayload};
+use crate::contracts::{
+    VideoDeleteOutput, VideoGenerationOutput, VideoJobOutput, VideoProviderPayload,
+    VideoStatusOutput,
+};
 use a4n_core::error::AppError;
-use a4n_video::{VideoGenerationResult, VideoJobState};
+use a4n_service_protocol::redact_sensitive_message;
+use a4n_video::{VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus};
 use a4n_video_providers::{
     ChatCompletionsVideoProvider, CliProxyOpenAiVideoProvider, GeminiVeoVideoProvider,
     HttpVideoProvider, NewApiVideoProvider, Seedance2VideoProvider,
@@ -45,6 +49,28 @@ pub(crate) fn video_job_output(state: VideoJobState) -> VideoJobOutput {
         VideoJobState::Completed(result) => VideoJobOutput::Completed {
             result: video_generation_output(result),
         },
-        VideoJobState::Failed(message) => VideoJobOutput::Failed { message },
+        VideoJobState::Failed(message) => VideoJobOutput::Failed {
+            message: redact_sensitive_message(message),
+        },
+    }
+}
+
+pub(crate) fn video_status_output(status: VideoJobStatus) -> VideoStatusOutput {
+    match status {
+        VideoJobStatus::Pending => VideoStatusOutput::Pending,
+        VideoJobStatus::Running => VideoStatusOutput::Running,
+        VideoJobStatus::Completed => VideoStatusOutput::Completed,
+        VideoJobStatus::Failed(message) => VideoStatusOutput::Failed {
+            message: redact_sensitive_message(message),
+        },
+        VideoJobStatus::Cancelled => VideoStatusOutput::Cancelled,
+        VideoJobStatus::NotFound => VideoStatusOutput::NotFound,
+    }
+}
+
+pub(crate) fn video_delete_output(outcome: VideoJobDeleteOutcome) -> VideoDeleteOutput {
+    match outcome {
+        VideoJobDeleteOutcome::Deleted => VideoDeleteOutput::Deleted,
+        VideoJobDeleteOutcome::NotFound => VideoDeleteOutput::NotFound,
     }
 }

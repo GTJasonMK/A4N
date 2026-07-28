@@ -1,39 +1,8 @@
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
 use std::future::Future;
 
 pub use crate::actions::request_preview::{ModelRequestPreview, ModelRequestPreviewStep};
+pub use a4n_api_contract::config::ModelDiscoveryInput;
 pub use a4n_model_discovery::{DiscoveredModel, ModelDiscoveryResult};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ModelDiscoveryInput {
-    pub provider: String,
-    pub base_url: String,
-    pub api_key_encrypted: Option<String>,
-    #[serde(default)]
-    pub config_id: Option<i64>,
-    #[serde(default)]
-    pub use_saved_api_key: bool,
-}
-
-pub(super) fn deserialize_optional_string_update<'de, D>(
-    deserializer: D,
-) -> Result<Option<Option<String>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Ok(Some(Option::<String>::deserialize(deserializer)?))
-}
-
-pub(super) fn deserialize_optional_json_update<'de, D>(
-    deserializer: D,
-) -> Result<Option<Option<Value>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Ok(Some(Option::<Value>::deserialize(deserializer)?))
-}
 
 pub(super) async fn model_discovery_api_key<F, Fut>(
     provided_api_key: Option<&str>,

@@ -13,4 +13,5 @@ axum = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
+a4n-test-support = { path = "../a4n-test-support" }
 serde_json = { workspace = true }

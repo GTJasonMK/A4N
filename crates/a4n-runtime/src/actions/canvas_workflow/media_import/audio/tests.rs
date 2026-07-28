@@ -1,5 +1,7 @@
-use super::{canvas_audio_extension, required_canvas_audio_file_name, validate_canvas_audio_mime};
 use crate::file_utils::persist_created_media_file;
+use a4n_orchestrator::canvas::{
+    canvas_audio_extension, required_canvas_audio_file_name, validate_canvas_audio_mime,
+};
 use std::path::{Path, PathBuf};
 
 fn unique_audio_temp_dir(prefix: &str) -> PathBuf {

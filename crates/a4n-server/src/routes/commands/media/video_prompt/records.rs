@@ -2,8 +2,9 @@ use serde_json::Value;
 
 use super::super::super::{
     ApiError, DownstreamConflictStrategy, ServerState, command_input, downstream_strategy_arg,
-    i64_arg, nullable_string_update_field, nullable_value_update_field, optional_i32_field,
-    optional_string_field, required_arg, string_arg, to_value, video_prompt_actions,
+    i64_arg, nullable_i64_update_field, nullable_string_update_field, nullable_value_update_field,
+    optional_i32_field, optional_string_field, required_arg, string_arg, to_value,
+    video_prompt_actions,
 };
 
 pub(in crate::routes::commands) async fn list_chapter_video_prompts(
@@ -36,6 +37,9 @@ pub(in crate::routes::commands) async fn update_chapter_video_prompt(
     let negative_prompt = nullable_string_update_field(input, "negative_prompt")?;
     let duration_secs = optional_i32_field(input, "duration_secs")?;
     let reference_image_ids_json = nullable_value_update_field(input, "reference_image_ids_json")?;
+    let guidance_mode = optional_string_field(input, "guidance_mode")?;
+    let continuity_source_video_id =
+        nullable_i64_update_field(input, "continuity_source_video_id")?;
     let downstream_strategy = DownstreamConflictStrategy::from_optional_str(
         optional_string_field(input, "downstream_strategy")?.as_deref(),
     )
@@ -50,6 +54,8 @@ pub(in crate::routes::commands) async fn update_chapter_video_prompt(
             negative_prompt,
             duration_secs,
             reference_image_ids_json,
+            guidance_mode,
+            continuity_source_video_id,
             downstream_strategy,
         },
     )

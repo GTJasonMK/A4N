@@ -58,7 +58,7 @@ impl OrchestratorContext {
             text_anchor_id: input.text_anchor_id,
         };
         let inserted = a4n_db::galgame::insert_galgame_line_record_transaction(
-            self.db.connection(),
+            self.database.connection(),
             record_input,
         )
         .await

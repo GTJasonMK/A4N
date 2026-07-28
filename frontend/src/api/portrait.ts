@@ -2,6 +2,15 @@ import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
+import { generationClient } from "./generationTasks";
+import { generationTaskKey, useGenerationTasksStore } from "../store/generationTasks";
+import { sha256Hex } from "../utils/contentHash";
+import type { GenerationTaskViewState } from "../utils/generationEventReducer";
+import type {
+  GenerationTaskHandle,
+  PortraitGenerationOperation,
+  StartPortraitGenerationInput,
+} from "./generated/generationContracts";
 
 /**
  * Portrait API wrapper —— 对齐 crates/a4n-tauri/src/commands/portrait.rs
@@ -43,6 +52,77 @@ const currentUserId = (): number => {
   if (id == null) throw new Error("未登录，无法访问角色立绘");
   return id;
 };
+
+export type PortraitGenerationInput = Omit<StartPortraitGenerationInput, "meta">;
+export type { PortraitGenerationOperation };
+
+export async function startPortraitGeneration(
+  input: PortraitGenerationInput,
+): Promise<GenerationTaskHandle> {
+  return generationClient.start((meta) =>
+    apiInvoke<GenerationTaskHandle>("start_portrait_generation", {
+      userId: currentUserId(),
+      input: { ...input, meta, project_id: idNum(input.project_id) },
+    }),
+  );
+}
+
+export async function verifyPortraitGenerationResult(
+  task: GenerationTaskViewState,
+  projectId: Id,
+): Promise<Portrait[]> {
+  const project = idNum(projectId);
+  const resultRef = task.resultRef;
+  const portraits = await listPortraitsByProject(project);
+  let valid = false;
+
+  if (resultRef?.kind === "portrait") {
+    const portraitId = Number(resultRef.id);
+    const portrait = portraits.find(
+      (item) => item.id === portraitId && item.project_id === project,
+    );
+    if (portrait) {
+      const revision = await sha256Hex(JSON.stringify([
+        portrait.id,
+        portrait.profile_id,
+        portrait.project_id,
+        portrait.portrait_type,
+        portrait.image_path,
+        portrait.prompt,
+        portrait.expression,
+        portrait.pose,
+        portrait.is_primary,
+        portrait.created_at,
+      ]));
+      valid = revision != null
+        && revision === resultRef.revision
+        && task.artifacts.some((artifact) => artifact.artifact_id === `portrait:${portrait.id}`);
+    }
+  } else if (resultRef?.kind === "portrait_batch" && Number(resultRef.id) === project) {
+    const ids = task.artifacts
+      .filter((artifact) => artifact.artifact_kind === "portrait_image")
+      .map((artifact) => artifact.artifact_id.match(/^portrait:(\d+)$/)?.[1])
+      .filter((id): id is string => id != null)
+      .map(Number);
+    const uniqueIds = [...new Set(ids)].sort((left, right) => left - right);
+    const revision = await sha256Hex(JSON.stringify(uniqueIds));
+    valid = uniqueIds.length > 0
+      && revision != null
+      && revision === resultRef.revision
+      && uniqueIds.every((id) => portraits.some(
+        (portrait) => portrait.id === id && portrait.project_id === project,
+      ));
+  }
+
+  if (!valid) {
+    useGenerationTasksStore.getState().dispatch(
+      generationTaskKey(task.taskId, task.attempt),
+      { type: "client_state", state: "consistency_error" },
+    );
+    throw new Error("立绘生成已结束，但正式结果校验失败");
+  }
+  return portraits;
+}
 
 // ============================================================================
 // 立绘查询
@@ -108,28 +188,6 @@ export async function previewGeneratePortraitPromptRequest(input: {
   });
 }
 
-/** 后端 generate_portrait(project_id, character_name, _style?, expressions?, pose?) —— 平铺参数 */
-export async function generatePortrait(
-  projectId: Id,
-  characterName: string,
-  style?: string | null,
-  expressions?: string[] | null,
-  taskId?: string | null,
-  referenceImageIds?: Id[] | null,
-  pose?: string | null,
-): Promise<Portrait> {
-  return apiInvoke<Portrait>("generate_portrait", {
-    userId: currentUserId(),
-    projectId: idNum(projectId),
-    characterName,
-    style: style ?? null,
-    expressions: expressions ?? null,
-    pose: pose ?? null,
-    taskId: taskId ?? null,
-    referenceImageIds: referenceImageIds?.map(idNum) ?? [],
-  });
-}
-
 export async function previewGeneratePortraitRequest(
   projectId: Id,
   characterName: string,
@@ -149,20 +207,6 @@ export async function previewGeneratePortraitRequest(
   });
 }
 
-/** 后端 regenerate_portrait(portrait_id) */
-export async function regeneratePortrait(
-  portraitId: Id,
-  taskId?: string | null,
-  referenceImageIds?: Id[] | null,
-): Promise<Portrait> {
-  return apiInvoke<Portrait>("regenerate_portrait", {
-    userId: currentUserId(),
-    portraitId: idNum(portraitId),
-    taskId: taskId ?? null,
-    referenceImageIds: referenceImageIds?.map(idNum) ?? [],
-  });
-}
-
 export async function previewRegeneratePortraitRequest(
   portraitId: Id,
   referenceImageIds?: Id[] | null,
@@ -174,40 +218,12 @@ export async function previewRegeneratePortraitRequest(
   });
 }
 
-/** 后端 generate_missing_portraits(project_id, task_id?) */
-export async function generateMissingPortraits(
-  projectId: Id,
-  taskId?: string | null,
-): Promise<Portrait[]> {
-  return apiInvoke<Portrait[]>("generate_missing_portraits", {
-    userId: currentUserId(),
-    projectId: idNum(projectId),
-    taskId: taskId ?? null,
-  });
-}
-
 export async function previewGenerateMissingPortraitsRequest(
   projectId: Id,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_generate_missing_portraits_request", {
     userId: currentUserId(),
     projectId: idNum(projectId),
-  });
-}
-
-/** 后端 generate_age_variant(portrait_id, age) —— age 是字符串 */
-export async function generateAgeVariant(
-  portraitId: Id,
-  age: string,
-  taskId?: string | null,
-  referenceImageIds?: Id[] | null,
-): Promise<Portrait> {
-  return apiInvoke<Portrait>("generate_age_variant", {
-    userId: currentUserId(),
-    portraitId: idNum(portraitId),
-    age,
-    taskId: taskId ?? null,
-    referenceImageIds: referenceImageIds?.map(idNum) ?? [],
   });
 }
 

@@ -62,14 +62,13 @@ tauri_chapter_progress_command!(
     project_id: scope.project_id,
     total: scope.total,
     "正在准备场景生成",
-    "chapter_scene_generation_failed",
-    |window, state, user_id, progress| generate_chapter_scene_with_progress(
+    |_window, state, user_id, progress| generate_chapter_scene_with_progress(
         &state,
         user_id,
         input,
         Some(progress),
     ),
-    |scene| format!("已生成场景 #{}", scene.scene_number),
+    |_| {},
 );
 
 async fn generate_chapter_scene_with_progress(

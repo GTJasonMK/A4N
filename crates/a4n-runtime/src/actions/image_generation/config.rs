@@ -27,7 +27,7 @@ pub(crate) async fn resolve_image_config(
     }
 
     state
-        .orchestrator
+        .settings()
         .resolve_image_config(config_id)
         .await
         .map_err(|err| err.to_string())
@@ -37,60 +37,15 @@ pub(super) async fn resolve_system_default_image_template_with_user_key(
     state: &AppState,
 ) -> Result<image_gen_config::Model, String> {
     let mut model = state
-        .orchestrator
+        .settings()
         .resolve_image_config(None)
         .await
         .map_err(|err| err.to_string())?;
     model.api_key_encrypted = crate::runtime_config::current_system_image_api_key();
-    if model.api_key_encrypted.is_none() && image_backend_requires_api_key(&model.backend) {
+    if model.api_key_encrypted.is_none()
+        && a4n_orchestrator::config::image_backend_requires_api_key(&model.backend)
+    {
         return Err("使用系统默认图片配置需要先在用户配置页填写并保存你的个人 API Key".to_string());
     }
     Ok(model)
-}
-
-pub(super) fn image_backend_requires_api_key(backend: &str) -> bool {
-    matches!(
-        backend,
-        "openai-compatible-image"
-            | "openai-compatible-image-edit"
-            | "openai-chat-image"
-            | "cliproxy-image"
-    )
-}
-
-pub(crate) fn normalize_image_metadata(metadata_json: Option<Value>) -> Option<Value> {
-    match metadata_json {
-        Some(Value::Object(mut map)) => {
-            map.entry("metadata_schema_version".to_string())
-                .or_insert_with(|| json!(IMAGE_METADATA_SCHEMA_VERSION));
-            Some(Value::Object(map))
-        }
-        Some(value) => Some(json!({
-            "metadata_schema_version": IMAGE_METADATA_SCHEMA_VERSION,
-            "value": value,
-        })),
-        None => Some(json!({
-            "metadata_schema_version": IMAGE_METADATA_SCHEMA_VERSION,
-        })),
-    }
-}
-
-pub(crate) fn to_summary(img: &generated_image::Model) -> GeneratedImageSummary {
-    GeneratedImageSummary {
-        id: img.id,
-        project_id: img.project_id,
-        image_type: img.image_type.clone(),
-        file_path: img.file_path.clone(),
-        prompt: img.prompt.clone(),
-        model: img.model.clone(),
-        width: img.width,
-        height: img.height,
-        file_size: img.file_size,
-        ai_score: img.ai_score,
-        is_favorite: img.is_favorite,
-        chapter_id: img.chapter_id,
-        panel_id: img.panel_id.clone(),
-        metadata_json: img.metadata_json.clone(),
-        created_at: Some(img.created_at.to_string()),
-    }
 }

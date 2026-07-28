@@ -6,7 +6,6 @@ tauri_export_read_command!(
     "正在准备 TXT 导出",
     "正在读取可导出章节",
     "TXT 导出完成",
-    "export_txt_failed",
     |state, user_id, scope| export_files::export_txt_data(state.inner(), user_id, project_id),
 );
 
@@ -16,7 +15,6 @@ tauri_export_read_command!(
     "正在准备 Markdown 导出",
     "正在读取可导出章节",
     "Markdown 导出完成",
-    "export_markdown_failed",
     |state, user_id, scope| export_files::export_markdown_data(
         state.inner(),
         user_id,

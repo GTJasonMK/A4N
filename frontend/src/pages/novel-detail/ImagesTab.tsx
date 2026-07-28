@@ -6,19 +6,19 @@ import { RequestPreviewModal } from "../../components/feedback/RequestPreviewMod
 import { extractErrorMessage } from "../../api";
 import {
   deleteImage,
-  generateSceneImage,
   listImagesByChapter,
   listImagesByProject,
   previewSceneImageRequest,
   scoreImage,
+  startImageGeneration,
   toggleImageFavorite,
   updateImage,
   uploadImage,
+  verifyImageGenerationResult,
   type GeneratedImage,
   type UpdateImageInput,
 } from "../../api/image";
 import {
-  generateObjectProfileImage,
   generateObjectProfileImagePrompt,
   listObjectProfiles,
   previewObjectProfileImageRequest,
@@ -31,7 +31,8 @@ import {
   isChapterGenerating,
   type ChapterRow,
 } from "./shared";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
+import { useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { sha256Hex } from "../../utils/contentHash";
@@ -406,33 +407,31 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     }
     const actionSeq = beginAction(requestScope);
     if (actionSeq == null) return;
-    const taskId = createProgressTaskId("image-scene", requestProjectId);
     setGenBusy(true);
     try {
-      await runProgressTask(
+      const handle = await startImageGeneration({
+        project_id: requestProjectId,
+        operation: {
+          kind: "scene",
+          prompt: requestPrompt,
+          config_id: null,
+          chapter_id: requestChapter?.id ?? null,
+        },
+      });
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: requestChapter ? "生成章节场景图" : "生成项目场景图",
           startMessage: "正在准备图片生成…",
           successMessage: requestChapter ? "章节场景图已生成" : "项目场景图已生成",
           errorMessage: "图片生成失败",
           total: 3,
-          taskId,
           cancelLabel: "停止生成",
-          runningHint: "图片生成过程中请保持当前窗口打开",
         },
-        async ({ setProgress }) => {
+        async (task) => {
           ensureCurrentAction(requestScope, actionSeq);
-          setProgress("正在提交图片生成任务…", 0, 3);
-          await generateSceneImage(
-            requestProjectId,
-            requestPrompt,
-            null,
-            null,
-            requestChapter?.id ?? null,
-            taskId,
-          );
-          ensureCurrentAction(requestScope, actionSeq);
-          setProgress("正在刷新图片列表…", 3, 3);
+          await verifyImageGenerationResult(task, requestProjectId);
           await load({ force: true });
           ensureCurrentAction(requestScope, actionSeq);
         },
@@ -577,31 +576,31 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     }
     const actionSeq = beginAction(requestScope);
     if (actionSeq == null) return;
-    const taskId = createProgressTaskId("object-profile-image", requestProjectId);
     setObjectImageBusy(true);
     try {
-      await runProgressTask(
+      const handle = await startImageGeneration({
+        project_id: requestProjectId,
+        operation: {
+          kind: "object_profile",
+          object_profile_id: requestProfileId,
+          chapter_id: requestChapterId,
+          style: requestStyle,
+        },
+      });
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "生成物体素材图",
           startMessage: "正在准备物体素材图",
           successMessage: "物体素材图已生成",
           errorMessage: "物体素材图生成失败",
           total: 3,
-          taskId,
           cancelLabel: "停止生成",
-          runningHint: "图片生成过程中请保持当前窗口打开",
         },
-        async () => {
+        async (task) => {
           ensureCurrentAction(requestScope, actionSeq);
-          await generateObjectProfileImage(
-            {
-              object_profile_id: requestProfileId,
-              chapter_id: requestChapterId,
-              style: requestStyle,
-            },
-            taskId,
-          );
-          ensureCurrentAction(requestScope, actionSeq);
+          await verifyImageGenerationResult(task, requestProjectId);
           await load({ force: true });
           ensureCurrentAction(requestScope, actionSeq);
           await loadObjectProfiles();

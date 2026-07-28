@@ -1,11 +1,7 @@
-mod embedding;
-mod image;
 mod image_provider;
-mod llm;
-mod settings;
+mod settings_all_application;
+mod settings_export_rules;
 mod themes;
-mod video;
-
 pub use a4n_db::config::{
     BaselineImageConfigSeed, BaselineLlmConfigSeed, BaselineVideoConfigSeed,
     DefaultLlmOutputCapRow, EmbeddingConfigCreateRecordInput, EmbeddingConfigUpdateRecordInput,
@@ -16,4 +12,15 @@ pub use a4n_db::config::{
     SettingsAllSystemSettingImportRow, SettingsAllThemeImportRow, SettingsAllVideoConfigImportRow,
     VideoConfigCreateRecordInput, VideoConfigUpdateRecordInput,
 };
-pub use image_provider::{configured_image_provider, image_backend_supports_reference_images};
+pub use image_provider::{
+    configured_image_provider, image_backend_requires_api_key,
+    image_backend_supports_reference_images,
+};
+pub use settings_all_application::SettingsAllHostPort;
+pub use settings_export_rules::{
+    AllConfigsExport, EmbeddingRow, ImageRow, ImportAllConfigsInput, ImportAllResult, LlmRow,
+    PromptRow, SystemSettingRow, ThemeRow, VideoRow,
+};
+
+/// Host/runtime 使用的 embedding 更新补丁别名（与 core UpdateEmbeddingConfigParams 对齐）。
+pub type EmbeddingConfigUpdatePatch = a4n_core::config::UpdateEmbeddingConfigParams;

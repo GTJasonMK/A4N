@@ -1,4 +1,4 @@
-use a4n_core::event::sse::ProgressMeta;
+use a4n_core::event::progress::ProgressMeta;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -61,4 +61,10 @@ pub struct WorkflowProgressEventInput<'a> {
     pub total: u32,
     pub message: &'a str,
     pub meta: Option<ProgressMeta>,
+}
+
+/// 视频生成等路径的独占 workflow claim 输入。
+#[derive(Debug, Clone)]
+pub struct ClaimExclusiveWorkflowRunInput {
+    pub run: UpsertWorkflowRunInput,
 }

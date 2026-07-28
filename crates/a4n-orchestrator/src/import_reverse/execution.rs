@@ -14,7 +14,7 @@ use self::call::execute_import_reverse_call;
 use self::preparation::prepare_import_reverse_call;
 
 impl OrchestratorContext {
-    pub async fn reverse_engineer_request(
+    pub(crate) async fn reverse_engineer_request(
         &self,
         prompt_name: &str,
         request: ChatRequest,

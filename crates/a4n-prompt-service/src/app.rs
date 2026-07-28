@@ -6,8 +6,17 @@ use crate::handlers::{
 };
 use a4n_core::config::env::optional_non_empty_env_path;
 use a4n_prompt::tera_engine::TeraPromptEngine;
-use axum::{Router, routing::get, routing::post};
+use axum::{
+    Router,
+    extract::DefaultBodyLimit,
+    middleware,
+    routing::{get, post},
+};
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+
+const PROMPT_GIT_OWNER: &str = "prompt-git";
+const PROMPT_GIT_CLASSIFICATION: &str = "persistent_business_data";
+const PROMPT_GIT_RECOVERY: &str = "restore_from_backup_or_refuse_startup";
 
 #[derive(Clone)]
 pub(crate) struct PromptServiceState {
@@ -19,6 +28,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
 
     let prompts_dir = prompts_dir()?;
     let git_dir = git_dir()?;
+    ensure_prompt_git_manifest(&git_dir)?;
     let engine = TeraPromptEngine::from_directory(&prompts_dir)?.with_git_store(Arc::new(
         a4n_prompt_git::GitPromptStore::open_or_init(git_dir.clone())?,
     ))?;
@@ -26,11 +36,54 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         engine: Arc::new(engine),
     };
     let addr = service_addr()?;
-    let app = router(state);
+    let (shutdown_signal, shutdown) = a4n_sidecar_bootstrap::sidecar_shutdown();
+    let app = a4n_sidecar_bootstrap::with_runtime_metrics(
+        router(state).merge(a4n_sidecar_bootstrap::shutdown_router(shutdown_signal)),
+        a4n_service_protocol::PROMPT_SERVICE_NAME,
+    )?;
 
     tracing::info!(%addr, prompts_dir = ?prompts_dir, git_dir = ?git_dir, "starting prompt sidecar");
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown)
+        .await?;
+    Ok(())
+}
+
+pub(crate) async fn run_from_args() -> anyhow::Result<()> {
+    let mut args = std::env::args_os().skip(1);
+    let Some(command) = args.next() else {
+        return run().await;
+    };
+    let path = args.next().ok_or_else(|| {
+        anyhow::anyhow!(
+            "用法: a4n-prompt-service [backup <backup-dir> | restore <backup-dir>]；备份/恢复前必须先停止 prompt service"
+        )
+    })?;
+    if args.next().is_some() {
+        return Err(anyhow::anyhow!("backup/restore 只接受一个备份目录参数"));
+    }
+
+    let git_dir = git_dir()?;
+    let backup_dir = PathBuf::from(path);
+    match command.to_str() {
+        Some("backup") => {
+            require_prompt_git_manifest(&git_dir)?;
+            a4n_prompt_git::backup_prompt_repository(&git_dir, &backup_dir)?;
+            require_prompt_git_manifest(&backup_dir)?;
+        }
+        Some("restore") => {
+            require_prompt_git_manifest(&backup_dir)?;
+            a4n_prompt_git::restore_prompt_repository(&backup_dir, &git_dir)?;
+            require_prompt_git_manifest(&git_dir)?;
+        }
+        _ => {
+            return Err(anyhow::anyhow!(
+                "未知命令 {:?}；支持 backup 或 restore",
+                command
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -57,11 +110,41 @@ fn git_dir() -> anyhow::Result<PathBuf> {
         .unwrap_or_else(|| PathBuf::from("data/prompts.git")))
 }
 
+fn ensure_prompt_git_manifest(path: &std::path::Path) -> anyhow::Result<()> {
+    a4n_sidecar_bootstrap::ensure_data_directory_manifest(
+        path,
+        PROMPT_GIT_OWNER,
+        PROMPT_GIT_CLASSIFICATION,
+        1,
+        true,
+        PROMPT_GIT_RECOVERY,
+        prompt_git_manifest_details(),
+    )
+}
+
+fn require_prompt_git_manifest(path: &std::path::Path) -> anyhow::Result<()> {
+    a4n_sidecar_bootstrap::require_data_directory_manifest(
+        path,
+        PROMPT_GIT_OWNER,
+        PROMPT_GIT_CLASSIFICATION,
+        1,
+        true,
+        PROMPT_GIT_RECOVERY,
+        prompt_git_manifest_details(),
+    )
+}
+
+fn prompt_git_manifest_details() -> serde_json::Value {
+    serde_json::json!({"contents": "prompt templates and version history"})
+}
+
 fn service_addr() -> anyhow::Result<SocketAddr> {
     a4n_sidecar_bootstrap::socket_addr("A4N_PROMPT_SERVICE_ADDR", "127.0.0.1:47641")
 }
 
 fn router(state: PromptServiceState) -> Router {
+    let policy = a4n_service_protocol::sidecar_resource_policy("prompt")
+        .expect("prompt sidecar must have a resource policy");
     Router::new()
         .route("/healthz", get(healthz))
         .route("/prompt/list", post(list_prompts))
@@ -81,5 +164,12 @@ fn router(state: PromptServiceState) -> Router {
         .route("/prompt/version_diff", post(version_diff))
         .route("/prompt/dependency_graph", post(dependency_graph))
         .route("/prompt/categories", post(categories))
+        .layer(DefaultBodyLimit::max(
+            policy.body_limit(a4n_service_protocol::BodyLimitKind::Json),
+        ))
+        .layer(a4n_sidecar_bootstrap::concurrency_limit(
+            policy.max_concurrent_requests,
+        ))
+        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth))
         .with_state(state)
 }

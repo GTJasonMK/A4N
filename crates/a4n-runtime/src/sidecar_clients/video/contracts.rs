@@ -9,6 +9,7 @@ use serde_json::Value;
 pub(in crate::sidecar_clients::video) fn video_provider_payload(
     config: &video_gen_config::Model,
     request: VideoGenerationRequest,
+    provider_idempotency_key_sha256: Option<String>,
     project_id: Option<i64>,
 ) -> Result<VideoProviderPayload, String> {
     let params = validate_video_config_model(config)?;
@@ -20,6 +21,7 @@ pub(in crate::sidecar_clients::video) fn video_provider_payload(
         base_url: params.base_url,
         api_key,
         provider_options_json: params.provider_options_json,
+        provider_idempotency_key_sha256,
         project_id,
         request,
     })
@@ -45,6 +47,8 @@ pub(in crate::sidecar_clients::video) struct VideoProviderPayload {
     pub(in crate::sidecar_clients::video) base_url: String,
     pub(in crate::sidecar_clients::video) api_key: String,
     pub(in crate::sidecar_clients::video) provider_options_json: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(in crate::sidecar_clients::video) provider_idempotency_key_sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(in crate::sidecar_clients::video) project_id: Option<i64>,
     pub(in crate::sidecar_clients::video) request: VideoGenerationRequest,
@@ -76,6 +80,67 @@ pub(in crate::sidecar_clients::video) enum VideoJobOutput {
     Running,
     Completed { result: VideoGenerationOutput },
     Failed { message: String },
+}
+
+#[derive(Debug)]
+pub(in crate::sidecar_clients::video) enum VideoStatusOutput {
+    Pending,
+    Running,
+    Completed,
+    Failed { message: String },
+    Cancelled,
+    NotFound,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "outcome", rename_all = "snake_case", deny_unknown_fields)]
+pub(in crate::sidecar_clients::video) enum VideoDeleteOutput {
+    Deleted,
+    NotFound,
+}
+
+impl<'de> Deserialize<'de> for VideoStatusOutput {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        let mut object = value
+            .as_object()
+            .cloned()
+            .ok_or_else(|| D::Error::custom("video status output 必须是 JSON 对象"))?;
+        let state = object
+            .remove("state")
+            .and_then(|value| value.as_str().map(str::to_string))
+            .ok_or_else(|| D::Error::custom("video status output 缺少字符串 state"))?;
+        let output = match state.as_str() {
+            "pending" => Self::Pending,
+            "running" => Self::Running,
+            "completed" => Self::Completed,
+            "cancelled" => Self::Cancelled,
+            "not_found" => Self::NotFound,
+            "failed" => {
+                let message = object
+                    .remove("message")
+                    .and_then(|value| value.as_str().map(str::to_string))
+                    .ok_or_else(|| {
+                        D::Error::custom("failed video status output 缺少字符串 message")
+                    })?;
+                Self::Failed { message }
+            }
+            other => {
+                return Err(D::Error::custom(format!(
+                    "未知 video status state: {other}"
+                )));
+            }
+        };
+        if let Some(field) = object.keys().next() {
+            return Err(D::Error::custom(format!(
+                "video status output 包含未知字段 `{field}`"
+            )));
+        }
+        Ok(output)
+    }
 }
 
 impl<'de> Deserialize<'de> for VideoJobOutput {
@@ -147,5 +212,12 @@ mod strict_output_tests {
         }))
         .expect_err("video job output must reject unknown fields");
         assert!(error.to_string().contains("legacy_status"));
+
+        let error = serde_json::from_value::<VideoStatusOutput>(serde_json::json!({
+            "state": "completed",
+            "result": {}
+        }))
+        .expect_err("status-only output must reject artifact payloads");
+        assert!(error.to_string().contains("result"));
     }
 }

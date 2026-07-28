@@ -9,51 +9,67 @@ import {
   writeCurrentSessionId,
   writeCurrentUserId,
 } from "./authStorage";
+import type {
+  AuthResult as GeneratedAuthResult,
+  ChangePasswordInput,
+  LoginInput,
+  OAuth2LoginResult as GeneratedOAuth2LoginResult,
+  RefreshTokenInput,
+  RegisterInput,
+  SessionSummary as GeneratedSessionSummary,
+  TokenPairSummary,
+  UpdateProfileInput,
+  UserSummary as GeneratedUserSummary,
+} from "./generated/auth";
 
-export interface UserSummary {
-  id: number;
-  username: string;
-  email: string;
-  role: string;
+export type {
+  ChangePasswordInput,
+  LoginInput,
+  RefreshTokenInput,
+  RegisterInput,
+  TokenPairSummary,
+  UpdateProfileInput,
+} from "./generated/auth";
+
+export type UserSummary = Omit<
+  GeneratedUserSummary,
+  | "oauth_provider"
+  | "oauth_subject"
+  | "avatar_url"
+  | "created_at"
+  | "updated_at"
+  | "last_login_at"
+> & {
   oauth_provider: string | null;
   oauth_subject: string | null;
   avatar_url: string | null;
-  is_active: boolean;
   created_at: string | null;
   updated_at: string | null;
   last_login_at: string | null;
-}
-
-interface TokenPair {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  token_type: string;
-  session_id: string;
-}
-
-export interface SessionSummary {
-  id: string;
-  user_id: number;
+};
+export type SessionSummary = Omit<
+  GeneratedSessionSummary,
+  | "user_agent"
+  | "created_at"
+  | "expires_at"
+  | "revoked_at"
+  | "last_used_at"
+> & {
   user_agent: string | null;
-  is_revoked: boolean;
   created_at: string | null;
   expires_at: string | null;
   revoked_at: string | null;
   last_used_at: string | null;
-}
-
-interface AuthResult {
+};
+export type TokenPair = TokenPairSummary;
+export type AuthResult = Omit<GeneratedAuthResult, "user" | "session"> & {
   user: UserSummary;
-  tokens: TokenPair;
   session: SessionSummary;
-}
-
-interface OAuth2LoginResult {
+};
+export type OAuth2LoginResult = Omit<GeneratedOAuth2LoginResult, "user" | "session"> & {
   user: UserSummary;
-  tokens: TokenPair;
   session: SessionSummary;
-}
+};
 
 const persistAuthResult = (result: AuthResult | OAuth2LoginResult): void => {
   writeCurrentUserId(result.user.id);
@@ -69,8 +85,9 @@ export async function getCurrentUser(): Promise<UserSummary> {
 }
 
 export async function loginUser(username: string, password: string): Promise<AuthResult> {
+  const input: LoginInput = { username, password };
   const result = await apiInvoke<AuthResult>("login_user", {
-    input: { username, password },
+    input,
   });
   persistAuthResult(result);
   return result;
@@ -82,8 +99,14 @@ export async function registerUser(
   password: string,
   inviteCode: string,
 ): Promise<AuthResult> {
+  const input: RegisterInput = {
+    username,
+    email,
+    password,
+    invite_code: inviteCode,
+  };
   const result = await apiInvoke<AuthResult>("register_user", {
-    input: { username, email, password, invite_code: inviteCode },
+    input,
   });
   persistAuthResult(result);
   return result;
@@ -106,9 +129,10 @@ export async function changeUserPassword(
 ): Promise<void> {
   const id = readCurrentUserId();
   if (id == null) throw new Error("未登录");
+  const input: ChangePasswordInput = { old_password: oldPassword, new_password: newPassword };
   await apiInvoke<void>("change_user_password", {
     userId: id,
-    input: { old_password: oldPassword, new_password: newPassword },
+    input,
   });
 }
 
@@ -120,7 +144,7 @@ export async function getUser(userId: number): Promise<UserSummary> {
 /** 后端 update_user_profile(user_id, input: { email?, avatar_url? }) */
 export async function updateUserProfile(
   userId: number,
-  input: { email?: string | null; avatar_url?: string | null },
+  input: UpdateProfileInput,
 ): Promise<UserSummary> {
   return apiInvoke<UserSummary>("update_user_profile", { userId, input });
 }
@@ -131,8 +155,9 @@ export async function refreshToken(refreshToken: string): Promise<TokenPair> {
   if (!token) throw new Error("当前刷新令牌不存在，无法刷新令牌");
   const sessionId = readCurrentSessionId();
   if (!sessionId) throw new Error("当前会话不存在，无法刷新令牌");
+  const input: RefreshTokenInput = { refresh_token: token, session_id: sessionId };
   const pair = await apiInvoke<TokenPair>("refresh_token", {
-    input: { refresh_token: token, session_id: sessionId },
+    input,
   });
   writeCurrentSessionId(pair.session_id);
   writeCurrentAccessToken(pair.access_token);

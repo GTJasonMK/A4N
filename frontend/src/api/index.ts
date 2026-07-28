@@ -232,7 +232,7 @@ async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promis
         body: (args?.input ?? {}) as Record<string, unknown>,
         auth: true,
       });
-    case "delete_user":
+    case "disable_user":
       return webRequest<T>(
         `/admin/users/${encodeURIComponent(String(args?.userId ?? ""))}/disable`,
         {
@@ -240,6 +240,72 @@ async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promis
           auth: true,
         },
       );
+    case "start_chapter_generation":
+      return webRequest<T>("/generation-tasks/chapter", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_inspiration_generation":
+      return webRequest<T>("/generation-tasks/inspiration", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_blueprint_generation":
+      return webRequest<T>("/generation-tasks/blueprint", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_blueprint_refinement":
+      return webRequest<T>("/generation-tasks/blueprint-refinement", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_outline_generation":
+      return webRequest<T>("/generation-tasks/outline", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_portrait_generation":
+      return webRequest<T>("/generation-tasks/portrait", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_image_generation":
+      return webRequest<T>("/generation-tasks/image", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_video_generation":
+      return webRequest<T>("/generation-tasks/video", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_optimize_chat_generation":
+      return webRequest<T>("/generation-tasks/optimize-chat", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_optimize_analysis_generation":
+      return webRequest<T>("/generation-tasks/optimize-analysis", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
+    case "start_optimize_patch_generation":
+      return webRequest<T>("/generation-tasks/optimize-patch", {
+        method: "POST",
+        body: (args?.input ?? {}) as Record<string, unknown>,
+        auth: true,
+      });
     default:
       return webCommandRequest<T>(cmd, args);
   }
@@ -284,6 +350,34 @@ async function webRequest<T>(
     throwWebUnauthorized(await responseErrorMessage(response));
   }
   return readWebResponse<T>(response);
+}
+
+/** Authenticated fetch for streaming endpoints that cannot use the JSON command wrapper. */
+export async function authenticatedWebFetch(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  if (!readCurrentAccessToken() && readCurrentRefreshToken() && readCurrentSessionId()) {
+    const refreshed = await refreshWebAuthTokenOnce();
+    if (!refreshed) throwWebUnauthorized("登录已过期，请重新登录");
+  }
+
+  const request = async (): Promise<Response> => {
+    const token = readCurrentAccessToken();
+    if (!token) throwWebUnauthorized("未登录");
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    return fetch(`${apiBaseUrl()}${path}`, { ...init, headers });
+  };
+
+  let response = await request();
+  if (response.status === 401 && await refreshWebAuthTokenOnce()) {
+    response = await request();
+  }
+  if (response.status === 401) {
+    throwWebUnauthorized(await responseErrorMessage(response));
+  }
+  return response;
 }
 
 function throwWebUnauthorized(message: string): never {

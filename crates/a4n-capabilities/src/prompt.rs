@@ -1,7 +1,7 @@
 use super::contracts::{
     CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, PromptClient,
 };
-use super::transport::HttpSidecarTransport;
+use super::transport::{HttpClientFactory, HttpSidecarTransport};
 use a4n_service_protocol::{PROMPT_SERVICE_NAME, ServiceHealth};
 use async_trait::async_trait;
 
@@ -15,6 +15,24 @@ impl HttpPromptClient {
             transport: HttpSidecarTransport::new(base_url)
                 .with_expected_service(PROMPT_SERVICE_NAME),
         }
+    }
+
+    pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
+        Self {
+            transport: HttpSidecarTransport::new(base_url)
+                .with_expected_service(PROMPT_SERVICE_NAME)
+                .with_auth_token(token),
+        }
+    }
+
+    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
+        self.transport = self.transport.with_http_client(client);
+        self
+    }
+
+    pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
+        self.transport = self.transport.with_http_client_factory(factory);
+        self
     }
 }
 

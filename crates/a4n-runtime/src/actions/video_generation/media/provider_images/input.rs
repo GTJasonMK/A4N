@@ -1,25 +1,28 @@
 use super::probe::validate_provider_public_image_url;
 use super::public_url::image_file_to_provider_media_url;
 use super::remote_upload::image_file_to_remote_temp_media_url;
-use super::rules::image_mime_from_path;
-use crate::AppState;
 use crate::actions::video_generation::media::types::{
     MAX_REFERENCE_IMAGE_BYTES, MAX_REFERENCE_IMAGE_TOTAL_BYTES, ProviderImageInputTransport,
 };
 use crate::file_utils::canonicalize_data_file_path;
 use a4n_core::models::ai::generated_image;
+use a4n_orchestrator::video::image_mime_from_path;
+use a4n_service_protocol::GenerationArtifactRef;
 use base64::Engine as _;
+use std::path::Path;
 
 pub(in crate::actions::video_generation::media) async fn image_file_to_provider_input(
-    state: &AppState,
+    data_dir: &Path,
+    jwt_secret: Option<&str>,
     user_id: i64,
     media_base_url: Option<&str>,
     image: &generated_image::Model,
     inline_total_bytes: &mut u64,
+    staging_artifacts: &mut Vec<GenerationArtifactRef>,
     transport: ProviderImageInputTransport,
 ) -> Result<String, String> {
     let canonical_path = canonicalize_data_file_path(
-        &state.config.data_dir,
+        data_dir,
         &image.file_path,
         &format!("参考图片 #{}", image.id),
     )?;
@@ -38,12 +41,16 @@ pub(in crate::actions::video_generation::media) async fn image_file_to_provider_
             let Some(base) = media_base_url else {
                 return Err("public_url 传输缺少公网媒体入口".to_string());
             };
-            let url = image_file_to_provider_media_url(state, user_id, base, image)?;
+            let secret = jwt_secret.ok_or_else(|| "public_url 传输缺少 JWT secret".to_string())?;
+            let url = image_file_to_provider_media_url(secret, user_id, base, image)?;
             validate_provider_public_image_url(&url, &format!("参考图片 #{}", image.id)).await?;
             Ok(url)
         }
         ProviderImageInputTransport::RemoteTempUpload => {
-            image_file_to_remote_temp_media_url(&canonical_path, image, mime).await
+            let uploaded =
+                image_file_to_remote_temp_media_url(&canonical_path, user_id, image, mime).await?;
+            staging_artifacts.push(uploaded.artifact);
+            Ok(uploaded.url)
         }
         ProviderImageInputTransport::InlineDataUrl => {
             let bytes = std::fs::read(&canonical_path)

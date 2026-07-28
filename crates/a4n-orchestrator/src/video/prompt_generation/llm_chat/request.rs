@@ -150,15 +150,8 @@ pub(super) async fn chat_with_video_cancel(
     cancel_token: Option<&CancellationToken>,
 ) -> Result<ChatResponse, AppError> {
     ensure_video_prompt_not_cancelled(cancel_token)?;
-    match cancel_token {
-        Some(token) => {
-            tokio::select! {
-                _ = token.cancelled() => Err(AppError::Cancelled),
-                result = llm.chat(request) => result,
-            }
-        }
-        None => llm.chat(request).await,
-    }
+    let cancellation = cancel_token.cloned().unwrap_or_else(CancellationToken::new);
+    crate::generation::stream::execute_llm_chat_response(llm, request, cancellation).await
 }
 
 #[cfg(test)]

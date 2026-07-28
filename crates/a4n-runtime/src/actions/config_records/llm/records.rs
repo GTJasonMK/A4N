@@ -1,4 +1,3 @@
-mod mapping;
 mod mutations;
 mod query;
 

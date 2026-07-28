@@ -29,7 +29,7 @@ pub(super) async fn restore_patch_generation_checkpoint(
     input_fingerprint_json: &Value,
 ) -> Result<Option<RestoredPatchGenerationCall>, AppError> {
     let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-        service.db.connection(),
+        service.database.connection(),
         workflow_run_id,
         call_key,
         input_fingerprint_json,

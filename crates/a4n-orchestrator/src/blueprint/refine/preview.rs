@@ -11,6 +11,24 @@ use serde_json::Value;
 use crate::OrchestratorContext;
 
 impl OrchestratorContext {
+    pub async fn preview_blueprint_refine_request_for_user_validated(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        focus: Option<&str>,
+        prompt_renderer: &dyn PromptRenderer,
+        variables: &HashMap<String, Value>,
+    ) -> Result<ChatRequest, AppError> {
+        self.verify_project_permission(
+            project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.preview_blueprint_refine_request(project_id, focus, prompt_renderer, variables)
+            .await
+    }
+
     pub async fn preview_blueprint_refine_request(
         &self,
         project_id: i64,

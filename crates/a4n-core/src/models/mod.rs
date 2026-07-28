@@ -54,6 +54,8 @@ pub mod generation {
     pub mod generation_spec_entity_ref;
     pub mod generation_spec_media_ref;
     pub mod generation_spec_text_anchor;
+    pub mod generation_start_request;
+    pub mod generation_task_checkpoint;
     pub mod llm_call_trace;
     pub mod llm_context_pack;
     pub mod prompt_artifact;

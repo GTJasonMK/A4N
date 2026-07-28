@@ -256,7 +256,19 @@ fn provider_secret_policy_allows_only_loopback_and_preserves_scope() {
     )
     .expect_err("remote sidecar must not receive provider secrets");
     assert!(error.contains("拒绝转发 provider secret"));
-    assert!(error.contains("https://sidecar.example.com"));
+    assert!(!error.contains("sidecar.example.com"));
+
+    let remote_without_secret = global_provider_service_request_for_url(
+        "image",
+        "https://sidecar.example.com",
+        a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
+        json!({ "api_key": null, "prompt": "content" }),
+    )
+    .expect("remote content without provider secret should use explicit egress scope");
+    assert_eq!(
+        remote_without_secret.secret_policy,
+        SecretForwardingPolicy::trusted_remote_no_secrets()
+    );
 }
 
 #[test]
@@ -273,7 +285,7 @@ fn global_provider_request_rejects_project_scope_hidden_in_payload() {
 }
 
 #[test]
-fn provider_request_without_secret_allows_remote_with_deny_all() {
+fn provider_request_without_secret_uses_trusted_remote_without_secrets() {
     let request = global_provider_service_request_for_url(
         "llm",
         "https://sidecar.example.com",
@@ -282,7 +294,10 @@ fn provider_request_without_secret_allows_remote_with_deny_all() {
     )
     .expect("remote sidecar request without secret should be allowed");
 
-    assert_eq!(request.secret_policy, SecretForwardingPolicy::deny_all());
+    assert_eq!(
+        request.secret_policy,
+        SecretForwardingPolicy::trusted_remote_no_secrets()
+    );
 }
 
 #[test]

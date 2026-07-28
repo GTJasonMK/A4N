@@ -9,10 +9,20 @@ embedded-capabilities = [
     "a4n-runtime/migration",
     "a4n-runtime/embedded-capabilities",
 ]
+embedded-llm-provider = [
+    "a4n-runtime/migration",
+    "a4n-runtime/embedded-llm-provider",
+]
+embedded-media-providers = [
+    "a4n-runtime/migration",
+    "a4n-runtime/embedded-media-providers",
+]
 
 [dependencies]
+a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-core = { path = "../a4n-core" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -22,9 +32,18 @@ futures = { workspace = true }
 parking_lot = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 uuid = { workspace = true }
+
+[dev-dependencies]
+a4n-db = { path = "../a4n-db" }
+a4n-migration = { path = "../a4n-migration" }
+a4n-queue = { path = "../a4n-queue" }
+reqwest = { workspace = true }
+sea-orm = { workspace = true }
+tempfile = { workspace = true }

@@ -1,5 +1,5 @@
 use crate::progress_task::WorkflowProgressTask;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::shooting_script_records as shooting_script_records_actions;
 use shooting_script_records_actions::{
@@ -7,7 +7,7 @@ use shooting_script_records_actions::{
     EditChapterShootingScriptRecordInput, EditedChapterShootingScriptView,
     GenerateChapterShootingScriptInput, GetChapterShootingScriptInput,
 };
-use tauri::{State, Window};
+use tauri::State;
 
 #[tauri::command]
 pub async fn get_chapter_shooting_script(
@@ -21,17 +21,15 @@ pub async fn get_chapter_shooting_script(
 
 #[tauri::command]
 pub async fn generate_chapter_shooting_script(
-    window: Window,
     state: State<'_, AppState>,
     user_id: i64,
     input: GenerateChapterShootingScriptInput,
     task_id: Option<String>,
 ) -> Result<ChapterShootingScriptView, String> {
     let progress_task = WorkflowProgressTask::new(
-        window,
         state.inner(),
         task_id,
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         Some(input.project_id),
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         "正在准备剧本改编",
@@ -52,12 +50,7 @@ pub async fn generate_chapter_shooting_script(
         Some(&cancel_token),
     )
     .await;
-    progress_task.finish_result(
-        state.inner(),
-        &result,
-        "chapter_shooting_script_failed",
-        |script| format!("第 {} 章拍摄剧本已生成", script.record.source_chapter_id),
-    );
+    progress_task.remove(state.inner());
     result
 }
 

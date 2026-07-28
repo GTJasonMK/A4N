@@ -1,6 +1,8 @@
 use a4n_capabilities::JsonRequest;
 use a4n_service_protocol::{
-    SecretForwardingPolicy, ServiceRequest, TraceContext, validate_service_request_context,
+    SecretForwardingPolicy, SecretMaterialScope, ServiceRequest, TraceContext,
+    egress_data_type_for_service, service_for_capability_version, validate_egress_scope,
+    validate_service_request_context,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -8,8 +10,10 @@ use serde_json::Value;
 use super::{
     context::SidecarRequestContext,
     scope::{merge_project_scope, payload_project_scope},
+    secrets::sidecar_url_allows_local_secrets,
     trace::request_id,
 };
+use crate::sidecar_clients::service_manager::sidecar_url_for_service;
 
 pub(crate) fn global_service_request_without_secrets(
     capability_version: impl Into<String>,
@@ -57,6 +61,8 @@ pub(crate) fn service_request_with_context(
         &mut context.root_project_id,
         root_project_id,
     )?;
+    let capability_version = capability_version.into();
+    let secret_policy = resolve_egress_policy(&capability_version, context.secret_policy)?;
     let request_id = request_id();
     let trace_context = context.trace_context.unwrap_or_else(|| TraceContext {
         trace_id: request_id.clone(),
@@ -70,12 +76,45 @@ pub(crate) fn service_request_with_context(
         project_id: context.project_id,
         root_project_id: context.root_project_id,
         runtime_config_snapshot: context.runtime_config_snapshot,
-        secret_policy: context.secret_policy,
-        capability_version: capability_version.into(),
+        secret_policy,
+        capability_version,
         payload,
     };
     validate_service_request_context(&request).map_err(|error| error.message)?;
     Ok(request)
+}
+
+fn resolve_egress_policy(
+    capability_version: &str,
+    policy: SecretForwardingPolicy,
+) -> Result<SecretForwardingPolicy, String> {
+    let Some(service) = service_for_capability_version(capability_version) else {
+        return Ok(policy);
+    };
+    let policy = if policy.is_deny_all() {
+        let url = sidecar_url_for_service(service)?;
+        if sidecar_url_allows_local_secrets(&url) {
+            policy
+        } else {
+            SecretForwardingPolicy::trusted_remote_no_secrets()
+        }
+    } else {
+        policy
+    };
+    if matches!(policy.scope, SecretMaterialScope::TrustedRemote) {
+        let data_type = egress_data_type_for_service(service)
+            .ok_or_else(|| format!("sidecar service {service} 缺少 egress data type"))?;
+        let event = validate_egress_scope(service, data_type, &policy.scope)
+            .map_err(|error| error.message)?;
+        tracing::info!(
+            target: "a4n_sidecar_egress_audit",
+            service,
+            data_type = ?event.data_type,
+            audit_event = event.audit_event,
+            "authorized trusted-remote sidecar egress"
+        );
+    }
+    Ok(policy)
 }
 
 pub(super) fn ensure_global_request_scope(request: &JsonRequest) -> Result<(), String> {

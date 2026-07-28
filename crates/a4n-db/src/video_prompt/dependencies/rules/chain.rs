@@ -98,7 +98,7 @@ fn prompt_type_uses_generation_assets(prompt_type: &str) -> bool {
 }
 
 fn prompt_is_shared_video_upstream(row: &chapter_video_prompt::Model) -> bool {
-    row.workflow_mode == "boundary_frames"
+    row.workflow_mode == "shared_segment_plan"
         && matches!(row.prompt_type.as_str(), "frame_segment_plan")
 }
 

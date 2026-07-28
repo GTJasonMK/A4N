@@ -1,5 +1,5 @@
 import React from "react";
-import { Eye, ListChecks, Loader2, Sparkles, Zap } from "lucide-react";
+import { Eye, ListChecks, Loader2, Sparkles } from "lucide-react";
 import { BackButton } from "../../components/ui/BackButton";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
@@ -8,8 +8,6 @@ import { PageHeader } from "../../components/shell/PageHeader";
 interface InspirationChatHeaderProps {
   projectTitle: string;
   showConversationControls: boolean;
-  useStream: boolean;
-  onUseStreamChange: (value: boolean) => void;
   generating: boolean;
   canTryGenerate: boolean;
   canGenerate: boolean;
@@ -22,8 +20,6 @@ interface InspirationChatHeaderProps {
 export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
   projectTitle,
   showConversationControls,
-  useStream,
-  onUseStreamChange,
   generating,
   canTryGenerate,
   canGenerate,
@@ -36,30 +32,6 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
     leading={<BackButton iconOnly title="返回上一页" />}
     title="灵感对话"
     subtitle={projectTitle}
-    meta={showConversationControls ? (
-      <button
-        type="button"
-        role="switch"
-        aria-checked={useStream}
-        onClick={() => onUseStreamChange(!useStream)}
-        className="inline-flex items-center gap-1.5 text-[11px] text-book-text-muted transition-colors hover:text-book-text-main"
-        title={useStream ? "关闭实时响应" : "开启实时响应"}
-      >
-        <span
-          className={`relative inline-flex h-[18px] w-8 shrink-0 rounded-full transition-colors ${
-            useStream ? "bg-book-primary" : "bg-book-text-muted/25"
-          }`}
-        >
-          <span
-            className={`absolute top-[2px] h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
-              useStream ? "translate-x-4" : "translate-x-[2px]"
-            }`}
-          />
-        </span>
-        <Zap size={11} />
-        <span className="hidden sm:inline">实时响应</span>
-      </button>
-    ) : undefined}
     actions={showConversationControls ? (
       <>
         <div className="lg:hidden">

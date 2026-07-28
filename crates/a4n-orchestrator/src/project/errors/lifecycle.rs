@@ -72,9 +72,7 @@ pub(crate) fn project_reset_error_to_app_error(error: ProjectResetDbError) -> Ap
     }
 }
 
-pub(in crate::project) fn project_duplicate_error_to_app_error(
-    error: ProjectDuplicateError,
-) -> AppError {
+pub(crate) fn project_duplicate_error_to_app_error(error: ProjectDuplicateError) -> AppError {
     match error {
         ProjectDuplicateError::InvalidArgument(message) => AppError::InvalidArgument(message),
         ProjectDuplicateError::InvalidState { current, operation } => {

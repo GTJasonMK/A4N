@@ -2,7 +2,7 @@ use crate::file_utils::remove_data_file_in_data_dir;
 use crate::state::AppState;
 use a4n_orchestrator::project::ChapterDerivedCleanupArtifacts;
 
-pub(super) async fn finish_chapter_derived_cleanup(
+pub(in crate::workflow) async fn finish_chapter_derived_cleanup(
     state: &AppState,
     project_id: i64,
     chapter_id: i64,
@@ -31,7 +31,7 @@ async fn finish_chapter_derived_cleanup_inner(
     artifacts: ChapterDerivedCleanupArtifacts,
 ) -> Result<(), String> {
     state
-        .orchestrator
+        .rag()
         .cleanup_chapter_derived_rag(project_id, chapter_id, chapter_number, &artifacts)
         .await?;
     if artifacts.scene_records_changed {
@@ -47,7 +47,7 @@ async fn finish_chapter_derived_cleanup_inner(
     }
 
     for path in artifacts.media_file_paths {
-        remove_data_file_in_data_dir(&state.config.data_dir, &path, "章节媒体文件")?;
+        remove_data_file_in_data_dir(state.data_dir(), &path, "章节媒体文件")?;
     }
     Ok(())
 }

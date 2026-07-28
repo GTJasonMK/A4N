@@ -5,19 +5,83 @@ use a4n_core::error::AppError;
 use tokio_util::sync::CancellationToken;
 
 use crate::OrchestratorContext;
+use crate::workflow::WorkflowRunFinalizeOutcome;
 
 use self::{design::generate_shooting_scenes, screenplay::generate_screenplay_plan};
 use super::{
     assembly::assemble_chapter_shooting_script,
     contracts::{
-        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, RegenerateChapterShootingScriptInput,
-        ResolvedChapterShootingScript, ShootingScriptProgressReporter,
+        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterShootingScriptSourceInput,
+        RegenerateChapterShootingScriptInput, ResolvedChapterShootingScript,
+        ShootingScriptProgressReporter,
     },
     screenplay::{validate_script_against_plan, validate_script_source_spans},
 };
 
 impl OrchestratorContext {
-    pub async fn regenerate_chapter_shooting_script_with_progress(
+    pub async fn generate_chapter_shooting_script_for_user_validated(
+        &self,
+        user_id: i64,
+        source: ChapterShootingScriptSourceInput,
+        progress: ShootingScriptProgressReporter<'_>,
+        cancel_token: Option<&CancellationToken>,
+    ) -> Result<ResolvedChapterShootingScript, AppError> {
+        self.verify_project_or_derived_family_editor_validated(user_id, source.project_id)
+            .await?;
+        self.generate_chapter_shooting_script_with_progress(source, progress, cancel_token)
+            .await
+    }
+
+    pub async fn generate_chapter_shooting_script_with_progress(
+        &self,
+        source: ChapterShootingScriptSourceInput,
+        progress: ShootingScriptProgressReporter<'_>,
+        cancel_token: Option<&CancellationToken>,
+    ) -> Result<ResolvedChapterShootingScript, AppError> {
+        let target_revision = self
+            .next_chapter_shooting_script_revision(source.clone())
+            .await?;
+        let workflow = self
+            .begin_chapter_shooting_script_workflow_validated(
+                source.project_id,
+                source.source_chapter_id,
+                target_revision,
+            )
+            .await?;
+        let result = self
+            .regenerate_chapter_shooting_script_with_progress(
+                RegenerateChapterShootingScriptInput {
+                    project_id: source.project_id,
+                    source_chapter_id: source.source_chapter_id,
+                    workflow_run_id: workflow.id,
+                },
+                progress,
+                cancel_token,
+            )
+            .await;
+        let outcome = match &result {
+            Ok(_) => WorkflowRunFinalizeOutcome::Completed,
+            Err(AppError::Cancelled) => WorkflowRunFinalizeOutcome::Cancelled,
+            Err(_) => WorkflowRunFinalizeOutcome::Failed,
+        };
+        let error_message = result.as_ref().err().map(ToString::to_string);
+        let finalized = self
+            .finalize_workflow_run_outcome_validated(workflow.id, outcome, error_message.as_deref())
+            .await;
+        match (result, finalized) {
+            (Ok(value), Ok(_)) => Ok(value),
+            (Ok(_), Err(status_error)) => Err(status_error),
+            (Err(error), Ok(_)) => Err(error),
+            (Err(error), Err(status_error)) => Err(AppError::InvalidState {
+                current: error.to_string(),
+                operation: format!(
+                    "章节拍摄剧本生成失败，且 workflow 终态写入失败: {status_error}"
+                ),
+            }),
+        }
+    }
+
+    pub(crate) async fn regenerate_chapter_shooting_script_with_progress(
         &self,
         input: RegenerateChapterShootingScriptInput,
         progress: ShootingScriptProgressReporter<'_>,

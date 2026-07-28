@@ -18,10 +18,12 @@ impl OrchestratorContext {
         root_project_id: i64,
     ) -> Result<Vec<GalgameSpeakerProfile>, AppError> {
         validate_positive_id(root_project_id, "root_project_id")?;
-        let profiles =
-            a4n_db::galgame::galgame_speaker_profile_records(self.db.connection(), root_project_id)
-                .await
-                .map_err(AppError::Database)?;
+        let profiles = a4n_db::galgame::galgame_speaker_profile_records(
+            self.database.connection(),
+            root_project_id,
+        )
+        .await
+        .map_err(AppError::Database)?;
         Ok(galgame_speaker_profiles_from_models(&profiles))
     }
 }

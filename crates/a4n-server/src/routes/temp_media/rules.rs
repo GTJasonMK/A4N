@@ -18,6 +18,13 @@ pub(super) fn normalize_image_mime(value: &str) -> Result<&'static str, String> 
         "image/png" => Ok("image/png"),
         "image/jpeg" | "image/jpg" => Ok("image/jpeg"),
         "image/webp" => Ok("image/webp"),
+        "video/mp4" => Ok("video/mp4"),
+        "video/quicktime" => Ok("video/quicktime"),
+        "video/webm" => Ok("video/webm"),
+        "audio/mpeg" | "audio/mp3" => Ok("audio/mpeg"),
+        "audio/wav" | "audio/x-wav" => Ok("audio/wav"),
+        "audio/mp4" | "audio/x-m4a" => Ok("audio/mp4"),
+        "audio/ogg" => Ok("audio/ogg"),
         other => Err(format!("临时媒体 MIME 不支持：{other}")),
     }
 }
@@ -27,6 +34,13 @@ pub(super) fn extension_for_mime(mime_type: &str) -> &'static str {
         "image/png" => "png",
         "image/jpeg" => "jpg",
         "image/webp" => "webp",
+        "video/mp4" => "mp4",
+        "video/quicktime" => "mov",
+        "video/webm" => "webm",
+        "audio/mpeg" => "mp3",
+        "audio/wav" => "wav",
+        "audio/mp4" => "m4a",
+        "audio/ogg" => "ogg",
         _ => "bin",
     }
 }
@@ -62,10 +76,19 @@ pub(super) fn validate_upload_file_name_hint(
 }
 
 pub(super) fn validate_image_magic(mime_type: &str, bytes: &[u8]) -> Result<(), String> {
+    let is_iso_media = bytes.len() >= 12 && &bytes[4..8] == b"ftyp";
     let ok = match mime_type {
         "image/png" => bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
         "image/jpeg" => bytes.starts_with(&[0xFF, 0xD8, 0xFF]),
         "image/webp" => bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP",
+        "video/mp4" | "video/quicktime" | "audio/mp4" => is_iso_media,
+        "video/webm" => bytes.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]),
+        "audio/mpeg" => {
+            bytes.starts_with(b"ID3")
+                || (bytes.len() >= 2 && bytes[0] == 0xFF && bytes[1] & 0xE0 == 0xE0)
+        }
+        "audio/wav" => bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WAVE",
+        "audio/ogg" => bytes.starts_with(b"OggS"),
         _ => false,
     };
     if ok {
@@ -84,7 +107,16 @@ pub(super) fn validate_temp_media_file_name(value: &str) -> Result<String, Strin
         return Err("临时媒体文件名无效".to_string());
     }
     match extension.to_ascii_lowercase().as_str() {
-        "png" | "jpg" | "jpeg" | "webp" => Ok(trimmed.to_string()),
+        "png" | "jpg" | "jpeg" | "webp" | "mp4" | "mov" | "webm" | "mp3" | "wav" | "m4a"
+        | "ogg" => Ok(trimmed.to_string()),
         _ => Err("临时媒体文件扩展名不支持".to_string()),
     }
+}
+
+pub(super) fn validate_temp_media_artifact_id(value: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.len() != 32 || !trimmed.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("临时媒体 artifact_id 无效".to_string());
+    }
+    Ok(trimmed.to_ascii_lowercase())
 }

@@ -1,17 +1,28 @@
 use a4n_core::{error::AppError, models::project::novel_blueprint};
-use a4n_db::blueprint::{BlueprintRefinePatchInput, apply_blueprint_refine_patch_record};
+use a4n_db::blueprint::{
+    BlueprintRefinePatchInput, InsertBlueprintVersionInput, apply_blueprint_refine_patch_record,
+    insert_blueprint_version_record,
+};
+use a4n_db::project::{
+    blueprint_characters_for_project, blueprint_relationships_for_project,
+    sync_blueprint_characters, sync_blueprint_relationships,
+};
 use chrono::Utc;
+use sea_orm::DatabaseTransaction;
 use serde_json::json;
 
-use crate::OrchestratorContext;
-
-use super::super::super::{blueprint_db_error, character_profile_seed_error};
 use super::contracts::BlueprintRefinementPersistenceInput;
+use crate::blueprint::persistence::{blueprint_character_drafts, blueprint_relationship_drafts};
+use crate::blueprint::{blueprint_db_error, blueprint_sync_error, character_profile_seed_error};
 
-pub(super) async fn persist_blueprint_refinement(
-    context: &OrchestratorContext,
+pub(super) struct BlueprintRefinementCompletionOutcome {
+    pub(super) blueprint: novel_blueprint::Model,
+}
+
+pub(super) async fn persist_blueprint_refinement_in_transaction(
+    tx: &DatabaseTransaction,
     input: BlueprintRefinementPersistenceInput,
-) -> Result<novel_blueprint::Model, AppError> {
+) -> Result<BlueprintRefinementCompletionOutcome, AppError> {
     let BlueprintRefinementPersistenceInput {
         project_id,
         blueprint,
@@ -21,7 +32,7 @@ pub(super) async fn persist_blueprint_refinement(
     let optimization_patch = parsed.raw.clone();
     let now = Utc::now().naive_utc();
     let updated = apply_blueprint_refine_patch_record(
-        context.db.connection(),
+        tx,
         blueprint,
         BlueprintRefinePatchInput {
             style: parsed.style,
@@ -34,24 +45,25 @@ pub(super) async fn persist_blueprint_refinement(
     .await
     .map_err(blueprint_db_error)?;
     if let Some(characters) = parsed.characters {
-        context
-            .replace_blueprint_characters(project_id, &characters)
-            .await?;
+        sync_blueprint_characters(tx, project_id, blueprint_character_drafts(&characters), now)
+            .await
+            .map_err(blueprint_sync_error)?;
     }
     if let Some(relationships) = parsed.relationships {
-        context
-            .replace_blueprint_relationships(project_id, &relationships)
-            .await?;
+        sync_blueprint_relationships(
+            tx,
+            project_id,
+            blueprint_relationship_drafts(&relationships),
+            now,
+        )
+        .await
+        .map_err(blueprint_sync_error)?;
     }
-    a4n_db::character::sync_character_profiles_from_blueprint(
-        context.db.connection(),
-        project_id,
-        now,
-    )
-    .await
-    .map_err(character_profile_seed_error)?;
-    let updated_characters = context.load_blueprint_characters(project_id).await?;
-    let updated_relationships = context.load_blueprint_relationships(project_id).await?;
+    a4n_db::character::sync_character_profiles_from_blueprint(tx, project_id, now)
+        .await
+        .map_err(character_profile_seed_error)?;
+    let updated_characters = blueprint_characters_for_project(tx, project_id).await?;
+    let updated_relationships = blueprint_relationships_for_project(tx, project_id).await?;
     let snapshot = json!({
         "title": &updated.title,
         "genre": &updated.genre,
@@ -68,13 +80,18 @@ pub(super) async fn persist_blueprint_refinement(
         "relationships": updated_relationships,
         "optimization_patch": optimization_patch,
     });
-    context
-        .save_blueprint_version(
+    insert_blueprint_version_record(
+        tx,
+        InsertBlueprintVersionInput {
             project_id,
-            next_version,
-            Some("优化蓝图".to_string()),
-            &snapshot,
-        )
-        .await?;
-    Ok(updated)
+            version: next_version,
+            change_description: Some("优化蓝图".to_string()),
+            blueprint_data: snapshot,
+            now,
+            created_by: Some("system".to_string()),
+        },
+    )
+    .await
+    .map_err(blueprint_db_error)?;
+    Ok(BlueprintRefinementCompletionOutcome { blueprint: updated })
 }

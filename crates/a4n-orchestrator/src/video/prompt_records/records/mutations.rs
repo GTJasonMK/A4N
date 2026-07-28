@@ -1,20 +1,24 @@
-use std::collections::BTreeSet;
+//! 视频提示词更新的测试辅助实现（仅 `cfg(test)`）。
 
+#[cfg(test)]
 use a4n_core::error::AppError;
+#[cfg(test)]
 use a4n_core::models::chapter::chapter_video_prompt;
 #[cfg(test)]
 use serde_json::Value;
 
+#[cfg(test)]
 use crate::video::OrchestratorContext;
 #[cfg(test)]
 use crate::video::prompt_records::VideoPromptUpdateInput;
+#[cfg(test)]
 use crate::video::video_db_error;
 
 #[cfg(test)]
 use super::super::matching::db_video_prompt_update_input;
 
+#[cfg(test)]
 impl OrchestratorContext {
-    #[cfg(test)]
     pub async fn update_prompt(
         &self,
         prompt_id: i64,
@@ -38,7 +42,6 @@ impl OrchestratorContext {
         .await
     }
 
-    #[cfg(test)]
     async fn update_prompt_inner(
         &self,
         prompt_id: i64,
@@ -46,52 +49,10 @@ impl OrchestratorContext {
         allow_downstream: bool,
     ) -> Result<chapter_video_prompt::Model, AppError> {
         a4n_db::video_prompt::update_chapter_video_prompt_with_policy(
-            self.db.connection(),
+            self.database.connection(),
             prompt_id,
             db_video_prompt_update_input(input),
             allow_downstream,
-        )
-        .await
-        .map_err(video_db_error)
-    }
-
-    pub(in crate::video) async fn ensure_prompt_stage_mutable(
-        &self,
-        prompt: &chapter_video_prompt::Model,
-        operation: &str,
-    ) -> Result<(), AppError> {
-        a4n_db::video_prompt::ensure_chapter_video_prompt_stage_mutable(
-            self.db.connection(),
-            prompt,
-            operation,
-        )
-        .await
-        .map_err(video_db_error)
-    }
-
-    pub(in crate::video) async fn ensure_prompt_stage_mutable_ignoring(
-        &self,
-        prompt: &chapter_video_prompt::Model,
-        operation: &str,
-        ignored_prompt_ids: &BTreeSet<i64>,
-    ) -> Result<(), AppError> {
-        a4n_db::video_prompt::ensure_chapter_video_prompt_stage_mutable_ignoring(
-            self.db.connection(),
-            prompt,
-            operation,
-            ignored_prompt_ids,
-        )
-        .await
-        .map_err(video_db_error)
-    }
-
-    pub(in crate::video) async fn frame_prompt_has_generated_image(
-        &self,
-        prompt: &chapter_video_prompt::Model,
-    ) -> Result<bool, AppError> {
-        a4n_db::video_prompt::chapter_video_prompt_has_generated_frame_image(
-            self.db.connection(),
-            prompt,
         )
         .await
         .map_err(video_db_error)

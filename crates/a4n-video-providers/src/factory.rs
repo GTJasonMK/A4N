@@ -7,7 +7,11 @@ use super::gemini_veo::GeminiVeoVideoProvider;
 use super::http::HttpVideoProvider;
 use super::newapi::NewApiVideoProvider;
 use super::seedance2::Seedance2VideoProvider;
-use a4n_video::VideoProvider;
+use a4n_video::{
+    CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
+    OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
+    VideoProvider, video_provider_cleanup_capabilities,
+};
 
 pub fn pick_video_provider(
     backend: &str,
@@ -15,22 +19,27 @@ pub fn pick_video_provider(
     api_key: &str,
     provider_options_json: Option<&Value>,
 ) -> Result<Box<dyn VideoProvider>, AppError> {
+    if video_provider_cleanup_capabilities(backend).is_none() {
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "未知视频 backend={backend}"
+        )));
+    }
     match backend {
-        "openai-compatible-video" => Ok(Box::new(HttpVideoProvider::new(base_url, api_key))),
-        "newapi-video" => Ok(Box::new(NewApiVideoProvider::new(base_url, api_key))),
-        "gemini-veo-video" => Ok(Box::new(GeminiVeoVideoProvider::new(base_url, api_key))),
-        "seedance2-video" => Ok(Box::new(Seedance2VideoProvider::new(base_url, api_key))),
-        "cliproxy-openai-video" => Ok(Box::new(CliProxyOpenAiVideoProvider::new_with_options(
-            base_url,
-            api_key,
-            provider_options_json,
-        )?)),
-        "openai-chat-video" => Ok(Box::new(ChatCompletionsVideoProvider::new(
+        OPENAI_COMPATIBLE_VIDEO_BACKEND => Ok(Box::new(HttpVideoProvider::new(base_url, api_key))),
+        NEWAPI_VIDEO_BACKEND => Ok(Box::new(NewApiVideoProvider::new(base_url, api_key))),
+        GEMINI_VEO_VIDEO_BACKEND => Ok(Box::new(GeminiVeoVideoProvider::new(base_url, api_key))),
+        SEEDANCE2_VIDEO_BACKEND => Ok(Box::new(Seedance2VideoProvider::new(base_url, api_key))),
+        CLIPROXY_OPENAI_VIDEO_BACKEND => {
+            Ok(Box::new(CliProxyOpenAiVideoProvider::new_with_options(
+                base_url,
+                api_key,
+                provider_options_json,
+            )?))
+        }
+        OPENAI_CHAT_VIDEO_BACKEND => Ok(Box::new(ChatCompletionsVideoProvider::new(
             base_url, api_key,
         )?)),
-        other => Err(AppError::Internal(anyhow::anyhow!(
-            "未知视频 backend={other}"
-        ))),
+        _ => unreachable!("video backend registry and factory are out of sync"),
     }
 }
 

@@ -4,15 +4,13 @@ mod sync;
 use std::{
     future::Future,
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
     time::Instant,
 };
 
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext, UsageInfo};
-use a4n_orchestrator::OrchestratorContext;
-use a4n_orchestrator::task_queue::PersistentTaskQueue;
+use a4n_orchestrator::DynamicProviderFacade;
 use a4n_queue::priority::TaskPermit;
 
 pub(in crate::dynamic_llm::streams) use kind::StreamKind;
@@ -20,8 +18,7 @@ use sync::{TerminalSyncContext, start_completed_sync, start_failed_sync};
 
 pub(super) struct QueueTrackedStreamTerminal {
     kind: StreamKind,
-    orchestrator: OrchestratorContext,
-    task_queue: Arc<PersistentTaskQueue>,
+    facade: DynamicProviderFacade,
     permit: Option<TaskPermit>,
     task_id: String,
     trace_context: Option<LlmTraceContext>,
@@ -36,8 +33,7 @@ pub(super) struct QueueTrackedStreamTerminal {
 impl QueueTrackedStreamTerminal {
     pub(super) fn new(
         kind: StreamKind,
-        orchestrator: OrchestratorContext,
-        task_queue: Arc<PersistentTaskQueue>,
+        facade: DynamicProviderFacade,
         permit: TaskPermit,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
@@ -46,8 +42,7 @@ impl QueueTrackedStreamTerminal {
         let task_id = permit.task_id().to_string();
         Self {
             kind,
-            orchestrator,
-            task_queue,
+            facade,
             permit: Some(permit),
             task_id,
             trace_context,
@@ -98,8 +93,7 @@ impl QueueTrackedStreamTerminal {
         };
         let kind = self.kind;
         let task_id = self.task_id.clone();
-        let task_queue = self.task_queue.clone();
-        let orchestrator = self.orchestrator.clone();
+        let facade = self.facade.clone();
         let trace_context = self.trace_context.clone();
         let model_name = self.model_name.clone();
         let duration_ms = Some(self.started.elapsed().as_millis() as i64);
@@ -110,8 +104,7 @@ impl QueueTrackedStreamTerminal {
             TerminalSyncContext {
                 kind,
                 task_id,
-                task_queue,
-                orchestrator,
+                facade,
                 trace_context,
                 model_name,
                 duration_ms,
@@ -131,8 +124,7 @@ impl QueueTrackedStreamTerminal {
         let kind = self.kind;
         let message = error.to_string();
         let task_id = self.task_id.clone();
-        let task_queue = self.task_queue.clone();
-        let orchestrator = self.orchestrator.clone();
+        let facade = self.facade.clone();
         let trace_context = self.trace_context.clone();
         let model_name = self.model_name.clone();
         let duration_ms = Some(self.started.elapsed().as_millis() as i64);
@@ -141,8 +133,7 @@ impl QueueTrackedStreamTerminal {
             TerminalSyncContext {
                 kind,
                 task_id,
-                task_queue,
-                orchestrator,
+                facade,
                 trace_context,
                 model_name,
                 duration_ms,

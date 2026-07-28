@@ -1,4 +1,4 @@
-use a4n_core::event::sse::ProgressMeta;
+use a4n_core::event::progress::ProgressMeta;
 use serde::{Deserialize, Serialize};
 
 pub use a4n_orchestrator::workflow::{

@@ -11,7 +11,7 @@ impl OrchestratorContext {
         validate_positive_id(project_id, "project_id")?;
         let context = self.load_galgame_context(project_id).await?;
         let read_model = a4n_db::galgame::galgame_asset_planning_read_model(
-            self.db.connection(),
+            self.database.connection(),
             context.project.id,
         )
         .await

@@ -1,5 +1,5 @@
 use super::super::super::ImportCanvasMediaInput;
-use super::rules::{
+use a4n_orchestrator::canvas::{
     canvas_audio_extension, required_canvas_audio_file_name, validate_canvas_audio_mime,
 };
 use base64::Engine as _;

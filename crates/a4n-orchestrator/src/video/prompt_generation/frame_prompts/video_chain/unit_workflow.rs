@@ -40,6 +40,7 @@ pub(super) struct VideoPromptUnitWorkflowInput<'a, 'source> {
     pub existing_generated_video_prompts: &'a BTreeMap<i32, GeneratedVideoPromptShot>,
     pub matching_generated_video_shots: &'a HashSet<i32>,
     pub regenerate_existing: bool,
+    pub target_shot_number: Option<i32>,
 }
 
 pub(super) struct GeneratedVideoPromptUnits {
@@ -82,6 +83,7 @@ pub(super) async fn generate_video_prompt_units(
         existing_generated_video_prompts,
         matching_generated_video_shots,
         regenerate_existing,
+        target_shot_number,
     } = input;
     let mut video_prompts = Vec::with_capacity(video_segment_plan.len());
     let mut context_video_prompts = Vec::with_capacity(video_segment_plan.len());
@@ -95,6 +97,17 @@ pub(super) async fn generate_video_prompt_units(
         let current_index = index + 1;
         let total_segments = video_segment_plan.len();
         let shot_number = segment.segment_number;
+
+        if target_shot_number.is_some_and(|target| target != shot_number) {
+            if let Some(reusable) = existing_generated_video_prompts
+                .get(&shot_number)
+                .or_else(|| reusable_video_prompts.get(&shot_number))
+            {
+                video_prompts.push(reusable.clone());
+                context_video_prompts.push(reusable.clone());
+            }
+            continue;
+        }
 
         if spec.is_first_frame_chain() && generated_this_run >= generation_limit {
             if let Some(reusable) = reusable_video_prompts.get(&shot_number) {

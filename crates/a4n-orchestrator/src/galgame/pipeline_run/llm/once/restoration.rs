@@ -18,7 +18,7 @@ where
     F: Fn(Value) -> Result<Value, AppError>,
 {
     let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-        service.db.connection(),
+        service.database.connection(),
         input.workflow_run_id,
         &input.step_key,
         &prepared.fingerprint_json,

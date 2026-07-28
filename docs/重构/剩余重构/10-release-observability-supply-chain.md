@@ -1,0 +1,334 @@
+# 工作包 10：跨平台发布、可观测性与供应链完整性
+
+## 任务卡
+
+| 项目 | 内容 |
+|---|---|
+| 主目标 | 建立 Windows/macOS/Linux 发布实跑、sidecar metrics/restart、SBOM/advisory/license/binary manifest 闭环 |
+| V2 来源 | 3.17、3.25、3.26；阶段 H、阶段 M 的发布/运维/供应链部分 |
+| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed macOS/Windows 正式 tag release 流水线已落地；真实签名、公证、供应链和平台 artifact 仍缺 |
+| 可并行性 | 平台、可观测性、供应链可分 agent；`.github/workflows` 和 release manifest 由集成者串行合并 |
+
+## 子包 A：跨平台发布（3.17）
+
+1. Windows runner 构建 portable package，执行 `start.ps1`，启动八个 sidecar 并检查 health、PID、日志和 host 退出清理。
+2. macOS runner 构建 Tauri externalBin bundle，验证权限、签名、公证配置和包内 sidecar 启停。
+3. Linux runner 从真实安装前缀启动 host/sidecar，验证安装后路径、权限和退出清理。
+4. 三个平台覆盖 stale PID、非 ASCII 路径、带空格路径、端口释放和 host 退出后本次实例 sidecar 全部停止。
+
+## 子包 B：metrics、日志和 supervisor（3.25）
+
+1. 八个 sidecar 提供统一 metrics 或结构化状态 endpoint：request、duration、error、cancel、in-flight、restart。
+2. 重能力增加 RAG index、embedding download、provider latency、stream interruption、queue length 等指标，但绝不输出 prompt、token、API key 或完整 URL。
+3. 统一日志目录、轮转、保留天数和磁盘上限；health 展示版本、PID、重启次数、最近错误和摘要。
+4. Service manager 实现按服务 restart policy、指数退避、最大重试、熔断；非幂等 provider 请求不得静默重放。
+5. process test 证明 request/trace id 跨 host/sidecar/持久 trace 一致，并覆盖崩溃、重启、退避和熔断。
+
+## 子包 C：供应链与 binary integrity（3.26）
+
+1. CI 执行 `cargo audit` 或等价 advisory 检查、`cargo deny` 或等价 license/source policy。
+2. release 生成 SPDX 或 CycloneDX SBOM。
+3. release manifest 逐项记录 host + 八个 sidecar 的名称、版本、target、SHA-256、protocol/capability version。
+4. portable/Tauri 包通过平台签名保护 manifest/binary；manager 启动前校验实际 hash、签名和 package manifest，不匹配即拒绝启动。
+5. 把 manifest 与 service catalog、package inventory 接入同一 CI 一致性门禁。
+
+## 不在范围
+
+- 不修改 sidecar 业务协议、认证、资源限制和版本协商；由 08 负责。
+- 不把日志/metrics 作为新的业务状态源；只从 canonical event/manager state 投影。
+- 不把“archive SHA-256 已生成”当成逐 binary 完整性闭环。
+
+## 关闭条件
+
+- 三个平台都有 runner 实跑和安装/打包后 smoke artifact。
+- metrics、日志生命周期、restart/backoff/circuit breaker 有统一 owner 和 process evidence。
+- advisory/license/SBOM、逐 binary manifest、签名和启动前 hash 校验均进入 CI/release。
+- sidecar 崩溃后的在途任务显式失败或按幂等键恢复，不静默重复非幂等请求。
+
+## 最小验证
+
+```bash
+./scripts/checks/check-sidecar-package-inventory.sh
+cargo audit
+cargo deny check
+./scripts/build.sh --release
+```
+
+平台命令必须在对应 runner 实跑；Linux 本机成功不能代替 Windows/macOS 证据。签名/公证未配置时明确标阻塞，不加假成功 fallback。
+
+## 交接要求
+
+提交每个平台的 artifact、runner、命令和失败日志；提交 metrics 字段表、restart 状态机、SBOM 和 binary manifest 示例。`.github/workflows` 只由集成者合并。
+
+## 本会话进度（2026-07-25）
+
+### 已落地
+
+- `a4n-sidecar-bootstrap` 提供统一 `/metrics` JSON、请求/trace header 日志、请求数、错误数、取消数、in-flight、总/最大耗时、PID、uptime、restart count 和脱敏的最近错误；八个 sidecar 与 demo sidecar 均接入。
+- `a4n-sidecar-bootstrap` 统一 `A4N_LOG_DIR/services`、daily rolling、保留天数和总大小上限；当前只在启动时清理，保留的升级上限已用 `ponytail:` 注释标明。
+- `a4n-service-manager` 统一 supervisor、指数退避、restart budget、circuit open、动态 PID/状态/最近错误和 graceful/force stop；在途请求崩溃时显式失败，不重放 provider 请求。
+- request/trace id 通过 `a4n-capabilities` 的共享 transport helper 跨进程发送；demo process test 覆盖 header、崩溃、重启、退避、熔断、端口释放和 counter 不重复。
+- `release_manifest.rb`、`check-release-manifest.sh`、`deny.toml` 和 workflow 已接入：manifest 覆盖 host + 八个 sidecar，记录 target/version/SHA-256/protocol/capability version；manager 在配置 manifest 时启动前校验 hash，并在 Rust owner 处复用 service catalog，拒绝缺项、未知项、错误 binary path 或 capability version 漂移。
+- Linux deploy/start 与 Windows start 脚本已接入 manifest/hash 校验；启动器现在按 health response 的 service/status 校验 PID，拒绝把存活但不匹配的 stale PID 当作已启动服务，退出清理对受管进程执行有界 graceful→force stop；CI 已定义 `cargo audit`、`cargo deny`、CycloneDX SBOM、三平台 demo process matrix。
+
+### 本地证据
+
+```text
+./scripts/checks/check-release-manifest.sh                         通过（生成、校验、篡改拒绝）
+./scripts/checks/check-sidecar-package-inventory.sh                通过
+./scripts/checks/check-sidecar-security-boundary.sh                通过
+./scripts/deploy.sh --target linux-x86_64 --dry-run --no-build     通过
+ruby -c scripts/release_manifest.rb                                通过
+bash -n scripts/deploy.sh ...                                      通过
+cargo check（工作包 10 相关 crate + sidecar）                      通过
+cargo test -p a4n-service-manager --lib --no-fail-fast              35 passed
+cargo test -p a4n-sidecar-bootstrap --lib --no-fail-fast             15 passed
+cargo test -p a4n-capabilities --lib --no-fail-fast                 22 passed
+```
+
+### 尚未关闭
+
+- GitHub Windows/macOS/Linux runner 尚未有本次代码的远端成功记录；尚无真实安装包/Tauri bundle smoke artifact。
+- 当前 Linux 环境没有 `pwsh`，Windows `start.ps1` 的语法与真实启停只能由 Windows runner 证明；本地没有伪造通过。
+- 平台签名、公证、manifest 签名和 release 验签尚未配置，不能用 hash 校验代替签名闭环。
+- `cargo audit`、`cargo deny`、SBOM 仅已写入 workflow，当前环境没有远端运行结果，不能记为通过。
+- Tauri externalBin 尚未在最终 bundle/signing 阶段生成 host + 八个 sidecar 的最终 manifest；Host hash 不能在 Host 构建前自引用嵌入，必须由正式 bundle/signing pipeline 在最终字节确定后生成并保护。
+- `deploy.sh` 仍保留少量 sidecar 名称/平台映射清单；未为降数字而做高风险脚本重构。
+
+因此本工作包状态保持“进行中（已交接，待外部证据）”，不标记完成。
+
+## 远端发布与供应链证据核对（2026-07-25）
+
+- `origin/master` 当前为 `9deb6ca453524456003e6c42264f2bc583cb158b`，是本地 `HEAD=30adf2c15f28b63a8fb67c24163c14ff4762c58f` 的祖先；本工作包新增的 manifest、supervisor、供应链和跨平台 workflow 尚未进入远端。
+- GitHub 公共 Actions API 在限流前返回该仓库 `total_count=0` 个 workflow，因此没有 Windows/macOS/Linux package smoke、SBOM、`cargo audit`、`cargo deny` 或 cross-platform process 的远端 run/artifact 可供关闭条件引用。
+- 本地与远端均没有 Git tag；GitHub Releases 页面明确显示 `There aren’t any releases here`。仓库也没有签名/公证 workflow 配置；未提交的证书或密钥当然不应作为解决方案，本轮不创建演示签名或假 release。
+- 当前 CI 已定义 Linux/Windows portable 与 macOS arm64 Tauri `.app` 的真实构建和启动 smoke，以及三平台 demo sidecar/mTLS 进程矩阵；这些定义尚未在远端执行，也不等价于成功 artifact、Windows/macOS 签名或 macOS 公证。
+
+结论：本地可实现的 manifest/hash、supervisor、metrics、脚本和 CI 定义继续保留；工作包 10 仍需协调者合并并推送当前工作树，再由对应平台 runner 生成真实 package artifact 和日志。平台签名/公证必须在有正式发布身份与 secret 配置后实施，不能在本地以自签名或跳过验签冒充闭环。
+
+## 批次 304 · 3.25 可观测性关闭裁决（2026-07-28）
+
+状态：`完成`
+
+- 统一 `/metrics` 在既有全局 request/error/cancel/in-flight/duration 基础上按静态路由自动聚合 operation 指标；RAG、Embedding、LLM、Image、Video 等重能力无需各自维护第二份 metrics 状态，也不会把 query、prompt、token、API key 或完整 URL写入指标。
+- 八个正式 sidecar 的 `with_runtime_metrics` 与 `init_tracing` 接入已逐项静态确认。manager 继续通过既有 health、process status 和 metrics 三个窄读面提供版本、PID、重启次数、最近错误和关键摘要，没有扩展第二 health 合同。
+- demo 真实进程验证 `/trace` operation 指标及 Host request/trace ID 写入 `A4N_LOG_DIR/services` 持久日志；两个 supervisor 真实进程用例继续通过崩溃显式失败、单次持久计数、重启、退避和熔断。
+
+验证：`a4n-service-protocol` 69/69、`a4n-sidecar-bootstrap` 19/19；demo process 1/1；supervisor process 2/2。由此 V2 3.25 八项关闭条件全部满足并改为 `完成`。工作包 10 整体仍未完成：3.17、3.26、阶段 H/M 继续缺真实三平台 package smoke、正式签名/公证、manifest 签名/release 验签和远端 CI/artifact。
+
+## 3.26 本地接线复核（2026-07-28）
+
+- `check-release-manifest.sh` 先前存在但未被任何 workflow 调用；现已接入 `release-package` 的发布布局门禁，继续复用同一个 Ruby generator/verifier，没有新建第二套供应链工具。
+- portable 包的逐 binary manifest、Linux/Windows 启动前校验以及 manager 每次 spawn/restart 的 hash 校验均已接线；Tauri externalBin 最终 bundle manifest 仍缺。
+- 曾验证“预构建 Host 后嵌入 manifest”的最短方案，但最终 Tauri 合并配置和签名可能改变 Host 字节，预构建 host hash 不可信，相关试验代码已撤掉，没有留下假完整性路径。
+
+因此 3.26 保持 `未完成`：必须由正式三平台 bundle/signing pipeline 在最终二进制确定后生成/保护 manifest，并取得 `cargo audit`、`cargo deny`、SBOM、签名、公证和 release 验签的真实 artifact。
+
+## 批次 307 · Linux 真实 release 安装前缀 smoke 接线（2026-07-28）
+
+状态：`未完成`
+
+- 新增 `scripts/checks/smoke-linux-release-package.sh`，直接解压已有 release archive 到包含非 ASCII 和空格的安装前缀，启动包内 Host 与八个 sidecar，并验证 service identity、health、八个 PID、受控日志、stale PID 替换、manifest/hash 和 Host 退出后的进程/PID 文件/端口清理。
+- `module-checks.yml` 新增固定 `ubuntu-24.04` 的 `linux-release-smoke` job：使用 PostgreSQL 16、Qdrant v1.18.3、Rust 1.95.0 和真实 release 构建，不再把 `deploy.sh --dry-run` 当安装包运行证据；成功或失败均上传 archive、SHA-256 和 smoke 日志。
+- 第一次本地实跑在 RAG 启动处显式失败并指出缺少 `A4N_QDRANT_URL`；没有添加 fallback。提供本机真实 Qdrant 后，既有 release archive 在 `/tmp/.../安装 前缀` 内完成 Host + 八个 sidecar 启动并释放全部 smoke 端口；新增脚本随后独立复验通过。
+
+本批只补齐 Linux 可重复执行入口，不能冒充当前代码的远端 runner artifact，也不关闭 3.17/阶段 H。Windows portable、macOS Tauri bundle、正式签名/公证、最终 Tauri manifest 和 release 验签仍需对应平台与发布身份。
+
+## 批次 308 · 包内 ONNX Runtime 完整性与 Windows portable smoke（2026-07-28）
+
+状态：`未完成`
+
+- 根因审计发现批次 307 的 Linux smoke 继承了开发机 `LD_LIBRARY_PATH`，旧 portable archive 未携带 ONNX Runtime；干净 Windows/macOS runner 必然无法启动默认 embedding sidecar。本批没有增加 fallback，而是让既有 `deploy.sh` 把平台 runtime 放入 `bin/services`，Linux/macOS 启动器优先使用包内库，Windows DLL 与 embedding executable 同目录。
+- release manifest 升级为 schema v2：继续保留 host + 八 sidecar 的 catalog/version/protocol/capability/hash，同时新增唯一平台 ONNX Runtime 文件及 SHA-256。Ruby verifier、Linux/Windows 启动器和 manager 使用同一 manifest；manager 在初始化及每次 spawn/restart 前重验 runtime，runtime 被替换或缺失时拒绝启动。
+- `setup-onnxruntime.sh` 复用现有安装 owner 增加 Windows x86_64 官方 `1.24.2` zip，固定 SHA-256 `8e3e9c...a7e8b0`，不新增下载工具。新增 Windows PowerShell smoke，覆盖非 ASCII/空格安装前缀、Host、八 sidecar、service identity、health、PID、日志、stale PID 和 Host 退出清理。
+- `module-checks.yml` 新增 `windows-2025` 真实 package job：复用 runner 自带 PostgreSQL 17，下载并校验固定 SHA-256 的 Qdrant v1.18.3，构建 Windows archive、执行生成的 `start.ps1`，并上传 archive/hash/Host/sidecar/Qdrant 日志。
+
+验证：protocol 69/69、manager integrity 5/5、manifest schema v2 生成/校验/路径越界/sidecar 篡改/runtime 篡改拒绝均通过；本地 `--no-build` 生成 69 MiB Linux archive，确认包含 22 MiB `libonnxruntime.so.1`、schema v2 和包内 library path。当前机器没有 PowerShell，Windows job 只能由正式 runner 验证；release Host 完整链接分别在 120/120/300 秒超时，未冒充通过。3.17/3.26、阶段 H/M 继续等待真实 Windows/macOS artifact、签名、公证和 release 验签。
+
+## 批次 309 · macOS arm64 Tauri externalBin smoke 接线（2026-07-28）
+
+状态：`未完成`
+
+- 复用 `setup-onnxruntime.sh` 支持官方 `onnxruntime-osx-arm64-1.24.2.tgz`，固定 SHA-256；复用 `target/tauri-sidecars` staging 把唯一 `libonnxruntime.dylib` 交给 Tauri 原生 `resources` map，不增加第二 runtime 目录或打包器。
+- macOS `.app` 启动时若资源目录存在包内 dylib，会在创建 `AppState` 前把该目录前置到 managed sidecar 的 `DYLD_LIBRARY_PATH`；开发态仍使用显式外部 ONNX 配置，包内 smoke 会主动清除开发机 ONNX/DYLD 环境，防止假通过。
+- 新增 `macos-15`（GitHub 官方 arm64 标签）job：安装 PostgreSQL 16、执行真实 migration、下载并校验 Qdrant v1.18.3 arm64，构建 unsigned Tauri `.app`，再从中文/空格安装前缀验证 Host、八个 sidecar、service identity、health、PID、日志、包内 dylib 和退出清理。
+- 官方 ONNX/Qdrant 资产已在本地下载复核，SHA-256 与归档布局一致；Bash/JSON/YAML、三平台 staging dry-run、目标 Rust fmt、`a4n-tauri --no-default-features` check（47.62s）、package inventory、manifest 门禁和精确 diff check 通过。当前 Linux 主机不能执行 macOS `.app`，因此不把 workflow 定义或 unsigned bundle 当成远端运行、签名、公证和正式 release 证据。
+
+3.17、3.26、阶段 H/M 与总体继续保持 `未完成` / `35/44`；下一步必须由真实 macOS/Windows runner 和正式发布身份提供 artifact、签名、公证与 release 验签结果。
+
+## 批次 311 · macOS 正式签名、公证与 tag release 验签接线（2026-07-28）
+
+状态：`未完成`
+
+- 新增唯一正式 `.github/workflows/release.yml`，只响应 `v*` tag，并引用名为 `release` 的 GitHub Environment；远端仍必须为该 environment 配置审批/部署保护和 secrets。tag 必须与 `tauri.conf.json` 版本精确一致，缺少 Developer ID certificate、Apple ID app-specific password 或 Team ID 时在构建前失败，不允许降级为 ad-hoc/unsigned release。
+- Apple secrets 只注入证书导入和 Tauri 签名/公证步骤，不暴露给 npm、PostgreSQL、Qdrant 或普通 smoke。证书导入独立临时 keychain，并要求恰好一个 `Developer ID Application` identity；`bundle.macOS.hardenedRuntime` 已显式固定为 `true`。
+- 复用现有 ONNX Runtime、externalBin staging、Tauri bundle 和 macOS smoke，构建 `app,dmg` 时显式 `--ci`，未使用 `--no-sign`、`--skip-stapling` 或 `continue-on-error`。
+- 发布前依次执行 `codesign --verify --deep --strict`、`stapler validate`、Gatekeeper `spctl --assess` 和签名后 Host + 八 sidecar smoke；DMG 会被真实挂载并对其中 `.app` 重复执行签名、公证和 Gatekeeper 验证。
+- 只有上述步骤全部成功才创建/更新 GitHub Release。随后从 Release 重新下载 ZIP、DMG 和各自 SHA-256，要求恰好四个资产并校验内容，避免把本地产物上传成功冒充可下载 release。
+- 新增 `check-release-signing-workflow.sh` 并接入现有 release layout 门禁，固定 tag/environment/secrets/hardened runtime/签名/公证/smoke/publish/download 验证且禁止 unsigned/best-effort fallback。
+
+本地验证：签名 workflow 门禁、Bash、JSON、两份 workflow YAML、`actionlint`、package inventory、schema v2 manifest 生成/篡改拒绝、Tauri `app,dmg --ci` dry-run 和精确 diff check 通过。`actionlint` 首次发现原 `macos-15-arm64` 不是有效托管标签；按 GitHub 当前官方 runner 表统一改为 arm64 `macos-15` 后复验通过。Context7 因月度额度耗尽不可用，签名变量与流程改由 Tauri 2 官方 macOS signing 文档、GitHub runner 文档和当前 2.11.0 CLI/schema 核对。
+
+本批只完成正式 macOS 发布配置，不伪造 Apple 平台结果。当前仓库仍没有已核验的 `release` environment protection/secrets、`v*` tag、远端 run 或 GitHub Release；Windows 正式平台签名以及 Tauri externalBin 最终 manifest/manifest 身份保护仍缺。因此 3.17、3.26、阶段 H/M、3.29 和总体继续保持 `未完成` / `35/44`。
+
+## 批次 312 · Windows 正式签名与 tag release 验签接线（2026-07-28）
+
+状态：`未完成`
+
+- 在同一 `release.yml` 增加依赖 macOS job 的 `windows-2025` 正式发布 job，复用 PostgreSQL 17、固定哈希 Qdrant、ONNX Runtime、service catalog、现有 deploy 和 portable smoke，不创建第二套发布器，也避免两个 job 并发创建同一 Release。
+- 采用 Azure Artifact Signing 和固定 `artifact-signing-cli 0.11.0`，要求 service principal、官方 HTTPS endpoint、account 与标准 `AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE`；从 runner 已有 Azure CLI 和 Windows SDK 解析 `AZURE_CLI_PATH` / `SIGNTOOL_PATH`，不依赖通常不在 PATH 的 `signtool.exe`，也不保留旧 PFX/证书指纹路径。
+- 先构建 Host + 八 sidecar，再逐项执行 Authenticode 签名；签名成功后复用 `deploy.sh --no-build` 重打包，使 schema v2 manifest 哈希最终签名字节。随后逐项校验 manifest SHA-256、`Get-AuthenticodeSignature = Valid` 和 signer certificate，并保存 `authenticode.json` 证据。
+- 只有签名、manifest 校验和现有 `start.ps1` 生命周期 smoke 全部通过才上传 Windows portable archive 与 SHA-256；发布后重新下载恰好两个 Windows 资产并复验 hash。静态门禁同时要求 Azure identity、固定 CLI、最终重打包、Authenticode、smoke 和 Release 下载，继续拒绝 `continue-on-error`、旧 PFX、ad-hoc 或 unsigned fallback。
+
+本地验证：`check-release-signing-workflow.sh`、两份 workflow 的 Ruby YAML 解析和 `actionlint v1.7.7` 均通过，目标 diff whitespace 检查通过。当前 Linux 主机没有 PowerShell，且仓库没有已核验的 Azure identity、`release` environment protection/variables/secrets、正式 tag、Windows runner artifact 或 GitHub Release，因此不把配置定义写成 Windows 平台通过。
+
+Tauri `.app` 最终 externalBin manifest/manifest 身份保护仍缺；`cargo audit`、`cargo deny`、SBOM、macOS 签名公证和 Windows Authenticode 也都还没有当前提交的远端成功 artifact。因此 3.17、3.26、阶段 H/M、3.29 和总体继续保持 `未完成` / `35/44`。
+
+## 批次 313 · Tauri 最终 binary manifest 与 Developer ID CMS 接线（2026-07-28）
+
+状态：`未完成`
+
+- 沿用唯一 `release_manifest.rb` 和 schema v2，增加 `--tauri-app` 布局：直接记录签名、公证及 stapling 后 `.app` 中 Host、八个 externalBin 和 ONNX Runtime 的最终 SHA-256、版本、target、protocol/capability version；portable Linux/Windows 默认布局和 Rust 合同均不复制、不分叉。
+- 最终 Host 原始 hash 不能嵌回由 Host code signature 封印的 `.app`，否则形成自引用并破坏 `codesign --strict`。正式 workflow 因此在 `.app` 最终字节确定后生成外部 manifest，使用同一个唯一 `Developer ID Application` identity 执行 `security cms -S`，再用 `security cms -D` 和逐文件 hash 双重验证，不引入自签名或预构建 hash fallback。
+- ZIP 同时携带 `A4N.app`、`release-manifest.json` 和 CMS，压缩后立即解包并复验 CMS 与九个二进制/runtime hash。Tauri 生成的 DMG 被只读挂载后，也使用同一 manifest 复验内部 `.app` 的最终字节，再执行 codesign、stapler 和 Gatekeeper。
+- GitHub Release 新增 manifest/CMS 两个资产；发布后要求六个 macOS 资产完整，既校验 ZIP/DMG SHA-256，也重新解码 CMS 并逐字节比较 manifest。静态签名门禁要求 Tauri manifest、CMS、DMG manifest 校验，并禁止 `--no-sign`。
+- `check-release-manifest.sh` 现在用一个临时 package 覆盖 Linux portable、Windows portable 和 Tauri `.app` 三种布局，验证 Host + 八 sidecar + runtime，并证明 Tauri sidecar 篡改被拒绝。
+
+本地验证：manifest 三布局/篡改自检、Ruby/Bash 语法、release fail-closed 门禁、两份 workflow YAML、`actionlint v1.7.7` 和尾随空白检查通过。当前 Linux 主机没有 Apple `security`/codesign/hdiutil，也没有 release identity、tag 或远端 run，因此 CMS、DMG 和 Release 结果仍须真实 macOS runner 证明。
+
+本地实现层面的 Tauri 最终 manifest/identity 接线已补齐，但当前代码仍未进入远端正式 release；`cargo audit`、`cargo deny`、SBOM、三平台 smoke、Apple/Windows 签名和公证均无当前提交的成功 artifact。因此 3.17、3.26、阶段 H/M、3.29 和总体继续保持 `未完成` / `35/44`。
+
+## 批次 314 · 正式 Release 供应链前置门禁（2026-07-28）
+
+状态：`未完成`
+
+- 修复正式发布可绕过普通 CI `supply-chain` job 的顺序缺口：`release.yml` 新增固定 `ubuntu-24.04` / Rust 1.95.0 的 tag supply-chain job，tag/version 不一致、`cargo audit`、`cargo deny check` 或 CycloneDX 生成任一失败都会阻断后续平台发布。
+- macOS job 显式 `needs: supply-chain`，Windows 继续 `needs: macos-arm64`，形成唯一 `supply-chain → macOS → Windows` 发布链；没有增加另一个 Release 创建者。
+- 正式 supply-chain job 保存 audit/deny 日志、Tauri all-features CycloneDX JSON 和 SHA-256，失败时也上传已有诊断 artifact。macOS job 下载同一 Actions artifact并把 SBOM/SHA-256附加到 GitHub Release，发布后重新下载恰好两个 SBOM 资产并复验。
+- 静态签名门禁新增 release supply-chain job、固定 runner、audit/deny/cyclonedx、artifact、`needs` 和 SBOM Release 资产要求，原有 unsigned/best-effort 禁止项继续有效。
+
+本地验证：release fail-closed checker、Ruby YAML、两份 workflow 的 `actionlint v1.7.7` 和尾随空白检查通过。未执行会下载 advisory DB/工具并生成完整 SBOM 的远端 job，当前也没有 tag、Release 或 Actions artifact，因此不声称 audit/deny/SBOM 已成功。
+
+正式 Release 的本地配置已不能绕过供应链门禁，但 3.26 仍需当前提交在真实 runner 上产出成功 audit/deny/SBOM、平台签名、公证、manifest/CMS 和 Release 下载证据。3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成` / `35/44`。
+
+## 批次 315 · Linux 正式 tag Release 接线（2026-07-28）
+
+状态：`未完成`
+
+- 正式 `release.yml` 新增固定 `ubuntu-24.04` / Rust 1.95.0 的 Linux x86_64 portable job，不再只依赖普通 main/PR smoke。job 复用现有 deploy、schema v2 manifest、安装前缀 smoke 和启动器完整性校验。
+- 使用 PostgreSQL 16 service 并显式运行真实 migration；Qdrant 使用官方 v1.18.3 Linux GNU 资产，按 GitHub Release API 官方 digest `60663a…e4718` 固定 SHA-256 后启动，不使用漂移的 Docker tag。
+- 在非 ASCII/空格安装前缀运行现有 Host + 八 sidecar smoke，覆盖 health/service identity、PID、日志、stale PID、manifest、包内 ONNX Runtime 和退出清理；成功后才重命名正式 archive、重算 SHA-256 并上传 Actions artifact。
+- 发布 DAG 收敛为唯一 `supply-chain → Linux → macOS → Windows`。macOS 的唯一 GitHub Release owner 下载 Linux artifact，与 macOS/SBOM 资产一起发布，再下载恰好两个 Linux 资产并复验。
+- 静态 release checker 锁定 Linux job、正式 runner、固定 Qdrant digest、现有 smoke、artifact、DAG 和 Release asset，未增加第二套 deploy/smoke/publish owner。
+
+本地验证：release fail-closed checker、Ruby YAML、两份 workflow 的 `actionlint v1.7.7` 和尾随空白检查通过。没有运行 90 分钟级 Linux release build/migration/process job，也没有正式 tag 或 Actions/GitHub Release artifact，因此 3.17 仍不能关闭。
+
+三平台正式发布配置现已全部进入同一 tag DAG，但关闭仍需要当前提交的真实 supply-chain、Linux、Apple 和 Windows 四阶段成功证据。3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成` / `35/44`。
+
+## 批次 316 · 正式 Release Action 不可变引用（2026-07-28）
+
+状态：`未完成`
+
+- 盘点正式 `release.yml` 的 20 个外部 Action step，并通过各上游官方 Git ref 解析当前 commit；`actions/checkout`、`setup-node`、artifact upload/download、`dtolnay/rust-toolchain` 和三项 `taiki-e/install-action` 全部从可移动 tag/branch 改为 40 位 commit SHA，行尾保留人类可读版本注释。
+- 扩展既有 `check-release-signing-workflow.sh`：使用 YAML 结构遍历每个 job/step，只有仓库内 `./...` action 或 `owner/repo@<40 hex>` 可通过；任何 `@v4`、`@main`、版本 tag 或包名 tag 重新进入正式发布都会 fail closed。
+- 只锁定拥有 `contents: write`、release environment 和发布 secrets 的正式 workflow；普通 CI action 升级不与本批混做，避免无关的大面积 workflow churn。
+
+本地验证：release fail-closed checker、Ruby YAML 和两份 workflow 的 `actionlint v1.7.7` 通过；`rg uses:` 确认正式 workflow 20/20 外部引用均为 40 位 SHA。没有真实 tag/runner/Release artifact，因此本批不改变完成状态。
+
+正式 Release 的 Action 执行代码现在不可由上游移动标签静默替换；剩余仍是当前提交的真实四阶段发布结果和 Git/runner 身份证据。3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成` / `35/44`。
+
+## 批次 317 · 正式 Release 容器与下载资产身份固定（2026-07-28）
+
+状态：`未完成`
+
+- 通过 Docker Registry v2 官方接口解析 `library/postgres:16` 当前 OCI index：index digest 为 `sha256:33f923…e5f20`，Linux/amd64 子 manifest 为 `sha256:da8cf2…ea8e4`；正式 Linux job 改用 `postgres:16@index-digest`，保留可读 tag 但执行内容由 digest 固定。
+- release checker 的 YAML 结构遍历扩展到 `jobs.*.services`，所有正式 service image 必须匹配 `image@sha256:<64 hex>`；以后增加新的可移动容器 tag 会 fail closed。
+- 复扫正式发布外部输入：20/20 Actions 使用 commit SHA；Linux/macOS/Windows Qdrant v1.18.3 分别固定官方 SHA-256；ONNX Runtime 1.24.2 三平台下载复用单一脚本中的固定 SHA-256。未发现其他可移动 Action 或 service image。
+
+本地验证：release checker、Ruby YAML、两份 workflow 的 `actionlint v1.7.7` 通过；移动 Action/service 正则扫描为零，三平台 Qdrant 与 ONNX hash inventory 完整。没有拉取 PostgreSQL image 或执行正式 runner，只使用 Registry 元数据确认 identity。
+
+正式 Release 的代码、容器和已下载原生依赖均已有不可变身份；当前未完成项仍是正式 identity/tag/runner/Release 的真实执行证据。3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成` / `35/44`。
+
+## 批次 318 · Developer ID CMS code-signing policy 修正（2026-07-28）
+
+状态：`未完成`
+
+- 复核 Apple 官方开源 `SecurityTool/macOS/security.1` 与 `cmsutil.c`，确认 `security cms` 默认 `certUsageEmailSigner`、默认 SHA-1；Developer ID Application 属于 code-signing identity，必须使用 `certUsageObjectSigner`（usage code 6），其实现映射到 `APPLE_TP_CODE_SIGN` policy。
+- manifest 签名统一改为 `security cms -S -u 6 -H SHA256 -Y NONE`：显式使用 object-signer/code-signing policy、SHA-256，并省略无关的 S/MIME EncryptionKeyPreference；三个生成后、ZIP 解包后和 Release 下载后的 CMS decode/verify 均显式 `-D -u 6`。
+- release checker 固定签名参数，并要求三个 CMS 验证点全部使用 object-signer policy，防止退回默认 email/SHA-1 路径。
+
+本地验证：官方源码检索、release checker、Ruby YAML 和两份 workflow 的 `actionlint v1.7.7` 通过。Linux 无 `security` 和 Developer ID identity，实际 CMS 生成/验证仍由正式 macOS runner证明。
+
+本批修复了静态 workflow 在真实 Developer ID identity 下可能找不到证书或使用 SHA-1 的根因；没有 tag/Apple runner/Release artifact，完成状态不变。3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成` / `35/44`。
+
+## 批次 319 · 正式 Release GITHUB_TOKEN 最小权限（2026-07-28）
+
+状态：`未完成`
+
+- 将 `release.yml` 的 workflow 默认权限从 `contents: write` 降为 `contents: read`；supply-chain 第三方安装 Action、Linux build/smoke 和普通 checkout/artifact step 不再继承 repository write token。
+- 只有实际创建/上传 GitHub Release 的 `macos-arm64` 和追加 Windows 资产的 `windows-x86_64` 两个 job 显式提升 `contents: write`；既有 release environment、DAG 和 secret 注入边界不变。
+- release checker 使用 YAML 结构断言默认权限恰为 read，且拥有显式 contents write 的 job 集合必须精确等于 macOS/Windows；新增 job 无法默认获得发布权限。
+
+本地验证：权限结构解析结果为默认 read、write jobs 仅两项；release checker、Ruby YAML 和两份 workflow 的 `actionlint v1.7.7` 通过。没有真实 GitHub token/tag run，本批只收紧配置权限。
+
+正式发布 token 的暴露面已收敛到唯一两个 Release 写入点；当前仍缺正式 identity/tag/runner/Release artifact。3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成` / `35/44`。
+
+## 批次 321 · GitHub 源码发布准备（2026-07-28）
+
+状态：`未完成`
+
+- 修正公开 README 的重构后 owner 和测试数据库链接，精确放行已有 `docs/TEST_DATABASE.md`；将生成包规则从 `deploy/` 收紧为根目录 `/deploy/`，避免误忽略 `scripts/deploy/deploy-cloud.sh` 源码；新增 Apache-2.0 许可证、贡献指南、安全策略、PR 模板和 GitHub 发布说明。
+- 发布说明记录源码提交复核、migration 同提交要求、GitHub Actions/ruleset、`release` environment、Apple/Azure secrets/variables 和唯一 tag 发布顺序，不新增 workflow 或发布脚本。
+- 常见私钥/token 模式扫描为零；`.env`、数据库、PID、`data/`、`target/`、`deploy/` 和证书均未被 Git 跟踪。
+
+当前代码尚未提交/推送，也没有真实 runner/Release artifact，因此 3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `35/44`。
+
+## 批次 322 · 公开部署配置去真实基础设施默认值（2026-07-28）
+
+状态：`未完成`
+
+- `deploy-cloud.sh` 不再内置真实 IP、域名、`admin.pem` 和旧 nginx 配置名；复用既有 CLI/env 接口，将 Host、SSH key 和 public origin 改为显式必填；云部署和 LTX SSH 默认 `StrictHostKeyChecking=yes`，不再自动信任未知 host key。
+- `run.sh --remote-api` 不再默认连接个人服务器，必须提供 `A4N_REMOTE_API_URL` 或 `--remote-api-url`；LTX 脚本只在需要远端启动、隧道或模型检查时要求 `LTX_SSH_HOST`。
+- `.env.example` 的临时媒体、remote API 和 GPU SSH 地址统一改为 `example.com` 示例，不新增配置文件或 fallback。
+
+本批关闭公开仓库默认连接真实基础设施的风险；远端提交、三平台签名 runner 和 Release artifact 仍缺，3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `35/44`。
+
+## 批次 323 · Module Checks 最小权限与 Action pin（2026-07-28）
+
+状态：`未完成`
+
+- 普通 `module-checks.yml` 的默认 `GITHUB_TOKEN` 权限固定为 `contents: read`；该 workflow 没有发布写入 job，也不引入权限提升。
+- 17 个既有 job 的 45 个外部 Action 引用全部固定为 40 位 commit SHA，复用正式 Release 已核验的 checkout、Rust toolchain、Node、artifact 和三项 `taiki-e/install-action` commit；没有新增 workflow、Action 或检查框架。
+- 现有 `check-release-signing-workflow.sh` 统一解析正式 Release 与普通 Module Checks，要求两者默认只读并拒绝任一可移动 Action 引用；Release 的 service digest 和精确 write-job 集合仍按原规则单独校验。
+
+本地 YAML、release fail-closed checker、build-feedback self-check、Shell 语法、两份 workflow 的 `actionlint v1.7.7` 和 diff check 通过。当前代码仍未推送，普通 CI 和正式 Release 都没有当前提交的远端 runner/artifact；3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成` / `35/44`。
+
+## 批次 324 · 正式 Release 跨平台原子公开（2026-07-28）
+
+状态：`未完成`
+
+- 修复 macOS 成功、Windows 尚未签名时就公开 Release 的顺序缺口：macOS 现在只创建或更新同 tag 私有 draft；若同 tag Release 已公开则拒绝覆盖。
+- Windows 完成 Authenticode、最终 manifest、portable smoke 和 staged download 后，要求 SBOM、Linux、macOS、Windows 恰好 12 个资产，最后才将 draft 转为公开 Release；任一前置失败不会暴露不完整版本。
+- 复用现有 release DAG、GitHub CLI 和 checker，不新增 job、发布脚本或状态 owner。checker 固定 draft 创建、状态查询、精确资产集合和唯一公开命令。
+
+GitHub CLI 官方文档与源码确认 draft 创建/发布及按 tag 获取 draft 资产的合同；本地 YAML、release checker、`actionlint v1.7.7`、Shell 语法和 diff check 通过。当前仍无正式 identity、tag、runner 或 Release artifact，3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `35/44`。
+
+## 批次 325 · 正式 Release checkout 凭证最小化（2026-07-28）
+
+状态：`未完成`
+
+- 官方 `actions/checkout` 合同确认 token 默认写入本地 Git config；正式 workflow 原四个 checkout 均使用该默认值，扩大了构建与签名期间的发布凭证暴露面。
+- 四处现全部设置 `persist-credentials: false`；npm、Cargo、migration、deploy、smoke 和签名脚本不再继承 Git 凭证，`GH_TOKEN` 只显式进入五个必要的 Release 操作 step。
+- 现有 release checker 结构化要求 checkout 恰好四处且全部禁用持久化；没有增加新 job、脚本或 secret owner。
+
+官方 README/action metadata 核对、YAML、release checker、负向夹具、`actionlint v1.7.7`、Shell 语法和 diff check 通过。当前仍无正式 identity、tag、runner 或 Release artifact，3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `35/44`。
+
+## 批次 326 · Host 与八 Sidecar 九包 SBOM（2026-07-28）
+
+状态：`未完成`
+
+- 原正式/普通 CI 都只从 `a4n-tauri` 生成 SBOM，但八个 sidecar package 不在该直接依赖集合，无法追溯完整发布包。
+- 新共享入口直接读取现有 service catalog binary，并用 `cargo metadata --locked` 映射唯一 workspace package；Host + 八 sidecar 共 9 项分别按 all-features/target-all 生成 CycloneDX JSON，打成一个确定顺序归档和 SHA-256。
+- Module Checks 与正式 tag workflow 删除重复 Host-only 命令并复用该入口；draft、下载校验和 12 项最终资产集合同步切换到九包归档。
+
+快速 mock 只替代 `cargo-cyclonedx` 输出，生产 catalog/metadata/9 包/归档/hash 逻辑实际运行，结果 9/9 且 checksum 通过。YAML、Shell、checker、`actionlint v1.7.7` 和 diff check 通过；固定 runner 的真实 SBOM artifact 仍缺，3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `35/44`。

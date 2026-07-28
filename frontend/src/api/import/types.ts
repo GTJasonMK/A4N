@@ -21,19 +21,17 @@ export interface ImportReview {
   updated_at: string | null;
 }
 
-export interface ParsedChapter {
-  number: number;
-  title: string;
-  content: string;
-  content_hash: string | null;
-}
+import type {
+  ImportFileResult as GeneratedImportFileResult,
+  ImportUploadedFileInput as GeneratedImportUploadedFileInput,
+  CheckImportDedupInput as GeneratedCheckImportDedupInput,
+  DedupResult as GeneratedDedupResult,
+  ParsedChapterSummary,
+  ReverseEngineerInput as GeneratedReverseEngineerInput,
+} from "../generated/host";
 
-export interface ImportFileResult {
-  chapters: ParsedChapter[];
-  detected_encoding: string;
-  total_words: number;
-  warnings: string[];
-}
+export type ParsedChapter = ParsedChapterSummary;
+export type ImportFileResult = GeneratedImportFileResult;
 
 export interface ImportAnalysisStatus {
   status: ImportReviewStatus;
@@ -67,18 +65,9 @@ export interface ImportProjectAnalysisSummary {
   generated_parts: number;
 }
 
-export interface DedupResult {
-  content_hash: string;
-  is_duplicate: boolean;
-  closest_distance: number;
-  matched_chapter_id: number | null;
-}
+export type DedupResult = GeneratedDedupResult;
 
-export interface ImportUploadedFileInput {
-  file_name: string;
-  file_type: string;
-  data_base64: string;
-}
+export type ImportUploadedFileInput = GeneratedImportUploadedFileInput;
 
 export interface StartImportAnalysisInput {
   filename: string;
@@ -97,15 +86,12 @@ export interface ModifyImportReviewInput {
   ai_world_setting?: unknown | null;
 }
 
-export interface CheckImportDedupInput {
-  content: string;
-  project_id: number;
-}
+export type CheckImportDedupInput = GeneratedCheckImportDedupInput;
 
-export interface ReverseEngineerInput {
-  project_id: number;
+export type ReverseEngineerInput = Omit<
+  GeneratedReverseEngineerInput,
+  "content_sample" | "variables"
+> & {
   content_sample: string;
-  auto_context?: boolean;
-  context_limit?: number | null;
   variables?: Record<string, unknown> | null;
-}
+};

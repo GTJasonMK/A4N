@@ -181,6 +181,7 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
     let asset = media_asset::ActiveModel {
         project_id: Set(derived.id),
         root_project_id: Set(root.id),
+        source_snapshot_id: Set(Some(snapshot.id)),
         source_chapter_id: Set(Some(root_chapter.id)),
         source_snapshot_chapter_id: Set(Some(snapshot_chapter.id)),
         media_kind: Set("video".to_string()),
@@ -205,6 +206,7 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
     let preview_asset = media_asset::ActiveModel {
         project_id: Set(derived.id),
         root_project_id: Set(root.id),
+        source_snapshot_id: Set(Some(snapshot.id)),
         source_chapter_id: Set(Some(root_chapter.id)),
         source_snapshot_chapter_id: Set(Some(snapshot_chapter.id)),
         media_kind: Set("video".to_string()),

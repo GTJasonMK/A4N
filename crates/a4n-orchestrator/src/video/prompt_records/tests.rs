@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn shared_segment_plan_context_does_not_depend_on_generation_reference_ids() {
         let source_metadata = json!({"content_sha256": "same-source"});
-        let mut segment = prompt_row(1, "boundary_frames", "frame_segment_plan");
+        let mut segment = prompt_row(1, "shared_segment_plan", "frame_segment_plan");
         segment.reference_image_ids_json = Some(json!([1]));
         segment.metadata_json = Some(json!({
             "source": {"content_sha256": "same-source"},
@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn boundary_frame_prompt_uses_separate_contract_from_segment_plan() {
         assert_eq!(
-            expected_contract_version("boundary_frames", "frame_segment_plan"),
+            expected_contract_version("shared_segment_plan", "frame_segment_plan"),
             Some(FRAME_SEGMENT_PLAN_CONTRACT_VERSION)
         );
         assert_eq!(

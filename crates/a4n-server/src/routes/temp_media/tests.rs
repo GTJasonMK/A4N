@@ -22,11 +22,31 @@ fn validate_temp_media_file_name_rejects_paths_and_non_uuid_names() {
 }
 
 #[test]
+fn validate_temp_media_artifact_id_accepts_only_opaque_uuid_hex() {
+    assert_eq!(
+        validate_temp_media_artifact_id("ABCDEF0123456789ABCDEF0123456789"),
+        Ok("abcdef0123456789abcdef0123456789".to_string())
+    );
+    for value in [
+        "../0123456789abcdef0123456789abcdef",
+        "0123456789abcdef0123456789abcdef.png",
+        "not-a-uuid",
+    ] {
+        assert!(validate_temp_media_artifact_id(value).is_err(), "{value}");
+    }
+}
+
+#[test]
 fn validate_image_magic_rejects_mime_mismatch() {
     assert!(validate_image_magic("image/png", b"\x89PNG\r\n\x1a\nabc").is_ok());
     assert!(validate_image_magic("image/jpeg", b"\xFF\xD8\xFFabc").is_ok());
     assert!(validate_image_magic("image/webp", b"RIFFxxxxWEBPabc").is_ok());
     assert!(validate_image_magic("image/png", b"\xFF\xD8\xFFabc").is_err());
+    assert!(validate_image_magic("video/mp4", b"\0\0\0\x18ftypisom").is_ok());
+    assert!(validate_image_magic("video/webm", b"\x1A\x45\xDF\xA3abc").is_ok());
+    assert!(validate_image_magic("audio/mpeg", b"ID3abc").is_ok());
+    assert!(validate_image_magic("audio/wav", b"RIFFxxxxWAVEabc").is_ok());
+    assert!(validate_image_magic("audio/ogg", b"OggSabc").is_ok());
 }
 
 #[test]
@@ -49,6 +69,18 @@ fn temp_media_numeric_config_rejects_invalid_values_instead_of_defaulting() {
         1024
     );
     assert!(parse_positive_usize_config("MAX", Some("-1"), 20).is_err());
+}
+
+#[test]
+fn temp_media_requested_ttl_is_bounded_by_server_policy() {
+    assert_eq!(
+        effective_temp_media_ttl_seconds(86_400, 360).unwrap(),
+        21_600
+    );
+    assert!(effective_temp_media_ttl_seconds(0, 360).is_err());
+    assert!(effective_temp_media_ttl_seconds(21_599, 360).is_err());
+    assert!(effective_temp_media_ttl_seconds(86_401, 360).is_err());
+    assert!(effective_temp_media_ttl_seconds(86_400, 1_441).is_err());
 }
 
 #[test]

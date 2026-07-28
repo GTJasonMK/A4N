@@ -10,7 +10,7 @@ use super::{
 use crate::{OrchestratorContext, rag};
 
 impl OrchestratorContext {
-    pub async fn prepare_chapter_generation_rag_queries(
+    pub(crate) async fn prepare_chapter_generation_rag_queries(
         &self,
         project_id: i64,
         chapter_number: i32,
@@ -30,7 +30,7 @@ impl OrchestratorContext {
         ))
     }
 
-    pub async fn prepare_chapter_generation_rag_search(
+    pub(crate) async fn prepare_chapter_generation_rag_search(
         &self,
         project_id: i64,
         chapter_number: i32,

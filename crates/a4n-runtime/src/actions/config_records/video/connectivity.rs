@@ -5,9 +5,9 @@ use a4n_orchestrator::video::pick_provider_for_config;
 
 pub async fn test_video_config(state: &AppState, config_id: i64) -> Result<bool, String> {
     let config = resolve_video_config_for_connectivity_test(state, config_id).await?;
-    if state.runtime_profile.uses_sidecars() {
+    if state.runtime_profile().uses_sidecars() {
         crate::sidecar_clients::probe_video_config(
-            state.runtime_profile,
+            state.runtime_profile(),
             state.capabilities(),
             &config,
         )
@@ -27,7 +27,7 @@ async fn resolve_video_config_for_connectivity_test(
         return Ok(config);
     }
     state
-        .orchestrator
+        .settings()
         .video_config_record_by_id(config_id)
         .await
         .map_err(app_error_message)

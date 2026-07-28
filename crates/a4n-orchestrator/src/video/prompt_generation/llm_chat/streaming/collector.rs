@@ -30,7 +30,7 @@ pub(in crate::video::prompt_generation::llm_chat) async fn stream_chat_with_vide
         "视频提示词 LLM stream 开始"
     );
     let mut stream = open_video_prompt_stream(
-        service.llm.as_ref(),
+        service.llm_backend(),
         request,
         cancel_token,
         step,

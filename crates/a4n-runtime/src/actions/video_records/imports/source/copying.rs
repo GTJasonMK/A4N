@@ -1,11 +1,13 @@
 use super::super::prelude::{
-    AppState, Path, PathBuf, append_secondary_error, data_dir_relative_file_path,
+    Path, PathBuf, append_secondary_error, data_dir_relative_file_path,
     remove_created_file_on_error_sync,
 };
 use super::delete_video_record_error;
+use crate::state::VideoRuntimeFacade;
 
 pub(in crate::actions::video_records::imports) async fn persist_imported_video_file<F>(
-    state: &AppState,
+    video: &VideoRuntimeFacade<'_>,
+    data_dir: &Path,
     record_id: i64,
     source: &Path,
     build_output: F,
@@ -18,7 +20,7 @@ where
 {
     let result = build_output().and_then(|output| {
         copy_imported_video_file(
-            &state.config.data_dir,
+            data_dir,
             source,
             &output,
             copy_failure_prefix,
@@ -31,7 +33,7 @@ where
         Ok(result) => Ok(result),
         Err(error) => Err(append_secondary_error(
             error,
-            delete_video_record_error(state, record_id).await,
+            delete_video_record_error(video, record_id).await,
         )),
     }
 }

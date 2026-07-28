@@ -1,15 +1,11 @@
 use crate::{
     AppState, actions::request_preview::ModelRequestPreview, prompt_renderer::RuntimePromptRenderer,
 };
+use a4n_orchestrator::optimize::optimization_analysis_variables;
 
 use super::super::{
     AnalyzeChapterInput, PrepareOptimizationAnalysisSessionInput,
-    access::{
-        find_chapter_by_id, find_chapter_for_optimize, optimize_session,
-        verify_optimize_project_access, verify_optimize_session_access,
-    },
-    preview::optimization_analysis_request_preview,
-    variables::optimization_analysis_variables,
+    contracts::orchestrator_permissions, preview::optimization_analysis_request_preview,
 };
 
 pub async fn preview_create_optimization_analysis_session_request(
@@ -17,20 +13,20 @@ pub async fn preview_create_optimization_analysis_session_request(
     user_id: i64,
     input: AnalyzeChapterInput,
 ) -> Result<ModelRequestPreview, String> {
-    verify_optimize_project_access(state, user_id, input.project_id).await?;
-    let chapter = find_chapter_for_optimize(state, input.project_id, input.chapter_number).await?;
+    let permissions = input.permissions.as_ref().map(orchestrator_permissions);
     let variables = optimization_analysis_variables(
         &input.mode,
         input.scope.as_deref(),
-        input.permissions.as_ref(),
+        permissions.as_ref(),
         input.agent_instruction.as_deref(),
     );
     let prompt_renderer = RuntimePromptRenderer::new(state);
     let request = state
-        .build_analysis_preview_request(
+        .optimize()
+        .build_create_optimize_analysis_preview_request_for_user_validated(
+            user_id,
             input.project_id,
-            chapter.id,
-            &chapter.content,
+            input.chapter_number,
             &prompt_renderer,
             &variables,
         )
@@ -44,21 +40,19 @@ pub async fn preview_prepare_optimization_analysis_session_request(
     user_id: i64,
     input: PrepareOptimizationAnalysisSessionInput,
 ) -> Result<ModelRequestPreview, String> {
-    verify_optimize_session_access(state, user_id, input.session_id).await?;
-    let current_session = optimize_session(state, input.session_id).await?;
-    let chapter = find_chapter_by_id(state, current_session.chapter_id).await?;
+    let permissions = input.permissions.as_ref().map(orchestrator_permissions);
     let variables = optimization_analysis_variables(
         &input.mode,
         input.scope.as_deref(),
-        input.permissions.as_ref(),
+        permissions.as_ref(),
         input.agent_instruction.as_deref(),
     );
     let prompt_renderer = RuntimePromptRenderer::new(state);
     let request = state
-        .build_analysis_preview_request(
-            current_session.project_id,
-            current_session.chapter_id,
-            &chapter.content,
+        .optimize()
+        .build_prepare_optimize_analysis_preview_request_for_user_validated(
+            user_id,
+            input.session_id,
             &prompt_renderer,
             &variables,
         )

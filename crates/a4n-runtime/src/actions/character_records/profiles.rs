@@ -15,8 +15,8 @@ pub async fn create_profile(
 ) -> Result<ProtagonistProfileSummary, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let profile = state
-        .orchestrator
-        .create_profile(input.project_id, &input.name, input.base_attributes)
+        .character()
+        .create_profile_validated(input.project_id, input.name, input.base_attributes)
         .await
         .map_err(app_error_message)?;
     profile_summary(&profile)
@@ -29,7 +29,7 @@ pub async fn list_profiles(
 ) -> Result<Vec<ProtagonistProfileSummary>, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let profiles = state
-        .orchestrator
+        .character()
         .profiles_by_project(input.project_id)
         .await
         .map_err(app_error_message)?;
@@ -48,8 +48,8 @@ pub async fn delete_profile(
     )?;
     let deleted = crate::sidecar_clients::scope_rag_operation_trace(trace_id, async {
         state
-            .orchestrator
-            .delete_character_profile_records(profile_id)
+            .character()
+            .delete_character_profile_records_validated(profile_id)
             .await
             .map_err(|error| error.to_string())
     })
@@ -62,13 +62,6 @@ pub async fn delete_profile(
     } = rag;
 
     let deleted_portrait_files = deletion.portrait_paths.len();
-    for path in deletion.portrait_paths {
-        crate::file_utils::remove_data_file_in_data_dir(
-            &state.config.data_dir,
-            &path,
-            "角色立绘图片",
-        )?;
-    }
 
     Ok(DeleteProfileResultSummary {
         deleted_profile_rag,

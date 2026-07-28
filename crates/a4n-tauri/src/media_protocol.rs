@@ -21,7 +21,7 @@ pub fn handle_request<R: Runtime>(
         Ok(path) => path,
         Err(err) => return text_response(StatusCode::BAD_REQUEST, &err),
     };
-    let data_dir = storage_paths::data_dir_path(state.inner());
+    let data_dir = storage_paths::data_dir_path(state.inner().data_dir());
     let path = data_dir.join(path);
     let path = match canonicalize_path_in_data_dir(&data_dir, &path, MEDIA_LABEL) {
         Ok(path) => path,

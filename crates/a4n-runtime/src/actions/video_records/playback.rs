@@ -14,7 +14,7 @@ pub async fn load_video_playback_data(
     user_id: i64,
     video_id: i64,
 ) -> Result<VideoPlaybackData, String> {
-    let video = required_generated_video(state, video_id).await?;
+    let video = required_generated_video(&state.video(), video_id).await?;
     access::verify_project_editor_string(state, user_id, video.project_id).await?;
     let file_path = video
         .file_path
@@ -22,11 +22,8 @@ pub async fn load_video_playback_data(
         .map(str::trim)
         .filter(|path| !path.is_empty())
         .ok_or_else(|| format!("视频 #{} 没有本地文件", video.id))?;
-    let path = canonicalize_data_file_path(
-        &state.config.data_dir,
-        file_path,
-        &format!("视频 #{}", video.id),
-    )?;
+    let path =
+        canonicalize_data_file_path(state.data_dir(), file_path, &format!("视频 #{}", video.id))?;
     let metadata =
         std::fs::metadata(&path).map_err(|error| format!("无法读取视频文件元数据：{error}"))?;
     if metadata.len() > MAX_INLINE_PLAYBACK_VIDEO_BYTES {

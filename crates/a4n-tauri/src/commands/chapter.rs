@@ -9,9 +9,8 @@ macro_rules! tauri_chapter_progress_command {
         project_id: $project_id:expr,
         total: $total:expr,
         $start_message:expr,
-        $error_code:expr,
         |$window:ident, $state:ident, $user_id:ident, $progress:ident| $run:expr,
-        $success_summary:expr $(,)?
+        $on_success:expr $(,)?
     ) => {
         #[tauri::command]
         pub async fn $name(
@@ -23,10 +22,9 @@ macro_rules! tauri_chapter_progress_command {
         ) -> Result<$output, String> {
             $($prepare;)*
             let progress_task = crate::progress_task::WorkflowProgressTask::new(
-                $window.clone(),
                 $state.inner(),
                 task_id,
-                a4n_core::event::channel::TaskType::LlmCall,
+                a4n_core::event::channel::TaskKind::LlmCall,
                 Some($project_id),
                 $total,
                 $start_message,
@@ -35,7 +33,10 @@ macro_rules! tauri_chapter_progress_command {
                 let $progress = &progress_task;
                 $run.await
             };
-            progress_task.finish_result($state.inner(), &result, $error_code, $success_summary);
+            if let Ok(value) = &result {
+                ($on_success)(value);
+            }
+            progress_task.remove($state.inner());
             result
         }
     };

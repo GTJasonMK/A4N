@@ -43,7 +43,7 @@ async fn resolve_preview_llm_model_for_state(
     }
     if runtime_config::uses_system_default_llm_template() {
         let mut model = state
-            .orchestrator
+            .settings()
             .resolve_llm_config(None)
             .await
             .map_err(|err| err.to_string())?;
@@ -57,7 +57,7 @@ async fn resolve_preview_llm_model_for_state(
         );
     }
     state
-        .orchestrator
+        .settings()
         .resolve_llm_config(None)
         .await
         .map_err(|err| err.to_string())
@@ -73,7 +73,7 @@ async fn resolve_preview_llm_max_tokens_config_for_state(
     match runtime_config::current_llm_max_tokens() {
         Some(config) => Ok(Some(config)),
         None => state
-            .orchestrator
+            .settings()
             .llm_max_tokens_config()
             .await
             .map(Some)

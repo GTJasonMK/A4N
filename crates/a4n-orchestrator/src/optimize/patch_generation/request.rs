@@ -14,7 +14,7 @@ use crate::optimize::{
 use a4n_prompt::rendering::PromptRenderer;
 
 impl OrchestratorContext {
-    pub async fn build_propose_patches_preview_request(
+    pub(crate) async fn build_propose_patches_preview_request(
         &self,
         session_id: i64,
         issue_ids: Option<Vec<String>>,
@@ -74,7 +74,7 @@ impl OrchestratorContext {
         let selected_issues = select_optimization_issues(&base.session, issue_ids)?;
         let permissions = crate::optimize::OptimizeAgentPermissions::from_session(&base.session);
         let analysis_context = build_content_optimization_context(
-            self.db.connection(),
+            self.database.connection(),
             base.session.project_id,
             base.session.chapter_id,
             &permissions,

@@ -1,7 +1,8 @@
 use crate::registry::{IMAGE_SERVICE_NAME, LLM_SERVICE_NAME, VIDEO_SERVICE_NAME};
-use crate::request::SecretForwardingPolicy;
+use crate::request::{SecretForwardingPolicy, SecretMaterialScope};
 use crate::response::{ServiceError, ServiceErrorCode};
 use crate::sanitization::redact_sensitive_message;
+use crate::{EgressDataType, validate_egress_scope};
 
 use super::errors::unauthorized_error;
 
@@ -27,6 +28,11 @@ pub fn validate_provider_api_key_secret_policy(
             )),
             retryable: Some(false),
         })?;
+
+    if matches!(policy.scope, SecretMaterialScope::TrustedRemote) {
+        validate_egress_scope(service, EgressDataType::ProviderSecret, &policy.scope)
+            .map_err(|_| unauthorized_error(message.to_string()))?;
+    }
 
     Err(unauthorized_error(message.to_string()))
 }

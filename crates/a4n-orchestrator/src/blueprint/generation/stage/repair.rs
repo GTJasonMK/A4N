@@ -9,7 +9,6 @@ use crate::structured_llm::{
 };
 
 use super::contracts::{BlueprintStageLlmOutput, PreparedBlueprintStage};
-use super::rules::report;
 
 pub(super) async fn repair_blueprint_stage_output(
     context: &OrchestratorContext,
@@ -35,8 +34,6 @@ pub(super) async fn repair_blueprint_stage_output(
         (prepared.spec.validate)(&parsed)?;
         Ok(parsed)
     };
-    let report_repair_progress =
-        |message: &str| report(prepared.progress, prepared.spec.progress_current, message);
     context
         .parse_validate_or_repair_structured_value(StructuredValueRepairInput {
             request: prepared.request.clone(),
@@ -48,8 +45,8 @@ pub(super) async fn repair_blueprint_stage_output(
                 base_call_key: prepared.call_key.clone(),
                 call_order,
             }),
-            cancel_token: prepared.cancel_token,
-            progress: Some(&report_repair_progress),
+            cancel_token: Some(&prepared.cancel_token),
+            progress: None,
             parse_output: &parse_output,
         })
         .await

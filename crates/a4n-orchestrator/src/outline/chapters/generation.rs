@@ -104,7 +104,7 @@ impl OrchestratorContext {
         }
 
         let context =
-            load_chapter_outline_generation_context(self.db.connection(), project_id).await?;
+            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
         validate_requested_part_context(&context.parts, start_chapter, end_chapter)?;
         ensure_focus_part_in_context(focus_part, &context.parts)?;
 
@@ -154,7 +154,7 @@ impl OrchestratorContext {
             let part_id =
                 requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
             let outline = insert_chapter_outline_from_json(
-                self.db.connection(),
+                self.database.connection(),
                 project_id,
                 part_id,
                 &generated.chapter_json,

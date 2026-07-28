@@ -4,7 +4,7 @@ use crate::routes::commands::{
     web_fire_and_forget_progress_reporter,
 };
 use crate::state::ServerState;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use serde_json::{Value, json};
 
 fn chapter_summary_value(ch: &a4n_core::models::chapter::chapter::Model) -> Value {
@@ -48,15 +48,14 @@ macro_rules! chapter_analysis_web_task_command {
             let task = register_web_task(
                 state,
                 task_id.clone(),
-                TaskType::LlmCall,
+                TaskKind::LlmCall,
                 ch.project_id,
                 a4n_runtime::workflow::CHAPTER_ANALYSIS_PROGRESS_TOTAL,
                 $start_message,
             )
             .await;
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-            let reporter =
-                web_fire_and_forget_progress_reporter(state, task.clone(), task_id.clone());
+            let reporter = web_fire_and_forget_progress_reporter(task.clone());
             let progress = a4n_runtime::workflow::ChapterAnalysisProgress::new(
                 Some(&reporter),
                 cancel_token.as_ref(),
@@ -69,7 +68,6 @@ macro_rules! chapter_analysis_web_task_command {
                     result,
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),
                 ),
-                $success_message,
             )
             .await?;
             Ok(chapter_summary_value(&chapter))

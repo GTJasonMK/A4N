@@ -15,7 +15,7 @@ use a4n_core::error::AppError;
 use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_service_protocol::{
-    ServiceErrorCode, ServiceResponse, ServiceStatus, ServiceTaskEvent, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode, ServiceResponse, ServiceStatus,
 };
 use a4n_test_support::capability::{PendingEmbeddingDownloadClient, RecordingEmbeddingClient};
 use serde_json::Value;
@@ -193,7 +193,7 @@ async fn embedding_connectivity_uses_typed_capability_and_deny_all_request() {
 fn embedding_download_events_map_progress_and_completed_payload() {
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
     let progress = embedding_download_event(
-        ServiceTaskEventKind::Progress,
+        CapabilityTaskEventKind::Progress,
         Some(serde_json::json!({
             "downloaded_bytes": 21,
             "total_bytes": 42,
@@ -213,7 +213,7 @@ fn embedding_download_events_map_progress_and_completed_payload() {
     assert_eq!(progress.total_bytes, 42);
 
     let completed = embedding_download_event(
-        ServiceTaskEventKind::Completed,
+        CapabilityTaskEventKind::Completed,
         Some(serde_json::json!({"models": [{"name": "model"}]})),
         None,
     );
@@ -226,7 +226,7 @@ fn embedding_download_events_map_progress_and_completed_payload() {
 #[test]
 fn embedding_download_events_preserve_failure_and_cancel_semantics() {
     let failed = embedding_download_event(
-        ServiceTaskEventKind::Failed,
+        CapabilityTaskEventKind::Failed,
         None,
         Some(a4n_service_protocol::ServiceError {
             code: ServiceErrorCode::ProviderError,
@@ -237,14 +237,14 @@ fn embedding_download_events_preserve_failure_and_cancel_semantics() {
     let error = handle_embedding_download_event(failed, None).expect_err("failed event must fail");
     assert!(matches!(error, AppError::ConfigError(message) if message == "provider failed"));
 
-    let cancel = embedding_download_event(ServiceTaskEventKind::CancelAck, None, None);
+    let cancel = embedding_download_event(CapabilityTaskEventKind::CancelAck, None, None);
     assert!(matches!(
         handle_embedding_download_event(cancel, None),
         Err(AppError::Cancelled)
     ));
 
     let cancelled_failure = embedding_download_event(
-        ServiceTaskEventKind::Failed,
+        CapabilityTaskEventKind::Failed,
         None,
         Some(a4n_service_protocol::ServiceError {
             code: ServiceErrorCode::Cancelled,
@@ -291,11 +291,11 @@ async fn host_cancel_drops_embedding_sidecar_event_stream() {
 }
 
 fn embedding_download_event(
-    event_kind: ServiceTaskEventKind,
+    event_kind: CapabilityTaskEventKind,
     payload: Option<Value>,
     error: Option<a4n_service_protocol::ServiceError>,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id: "download-task".to_string(),
         event_kind,
         sequence: 1,

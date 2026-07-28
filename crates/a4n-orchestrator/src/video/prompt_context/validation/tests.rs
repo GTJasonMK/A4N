@@ -7,6 +7,7 @@ fn options() -> ChapterVideoPromptOptions {
         style: " 电影感写实 ".to_string(),
         prompt_output_language: PromptOutputLanguage::ZhCn,
         prompt_batch_size: 2,
+        target_shot_number: None,
         duration_secs: 8,
         duration_secs_options: vec![4, 8],
         aspect_ratio: " 16:9 ".to_string(),

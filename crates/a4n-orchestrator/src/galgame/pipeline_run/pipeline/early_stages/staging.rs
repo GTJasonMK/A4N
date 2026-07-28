@@ -16,8 +16,11 @@ pub(super) async fn run_character_staging_stage(
     lines_draft_json: &Value,
 ) -> Result<(Value, GalgameCharacterStaging), AppError> {
     let stage = GalgamePipelineStartStage::CharacterStaging;
-    ensure_galgame_pipeline_not_cancelled(&execution.service.db, execution.options.workflow_run_id)
-        .await?;
+    ensure_galgame_pipeline_not_cancelled(
+        &execution.service.database,
+        execution.options.workflow_run_id,
+    )
+    .await?;
     execution
         .service
         .report_pipeline_progress(

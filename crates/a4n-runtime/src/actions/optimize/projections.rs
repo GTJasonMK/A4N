@@ -1,12 +1,10 @@
+use super::{
+    OptimizationPatch, OptimizationPatchSetSummary, OptimizationSessionSummary,
+    OptimizationTurnEventSummary, OptimizationTurnSummary,
+};
 use a4n_core::models::ai::{
     optimization_patch, optimization_patch_set, optimization_session, optimization_turn,
     optimization_turn_event,
-};
-use a4n_orchestrator::optimize::OptimizationPatch;
-
-use super::{
-    OptimizationPatchSetSummary, OptimizationSessionSummary, OptimizationTurnEventSummary,
-    OptimizationTurnSummary,
 };
 
 pub(super) fn to_session_summary(

@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_video_prompt;
 use a4n_llm::provider::{ChatRequest, UsageInfo};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(in crate::video) enum PromptWorkflowMode {
@@ -31,6 +31,14 @@ impl PromptWorkflowMode {
                 "章节视频提示词 #{} workflow_mode 无效: {}",
                 row.id, other
             ))),
+        }
+    }
+
+    pub(in crate::video) fn storage_str(self, prompt_type: &str) -> &'static str {
+        if prompt_type == "frame_segment_plan" {
+            "shared_segment_plan"
+        } else {
+            self.as_str()
         }
     }
 }
@@ -131,6 +139,20 @@ pub(in crate::video) fn new_prompt_draft(
         reference_image_ids_json,
         metadata_json,
     } = input;
+    let metadata_json = if prompt_type == "video_prompt" {
+        match metadata_json {
+            Some(Value::Object(mut metadata)) => {
+                metadata
+                    .entry("guidance_mode")
+                    .or_insert_with(|| json!("system_frames"));
+                Some(Value::Object(metadata))
+            }
+            None => Some(json!({ "guidance_mode": "system_frames" })),
+            malformed => malformed,
+        }
+    } else {
+        metadata_json
+    };
     NewChapterVideoPrompt {
         project_id,
         chapter_id,
@@ -148,5 +170,38 @@ pub(in crate::video) fn new_prompt_draft(
         reference_image_ids_json,
         metadata_json,
         generation_trace: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn video_prompt_draft_has_explicit_default_guidance_mode() {
+        let draft = new_prompt_draft(NewChapterVideoPromptInput {
+            project_id: 1,
+            chapter_id: 2,
+            workflow_mode: PromptWorkflowMode::BoundaryFrames,
+            style: None,
+            prompt_type: "video_prompt",
+            shot_number: 1,
+            title: None,
+            scene_summary: None,
+            visual_prompt: "画面",
+            motion_prompt: None,
+            negative_prompt: None,
+            duration_secs: 6,
+            aspect_ratio: None,
+            reference_image_ids_json: None,
+            metadata_json: None,
+        });
+        assert_eq!(
+            draft
+                .metadata_json
+                .as_ref()
+                .and_then(|metadata| metadata.get("guidance_mode")),
+            Some(&json!("system_frames"))
+        );
     }
 }

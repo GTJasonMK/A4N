@@ -4,7 +4,7 @@ use sea_orm::{ConnectionTrait, TransactionTrait};
 use super::super::ChapterDerivedCleanupArtifacts;
 use super::cleanup_character_profile_timeline_for_chapter_in;
 
-pub(in crate::project) async fn cleanup_chapter_derived_data_in<C>(
+pub(crate) async fn cleanup_chapter_derived_data_in<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,
@@ -56,7 +56,7 @@ where
     Ok(artifacts)
 }
 
-pub(in crate::project) async fn delete_chapter_content_record_in<C>(
+pub(crate) async fn delete_chapter_content_record_in<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,

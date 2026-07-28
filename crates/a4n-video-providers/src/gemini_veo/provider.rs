@@ -1,7 +1,9 @@
 use super::media_input::{image_inline_data, image_inline_data_preview};
 use super::response::{
     aspect_ratio_from_size, find_video_b64, find_video_uri, operation_error_message,
-    parse_gemini_veo_json_response, required_operation_name, veo_resolution_from_size,
+    operation_is_cancelled, parse_gemini_veo_json_response,
+    parse_gemini_veo_json_response_allow_not_found, required_operation_name,
+    veo_resolution_from_size,
 };
 use async_trait::async_trait;
 use base64::Engine as _;
@@ -146,11 +148,20 @@ impl GeminiVeoVideoProvider {
         }))
     }
 
-    async fn send_json(&self, url: &str, body: Value) -> Result<Value, AppError> {
+    async fn send_json(
+        &self,
+        url: &str,
+        body: Value,
+        provider_idempotency_key_sha256: Option<&str>,
+    ) -> Result<Value, AppError> {
         let mut req = self.client.post(url).json(&body);
         if !self.api_key.is_empty() {
             req = req.header("x-goog-api-key", &self.api_key);
         }
+        let req = crate::idempotency::with_provider_idempotency_key(
+            req,
+            provider_idempotency_key_sha256,
+        )?;
         let resp = req
             .send()
             .await
@@ -168,6 +179,18 @@ impl GeminiVeoVideoProvider {
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Gemini Veo 任务查询失败：{e}")))?;
         parse_gemini_veo_json_response(resp, "Gemini Veo 任务查询").await
+    }
+
+    async fn get_status_json(&self, url: &str) -> Result<Option<Value>, AppError> {
+        let mut req = self.client.get(url);
+        if !self.api_key.is_empty() {
+            req = req.header("x-goog-api-key", &self.api_key);
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Gemini Veo 任务状态查询失败：{e}")))?;
+        parse_gemini_veo_json_response_allow_not_found(resp, "Gemini Veo 任务状态查询").await
     }
 
     async fn decode_completed(&self, v: &Value) -> Result<VideoGenerationResult, AppError> {
@@ -220,6 +243,7 @@ impl VideoProvider for GeminiVeoVideoProvider {
     async fn generate(
         &self,
         req: VideoGenerationRequest,
+        provider_idempotency_key_sha256: Option<&str>,
     ) -> Result<VideoGenerationResult, AppError> {
         if self.api_key.is_empty() {
             return Err(AppError::ConfigError(
@@ -235,7 +259,9 @@ impl VideoProvider for GeminiVeoVideoProvider {
             req.last_frame_image_url.is_some(),
             req.reference_image_urls.len()
         );
-        let v = self.send_json(&url, body).await?;
+        let v = self
+            .send_json(&url, body, provider_idempotency_key_sha256)
+            .await?;
         let operation_name = required_operation_name(&v)?;
         Ok(VideoGenerationResult {
             bytes: Vec::new(),
@@ -260,5 +286,27 @@ impl VideoProvider for GeminiVeoVideoProvider {
             return Ok(VideoJobState::Running);
         }
         Ok(VideoJobState::Completed(self.decode_completed(&v).await?))
+    }
+
+    async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
+        if self.api_key.is_empty() {
+            return Err(AppError::ConfigError(
+                "Gemini Veo 视频配置缺少 api_key".into(),
+            ));
+        }
+        let value = self.get_status_json(&self.operation_url(job_id)?).await?;
+        let Some(value) = value else {
+            return Ok(a4n_video::VideoJobStatus::NotFound);
+        };
+        if operation_is_cancelled(&value) {
+            return Ok(a4n_video::VideoJobStatus::Cancelled);
+        }
+        if let Some(message) = operation_error_message(&value) {
+            return Ok(a4n_video::VideoJobStatus::Failed(message));
+        }
+        if value.get("done").and_then(Value::as_bool) == Some(true) {
+            return Ok(a4n_video::VideoJobStatus::Completed);
+        }
+        Ok(a4n_video::VideoJobStatus::Running)
     }
 }

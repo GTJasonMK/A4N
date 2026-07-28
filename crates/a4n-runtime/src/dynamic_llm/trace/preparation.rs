@@ -7,7 +7,7 @@ use a4n_llm::{
     },
     provider::{ChatRequest, LlmProvider, LlmTraceContext},
 };
-use a4n_orchestrator::OrchestratorContext;
+use a4n_orchestrator::DynamicProviderFacade;
 
 use super::super::context::{
     build_manifest_requirements, build_system_prefix_pack_ref,
@@ -16,14 +16,14 @@ use super::super::context::{
 use super::complete_llm_trace_project_scope;
 
 pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
-    orchestrator: &OrchestratorContext,
+    facade: &DynamicProviderFacade,
     provider: &dyn LlmProvider,
     request: &mut ChatRequest,
 ) -> Result<Option<LlmTraceContext>, AppError> {
     let Some(mut trace_context) = request.trace_context.clone() else {
         return Ok(None);
     };
-    complete_llm_trace_project_scope(orchestrator, &mut trace_context).await?;
+    complete_llm_trace_project_scope(facade, &mut trace_context).await?;
 
     let caps = provider.capabilities();
     let output_reserve = request.max_tokens.unwrap_or(caps.max_output_tokens);
@@ -32,13 +32,9 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
     let mut system_requirements = Vec::new();
 
     if !system_messages.is_empty() {
-        let system_ref = build_system_prefix_pack_ref(
-            orchestrator,
-            &trace_context,
-            &system_messages,
-            system_tokens,
-        )
-        .await?;
+        let system_ref =
+            build_system_prefix_pack_ref(facade, &trace_context, &system_messages, system_tokens)
+                .await?;
         system_requirements.push(LlmContextPackRequirement {
             pack_kind: system_ref.pack_kind.clone(),
             required: true,
@@ -55,8 +51,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
                 })?;
             validate_context_manifest(&manifest)?;
             let (mut requirements, content_by_ref) =
-                build_manifest_requirements(orchestrator, provider, &trace_context, &manifest)
-                    .await?;
+                build_manifest_requirements(facade, provider, &trace_context, &manifest).await?;
             let mut all_requirements = system_requirements;
             all_requirements.append(&mut requirements);
             let dynamic_delta_tokens =

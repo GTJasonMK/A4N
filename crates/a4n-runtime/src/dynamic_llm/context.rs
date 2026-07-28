@@ -1,9 +1,10 @@
 use super::*;
+use a4n_orchestrator::DynamicProviderFacade;
 
 pub(super) type ContextContentByRef = HashMap<(String, String, String), String>;
 
 pub(super) async fn build_manifest_requirements(
-    orchestrator: &OrchestratorContext,
+    facade: &DynamicProviderFacade,
     provider: &dyn LlmProvider,
     trace_context: &LlmTraceContext,
     manifest: &LlmContextManifest,
@@ -33,7 +34,7 @@ pub(super) async fn build_manifest_requirements(
                 canonical_content_json: variant.canonical_content_json.clone(),
             })?;
             let canonical_content_text = draft.canonical_content_text.clone();
-            let model = record_or_reuse_context_pack_for_llm(orchestrator, draft).await?;
+            let model = record_or_reuse_context_pack_for_llm(facade, draft).await?;
             let mut pack_ref = context_pack_model_ref(&model);
             pack_ref.token_estimate = provider.count_tokens(&canonical_content_text);
             content_by_ref.insert(selected_pack_key(&pack_ref), canonical_content_text);
@@ -86,7 +87,7 @@ pub(super) fn non_system_messages(messages: &[ChatMessage]) -> Vec<ChatMessage> 
 }
 
 pub(super) async fn build_system_prefix_pack_ref(
-    orchestrator: &OrchestratorContext,
+    facade: &DynamicProviderFacade,
     trace_context: &LlmTraceContext,
     system_messages: &[ChatMessage],
     token_estimate: usize,
@@ -116,7 +117,7 @@ pub(super) async fn build_system_prefix_pack_ref(
         compression_level: COMPRESSION_FULL_RAW.to_string(),
         canonical_content_json: content,
     })?;
-    let model = record_or_reuse_context_pack_for_llm(orchestrator, draft).await?;
+    let model = record_or_reuse_context_pack_for_llm(facade, draft).await?;
     let mut pack_ref = context_pack_model_ref(&model);
     pack_ref.token_estimate = token_estimate;
     Ok(pack_ref)
@@ -142,10 +143,10 @@ pub(super) fn context_pack_record_input(
 }
 
 pub(super) async fn record_or_reuse_context_pack_for_llm(
-    orchestrator: &OrchestratorContext,
+    facade: &DynamicProviderFacade,
     draft: LlmContextPackDraft,
 ) -> Result<a4n_core::models::generation::llm_context_pack::Model, AppError> {
-    orchestrator
+    facade
         .record_or_reuse_context_pack(context_pack_record_input(draft))
         .await
 }

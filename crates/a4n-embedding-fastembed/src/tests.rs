@@ -1,7 +1,10 @@
 use a4n_core::error::AppError;
 
 use crate::cache::{model_cache_path, required_files};
-use crate::models::{DEFAULT_FASTEMBED_MODEL, model_status_from_info, resolve_model_info};
+use crate::models::{
+    DEFAULT_FASTEMBED_MODEL, model_status_from_info, remove_incomplete_fastembed_model_caches,
+    resolve_model_info,
+};
 use crate::proxy::{
     HF_HOME_OVERRIDE_LOCK, SystemProxy, merge_download_proxy, proxy_to_env_vars, proxy_url,
 };
@@ -120,4 +123,39 @@ fn reports_missing_when_snapshot_is_incomplete() {
 
     let status = model_status_from_info(resolved.info, dir.path()).unwrap();
     assert!(!status.downloaded);
+}
+
+#[test]
+fn removes_incomplete_model_cache_but_preserves_complete_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    let resolved = resolve_model_info(DEFAULT_FASTEMBED_MODEL).unwrap();
+    let repo_path = model_cache_path(&resolved.info, dir.path());
+    std::fs::create_dir_all(repo_path.join("snapshots/incomplete")).unwrap();
+    let lock_path = dir
+        .path()
+        .join(".locks")
+        .join(crate::cache::repo_folder_name(&resolved.info.model_code));
+    std::fs::create_dir_all(&lock_path).unwrap();
+
+    let removed = remove_incomplete_fastembed_model_caches(dir.path()).unwrap();
+    assert_eq!(removed.len(), 1);
+    assert!(!repo_path.exists());
+    assert!(!lock_path.exists());
+
+    let snapshot = repo_path.join("snapshots/complete");
+    std::fs::create_dir_all(&snapshot).unwrap();
+    std::fs::create_dir_all(repo_path.join("refs")).unwrap();
+    std::fs::write(repo_path.join("refs/main"), "complete").unwrap();
+    for file in required_files(&resolved.info) {
+        let path = snapshot.join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, "x").unwrap();
+    }
+
+    assert!(
+        remove_incomplete_fastembed_model_caches(dir.path())
+            .unwrap()
+            .is_empty()
+    );
+    assert!(repo_path.exists());
 }

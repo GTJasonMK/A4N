@@ -77,7 +77,7 @@ impl OrchestratorContext {
         }
 
         let choices = a4n_db::galgame::replace_galgame_choice_records_transaction(
-            self.db.connection(),
+            self.database.connection(),
             line.id,
             normalized,
         )

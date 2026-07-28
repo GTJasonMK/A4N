@@ -5,6 +5,7 @@ mod sync_contract;
 mod validation_contract;
 
 use super::{
+    application::completed_part_count,
     chapter_contract::{
         optional_i32, parse_beat_sheet_json, parse_chapter_outline_batch,
         parse_outline_json_object, reject_keys, reject_unknown_keys, required_part_summary,
@@ -12,7 +13,7 @@ use super::{
         validate_chapter_outline_generation_request, validate_requested_part_context,
     },
     context::{chapter_outline_context_json, outline_blueprint_context_json},
-    ensure_response_not_truncated,
+    ensure_response_not_truncated, order_parts_for_batch_generation,
     part_contract::{
         PartGenerationPlan, PartOutlineDraft, chapter_outline_ids_in_part_range,
         chapter_outline_ids_in_part_ranges, ensure_continue_part_request,
@@ -91,6 +92,61 @@ fn sample_part_for_plan(
         created_at: now,
         updated_at: now,
     }
+}
+
+#[test]
+fn batch_parts_use_canonical_part_order() {
+    let mut parts = [(30, 3), (10, 1), (20, 2), (19, 2)].map(|(id, part_number)| {
+        let mut part = sample_part_for_plan(part_number, part_number * 10 - 9, part_number * 10);
+        part.id = id;
+        part
+    });
+
+    order_parts_for_batch_generation(&mut parts);
+
+    assert_eq!(parts.map(|part| part.id), [10, 19, 20, 30]);
+}
+
+#[test]
+fn completed_part_count_requires_full_completed_chapter_range() {
+    let parts = [(1, 2), (3, 4), (5, 5)]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (start, end))| {
+            let mut part = sample_part_for_plan(index as i32 + 1, start, end);
+            part.id = index as i64 + 1;
+            part
+        })
+        .collect::<Vec<_>>();
+    let outlines = (1..=5)
+        .map(|chapter_number| {
+            let mut outline = sample_chapter_outline(chapter_number, None);
+            outline.status = if chapter_number == 4 {
+                chapter_outline::STATUS_DRAFT
+            } else {
+                chapter_outline::STATUS_COMPLETED
+            }
+            .to_string();
+            outline
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(completed_part_count(&parts, &outlines).unwrap(), 2);
+}
+
+#[test]
+fn completed_part_count_rejects_duplicate_or_overlapping_chapters() {
+    let part = sample_part_for_plan(1, 1, 2);
+    let mut first = sample_chapter_outline(1, None);
+    first.status = chapter_outline::STATUS_COMPLETED.to_string();
+    let mut duplicate = first.clone();
+    duplicate.id += 1;
+    let error = completed_part_count(&[part], &[first, duplicate]).unwrap_err();
+    assert!(error.to_string().contains("存在重复章节大纲"));
+
+    let parts = [sample_part_for_plan(1, 1, 2), sample_part_for_plan(2, 2, 3)];
+    let error = completed_part_count(&parts, &[]).unwrap_err();
+    assert!(error.to_string().contains("被多个分部范围覆盖"));
 }
 
 fn sample_chapter_outline(chapter_number: i32, part_id: Option<i64>) -> chapter_outline::Model {

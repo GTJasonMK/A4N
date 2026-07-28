@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatRequest, LlmProvider};
+use a4n_llm::provider::{ChatRequest, LlmProvider, collect_chat_stream};
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 
@@ -36,7 +36,8 @@ pub(crate) async fn probe_existing_provider(
 ) -> Result<LlmProbeOutput, AppError> {
     match request {
         Some(request) => {
-            let response = provider.chat(request).await?;
+            // 探测只收集最小真实 stream，不调用完整响应 chat()。
+            let response = collect_chat_stream(provider, request).await?;
             let preview = response
                 .message
                 .content

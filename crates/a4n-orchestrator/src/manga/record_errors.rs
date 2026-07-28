@@ -2,7 +2,7 @@ use a4n_core::error::AppError;
 
 use super::MangaPromptRecordError;
 
-pub(super) fn manga_prompt_record_error(error: MangaPromptRecordError) -> AppError {
+pub(crate) fn manga_prompt_record_error(error: MangaPromptRecordError) -> AppError {
     match error {
         MangaPromptRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
         MangaPromptRecordError::NotFound(message) => AppError::NotFound(message),
@@ -14,3 +14,4 @@ pub(super) fn manga_prompt_record_error(error: MangaPromptRecordError) -> AppErr
         MangaPromptRecordError::Generation(error) => crate::generation::generation_error(error),
     }
 }
+pub use crate::manga::output_sync::errors::manga_pipeline_db_error;

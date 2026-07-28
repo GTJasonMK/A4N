@@ -82,7 +82,7 @@ pub(in crate::video) use self::prepared::ReusableSegmentPlan;
 use self::prepared::{
     PreparedSegmentPlan, PreparedVideoPromptInputs, SHARED_SEGMENT_PLAN_CONTEXT,
     SHARED_SEGMENT_PLAN_CONTRACT_VERSION, SHARED_SEGMENT_PLAN_PROGRESS,
-    SHARED_SEGMENT_PLAN_PROMPT_TYPE, SHARED_SEGMENT_PLAN_TITLE, SHARED_SEGMENT_PLAN_WORKFLOW_MODE,
+    SHARED_SEGMENT_PLAN_PROMPT_TYPE, SHARED_SEGMENT_PLAN_TITLE,
 };
 use self::progress::*;
 use self::records::{

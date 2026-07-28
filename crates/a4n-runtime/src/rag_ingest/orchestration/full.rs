@@ -21,12 +21,13 @@ pub async fn rag_ingest_all(
     user_id: i64,
     project_id: i64,
     task_id: Option<&str>,
+    rebuild: bool,
     progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<serde_json::Value, String> {
     let trace_id = crate::sidecar_clients::rag_ingest_operation_trace_id(project_id, task_id)?;
     crate::sidecar_clients::scope_rag_operation_trace(
         trace_id,
-        rag_ingest_all_inner(state, user_id, project_id, progress),
+        rag_ingest_all_inner(state, user_id, project_id, rebuild, progress),
     )
     .await
 }
@@ -35,11 +36,19 @@ async fn rag_ingest_all_inner(
     state: &AppState,
     user_id: i64,
     project_id: i64,
+    rebuild: bool,
     mut progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<serde_json::Value, String> {
     access::verify_project_editor(state, user_id, project_id)
         .await
         .map_err(|error| error.to_string())?;
+    if rebuild {
+        state
+            .rag()
+            .clear_project_rag(project_id)
+            .await
+            .map_err(|error| error.to_string())?;
+    }
     expected_rag_records(state, project_id).await?;
     if let Some(progress) = progress.as_deref_mut() {
         progress.stage("正在检查已同步 RAG 数据")?;

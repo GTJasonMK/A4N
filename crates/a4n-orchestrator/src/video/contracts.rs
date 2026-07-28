@@ -7,18 +7,19 @@ use tokio_util::sync::CancellationToken;
 
 use super::duration::VideoDurationCapability;
 
-pub(super) const IMPORT_VIDEO_PROMPT_TYPE: &str = "video_prompt";
+pub const IMPORT_VIDEO_PROMPT_TYPE: &str = "video_prompt";
+pub const FRAME_SEGMENT_PLAN_PROMPT_TYPE: &str = "frame_segment_plan";
 pub const FRAME_SEGMENT_PLAN_CONTRACT_VERSION: &str = "video_execution_contract_v5";
 pub const BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION: &str = "boundary_frame_shared_chain_v3";
 pub const FIRST_FRAME_CHAIN_CONTRACT_VERSION: &str = "first_frame_chain_execution_v4";
 pub const CHAT_VIDEO_CONTRACT_VERSION: &str = "chat_video_execution_v4";
 pub const STORYBOARD_PROMPT_CONTRACT_VERSION: &str = "storyboard_execution_unit_v2";
 pub const STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION: &str = "storyboard_execution_video_v2";
-pub(super) const FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT: usize = 1;
+pub const FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT: usize = 1;
 
-pub(super) type VideoPromptProgress<'a> =
+pub type VideoPromptProgress<'a> =
     &'a mut (dyn FnMut(u32, u32, &str) -> Result<(), a4n_core::error::AppError> + Send);
-pub(super) type VideoPromptChunk<'a> = &'a mut (dyn FnMut(&str, u32) + Send);
+pub type VideoPromptChunk<'a> = &'a mut (dyn FnMut(&str, u32) + Send);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChapterVideoSource {
@@ -38,6 +39,7 @@ pub struct ChapterVideoPromptOptions {
     pub style: String,
     pub prompt_output_language: PromptOutputLanguage,
     pub prompt_batch_size: i32,
+    pub target_shot_number: Option<i32>,
     pub duration_secs: i32,
     pub duration_secs_options: Vec<i32>,
     pub aspect_ratio: String,

@@ -1,5 +1,10 @@
 import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
+import type {
+  GenerationTaskHandle,
+  GenerationTaskSummary,
+  StartChapterGenerationInput,
+} from "./generated/generationContracts";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
 import { activeLocalEmbeddingConfig } from "./localRuntimeSettings";
@@ -88,34 +93,49 @@ const currentUserId = (): number => {
 // 章节生成
 // ============================================================================
 
-/** 后端 generate_chapter_stream(project_id, chapter_number, task_id?, writing_notes?, min_word_count, max_word_count) —— 平铺参数 */
-export async function generateChapterStream(
-  projectId: Id,
-  chapterNumber: number,
-  taskId?: string | null,
-  writingNotes?: string | null,
-  minWordCount?: number | null,
-  maxWordCount?: number | null,
-): Promise<string> {
-  const projectIdNum = idNum(projectId);
-  const clientRagContext = canUseLocalDesktopEmbedding() && chapterNumber > 1
-    ? await prepareClientGenerationRagContext(
-        projectIdNum,
-        chapterNumber,
-        writingNotes,
-        minWordCount,
-        maxWordCount,
-      )
+export function chapterGenerationNumber(
+  summary: GenerationTaskSummary,
+  projectId: number,
+): number | null {
+  const target = summary.started.target;
+  const match = target?.kind === "chapter"
+    ? /^([1-9]\d*):([1-9]\d*)$/.exec(target.id)
     : null;
-  return apiInvoke<string>("generate_chapter_stream", {
+  if (!match || summary.started.project_id !== projectId) return null;
+  const targetProjectId = Number(match[1]);
+  const chapterNumber = Number(match[2]);
+  return Number.isSafeInteger(targetProjectId)
+    && Number.isSafeInteger(chapterNumber)
+    && targetProjectId === projectId
+    ? chapterNumber
+    : null;
+}
+
+export async function startChapterGeneration(
+  input: StartChapterGenerationInput,
+): Promise<GenerationTaskHandle> {
+  const projectId = idNum(input.project_id);
+  let clientRagContext = input.client_rag_context ?? null;
+  if (
+    canUseLocalDesktopEmbedding()
+    && input.chapter_number > 1
+    && !clientRagContext?.trim()
+  ) {
+    clientRagContext = await prepareClientGenerationRagContext(
+      projectId,
+      input.chapter_number,
+      input.writing_notes,
+      input.min_word_count,
+      input.max_word_count,
+    );
+  }
+  return apiInvoke<GenerationTaskHandle>("start_chapter_generation", {
     userId: currentUserId(),
-    projectId: projectIdNum,
-    chapterNumber,
-    taskId: taskId ?? null,
-    writingNotes: writingNotes ?? null,
-    minWordCount: minWordCount ?? null,
-    maxWordCount: maxWordCount ?? null,
-    clientRagContext,
+    input: {
+      ...input,
+      project_id: projectId,
+      client_rag_context: clientRagContext,
+    },
   });
 }
 

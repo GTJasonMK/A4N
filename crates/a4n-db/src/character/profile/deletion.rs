@@ -163,6 +163,17 @@ where
         .await
         .map_err(CharacterProfileDeleteError::Database)?;
     let summary = delete_profile_cascade_in(&tx, profile_id).await?;
+    if !summary.portrait_paths.is_empty() {
+        crate::cleanup_outbox::insert_file_artifact_cleanup_intent(
+            &tx,
+            format!("character-profile-delete:{profile_id}"),
+            crate::cleanup_outbox::FileArtifactCleanupPayload::new(
+                summary.project_id,
+                summary.portrait_paths.clone(),
+            ),
+        )
+        .await?;
+    }
     tx.commit()
         .await
         .map_err(CharacterProfileDeleteError::Database)?;

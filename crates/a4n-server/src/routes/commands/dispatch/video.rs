@@ -18,6 +18,7 @@ pub(super) async fn try_dispatch(
         "list_videos_by_chapter" => list_videos_by_chapter(state, user_id, args).await?,
         "toggle_video_favorite" => toggle_video_favorite(state, user_id, args).await?,
         "update_video" => update_video(state, user_id, args).await?,
+        "select_segment_video" => select_segment_video(state, user_id, args).await?,
         "delete_video" => delete_video(state, user_id, args).await?,
         "delete_chapter_video_assets" => delete_chapter_video_assets(state, user_id, args).await?,
         "load_video_playback_data" => load_video_playback_data(state, user_id, args).await?,
@@ -60,14 +61,7 @@ pub(super) async fn try_dispatch(
         "delete_chapter_video_prompt_group" => {
             delete_chapter_video_prompt_group(state, user_id, args).await?
         }
-        "generate_chapter_video" => generate_chapter_video(state, user_id, args).await?,
-        "generate_chapter_videos_batch" => {
-            generate_chapter_videos_batch(state, user_id, args).await?
-        }
         "poll_video_job" => poll_video_job(state, user_id, args).await?,
-        "generate_reference_media_video" => {
-            generate_reference_media_video(state, user_id, args).await?
-        }
         "preview_chapter_video_request" => {
             preview_chapter_video_request(state, user_id, args).await?
         }

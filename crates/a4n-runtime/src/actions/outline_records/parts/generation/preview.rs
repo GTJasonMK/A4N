@@ -5,7 +5,6 @@ use crate::actions::outline_records::types::{
     GeneratePartsInput, RegenerateLastPartInput, RegeneratePartsInput,
 };
 use crate::actions::request_preview::ModelRequestPreview;
-use crate::actions::template_variables::parse_template_variables_app_error as parse_template_variables;
 use a4n_core::error::AppError;
 
 pub async fn preview_generate_parts_request(
@@ -14,17 +13,9 @@ pub async fn preview_generate_parts_request(
     input: GeneratePartsInput,
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
-    let variables = parse_template_variables(&input.variables)?;
     let steps = state
-        .orchestrator
-        .preview_generate_parts_requests(
-            input.project_id,
-            input.part_count,
-            input.chapters_per_part,
-            false,
-            state,
-            &variables,
-        )
+        .outline()
+        .preview_generate_parts_validated(input)
         .await?;
     outline_preview(
         state,
@@ -41,17 +32,9 @@ pub async fn preview_regenerate_parts_request(
     input: RegeneratePartsInput,
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
-    let variables = parse_template_variables(&input.variables)?;
     let steps = state
-        .orchestrator
-        .preview_generate_parts_requests(
-            input.project_id,
-            input.part_count,
-            input.chapters_per_part,
-            true,
-            state,
-            &variables,
-        )
+        .outline()
+        .preview_regenerate_parts_validated(input)
         .await?;
     outline_preview(
         state,
@@ -68,10 +51,9 @@ pub async fn preview_regenerate_last_part_request(
     input: RegenerateLastPartInput,
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
-    let variables = parse_template_variables(&input.variables)?;
     let request = state
-        .orchestrator
-        .preview_regenerate_last_part_request(input.project_id, state, &variables)
+        .outline()
+        .preview_regenerate_last_part_validated(input)
         .await?;
     single_request_preview(
         state,

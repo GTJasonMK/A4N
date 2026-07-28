@@ -1,8 +1,8 @@
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, i64_arg, optional_bool_field, optional_string_field, required_arg, required_json_i32,
-    string_arg, video_prompt_actions,
+    ApiError, i64_arg, optional_bool_field, optional_i32_field, optional_string_field,
+    required_arg, required_json_i32, string_arg, video_prompt_actions,
 };
 use super::rules::{json_i64_vec, optional_json_i32_vec, optional_json_i64_vec};
 
@@ -23,6 +23,7 @@ pub(super) fn video_prompt_input_from_args(
             style: string_arg(options, "style")?,
             prompt_output_language: optional_string_field(options, "prompt_output_language")?,
             prompt_batch_size: required_json_i32(options, "prompt_batch_size", command)?,
+            target_shot_number: optional_i32_field(options, "target_shot_number")?,
             duration_secs: required_json_i32(options, "duration_secs", command)?,
             duration_secs_options: optional_json_i32_vec(
                 options,

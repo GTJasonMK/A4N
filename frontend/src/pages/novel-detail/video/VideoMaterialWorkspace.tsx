@@ -15,8 +15,10 @@ import { extractErrorMessage } from "../../../api";
 import {
   deleteImage,
   scoreImage,
+  startImageGeneration,
   toggleImageFavorite,
   updateImage,
+  verifyImageGenerationResult,
   type GeneratedImage,
   type UpdateImageInput,
 } from "../../../api/image";
@@ -28,19 +30,14 @@ import {
   type ProfileMaterialKind,
   type ProfileMaterialState,
 } from "../../../api/profileMaterials";
-import {
-  generateObjectProfileImage,
-  generateObjectProfileImagePrompt,
-} from "../../../api/objectProfiles";
+import { generateObjectProfileImagePrompt } from "../../../api/objectProfiles";
 import { copyTextToClipboard } from "../../../utils/clipboard";
-import {
-  generateSceneProfileImage,
-  generateSceneProfileImagePrompt,
-} from "../../../api/sceneProfiles";
+import { generateSceneProfileImagePrompt } from "../../../api/sceneProfiles";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
-import { createProgressTaskId, type RunProgressTask } from "../../../hooks/useProgressTask";
+import type { RunProgressTask } from "../../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import {
   isSupportedImageMime,
@@ -344,40 +341,41 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     options: { refresh?: boolean } = {},
   ) => {
     const key = groupKey(group);
-    const taskId = createProgressTaskId(`${group.kind}-video-material`, projectId);
     setBusyKey(key);
     try {
-      await runProgressTask(
+      const stylePayload = generationStylePayload();
+      const handle = await startImageGeneration({
+        project_id: requestProjectId,
+        operation: group.kind === "scene"
+          ? {
+              kind: "scene_profile",
+              scene_profile_id: group.profile.id,
+              chapter_id: null,
+              config_id: null,
+              ...stylePayload,
+            }
+          : {
+              kind: "object_profile",
+              object_profile_id: group.profile.id,
+              chapter_id: null,
+              config_id: null,
+              ...stylePayload,
+            },
+      });
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: `${group.profile.name} 素材图生成`,
           startMessage: "正在准备素材图生成",
           successMessage: "素材图生成完成",
           errorMessage: "素材图生成失败",
           total: 3,
-          taskId,
+          cancelLabel: "停止生成",
         },
-        async () => {
-          const stylePayload = generationStylePayload();
-          if (group.kind === "scene") {
-            return generateSceneProfileImage(
-              {
-                scene_profile_id: group.profile.id,
-                chapter_id: null,
-                config_id: null,
-                ...stylePayload,
-              },
-              taskId,
-            );
-          }
-          return generateObjectProfileImage(
-            {
-              object_profile_id: group.profile.id,
-              chapter_id: null,
-              config_id: null,
-              ...stylePayload,
-            },
-            taskId,
-          );
+        async (task) => {
+          if (!isCurrentProject(requestProjectId)) throw new Error("任务已停止");
+          await verifyImageGenerationResult(task, requestProjectId);
         },
       );
       if (!isCurrentProject(requestProjectId)) return;

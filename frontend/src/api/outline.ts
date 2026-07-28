@@ -2,6 +2,12 @@ import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
+import { generationClient } from "./generationTasks";
+import type {
+  GenerationTaskHandle,
+  OutlineGenerationOperation,
+  StartOutlineGenerationInput,
+} from "./generated/generationContracts";
 
 /**
  * Outline API wrapper —— 对齐 crates/a4n-tauri/src/commands/outline.rs
@@ -67,22 +73,24 @@ export async function listParts(projectId: Id): Promise<PartOutline[]> {
   });
 }
 
-/** 后端 generate_parts(input: { project_id, part_count?, chapters_per_part?, task_id?, variables? }) */
-export async function generateParts(input: {
-  project_id: number;
-  part_count?: number | null;
-  chapters_per_part?: number | null;
-  task_id?: string | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<PartOutline[]> {
-  return apiInvoke<PartOutline[]>("generate_parts", { userId: currentUserId(), input });
+export type OutlineGenerationInput = Omit<StartOutlineGenerationInput, "meta">;
+export type { OutlineGenerationOperation };
+
+export async function startOutlineGeneration(
+  input: OutlineGenerationInput,
+): Promise<GenerationTaskHandle> {
+  return generationClient.start((meta) =>
+    apiInvoke<GenerationTaskHandle>("start_outline_generation", {
+      userId: currentUserId(),
+      input: { ...input, meta, project_id: idNum(input.project_id) },
+    }),
+  );
 }
 
 export async function previewGeneratePartsRequest(input: {
   project_id: number;
   part_count?: number | null;
   chapters_per_part?: number | null;
-  task_id?: string | null;
   variables?: Record<string, unknown> | null;
 }): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_generate_parts_request", {
@@ -91,24 +99,11 @@ export async function previewGeneratePartsRequest(input: {
   });
 }
 
-/** 后端 continue_part_outlines(input: { project_id, part_number, start_chapter, end_chapter, variables? }) */
-export async function continuePartOutlines(input: {
-  project_id: number;
-  part_number: number;
-  start_chapter: number;
-  end_chapter: number;
-  task_id?: string | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<PartOutline> {
-  return apiInvoke<PartOutline>("continue_part_outlines", { userId: currentUserId(), input });
-}
-
 export async function previewContinuePartOutlinesRequest(input: {
   project_id: number;
   part_number: number;
   start_chapter: number;
   end_chapter: number;
-  task_id?: string | null;
   variables?: Record<string, unknown> | null;
 }): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_continue_part_outlines_request", {
@@ -117,21 +112,10 @@ export async function previewContinuePartOutlinesRequest(input: {
   });
 }
 
-export async function regenerateParts(input: {
-  project_id: number;
-  part_count?: number | null;
-  chapters_per_part?: number | null;
-  task_id?: string | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<PartOutline[]> {
-  return apiInvoke<PartOutline[]>("regenerate_parts", { userId: currentUserId(), input });
-}
-
 export async function previewRegeneratePartsRequest(input: {
   project_id: number;
   part_count?: number | null;
   chapters_per_part?: number | null;
-  task_id?: string | null;
   variables?: Record<string, unknown> | null;
 }): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_regenerate_parts_request", {
@@ -140,18 +124,8 @@ export async function previewRegeneratePartsRequest(input: {
   });
 }
 
-/** 后端 regenerate_last_part(input: { project_id, variables? }) */
-export async function regenerateLastPart(input: {
-  project_id: number;
-  task_id?: string | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<PartOutline> {
-  return apiInvoke<PartOutline>("regenerate_last_part", { userId: currentUserId(), input });
-}
-
 export async function previewRegenerateLastPartRequest(input: {
   project_id: number;
-  task_id?: string | null;
   variables?: Record<string, unknown> | null;
 }): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_regenerate_last_part_request", {
@@ -160,20 +134,9 @@ export async function previewRegenerateLastPartRequest(input: {
   });
 }
 
-/** 后端 regenerate_part_outline(input: { project_id, part_id, variables? }) */
-export async function regeneratePartOutline(input: {
-  project_id: number;
-  part_id: number;
-  task_id?: string | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<PartOutline> {
-  return apiInvoke<PartOutline>("regenerate_part_outline", { userId: currentUserId(), input });
-}
-
 export async function previewRegeneratePartOutlineRequest(input: {
   project_id: number;
   part_id: number;
-  task_id?: string | null;
   variables?: Record<string, unknown> | null;
 }): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_regenerate_part_outline_request", {
@@ -190,36 +153,11 @@ export async function deleteLatestParts(projectId: Id, count: number): Promise<v
   });
 }
 
-/** 后端 generate_part_chapter_outlines(input) */
-export async function generatePartChapterOutlines(input: {
-  project_id: number;
-  part_id: number;
-  task_id?: string | null;
-}): Promise<ChapterOutline[]> {
-  return apiInvoke<ChapterOutline[]>("generate_part_chapter_outlines", {
-    userId: currentUserId(),
-    input,
-  });
-}
-
 export async function previewGeneratePartChapterOutlinesRequest(input: {
   project_id: number;
   part_id: number;
-  task_id?: string | null;
 }): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_generate_part_chapter_outlines_request", {
-    userId: currentUserId(),
-    input,
-  });
-}
-
-/** 后端 batch_generate_part_outlines(input) */
-export async function batchGeneratePartOutlines(input: {
-  project_id: number;
-  part_ids: number[];
-  task_id?: string | null;
-}): Promise<ChapterOutline[]> {
-  return apiInvoke<ChapterOutline[]>("batch_generate_part_outlines", {
     userId: currentUserId(),
     input,
   });
@@ -228,7 +166,6 @@ export async function batchGeneratePartOutlines(input: {
 export async function previewBatchGeneratePartOutlinesRequest(input: {
   project_id: number;
   part_ids: number[];
-  task_id?: string | null;
 }): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_batch_generate_part_outlines_request", {
     userId: currentUserId(),
@@ -243,20 +180,10 @@ export async function getGenerationProgress(projectId: Id): Promise<GenerationPr
   });
 }
 
-export async function applyBeatMapping(input: {
-  project_id: number;
-  part_id: number;
-  beat_sheet: string;
-  task_id?: string | null;
-}): Promise<ChapterOutline[]> {
-  return apiInvoke<ChapterOutline[]>("apply_beat_mapping", { userId: currentUserId(), input });
-}
-
 export async function previewApplyBeatMappingRequest(input: {
   project_id: number;
   part_id: number;
   beat_sheet: string;
-  task_id?: string | null;
 }): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_apply_beat_mapping_request", {
     userId: currentUserId(),
@@ -275,26 +202,11 @@ export async function listChapterOutlines(projectId: Id): Promise<ChapterOutline
   });
 }
 
-export async function generateChapterOutlinesByCount(
-  input: {
-    project_id: number;
-    start_chapter: number;
-    count: number;
-    task_id?: string | null;
-  },
-): Promise<ChapterOutline[]> {
-  return apiInvoke<ChapterOutline[]>("generate_chapter_outlines_by_count", {
-    userId: currentUserId(),
-    input,
-  });
-}
-
 export async function previewGenerateChapterOutlinesByCountRequest(
   input: {
     project_id: number;
     start_chapter: number;
     count: number;
-    task_id?: string | null;
   },
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_generate_chapter_outlines_by_count_request", {
@@ -303,17 +215,12 @@ export async function previewGenerateChapterOutlinesByCountRequest(
   });
 }
 
-export async function regenerateChapterOutline(
-  input: Record<string, unknown>,
-): Promise<ChapterOutline> {
-  return apiInvoke<ChapterOutline>("regenerate_chapter_outline", {
-    userId: currentUserId(),
-    input,
-  });
-}
-
 export async function previewRegenerateChapterOutlineRequest(
-  input: Record<string, unknown>,
+  input: {
+    project_id: number;
+    outline_id: number;
+    variables?: Record<string, unknown> | null;
+  },
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_regenerate_chapter_outline_request", {
     userId: currentUserId(),

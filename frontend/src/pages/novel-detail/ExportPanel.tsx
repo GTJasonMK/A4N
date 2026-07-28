@@ -14,7 +14,7 @@ import {
 import type { NovelProject } from "../../api/project";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
 
@@ -140,17 +140,17 @@ export const ExportPanel: React.FC<{
     const requestSeq = exportSeqRef.current + 1;
     exportSeqRef.current = requestSeq;
     exportBusyRef.current = true;
-    const taskId = createProgressTaskId(`export-${key}`, requestProjectId);
+    const taskId = allocateHostTaskId(`export-${key}`, requestProjectId);
     setActing(key);
     setLastResult(null);
     try {
       const r = await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: `导出${label}`,
           startMessage: `正在准备导出${label}`,
           successMessage: `导出${label}完成`,
           errorMessage: "导出失败",
-          taskId,
           total: 4,
           cancelLabel: "停止导出",
           runningHint: "导出停止后，已经写入完成的文件会保留",

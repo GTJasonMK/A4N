@@ -1,14 +1,12 @@
 use std::{
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
     time::Instant,
 };
 
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext};
-use a4n_orchestrator::OrchestratorContext;
-use a4n_orchestrator::task_queue::PersistentTaskQueue;
+use a4n_orchestrator::DynamicProviderFacade;
 use a4n_queue::priority::TaskPermit;
 use futures::Stream;
 
@@ -22,8 +20,7 @@ pub(in crate::dynamic_llm) struct QueueTrackedLlmStream {
 impl QueueTrackedLlmStream {
     pub(in crate::dynamic_llm) fn new(
         inner: Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>,
-        orchestrator: OrchestratorContext,
-        task_queue: Arc<PersistentTaskQueue>,
+        facade: DynamicProviderFacade,
         permit: TaskPermit,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
@@ -33,8 +30,7 @@ impl QueueTrackedLlmStream {
             inner,
             terminal: QueueTrackedStreamTerminal::new(
                 StreamKind::Embedded,
-                orchestrator,
-                task_queue,
+                facade,
                 permit,
                 trace_context,
                 model_name,

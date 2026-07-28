@@ -3,18 +3,19 @@ import { Loader2 } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import { listProfiles, type CharacterProfile } from "../../../api/character";
 import {
-  generateMissingPortraits,
   listPortraitsByProject,
   previewGenerateMissingPortraitsRequest,
   previewRegeneratePortraitRequest,
-  regeneratePortrait,
   setPrimaryPortrait,
+  startPortraitGeneration,
+  verifyPortraitGenerationResult,
   type Portrait,
 } from "../../../api/portrait";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../../components/feedback/Toast";
-import { createProgressTaskId, useProgressTask } from "../../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
+import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { AgeVariantDialog } from "./AgeVariantDialog";
 import { PortraitActionDialog } from "./PortraitActionDialog";
@@ -156,29 +157,31 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   const handleGenerateMissing = async () => {
     if (generatingRef.current || portraitActionBusyRef.current != null) return;
     const requestProjectId = projectId;
-    const taskId = createProgressTaskId("portrait-missing", requestProjectId);
     generatingRef.current = true;
     setGenerating(true);
     try {
       let createdCount = 0;
-      await runProgressTask(
+      const handle = await startPortraitGeneration({
+        project_id: requestProjectId,
+        operation: { kind: "generate_missing" },
+      });
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "补齐人物三视图拆解",
           startMessage: "正在统计缺失三视图的角色…",
           successMessage: "人物三视图拆解补齐完成",
           errorMessage: "生成人物三视图拆解失败",
           total: 1,
-          taskId,
           cancelLabel: "停止生成",
-          runningHint: "人物三视图拆解生成过程中请保持当前窗口打开",
         },
-        async ({ setProgress }) => {
+        async (task) => {
+          createdCount = task.artifacts.filter(
+            (artifact) => artifact.artifact_kind === "portrait_image",
+          ).length;
+          await verifyPortraitGenerationResult(task, requestProjectId);
           if (!isCurrentProject(requestProjectId)) throw new Error("任务已停止");
-          setProgress("正在提交人物三视图拆解补齐任务…", 0, 1);
-          const created = await generateMissingPortraits(requestProjectId, taskId);
-          if (!isCurrentProject(requestProjectId)) throw new Error("任务已停止");
-          createdCount = created.length;
-          setProgress("正在刷新人物三视图拆解列表…", 1, 1);
           await load();
           if (!isCurrentProject(requestProjectId)) throw new Error("任务已停止");
         },
@@ -235,22 +238,28 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     const requestProjectId = projectId;
     if (portrait.project_id !== requestProjectId) return;
     if (!beginPortraitAction(portrait.id)) return;
-    const taskId = createProgressTaskId("portrait-regenerate", requestProjectId);
     try {
-      await runProgressTask(
+      const handle = await startPortraitGeneration({
+        project_id: requestProjectId,
+        operation: {
+          kind: "regenerate",
+          portrait_id: portrait.id,
+          reference_image_ids: [],
+        },
+      });
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "重绘人物三视图拆解",
           startMessage: "正在准备重绘人物三视图拆解",
           successMessage: "人物三视图拆解重绘完成",
           errorMessage: "重绘失败",
           total: 4,
-          taskId,
           cancelLabel: "停止生成",
-          runningHint: "人物三视图拆解生成过程中请保持当前窗口打开",
         },
-        () => {
-          if (!isCurrentProject(requestProjectId)) return Promise.reject(new Error("任务已停止"));
-          return regeneratePortrait(portrait.id, taskId);
+        async (task) => {
+          await verifyPortraitGenerationResult(task, requestProjectId);
         },
       );
       if (!isCurrentProject(requestProjectId)) return;

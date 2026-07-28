@@ -1,0 +1,77 @@
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use super::generation_tasks::GenerationStartRequestMeta;
+
+/// 图片生产生成的唯一启动合同。
+///
+/// 图片查询、上传和 provider 请求预览继续使用各自合同；只有生产生成
+/// 统一经过 generation reservation/session/worker。
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StartImageGenerationInput {
+    pub meta: GenerationStartRequestMeta,
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    pub operation: ImageGenerationOperation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ImageGenerationOperation {
+    Scene {
+        #[schemars(length(min = 1, max = 100_000))]
+        prompt: String,
+        #[schemars(range(min = 1))]
+        config_id: Option<i64>,
+        #[schemars(range(min = 1))]
+        chapter_id: Option<i64>,
+    },
+    Page {
+        #[schemars(range(min = 1))]
+        chapter_number: i32,
+        #[schemars(range(min = 1))]
+        page_number: i32,
+    },
+    Batch {
+        #[schemars(length(min = 1))]
+        requests: Vec<Value>,
+    },
+    ObjectProfile {
+        #[schemars(range(min = 1))]
+        object_profile_id: i64,
+        #[schemars(range(min = 1))]
+        chapter_id: Option<i64>,
+        #[schemars(length(max = 512))]
+        style: Option<String>,
+        #[schemars(range(min = 1))]
+        config_id: Option<i64>,
+        #[schemars(length(max = 128))]
+        style_template_id: Option<String>,
+        #[schemars(length(max = 512))]
+        style_template_name: Option<String>,
+        #[schemars(length(max = 128))]
+        style_template_version: Option<String>,
+        #[schemars(length(max = 100_000))]
+        custom_style: Option<String>,
+    },
+    SceneProfile {
+        #[schemars(range(min = 1))]
+        scene_profile_id: i64,
+        #[schemars(range(min = 1))]
+        chapter_id: Option<i64>,
+        #[schemars(length(max = 512))]
+        style: Option<String>,
+        #[schemars(range(min = 1))]
+        config_id: Option<i64>,
+        #[schemars(length(max = 128))]
+        style_template_id: Option<String>,
+        #[schemars(length(max = 512))]
+        style_template_name: Option<String>,
+        #[schemars(length(max = 128))]
+        style_template_version: Option<String>,
+        #[schemars(length(max = 100_000))]
+        custom_style: Option<String>,
+    },
+}

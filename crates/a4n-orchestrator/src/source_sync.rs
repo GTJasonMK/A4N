@@ -3,10 +3,9 @@
 mod contracts;
 mod decisions;
 mod preparation;
-mod preview;
 mod rules;
-mod runs;
 mod service;
+mod workflow_rules;
 
 pub use contracts::{
     GalgameSourceSyncExecutionContext, SourceSyncDecisionInput, SourceSyncExecutionContext,
@@ -21,6 +20,11 @@ pub use rules::{
     is_valid_decision_actor, is_valid_local_state_kind, is_valid_resolution_strategy,
     is_valid_source_change_kind, is_valid_sync_run_mode, is_valid_sync_run_status,
 };
+pub use service::ApplySourceSyncApplicationInput;
+pub use workflow_rules::{
+    source_sync_apply_business_key, source_sync_apply_workflow_fingerprint,
+    source_sync_apply_workflow_run_input,
+};
 
 #[cfg(test)]
 use a4n_core::models::source_sync::source_sync_conflict;
@@ -34,7 +38,7 @@ use rules::source_sync_decisions_require_galgame_preparation;
 #[cfg(test)]
 mod tests;
 
-fn source_sync_db_error(
+pub(crate) fn source_sync_db_error(
     error: a4n_db::source_sync::SourceSyncDbError,
 ) -> a4n_core::error::AppError {
     match error {

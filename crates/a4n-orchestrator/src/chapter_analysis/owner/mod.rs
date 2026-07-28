@@ -11,9 +11,6 @@ mod prompt;
 mod requests;
 mod validation;
 
-#[cfg(test)]
-mod tests;
-
 pub use assembly::assemble_staged_chapter_analysis;
 pub use extract::chapter_analysis_storage_projection;
 pub use materialize::materialize_analysis_source_spans;
@@ -30,6 +27,4 @@ pub use validation::{
 };
 
 #[cfg(test)]
-use a4n_core::error::AppError;
-#[cfg(test)]
-use serde_json::Value;
+mod tests;

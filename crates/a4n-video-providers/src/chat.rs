@@ -68,6 +68,7 @@ impl VideoProvider for ChatCompletionsVideoProvider {
     async fn generate(
         &self,
         req: VideoGenerationRequest,
+        provider_idempotency_key_sha256: Option<&str>,
     ) -> Result<VideoGenerationResult, AppError> {
         let url = format!("{}/chat/completions", self.base_url);
         let user_content = video_user_content(&req);
@@ -82,16 +83,20 @@ impl VideoProvider for ChatCompletionsVideoProvider {
             req.fps
         );
 
-        let resp = self
+        let request = self
             .client
             .post(&url)
             .bearer_auth(&self.api_key)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| {
-                AppError::Internal(anyhow::anyhow!("chat-completions 视频生成请求失败：{e}"))
-            })?;
+            .json(&body);
+        let resp = crate::idempotency::with_provider_idempotency_key(
+            request,
+            provider_idempotency_key_sha256,
+        )?
+        .send()
+        .await
+        .map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("chat-completions 视频生成请求失败：{e}"))
+        })?;
 
         let raw_value = parse_json_response(resp, "chat-completions 视频生成").await?;
         let raw_text = serde_json::to_string(&raw_value).map_err(|e| {
@@ -131,6 +136,12 @@ impl VideoProvider for ChatCompletionsVideoProvider {
         Err(AppError::Internal(anyhow::anyhow!(
             "chat-completions 视频 backend 仅支持同步返回，不支持轮询（若需异步任务请改用 openai-compatible-video）"
         )))
+    }
+
+    async fn status(&self, _job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
+        Err(AppError::InvalidArgument(
+            "chat-completions 视频 backend 仅支持同步返回，不支持状态查询".to_string(),
+        ))
     }
 }
 

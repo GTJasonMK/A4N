@@ -31,7 +31,7 @@ pub(super) async fn persist_agent_loop_decision_call(
             .map(serde_json::to_value)
             .transpose()?;
         workflow::save_completed_llm_call_checkpoint(
-            context.db.connection(),
+            context.database.connection(),
             CompletedLlmCallCheckpointInput {
                 workflow_run_id: request.workflow_run_id,
                 call_key,

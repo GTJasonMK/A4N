@@ -1,6 +1,5 @@
 use super::{
-    BatchAcceptImportReviewsInput, ImportReviewSummary, ModifyImportReviewInput, access,
-    projections,
+    BatchAcceptImportReviewsInput, ImportReviewSummary, ModifyImportReviewInput, projections,
 };
 use crate::AppState;
 use a4n_core::error::AppError;
@@ -10,9 +9,11 @@ pub async fn accept_import_review(
     user_id: i64,
     review_id: i64,
 ) -> Result<ImportReviewSummary, AppError> {
-    let review = access::verify_review_access(state, user_id, review_id).await?;
-    let accepted = state.orchestrator.accept_import_review(review).await?;
-    crate::workflow::postprocess_chapter_after_content_change(state, accepted.chapter_id).await?;
+    let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
+    let accepted = state
+        .import_review()
+        .accept_import_review_for_user_validated(user_id, review_id, &host_port)
+        .await?;
     projections::import_review_summary(&accepted.review)
 }
 
@@ -22,12 +23,11 @@ pub async fn modify_import_review(
     review_id: i64,
     input: ModifyImportReviewInput,
 ) -> Result<ImportReviewSummary, AppError> {
-    let review = access::verify_review_access(state, user_id, review_id).await?;
+    let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     let accepted = state
-        .orchestrator
-        .modify_import_review(review, input)
+        .import_review()
+        .modify_import_review_for_user_validated(user_id, review_id, input, &host_port)
         .await?;
-    crate::workflow::postprocess_chapter_after_content_change(state, accepted.chapter_id).await?;
     projections::import_review_summary(&accepted.review)
 }
 
@@ -36,9 +36,12 @@ pub async fn batch_accept_import_reviews(
     user_id: i64,
     input: BatchAcceptImportReviewsInput,
 ) -> Result<Vec<ImportReviewSummary>, AppError> {
-    let mut summaries = Vec::with_capacity(input.review_ids.len());
-    for review_id in input.review_ids {
-        summaries.push(accept_import_review(state, user_id, review_id).await?);
-    }
-    Ok(summaries)
+    let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
+    state
+        .import_review()
+        .batch_accept_import_reviews_for_user_validated(user_id, &input.review_ids, &host_port)
+        .await?
+        .iter()
+        .map(|accepted| projections::import_review_summary(&accepted.review))
+        .collect()
 }

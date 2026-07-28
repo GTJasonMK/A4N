@@ -227,6 +227,18 @@ fn connect_timeout_is_derived_from_llm_timeout_with_bounds() {
 }
 
 #[test]
+fn non_timeout_request_failure_is_an_llm_error() {
+    let error = reqwest::Client::new()
+        .get("not a valid URL")
+        .build()
+        .expect_err("invalid URL should fail");
+
+    let error = request_error("LLM API", error, 30, 10, std::time::Duration::ZERO);
+
+    assert!(matches!(error, AppError::LlmError(_)));
+}
+
+#[test]
 fn provider_uses_derived_connect_timeout() {
     let provider =
         HttpLlmProvider::new_with_timeout("https://example.test", "deepseek-chat", None, 300);

@@ -43,7 +43,7 @@ pub fn ensure_manga_source_can_write(
 }
 
 impl OrchestratorContext {
-    pub async fn manga_reference_context(
+    pub(crate) async fn manga_reference_context(
         &self,
         project_id: i64,
     ) -> Result<MangaReferenceContext, AppError> {

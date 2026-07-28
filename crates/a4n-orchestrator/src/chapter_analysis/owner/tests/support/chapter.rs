@@ -1,4 +1,4 @@
-fn sample_chapter() -> chapter::Model {
+pub fn sample_chapter() -> chapter::Model {
     let now = NaiveDate::from_ymd_opt(2026, 5, 26)
         .unwrap()
         .and_hms_opt(10, 0, 0)

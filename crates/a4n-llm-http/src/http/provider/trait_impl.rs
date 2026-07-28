@@ -2,19 +2,16 @@ use std::pin::Pin;
 
 use a4n_core::error::AppError;
 use a4n_llm::provider::{
-    ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmProvider, MessageRole, ModelCapabilities,
+    ChatChunk, ChatMessage, ChatRequest, LlmProvider, MessageRole, ModelCapabilities,
+    collect_chat_stream,
 };
 use async_trait::async_trait;
 use futures::Stream;
 
-use super::{CONNECTION_TEST_MAX_TOKENS, HttpLlmProvider, chat, streaming};
+use super::{CONNECTION_TEST_MAX_TOKENS, HttpLlmProvider, streaming};
 
 #[async_trait]
 impl LlmProvider for HttpLlmProvider {
-    async fn chat(&self, request: ChatRequest) -> Result<ChatResponse, AppError> {
-        chat::execute_chat(self, request).await
-    }
-
     async fn chat_stream(
         &self,
         request: ChatRequest,
@@ -42,7 +39,10 @@ impl LlmProvider for HttpLlmProvider {
             stop_sequences: None,
         };
 
-        self.chat(test_request).await.map(|_| true)
+        // 连通性探测只走真实 chat_stream，禁止完整响应 chat()。
+        collect_chat_stream(self, test_request)
+            .await
+            .map(|response| !response.message.content.trim().is_empty())
     }
 
     fn model_name(&self) -> &str {

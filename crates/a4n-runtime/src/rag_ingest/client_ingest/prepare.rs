@@ -9,11 +9,12 @@ pub async fn rag_prepare_ingest_all(
     state: &AppState,
     user_id: i64,
     project_id: i64,
+    rebuild: bool,
 ) -> Result<ClientRagIngestPrepareOutput, String> {
     let trace_id = crate::sidecar_clients::rag_client_ingest_operation_trace_id(project_id)?;
     crate::sidecar_clients::scope_rag_operation_trace(
         trace_id.clone(),
-        rag_prepare_ingest_all_inner(state, user_id, project_id, trace_id),
+        rag_prepare_ingest_all_inner(state, user_id, project_id, rebuild, trace_id),
     )
     .await
 }
@@ -22,13 +23,14 @@ async fn rag_prepare_ingest_all_inner(
     state: &AppState,
     user_id: i64,
     project_id: i64,
+    rebuild: bool,
     operation_trace_id: String,
 ) -> Result<ClientRagIngestPrepareOutput, String> {
     let ClientIngestContext {
         embedding_identity,
         expected,
         stored_metadata,
-    } = load_client_ingest_context(state, user_id, project_id, None).await?;
+    } = load_client_ingest_context(state, user_id, project_id, rebuild, None).await?;
     let expected_total = expected.total();
 
     let mut records = Vec::new();

@@ -6,7 +6,7 @@ use a4n_core::{
 use super::{
     contracts::{CreateLlmConfigInput, NormalizedLlmConfig},
     limits::ensure_output_tokens_below_context,
-    validation::normalize_llm_request_options_json,
+    validation::{normalize_llm_base_url, normalize_llm_request_options_json},
 };
 
 pub fn normalize_create_llm_config_input(
@@ -26,7 +26,7 @@ pub fn normalize_create_llm_config_input(
     } = input;
     let name = normalize_config_name(name, "LLM配置")?;
     let provider = required_config_value(provider, "LLM配置", "provider")?;
-    let base_url = required_config_value(base_url, "LLM配置", "base_url")?;
+    let base_url = normalize_llm_base_url(base_url, api_key_encrypted)?;
     let model = required_config_value(model, "LLM配置", "model")?;
     let max_concurrent = positive_i32(max_concurrent, "LLM配置 max_concurrent")?;
     let timeout_secs = positive_i32(timeout_secs, "LLM配置 timeout_secs")?;

@@ -8,7 +8,8 @@ mod records;
 pub use create::*;
 pub(crate) use deletion::clear_generated_video_references_record;
 pub use deletion::{
-    delete_generated_video_record, delete_missing_generated_video_references_record,
+    delete_generated_video_record, delete_generated_video_record_with_cleanup,
+    delete_missing_generated_video_references_record,
 };
 pub use lifecycle::*;
 pub use records::*;

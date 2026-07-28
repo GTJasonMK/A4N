@@ -4,7 +4,6 @@ mod app;
 mod command_registry;
 mod commands;
 mod environment;
-mod events;
 mod logging;
 mod media_protocol;
 mod progress_task;

@@ -1,22 +1,22 @@
 use serde_json::json;
 
 use crate::{
-    ArtifactLocation, ArtifactOwnership, ArtifactRef, ServiceError, ServiceErrorCode,
-    ServiceResponse, ServiceStatus, ServiceTaskEvent, ServiceTaskEventKind,
-    sanitize_service_response, sanitize_service_task_event, validate_artifact_refs,
+    ArtifactLocation, ArtifactOwnership, ArtifactRef, CapabilityTaskEvent, CapabilityTaskEventKind,
+    ServiceError, ServiceErrorCode, ServiceResponse, ServiceStatus, sanitize_capability_task_event,
+    sanitize_service_response, validate_artifact_refs,
 };
 
 #[test]
-fn service_task_event_kind_marks_only_stream_terminal_events() {
-    assert!(!ServiceTaskEventKind::Progress.is_terminal());
-    assert!(!ServiceTaskEventKind::Chunk.is_terminal());
-    assert!(!ServiceTaskEventKind::StructuredProgress.is_terminal());
-    assert!(!ServiceTaskEventKind::Usage.is_terminal());
-    assert!(!ServiceTaskEventKind::Checkpoint.is_terminal());
-    assert!(!ServiceTaskEventKind::Artifact.is_terminal());
-    assert!(ServiceTaskEventKind::Completed.is_terminal());
-    assert!(ServiceTaskEventKind::Failed.is_terminal());
-    assert!(ServiceTaskEventKind::CancelAck.is_terminal());
+fn capability_task_event_kind_marks_only_stream_terminal_events() {
+    assert!(!CapabilityTaskEventKind::Progress.is_terminal());
+    assert!(!CapabilityTaskEventKind::Chunk.is_terminal());
+    assert!(!CapabilityTaskEventKind::StructuredProgress.is_terminal());
+    assert!(!CapabilityTaskEventKind::Usage.is_terminal());
+    assert!(!CapabilityTaskEventKind::Checkpoint.is_terminal());
+    assert!(!CapabilityTaskEventKind::Artifact.is_terminal());
+    assert!(CapabilityTaskEventKind::Completed.is_terminal());
+    assert!(CapabilityTaskEventKind::Failed.is_terminal());
+    assert!(CapabilityTaskEventKind::CancelAck.is_terminal());
 }
 
 #[test]
@@ -59,10 +59,10 @@ fn validate_artifact_refs_allows_sidecar_local_path() {
 }
 
 #[test]
-fn sanitize_service_task_event_rejects_remote_local_path() {
-    let mut event = ServiceTaskEvent {
+fn sanitize_capability_task_event_rejects_remote_local_path() {
+    let mut event = CapabilityTaskEvent {
         task_id: "task-1".to_string(),
-        event_kind: ServiceTaskEventKind::Artifact,
+        event_kind: CapabilityTaskEventKind::Artifact,
         sequence: 1,
         chunk_index: None,
         chunk_delta: None,
@@ -87,16 +87,16 @@ fn sanitize_service_task_event_rejects_remote_local_path() {
         payload: None,
     };
 
-    let err = sanitize_service_task_event(&mut event).unwrap_err();
+    let err = sanitize_capability_task_event(&mut event).unwrap_err();
 
     assert!(err.to_string().contains("remote sidecar artifact"));
 }
 
 #[test]
-fn sanitize_service_task_event_redacts_error_message() {
-    let mut event = ServiceTaskEvent {
+fn sanitize_capability_task_event_redacts_error_message() {
+    let mut event = CapabilityTaskEvent {
         task_id: "task-1".to_string(),
-        event_kind: ServiceTaskEventKind::Failed,
+        event_kind: CapabilityTaskEventKind::Failed,
         sequence: 1,
         chunk_index: None,
         chunk_delta: None,
@@ -115,7 +115,7 @@ fn sanitize_service_task_event_redacts_error_message() {
         payload: None,
     };
 
-    sanitize_service_task_event(&mut event).unwrap();
+    sanitize_capability_task_event(&mut event).unwrap();
 
     let message = &event.error.unwrap().message;
     assert!(message.contains("base_url=[REDACTED]"));

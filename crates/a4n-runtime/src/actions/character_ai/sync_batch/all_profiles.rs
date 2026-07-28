@@ -1,19 +1,12 @@
-use crate::{
-    actions::{access, app_error_message},
-    state::AppState,
-};
-use serde_json::{Value, json};
+use a4n_core::error::AppError;
+use a4n_orchestrator::character::{CharacterProfileBatchProgress, CharacterProfileSyncPreviewStep};
+use serde_json::Value;
 
-use super::super::sync_context::{
-    CharacterSyncAnchorMode, build_character_sync_context_for_profile,
-};
-use super::super::sync_profile::character_sync_preview_steps_for_context;
-use super::super::sync_scope::{
-    CharacterSyncRangeMode, profile_sync_skip_reason, resolve_character_sync_target_chapter,
-};
 use super::super::{CharacterAiPreviewStep, CharacterAiProgress};
-use super::execution::sync_character_profile_models_to_chapter;
-use super::report_character_workflow_progress;
+use crate::{
+    AppState, actions::access, prompt_renderer::RuntimePromptRenderer,
+    sidecar_clients::scope_rag_operation_trace,
+};
 
 pub async fn sync_all_character_profiles_to_chapter(
     state: &AppState,
@@ -24,70 +17,38 @@ pub async fn sync_all_character_profiles_to_chapter(
 ) -> Result<Value, String> {
     access::verify_project_editor(state, user_id, project_id)
         .await
-        .map_err(|err| err.to_string())?;
-    report_character_workflow_progress(
-        progress,
-        0,
-        1,
-        "正在校验同步目标章节",
-        "批量角色同步已停止",
-    )?;
-    let target_chapter =
-        resolve_character_sync_target_chapter(state, project_id, chapter_number).await?;
-    let profiles = state
-        .orchestrator
-        .protagonist_profiles_for_project(project_id)
-        .await
-        .map_err(app_error_message)?;
-
-    if profiles.is_empty() {
-        report_character_workflow_progress(
-            progress,
-            1,
-            1,
-            "当前没有可同步的角色档案",
-            "批量角色同步已停止",
-        )?;
-        return Ok(json!({
-            "status": "skipped",
-            "target_chapter": target_chapter,
-            "total": 0,
-            "synced": [],
-            "skipped": [],
-            "failed": [],
-        }));
-    }
-
-    let (synced, skipped, failed) = sync_character_profile_models_to_chapter(
-        state,
-        project_id,
-        target_chapter,
-        &profiles,
-        progress,
-        "批量角色同步已停止",
-    )
-    .await?;
-
-    let status = if failed.is_empty() {
-        if synced.is_empty() {
-            "skipped"
-        } else {
-            "synced"
+        .map_err(|error| error.to_string())?;
+    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let trace_port =
+        super::super::sync_trace::RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
+    let report_progress = |current: u32, total: u32, message: &str| {
+        if let Some(progress) = progress {
+            progress
+                .report(current, total, message, "批量角色同步已停止")
+                .map_err(|error| {
+                    if progress.is_cancelled() {
+                        AppError::Cancelled
+                    } else {
+                        AppError::InvalidArgument(error)
+                    }
+                })?;
         }
-    } else if synced.is_empty() && skipped.is_empty() {
-        "failed"
-    } else {
-        "completed_with_errors"
+        Ok(())
     };
-
-    Ok(json!({
-        "status": status,
-        "target_chapter": target_chapter,
-        "total": profiles.len(),
-        "synced": synced,
-        "skipped": skipped,
-        "failed": failed,
-    }))
+    scope_rag_operation_trace(
+        batch_character_sync_trace_id("all", project_id, chapter_number),
+        state.character().run_all_character_profile_sync_validated(
+            project_id,
+            chapter_number,
+            &prompt_renderer,
+            CharacterProfileBatchProgress {
+                reporter: Some(&report_progress),
+            },
+            Some(&trace_port),
+        ),
+    )
+    .await
+    .map_err(|error| error.to_string())
 }
 
 pub(crate) async fn sync_all_character_profiles_preview_steps(
@@ -98,49 +59,43 @@ pub(crate) async fn sync_all_character_profiles_preview_steps(
 ) -> Result<Vec<CharacterAiPreviewStep>, String> {
     access::verify_project_editor(state, user_id, project_id)
         .await
-        .map_err(|err| err.to_string())?;
-    let target_chapter =
-        resolve_character_sync_target_chapter(state, project_id, chapter_number).await?;
-    let chapters = state
-        .orchestrator
-        .character_sync_chapters(project_id)
-        .await
-        .map_err(|err| err.to_string())?;
-    if chapters.is_empty() {
-        return Err(format!("项目还没有章节: project_id={project_id}"));
-    }
-    let profiles = state
-        .orchestrator
-        .protagonist_profiles_for_project(project_id)
-        .await
-        .map_err(app_error_message)?;
-
-    let mut steps = Vec::new();
-    for profile in profiles {
-        let name = profile.name.clone();
-        if profile_sync_skip_reason(&profile, target_chapter).is_some() {
-            steps.push(CharacterAiPreviewStep::status(
-                format!("sync_{}", profile.id),
-                format!("{name}：无需同步"),
-                "character_sync_evidence_events",
-                "reused",
-                Some(format!("已同步到第 {target_chapter} 章或目标章节无需处理")),
-            ));
-            continue;
-        }
-        let context = build_character_sync_context_for_profile(
-            state,
-            profile,
-            &chapters,
-            target_chapter,
-            CharacterSyncRangeMode::Incremental,
-            CharacterSyncAnchorMode::RequireExistingCurrent,
+        .map_err(|error| error.to_string())?;
+    let prompt_renderer = RuntimePromptRenderer::new(state);
+    state
+        .character()
+        .prepare_all_character_profile_sync_preview_validated(
+            project_id,
+            chapter_number,
+            &prompt_renderer,
         )
-        .await?;
-        steps.extend(
-            character_sync_preview_steps_for_context(state, project_id, &context, &name).await?,
-        );
-    }
+        .await
+        .map_err(|error| error.to_string())
+        .map(|steps| steps.into_iter().map(preview_step).collect())
+}
 
-    Ok(steps)
+fn preview_step(step: CharacterProfileSyncPreviewStep) -> CharacterAiPreviewStep {
+    match step.request {
+        Some(request) => CharacterAiPreviewStep::llm(
+            step.id,
+            step.title,
+            step.prompt_name,
+            step.status,
+            step.note,
+            request,
+        ),
+        None => CharacterAiPreviewStep::status(
+            step.id,
+            step.title,
+            step.prompt_name,
+            step.status,
+            step.note,
+        ),
+    }
+}
+
+fn batch_character_sync_trace_id(scope: &str, project_id: i64, chapter_number: i32) -> String {
+    let timestamp = chrono::Utc::now()
+        .timestamp_nanos_opt()
+        .unwrap_or_else(|| chrono::Utc::now().timestamp_micros());
+    format!("character_profile_sync_batch:{scope}:{project_id}:{chapter_number}:{timestamp}")
 }

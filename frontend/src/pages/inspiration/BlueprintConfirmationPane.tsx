@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowLeft, Check, Eye, Loader2, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Eye, Loader2, RefreshCw, X } from "lucide-react";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import type { Blueprint } from "../../api/blueprint";
@@ -7,6 +7,7 @@ import { Section } from "./shared";
 
 interface BlueprintConfirmationPaneProps {
   blueprint: Blueprint;
+  consistencyWarning?: string | null;
   refining: boolean;
   onRefine: (focus: string) => void;
   onPreviewRefine: (focus: string) => void;
@@ -17,6 +18,7 @@ interface BlueprintConfirmationPaneProps {
 /** 蓝图确认页：正文负责阅读，底栏只突出最终确认。 */
 export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps> = ({
   blueprint,
+  consistencyWarning,
   refining,
   onRefine,
   onPreviewRefine,
@@ -36,9 +38,16 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
             <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
               {[blueprint.genre, blueprint.style].filter(Boolean).join(" · ") || "首版故事蓝图"}
               <span className="mx-1.5 text-book-border">·</span>
-              确认后进入项目详情继续创作
+              {consistencyWarning ? "正式蓝图只读核对" : "确认后进入项目详情继续创作"}
             </p>
           </header>
+
+          {consistencyWarning ? (
+            <div className="mb-4 flex items-start gap-2 border border-danger/35 bg-danger/5 px-3 py-2.5 text-sm text-danger">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+              <span>{consistencyWarning}</span>
+            </div>
+          ) : null}
 
           <section className="a4n-flat-surface mb-4 overflow-hidden px-4 py-4 sm:px-5 sm:py-5">
             {blueprint.one_sentence_summary ? (
@@ -57,7 +66,7 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
             </Section>
           </section>
 
-          {showRefineInput && (
+          {!consistencyWarning && showRefineInput && (
             <section className="a4n-flat-surface mb-4 overflow-hidden p-4 sm:p-5">
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -134,7 +143,7 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
               },
             ]}
           />
-          {!showRefineInput ? (
+          {!consistencyWarning && !showRefineInput ? (
             <BookButton
               variant="secondary"
               size="sm"
@@ -145,15 +154,17 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
               <RefreshCw size={13} /> 调整蓝图
             </BookButton>
           ) : null}
-          <BookButton
-            variant="primary"
-            size="sm"
-            onClick={onConfirm}
-            disabled={refining}
-            className="min-w-0 flex-1 !text-xs sm:ml-auto sm:flex-none"
-          >
-            <Check size={13} /> 确认进入项目
-          </BookButton>
+          {!consistencyWarning ? (
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={onConfirm}
+              disabled={refining}
+              className="min-w-0 flex-1 !text-xs sm:ml-auto sm:flex-none"
+            >
+              <Check size={13} /> 确认进入项目
+            </BookButton>
+          ) : null}
         </div>
       </div>
     </div>

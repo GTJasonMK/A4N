@@ -9,6 +9,7 @@ mod factory;
 mod format;
 mod gemini_veo;
 mod http;
+mod idempotency;
 mod newapi;
 mod response;
 mod seedance2;

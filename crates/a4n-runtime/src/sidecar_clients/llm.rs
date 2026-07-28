@@ -4,8 +4,7 @@ use a4n_capabilities::A4nCapabilities;
 use a4n_core::error::AppError;
 use a4n_llm::provider::LlmProvider;
 use a4n_model_discovery::{ModelDiscoveryRequest, ModelDiscoveryResult};
-use a4n_orchestrator::OrchestratorContext;
-use a4n_orchestrator::task_queue::PersistentTaskQueue;
+use a4n_orchestrator::DynamicProviderFacade;
 
 use crate::state::RuntimeProfile;
 
@@ -13,25 +12,19 @@ use super::request_context::global_provider_service_request;
 use super::response::{response_payload, service_error_string};
 
 pub(crate) fn create_llm_provider(
-    task_queue: Arc<PersistentTaskQueue>,
-    orchestrator: OrchestratorContext,
+    facade: DynamicProviderFacade,
     profile: RuntimeProfile,
     capabilities: &A4nCapabilities,
 ) -> Result<Arc<dyn LlmProvider>, AppError> {
     let sidecar_client = required_sidecar_client(profile, capabilities.llm.as_ref(), "LLM")?;
     if let Some(client) = sidecar_client {
         return Ok(Arc::new(
-            crate::dynamic_llm::DynamicLlmProvider::new_with_sidecar_client(
-                orchestrator,
-                task_queue,
-                client,
-            ),
+            crate::dynamic_llm::DynamicLlmProvider::new_with_sidecar_client(facade, client),
         ));
     }
 
     Ok(Arc::new(crate::dynamic_llm::DynamicLlmProvider::new(
-        orchestrator,
-        task_queue,
+        facade,
     )))
 }
 

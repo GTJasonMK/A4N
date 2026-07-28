@@ -61,10 +61,7 @@ import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import type { SourceSnapshotChapter } from "../../api/project";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
-import {
-  createProgressTaskId,
-  useProgressTask,
-} from "../../hooks/useProgressTask";
+import { useProgressTask } from "../../hooks/useProgressTask";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
 
 interface GalgameTabProps {
@@ -325,7 +322,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 
   const handleGenerate = async (resumeFromCheckpoint = false) => {
     if (!canEditGalgame || generating) return;
-    const taskId = createProgressTaskId("galgame-pipeline", projectId);
     setGenerating(true);
     try {
       const next = await runProgressTask(
@@ -334,10 +330,11 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           startMessage: "正在准备 Galgame 管线",
           successMessage: "Galgame 管线已完成",
           errorMessage: "运行 Galgame 管线失败",
-          taskId,
           total: 7,
           cancelLabel: "取消管线",
           runningHint: "取消后已写入的检查点会保留，可从检查点续跑。",
+          // Galgame 管线按项目取消，不依赖 host progress task id / workflow 事件。
+          cancelTaskId: `galgame-pipeline-${projectId}`,
           cancelTask: async () => {
             const nextStatus = await cancelGalgamePipeline(projectId);
             setPipelineStatus(nextStatus);
@@ -346,7 +343,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         async ({ setProgress }) => {
           setProgress("正在提交 Galgame 管线...", 0, 7);
           const result = await startGalgamePipeline(projectId, {
-            taskId,
             startFromStage: currentPipelineStartStage(),
             resumeFromCheckpoint,
           });

@@ -9,7 +9,7 @@ pub async fn list_import_queue(
 ) -> Result<Vec<ImportReviewSummary>, AppError> {
     project_access::verify_project_editor(state, user_id, project_id).await?;
     let reviews = state
-        .orchestrator
+        .import_review()
         .import_reviews_by_project(project_id)
         .await?;
     reviews
@@ -34,7 +34,7 @@ pub async fn get_import_analysis_status(
 ) -> Result<Vec<ImportAnalysisStatusSummary>, AppError> {
     project_access::verify_project_editor(state, user_id, project_id).await?;
     let reviews = state
-        .orchestrator
+        .import_review()
         .import_reviews_by_project(project_id)
         .await?;
     projections::import_analysis_status_summaries(reviews)

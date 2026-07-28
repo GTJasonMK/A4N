@@ -78,7 +78,7 @@ use self::task::*;
 use super::auth::{authenticated_user, issue_auth_response};
 use super::error::ApiError;
 use crate::state::ServerState;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use a4n_runtime::host_api::auth_records as auth_records_actions;
 use a4n_runtime::host_api::blueprint_records as blueprint_records_actions;
 use a4n_runtime::host_api::chapter_content as chapter_content_actions;

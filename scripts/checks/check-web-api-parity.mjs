@@ -99,7 +99,17 @@ const runtimeModeSymbols = new Set([
   "workspaceContext",
 ]);
 
-const frontendCommandRefs = collectFrontendCommandRefs(frontendSrc);
+const frontendApiCommandRefs = collectFrontendCommandRefs(frontendSrc, "apiInvoke");
+const frontendRuntimeCommandRefs = collectFrontendCommandRefs(
+  frontendSrc,
+  "runtimeInvoke",
+);
+const frontendCommandRefs = new Map([
+  ...frontendApiCommandRefs,
+  ...frontendRuntimeCommandRefs,
+]);
+const frontendApiCommands = sortCommands(frontendApiCommandRefs.keys());
+const frontendRuntimeCommands = sortCommands(frontendRuntimeCommandRefs.keys());
 const frontendCommands = sortCommands(frontendCommandRefs.keys());
 const webInvokeCommands = collectWebCommands(webApiIndex);
 const serverCommandDispatchCommands = sortCommands(
@@ -135,7 +145,7 @@ const directDownloadAnchorCalls = collectDirectDownloadAnchorCalls(frontendSrc);
 const webRequests = collectWebRequests(webApiIndex);
 const serverRequestSet = collectServerRequestSet(serverRoutes);
 
-const missingInWeb = difference(frontendCommands, webCommands);
+const missingInWeb = difference(frontendApiCommands, webCommands);
 const missingInTauri = difference(frontendCommands, tauriCommands);
 const webOnly = difference(webCommands, frontendCommands);
 const unwrappedTauriImports = directTauriImports.filter(
@@ -163,7 +173,8 @@ const missingServerRoutes = webRequests.filter(
   (request) => !serverRequestSet.has(request.key),
 );
 
-printSummary("前端 apiInvoke 命令", frontendCommands);
+printSummary("前端 apiInvoke 命令", frontendApiCommands);
+printSummary("前端 Tauri-only runtimeInvoke 命令", frontendRuntimeCommands);
 printSummary("桌面 Tauri 注册命令", tauriCommands);
 printSummary("Web webInvoke 专用映射命令", webInvokeCommands);
 printSummary("Web server command 分发命令", serverCommandDispatchCommands);
@@ -264,12 +275,14 @@ if (
   process.exitCode = 1;
 }
 
-function collectFrontendCommandRefs(root) {
+function collectFrontendCommandRefs(root, invokeName) {
   const commands = new Map();
   for (const file of listSourceFiles(root)) {
     const text = fs.readFileSync(file, "utf8");
-    const regex =
-      /\bapiInvoke(?:\s*<[\s\S]*?>)?\s*\(\s*["']([a-zA-Z0-9_]+)["']/g;
+    const regex = new RegExp(
+      `\\b${invokeName}(?:\\s*<[\\s\\S]*?>)?\\s*\\(\\s*["']([a-zA-Z0-9_]+)["']`,
+      "g",
+    );
     for (const match of text.matchAll(regex)) {
       const command = match[1];
       const refs = commands.get(command) ?? [];

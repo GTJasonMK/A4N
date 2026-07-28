@@ -1,11 +1,74 @@
 use std::io::Write;
+use std::time::{Duration, SystemTime};
 
 use super::super::contracts::{ImportedVideoSource, MAX_UPLOAD_VIDEO_BYTES};
 use super::super::prelude::*;
-use super::{import_video_extension, import_video_source};
+use super::import_video_source;
+use a4n_orchestrator::media::strip_data_url_prefix;
+use a4n_orchestrator::video::{
+    import_video_extension, required_upload_video_file_name, validate_upload_video_mime,
+};
+
+const UPLOADED_VIDEO_TEMP_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+
+pub(crate) fn recover_expired_uploaded_video_sources(temp_dir: &Path) {
+    let cutoff = SystemTime::now()
+        .checked_sub(UPLOADED_VIDEO_TEMP_TTL)
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    let paths = match expired_uploaded_video_sources(temp_dir, cutoff) {
+        Ok(paths) => paths,
+        Err(error) => {
+            tracing::warn!(%error, "扫描过期上传视频临时文件失败");
+            return;
+        }
+    };
+    for path in paths {
+        if let Err(error) = std::fs::remove_file(&path) {
+            tracing::warn!(path = %path.display(), %error, "清理过期上传视频临时文件失败");
+        }
+    }
+}
+
+pub(in crate::actions::video_records) fn expired_uploaded_video_sources(
+    temp_dir: &Path,
+    cutoff: SystemTime,
+) -> Result<Vec<PathBuf>, String> {
+    let entries = match std::fs::read_dir(temp_dir.join("video_uploads")) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("读取视频上传临时目录失败：{error}")),
+    };
+    let mut paths = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("读取视频上传临时目录项失败：{error}"))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("读取视频上传临时文件类型失败：{error}"))?
+            .is_file()
+        {
+            continue;
+        }
+        let path = entry.path();
+        if !path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("video_upload_"))
+        {
+            continue;
+        }
+        let modified = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .map_err(|error| format!("读取视频上传临时文件时间失败：{error}"))?;
+        if modified <= cutoff {
+            paths.push(path);
+        }
+    }
+    Ok(paths)
+}
 
 pub(in crate::actions::video_records) fn uploaded_video_source(
-    state: &AppState,
+    temp_dir: &Path,
     file_name: &str,
     mime_type: &str,
     data_base64: &str,
@@ -31,7 +94,7 @@ pub(in crate::actions::video_records) fn uploaded_video_source(
         ));
     }
 
-    persist_uploaded_video_source(&state.config.temp_dir, file_name, extension, &bytes, label)
+    persist_uploaded_video_source(temp_dir, file_name, extension, &bytes, label)
 }
 
 pub(in crate::actions::video_records) fn persist_uploaded_video_source(
@@ -91,47 +154,4 @@ fn create_uploaded_video_temp_file(
         }
     }
     Err("创建视频上传临时文件失败：文件名冲突过多".to_string())
-}
-
-fn required_upload_video_file_name(file_name: &str) -> Result<String, String> {
-    let trimmed = file_name.trim();
-    if trimmed.is_empty() {
-        return Err("上传视频文件名不能为空".to_string());
-    }
-    let name = Path::new(trimmed)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "上传视频文件名无效".to_string())?;
-    if name != trimmed {
-        return Err("上传视频文件名不能包含路径".to_string());
-    }
-    Ok(name.to_string())
-}
-
-fn validate_upload_video_mime(mime_type: &str, extension: &str) -> Result<(), String> {
-    let mime = mime_type.trim().to_ascii_lowercase();
-    let valid = match extension {
-        "mp4" => matches!(mime.as_str(), "video/mp4" | "application/mp4"),
-        "webm" => mime == "video/webm",
-        "mov" => matches!(mime.as_str(), "video/quicktime" | "video/mov"),
-        "m4v" => matches!(
-            mime.as_str(),
-            "video/x-m4v" | "video/mp4" | "application/mp4"
-        ),
-        _ => false,
-    };
-    if valid {
-        Ok(())
-    } else {
-        Err("上传视频 MIME 与文件扩展名不匹配".to_string())
-    }
-}
-
-fn strip_data_url_prefix(value: &str) -> &str {
-    value
-        .split_once(";base64,")
-        .map(|(_, body)| body)
-        .unwrap_or(value)
 }

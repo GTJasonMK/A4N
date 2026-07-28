@@ -5,6 +5,7 @@ use tokio_util::sync::CancellationToken;
 use crate::OrchestratorContext;
 use owner::build_chapter_analysis_preview_requests;
 
+mod application;
 mod checkpoint;
 mod execution;
 mod outputs;
@@ -74,15 +75,17 @@ impl<'a> ChapterAnalysisProgress<'a> {
 }
 
 impl OrchestratorContext {
-    pub async fn build_chapter_analysis_requests(
+    pub(crate) async fn build_chapter_analysis_requests(
         &self,
         chapter_id: i64,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
-        let chapter =
-            a4n_db::chapter_content::chapter_by_id_for_analysis(self.db.connection(), chapter_id)
-                .await
-                .map_err(chapter_content_edit_error)?;
+        let chapter = a4n_db::chapter_content::chapter_by_id_for_analysis(
+            self.database.connection(),
+            chapter_id,
+        )
+        .await
+        .map_err(chapter_content_edit_error)?;
         ensure_chapter_has_analysis_content(&chapter)?;
         build_chapter_analysis_preview_requests(&chapter, prompt_renderer).await
     }
@@ -104,3 +107,8 @@ fn chapter_content_edit_error(error: a4n_db::chapter_content::ChapterContentEdit
         }
     }
 }
+pub use application::{
+    CHAPTER_ANALYSIS_APPLICATION_PROGRESS_TOTAL, ChapterAnalysisApplicationProgress,
+    ChapterAnalysisApplicationProgressReporter, ChapterAnalysisHostPort,
+    ChapterAnalysisPreviewStep,
+};

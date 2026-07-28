@@ -2,7 +2,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, ChatResponse, LlmProvider, ModelCapabilities};
+use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use async_trait::async_trait;
 use futures::Stream;
 
@@ -45,10 +45,6 @@ impl Default for SwitchableLlmProvider {
 
 #[async_trait]
 impl LlmProvider for SwitchableLlmProvider {
-    async fn chat(&self, request: ChatRequest) -> Result<ChatResponse, AppError> {
-        self.delegate().chat(request).await
-    }
-
     async fn chat_stream(
         &self,
         request: ChatRequest,

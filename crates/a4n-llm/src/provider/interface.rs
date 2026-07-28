@@ -4,18 +4,15 @@ use a4n_core::error::AppError;
 use async_trait::async_trait;
 use futures::stream::Stream;
 
-use super::contracts::{ChatChunk, ChatMessage, ChatResponse, ModelCapabilities};
+use super::contracts::{ChatChunk, ChatMessage, ModelCapabilities};
 use super::request::ChatRequest;
 
 /// LLM Provider trait
 ///
 /// 所有 LLM 后端必须实现此 trait。
-/// 提供同步聊天、流式聊天、连接测试和能力查询。
+/// 提供流式聊天、连接测试和能力查询。
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
-    /// 同步聊天：发送完整消息列表，返回完整响应
-    async fn chat(&self, request: ChatRequest) -> Result<ChatResponse, AppError>;
-
     /// 流式聊天：发送消息列表，返回流式块
     async fn chat_stream(
         &self,

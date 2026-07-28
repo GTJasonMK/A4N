@@ -1,47 +1,21 @@
-use super::super::{GalgameProjectInput, project_record_by_id};
+use super::super::GalgameProjectInput;
 use super::contracts::{
-    GALGAME_PIPELINE_WORKFLOW_KIND, GalgamePipelineStatusSummary, GalgameWorkflowCheckpointSummary,
-    GalgameWorkflowRunSummary,
+    GalgamePipelineStatusSummary, GalgameWorkflowCheckpointSummary, GalgameWorkflowRunSummary,
 };
 use crate::AppState;
-use crate::actions::access;
-use a4n_orchestrator::galgame::PROJECT_KIND_GALGAME;
-use a4n_orchestrator::workflow::ListWorkflowRunsInput;
 
 pub async fn get_galgame_pipeline_status(
     state: &AppState,
     user_id: i64,
     input: GalgameProjectInput,
 ) -> Result<GalgamePipelineStatusSummary, String> {
-    access::verify_project_access_string(state, user_id, input.project_id).await?;
-    let project = project_record_by_id(state, input.project_id).await?;
-    if project.project_kind != PROJECT_KIND_GALGAME {
-        return Err(format!("项目不是 Galgame 派生项目: {}", project.id));
-    }
-    let run = state
-        .orchestrator
-        .workflow_run_models(ListWorkflowRunsInput {
-            project_id: Some(project.id),
-            workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
-            status: None,
-            resumable_only: None,
-            limit: Some(1),
-        })
+    let status = state
+        .galgame()
+        .get_galgame_pipeline_status_for_user_validated(user_id, input.project_id)
         .await
-        .map_err(|err| err.to_string())?
-        .into_iter()
-        .next();
-    let Some(run) = run else {
-        return Ok(GalgamePipelineStatusSummary {
-            run: None,
-            checkpoints: Vec::new(),
-        });
-    };
-    let checkpoints = state
-        .orchestrator
-        .workflow_checkpoint_models(run.id)
-        .await
-        .map_err(|err| err.to_string())?
+        .map_err(|error| error.to_string())?;
+    let checkpoints = status
+        .checkpoints
         .into_iter()
         .map(|checkpoint| GalgameWorkflowCheckpointSummary {
             id: checkpoint.id,
@@ -57,7 +31,7 @@ pub async fn get_galgame_pipeline_status(
         })
         .collect();
     Ok(GalgamePipelineStatusSummary {
-        run: Some(GalgameWorkflowRunSummary {
+        run: status.run.map(|run| GalgameWorkflowRunSummary {
             id: run.id,
             status: run.status,
             mode: run.mode,

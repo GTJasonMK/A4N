@@ -1,7 +1,5 @@
 use super::super::VideoDurationCapability;
 use super::contracts::{
-    CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
-    OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
     VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, VideoConfigParams,
     VideoDurationCapabilityValues,
 };
@@ -9,6 +7,7 @@ use super::provider::{
     normalize_video_provider_options_json, validate_backend_duration_constraints,
 };
 use a4n_core::models::ai::video_gen_config;
+use a4n_video::video_provider_cleanup_capabilities;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
@@ -45,20 +44,15 @@ pub fn validate_video_config_params(
     params.base_url = required_video_config_value(params.base_url, "base_url")?;
     params.model = required_video_config_value(params.model, "model")?;
 
-    match params.backend.as_str() {
-        OPENAI_COMPATIBLE_VIDEO_BACKEND
-        | NEWAPI_VIDEO_BACKEND
-        | GEMINI_VEO_VIDEO_BACKEND
-        | SEEDANCE2_VIDEO_BACKEND
-        | OPENAI_CHAT_VIDEO_BACKEND
-        | CLIPROXY_OPENAI_VIDEO_BACKEND => {
+    match video_provider_cleanup_capabilities(&params.backend) {
+        Some(_) => {
             params.api_key_encrypted = params
                 .api_key_encrypted
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty());
         }
-        other => {
-            return Err(format!("未知视频生成后端: {other}"));
+        None => {
+            return Err(format!("未知视频生成后端: {}", params.backend));
         }
     }
 

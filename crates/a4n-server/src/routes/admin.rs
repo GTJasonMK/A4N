@@ -67,6 +67,6 @@ pub async fn disable_user(
     Path(user_id): Path<i64>,
 ) -> Result<(), ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
-    admin_records::delete_user_for_admin(state.runtime(), caller.id, user_id).await?;
+    admin_records::disable_user_for_admin(state.runtime(), caller.id, user_id).await?;
     Ok(())
 }

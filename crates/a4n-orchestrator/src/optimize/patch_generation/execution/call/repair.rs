@@ -7,8 +7,9 @@ use a4n_llm::provider::ChatRequest;
 use crate::{
     optimize::{
         OptimizationPatchProposal, OrchestratorContext,
+        agent_loop_executor::AgentLoopGenerationContext,
         patch::{content_optimization_patch_schema, parse_content_optimization_patch_value},
-        turns::{EVENT_KIND_ERROR, EVENT_STATUS_FAILED, TURN_STATUS_FAILED},
+        turns::{EVENT_KIND_ERROR, EVENT_STATUS_FAILED},
     },
     structured_llm::{StructuredRepairCheckpointContext, StructuredValueRepairInput},
 };
@@ -23,6 +24,7 @@ pub(super) async fn repair_patch_generation_response(
     call_key: &str,
     repair_request: ChatRequest,
     raw_response: &str,
+    generation: &AgentLoopGenerationContext<'_>,
 ) -> Result<OptimizationPatchProposal, AppError> {
     let parse_output = |value: &serde_json::Value| {
         parse_content_optimization_patch_value(
@@ -45,7 +47,7 @@ pub(super) async fn repair_patch_generation_response(
                 base_call_key: call_key.to_string(),
                 call_order: 1,
             }),
-            cancel_token: None,
+            cancel_token: Some(generation.cancellation),
             progress: None,
             parse_output: &parse_output,
         })
@@ -61,9 +63,6 @@ pub(super) async fn repair_patch_generation_response(
                     &format!("局部补丁校验失败：{err}"),
                     None,
                 )
-                .await?;
-            service
-                .fail_turn(turn_id, TURN_STATUS_FAILED, &err.to_string())
                 .await?;
             Err(err)
         }

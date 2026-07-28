@@ -49,6 +49,11 @@ impl LocalEmbeddingProviderRuntime {
         input: LocalEmbedTextsInput,
     ) -> Result<LocalEmbedTextsOutput, AppError> {
         let identity = fastembed_identity_from_config(self, &input.config)?;
+        let identity = a4n_api_contract::embedding::EmbeddingModelIdentity {
+            backend: identity.backend,
+            model: identity.model,
+            dimension: identity.dimension,
+        };
         if input.texts.is_empty() {
             return Ok(LocalEmbedTextsOutput {
                 identity,

@@ -1,10 +1,15 @@
+use a4n_api_contract::{
+    generation_tasks::{GenerationTaskHandle, HostErrorResponse},
+    optimize::StartOptimizeAnalysisGenerationInput,
+};
+use a4n_runtime::AppState;
 use a4n_runtime::host_api::optimize::{
     self as optimize_actions, AnalyzeChapterInput, OptimizationSessionSummary,
     PrepareOptimizationAnalysisSessionInput,
 };
+use tauri::State;
 
 use super::adapters::{optimize_input_command, optimize_preview_command};
-use super::task::optimize_session_stream_task_command;
 
 optimize_input_command!(
     create_optimization_analysis_session,
@@ -18,16 +23,16 @@ optimize_input_command!(
     OptimizationSessionSummary,
     optimize_actions::prepare_optimization_analysis_session,
 );
-optimize_session_stream_task_command!(
-    execute_optimization_analysis_session,
-    OptimizationSessionSummary,
-    optimize_actions::execute_optimization_analysis_session_task_scope,
-    "正在准备执行内容优化分析",
-    "优化分析已停止",
-    "optimize_analysis_failed",
-    |session| optimization_analysis_success_summary(session),
-    optimize_actions::execute_optimization_analysis_session,
-);
+#[tauri::command]
+pub async fn start_optimize_analysis_generation(
+    state: State<'_, AppState>,
+    user_id: i64,
+    input: StartOptimizeAnalysisGenerationInput,
+) -> Result<GenerationTaskHandle, HostErrorResponse> {
+    optimize_actions::start_optimize_analysis_generation_typed(state.inner(), user_id, input)
+        .await
+        .map_err(crate::commands::generation_tasks::map_access_error)
+}
 optimize_preview_command!(
     preview_create_optimization_analysis_session_request,
     AnalyzeChapterInput,
@@ -38,15 +43,3 @@ optimize_preview_command!(
     PrepareOptimizationAnalysisSessionInput,
     optimize_actions::preview_prepare_optimization_analysis_session_request,
 );
-
-fn optimization_analysis_success_summary(session: &OptimizationSessionSummary) -> String {
-    let name = session
-        .name
-        .as_deref()
-        .map(str::trim)
-        .filter(|name| !name.is_empty());
-    match name {
-        Some(name) => format!("优化分析完成：{name}"),
-        None => "优化分析完成".to_string(),
-    }
-}

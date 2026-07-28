@@ -98,6 +98,7 @@ pub fn content_type_for_path(path: &Path) -> &'static str {
         Some("webm") => "video/webm",
         Some("mov") => "video/quicktime",
         Some("mp3") => "audio/mpeg",
+        Some("m4a") => "audio/mp4",
         Some("wav") => "audio/wav",
         Some("ogg") => "audio/ogg",
         _ => "application/octet-stream",

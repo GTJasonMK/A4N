@@ -1,11 +1,11 @@
 use a4n_llm::provider::{LlmTraceContext, UsageInfo};
 use a4n_orchestrator::{
-    OrchestratorContext,
+    DynamicProviderFacade,
     generation::{LlmCallUsageTraceInput, RecordLlmCallTraceInput},
 };
 
 pub(in crate::dynamic_llm) async fn record_dynamic_llm_trace(
-    orchestrator: &OrchestratorContext,
+    facade: &DynamicProviderFacade,
     trace_context: Option<&LlmTraceContext>,
     model: Option<&str>,
     usage: Option<UsageInfo>,
@@ -19,7 +19,7 @@ pub(in crate::dynamic_llm) async fn record_dynamic_llm_trace(
     let Some(trace_context) = trace_context else {
         return;
     };
-    let result = orchestrator
+    let result = facade
         .record_llm_call_trace(RecordLlmCallTraceInput {
             generation_run_id: trace_context.generation_run_id,
             workflow_run_id: trace_context.workflow_run_id,

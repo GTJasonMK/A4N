@@ -19,25 +19,8 @@ pub struct MessageSummary {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ConverseInput {
-    pub project_id: i64,
-    pub user_input: String,
-    pub variables: Option<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PreviewInspirationRequestInput {
     pub project_id: i64,
     pub user_input: String,
-    pub variables: Option<Value>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ConverseStreamInput {
-    pub project_id: i64,
-    pub message: String,
-    pub task_id: Option<String>,
     pub variables: Option<Value>,
 }

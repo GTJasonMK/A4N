@@ -4,6 +4,8 @@ use super::super::{
     ApiError, ServerState, command_input, non_negative_u64_arg, nullable_i64_arg, string_arg,
     task_records_actions, to_value, u64_arg,
 };
+use a4n_api_contract::generation_tasks::CancelGenerationTaskInput;
+use a4n_runtime::host_api::generation_tasks as generation_task_actions;
 
 pub(in crate::routes::commands) async fn list_active_workflows(
     state: &ServerState,
@@ -92,6 +94,18 @@ pub(in crate::routes::commands) async fn cancel_task(
         .await
         .map_err(ApiError::bad_request)?;
     Ok(Value::Null)
+}
+
+pub(in crate::routes::commands) async fn cancel_generation_task(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: CancelGenerationTaskInput = command_input(args, "cancel_generation_task")?;
+    let handle = generation_task_actions::cancel_generation_task(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
+    to_value(handle)
 }
 
 pub(in crate::routes::commands) async fn get_queue_stats(

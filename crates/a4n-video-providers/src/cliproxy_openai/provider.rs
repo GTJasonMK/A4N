@@ -8,11 +8,14 @@ use reqwest::header::CONTENT_TYPE;
 use serde_json::Value;
 
 use a4n_core::error::AppError;
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video::{
+    VideoGenerationRequest, VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState,
+    VideoProvider,
+};
 
 use crate::download::download_video_url;
 use crate::format::detect_video_format_from_bytes;
-use crate::response::parse_json_response;
+use crate::response::{parse_json_response, parse_json_response_allow_not_found};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum GrokReferenceMode {
@@ -90,11 +93,20 @@ impl CliProxyOpenAiVideoProvider {
         request_body_with_mode(req, grok_reference_mode(provider_options_json)?)
     }
 
-    async fn post_json(&self, url: &str, body: Value) -> Result<Value, AppError> {
+    async fn post_json(
+        &self,
+        url: &str,
+        body: Value,
+        provider_idempotency_key_sha256: Option<&str>,
+    ) -> Result<Value, AppError> {
         let mut request = self.client.post(url).json(&body);
         if !self.api_key.trim().is_empty() {
             request = request.bearer_auth(self.api_key.trim());
         }
+        let request = crate::idempotency::with_provider_idempotency_key(
+            request,
+            provider_idempotency_key_sha256,
+        )?;
         let resp = request
             .send()
             .await
@@ -112,6 +124,17 @@ impl CliProxyOpenAiVideoProvider {
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("CLIProxy 视频任务查询失败：{e}")))?;
         parse_json_response(resp, "CLIProxy 视频任务查询").await
+    }
+
+    async fn get_status_json(&self, url: &str) -> Result<Option<Value>, AppError> {
+        let mut request = self.client.get(url);
+        if !self.api_key.trim().is_empty() {
+            request = request.bearer_auth(self.api_key.trim());
+        }
+        let resp = request.send().await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("CLIProxy 视频任务状态查询失败：{e}"))
+        })?;
+        parse_json_response_allow_not_found(resp, "CLIProxy 视频任务状态查询").await
     }
 
     async fn download_completed_video(
@@ -195,6 +218,7 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
     async fn generate(
         &self,
         req: VideoGenerationRequest,
+        provider_idempotency_key_sha256: Option<&str>,
     ) -> Result<VideoGenerationResult, AppError> {
         if self.base_url.is_empty() {
             return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
@@ -202,7 +226,9 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
         let url = self.videos_url();
         let body = self.request_body_for_config(&req)?;
         tracing::debug!("cliproxy video POST {url} model={}", req.model);
-        let v = self.post_json(&url, body).await?;
+        let v = self
+            .post_json(&url, body, provider_idempotency_key_sha256)
+            .await?;
         let video_id = video_id(&v)?;
 
         if is_completed_status(status(&v).as_deref()) {
@@ -251,5 +277,82 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
                 "未知 CLIProxy 视频任务 status={other}"
             ))),
         }
+    }
+
+    async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
+        if self.base_url.is_empty() {
+            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+        }
+        let video_id = job_id.trim();
+        if video_id.is_empty() {
+            return Err(AppError::InvalidArgument(
+                "CLIProxy 视频任务 ID 不能为空".into(),
+            ));
+        }
+        let value = self.get_status_json(&self.video_url(video_id)).await?;
+        let Some(value) = value else {
+            return Ok(a4n_video::VideoJobStatus::NotFound);
+        };
+        let status = status(&value).ok_or_else(|| {
+            AppError::Internal(anyhow::anyhow!("CLIProxy 视频任务响应缺少 status"))
+        })?;
+        if matches!(
+            status.as_str(),
+            "queued" | "pending" | "submitted" | "starting"
+        ) {
+            return Ok(a4n_video::VideoJobStatus::Pending);
+        }
+        if matches!(status.as_str(), "in_progress" | "processing" | "running") {
+            return Ok(a4n_video::VideoJobStatus::Running);
+        }
+        if matches!(status.as_str(), "cancelled" | "canceled") {
+            return Ok(a4n_video::VideoJobStatus::Cancelled);
+        }
+        if matches!(status.as_str(), "failed" | "failure" | "error" | "expired") {
+            return Ok(a4n_video::VideoJobStatus::Failed(
+                failure_message(&value).unwrap_or_else(|| "视频生成失败".to_string()),
+            ));
+        }
+        if is_completed_status(Some(status.as_str())) {
+            return Ok(a4n_video::VideoJobStatus::Completed);
+        }
+        Err(AppError::Internal(anyhow::anyhow!(
+            "未知 CLIProxy 视频任务 status={status}"
+        )))
+    }
+
+    async fn delete(&self, job_id: &str) -> Result<VideoJobDeleteOutcome, AppError> {
+        if self.base_url.is_empty() {
+            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+        }
+        let video_id = job_id.trim();
+        if video_id.is_empty() {
+            return Err(AppError::InvalidArgument(
+                "CLIProxy 视频任务 ID 不能为空".into(),
+            ));
+        }
+        let mut request = self.client.delete(self.video_url(video_id));
+        if !self.api_key.trim().is_empty() {
+            request = request.bearer_auth(self.api_key.trim());
+        }
+        let response = request.send().await.map_err(|error| {
+            AppError::Internal(anyhow::anyhow!("CLIProxy 视频删除失败：{error}"))
+        })?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(VideoJobDeleteOutcome::NotFound);
+        }
+        if response.status().is_success() {
+            return Ok(VideoJobDeleteOutcome::Deleted);
+        }
+        let status = response.status();
+        let body = response.text().await.map_err(|error| {
+            AppError::Internal(anyhow::anyhow!(
+                "读取 CLIProxy 视频删除错误响应失败：{error}"
+            ))
+        })?;
+        Err(AppError::Internal(anyhow::anyhow!(
+            "CLIProxy 视频删除返回 {status}：{}",
+            error_body_preview(&body)
+        )))
     }
 }

@@ -93,6 +93,35 @@ fn generation_checkpoint_fingerprint_is_stable_sha256_hex() {
 }
 
 #[test]
+fn generation_checkpoint_fingerprint_uses_rfc8785_canonical_json() {
+    let first: Value = serde_json::from_str(
+        r#"{
+            "numbers": [333333333.33333329, 1E30, 4.50, 2e-3, 0.000000000000000000000000001],
+            "string": "\u20ac$\u000F\u000aA'\u0042\u0022\u005c\\\"\/",
+            "literals": [null, true, false]
+        }"#,
+    )
+    .expect("RFC 8785 example JSON");
+    let second: Value = serde_json::from_str(
+        r#"{
+            "literals": [null, true, false],
+            "string": "\u20ac$\u000F\u000aA'\u0042\u0022\u005c\\\"\/",
+            "numbers": [333333333.33333329, 1E30, 4.50, 2e-3, 0.000000000000000000000000001]
+        }"#,
+    )
+    .expect("reordered RFC 8785 example JSON");
+
+    assert_eq!(
+        canonical_json_text(&first).expect("canonical JSON"),
+        r#"{"literals":[null,true,false],"numbers":[333333333.3333333,1e+30,4.5,0.002,1e-27],"string":"€$\u000f\nA'B\"\\\\\"/"}"#
+    );
+    assert_eq!(
+        generation_checkpoint_fingerprint_sha256(&first).unwrap(),
+        generation_checkpoint_fingerprint_sha256(&second).unwrap()
+    );
+}
+
+#[test]
 fn render_video_prompt_text_uses_current_main_sections() {
     let spec = spec_with_params(json!({
         "input_image_introduction": "从已有首帧自然开始。",

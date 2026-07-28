@@ -11,7 +11,7 @@ pub async fn get_project_status_history(
 ) -> Result<Vec<StatusHistorySummary>, String> {
     verify_project_access_string(state, user_id, project_id).await?;
     let history = state
-        .orchestrator
+        .project_read()
         .project_status_history(project_id)
         .await
         .map_err(app_error_message)?;

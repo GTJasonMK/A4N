@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "attempt": 1,
+  "sequence": 2,
+  "emitted_at_ms": 0,
+  "event": {
+    "kind": "text_delta",
+    "data": {
+      "stream_id": "raw_json",
+      "offset": 0,
+      "delta": "A中文🙂é",
+      "chunk_index": 0
+    }
+  }
+}

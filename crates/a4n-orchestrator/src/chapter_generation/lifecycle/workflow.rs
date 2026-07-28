@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-pub struct StartChapterGenerationWorkflowInput<'a> {
+pub(crate) struct StartChapterGenerationWorkflowInput<'a> {
     pub project_id: i64,
     pub chapter_number: i32,
     pub task_id: &'a str,
@@ -24,7 +24,7 @@ pub struct StartChapterGenerationWorkflowInput<'a> {
 }
 
 impl OrchestratorContext {
-    pub async fn start_chapter_generation_workflow(
+    pub(crate) async fn start_chapter_generation_workflow(
         &self,
         input: StartChapterGenerationWorkflowInput<'_>,
     ) -> Result<i64, String> {
@@ -56,7 +56,7 @@ impl OrchestratorContext {
         .map_err(|error| error.to_string())
     }
 
-    pub async fn complete_chapter_generation_workflow(
+    pub(crate) async fn complete_chapter_generation_workflow(
         &self,
         workflow_run_id: i64,
     ) -> Result<(), String> {
@@ -66,7 +66,7 @@ impl OrchestratorContext {
             .map_err(|error| error.to_string())
     }
 
-    pub async fn fail_chapter_generation_workflow(
+    pub(crate) async fn fail_chapter_generation_workflow(
         &self,
         workflow_run_id: i64,
         error: &str,

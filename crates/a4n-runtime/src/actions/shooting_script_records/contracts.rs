@@ -1,40 +1,25 @@
 use a4n_core::{
     models::chapter::chapter_shooting_script, shooting_script::ChapterShootingScriptV1,
 };
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GetChapterShootingScriptInput {
-    pub project_id: i64,
-    pub source_chapter_id: i64,
+pub use a4n_api_contract::shooting_script::{
+    ChapterShootingScriptView, EditChapterShootingScriptRecordInput,
+    EditedChapterShootingScriptView, GenerateChapterShootingScriptInput,
+    GetChapterShootingScriptInput,
+};
+
+pub(super) fn contract_view(
+    record: chapter_shooting_script::Model,
+    script: ChapterShootingScriptV1,
+) -> Result<ChapterShootingScriptView, String> {
+    Ok(ChapterShootingScriptView {
+        record: serde_json::to_value(record)
+            .map_err(|error| format!("序列化拍摄剧本记录失败: {error}"))?,
+        script: serde_json::to_value(script)
+            .map_err(|error| format!("序列化拍摄剧本合同失败: {error}"))?,
+    })
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GenerateChapterShootingScriptInput {
-    pub project_id: i64,
-    pub source_chapter_id: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct EditChapterShootingScriptRecordInput {
-    pub project_id: i64,
-    pub source_chapter_id: i64,
-    pub record_id: i64,
-    pub expected_revision: i32,
-    pub script: ChapterShootingScriptV1,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ChapterShootingScriptView {
-    pub record: chapter_shooting_script::Model,
-    pub script: ChapterShootingScriptV1,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct EditedChapterShootingScriptView {
-    pub shooting_script: ChapterShootingScriptView,
-    pub invalidated_project_ids: Vec<i64>,
+pub(super) fn domain_script(script: serde_json::Value) -> Result<ChapterShootingScriptV1, String> {
+    serde_json::from_value(script).map_err(|error| format!("解析拍摄剧本合同失败: {error}"))
 }

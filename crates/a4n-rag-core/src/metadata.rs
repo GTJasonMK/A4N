@@ -1,4 +1,7 @@
-use a4n_core::{error::AppError, rag::RAG_TEXT_INDEX_VERSION};
+use a4n_core::{
+    error::AppError,
+    rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION},
+};
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use sha2::{Digest, Sha256};
 
@@ -27,8 +30,19 @@ pub fn normalize_metadata(
         serde_json::Value::Object(mut object) => {
             family::validate_project_family_metadata(project_id, &object)?;
             object.insert("project_id".to_string(), serde_json::json!(project_id));
-            object.insert("content_hash".to_string(), serde_json::json!(content_hash));
+            object.insert(
+                "content_hash".to_string(),
+                serde_json::json!(content_hash.clone()),
+            );
             object.insert("hash_algorithm".to_string(), serde_json::json!("sha256"));
+            object.insert(
+                "source_generation".to_string(),
+                serde_json::json!(content_hash),
+            );
+            object.insert(
+                "index_format_version".to_string(),
+                serde_json::json!(RAG_INDEX_FORMAT_VERSION),
+            );
             object.insert(
                 "text_index_version".to_string(),
                 serde_json::json!(RAG_TEXT_INDEX_VERSION),
@@ -68,6 +82,23 @@ pub fn metadata_matches_current_text_index(metadata: &serde_json::Value) -> bool
         .get("text_index_version")
         .and_then(serde_json::Value::as_str)
         == Some(RAG_TEXT_INDEX_VERSION)
+}
+
+pub fn metadata_matches_current_index_format(metadata: &serde_json::Value) -> bool {
+    metadata
+        .get("index_format_version")
+        .and_then(serde_json::Value::as_u64)
+        == Some(u64::from(RAG_INDEX_FORMAT_VERSION))
+}
+
+pub fn metadata_matches_source_generation(
+    metadata: &serde_json::Value,
+    source_generation: &str,
+) -> bool {
+    metadata
+        .get("source_generation")
+        .and_then(serde_json::Value::as_str)
+        == Some(source_generation)
 }
 
 pub fn metadata_matches_embedding_identity(

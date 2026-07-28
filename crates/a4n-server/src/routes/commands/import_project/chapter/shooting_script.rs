@@ -3,7 +3,7 @@ use crate::routes::commands::{
     sanitize_optional_task_id, string_action_result, web_fire_and_forget_progress_reporter,
 };
 use crate::state::ServerState;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use a4n_runtime::host_api::shooting_script_records as shooting_script_records_actions;
 use serde_json::{Value, json};
 
@@ -36,14 +36,14 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
     let task = register_web_task(
         state,
         task_id.clone(),
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         input.project_id,
         shooting_script_records_actions::CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         "正在准备剧本改编",
     )
     .await;
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-    let reporter = web_fire_and_forget_progress_reporter(state, task.clone(), task_id.clone());
+    let reporter = web_fire_and_forget_progress_reporter(task.clone());
     let progress = |current, total, message: &str| {
         reporter(current, total, message);
         if let Some(cancel_token) = cancel_token.as_ref()
@@ -68,7 +68,6 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
             result,
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),
         ),
-        "结构化拍摄剧本生成完成",
     )
     .await?;
     Ok(json!(result))

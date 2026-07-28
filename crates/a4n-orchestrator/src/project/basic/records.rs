@@ -14,7 +14,7 @@ impl OrchestratorContext {
         &self,
         input: CreateProjectRecordInput,
     ) -> Result<novel_project::Model, AppError> {
-        a4n_db::project::create_project_record(self.db.connection(), input)
+        a4n_db::project::create_project_record(self.database.connection(), input)
             .await
             .map_err(project_mutation_error_to_app_error)
     }
@@ -23,7 +23,7 @@ impl OrchestratorContext {
         &self,
         input: ImportTextProjectRecordInput,
     ) -> Result<ImportTextProjectRecordResult, AppError> {
-        a4n_db::project::import_text_project_record(self.db.connection(), input)
+        a4n_db::project::import_text_project_record(self.database.connection(), input)
             .await
             .map_err(import_text_project_error_to_app_error)
     }
@@ -33,7 +33,7 @@ impl OrchestratorContext {
         user_id: i64,
         params: CreateDerivedProjectParams,
     ) -> Result<novel_project::Model, AppError> {
-        a4n_db::project::create_derived_project_record(self.db.connection(), user_id, params)
+        a4n_db::project::create_derived_project_record(self.database.connection(), user_id, params)
             .await
             .map_err(project_mutation_error_to_app_error)
     }
@@ -43,7 +43,7 @@ impl OrchestratorContext {
         user_id: i64,
         params: CreateFreeformVideoProjectParams,
     ) -> Result<novel_project::Model, AppError> {
-        a4n_db::project::create_freeform_video_project_record(self.db.connection(), user_id, params)
+        a4n_db::project::create_freeform_video_project_record(self.database.connection(), user_id, params)
             .await
             .map_err(project_mutation_error_to_app_error)
     }
@@ -52,31 +52,9 @@ impl OrchestratorContext {
         &self,
         input: UpdateProjectRecordInput,
     ) -> Result<novel_project::Model, AppError> {
-        a4n_db::project::update_project_record(self.db.connection(), input)
+        a4n_db::project::update_project_record(self.database.connection(), input)
             .await
             .map_err(project_mutation_error_to_app_error)
     }
 
-    pub async fn project_import_analysis_progress(
-        &self,
-        project_id: i64,
-    ) -> Result<Option<String>, AppError> {
-        a4n_db::project::project_import_analysis_progress(self.db.connection(), project_id)
-            .await
-            .map_err(project_basic_record_error_to_app_error)
-    }
-
-    pub async fn save_project_import_analysis_progress(
-        &self,
-        project_id: i64,
-        progress: String,
-    ) -> Result<(), AppError> {
-        a4n_db::project::save_project_import_analysis_progress(
-            self.db.connection(),
-            project_id,
-            progress,
-        )
-        .await
-        .map_err(project_basic_record_error_to_app_error)
-    }
 }

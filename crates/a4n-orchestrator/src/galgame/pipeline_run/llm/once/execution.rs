@@ -41,7 +41,7 @@ where
         context_plan_json: None,
         context_pack_refs_json: None,
     });
-    let response = service.llm.chat(request.clone()).await?;
+    let response = service.stream_complete_llm(request.clone()).await?;
     if is_truncated_finish_reason(response.finish_reason.as_deref()) {
         return Err(AppError::InvalidState {
             current: format!("{}_response_truncated", input.prompt_name),
@@ -75,7 +75,7 @@ where
         .transpose()
         .map_err(AppError::Serialization)?;
     workflow::save_completed_llm_call_checkpoint(
-        service.db.connection(),
+        service.database.connection(),
         CompletedLlmCallCheckpointInput {
             workflow_run_id: input.workflow_run_id,
             call_key: input.step_key.clone(),

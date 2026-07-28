@@ -5,23 +5,14 @@ import { RequestPreviewModal } from "../../components/feedback/RequestPreviewMod
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../api";
 import {
-  createProgressTaskId,
-  type RunProgressTask,
-  useProgressTask,
-} from "../../hooks/useProgressTask";
-import {
   deleteLatestChapterOutlines,
   deleteLatestParts,
-  generateChapterOutlinesByCount,
-  generateParts,
   listChapterOutlines,
   listParts,
   previewGenerateChapterOutlinesByCountRequest,
   previewGeneratePartsRequest,
   previewRegenerateChapterOutlineRequest,
   previewRegenerateLastPartRequest,
-  regenerateChapterOutline,
-  regenerateLastPart,
   type ChapterOutline,
   type PartOutline,
   updateChapterOutline,
@@ -47,6 +38,7 @@ import {
   type NumberInputValue,
 } from "./outlines/outlineTabUtils";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { useOutlineGeneration } from "./outlines/useOutlineGeneration";
 
 export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) => {
   const projectId = project.id;
@@ -60,7 +52,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       ? project.chapters_per_part
       : "";
   const { addToast } = useToast();
-  const { runProgressTask } = useProgressTask();
+  const { run: runOutlineGeneration } = useOutlineGeneration();
   const [parts, setParts] = useState<PartOutline[]>([]);
   const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
   const [loading, setLoading] = useState(true);
@@ -326,20 +318,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   }, [editingId, outlines]);
 
-  const runOutlineProgressTask = useCallback<RunProgressTask>(
-    async (options, task) => {
-      return await runProgressTask(
-        {
-          cancelLabel: "停止生成",
-          runningHint: "停止后已保存的大纲会保留，再次生成会从缺失项继续",
-          ...options,
-        },
-        task,
-      );
-    },
-    [runProgressTask],
-  );
-
   const handleGenerateParts = async () => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
@@ -370,31 +348,29 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       : `已生成 ${requestedPartCount} 个分部`;
     setGeneratingParts(true);
     try {
-      const taskId = createProgressTaskId("outline-parts", requestProjectId);
-      await runOutlineProgressTask(
+      await runOutlineGeneration(
         {
           title: progressActionLabel,
-          startMessage: `准备调用模型${progressActionLabel}…`,
+          startMessage: `模型正在${progressActionLabel}，耗时可能较长…`,
           successMessage,
           errorMessage: extendingParts ? "追加分部失败" : "生成分部失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress(`模型正在${progressActionLabel}，耗时可能较长…`, 1);
-          await generateParts({
-            project_id: requestProjectId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "generate_parts",
             part_count: requestedPartCount,
             chapters_per_part: requestedChaptersPerPart,
-            task_id: taskId,
             variables: null,
-          });
+          },
+        },
+        async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress("正在刷新大纲列表…", 2);
+          control.setProgress("正在刷新…", 2);
           await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-        },
+          },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       addToast(successMessage, "success");
@@ -469,30 +445,28 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       const startChapter =
         outlinesRef.current.reduce((max, outline) => Math.max(max, outline.chapter_number), 0) + 1;
       const existingOutlineCount = outlinesRef.current.length;
-      const taskId = createProgressTaskId("outline-chapters", requestProjectId);
-      await runOutlineProgressTask(
+      await runOutlineGeneration(
         {
           title: existingOutlineCount > 0 ? "继续生成章纲" : "生成章节大纲",
-          startMessage: "准备调用模型生成章节大纲…",
+          startMessage: `模型正在生成第 ${startChapter} 章起的 ${requestedChapterCount} 个章纲…`,
           successMessage: `已追加生成 ${requestedChapterCount} 个章纲`,
           errorMessage: "生成章纲失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress(`模型正在生成第 ${startChapter} 章起的 ${requestedChapterCount} 个章纲…`, 1);
-          await generateChapterOutlinesByCount({
-            project_id: requestProjectId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "generate_chapter_outlines_by_count",
             start_chapter: startChapter,
             count: requestedChapterCount,
-            task_id: taskId,
-          });
+          },
+        },
+        async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress("正在刷新章纲列表…", 2);
+          control.setProgress("正在刷新…", 2);
           await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-        },
+          },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       addToast(`已追加生成 ${requestedChapterCount} 个章纲`, "success");
@@ -611,30 +585,28 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     if (actionSeq == null) return;
     setRegenId(o.id);
     try {
-      const taskId = createProgressTaskId("outline-chapter-regenerate", requestProjectId);
-      await runOutlineProgressTask(
+      await runOutlineGeneration(
         {
           title: `重新生成第 ${o.chapter_number} 章章纲`,
-          startMessage: "准备调用模型重写章节大纲…",
+          startMessage: `模型正在重写第 ${o.chapter_number} 章章纲…`,
           successMessage: `已重新生成第 ${o.chapter_number} 章章纲`,
           errorMessage: "重新生成失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress(`模型正在重写第 ${o.chapter_number} 章章纲…`, 1);
-          await regenerateChapterOutline({
-            project_id: requestProjectId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "regenerate_chapter_outline",
             outline_id: o.id,
-            task_id: taskId,
             variables: null,
-          });
+          },
+        },
+        async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress("正在刷新章纲列表…", 2);
+          control.setProgress("正在刷新…", 2);
           await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-        },
+          },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       addToast(`已重新生成第 ${o.chapter_number} 章章纲`, "success");
@@ -872,29 +844,27 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     if (actionSeq == null) return;
     setRegenLastPart(true);
     try {
-      const taskId = createProgressTaskId("outline-regenerate-last-part", requestProjectId);
-      await runOutlineProgressTask(
+      await runOutlineGeneration(
         {
           title: "重新生成最后一部",
-          startMessage: "准备调用模型重写最后一部…",
+          startMessage: "模型正在重写最后一部大纲…",
           successMessage: "最后一部已重新生成",
           errorMessage: "重新生成失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress("模型正在重写最后一部大纲…", 1);
-          await regenerateLastPart({
-            project_id: requestProjectId,
-            task_id: taskId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "regenerate_last_part",
             variables: null,
-          });
+          },
+        },
+        async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          setProgress("正在刷新分部列表…", 2);
+          control.setProgress("正在刷新…", 2);
           await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-        },
+          },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       addToast("最后一部已重新生成", "success");
@@ -1041,7 +1011,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           delChapterCount={delChapterCount}
           delActing={delActing}
           regenLastPart={regenLastPart}
-          runProgressTask={runOutlineProgressTask}
+          runGeneration={runOutlineGeneration}
           disabled={interactionBusy}
           onClose={() => setAdvancedOpen(false)}
           onDelPartCountChange={setDelPartCount}

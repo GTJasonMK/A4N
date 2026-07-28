@@ -2,6 +2,14 @@ import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import type { GeneratedImage } from "./image/types";
 import type { GeneratedVideo } from "./video/types";
+import type {
+  CanvasNodeContract as GeneratedCanvasNodeContract,
+  CanvasNodeRequestPreview as GeneratedCanvasNodeRequestPreview,
+  CanvasPortContract as GeneratedCanvasPortContract,
+  CanvasRunSummary as GeneratedCanvasRunSummary,
+  ImportCanvasMediaInput as GeneratedImportCanvasMediaInput,
+  ImportedCanvasMedia as GeneratedImportedCanvasMedia,
+} from "./generated/host";
 
 const currentUserId = () => readCurrentUserId();
 
@@ -80,23 +88,22 @@ export interface CanvasGraphDocument {
   text_assets: CanvasTextAssetRecord[];
 }
 
-export interface CanvasPortContract {
-  id: string;
-  label: string;
+export type CanvasPortContract = Omit<
+  GeneratedCanvasPortContract,
+  "data_type" | "direction"
+> & {
   data_type: "text" | "image" | "video" | "audio" | string;
   direction: "input" | "output" | string;
-  required: boolean;
-  multiple: boolean;
-}
+};
 
-export interface CanvasNodeContract {
-  kind: string;
-  label: string;
+export type CanvasNodeContract = Omit<
+  GeneratedCanvasNodeContract,
+  "category" | "inputs" | "outputs"
+> & {
   category: "input" | "operation" | "probe" | "output" | string;
-  runnable: boolean;
   inputs: CanvasPortContract[];
   outputs: CanvasPortContract[];
-}
+};
 
 export interface CanvasNodeInput {
   client_id: string;
@@ -136,39 +143,26 @@ export interface CanvasTextAssetInput {
   content: string;
 }
 
-export interface CanvasNodeRequestPreview {
-  project_id: number;
-  graph_id: number;
-  node_id: number;
-  node_kind: string;
-  status: string;
-  note: string;
-  request: unknown;
-}
-
-export interface CanvasRunSummary {
-  workflow_run_id: number;
-  project_id: number;
-  graph_id: number;
-  mode: string;
-  status: string;
-  error_message: string | null;
-}
-
-export interface ImportCanvasMediaInput {
-  project_id: number;
+export type CanvasNodeRequestPreview = GeneratedCanvasNodeRequestPreview;
+export type CanvasRunSummary = GeneratedCanvasRunSummary;
+export type ImportCanvasMediaInput = Omit<GeneratedImportCanvasMediaInput, "media_kind"> & {
   media_kind: "image" | "video" | "audio";
-  file_path?: string | null;
-  file_name?: string | null;
-  mime_type?: string | null;
-  data_base64?: string | null;
-  prompt?: string | null;
-}
-
+};
 export type ImportedCanvasMedia =
-  | { media_kind: "image"; image: GeneratedImage; asset: MediaAssetRecord }
-  | { media_kind: "video"; video: GeneratedVideo; asset: MediaAssetRecord }
-  | { media_kind: "audio"; asset: MediaAssetRecord };
+  | (Omit<GeneratedImportedCanvasMedia, "media_kind" | "image" | "video" | "asset"> & {
+      media_kind: "image";
+      image: GeneratedImage;
+      asset: MediaAssetRecord;
+    })
+  | (Omit<GeneratedImportedCanvasMedia, "media_kind" | "image" | "video" | "asset"> & {
+      media_kind: "video";
+      video: GeneratedVideo;
+      asset: MediaAssetRecord;
+    })
+  | (Omit<GeneratedImportedCanvasMedia, "media_kind" | "image" | "video" | "asset"> & {
+      media_kind: "audio";
+      asset: MediaAssetRecord;
+    });
 
 export async function getCanvasGraph(
   projectId: number,

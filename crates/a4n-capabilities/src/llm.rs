@@ -1,7 +1,9 @@
 use super::contracts::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, LlmClient};
-use super::transport::HttpSidecarTransport;
-use a4n_service_protocol::{LLM_SERVICE_NAME, ServiceHealth, ServiceTaskEvent};
+use super::transport::{HttpClientFactory, HttpSidecarTransport};
+use a4n_service_protocol::{CapabilityTaskEvent, LLM_SERVICE_NAME, ServiceHealth};
 use async_trait::async_trait;
+#[cfg(any(test, feature = "test-support"))]
+use std::time::Duration;
 
 pub struct HttpLlmClient {
     pub(super) transport: HttpSidecarTransport,
@@ -12,6 +14,41 @@ impl HttpLlmClient {
         Self {
             transport: HttpSidecarTransport::new(base_url).with_expected_service(LLM_SERVICE_NAME),
         }
+    }
+
+    pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
+        Self {
+            transport: HttpSidecarTransport::new(base_url)
+                .with_expected_service(LLM_SERVICE_NAME)
+                .with_auth_token(token),
+        }
+    }
+
+    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
+        self.transport = self.transport.with_http_client(client);
+        self
+    }
+
+    pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
+        self.transport = self.transport.with_http_client_factory(factory);
+        self
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn with_test_timeouts(
+        mut self,
+        connect_timeout: Duration,
+        request_timeout: Duration,
+        stream_idle_timeout: Duration,
+        health_timeout: Duration,
+    ) -> Self {
+        self.transport = self.transport.with_test_timeouts(
+            connect_timeout,
+            request_timeout,
+            stream_idle_timeout,
+            health_timeout,
+        );
+        self
     }
 }
 
@@ -24,14 +61,10 @@ impl CapabilityClient for HttpLlmClient {
 
 #[async_trait]
 impl LlmClient for HttpLlmClient {
-    async fn chat(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/llm/chat", request).await
-    }
-
     async fn stream(
         &self,
         request: JsonRequest,
-        events: tokio::sync::mpsc::UnboundedSender<ServiceTaskEvent>,
+        events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.transport
             .post_event_stream("/llm/stream", request, events)

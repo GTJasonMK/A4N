@@ -4,6 +4,7 @@ mod contracts;
 mod interface;
 mod options;
 mod request;
+mod stream_collect;
 
 #[cfg(test)]
 mod tests;
@@ -15,3 +16,4 @@ pub use contracts::{
 pub use interface::LlmProvider;
 pub use options::{normalize_request_options, normalize_request_options_json};
 pub use request::{ChatRequest, ResponseFormat};
+pub use stream_collect::collect_chat_stream;

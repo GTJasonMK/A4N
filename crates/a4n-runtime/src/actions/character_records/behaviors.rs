@@ -10,13 +10,8 @@ pub async fn list_behaviors(
     input: ListBehaviorsInput,
 ) -> Result<Vec<BehaviorRecordSummary>, String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
-    if let Some(limit) = input.limit {
-        if !(1..=100).contains(&limit) {
-            return Err("行为记录 limit 必须在 1..=100 之间".to_string());
-        }
-    }
     let records = state
-        .orchestrator
+        .character()
         .behavior_records_by_profile(
             input.profile_id,
             input.chapter_from,

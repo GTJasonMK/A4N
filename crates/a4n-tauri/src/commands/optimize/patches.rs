@@ -1,38 +1,34 @@
+use a4n_api_contract::{
+    generation_tasks::{GenerationTaskHandle, HostErrorResponse},
+    optimize::StartOptimizePatchGenerationInput,
+};
+use a4n_runtime::AppState;
 use a4n_runtime::host_api::optimize::{
     self as optimize_actions, ApplyOptimizationPatchesInput, ApplyOptimizationPatchesResponse,
-    ProposeOptimizationPatchesInput, ProposeOptimizationPatchesResponse,
-};
-
-use super::adapters::optimize_preview_command;
-use super::task::{optimize_input_progress_task_command, optimize_input_stream_task_command};
-
-optimize_input_stream_task_command!(
-    propose_optimization_patches,
     ProposeOptimizationPatchesInput,
-    ProposeOptimizationPatchesResponse,
-    optimize_actions::propose_optimization_patches_task_scope,
-    "正在准备局部修复补丁",
-    "局部补丁生成已停止",
-    "optimize_patch_failed",
-    |response| format!("已生成 {} 个局部补丁", response.patches.len()),
-    optimize_actions::propose_optimization_patches,
-);
+};
+use tauri::State;
+
+use super::adapters::{optimize_input_command, optimize_preview_command};
+
+#[tauri::command]
+pub async fn start_optimize_patch_generation(
+    state: State<'_, AppState>,
+    user_id: i64,
+    input: StartOptimizePatchGenerationInput,
+) -> Result<GenerationTaskHandle, HostErrorResponse> {
+    optimize_actions::start_optimize_patch_generation_typed(state.inner(), user_id, input)
+        .await
+        .map_err(crate::commands::generation_tasks::map_access_error)
+}
 optimize_preview_command!(
     preview_propose_optimization_patches_request,
     ProposeOptimizationPatchesInput,
     optimize_actions::preview_propose_optimization_patches_request,
 );
-optimize_input_progress_task_command!(
+optimize_input_command!(
     apply_optimization_patches,
     ApplyOptimizationPatchesInput,
     ApplyOptimizationPatchesResponse,
-    optimize_actions::apply_optimization_patches_task_scope,
-    "正在应用局部补丁",
-    "应用局部补丁已停止",
-    "optimize_patch_apply_failed",
-    |response| format!(
-        "已应用 {} 个局部补丁，字数 {}",
-        response.applied_count, response.word_count
-    ),
     optimize_actions::apply_optimization_patches,
 );

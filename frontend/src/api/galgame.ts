@@ -4,6 +4,7 @@ import { idNum, type ApiId as Id } from "./shared";
 import type { MediaAssetRecord } from "./canvas";
 import type { ExportFileData } from "./export";
 import type { ModelRequestPreview } from "./requestPreview";
+import type { GalgamePipelineStatusSummary } from "./generated/host";
 
 const currentUserId = (): number => {
   const id = readCurrentUserId();
@@ -158,38 +159,7 @@ export interface GalgameScriptDetail {
   scenes: GalgameSceneDetail[];
 }
 
-export interface GalgameWorkflowRunSummary {
-  id: number;
-  status: string;
-  mode: string | null;
-  current_step_key: string | null;
-  progress_json: unknown | null;
-  active_task_id: string | null;
-  can_resume: boolean;
-  resume_block_reason: string | null;
-  error_message: string | null;
-  created_at: string;
-  updated_at: string;
-  completed_at: string | null;
-}
-
-export interface GalgameWorkflowCheckpointSummary {
-  id: number;
-  step_key: string;
-  step_order: number;
-  status: string;
-  checkpoint_json: unknown | null;
-  artifacts_json: unknown | null;
-  error_message: string | null;
-  created_at: string;
-  updated_at: string;
-  completed_at: string | null;
-}
-
-export interface GalgamePipelineStatus {
-  run: GalgameWorkflowRunSummary | null;
-  checkpoints: GalgameWorkflowCheckpointSummary[];
-}
+export type GalgamePipelineStatus = GalgamePipelineStatusSummary;
 
 export interface GalgameAssetPlanSummary {
   background_specs: number;

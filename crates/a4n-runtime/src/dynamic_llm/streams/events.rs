@@ -1,7 +1,7 @@
 use super::super::*;
 
-pub(super) fn chat_chunk_from_sidecar_event(
-    event: ServiceTaskEvent,
+pub(in crate::dynamic_llm) fn chat_chunk_from_sidecar_event(
+    event: CapabilityTaskEvent,
 ) -> Result<ChatChunk, AppError> {
     if let Some(payload) = event.payload {
         return serde_json::from_value(payload).map_err(AppError::Serialization);
@@ -34,7 +34,7 @@ pub(super) fn usage_from_sidecar_value(value: serde_json::Value) -> Result<Usage
     serde_json::from_value(value).map_err(AppError::Serialization)
 }
 
-pub(super) fn sidecar_event_error(event: ServiceTaskEvent) -> AppError {
+pub(in crate::dynamic_llm) fn sidecar_event_error(event: CapabilityTaskEvent) -> AppError {
     event
         .error
         .map(llm_sidecar_error)
@@ -44,10 +44,10 @@ pub(super) fn sidecar_event_error(event: ServiceTaskEvent) -> AppError {
 pub(in crate::dynamic_llm) fn sidecar_failed_event(
     task_id: String,
     error: ServiceError,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id,
-        event_kind: ServiceTaskEventKind::Failed,
+        event_kind: CapabilityTaskEventKind::Failed,
         sequence: 0,
         chunk_index: None,
         chunk_delta: None,

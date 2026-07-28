@@ -24,7 +24,8 @@ impl SidecarVectorStore {
             }),
         )
         .map_err(service_app_error)?;
-        let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (event_tx, mut event_rx) =
+            tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
         let mut request_future = Box::pin(self.client.ingest_events(request, event_tx));
         let mut transport_complete = false;
         loop {

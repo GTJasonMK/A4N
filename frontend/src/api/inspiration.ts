@@ -2,13 +2,18 @@ import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
+import type {
+  GenerationTaskHandle,
+  GenerationTaskSummary,
+  StartInspirationGenerationInput,
+} from "./generated/generationContracts";
 
 /**
  * Inspiration API wrapper —— 对齐 crates/a4n-tauri/src/commands/inspiration.rs
  *
  * 关键约定：
  *  - get_inspiration_history(project_id, limit) —— 按 project_id 不是 conversation_id
- *  - 流式对话 input.message（不是 user_input）
+ *  - generation target 固定为 inspiration_conversation / project_id
  */
 
 export interface InspirationMessage {
@@ -47,28 +52,30 @@ export async function getInspirationHistory(
 }
 
 // ============================================================================
-// LLM 对话
+// Generation 对话
 // ============================================================================
 
-/** 后端 converse_inspiration(input: { project_id, user_input, variables? }) —— 返回 AI 回复字符串 */
-export async function converseInspiration(input: {
-  project_id: number;
-  user_input: string;
-  variables?: Record<string, unknown> | null;
-}): Promise<string> {
-  return apiInvoke<string>("converse_inspiration", { userId: currentUserId(), input });
+export function inspirationGenerationProject(
+  summary: GenerationTaskSummary,
+  projectId: number,
+): number | null {
+  const target = summary.started.target;
+  return summary.started.project_id === projectId
+    && target?.kind === "inspiration_conversation"
+    && target.id === String(projectId)
+    ? projectId
+    : null;
 }
 
-/** 后端 converse_inspiration_stream(input: { project_id, message, variables? }) —— message 不是 user_input */
-export async function converseInspirationStream(input: {
-  project_id: number;
-  message: string;
-  task_id?: string | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<string> {
-  return apiInvoke<string>("converse_inspiration_stream", {
+export async function startInspirationGeneration(
+  input: StartInspirationGenerationInput,
+): Promise<GenerationTaskHandle> {
+  return apiInvoke<GenerationTaskHandle>("start_inspiration_generation", {
     userId: currentUserId(),
-    input,
+    input: {
+      ...input,
+      project_id: idNum(input.project_id),
+    },
   });
 }
 

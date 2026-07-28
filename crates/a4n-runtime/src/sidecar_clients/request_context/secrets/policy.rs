@@ -61,16 +61,21 @@ pub(in crate::sidecar_clients::request_context) fn service_request_with_context_
 ) -> Result<JsonRequest, String> {
     let payload = serde_json::to_value(payload).map_err(|err| err.to_string())?;
     if !payload_has_provider_secret(&payload) {
+        let policy = if sidecar_url_allows_local_secrets(sidecar_url) {
+            SecretForwardingPolicy::deny_all()
+        } else {
+            SecretForwardingPolicy::trusted_remote_no_secrets()
+        };
         return service_request_value_with_context_and_policy(
             context,
             capability_version,
             payload,
-            SecretForwardingPolicy::deny_all(),
+            policy,
         );
     }
     if !sidecar_url_allows_local_secrets(sidecar_url) {
         return Err(format!(
-            "{service_name} sidecar URL 不是本地 loopback 地址，拒绝转发 provider secret: {sidecar_url}"
+            "{service_name} sidecar URL 不是本地 loopback 地址，拒绝转发 provider secret"
         ));
     }
     service_request_value_with_context_and_policy(

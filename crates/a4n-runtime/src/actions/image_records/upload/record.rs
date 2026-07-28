@@ -1,89 +1,62 @@
-use super::super::deletion::remove_image_delete_file;
-use super::super::rules::append_secondary_error;
-use super::{file::create_imported_image_output, metadata::imported_image_metadata};
+use super::file::create_imported_image_output;
 use crate::{
-    AppState,
-    actions::image_generation::{GeneratedImageSummary, to_summary},
+    AppState, actions::image_generation::GeneratedImageSummary,
+    cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::persist_created_media_file,
 };
-use a4n_orchestrator::video::CreateGeneratedImageRecordDraftInput as CreateImageRecord;
-use serde_json::Value;
+use a4n_orchestrator::media::PreparedImportedImageUpload;
 use std::io::Write;
 
-pub(super) struct ImportedImageRecordInput {
-    pub(super) image_type: String,
-    pub(super) prompt: String,
-    pub(super) model: String,
-    pub(super) chapter_id: Option<i64>,
-    pub(super) panel_id: Option<String>,
-    pub(super) metadata_json: Option<Value>,
-    pub(super) imported: super::ImportedImageFile,
-}
-
-pub(super) async fn create_imported_image_record(
+pub(super) async fn persist_imported_image(
     state: &AppState,
-    project_id: i64,
-    input: ImportedImageRecordInput,
+    user_id: i64,
+    prepared: PreparedImportedImageUpload,
 ) -> Result<GeneratedImageSummary, String> {
-    let ImportedImageRecordInput {
-        image_type,
-        prompt,
-        model,
-        chapter_id,
-        panel_id,
-        metadata_json,
-        imported,
-    } = input;
-    let (output_path, mut output_file) = create_imported_image_output(
-        &state.config.data_dir,
-        project_id,
-        chapter_id,
-        imported.extension,
-    )?;
+    let project_id = prepared.project_id;
+    let chapter_id = prepared.chapter_id;
+    let extension = prepared.decoded.extension;
+    let (output_path, mut output_file) =
+        create_imported_image_output(state.data_dir(), project_id, chapter_id, extension)?;
+    let bytes = &prepared.decoded.bytes;
     let (relative_path, file_size) = persist_created_media_file(
-        &state.config.data_dir,
+        state.data_dir(),
         &output_path,
-        move |_| {
+        |_| {
             output_file
-                .write_all(&imported.bytes)
+                .write_all(bytes)
                 .map_err(|err| format!("写入导入图片失败：{err}"))
         },
         "导入图片文件",
         "导入图片",
         "导入图片文件",
     )?;
-    let metadata_json = imported_image_metadata(
-        metadata_json,
-        imported.source_file_name,
-        imported.extension,
-        imported.mime_type,
-    );
     let record = match state
-        .orchestrator
-        .create_generated_image_record(CreateImageRecord {
-            project_id,
-            image_type,
-            file_path: relative_path,
-            prompt,
-            model,
-            width: imported.width,
-            height: imported.height,
-            file_size: Some(file_size),
-            chapter_id,
-            panel_id,
-            metadata_json,
-            created_at: None,
-        })
+        .media()
+        .create_imported_image_record_for_user_validated(
+            user_id,
+            prepared,
+            relative_path.clone(),
+            file_size,
+        )
         .await
     {
         Ok(record) => record,
         Err(err) => {
-            let cleanup_error = remove_image_delete_file(&output_path).err();
-            return Err(append_secondary_error(
-                format!("导入图片记录创建失败：{err}"),
-                cleanup_error,
-            ));
+            let cleanup_error = enqueue_file_artifact_cleanup_by_project(
+                state,
+                &format!("image-upload:{project_id}:{relative_path}"),
+                std::slice::from_ref(&relative_path),
+            )
+            .await
+            .err();
+            let message = format!("导入图片记录创建失败：{err}");
+            return Err(match cleanup_error {
+                Some(cleanup) if !cleanup.trim().is_empty() => {
+                    format!("{message}；后续清理也失败：{cleanup}")
+                }
+                _ => message,
+            });
         }
     };
-    Ok(to_summary(&record))
+    Ok(a4n_orchestrator::media::generated_image_summary(&record))
 }

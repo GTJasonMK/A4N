@@ -39,8 +39,19 @@ pub(super) fn validate_prompt_sync_draft(
     };
     match fields.prompt_type.as_str() {
         "frame_segment_plan" | "frame_prompt" => {
-            if fields.workflow_mode != "boundary_frames" {
-                return Err(invalid_workflow("boundary_frames"));
+            let valid = if fields.prompt_type == "frame_segment_plan" {
+                fields.workflow_mode == "shared_segment_plan"
+            } else {
+                fields.workflow_mode == "boundary_frames"
+            };
+            if !valid {
+                return Err(invalid_workflow(
+                    if fields.prompt_type == "frame_segment_plan" {
+                        "shared_segment_plan"
+                    } else {
+                        "boundary_frames"
+                    },
+                ));
             }
         }
         "first_frame_prompt" if fields.workflow_mode != "first_frame_chain" => {
@@ -82,7 +93,11 @@ pub(super) fn validate_prompt_workflow_mode(
 ) -> Result<(), VideoDbError> {
     if matches!(
         workflow_mode,
-        "boundary_frames" | "first_frame_chain" | "chat_video" | "storyboard"
+        "shared_segment_plan"
+            | "boundary_frames"
+            | "first_frame_chain"
+            | "chat_video"
+            | "storyboard"
     ) {
         return Ok(());
     }

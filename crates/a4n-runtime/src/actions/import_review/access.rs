@@ -7,7 +7,7 @@ pub(super) async fn verify_review_access(
     review_id: i64,
 ) -> Result<import_review_queue::Model, AppError> {
     let review = state
-        .orchestrator
+        .import_review()
         .import_review_by_id(review_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("导入审核不存在: review_id={review_id}")))?;

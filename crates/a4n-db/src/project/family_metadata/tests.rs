@@ -198,6 +198,7 @@ fn project() -> novel_project::Model {
         source_sync_status: "current".to_string(),
         derived_project_status: None,
         status: "draft".to_string(),
+        lifecycle_gate: "active".to_string(),
         target_chapters: 10,
         current_chapter: 1,
         total_chapters: Some(10),

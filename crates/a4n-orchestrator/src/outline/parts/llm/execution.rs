@@ -71,11 +71,15 @@ impl OrchestratorContext {
             trace_context.call_key = Some(call_key.clone());
             trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
         }
-        workflow::mark_workflow_current_step(self.db.connection(), workflow_run_id, &call_key)
-            .await
-            .map_err(workflow_write_app_error)?;
+        workflow::mark_workflow_current_step(
+            self.database.connection(),
+            workflow_run_id,
+            &call_key,
+        )
+        .await
+        .map_err(workflow_write_app_error)?;
         if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-            self.db.connection(),
+            self.database.connection(),
             workflow_run_id,
             &call_key,
             &fingerprint_json,
@@ -94,7 +98,8 @@ impl OrchestratorContext {
                 end_ch,
             );
         }
-        let response = self.llm.chat(request.clone()).await?;
+        let response =
+            crate::outline::execute_outline_llm_call(self, request.clone(), &call_key).await?;
 
         let response_usage_json = response
             .usage
@@ -140,7 +145,7 @@ impl OrchestratorContext {
             finish_reason,
         };
         workflow::save_completed_llm_call_checkpoint(
-            self.db.connection(),
+            self.database.connection(),
             CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key,

@@ -33,7 +33,7 @@ pub(super) async fn attach_chapter_analysis_sync_state(
         return Ok(());
     };
     let runs = state
-        .orchestrator
+        .workflow()
         .workflow_runs_by_project_kind(project_id, "chapter_analysis")
         .await
         .map_err(AppError::from)?;

@@ -14,6 +14,7 @@ interface GeneratePromptOptions {
   style: string;
   prompt_output_language?: PromptOutputLanguage;
   prompt_batch_size: number;
+  target_shot_number?: number;
   duration_secs: number;
   duration_secs_options?: number[];
   aspect_ratio: string;
@@ -22,12 +23,16 @@ interface GeneratePromptOptions {
   regenerate_existing?: boolean;
 }
 
-interface UpdateChapterVideoPromptInput {
+export type SegmentGuidanceMode = "system_frames" | "keyframes" | "none" | "continuity";
+
+export interface UpdateChapterVideoPromptInput {
   visual_prompt?: string | null;
   motion_prompt?: string | null;
   negative_prompt?: string | null;
   duration_secs?: number | null;
   reference_image_ids_json?: unknown | null;
+  guidance_mode?: SegmentGuidanceMode;
+  continuity_source_video_id?: number | null;
   downstream_strategy?: DownstreamConflictStrategy;
 }
 

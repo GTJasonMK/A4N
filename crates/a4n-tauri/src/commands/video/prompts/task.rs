@@ -1,21 +1,19 @@
 use crate::progress_task::{WorkflowProgressTask, WorkflowTaskContext};
 use a4n_core::error::AppError;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::video_prompts as video_prompt_actions;
 
 pub(super) fn video_prompt_progress_task(
-    window: tauri::Window,
     state: &AppState,
     task_id: Option<String>,
     scope: video_prompt_actions::VideoPromptTaskScope,
     message: &str,
 ) -> WorkflowProgressTask {
     WorkflowProgressTask::new_with_context(
-        window,
         state,
         task_id,
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         WorkflowTaskContext {
             project_id: Some(scope.project_id),
             root_project_id: Some(scope.project_id),
@@ -39,26 +37,15 @@ pub(super) fn tauri_video_prompt_progress<'a>(
     }
 }
 
-pub(super) fn tauri_video_prompt_chunk<'a>(
-    progress: &'a WorkflowProgressTask,
-) -> impl FnMut(&str, u32) + Send + 'a {
-    move |content, index| {
-        progress.chunk(content, index);
-    }
-}
-
 macro_rules! tauri_video_prompt_command {
     (
         $name:ident,
         $start_message:expr,
         $stop_message:expr,
-        $error_code:expr,
-        $success_summary:expr,
         $action:path $(,)?
     ) => {
         #[tauri::command]
         pub async fn $name(
-            window: tauri::Window,
             state: tauri::State<'_, a4n_runtime::AppState>,
             user_id: i64,
             project_id: i64,
@@ -73,7 +60,6 @@ macro_rules! tauri_video_prompt_command {
             )
             .await?;
             let progress = super::task::video_prompt_progress_task(
-                window,
                 state.inner(),
                 task_id,
                 scope,
@@ -81,20 +67,16 @@ macro_rules! tauri_video_prompt_command {
             );
             let mut report_progress =
                 super::task::tauri_video_prompt_progress(&progress, $stop_message);
-            let mut report_chunk = super::task::tauri_video_prompt_chunk(&progress);
             let result = $action(
                 state.inner(),
                 input,
                 Some(&mut report_progress),
-                Some(&mut report_chunk),
+                None,
                 progress.cancel_token(),
             )
             .await;
-            drop(report_chunk);
             drop(report_progress);
-            progress.finish_result(state.inner(), &result, $error_code, |rows| {
-                ($success_summary)(rows.as_slice())
-            });
+            progress.remove(state.inner());
             result
         }
     };

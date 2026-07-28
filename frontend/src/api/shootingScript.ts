@@ -1,5 +1,9 @@
 import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
+import type {
+  ChapterShootingScriptView as ApiChapterShootingScriptView,
+  EditedChapterShootingScriptView as ApiEditedChapterShootingScriptView,
+} from "./generated/host";
 
 const currentUserId = (): number => {
   const id = readCurrentUserId();
@@ -152,10 +156,20 @@ export interface ChapterShootingScriptRecord {
   updated_at: string;
 }
 
-export interface ChapterShootingScriptView {
+export type ChapterShootingScriptView = Omit<
+  ApiChapterShootingScriptView,
+  "record" | "script"
+> & {
   record: ChapterShootingScriptRecord;
   script: ChapterShootingScript;
-}
+};
+
+type EditedChapterShootingScriptView = Omit<
+  ApiEditedChapterShootingScriptView,
+  "shooting_script"
+> & {
+  shooting_script: ChapterShootingScriptView;
+};
 
 export const getChapterShootingScript = (projectId: number, sourceChapterId: number) =>
   apiInvoke<ChapterShootingScriptView | null>("get_chapter_shooting_script", {
@@ -170,11 +184,11 @@ export const generateChapterShootingScript = (
 ) =>
   apiInvoke<ChapterShootingScriptView>("generate_chapter_shooting_script", {
     userId: currentUserId(),
-    taskId: taskId ?? null,
     input: {
       project_id: projectId,
       source_chapter_id: sourceChapterId,
     },
+    taskId: taskId ?? null,
   });
 
 export const editChapterShootingScript = (
@@ -182,7 +196,7 @@ export const editChapterShootingScript = (
   sourceChapterId: number,
   view: ChapterShootingScriptView,
   script: ChapterShootingScript,
-) => apiInvoke<{ shooting_script: ChapterShootingScriptView; invalidated_project_ids: number[] }>(
+) => apiInvoke<EditedChapterShootingScriptView>(
   "edit_chapter_shooting_script",
   {
     userId: currentUserId(),

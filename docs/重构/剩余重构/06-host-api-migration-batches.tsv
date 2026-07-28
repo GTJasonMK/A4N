@@ -1,0 +1,22 @@
+batch	domain	canonical_rust_owner	runtime_adapter	server	tauri	frontend	compatibility
+1	theme	a4n-api-contract::theme	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/theme.ts	serde field names unchanged; deny_unknown_fields preserved
+2	auth	a4n-api-contract::auth	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/auth.ts	serde wire and nullable response fields unchanged
+3	config	a4n-api-contract::config	pure re-export plus existing config adapters	unchanged runtime Host call	unchanged runtime Host call	generated/config.ts	provider/runtime config conversion remains outside contract
+4	logging-storage	a4n-api-contract::{logging,storage}	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	log and filesystem DTO field names unchanged
+5	import	a4n-api-contract::import	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	upload and parsed chapter wire unchanged
+6	import-reverse	a4n-api-contract::import_reverse	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	reverse-engineering input keeps strict unknown-field rejection
+7	request-preview	a4n-api-contract::request_preview	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	preview step ordering and nullable fields unchanged
+8	embedding	a4n-api-contract::embedding	pure re-export plus local model adapter	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	local embedding provider state remains Runtime-owned
+9	admin	a4n-api-contract::admin	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	admin input validation remains at Host boundary
+10	image	a4n-api-contract::image	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	image record inputs preserve existing serde names
+11	galgame	a4n-api-contract::galgame	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	pipeline status is a response projection only
+12	rag	a4n-api-contract::rag	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	RAG/provider internals remain outside contract
+13	project-transfer	a4n-api-contract::project_transfer	pure re-export plus package IO adapter	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	archive/file ownership remains Runtime/Host-owned
+14	import-review	a4n-api-contract::import_review	pure re-export	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	review status and dedup response wire unchanged
+15	canvas	a4n-api-contract::canvas	pure re-export plus explicit media JSON projection	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	media payloads retain existing line shape; serialization failures are explicit
+16	optimize	a4n-api-contract::optimize	pure re-export plus explicit Orchestrator permission/patch mappings	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	business permission and patch validation remain Orchestrator-owned
+17	project-records	a4n-api-contract::project	pure re-export plus explicit progress projection	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	DB/Orchestrator progress model is not imported by contract crate
+18	profile-records	a4n-api-contract::profile	pure re-export plus conflict-strategy parsing	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	DownstreamConflictStrategy remains Core-owned and is parsed at Host boundary
+19	shooting-script	a4n-api-contract::shooting_script	JSON boundary projection for Core script/model	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	large Core script schema is not duplicated; invalid JSON fails explicitly
+20	source-sync	a4n-api-contract::source_sync	conflict-model projection plus decision mapping	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	SeaORM conflict models never cross the Host contract boundary
+21	video-records	a4n-api-contract::video	pure re-export plus generated-video summary projection	unchanged runtime Host call	unchanged runtime Host call	generated/host.ts	FFmpeg/filesystem/provider state remains Runtime-owned

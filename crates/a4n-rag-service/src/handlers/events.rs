@@ -2,7 +2,7 @@ use crate::app::RagServiceState;
 use crate::contracts::{IngestOutput, IngestPayload};
 use crate::protocol::{service_error, validate_service_request};
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceRequest, ServiceTaskEvent, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError, ServiceErrorCode, ServiceRequest,
     redact_sensitive_message,
 };
 use a4n_sidecar_bootstrap::{
@@ -31,45 +31,43 @@ fn rag_ingest_event_stream(
     state: RagServiceState,
     request: ServiceRequest<IngestPayload>,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> + Send + 'static {
-    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel::<ServiceTaskEvent>();
+    let (event_tx, event_rx) = tokio::sync::mpsc::channel::<CapabilityTaskEvent>(
+        a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY,
+    );
     let task_id = request.request_id.clone();
     let record_count = request.payload.records.len();
     tokio::spawn(async move {
         if event_tx
             .send(progress_ingest_event(task_id.clone(), 1, record_count))
+            .await
             .is_err()
         {
             return;
         }
-        let mut ingest_task = tokio::spawn(async move {
-            state
-                .store
-                .add_embeddings(&request.payload.collection, request.payload.records)
+        let store = state.store.clone();
+        let payload = request.payload;
+        let ingest = state.persist_mutation("ingest_events", async move {
+            store
+                .add_embeddings(&payload.collection, payload.records)
                 .await
                 .map(|written| IngestOutput { written })
         });
+        tokio::pin!(ingest);
         tokio::select! {
-            _ = event_tx.closed() => ingest_task.abort(),
-            result = &mut ingest_task => {
+            _ = event_tx.closed() => {
+                if let Err(error) = ingest.await {
+                    tracing::error!(error = %redact_sensitive_message(error.to_string()), "rag ingest failed after client disconnect");
+                }
+            },
+            result = &mut ingest => {
                 let event = match result {
-                    Ok(Ok(output)) => match completed_ingest_event(task_id.clone(), 2, output) {
+                    Ok(output) => match completed_ingest_event(task_id.clone(), 2, output) {
                         Ok(event) => event,
                         Err(error) => failed_ingest_event(task_id, 2, error),
                     },
-                    Ok(Err(error)) => failed_ingest_event(task_id, 2, service_error(&error)),
-                    Err(error) => failed_ingest_event(
-                        task_id,
-                        2,
-                        ServiceError {
-                            code: ServiceErrorCode::Internal,
-                            message: redact_sensitive_message(format!(
-                                "rag ingest task failed: {error}"
-                            )),
-                            retryable: Some(false),
-                        },
-                    ),
+                    Err(error) => failed_ingest_event(task_id, 2, service_error(&error)),
                 };
-                if event_tx.send(event).is_err() {
+                if event_tx.send(event).await.is_err() {
                     return;
                 }
             }
@@ -87,10 +85,10 @@ pub(crate) fn progress_ingest_event(
     task_id: String,
     sequence: u64,
     record_count: usize,
-) -> ServiceTaskEvent {
+) -> CapabilityTaskEvent {
     rag_ingest_event(
         task_id,
-        ServiceTaskEventKind::Progress,
+        CapabilityTaskEventKind::Progress,
         sequence,
         None,
         Some(json!({
@@ -105,7 +103,7 @@ pub(crate) fn completed_ingest_event(
     task_id: String,
     sequence: u64,
     output: IngestOutput,
-) -> Result<ServiceTaskEvent, ServiceError> {
+) -> Result<CapabilityTaskEvent, ServiceError> {
     let payload = serde_json::to_value(output).map_err(|error| ServiceError {
         code: ServiceErrorCode::Internal,
         message: redact_sensitive_message(format!(
@@ -115,7 +113,7 @@ pub(crate) fn completed_ingest_event(
     })?;
     Ok(rag_ingest_event(
         task_id,
-        ServiceTaskEventKind::Completed,
+        CapabilityTaskEventKind::Completed,
         sequence,
         None,
         Some(payload),
@@ -126,10 +124,10 @@ pub(crate) fn failed_ingest_event(
     task_id: String,
     sequence: u64,
     error: ServiceError,
-) -> ServiceTaskEvent {
+) -> CapabilityTaskEvent {
     rag_ingest_event(
         task_id,
-        ServiceTaskEventKind::Failed,
+        CapabilityTaskEventKind::Failed,
         sequence,
         Some(error),
         None,
@@ -138,12 +136,12 @@ pub(crate) fn failed_ingest_event(
 
 fn rag_ingest_event(
     task_id: String,
-    event_kind: ServiceTaskEventKind,
+    event_kind: CapabilityTaskEventKind,
     sequence: u64,
     error: Option<ServiceError>,
     payload: Option<Value>,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id,
         event_kind,
         sequence,

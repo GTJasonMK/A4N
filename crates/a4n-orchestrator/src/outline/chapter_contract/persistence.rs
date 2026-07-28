@@ -6,7 +6,7 @@ use a4n_db::DbHandle;
 use a4n_db::outline::{self as outline_db, ChapterOutlineSyncDraft, OutlineDbError};
 use serde_json::Value;
 
-pub(in crate::outline) fn chapter_outline_sync_draft_from_json(
+pub fn chapter_outline_sync_draft_from_json(
     chapter_json: &Value,
 ) -> Result<ChapterOutlineSyncDraft, AppError> {
     Ok(ChapterOutlineSyncDraft {
@@ -35,7 +35,7 @@ fn chapter_outline_number(chapter_json: &Value) -> Result<i32, AppError> {
 }
 
 #[cfg(test)]
-pub(in crate::outline) async fn sync_chapter_outlines_by_number<C>(
+pub async fn sync_chapter_outlines_by_number<C>(
     db: &C,
     project_id: i64,
     part_id: Option<i64>,
@@ -54,7 +54,7 @@ where
         .map_err(outline_db_error)
 }
 
-pub(in crate::outline) async fn sync_chapter_outlines_by_number_transaction(
+pub async fn sync_chapter_outlines_by_number_transaction(
     db: &DbHandle,
     project_id: i64,
     part_id: Option<i64>,
@@ -76,7 +76,7 @@ pub(in crate::outline) async fn sync_chapter_outlines_by_number_transaction(
     .map_err(outline_db_error)
 }
 
-pub(in crate::outline) async fn insert_chapter_outline_from_json<C>(
+pub async fn insert_chapter_outline_from_json<C>(
     db: &C,
     project_id: i64,
     part_id: Option<i64>,
@@ -92,7 +92,7 @@ where
         .map_err(outline_db_error)
 }
 
-pub(in crate::outline) async fn update_chapter_outline_from_json<C>(
+pub async fn update_chapter_outline_from_json<C>(
     db: &C,
     existing: chapter_outline::Model,
     part_id: Option<i64>,
@@ -108,7 +108,7 @@ where
         .map_err(outline_db_error)
 }
 
-fn outline_db_error(error: OutlineDbError) -> AppError {
+pub fn outline_db_error(error: OutlineDbError) -> AppError {
     match error {
         OutlineDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
         OutlineDbError::Database(err) => AppError::Database(err),

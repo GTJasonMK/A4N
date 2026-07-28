@@ -2,7 +2,7 @@ use a4n_llm::provider::ChatRequest;
 
 use super::OutlineRequestPreviewStep;
 
-pub(in crate::outline) fn ready_outline_preview_step(
+pub fn ready_outline_preview_step(
     key: impl Into<String>,
     title: impl Into<String>,
     prompt_name: impl Into<String>,
@@ -18,7 +18,7 @@ pub(in crate::outline) fn ready_outline_preview_step(
     }
 }
 
-pub(in crate::outline) fn reused_outline_preview_step(
+pub fn reused_outline_preview_step(
     key: impl Into<String>,
     title: impl Into<String>,
     prompt_name: impl Into<String>,
@@ -34,7 +34,7 @@ pub(in crate::outline) fn reused_outline_preview_step(
     }
 }
 
-pub(in crate::outline) fn blocked_outline_preview_step(
+pub fn blocked_outline_preview_step(
     key: impl Into<String>,
     title: impl Into<String>,
     prompt_name: impl Into<String>,

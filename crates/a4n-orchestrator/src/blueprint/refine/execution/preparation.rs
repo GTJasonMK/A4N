@@ -17,6 +17,7 @@ use super::contracts::PreparedBlueprintRefine;
 pub(super) async fn prepare_blueprint_refine(
     context: &OrchestratorContext,
     project_id: i64,
+    task_id: &str,
     focus: Option<&str>,
     prompt_renderer: &dyn PromptRenderer,
     variables: &HashMap<String, Value>,
@@ -57,7 +58,7 @@ pub(super) async fn prepare_blueprint_refine(
     });
     let call_key = format!("blueprint_refine:project:{project_id}");
     let workflow_run = workflow::upsert_workflow_run(
-        context.db.connection(),
+        context.database.connection(),
         UpsertWorkflowRunInput {
             business_key: format!("blueprint_refine:{project_id}"),
             workflow_kind: "blueprint_refine".to_string(),
@@ -71,7 +72,7 @@ pub(super) async fn prepare_blueprint_refine(
             input_fingerprint_json: Some(input_fingerprint_json.clone()),
             status: WORKFLOW_STATUS_RUNNING.to_string(),
             current_step_key: Some(call_key.clone()),
-            active_task_id: None,
+            active_task_id: Some(task_id.to_string()),
             can_resume: true,
             resume_block_reason: None,
             error_message: None,
@@ -88,7 +89,7 @@ pub(super) async fn prepare_blueprint_refine(
         trace_context.call_key = Some(call_key.clone());
         trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
     }
-    workflow::mark_workflow_current_step(context.db.connection(), workflow_run_id, &call_key)
+    workflow::mark_workflow_current_step(context.database.connection(), workflow_run_id, &call_key)
         .await
         .map_err(workflow_write_app_error)?;
 

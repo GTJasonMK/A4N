@@ -9,9 +9,7 @@ mod snapshots;
 
 #[cfg(test)]
 pub(super) use snapshots::snapshot_data_summary;
-pub(super) use snapshots::{
-    initial_snapshot_data, profile_state_summary_from_snapshot, snapshot_reference_summary,
-};
+pub(super) use snapshots::{profile_state_summary_from_snapshot, snapshot_reference_summary};
 pub(super) fn attribute_counts(value: &Value) -> Result<AttributeCountsSummary, String> {
     Ok(AttributeCountsSummary {
         explicit: category_count(value, "explicit")?,
@@ -114,12 +112,4 @@ pub(super) fn category_count(value: &Value, category: &str) -> Result<usize, Str
         Some(_) => Err(format!("角色属性分类 {key} 必须是对象")),
         None => Err(format!("角色属性缺少分类 {key}")),
     }
-}
-
-pub(super) fn required_text(value: &str, label: &str) -> Result<String, String> {
-    let text = value.trim();
-    if text.is_empty() {
-        return Err(format!("{label}不能为空"));
-    }
-    Ok(text.to_string())
 }

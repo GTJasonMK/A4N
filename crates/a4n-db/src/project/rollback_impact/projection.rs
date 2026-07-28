@@ -25,8 +25,7 @@ pub(in crate::project::rollback_impact) fn rollback_impacts_from_facts(
                 "generated_videos".to_string(),
                 "task_queue".to_string(),
                 "task_dependency".to_string(),
-                "vector_store".to_string(),
-                "tantivy_index".to_string(),
+                "rag_index".to_string(),
             ],
             count: Some(impact_len_i32(
                 facts.chapter_numbers.len(),

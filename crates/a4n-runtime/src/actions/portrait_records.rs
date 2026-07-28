@@ -9,7 +9,7 @@ pub async fn list_portraits_by_project(
 ) -> Result<Vec<PortraitSummary>, String> {
     access::verify_project_access_string(state, user_id, project_id).await?;
     let portraits = state
-        .orchestrator
+        .character()
         .character_portrait_records_by_project(project_id)
         .await
         .map_err(app_error_message)?;
@@ -24,7 +24,7 @@ pub async fn get_primary_portrait(
     let project_id = profile_project_id(state, profile_id).await?;
     access::verify_project_access_string(state, user_id, project_id).await?;
     let portrait = state
-        .orchestrator
+        .character()
         .primary_character_portrait_record(profile_id)
         .await
         .map_err(app_error_message)?;
@@ -38,7 +38,7 @@ pub async fn set_primary_portrait(
 ) -> Result<(), String> {
     portrait_project_id_for_user(state, user_id, portrait_id).await?;
     state
-        .orchestrator
+        .character()
         .set_primary_character_portrait_record(portrait_id)
         .await
         .map_err(app_error_message)
@@ -46,7 +46,7 @@ pub async fn set_primary_portrait(
 
 async fn portrait_project_id(state: &AppState, portrait_id: i64) -> Result<i64, String> {
     state
-        .orchestrator
+        .project_family()
         .character_portrait_project_id(portrait_id)
         .await
         .map_err(app_error_message)
@@ -64,7 +64,7 @@ pub(crate) async fn portrait_project_id_for_user(
 
 async fn profile_project_id(state: &AppState, profile_id: i64) -> Result<i64, String> {
     state
-        .orchestrator
+        .project_family()
         .protagonist_profile_project_id(profile_id)
         .await
         .map_err(app_error_message)

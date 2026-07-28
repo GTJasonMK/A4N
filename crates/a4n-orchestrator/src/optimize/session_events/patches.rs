@@ -6,7 +6,7 @@ use super::super::patch::OptimizationPatch;
 use super::super::{OrchestratorContext, optimize_db_error};
 
 impl OrchestratorContext {
-    pub async fn record_patches_applied(
+    pub(crate) async fn record_patches_applied(
         &self,
         session_id: i64,
         chapter_id: i64,
@@ -55,7 +55,7 @@ impl OrchestratorContext {
         )
         .await?;
         a4n_db::optimize::update_optimization_session(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationSessionUpdateInput {
                 session,
                 status: Some("waiting_user".to_string()),

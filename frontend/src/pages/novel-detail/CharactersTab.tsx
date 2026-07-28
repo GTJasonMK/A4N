@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import {
+  canListenAppEvents,
   listenAppEvent,
   type UnlistenFn,
 } from "../../api/runtime";
@@ -83,6 +84,8 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   }, [load]);
 
   useEffect(() => {
+    if (!canListenAppEvents()) return;
+
     let disposed = false;
     let unlisten: UnlistenFn | null = null;
 

@@ -8,8 +8,8 @@ A4N_SCRIPT_COMMON_SOURCED=1
 SCRIPT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_LIB_DIR/../.." && pwd)"
 
-# All project entry points share one Cargo cache. This avoids compiling the
-# same large dependency graph into per-session target directories.
+# 所有入口共用一套主缓存，避免同一依赖图被编进多个 target 目录。
+# 实验/计时请用 --target-dir /tmp/... 或 target-*，由 guard-build-cache 回收。
 export CARGO_TARGET_DIR="$PROJECT_ROOT/target"
 
 RED='\033[0;31m'
@@ -51,7 +51,7 @@ onnxruntime_root() {
 }
 
 configure_onnxruntime() {
-    local root version_file version lib_dir library runtime_path_var
+    local root version_file version lib_dir library runtime_path_var toolchain_lib_dir
     root="$(onnxruntime_root)"
     version_file="$root/VERSION_NUMBER"
     lib_dir="$root/lib"
@@ -65,6 +65,10 @@ configure_onnxruntime() {
             library="$lib_dir/libonnxruntime.dylib"
             runtime_path_var="DYLD_LIBRARY_PATH"
             ;;
+        MINGW*|MSYS*|CYGWIN*)
+            library="$lib_dir/onnxruntime.dll"
+            runtime_path_var="PATH"
+            ;;
         *) return 1 ;;
     esac
 
@@ -74,7 +78,11 @@ configure_onnxruntime() {
     [[ -r "$library" ]] || return 1
 
     export A4N_ONNXRUNTIME_ROOT="$root"
-    export ORT_LIB_PATH="$lib_dir"
+    toolchain_lib_dir="$lib_dir"
+    if [[ "$runtime_path_var" == "PATH" ]] && command -v cygpath >/dev/null 2>&1; then
+        toolchain_lib_dir="$(cygpath -w "$lib_dir")"
+    fi
+    export ORT_LIB_PATH="$toolchain_lib_dir"
     export ORT_PREFER_DYNAMIC_LINK=1
     local runtime_path="${!runtime_path_var:-}"
     case ":$runtime_path:" in
@@ -94,6 +102,7 @@ require_onnxruntime() {
 }
 
 guard_build_cache() {
+    # 软上限内：只扔过期 target-*；超限：incremental → sweep → 硬上限才 cargo clean
     "$PROJECT_ROOT/scripts/dev/guard-build-cache.sh"
 }
 

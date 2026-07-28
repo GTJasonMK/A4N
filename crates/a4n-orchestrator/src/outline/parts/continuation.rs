@@ -31,7 +31,8 @@ impl OrchestratorContext {
             workflow_run_id,
         } = input;
         let context =
-            load_part_generation_context(self.db.connection(), project_id, None, None).await?;
+            load_part_generation_context(self.database.connection(), project_id, None, None)
+                .await?;
         validate_part_outline_request(part_number, start_chapter, end_chapter)?;
         ensure_continue_part_request(&context.parts, part_number, start_chapter)?;
         ensure_no_part_outline_conflict(
@@ -59,7 +60,7 @@ impl OrchestratorContext {
             .await?;
         let now = Utc::now().naive_utc();
         let part = insert_part_outline_from_json(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             part_number,
             start_chapter,
@@ -83,7 +84,8 @@ impl OrchestratorContext {
         variables: &HashMap<String, serde_json::Value>,
     ) -> Result<ChatRequest, AppError> {
         let context =
-            load_part_generation_context(self.db.connection(), project_id, None, None).await?;
+            load_part_generation_context(self.database.connection(), project_id, None, None)
+                .await?;
         validate_part_outline_request(part_number, start_chapter, end_chapter)?;
         ensure_continue_part_request(&context.parts, part_number, start_chapter)?;
         ensure_no_part_outline_conflict(

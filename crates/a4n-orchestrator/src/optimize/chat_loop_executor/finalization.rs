@@ -2,9 +2,9 @@ use a4n_core::error::AppError;
 use a4n_core::models::ai::optimization_session;
 use serde_json::json;
 
+use crate::optimize::OrchestratorContext;
 use crate::optimize::agent_loop::{AgentLoopDecision, final_reply};
 use crate::optimize::turns::{EVENT_KIND_ERROR, EVENT_STATUS_FAILED};
-use crate::optimize::{OptimizeProgress, OrchestratorContext, report_optimize_progress};
 
 impl OrchestratorContext {
     pub(super) async fn finish_chat_agent_loop(
@@ -13,7 +13,6 @@ impl OrchestratorContext {
         turn_id: i64,
         step: usize,
         decision: &AgentLoopDecision,
-        progress: &mut Option<OptimizeProgress<'_>>,
     ) -> Result<String, AppError> {
         let reply = match final_reply(&decision.arguments) {
             Ok(reply) => reply,
@@ -37,11 +36,9 @@ impl OrchestratorContext {
         };
         self.save_agent_event(
             session.id,
-            "普通对话 Agent 已返回 final，正在保存 assistant 消息。",
+            "普通对话 Agent 已返回 final，等待 generation terminal 事务保存正式消息。",
         )
         .await?;
-        self.save_message(session.id, "assistant", &reply).await?;
-        report_optimize_progress(progress, 3, 4, "Agent 已返回，已保存回复")?;
         Ok(reply)
     }
 

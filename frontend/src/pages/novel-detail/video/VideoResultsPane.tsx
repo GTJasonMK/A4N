@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Check,
   Copy,
   Eye,
   Film,
@@ -49,6 +50,7 @@ interface VideoResultsPaneProps {
   onTrimEndChange: (value: string) => void;
   onTrim: () => void | Promise<void>;
   onOpenSetup?: () => void;
+  onAdoptVideo?: (video: GeneratedVideo) => void | Promise<void>;
 }
 
 type VideoActionItems = React.ComponentProps<typeof Dropdown>["items"];
@@ -90,6 +92,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   onTrimEndChange,
   onTrim,
   onOpenSetup,
+  onAdoptVideo,
 }) => {
   const addToast = useToast((state) => state.addToast);
   const [promptOpen, setPromptOpen] = useState(false);
@@ -173,6 +176,12 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       negativePromptDraft.trim() !== (selectedVideoRecord.negative_prompt ?? "").trim());
   const promptActionBusy = promptSaving || acting != null;
   const selectedPromptChars = promptCharCount(selectedVideoRecord?.prompt);
+  const selectedVideoAdopted = Boolean(
+    selectedVideoRecord?.metadata_json &&
+      typeof selectedVideoRecord.metadata_json === "object" &&
+      !Array.isArray(selectedVideoRecord.metadata_json) &&
+      (selectedVideoRecord.metadata_json as Record<string, unknown>).selected_for_segment === true,
+  );
 
   const handleSavePromptRecord = async () => {
     if (!selectedVideoRecord || !onUpdateVideo) return;
@@ -268,6 +277,23 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             <Eye size={11} />
             提示词
           </button>
+          {onAdoptVideo && selectedVideoRecord.status === "completed" ? (
+            <BookButton
+              variant={selectedVideoAdopted ? "secondary" : "primary"}
+              size="sm"
+              onClick={() => void onAdoptVideo(selectedVideoRecord)}
+              disabled={selectedVideoAdopted || acting === `adopt-video-${selectedVideoRecord.id}`}
+              className="!min-h-9 !px-2.5 sm:!min-h-7"
+              title={selectedVideoAdopted ? "当前片段已采用此视频" : "设为当前片段的合成结果"}
+            >
+              {acting === `adopt-video-${selectedVideoRecord.id}` ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <Check size={11} />
+              )}
+              {selectedVideoAdopted ? "已采用" : "采用"}
+            </BookButton>
+          ) : null}
           {acting === `poll-${selectedVideoRecord.id}` ||
           acting === `favorite-${selectedVideoRecord.id}` ||
           acting === `delete-video-${selectedVideoRecord.id}` ? (
@@ -385,6 +411,12 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       <ul className="space-y-2">
         {videos.map((video) => {
           const selected = selectedVideoId === video.id;
+          const adopted = Boolean(
+            video.metadata_json &&
+              typeof video.metadata_json === "object" &&
+              !Array.isArray(video.metadata_json) &&
+              (video.metadata_json as Record<string, unknown>).selected_for_segment === true,
+          );
           return (
             <li
               key={video.id}
@@ -406,6 +438,12 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                   </span>
                   {video.is_favorite && (
                     <Star size={11} className="fill-book-primary text-book-primary" />
+                  )}
+                  {adopted && (
+                    <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-success">
+                      <Check size={10} />
+                      已采用
+                    </span>
                   )}
                 </div>
                 <div className="mb-1.5 text-[10px] text-book-text-muted">

@@ -30,21 +30,6 @@ fn import_video_source_path_rejects_unsupported_extension() {
 }
 
 #[test]
-fn import_video_extension_normalizes_supported_extensions() {
-    for (name, expected) in [
-        ("clip.mp4", "mp4"),
-        ("clip.WEBM", "webm"),
-        ("clip.mov", "mov"),
-        ("clip.M4V", "m4v"),
-    ] {
-        assert_eq!(
-            import_video_extension(PathBuf::from(name).as_path()).expect("supported video"),
-            expected
-        );
-    }
-}
-
-#[test]
 fn uploaded_video_source_keeps_temp_file_until_drop_and_writes_all_bytes() {
     let temp_dir = unique_temp_dir("a4n_uploaded_video_source");
 
@@ -73,6 +58,28 @@ fn uploaded_video_source_keeps_temp_file_until_drop_and_writes_all_bytes() {
 
     drop(source);
     assert!(!temp_path.exists());
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn uploaded_video_recovery_only_selects_owned_regular_files_before_cutoff() {
+    let temp_dir = unique_temp_dir("a4n_uploaded_video_recovery");
+    let upload_dir = temp_dir.join("video_uploads");
+    std::fs::create_dir_all(&upload_dir).expect("create upload dir");
+    let owned = upload_dir.join("video_upload_1_2.mp4");
+    let unrelated = upload_dir.join("keep.mp4");
+    let directory = upload_dir.join("video_upload_directory.mp4");
+    std::fs::write(&owned, b"owned").expect("write owned temp file");
+    std::fs::write(&unrelated, b"unrelated").expect("write unrelated file");
+    std::fs::create_dir(&directory).expect("create similarly named directory");
+
+    let expired = super::imports::expired_uploaded_video_sources(
+        &temp_dir,
+        std::time::SystemTime::now() + std::time::Duration::from_secs(1),
+    )
+    .expect("scan uploaded video temp files");
+
+    assert_eq!(expired, vec![owned]);
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
 
@@ -189,115 +196,6 @@ fn copy_imported_video_file_reports_copy_error_without_leaving_output() {
 }
 
 #[test]
-fn reference_media_import_options_reject_invalid_duration_and_aspect_ratio() {
-    for duration_secs in [0, -1, 61] {
-        let err = validate_reference_media_import_options(duration_secs, "16:9")
-            .expect_err("reference media import duration must be bounded");
-
-        assert_eq!(err, "参考媒体视频时长必须在 1 到 60 秒之间");
-    }
-
-    let err = validate_reference_media_import_options(6, "2:1")
-        .expect_err("reference media import aspect ratio must be explicit");
-
-    assert!(err.contains("不支持画幅 2:1"));
-}
-
-#[test]
-fn reference_media_import_options_normalize_declared_aspect_ratio() {
-    let options = validate_reference_media_import_options(6, " 3:4 ")
-        .expect("valid reference media import options");
-
-    assert_eq!(options.aspect_ratio, "3:4");
-}
-
-#[tokio::test]
-async fn delete_video_record_then_files_removes_files_after_record_cleanup() {
-    let data_dir = unique_temp_dir("a4n_video_delete_order_success");
-    let video_path = data_dir.join("videos/chapter_1/video.mp4");
-    std::fs::create_dir_all(video_path.parent().expect("video parent")).expect("create parent");
-    std::fs::write(&video_path, b"video").expect("write video");
-    let cleanup_called = Arc::new(AtomicBool::new(false));
-
-    delete_video_record_then_files(vec![("视频文件", video_path.clone())], {
-        let cleanup_called = cleanup_called.clone();
-        let video_path = video_path.clone();
-        || async move {
-            assert!(video_path.exists());
-            cleanup_called.store(true, Ordering::SeqCst);
-            Ok(())
-        }
-    })
-    .await
-    .expect("file cleanup should run after record deletion succeeds");
-
-    assert!(!video_path.exists());
-    assert!(cleanup_called.load(Ordering::SeqCst));
-    let _ = std::fs::remove_dir_all(&data_dir);
-}
-
-#[tokio::test]
-async fn delete_video_record_then_files_keeps_files_when_record_cleanup_fails() {
-    let data_dir = unique_temp_dir("a4n_video_delete_record_failure");
-    let video_path = data_dir.join("videos/chapter_1/video.mp4");
-    std::fs::create_dir_all(video_path.parent().expect("video parent")).expect("create parent");
-    std::fs::write(&video_path, b"video").expect("write video");
-
-    let err = delete_video_record_then_files(vec![("视频文件", video_path.clone())], {
-        || async move { Err("记录删除失败".to_string()) }
-    })
-    .await
-    .expect_err("file cleanup must not run after record deletion fails");
-
-    assert_eq!(err, "记录删除失败");
-    assert!(video_path.exists());
-    let _ = std::fs::remove_dir_all(&data_dir);
-}
-
-#[tokio::test]
-async fn delete_video_record_then_files_reports_file_delete_error_after_record_cleanup() {
-    let data_dir = unique_temp_dir("a4n_video_delete_order_failure");
-    let bad_target = data_dir.join("videos/chapter_1/not_a_file.mp4");
-    std::fs::create_dir_all(&bad_target).expect("create directory target");
-    let cleanup_called = Arc::new(AtomicBool::new(false));
-
-    let err = delete_video_record_then_files(vec![("视频文件", bad_target.clone())], {
-        let cleanup_called = cleanup_called.clone();
-        || async move {
-            cleanup_called.store(true, Ordering::SeqCst);
-            Ok(())
-        }
-    })
-    .await
-    .expect_err("file cleanup error should be returned after record cleanup");
-
-    assert!(err.contains("视频文件删除失败"));
-    assert!(bad_target.exists());
-    assert!(cleanup_called.load(Ordering::SeqCst));
-    let _ = std::fs::remove_dir_all(&data_dir);
-}
-
-#[test]
-fn validate_video_trim_range_rejects_non_finite_values() {
-    for (start_secs, end_secs) in [
-        (f32::NAN, 2.0),
-        (0.0, f32::NAN),
-        (f32::INFINITY, f32::INFINITY),
-        (0.0, f32::INFINITY),
-    ] {
-        let err = validate_video_trim_range(start_secs, end_secs)
-            .expect_err("non-finite trim range should be rejected");
-
-        assert_eq!(err, "裁剪时间范围无效");
-    }
-}
-
-#[test]
-fn validate_video_trim_range_accepts_finite_forward_range() {
-    validate_video_trim_range(0.25, 1.5).expect("finite forward range should be valid");
-}
-
-#[test]
 fn persist_trimmed_video_output_removes_partial_file_on_trim_error() {
     let root = unique_temp_dir("a4n_trim_output_partial_error");
     let data_dir = root.join("data");
@@ -352,83 +250,4 @@ fn persist_trimmed_video_output_returns_size_and_keeps_successful_file() {
     assert_eq!(relative_path, "projects/1/videos/trimmed.mp4");
     assert!(output.exists());
     let _ = std::fs::remove_dir_all(&root);
-}
-
-#[test]
-fn trimmed_video_metadata_uses_source_video_column_as_source_id_fact() {
-    let source_without_context = video_with_metadata(7, Some(json!({ "prompt_id": 3 })));
-    let metadata = trimmed_video_metadata(&source_without_context, 1.25, 4.5);
-
-    assert_eq!(
-        metadata
-            .get("trim")
-            .and_then(|value| value.get("start_secs")),
-        Some(&json!(1.25))
-    );
-    assert_eq!(
-        metadata.get("trim").and_then(|value| value.get("end_secs")),
-        Some(&json!(4.5))
-    );
-    assert!(
-        metadata.get("source_video_id").is_none(),
-        "source_video_id is recorded by the generated_video column, not duplicated in metadata"
-    );
-    assert!(
-        metadata.get("source").is_none(),
-        "missing source context should not be recorded as source=null"
-    );
-
-    let source_context = json!({ "content_sha256": "same-source" });
-    let source_with_context =
-        video_with_metadata(8, Some(json!({ "source": source_context.clone() })));
-    let metadata = trimmed_video_metadata(&source_with_context, 0.0, 2.0);
-
-    assert_eq!(metadata.get("source"), Some(&source_context));
-    assert!(metadata.get("source_video_id").is_none());
-}
-
-#[test]
-fn imported_chapter_video_metadata_omits_missing_source_context() {
-    let prompt_without_context = prompt_with_metadata(9, Some(json!({ "draft": true })));
-    let metadata = imported_chapter_video_metadata(
-        &prompt_without_context,
-        "external.mp4",
-        "mp4",
-        "2026-06-29T19:19:00Z".to_string(),
-    );
-
-    assert_eq!(metadata.get("prompt_id"), Some(&json!(9)));
-    assert_eq!(metadata.get("shot_number"), Some(&json!(2)));
-    assert_eq!(
-        metadata.get("source_prompt_type"),
-        Some(&json!("video_prompt"))
-    );
-    assert!(
-        metadata.get("source").is_none(),
-        "missing prompt source context should not be recorded as source=null"
-    );
-    assert_eq!(
-        metadata
-            .get("import")
-            .and_then(|value| value.get("source_file_name")),
-        Some(&json!("external.mp4"))
-    );
-
-    let source_context = json!({ "content_sha256": "same-source" });
-    let prompt_with_context =
-        prompt_with_metadata(10, Some(json!({ "source": source_context.clone() })));
-    let metadata = imported_chapter_video_metadata(
-        &prompt_with_context,
-        "external.webm",
-        "webm",
-        "2026-06-29T19:20:00Z".to_string(),
-    );
-
-    assert_eq!(metadata.get("source"), Some(&source_context));
-    assert_eq!(
-        metadata
-            .get("import")
-            .and_then(|value| value.get("source_extension")),
-        Some(&json!("webm"))
-    );
 }

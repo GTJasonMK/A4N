@@ -6,6 +6,7 @@ pub mod blueprint;
 pub mod blueprint_context;
 pub mod chapter_analysis;
 pub mod config;
+pub mod dependency_conflict;
 pub mod error;
 pub mod event;
 pub mod files;

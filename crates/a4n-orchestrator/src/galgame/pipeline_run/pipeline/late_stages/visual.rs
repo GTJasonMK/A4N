@@ -15,8 +15,11 @@ pub(super) async fn run_visual_planning_stage(
     early: &GalgamePipelineEarlyOutputs,
 ) -> Result<GalgameVisualPlan, AppError> {
     let stage = GalgamePipelineStartStage::VisualPlanning;
-    ensure_galgame_pipeline_not_cancelled(&execution.service.db, execution.options.workflow_run_id)
-        .await?;
+    ensure_galgame_pipeline_not_cancelled(
+        &execution.service.database,
+        execution.options.workflow_run_id,
+    )
+    .await?;
     execution
         .service
         .report_pipeline_progress(

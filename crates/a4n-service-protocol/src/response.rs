@@ -1,9 +1,9 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::artifacts::ArtifactRef;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
 pub struct ServiceResponse<T> {
     pub status: ServiceStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -25,7 +25,7 @@ pub enum ServiceStatus {
     Error,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ServiceError {
     pub code: ServiceErrorCode,
@@ -34,7 +34,7 @@ pub struct ServiceError {
     pub retryable: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq, thiserror::Error)]
 #[serde(rename_all = "snake_case")]
 pub enum ServiceErrorCode {
     #[error("capability disabled")]

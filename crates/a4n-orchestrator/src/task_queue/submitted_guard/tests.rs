@@ -1,5 +1,5 @@
 use a4n_core::models::task::task_queue;
-use a4n_queue::priority::{TaskPriority, TaskQueue, TaskStatus, TaskType};
+use a4n_queue::priority::{TaskKind, TaskPriority, TaskQueue, TaskStatus};
 use sea_orm::EntityTrait;
 
 use super::super::PersistentTaskQueue;
@@ -10,7 +10,7 @@ async fn dropped_pending_task_is_cancelled() {
     let db = setup_db().await;
     let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
     let task_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, Some(11))
+        .submit(TaskKind::LlmCall, TaskPriority::High, Some(11))
         .await
         .unwrap();
 

@@ -8,7 +8,7 @@ use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
 use super::super::ChapterGenerationService;
 mod transition;
 
-pub(in crate::chapter_generation::service) struct ChapterGenerationSession {
+pub(in crate::chapter_generation) struct ChapterGenerationSession {
     pub(super) project_id: i64,
     pub(super) chapter_number: i32,
     pub(super) existing_chapter: Option<ExistingChapterGeneration>,

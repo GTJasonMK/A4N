@@ -17,7 +17,7 @@ impl OrchestratorContext {
         title: &str,
     ) -> Result<(), AppError> {
         a4n_db::generation::record_completed_generation_run(
-            self.db.connection(),
+            self.database.connection(),
             RecordCompletedGenerationRunInput {
                 project_id: part.project_id,
                 workflow: "part_outline_generation".to_string(),
@@ -25,7 +25,7 @@ impl OrchestratorContext {
                 title: title.to_string(),
                 model_kind: "llm".to_string(),
                 provider: None,
-                model: Some(self.llm.model_name().to_string()),
+                model: Some(self.llm_model_name()),
                 prompt_template_names_json: Some(json!(["part_outline_single"])),
                 prompt_template_hashes_json: None,
                 rendered_messages_json: Some(chat_request_messages_json(&generated.request)?),

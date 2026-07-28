@@ -3,41 +3,61 @@
 mod agent_loop;
 mod agent_loop_executor;
 mod analysis;
+mod application;
 mod chat;
 mod chat_loop_executor;
 mod context;
 mod contracts;
+mod generation;
 mod messages;
 mod patch;
 mod patch_generation;
 mod patch_request;
 mod patch_sets;
 mod permissions;
-mod runtime_tools;
+pub(crate) mod runtime_tools;
 mod service;
 mod session_events;
 mod session_names;
-mod status;
+#[cfg(test)]
 mod streaming;
 mod turns;
+mod workflow_rules;
 
-pub use contracts::{OptimizeProposePatchesInput, OptimizeSendUserMessageInput};
+pub(in crate::optimize) use agent_loop_executor::{
+    AgentLoopExecutionError, AgentLoopGenerationContext,
+};
+pub use application::{
+    ApplyOptimizePatchesApplicationInput, ApplyOptimizePatchesApplicationResult,
+    OptimizePatchApplyHostPort, PrepareOptimizeAnalysisApplicationInput,
+};
+pub use chat::OptimizeChatGenerationApplicationContext;
+pub(in crate::optimize) use contracts::{
+    OptimizeChatTurnExecution, OptimizeProposePatchesInput, OptimizeSendUserMessageInput,
+};
 pub(in crate::optimize) use contracts::{PatchPromptBundle, PatchRequestBase};
+pub(in crate::optimize) use generation::{
+    agent_loop_error_to_generation_error, app_error_to_generation_error,
+    generation_error_from_session, generation_error_from_terminal, generation_stream_completion,
+    is_generation_cancelled, optimize_progress,
+};
 pub use patch::{
     OptimizationPatch, OptimizationPatchProposal, apply_optimization_patches_to_content,
     optimization_content_hash,
 };
+pub use patch_generation::OptimizePatchGenerationApplicationContext;
 pub(in crate::optimize) use patch_request::{
     build_content_optimization_patch_request, optimize_llm_call_input_fingerprint_json,
     response_content_from_checkpoint,
 };
-pub use permissions::OptimizeAgentPermissions;
-pub(in crate::optimize) use service::optimize_db_error;
+pub use permissions::{
+    OptimizeAgentPermissions, optimization_agent_variables, optimization_analysis_variables,
+};
+pub use service::optimize_db_error;
 pub(in crate::optimize) use session_names::required_available_session_name;
-pub(in crate::optimize) use status::is_cancelled_optimize_error;
-pub use streaming::{OptimizeLlmStream, OptimizeProgress};
-pub(in crate::optimize) use streaming::{
-    collect_streaming_chat_response, report_optimize_progress,
+pub use workflow_rules::{
+    optimize_session_workflow_business_key, optimize_session_workflow_fingerprint,
+    optimize_session_workflow_run_input,
 };
 
 pub use a4n_db::optimize::{

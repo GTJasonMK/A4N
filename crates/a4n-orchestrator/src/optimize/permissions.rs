@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use a4n_core::error::AppError;
 use a4n_core::models::ai::optimization_session;
 use serde::{Deserialize, Serialize};
@@ -94,6 +96,49 @@ impl OptimizeAgentPermissions {
     }
 }
 
+impl From<&a4n_api_contract::optimize::OptimizationAgentPermissions> for OptimizeAgentPermissions {
+    fn from(value: &a4n_api_contract::optimize::OptimizationAgentPermissions) -> Self {
+        Self {
+            read_project_detail: value.read_project_detail,
+            read_blueprint: value.read_blueprint,
+            read_outlines: value.read_outlines,
+            read_character_profiles: value.read_character_profiles,
+            read_foreshadowing: value.read_foreshadowing,
+            automatic_writeback: value.automatic_writeback,
+        }
+    }
+}
+
+pub fn optimization_agent_variables(
+    permissions: Option<&OptimizeAgentPermissions>,
+) -> HashMap<String, Value> {
+    let permissions = permissions.cloned().unwrap_or_default();
+    HashMap::from([("agent_permissions".to_string(), permissions.as_value())])
+}
+
+pub fn optimization_analysis_variables(
+    mode: &str,
+    scope: Option<&str>,
+    permissions: Option<&OptimizeAgentPermissions>,
+    agent_instruction: Option<&str>,
+) -> HashMap<String, Value> {
+    let mut variables = optimization_agent_variables(permissions);
+    variables.insert("mode".to_string(), Value::String(mode.to_string()));
+    if let Some(scope) = scope {
+        variables.insert("scope".to_string(), Value::String(scope.to_string()));
+    }
+    if let Some(instruction) = agent_instruction
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    {
+        variables.insert(
+            "agent_instruction".to_string(),
+            Value::String(instruction.to_string()),
+        );
+    }
+    variables
+}
+
 fn permission_bool(
     object: &serde_json::Map<String, Value>,
     key: &str,
@@ -160,4 +205,45 @@ pub(super) fn insert_optimization_agent_capability_variables(
         Value::String(serde_json::to_string_pretty(&capabilities)?),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn analysis_variables_keep_required_mode_and_default_permissions() {
+        let variables = optimization_analysis_variables("review", None, None, None);
+
+        assert_eq!(variables.get("mode"), Some(&Value::String("review".into())));
+        assert!(variables.contains_key("agent_permissions"));
+        assert!(!variables.contains_key("scope"));
+        assert!(!variables.contains_key("agent_instruction"));
+    }
+
+    #[test]
+    fn analysis_variables_trim_instruction_but_preserve_scope() {
+        let variables = optimization_analysis_variables(
+            "rewrite",
+            Some(" chapter "),
+            None,
+            Some("  保留叙事视角  "),
+        );
+
+        assert_eq!(
+            variables.get("scope"),
+            Some(&Value::String(" chapter ".into()))
+        );
+        assert_eq!(
+            variables.get("agent_instruction"),
+            Some(&Value::String("保留叙事视角".into()))
+        );
+    }
+
+    #[test]
+    fn analysis_variables_drop_blank_instruction() {
+        let variables = optimization_analysis_variables("review", None, None, Some("  "));
+
+        assert!(!variables.contains_key("agent_instruction"));
+    }
 }

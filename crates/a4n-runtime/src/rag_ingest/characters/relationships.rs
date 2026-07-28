@@ -13,7 +13,7 @@ pub(crate) async fn ingest_relationships_inner(
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
     let relationships = state
-        .orchestrator
+        .rag()
         .blueprint_relationships_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;

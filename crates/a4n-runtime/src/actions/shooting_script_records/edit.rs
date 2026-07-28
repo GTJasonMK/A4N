@@ -3,50 +3,38 @@ use a4n_orchestrator::shooting_script::{
 };
 
 use super::contracts::{
-    ChapterShootingScriptView, EditChapterShootingScriptRecordInput,
-    EditedChapterShootingScriptView,
+    EditChapterShootingScriptRecordInput, EditedChapterShootingScriptView, contract_view,
+    domain_script,
 };
-use crate::{AppState, actions::access};
+use crate::AppState;
 
 pub async fn edit_chapter_shooting_script(
     state: &AppState,
     user_id: i64,
     input: EditChapterShootingScriptRecordInput,
 ) -> Result<EditedChapterShootingScriptView, String> {
-    access::verify_project_or_derived_family_editor(state, user_id, input.project_id)
-        .await
-        .map_err(|error| error.to_string())?;
-    let resolved = state
-        .orchestrator
-        .current_chapter_shooting_script(ChapterShootingScriptSourceInput {
-            project_id: input.project_id,
-            source_chapter_id: input.source_chapter_id,
-        })
-        .await
-        .map_err(|error| error.to_string())?;
-    let existing = resolved
-        .map(|resolved| resolved.shooting_script)
-        .ok_or_else(|| "当前章节尚无可编辑的共享拍摄剧本".to_string())?;
-    if existing.record.id != input.record_id {
-        return Err(format!(
-            "拍摄剧本与当前章节来源不匹配: expected_record_id={}, actual_record_id={}",
-            existing.record.id, input.record_id
-        ));
-    }
+    let script = domain_script(input.script)?;
     let edited = state
-        .orchestrator
-        .edit_chapter_shooting_script(EditChapterShootingScriptInput {
-            record_id: input.record_id,
-            expected_revision: input.expected_revision,
-            script: input.script,
-        })
+        .shooting_script()
+        .edit_current_chapter_shooting_script_for_user_validated(
+            user_id,
+            ChapterShootingScriptSourceInput {
+                project_id: input.project_id,
+                source_chapter_id: input.source_chapter_id,
+            },
+            EditChapterShootingScriptInput {
+                record_id: input.record_id,
+                expected_revision: input.expected_revision,
+                script,
+            },
+        )
         .await
         .map_err(|error| error.to_string())?;
     Ok(EditedChapterShootingScriptView {
-        shooting_script: ChapterShootingScriptView {
-            record: edited.shooting_script.record,
-            script: edited.shooting_script.script,
-        },
+        shooting_script: contract_view(
+            edited.shooting_script.record,
+            edited.shooting_script.script,
+        )?,
         invalidated_project_ids: edited.invalidated_project_ids,
     })
 }

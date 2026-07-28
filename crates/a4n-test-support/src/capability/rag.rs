@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use a4n_capabilities::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, RagClient};
-use a4n_service_protocol::{ServiceHealth, ServiceTaskEvent};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
 
 use super::{
@@ -12,7 +12,7 @@ use super::{
 #[derive(Clone, Default)]
 pub struct RecordingRagClient {
     state: Arc<RecordingRagClientState>,
-    ingest_events: Option<Vec<ServiceTaskEvent>>,
+    ingest_events: Option<Vec<CapabilityTaskEvent>>,
 }
 
 #[derive(Default)]
@@ -26,7 +26,7 @@ impl RecordingRagClient {
         Self::default()
     }
 
-    pub fn with_ingest_events(mut self, events: Vec<ServiceTaskEvent>) -> Self {
+    pub fn with_ingest_events(mut self, events: Vec<CapabilityTaskEvent>) -> Self {
         self.ingest_events = Some(events);
         self
     }
@@ -73,7 +73,7 @@ impl RagClient for RecordingRagClient {
     async fn ingest_events(
         &self,
         request: JsonRequest,
-        events: tokio::sync::mpsc::UnboundedSender<ServiceTaskEvent>,
+        events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.state.ingest_event_requests.record(request.clone());
         send_configured_events(
@@ -83,6 +83,7 @@ impl RagClient for RecordingRagClient {
             &request.request_id,
             &events,
         )
+        .await
     }
 
     async fn search(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {

@@ -2,10 +2,9 @@ mod read;
 mod write;
 
 use a4n_service_protocol::{
-    HealthStatus, PROMPT_RENDER_CAPABILITY_VERSION as PROMPT_CAPABILITY_VERSION,
-    PROMPT_SERVICE_NAME, PROTOCOL_VERSION, ServiceHealth, ServiceVersion,
+    HealthStatus, PROMPT_SERVICE_NAME, ServiceHealth, known_service_health_for_host,
 };
-use axum::Json;
+use axum::{Json, http::HeaderMap};
 
 pub(crate) use read::{
     categories, dependency_graph, get_prompt, list_prompts, render_prompt, render_prompt_ab,
@@ -16,14 +15,11 @@ pub(crate) use write::{
     update_many_prompts, update_prompt,
 };
 
-pub(crate) async fn healthz() -> Json<ServiceHealth> {
-    Json(ServiceHealth {
-        service: PROMPT_SERVICE_NAME.to_string(),
-        status: HealthStatus::Healthy,
-        version: ServiceVersion {
-            service_version: env!("CARGO_PKG_VERSION").to_string(),
-            protocol_version: PROTOCOL_VERSION,
-            capability_version: PROMPT_CAPABILITY_VERSION.to_string(),
-        },
-    })
+pub(crate) async fn healthz(headers: HeaderMap) -> Json<ServiceHealth> {
+    Json(known_service_health_for_host(
+        PROMPT_SERVICE_NAME,
+        env!("CARGO_PKG_VERSION"),
+        HealthStatus::Healthy,
+        a4n_sidecar_bootstrap::host_protocol_version(&headers),
+    ))
 }

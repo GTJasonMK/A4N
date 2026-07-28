@@ -1,6 +1,5 @@
 mod cancellation;
-mod checkpoint;
-mod contracts;
+pub mod contracts;
 mod status;
 
-pub(super) use contracts::{MangaPipelineCheckpointInput, MangaPipelineStatusInput};
+pub(crate) use contracts::{MangaPipelineCheckpointInput, MangaPipelineStatusInput};

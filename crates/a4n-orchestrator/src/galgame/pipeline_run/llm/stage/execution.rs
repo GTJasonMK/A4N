@@ -41,8 +41,8 @@ where
         context_plan_json: None,
         context_pack_refs_json: None,
     });
-    let response = service.llm.chat(request.clone()).await?;
-    ensure_galgame_pipeline_not_cancelled(&service.db, input.workflow_run_id).await?;
+    let response = service.stream_complete_llm(request.clone()).await?;
+    ensure_galgame_pipeline_not_cancelled(&service.database, input.workflow_run_id).await?;
     if is_truncated_finish_reason(response.finish_reason.as_deref()) {
         return Err(AppError::InvalidState {
             current: format!("{}_response_truncated", input.prompt_name),
@@ -67,7 +67,7 @@ where
             parse_output: &parse_output,
         })
         .await?;
-    ensure_galgame_pipeline_not_cancelled(&service.db, input.workflow_run_id).await?;
+    ensure_galgame_pipeline_not_cancelled(&service.database, input.workflow_run_id).await?;
     let repair_artifact = repaired.artifact_summary();
     let parsed_output = repaired.output;
     let usage_json = response
@@ -77,7 +77,7 @@ where
         .transpose()
         .map_err(AppError::Serialization)?;
     workflow::save_completed_llm_call_checkpoint(
-        service.db.connection(),
+        service.database.connection(),
         CompletedLlmCallCheckpointInput {
             workflow_run_id: input.workflow_run_id,
             call_key: input.checkpoint_key.to_string(),

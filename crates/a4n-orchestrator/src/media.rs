@@ -1,9 +1,43 @@
 //! 媒体资产应用编排：文件边界校验、文件事实计算与 provenance 原子落库。
 
+mod batch_image_application;
+mod batch_image_rules;
 mod contracts;
+mod image_generation;
+mod image_record_lifecycle;
+mod image_workflow_rules;
 mod rules;
+mod uploaded_image_rules;
 
+pub use batch_image_application::{
+    BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationItem,
+    BatchImageGenerationOutcome,
+};
 pub use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
+pub use image_generation::{
+    BatchImageGenerationInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
+    GeneratedImageArtifactFile, GeneratedImageSummary, ImageGenerationExecutionInput,
+    ImageGenerationExecutionOutcome, ImageGenerationHostPort, ImageGenerationPostCommitAction,
+    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
+    ImageGenerationWorkflowBinding, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
+    PageImageGenerationInput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+    PreparedImageGenerationRequest, SceneImageGenerationInput, SceneProfileImageInput,
+    SceneProfileImagePromptOutput, generated_image_summary, image_generation_request_trace_json,
+    normalize_image_metadata,
+};
+pub use image_record_lifecycle::{
+    IMPORTED_IMAGE_MODEL, ImportedImageUploadInput, PreparedImportedImageUpload,
+};
+pub use image_workflow_rules::{
+    batch_image_item_step_key, batch_image_workflow_business_key, batch_image_workflow_fingerprint,
+    batch_image_workflow_run_input, image_generation_step_key,
+    image_generation_workflow_business_key, image_generation_workflow_fingerprint,
+    image_generation_workflow_run_input,
+};
+pub use uploaded_image_rules::{
+    DecodedUploadedImage, decode_uploaded_image_data, strip_data_url_prefix,
+};
+
 pub use rules::{
     MEDIA_BINDING_ROLE_BACKGROUND, MEDIA_BINDING_ROLE_BGM, MEDIA_BINDING_ROLE_CG,
     MEDIA_BINDING_ROLE_SFX, MEDIA_BINDING_ROLES, MEDIA_BINDING_TARGET_GALGAME_LINE,
@@ -37,11 +71,11 @@ impl OrchestratorContext {
         let origin = normalize_media_value(&input.origin, "origin", is_valid_media_origin)?;
         let status = normalize_media_value(&input.status, "status", is_valid_media_status)?;
         let checked_file = match input.file_path.as_deref() {
-            Some(path) => Some(resolve_data_file(&self.config.data_dir, path, "媒体文件")?),
+            Some(path) => Some(resolve_data_file(self.data_dir(), path, "媒体文件")?),
             None => None,
         };
         if let Some(path) = input.thumbnail_path.as_deref() {
-            resolve_data_file(&self.config.data_dir, path, "媒体缩略图")?;
+            resolve_data_file(self.data_dir(), path, "媒体缩略图")?;
         }
         if status == MEDIA_STATUS_COMPLETED && checked_file.is_none() {
             return Err(AppError::InvalidArgument(
@@ -57,7 +91,7 @@ impl OrchestratorContext {
             (None, None)
         };
         a4n_db::media::create_media_asset_with_provenance_record(
-            self.db.connection(),
+            self.database.connection(),
             CreateMediaAssetRecordInput {
                 project_id: input.project_id,
                 root_project_id: input.root_project_id,
@@ -82,6 +116,43 @@ impl OrchestratorContext {
         .await
         .map_err(media_db_error)
     }
+
+    /// 单张图片生成：校验后创建/恢复 workflow_run，并返回 step_key 与指纹。
+    pub async fn begin_image_generation_workflow_validated(
+        &self,
+        project_id: i64,
+        chapter_id: Option<i64>,
+        command: &str,
+        image_type: &str,
+        panel_id: Option<&str>,
+        request_json: &serde_json::Value,
+        metadata_json: Option<&serde_json::Value>,
+    ) -> Result<ImageGenerationWorkflowStart, AppError> {
+        let (input, step_key, fingerprint_json) = image_generation_workflow_run_input(
+            project_id,
+            chapter_id,
+            command,
+            image_type,
+            panel_id,
+            request_json,
+            metadata_json,
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let workflow_run = self.begin_workflow_run_validated(input).await?;
+        Ok(ImageGenerationWorkflowStart {
+            workflow_run,
+            step_key,
+            fingerprint_json,
+        })
+    }
+}
+
+/// 单张图片生成 begin 的返回值（workflow + Host 后续 checkpoint 所需字段）。
+#[derive(Debug, Clone)]
+pub struct ImageGenerationWorkflowStart {
+    pub workflow_run: a4n_core::models::generation::workflow_run::Model,
+    pub step_key: String,
+    pub fingerprint_json: serde_json::Value,
 }
 
 fn resolve_data_file(data_dir: &Path, path: &str, label: &str) -> Result<PathBuf, AppError> {

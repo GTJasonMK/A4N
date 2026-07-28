@@ -66,7 +66,7 @@ impl OrchestratorContext {
             .map(prepare_prompt_sync_draft)
             .collect::<Result<Vec<_>, _>>()?;
         let rows = a4n_db::video_prompt::sync_chapter_video_prompts_with_generation_runs(
-            self.db.connection(),
+            self.database.connection(),
             chapter_id,
             drafts,
             policy,
@@ -85,13 +85,17 @@ fn prepare_prompt_sync_draft(
         .generation_trace
         .map(prepare_generation_trace)
         .transpose()?;
+    let workflow_mode = draft
+        .workflow_mode
+        .storage_str(&draft.prompt_type)
+        .to_string();
     Ok(a4n_db::video_prompt::ChapterVideoPromptSyncDraft {
         fields: a4n_db::video::ChapterVideoPromptRecordFields {
             project_id: draft.project_id,
             chapter_id: draft.chapter_id,
             style: draft.style,
             prompt_type: draft.prompt_type,
-            workflow_mode: draft.workflow_mode.as_str().to_string(),
+            workflow_mode,
             shot_number: draft.shot_number,
             title: draft.title,
             scene_summary: draft.scene_summary,

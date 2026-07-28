@@ -3,9 +3,7 @@ use crate::state::profile::RuntimeProfile;
 use a4n_core::{config::app_config::AppConfig, error::AppError};
 use a4n_rag_core::vector_store::VectorStore;
 #[cfg(feature = "embedded-rag-index")]
-use a4n_rag_index::{
-    hybrid_store::HybridVectorStore, lance_store::LanceVectorStore, tantivy_index::TantivyTextIndex,
-};
+use a4n_rag_index::QdrantVectorStore;
 use std::sync::Arc;
 
 pub(in crate::state) async fn create_rag_store(
@@ -25,18 +23,18 @@ pub(in crate::state) async fn create_rag_store(
         return Ok(Arc::new(DisabledVectorStore::new(runtime_profile)));
     }
 
-    create_embedded_rag_store(config).await
+    let _ = config;
+    create_embedded_rag_store().await
 }
 
 #[cfg(feature = "embedded-rag-index")]
-async fn create_embedded_rag_store(config: &AppConfig) -> Result<Arc<dyn VectorStore>, AppError> {
-    let lance_vec = Arc::new(LanceVectorStore::open(config.data_dir.join("lance")).await?);
-    let tantivy_idx = Arc::new(TantivyTextIndex::new(config.data_dir.join("tantivy"))?);
-    Ok(Arc::new(HybridVectorStore::new(lance_vec, tantivy_idx)))
+async fn create_embedded_rag_store() -> Result<Arc<dyn VectorStore>, AppError> {
+    let store = QdrantVectorStore::connect_from_env().await?;
+    Ok(store as Arc<dyn VectorStore>)
 }
 
 #[cfg(not(feature = "embedded-rag-index"))]
-async fn create_embedded_rag_store(_config: &AppConfig) -> Result<Arc<dyn VectorStore>, AppError> {
+async fn create_embedded_rag_store() -> Result<Arc<dyn VectorStore>, AppError> {
     Err(AppError::ConfigError(
         "full runtime profile 需要编译 `embedded-rag-index` feature，不能回退到 disabled RAG"
             .to_string(),

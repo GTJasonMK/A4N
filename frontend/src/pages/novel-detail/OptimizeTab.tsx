@@ -5,11 +5,11 @@ import React, {
   useState,
 } from "react";
 import { extractErrorMessage } from "../../api";
+import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import { createDefaultOptimizationAgentPermissions } from "../../api/optimize";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
-import { useProgressTask } from "../../hooks/useProgressTask";
 import { OptimizeComposer } from "./optimize/OptimizeComposer";
 import { OptimizeHeader } from "./optimize/OptimizeHeader";
 import { OptimizeStreamPane } from "./optimize/OptimizeStreamPane";
@@ -40,12 +40,12 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
   onPatchPreviewChange,
 }) => {
   const { addToast } = useToast();
-  const { runProgressTask } = useProgressTask();
   const [input, setInput] = useState("");
   const [agentPermissions, setAgentPermissions] = useState(
     createDefaultOptimizationAgentPermissions,
   );
-  const [optimizeTaskId, setOptimizeTaskId] = useState<string | null>(null);
+  const [optimizeGenerationHandle, setOptimizeGenerationHandle] =
+    useState<GenerationTaskHandle | null>(null);
   const [cancellingOptimize, setCancellingOptimize] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
@@ -58,7 +58,8 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
   const requestPreviewBusySeqRef = useRef<number | null>(null);
 
   const isPinned = fixedChapterId != null;
-  const taskRunning = optimizeTaskId != null;
+  const taskRunning = optimizeGenerationHandle != null;
+  const displayTaskId = optimizeGenerationHandle?.task_id ?? null;
   const patchReviewState = useOptimizePatchReviewState();
   const {
     pendingPatchProposal,
@@ -106,7 +107,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
     isPinned,
     loading,
     localItems,
-    optimizeTaskId,
+    optimizeTaskId: displayTaskId,
     parsedIssueCount: parsedIssues.length,
     progressStreamItems,
     taskRunning,
@@ -155,12 +156,11 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
     setInput,
     agentPermissions,
     setAgentPermissions,
-    optimizeTaskId,
-    setOptimizeTaskId,
+    optimizeGenerationHandle,
+    setOptimizeGenerationHandle,
     setCancellingOptimize,
     taskRunning,
     addToast,
-    runProgressTask,
     onChapterContentChanged,
     onPatchPreviewChange,
     sessionState,

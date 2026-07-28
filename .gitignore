@@ -46,7 +46,16 @@ pnpm-debug.log*
 *.mkv
 *.zip
 *.tar.gz
-deploy/
+/deploy/
+
+# 参考用上游克隆，禁止作为 workspace 成员参与 monorepo 编译
+/crates/qdrant/
+
+# Qdrant 官方 release 二进制与本地索引数据（用 scripts/dev/setup-qdrant.sh 安装）
+/tools/qdrant/bin/
+/tools/qdrant/storage/
+/tools/qdrant/snapshots/
+/tools/qdrant/*.log
 
 # Local agent/tooling state
 AGENTS.md
@@ -55,7 +64,17 @@ CLAUDE.md
 .claude/
 .codex/
 .cache
-docs/
+# Architecture plans are delivery artifacts; keep the remaining local docs ignored.
+docs/*
+!docs/TEST_DATABASE.md
+!docs/重构/
+docs/重构/*
+!docs/重构/编译反馈与crate分层重构计划.md
+!docs/重构/模块化重构执行计划-v2.md
+!docs/重构/模块化重构进度记录.md
+!docs/重构/rag-qdrant-migration.md
+!docs/重构/剩余重构/
+!docs/重构/剩余重构/*.md
 # OS/editor noise
 .DS_Store
 Thumbs.db

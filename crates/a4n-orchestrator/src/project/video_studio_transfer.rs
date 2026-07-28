@@ -1,0 +1,181 @@
+use std::{collections::HashSet, path::Path};
+
+use a4n_core::{error::AppError, models::project::novel_project};
+use a4n_db::canvas::VideoStudioProjectExportRows;
+use async_trait::async_trait;
+
+use super::{
+    ImportMediaPayload, MEDIA_FIELD_FILE, MEDIA_FIELD_THUMBNAIL, MEDIA_OWNER_IMAGE,
+    MEDIA_OWNER_MEDIA_ASSET, MEDIA_OWNER_VIDEO, VideoStudioMediaFileEntry,
+    VideoStudioProjectPackage,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportVideoStudioProjectApplicationInput {
+    pub user_id: i64,
+    pub project_id: i64,
+}
+
+#[derive(Debug)]
+pub struct ExportedVideoStudioProject {
+    pub project: novel_project::Model,
+    pub package_bytes: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub struct ImportVideoStudioProjectApplicationInput {
+    pub user_id: i64,
+    pub package_bytes: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub struct ReadVideoStudioProjectPackage {
+    pub package: VideoStudioProjectPackage,
+    pub media_payload: ImportMediaPayload,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum VideoStudioProjectTransferError {
+    #[error("{0}")]
+    Application(#[from] AppError),
+    #[error("{0}")]
+    Message(String),
+}
+
+impl From<String> for VideoStudioProjectTransferError {
+    fn from(message: String) -> Self {
+        Self::Message(message)
+    }
+}
+
+#[async_trait]
+pub trait VideoStudioProjectTransferHostPort: Send + Sync {
+    async fn verify_project_owner(&self, user_id: i64, project_id: i64) -> Result<(), AppError>;
+
+    async fn render_export_package(
+        &self,
+        package: &VideoStudioProjectPackage,
+    ) -> Result<Vec<u8>, String>;
+
+    async fn read_import_package(
+        &self,
+        package_bytes: Vec<u8>,
+    ) -> Result<ReadVideoStudioProjectPackage, String>;
+
+    fn write_imported_media_file(
+        &mut self,
+        relative_path: &str,
+        bytes: &[u8],
+        label: &str,
+    ) -> Result<(), String>;
+
+    async fn rollback_imported_media_files(&mut self, label: &str) -> Result<(), String>;
+}
+
+pub(crate) fn video_studio_export_media_files(
+    rows: &VideoStudioProjectExportRows,
+) -> Result<Vec<VideoStudioMediaFileEntry>, String> {
+    let mut entries = Vec::new();
+    let mut seen_package_paths = HashSet::new();
+    for image in &rows.generated_images {
+        push_media_file(
+            &mut entries,
+            &mut seen_package_paths,
+            MEDIA_OWNER_IMAGE,
+            image.id,
+            MEDIA_FIELD_FILE,
+            "file",
+            &image.file_path,
+        )?;
+    }
+    for video in &rows.generated_videos {
+        push_optional_media_files(
+            &mut entries,
+            &mut seen_package_paths,
+            MEDIA_OWNER_VIDEO,
+            video.id,
+            video.file_path.as_deref(),
+            video.thumbnail_path.as_deref(),
+        )?;
+    }
+    for asset in &rows.media_assets {
+        push_optional_media_files(
+            &mut entries,
+            &mut seen_package_paths,
+            MEDIA_OWNER_MEDIA_ASSET,
+            asset.id,
+            asset.file_path.as_deref(),
+            asset.thumbnail_path.as_deref(),
+        )?;
+    }
+    Ok(entries)
+}
+
+fn push_optional_media_files(
+    entries: &mut Vec<VideoStudioMediaFileEntry>,
+    seen_package_paths: &mut HashSet<String>,
+    owner_kind: &str,
+    owner_id: i64,
+    file_path: Option<&str>,
+    thumbnail_path: Option<&str>,
+) -> Result<(), String> {
+    for (field, package_field, path) in [
+        (MEDIA_FIELD_FILE, "file", file_path),
+        (MEDIA_FIELD_THUMBNAIL, "thumbnail", thumbnail_path),
+    ] {
+        let Some(original_path) = path else {
+            continue;
+        };
+        push_media_file(
+            entries,
+            seen_package_paths,
+            owner_kind,
+            owner_id,
+            field,
+            package_field,
+            original_path,
+        )?;
+    }
+    Ok(())
+}
+
+fn push_media_file(
+    entries: &mut Vec<VideoStudioMediaFileEntry>,
+    seen_package_paths: &mut HashSet<String>,
+    owner_kind: &str,
+    owner_id: i64,
+    field: &str,
+    package_field: &str,
+    original_path: &str,
+) -> Result<(), String> {
+    let package_path = media_package_path(owner_kind, owner_id, package_field, original_path)?;
+    if !seen_package_paths.insert(package_path.clone()) {
+        return Err(format!("视频画布项目媒体包路径重复: {package_path}"));
+    }
+    entries.push(VideoStudioMediaFileEntry {
+        owner_kind: owner_kind.to_string(),
+        owner_id,
+        field: field.to_string(),
+        original_path: original_path.to_string(),
+        package_path,
+    });
+    Ok(())
+}
+
+fn media_package_path(
+    owner_kind: &str,
+    owner_id: i64,
+    field: &str,
+    original_path: &str,
+) -> Result<String, String> {
+    let extension = Path::new(original_path)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| format!("媒体文件缺少扩展名: {original_path}"))?;
+    Ok(format!("media/{owner_kind}/{owner_id}/{field}.{extension}"))
+}
+
+#[cfg(test)]
+mod tests;

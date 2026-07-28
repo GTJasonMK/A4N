@@ -29,7 +29,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
     ) -> Result<ChatRequest, AppError> {
-        let old = project_db::chapter_outline_by_id(self.db.connection(), outline_id)
+        let old = project_db::chapter_outline_by_id(self.database.connection(), outline_id)
             .await
             .map_err(crate::project::project_outline_record_error_to_app_error)?
             .ok_or_else(|| AppError::NotFound(format!("章节大纲不存在: {outline_id}")))?;
@@ -40,7 +40,7 @@ impl OrchestratorContext {
         }
         let chapter_number = old.chapter_number;
         let context =
-            load_chapter_outline_generation_context(self.db.connection(), project_id).await?;
+            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
         validate_requested_part_context(&context.parts, chapter_number, chapter_number)?;
         let focus_part = match old.part_id {
             Some(part_id) => {
@@ -135,7 +135,7 @@ impl OrchestratorContext {
         }
 
         let context =
-            load_chapter_outline_generation_context(self.db.connection(), project_id).await?;
+            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
         validate_requested_part_context(&context.parts, start_chapter, end_chapter)?;
         ensure_focus_part_in_context(focus_part, &context.parts)?;
 

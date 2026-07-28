@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "attempt": 1,
+  "sequence": 1,
+  "emitted_at_ms": 0,
+  "event": {
+    "kind": "started",
+    "data": {
+      "task_kind": "llm.chat",
+      "delivery_mode": "stream",
+      "project_id": 1,
+      "root_project_id": 1,
+      "workflow_run_id": null,
+      "generation_run_id": null,
+      "target": {
+        "kind": "chapter",
+        "id": "42",
+        "revision": "1"
+      },
+      "batch_policy": null,
+      "root_task_id": "550e8400-e29b-41d4-a716-446655440000",
+      "parent_task_id": null,
+      "item_key": null,
+      "retry_of_task_id": null
+    }
+  }
+}

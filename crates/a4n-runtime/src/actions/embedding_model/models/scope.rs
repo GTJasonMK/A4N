@@ -2,7 +2,7 @@ use a4n_core::error::AppError;
 
 use super::super::{
     contracts::{CancelEmbeddingModelDownloadInput, EmbeddingModelDownloadTaskScope},
-    rules::required_text,
+    host_adapter::required_text,
 };
 
 pub fn embedding_model_download_task_scope() -> EmbeddingModelDownloadTaskScope {

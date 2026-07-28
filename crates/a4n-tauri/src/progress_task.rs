@@ -1,20 +1,15 @@
-use crate::events::bridge::EventBridge;
-use a4n_core::event::channel::{TaskHandle, TaskProgress, TaskType};
-use a4n_core::event::sse::ProgressMeta;
+use a4n_core::event::channel::{TaskHandle, TaskKind, TaskProgress};
+use a4n_core::event::progress::ProgressMeta;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::task_records;
 use parking_lot::RwLock;
 use std::collections::VecDeque;
 use std::sync::Arc;
-use tauri::Window;
 use tokio_util::sync::CancellationToken;
 
 pub(crate) struct WorkflowProgressTask {
-    task_id: Option<String>,
-    bridge: Option<EventBridge>,
     task_handle: Option<Arc<TaskHandle>>,
-    cancel_token: Option<CancellationToken>,
-    task_type: TaskType,
+    task_type: TaskKind,
 }
 
 pub(crate) struct WorkflowTaskContext {
@@ -26,16 +21,14 @@ pub(crate) struct WorkflowTaskContext {
 
 impl WorkflowProgressTask {
     pub(crate) fn new(
-        window: Window,
         state: &AppState,
         task_id: Option<String>,
-        task_type: TaskType,
+        task_type: TaskKind,
         project_id: Option<i64>,
         total: u32,
         message: impl Into<String>,
     ) -> Self {
         Self::new_with_context(
-            window,
             state,
             task_id,
             task_type,
@@ -51,24 +44,22 @@ impl WorkflowProgressTask {
     }
 
     pub(crate) fn new_with_context(
-        window: Window,
         state: &AppState,
         task_id: Option<String>,
-        task_type: TaskType,
+        task_type: TaskKind,
         context: WorkflowTaskContext,
         total: u32,
         message: impl Into<String>,
     ) -> Self {
         let total = total.max(1);
         let message = message.into();
-        let bridge = task_id.as_ref().map(|_| EventBridge::new(window));
-        let cancel_token = task_id.as_ref().map(|_| CancellationToken::new());
-        let task_handle = match (task_id.as_ref(), cancel_token.as_ref()) {
-            (Some(task_id), Some(cancel_token)) => Some(task_records::register_task_handle(
+        let task_handle = task_id.map(|task_id| {
+            let cancel_token = CancellationToken::new();
+            task_records::register_task_handle(
                 state,
                 TaskHandle {
-                    task_id: task_id.clone(),
-                    cancel_token: cancel_token.clone(),
+                    task_id,
+                    cancel_token,
                     progress: Arc::new(RwLock::new(TaskProgress::with_meta(
                         0,
                         total,
@@ -82,15 +73,11 @@ impl WorkflowProgressTask {
                     source_snapshot_id: context.source_snapshot_id,
                     task_scope: context.task_scope,
                 },
-            )),
-            _ => None,
-        };
+            )
+        });
 
         Self {
-            task_id,
-            bridge,
             task_handle,
-            cancel_token,
             task_type,
         }
     }
@@ -109,10 +96,7 @@ impl WorkflowProgressTask {
         let total = total.max(1);
         let meta = meta.or_else(|| Some(self.task_type.progress_meta(message)));
         if let Some(handle) = self.task_handle.as_ref() {
-            handle.update_progress_with_meta(current, total, message, meta.clone());
-        }
-        if let (Some(task_id), Some(bridge)) = (self.task_id.as_ref(), self.bridge.as_ref()) {
-            let _ = bridge.emit_progress_with_meta(task_id, current, total, message, meta);
+            handle.update_progress_with_meta(current, total, message, meta);
         }
     }
 
@@ -124,30 +108,15 @@ impl WorkflowProgressTask {
         message: &str,
     ) {
         if let Some(handle) = self.task_handle.as_ref() {
-            if total > 0 {
-                let scaled_current = (u128::from(current.min(total)) * u128::from(progress_total))
-                    / u128::from(total);
-                let scaled_current = u32::try_from(scaled_current)
-                    .expect("scaled byte progress is bounded by progress_total");
-                handle.update_progress(scaled_current, progress_total, message);
-            }
-        }
-        if let (Some(task_id), Some(bridge)) = (self.task_id.as_ref(), self.bridge.as_ref()) {
-            let _ = bridge.emit_progress_bytes(task_id, current, total, message);
-        }
-    }
-
-    pub(crate) fn chunk(&self, content: &str, index: u32) {
-        if let (Some(task_id), Some(bridge)) = (self.task_id.as_ref(), self.bridge.as_ref()) {
-            let _ = bridge.emit_chunk(task_id, content, index);
+            handle.update_progress_bytes(current, total, progress_total, message);
         }
     }
 
     pub(crate) fn check_cancelled(&self, message: &str) -> Result<(), String> {
         if self
-            .cancel_token
+            .task_handle
             .as_ref()
-            .is_some_and(|token| token.is_cancelled())
+            .is_some_and(|handle| handle.is_cancelled())
         {
             return Err(message.to_string());
         }
@@ -155,50 +124,15 @@ impl WorkflowProgressTask {
     }
 
     pub(crate) fn cancel_token(&self) -> CancellationToken {
-        self.cancel_token.clone().unwrap_or_default()
-    }
-
-    pub(crate) fn complete(&self, summary: impl Into<String>) {
-        if let (Some(task_id), Some(bridge)) = (self.task_id.as_ref(), self.bridge.as_ref()) {
-            let _ = bridge.emit_complete(task_id, Some(summary.into()));
-        }
-    }
-
-    pub(crate) fn error(&self, code: &str, message: &str) {
-        if let (Some(task_id), Some(bridge)) = (self.task_id.as_ref(), self.bridge.as_ref()) {
-            let error_code = if self
-                .cancel_token
-                .as_ref()
-                .is_some_and(CancellationToken::is_cancelled)
-            {
-                "cancelled"
-            } else {
-                code
-            };
-            let _ = bridge.emit_error(task_id, error_code, message, false);
-        }
-    }
-
-    pub(crate) fn finish_result<T, F, S>(
-        self,
-        state: &AppState,
-        result: &Result<T, String>,
-        error_code: &str,
-        success_summary: F,
-    ) where
-        F: FnOnce(&T) -> S,
-        S: Into<String>,
-    {
-        match result {
-            Ok(value) => self.complete(success_summary(value)),
-            Err(err) => self.error(error_code, err),
-        }
-        self.remove(state);
+        self.task_handle
+            .as_ref()
+            .map(|handle| handle.cancel_token.clone())
+            .unwrap_or_default()
     }
 
     pub(crate) fn remove(&self, state: &AppState) {
-        if let Some(task_id) = self.task_id.as_ref() {
-            task_records::remove_task_handle(state, task_id);
+        if let Some(handle) = self.task_handle.as_ref() {
+            task_records::remove_task_handle(state, &handle.task_id);
         }
     }
 }

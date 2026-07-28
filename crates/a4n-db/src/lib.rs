@@ -69,4 +69,8 @@ impl DbHandle {
     pub fn connection(&self) -> &DatabaseConnection {
         self.connection.as_ref()
     }
+
+    pub fn shared_connection(&self) -> SharedDatabaseConnection {
+        Arc::clone(&self.connection)
+    }
 }

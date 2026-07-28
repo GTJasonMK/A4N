@@ -41,6 +41,25 @@ pub(super) fn apply_common_sidecar_env(
         "A4N_PROMPT_SERVICE_PROMPTS_DIR".to_string(),
         path_string(prompt_service_prompts_dir(config)?),
     );
+    for key in [
+        "PATH",
+        "LD_LIBRARY_PATH",
+        "DYLD_LIBRARY_PATH",
+        "A4N_ONNXRUNTIME_ROOT",
+        "ORT_DYLIB_PATH",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "RUST_LOG",
+    ] {
+        if let Ok(value) = std::env::var(key)
+            && !value.trim().is_empty()
+        {
+            env.insert(key.to_string(), value);
+        }
+    }
     Ok(())
 }
 

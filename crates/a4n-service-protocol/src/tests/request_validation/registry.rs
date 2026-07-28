@@ -18,6 +18,10 @@ fn known_service_request_envelope_validation_uses_service_registry() {
     request.secret_policy = SecretForwardingPolicy::deny_all();
     validate_known_service_request_envelope(&request, IMPORT_SERVICE_NAME)
         .expect("registered import envelope should pass");
+
+    request.secret_policy = SecretForwardingPolicy::trusted_remote_no_secrets();
+    validate_known_service_request_envelope(&request, IMPORT_SERVICE_NAME)
+        .expect("trusted remote may receive content but no secret material");
 }
 
 #[test]
@@ -117,4 +121,5 @@ fn known_service_health_uses_service_registry() {
         health.version.capability_version,
         PROMPT_RENDER_CAPABILITY_VERSION
     );
+    assert!(health.version.compatibility.is_some());
 }

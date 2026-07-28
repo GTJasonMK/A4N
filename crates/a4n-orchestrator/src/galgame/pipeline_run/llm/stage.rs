@@ -45,9 +45,9 @@ impl OrchestratorContext {
     where
         F: Fn(Value) -> Result<Value, AppError>,
     {
-        ensure_galgame_pipeline_not_cancelled(&self.db, input.workflow_run_id).await?;
+        ensure_galgame_pipeline_not_cancelled(&self.database, input.workflow_run_id).await?;
         mark_workflow_current_step(
-            self.db.connection(),
+            self.database.connection(),
             input.workflow_run_id,
             input.stage.key(),
         )

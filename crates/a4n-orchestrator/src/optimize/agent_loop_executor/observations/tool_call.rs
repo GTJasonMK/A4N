@@ -12,7 +12,6 @@ impl OrchestratorContext {
         step: usize,
         decision: &AgentLoopDecision,
         error_context: &str,
-        release_operation: Option<&str>,
     ) -> Result<(String, Value), AppError> {
         let (tool_name, tool_arguments) = match run_tool_arguments(&decision.arguments) {
             Ok(value) => value,
@@ -34,10 +33,6 @@ impl OrchestratorContext {
                     &format!("{error_context} run_tool 参数无效：{err}"),
                 )
                 .await?;
-                if let Some(operation) = release_operation {
-                    self.release_in_progress_session_after_failure(session_id, operation, &err)
-                        .await?;
-                }
                 return Err(err);
             }
         };

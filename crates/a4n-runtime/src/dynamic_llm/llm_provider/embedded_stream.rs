@@ -2,7 +2,7 @@ use std::{pin::Pin, time::Instant};
 
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider};
-use a4n_queue::priority::{TaskPriority, TaskQueue, TaskType};
+use a4n_queue::priority::{TaskKind, TaskPriority};
 use futures::Stream;
 
 use super::super::{
@@ -34,7 +34,7 @@ impl DynamicLlmProvider {
             model_name.as_str(),
         )?;
         let trace_context =
-            prepare_dynamic_llm_trace_context(&self.orchestrator, &provider, &mut request).await?;
+            prepare_dynamic_llm_trace_context(&self.facade, &provider, &mut request).await?;
         if trace_context.is_some() {
             request.stream_include_usage = true;
         }
@@ -50,16 +50,19 @@ impl DynamicLlmProvider {
         );
         let started = Instant::now();
         let submitted_id = self
-            .task_queue
-            .submit(TaskType::LlmCall, TaskPriority::Medium, None)
+            .facade
+            .queue_submit(TaskKind::LlmCall, TaskPriority::Medium, None)
             .await?;
-        let mut submitted_guard = self.task_queue.submitted_task_guard(submitted_id.clone());
+        let mut submitted_guard = self.facade.queue_submitted_task_guard(submitted_id.clone());
         let Some(permit) = self
-            .task_queue
-            .acquire_task_with_cancel(&submitted_id, tokio_util::sync::CancellationToken::new())
+            .facade
+            .queue_acquire_task_with_cancel(
+                &submitted_id,
+                tokio_util::sync::CancellationToken::new(),
+            )
             .await?
         else {
-            let cancel_result = self.task_queue.cancel(&submitted_id).await;
+            let cancel_result = self.facade.queue_cancel(&submitted_id).await;
             submitted_guard.disarm();
             return match cancel_result {
                 Ok(()) => Err(AppError::Cancelled),
@@ -74,8 +77,7 @@ impl DynamicLlmProvider {
         match result {
             Ok(stream) => Ok(Box::pin(QueueTrackedLlmStream::new(
                 stream,
-                self.orchestrator.clone(),
-                self.task_queue.clone(),
+                self.facade.clone(),
                 permit,
                 trace_context,
                 model_name,
@@ -84,7 +86,7 @@ impl DynamicLlmProvider {
             Err(error) => {
                 let message = error.to_string();
                 permit.fail(message.clone());
-                let error = match self.task_queue.mark_failed(&running_id, &message).await {
+                let error = match self.facade.queue_mark_failed(&running_id, &message).await {
                     Ok(()) => error,
                     Err(status_error) => AppError::Internal(anyhow::anyhow!(
                         "{error}；同步 LLM stream 建立失败队列状态失败: {status_error}"
@@ -92,7 +94,7 @@ impl DynamicLlmProvider {
                 };
                 let message = error.to_string();
                 record_dynamic_llm_trace(
-                    &self.orchestrator,
+                    &self.facade,
                     trace_context.as_ref(),
                     Some(model_name.as_str()),
                     None,

@@ -1,6 +1,6 @@
 mod chunks;
 mod contracts;
-mod records;
+pub mod records;
 mod sync;
 
 pub use contracts::ChapterRagChunkingMode;

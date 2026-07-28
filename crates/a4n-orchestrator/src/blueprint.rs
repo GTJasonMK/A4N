@@ -4,7 +4,6 @@ use a4n_core::error::AppError;
 use a4n_prompt::blueprint_generation::BlueprintGenerationPreviewStep;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
-use tokio_util::sync::CancellationToken;
 
 use crate::OrchestratorContext;
 use generation::preview_generate_requests;
@@ -12,28 +11,47 @@ use generation::preview_generate_requests;
 mod generation;
 mod generation_contract;
 mod json;
-mod persistence;
+pub mod persistence;
 mod refine;
 
 pub(crate) use generation::BLUEPRINT_GENERATION_STAGES;
 
-pub type BlueprintProgressCallback<'a> =
-    dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync + 'a;
-pub type BlueprintProgressReporter<'a> = Option<&'a BlueprintProgressCallback<'a>>;
-
-pub struct BlueprintGenerationInput<'a> {
-    pub project_id: i64,
-    pub novel_title: &'a str,
-    pub genre: &'a str,
-    pub target_length: i32,
+pub struct BlueprintGenerationApplicationContext<'a> {
     pub prompt_renderer: &'a dyn PromptRenderer,
-    pub variables: &'a HashMap<String, Value>,
-    pub cancel_token: Option<&'a CancellationToken>,
-    pub progress: BlueprintProgressReporter<'a>,
-    pub workflow_run_id: Option<i64>,
+}
+
+pub struct BlueprintRefinementApplicationContext<'a> {
+    pub prompt_renderer: &'a dyn PromptRenderer,
 }
 
 impl OrchestratorContext {
+    pub async fn preview_blueprint_generation_requests_for_user_validated(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        novel_title: &str,
+        genre: &str,
+        target_length: i32,
+        prompt_renderer: &dyn PromptRenderer,
+        variables: &HashMap<String, Value>,
+    ) -> Result<Vec<BlueprintGenerationPreviewStep>, AppError> {
+        self.verify_project_permission(
+            project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.preview_blueprint_generation_requests(
+            project_id,
+            novel_title,
+            genre,
+            target_length,
+            prompt_renderer,
+            variables,
+        )
+        .await
+    }
+
     pub async fn preview_blueprint_generation_requests(
         &self,
         project_id: i64,
@@ -55,7 +73,7 @@ impl OrchestratorContext {
     }
 }
 
-fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> AppError {
+pub fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> AppError {
     match error {
         a4n_db::blueprint::BlueprintDbError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
@@ -65,7 +83,7 @@ fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> AppError {
     }
 }
 
-fn blueprint_sync_error(error: a4n_db::project::BlueprintSyncError) -> AppError {
+pub fn blueprint_sync_error(error: a4n_db::project::BlueprintSyncError) -> AppError {
     match error {
         a4n_db::project::BlueprintSyncError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
@@ -74,7 +92,9 @@ fn blueprint_sync_error(error: a4n_db::project::BlueprintSyncError) -> AppError 
     }
 }
 
-fn character_profile_seed_error(error: a4n_db::character::CharacterProfileSeedError) -> AppError {
+pub(crate) fn character_profile_seed_error(
+    error: a4n_db::character::CharacterProfileSeedError,
+) -> AppError {
     match error {
         a4n_db::character::CharacterProfileSeedError::Database(error) => AppError::Database(error),
         a4n_db::character::CharacterProfileSeedError::Internal(message) => {
@@ -83,16 +103,51 @@ fn character_profile_seed_error(error: a4n_db::character::CharacterProfileSeedEr
     }
 }
 
-fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> AppError {
-    match error {
-        a4n_db::project::ProjectMutationError::InvalidArgument(message) => {
-            AppError::InvalidArgument(message)
+use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
+use a4n_core::models::generation::workflow_run;
+use serde_json::json;
+
+impl OrchestratorContext {
+    /// 蓝图生成：校验后创建 workflow_run（RUNNING）。
+    pub(crate) async fn begin_blueprint_generation_workflow_validated(
+        &self,
+        project_id: i64,
+        title: &str,
+        genre: &str,
+        target_length: i32,
+        variables: &serde_json::Value,
+        task_id: Option<String>,
+    ) -> Result<workflow_run::Model, AppError> {
+        if project_id <= 0 {
+            return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
-        a4n_db::project::ProjectMutationError::NotFound(message) => AppError::NotFound(message),
-        a4n_db::project::ProjectMutationError::Forbidden(message) => AppError::Forbidden(message),
-        a4n_db::project::ProjectMutationError::Internal(message) => {
-            AppError::Internal(anyhow::anyhow!(message))
-        }
-        a4n_db::project::ProjectMutationError::Database(error) => AppError::Database(error),
+        let fingerprint = json!({
+            "schema_version": 1,
+            "workflow": "blueprint_generation",
+            "project_id": project_id,
+            "title": title,
+            "genre": genre,
+            "target_length": target_length,
+            "variables": variables,
+        });
+        self.begin_workflow_run_validated(UpsertWorkflowRunInput {
+            business_key: format!("blueprint_generation:project:{project_id}"),
+            workflow_kind: "blueprint_generation".to_string(),
+            project_id: Some(project_id),
+            root_project_id: Some(project_id),
+            source_snapshot_id: None,
+            scope_table: Some("project".to_string()),
+            scope_id: Some(project_id),
+            chapter_id: None,
+            mode: Some("generate".to_string()),
+            input_fingerprint_json: Some(fingerprint),
+            status: WORKFLOW_STATUS_RUNNING.to_string(),
+            current_step_key: Some("blueprint_generation.story_core".to_string()),
+            active_task_id: task_id,
+            can_resume: true,
+            resume_block_reason: None,
+            error_message: None,
+        })
+        .await
     }
 }

@@ -1,6 +1,5 @@
 use super::super::{
-    AgentLoopDecision, AgentLoopDecisionRequest, AppError, OptimizeLlmStream, OptimizeProgress,
-    OrchestratorContext,
+    AgentLoopDecision, AgentLoopDecisionRequest, AgentLoopExecutionError, OrchestratorContext,
 };
 
 mod call;
@@ -20,20 +19,17 @@ impl OrchestratorContext {
         &self,
         turn_id: i64,
         session_id: i64,
-        progress: &mut Option<OptimizeProgress<'_>>,
-        stream: &mut Option<OptimizeLlmStream<'_>>,
         request: AgentLoopDecisionRequest<'_>,
-    ) -> Result<AgentLoopDecision, AppError> {
+    ) -> Result<AgentLoopDecision, AgentLoopExecutionError> {
         let PreparedAgentDecisionCall {
             chat_request,
             call_key,
             input_fingerprint_json,
-        } = prepare_agent_loop_decision_call(self, session_id, progress, &request).await?;
+        } = prepare_agent_loop_decision_call(self, session_id, &request).await?;
         let result = execute_agent_loop_decision_call(
             self,
             turn_id,
             session_id,
-            stream,
             &request,
             chat_request,
             &call_key,
@@ -49,5 +45,6 @@ impl OrchestratorContext {
             result,
         )
         .await
+        .map_err(AgentLoopExecutionError::App)
     }
 }

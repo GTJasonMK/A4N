@@ -1,0 +1,2911 @@
+{
+  "$comment": "Generated from Rust contracts; do not edit.",
+  "$defs": {
+    "ArtifactEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/GenerationArtifactRef"
+        },
+        "item_index": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "item_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "item_total": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "operation": {
+          "$ref": "#/$defs/ArtifactOperation"
+        },
+        "replaces_artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "artifact",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "ArtifactOperation": {
+      "enum": [
+        "preview_available",
+        "available",
+        "updated",
+        "removed"
+      ],
+      "type": "string"
+    },
+    "BatchCommitPolicy": {
+      "enum": [
+        "atomic",
+        "best_effort"
+      ],
+      "type": "string"
+    },
+    "BatchSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "cancelled": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "failed": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "failed_item_keys": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "failed_item_keys_truncated": {
+          "type": "boolean"
+        },
+        "policy": {
+          "$ref": "#/$defs/BatchCommitPolicy"
+        },
+        "skipped": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "succeeded": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy",
+        "total",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "skipped",
+        "failed_item_keys",
+        "failed_item_keys_truncated"
+      ],
+      "type": "object"
+    },
+    "CancelGenerationTaskInput": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "attempt"
+      ],
+      "type": "object"
+    },
+    "CancelRequestedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/CancellationReason"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "type": "object"
+    },
+    "CancellationReason": {
+      "enum": [
+        "user_requested",
+        "parent_cancelled",
+        "superseded"
+      ],
+      "type": "string"
+    },
+    "CancelledEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BatchSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "draft_disposition": {
+          "$ref": "#/$defs/DraftDisposition"
+        },
+        "reason": {
+          "$ref": "#/$defs/CancellationReason"
+        },
+        "summary": {
+          "maxLength": 2048,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "reason",
+        "draft_disposition"
+      ],
+      "type": "object"
+    },
+    "CheckpointEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "checkpoint_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "resumable": {
+          "type": "boolean"
+        },
+        "summary": {
+          "maxLength": 2048,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "checkpoint_key",
+        "resumable"
+      ],
+      "type": "object"
+    },
+    "CompletedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BatchSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "final_text_hashes": {
+          "items": {
+            "$ref": "#/$defs/StreamTextHash"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "final_usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationUsage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finish_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationFinishReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationResultRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summary": {
+          "maxLength": 2048,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "final_text_hashes"
+      ],
+      "type": "object"
+    },
+    "DraftDisposition": {
+      "enum": [
+        "discarded",
+        "retained_until_expiry"
+      ],
+      "type": "string"
+    },
+    "FailedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BatchSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "draft_disposition": {
+          "$ref": "#/$defs/DraftDisposition"
+        },
+        "error": {
+          "$ref": "#/$defs/GenerationError"
+        }
+      },
+      "required": [
+        "error",
+        "draft_disposition"
+      ],
+      "type": "object"
+    },
+    "GenerationArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "artifact_kind": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "byte_size": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "content_type": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "format": "int64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "revision": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "type": "string"
+        },
+        "temporary": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "artifact_kind",
+        "content_type",
+        "sha256",
+        "byte_size",
+        "revision",
+        "temporary"
+      ],
+      "type": "object"
+    },
+    "GenerationDeliveryMode": {
+      "enum": [
+        "stream",
+        "stage_only"
+      ],
+      "type": "string"
+    },
+    "GenerationError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/GenerationErrorCode"
+        },
+        "message": {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "source_error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServiceError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stage_code": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "trace_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable",
+        "stage_code"
+      ],
+      "type": "object"
+    },
+    "GenerationErrorCode": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]{0,127}$",
+      "type": "string"
+    },
+    "GenerationEvent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/StartedEvent"
+            },
+            "kind": {
+              "const": "started",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/StatusChangedEvent"
+            },
+            "kind": {
+              "const": "status_changed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ProgressEvent"
+            },
+            "kind": {
+              "const": "progress",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/TextDeltaEvent"
+            },
+            "kind": {
+              "const": "text_delta",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/UsageEvent"
+            },
+            "kind": {
+              "const": "usage",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/CheckpointEvent"
+            },
+            "kind": {
+              "const": "checkpoint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ArtifactEvent"
+            },
+            "kind": {
+              "const": "artifact",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/CancelRequestedEvent"
+            },
+            "kind": {
+              "const": "cancel_requested",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/CompletedEvent"
+            },
+            "kind": {
+              "const": "completed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/FailedEvent"
+            },
+            "kind": {
+              "const": "failed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/CancelledEvent"
+            },
+            "kind": {
+              "const": "cancelled",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/InterruptedEvent"
+            },
+            "kind": {
+              "const": "interrupted",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "GenerationFinishReason": {
+      "enum": [
+        "stop",
+        "tool_calls_complete"
+      ],
+      "type": "string"
+    },
+    "GenerationResultRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "revision": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "GenerationSnapshotState": {
+      "enum": [
+        "available",
+        "expired",
+        "corrupt"
+      ],
+      "type": "string"
+    },
+    "GenerationStartRequestMeta": {
+      "additionalProperties": false,
+      "properties": {
+        "retry_of_task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "start_request_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "start_request_id"
+      ],
+      "type": "object"
+    },
+    "GenerationSubscriptionHandle": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "subscribed_after_sequence": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "subscription_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "type": "string"
+        }
+      },
+      "required": [
+        "subscription_id",
+        "task_id",
+        "attempt"
+      ],
+      "type": "object"
+    },
+    "GenerationTargetRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "revision": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "GenerationTaskEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "emitted_at_ms": {
+          "format": "int64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "event": {
+          "$ref": "#/$defs/GenerationEvent"
+        },
+        "schema_version": {
+          "format": "uint16",
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sequence": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "task_id",
+        "attempt",
+        "sequence",
+        "emitted_at_ms",
+        "event"
+      ],
+      "type": "object"
+    },
+    "GenerationTaskHandle": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "event_schema_version": {
+          "format": "uint16",
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/GenerationTaskStatus"
+        },
+        "task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_schema_version",
+        "task_id",
+        "attempt",
+        "status"
+      ],
+      "type": "object"
+    },
+    "GenerationTaskHistoryPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/GenerationTaskSummary"
+          },
+          "type": "array"
+        },
+        "next_cursor": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
+    "GenerationTaskHistoryQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "format": "uint32",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "project_id": {
+          "format": "int64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "type": "object"
+    },
+    "GenerationTaskSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/GenerationArtifactRef"
+          },
+          "maxItems": 4096,
+          "type": "array"
+        },
+        "attempt": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "cancel_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CancellationReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "covers_through_sequence": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "latest_checkpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CheckpointEvent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProgressEvent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schema_version": {
+          "format": "uint16",
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "started": {
+          "$ref": "#/$defs/StartedEvent"
+        },
+        "status": {
+          "$ref": "#/$defs/GenerationTaskStatus"
+        },
+        "streams": {
+          "items": {
+            "$ref": "#/$defs/TextStreamSnapshot"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "type": "string"
+        },
+        "terminal_event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationTaskEvent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updated_at_ms": {
+          "format": "int64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationUsage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "task_id",
+        "attempt",
+        "covers_through_sequence",
+        "status",
+        "started",
+        "streams",
+        "artifacts",
+        "updated_at_ms"
+      ],
+      "type": "object"
+    },
+    "GenerationTaskStatus": {
+      "enum": [
+        "reserved",
+        "running",
+        "finalizing",
+        "cancelling",
+        "completed",
+        "failed",
+        "cancelled",
+        "interrupted"
+      ],
+      "type": "string"
+    },
+    "GenerationTaskSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "handle": {
+          "$ref": "#/$defs/GenerationTaskHandle"
+        },
+        "result_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationResultRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapshot_state": {
+          "$ref": "#/$defs/GenerationSnapshotState"
+        },
+        "started": {
+          "$ref": "#/$defs/StartedEvent"
+        },
+        "terminal_event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationTaskEvent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updated_at_ms": {
+          "format": "int64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "handle",
+        "started",
+        "updated_at_ms",
+        "snapshot_state"
+      ],
+      "type": "object"
+    },
+    "GenerationUsage": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "prompt_cache_hit_tokens": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "prompt_cache_miss_tokens": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "prompt_tokens": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total_tokens": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens"
+      ],
+      "type": "object"
+    },
+    "HostErrorResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/GenerationErrorCode"
+        },
+        "message": {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "trace_id": {
+          "maxLength": 128,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ],
+      "type": "object"
+    },
+    "ImageGenerationOperation": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "config_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "scene",
+              "type": "string"
+            },
+            "prompt": {
+              "maxLength": 100000,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "prompt"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_number": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "page",
+              "type": "string"
+            },
+            "page_number": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "chapter_number",
+            "page_number"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "batch",
+              "type": "string"
+            },
+            "requests": {
+              "items": true,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "requests"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "config_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "custom_style": {
+              "maxLength": 100000,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "object_profile",
+              "type": "string"
+            },
+            "object_profile_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "style": {
+              "maxLength": 512,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "style_template_id": {
+              "maxLength": 128,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "style_template_name": {
+              "maxLength": 512,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "style_template_version": {
+              "maxLength": 128,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "object_profile_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "config_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "custom_style": {
+              "maxLength": 100000,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "scene_profile",
+              "type": "string"
+            },
+            "scene_profile_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "style": {
+              "maxLength": 512,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "style_template_id": {
+              "maxLength": 128,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "style_template_name": {
+              "maxLength": 512,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "style_template_version": {
+              "maxLength": 128,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "scene_profile_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "InterruptedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BatchSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "draft_disposition": {
+          "$ref": "#/$defs/DraftDisposition"
+        },
+        "reason": {
+          "$ref": "#/$defs/InterruptionReason"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "summary": {
+          "maxLength": 2048,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "reason",
+        "retryable",
+        "draft_disposition"
+      ],
+      "type": "object"
+    },
+    "InterruptionReason": {
+      "enum": [
+        "host_shutdown",
+        "host_restart_recovery",
+        "session_owner_lost",
+        "destructive_drain_timeout"
+      ],
+      "type": "string"
+    },
+    "OptimizationAgentPermissions": {
+      "additionalProperties": false,
+      "properties": {
+        "automatic_writeback": {
+          "default": false,
+          "type": "boolean"
+        },
+        "read_blueprint": {
+          "type": "boolean"
+        },
+        "read_character_profiles": {
+          "type": "boolean"
+        },
+        "read_foreshadowing": {
+          "type": "boolean"
+        },
+        "read_outlines": {
+          "type": "boolean"
+        },
+        "read_project_detail": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "read_project_detail",
+        "read_blueprint",
+        "read_outlines",
+        "read_character_profiles",
+        "read_foreshadowing"
+      ],
+      "type": "object"
+    },
+    "OutlineGenerationOperation": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapters_per_part": {
+              "format": "int32",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "generate_parts",
+              "type": "string"
+            },
+            "part_count": {
+              "format": "int32",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "variables": {
+              "additionalProperties": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapters_per_part": {
+              "format": "int32",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "regenerate_parts",
+              "type": "string"
+            },
+            "part_count": {
+              "format": "int32",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "variables": {
+              "additionalProperties": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "regenerate_last_part",
+              "type": "string"
+            },
+            "variables": {
+              "additionalProperties": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "end_chapter": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "continue_part_outlines",
+              "type": "string"
+            },
+            "part_number": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "start_chapter": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "variables": {
+              "additionalProperties": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "part_number",
+            "start_chapter",
+            "end_chapter"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "regenerate_part_outline",
+              "type": "string"
+            },
+            "part_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "variables": {
+              "additionalProperties": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "part_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "generate_part_chapter_outlines",
+              "type": "string"
+            },
+            "part_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "part_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "batch_generate_part_outlines",
+              "type": "string"
+            },
+            "part_ids": {
+              "items": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "maxItems": 1024,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "part_ids"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "generate_chapter_outlines_by_count",
+              "type": "string"
+            },
+            "start_chapter": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "start_chapter",
+            "count"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "regenerate_chapter_outline",
+              "type": "string"
+            },
+            "outline_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "variables": {
+              "additionalProperties": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "outline_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "beat_sheet": {
+              "maxLength": 262144,
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "const": "apply_beat_mapping",
+              "type": "string"
+            },
+            "part_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "part_id",
+            "beat_sheet"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PortraitGenerationOperation": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "character_name": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "expressions": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 32,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "generate",
+              "type": "string"
+            },
+            "pose": {
+              "maxLength": 512,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reference_image_ids": {
+              "default": [],
+              "items": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "maxItems": 4,
+              "type": "array"
+            },
+            "style": {
+              "maxLength": 512,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "character_name"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "regenerate",
+              "type": "string"
+            },
+            "portrait_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "reference_image_ids": {
+              "default": [],
+              "items": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "maxItems": 4,
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "portrait_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "age": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "const": "generate_age_variant",
+              "type": "string"
+            },
+            "portrait_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "reference_image_ids": {
+              "default": [],
+              "items": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "maxItems": 4,
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "portrait_id",
+            "age"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "generate_missing",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ProgressEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "current": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "estimated": {
+          "type": "boolean"
+        },
+        "item_index": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "item_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "item_total": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "message": {
+          "maxLength": 2048,
+          "type": "string"
+        },
+        "phase_kind": {
+          "$ref": "#/$defs/ProgressPhaseKind"
+        },
+        "severity": {
+          "$ref": "#/$defs/ProgressSeverity"
+        },
+        "stage_code": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "total": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "unit_label": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "stage_code",
+        "phase_kind",
+        "message",
+        "severity",
+        "estimated"
+      ],
+      "type": "object"
+    },
+    "ProgressPhaseKind": {
+      "enum": [
+        "queue",
+        "prepare",
+        "context",
+        "provider",
+        "stream",
+        "parse",
+        "validate",
+        "persist",
+        "transfer",
+        "cleanup",
+        "complete"
+      ],
+      "type": "string"
+    },
+    "ProgressSeverity": {
+      "enum": [
+        "info",
+        "success",
+        "warning",
+        "error"
+      ],
+      "type": "string"
+    },
+    "ProposeOptimizationPatchesInput": {
+      "properties": {
+        "agent_instruction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "issue_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "session_id": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "ReferenceMediaUploadInput": {
+      "additionalProperties": false,
+      "properties": {
+        "data_base64": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "file_name": {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        "mime_type": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_name",
+        "mime_type",
+        "data_base64"
+      ],
+      "type": "object"
+    },
+    "ReferenceMediaVideoInput": {
+      "additionalProperties": false,
+      "description": "参考媒体视频请求；预览和正式生产共用这一 DTO。",
+      "properties": {
+        "aspect_ratio": {
+          "maxLength": 16,
+          "type": "string"
+        },
+        "audio_files": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "audio_uploads": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReferenceMediaUploadInput"
+          },
+          "type": "array"
+        },
+        "config_id": {
+          "default": null,
+          "format": "int64",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "duration_secs": {
+          "format": "int32",
+          "maximum": 60,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "image_files": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "image_uploads": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReferenceMediaUploadInput"
+          },
+          "type": "array"
+        },
+        "prompt": {
+          "maxLength": 100000,
+          "type": "string"
+        },
+        "segment_prompt_id": {
+          "description": "关联的片段视频提示词。预览与生成使用同一片段身份。",
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "shot_number": {
+          "description": "片段顺序快照，用于结果筛选和身份校验。",
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "video_files": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "video_uploads": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReferenceMediaUploadInput"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "segment_prompt_id",
+        "shot_number",
+        "prompt",
+        "duration_secs",
+        "aspect_ratio"
+      ],
+      "type": "object"
+    },
+    "SendOptimizationMessageInput": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "maxLength": 32768,
+          "minLength": 1,
+          "type": "string"
+        },
+        "permissions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptimizationAgentPermissions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "message"
+      ],
+      "type": "object"
+    },
+    "ServiceError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ServiceErrorCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "ServiceErrorCode": {
+      "enum": [
+        "capability_disabled",
+        "service_unavailable",
+        "version_mismatch",
+        "configuration_error",
+        "unauthorized",
+        "cancelled",
+        "provider_error",
+        "internal"
+      ],
+      "type": "string"
+    },
+    "StartBlueprintGenerationInput": {
+      "additionalProperties": false,
+      "description": "Start a structured blueprint generation through the canonical generation task path.",
+      "properties": {
+        "genre": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "project_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "target_length": {
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "title": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        "variables": {
+          "additionalProperties": true,
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "meta",
+        "project_id",
+        "title",
+        "genre",
+        "target_length"
+      ],
+      "type": "object"
+    },
+    "StartBlueprintRefinementInput": {
+      "additionalProperties": false,
+      "description": "Start a structured blueprint refinement through the canonical generation task path.",
+      "properties": {
+        "focus": {
+          "maxLength": 32768,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "project_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "variables": {
+          "additionalProperties": true,
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "meta",
+        "project_id"
+      ],
+      "type": "object"
+    },
+    "StartChapterGenerationInput": {
+      "additionalProperties": false,
+      "description": "Start a chapter body generation through the canonical generation task path.",
+      "properties": {
+        "chapter_number": {
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "client_rag_context": {
+          "maxLength": 262144,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_word_count": {
+          "format": "int32",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "min_word_count": {
+          "format": "int32",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "project_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "writing_notes": {
+          "maxLength": 32768,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "meta",
+        "project_id",
+        "chapter_number"
+      ],
+      "type": "object"
+    },
+    "StartImageGenerationInput": {
+      "additionalProperties": false,
+      "description": "图片生产生成的唯一启动合同。\n\n图片查询、上传和 provider 请求预览继续使用各自合同；只有生产生成\n统一经过 generation reservation/session/worker。",
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "operation": {
+          "$ref": "#/$defs/ImageGenerationOperation"
+        },
+        "project_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "meta",
+        "project_id",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "StartInspirationGenerationInput": {
+      "additionalProperties": false,
+      "description": "Start one inspiration conversation turn through the canonical generation path.",
+      "properties": {
+        "message": {
+          "maxLength": 32768,
+          "minLength": 1,
+          "type": "string"
+        },
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "project_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "variables": {
+          "additionalProperties": true,
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "meta",
+        "project_id",
+        "message"
+      ],
+      "type": "object"
+    },
+    "StartOptimizeAnalysisGenerationInput": {
+      "additionalProperties": false,
+      "description": "Start one prepared Optimize analysis through the canonical generation task path.",
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "session_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "meta",
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "StartOptimizeChatGenerationInput": {
+      "additionalProperties": false,
+      "description": "Start one Optimize chat turn through the canonical generation task path.",
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "request": {
+          "$ref": "#/$defs/SendOptimizationMessageInput"
+        }
+      },
+      "required": [
+        "meta",
+        "request"
+      ],
+      "type": "object"
+    },
+    "StartOptimizePatchGenerationInput": {
+      "additionalProperties": false,
+      "description": "Start one Optimize patch proposal through the canonical generation task path.",
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "request": {
+          "$ref": "#/$defs/ProposeOptimizationPatchesInput"
+        }
+      },
+      "required": [
+        "meta",
+        "request"
+      ],
+      "type": "object"
+    },
+    "StartOutlineGenerationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "operation": {
+          "$ref": "#/$defs/OutlineGenerationOperation"
+        },
+        "project_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "meta",
+        "project_id",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "StartPortraitGenerationInput": {
+      "additionalProperties": false,
+      "description": "人物图片生成的唯一启动合同。\n\n查询、上传和请求预览仍使用各自的旧合同；只有四个生产生成入口共用这里的\n一个 start/worker 路径。",
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "operation": {
+          "$ref": "#/$defs/PortraitGenerationOperation"
+        },
+        "project_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "meta",
+        "project_id",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "StartVideoGenerationInput": {
+      "additionalProperties": false,
+      "description": "视频生产的唯一启动合同。\n\n查询、上传、预览和 provider 轮询继续使用各自合同；生产入口统一经过\ngeneration reservation/session/worker。",
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "operation": {
+          "$ref": "#/$defs/VideoGenerationOperation"
+        },
+        "project_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "meta",
+        "project_id",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "StartedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BatchCommitPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "delivery_mode": {
+          "$ref": "#/$defs/GenerationDeliveryMode"
+        },
+        "generation_run_id": {
+          "format": "int64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "item_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "project_id": {
+          "format": "int64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "retry_of_task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "root_project_id": {
+          "format": "int64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "root_task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationTargetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "task_kind": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "workflow_run_id": {
+          "format": "int64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "task_kind",
+        "delivery_mode",
+        "root_task_id"
+      ],
+      "type": "object"
+    },
+    "StatusChangedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/GenerationTaskStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "StreamTextHash": {
+      "additionalProperties": false,
+      "properties": {
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "utf8_bytes": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stream_id",
+        "utf8_bytes",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "TextDeltaEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_index": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "delta": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "type": "string"
+        },
+        "offset": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stream_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "stream_id",
+        "offset",
+        "delta",
+        "chunk_index"
+      ],
+      "type": "object"
+    },
+    "TextStreamSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "next_offset": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "stream_id",
+        "text",
+        "next_offset",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "UnsubscribeGenerationTaskInput": {
+      "additionalProperties": false,
+      "properties": {
+        "subscription_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "subscription_id"
+      ],
+      "type": "object"
+    },
+    "UsageEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "cumulative": {
+          "type": "boolean"
+        },
+        "usage": {
+          "$ref": "#/$defs/GenerationUsage"
+        }
+      },
+      "required": [
+        "usage",
+        "cumulative"
+      ],
+      "type": "object"
+    },
+    "VideoGenerationOperation": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "config_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "chapter",
+              "type": "string"
+            },
+            "prompt_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "chapter_id",
+            "prompt_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "config_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "chapter_batch",
+              "type": "string"
+            },
+            "prompt_ids": {
+              "items": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "prompt_ids",
+            "chapter_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "input": {
+              "$ref": "#/$defs/ReferenceMediaVideoInput"
+            },
+            "kind": {
+              "const": "reference_media",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "chapter_id",
+            "input"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cancel_input": {
+      "$ref": "#/$defs/CancelGenerationTaskInput"
+    },
+    "event": {
+      "$ref": "#/$defs/GenerationTaskEvent"
+    },
+    "history_page": {
+      "$ref": "#/$defs/GenerationTaskHistoryPage"
+    },
+    "history_query": {
+      "$ref": "#/$defs/GenerationTaskHistoryQuery"
+    },
+    "host_error": {
+      "$ref": "#/$defs/HostErrorResponse"
+    },
+    "snapshot": {
+      "$ref": "#/$defs/GenerationTaskSnapshot"
+    },
+    "snapshot_state": {
+      "$ref": "#/$defs/GenerationSnapshotState"
+    },
+    "start_blueprint_generation": {
+      "$ref": "#/$defs/StartBlueprintGenerationInput"
+    },
+    "start_blueprint_refinement": {
+      "$ref": "#/$defs/StartBlueprintRefinementInput"
+    },
+    "start_chapter_generation": {
+      "$ref": "#/$defs/StartChapterGenerationInput"
+    },
+    "start_image_generation": {
+      "$ref": "#/$defs/StartImageGenerationInput"
+    },
+    "start_inspiration_generation": {
+      "$ref": "#/$defs/StartInspirationGenerationInput"
+    },
+    "start_optimize_analysis_generation": {
+      "$ref": "#/$defs/StartOptimizeAnalysisGenerationInput"
+    },
+    "start_optimize_chat_generation": {
+      "$ref": "#/$defs/StartOptimizeChatGenerationInput"
+    },
+    "start_optimize_patch_generation": {
+      "$ref": "#/$defs/StartOptimizePatchGenerationInput"
+    },
+    "start_outline_generation": {
+      "$ref": "#/$defs/StartOutlineGenerationInput"
+    },
+    "start_portrait_generation": {
+      "$ref": "#/$defs/StartPortraitGenerationInput"
+    },
+    "start_request_meta": {
+      "$ref": "#/$defs/GenerationStartRequestMeta"
+    },
+    "start_video_generation": {
+      "$ref": "#/$defs/StartVideoGenerationInput"
+    },
+    "subscription_handle": {
+      "$ref": "#/$defs/GenerationSubscriptionHandle"
+    },
+    "task_handle": {
+      "$ref": "#/$defs/GenerationTaskHandle"
+    },
+    "task_summary": {
+      "$ref": "#/$defs/GenerationTaskSummary"
+    },
+    "unsubscribe_input": {
+      "$ref": "#/$defs/UnsubscribeGenerationTaskInput"
+    }
+  },
+  "required": [
+    "event",
+    "snapshot",
+    "start_request_meta",
+    "start_blueprint_generation",
+    "start_blueprint_refinement",
+    "task_handle",
+    "subscription_handle",
+    "snapshot_state",
+    "task_summary",
+    "history_query",
+    "history_page",
+    "cancel_input",
+    "unsubscribe_input",
+    "host_error",
+    "start_chapter_generation",
+    "start_inspiration_generation",
+    "start_optimize_analysis_generation",
+    "start_optimize_chat_generation",
+    "start_optimize_patch_generation",
+    "start_outline_generation",
+    "start_portrait_generation",
+    "start_image_generation",
+    "start_video_generation"
+  ],
+  "title": "GenerationContractBundle",
+  "type": "object"
+}

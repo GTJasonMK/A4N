@@ -1,11 +1,10 @@
 use super::super::prelude::{
-    AppState, CreateVideoRecord, GeneratedVideoSummary, Path, Value, access,
-    append_secondary_error, best_effort_video_thumbnail_path, canonicalize_data_file_path,
-    combine_optional_errors, data_dir_relative_file_path, ensure_ffmpeg, generated_video, json,
-    remove_created_file_on_error_sync, remove_partial_video_file, run_ffmpeg_trim,
-    trimmed_video_path, video_to_summary,
+    AppState, GeneratedVideoSummary, Path, access, append_secondary_error,
+    best_effort_video_thumbnail_path, canonicalize_data_file_path, data_dir_relative_file_path,
+    ensure_ffmpeg, remove_created_file_on_error_sync, run_ffmpeg_trim, trimmed_video_path,
+    video_to_summary,
 };
-use super::metadata::insert_source_context;
+use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
 
 pub async fn trim_video(
     state: &AppState,
@@ -14,86 +13,60 @@ pub async fn trim_video(
     start_secs: f32,
     end_secs: f32,
 ) -> Result<GeneratedVideoSummary, String> {
-    validate_video_trim_range(start_secs, end_secs)?;
-    let source = state
-        .orchestrator
-        .generated_video_by_id(video_id)
+    let plan = state
+        .video()
+        .prepare_video_trim_validated(video_id, start_secs, end_secs)
         .await
-        .map_err(crate::actions::app_error_message)?
-        .ok_or_else(|| "视频不存在".to_string())?;
+        .map_err(crate::actions::app_error_message)?;
+    let source = &plan.source;
     access::verify_project_editor_string(state, user_id, source.project_id).await?;
-    let source_workflow_mode = source.workflow_mode.clone().ok_or_else(|| {
-        format!(
-            "源视频 #{} 缺少 workflow_mode，无法按生成模式保存裁剪结果",
-            source.id
-        )
-    })?;
-    let target_workflow_mode =
-        if source.chapter_id.is_none() || source_workflow_mode.starts_with("canvas_") {
-            "canvas_trim".to_string()
-        } else {
-            source_workflow_mode
-        };
     let source_path = source
         .file_path
         .clone()
         .ok_or_else(|| "源视频还没有可裁剪的本地文件".to_string())?;
     let source_path = canonicalize_data_file_path(
-        &state.config.data_dir,
+        state.data_dir(),
         &source_path,
         &format!("源视频 #{}", source.id),
     )?;
-    if source.duration_secs > 0.0 && end_secs > source.duration_secs + 0.5 {
-        return Err("裁剪结束时间超过视频时长".into());
-    }
     ensure_ffmpeg()?;
 
-    let output = trimmed_video_path(state, &source, start_secs, end_secs)?;
-    let (size, output_path_str) =
-        persist_trimmed_video_output(&state.config.data_dir, &output, || {
-            run_ffmpeg_trim(&source_path, &output, start_secs, end_secs)
-        })?;
+    let output = trimmed_video_path(state.data_dir(), &source, start_secs, end_secs)?;
+    let (size, output_path_str) = persist_trimmed_video_output(state.data_dir(), &output, || {
+        run_ffmpeg_trim(&source_path, &output, start_secs, end_secs)
+    })?;
 
+    let source_id = source.id;
+    let source_project_id = source.project_id;
+    let source_chapter_id = source.chapter_id;
     let record = match state
-        .orchestrator
-        .create_video_record(CreateVideoRecord {
-            project_id: source.project_id,
-            chapter_id: source.chapter_id,
-            video_type: "trimmed_clip".into(),
-            workflow_mode: Some(target_workflow_mode),
-            prompt: source.prompt.clone(),
-            negative_prompt: source.negative_prompt.clone(),
-            model: source.model.clone(),
-            width: source.width,
-            height: source.height,
-            duration_secs: end_secs - start_secs,
-            fps: source.fps,
-            source_video_id: Some(source.id),
-            source_image_id: source.source_image_id,
-            provider_job_id: None,
-            metadata_json: Some(trimmed_video_metadata(&source, start_secs, end_secs)),
-        })
+        .video()
+        .create_trimmed_video_record_validated(plan)
         .await
     {
         Ok(record) => record,
         Err(err) => {
-            return Err(append_secondary_error(
-                err.to_string(),
-                remove_partial_video_file(&output, "裁剪输出文件").err(),
-            ));
+            let cleanup_error = enqueue_file_artifact_cleanup_by_project(
+                state,
+                &format!("video-trim-create:{source_id}:{output_path_str}"),
+                std::slice::from_ref(&output_path_str),
+            )
+            .await
+            .err();
+            return Err(append_secondary_error(err.to_string(), cleanup_error));
         }
     };
-    let thumbnail_path = source.chapter_id.and_then(|chapter_id| {
+    let thumbnail_path = source_chapter_id.and_then(|chapter_id| {
         best_effort_video_thumbnail_path(
-            &state.config.data_dir,
-            source.project_id,
+            state.data_dir(),
+            source_project_id,
             chapter_id,
             record.id,
             &output,
         )
     });
     let updated = match state
-        .orchestrator
+        .video()
         .mark_generated_video_completed_and_link_prompt(
             record.id,
             &output_path_str,
@@ -107,15 +80,16 @@ pub async fn trim_video(
         Ok(updated) => updated,
         Err(err) => {
             let primary_error = format!("裁剪文件已生成但记录完成状态失败：{err}");
-            let cleanup_error = combine_optional_errors(
-                remove_partial_video_file(&output, "裁剪输出文件").err(),
-                thumbnail_path.as_deref().and_then(|path| {
-                    remove_partial_video_file(&state.config.data_dir.join(path), "视频缩略图").err()
-                }),
-            );
+            let cleanup_error = crate::actions::video_generation::cleanup_saved_video_outputs(
+                state,
+                record.id,
+                &output,
+                thumbnail_path.as_deref(),
+            )
+            .await;
             let failure_message = append_secondary_error(primary_error, cleanup_error);
             let mark_failed_error = state
-                .orchestrator
+                .video()
                 .mark_generated_video_error_status_and_prompt(
                     record.id,
                     None,
@@ -149,33 +123,4 @@ where
         let relative_path = data_dir_relative_file_path(data_dir, output, "裁剪视频")?;
         Ok((size, relative_path))
     })
-}
-
-pub(in crate::actions::video_records) fn trimmed_video_metadata(
-    source: &generated_video::Model,
-    start_secs: f32,
-    end_secs: f32,
-) -> Value {
-    let mut metadata = json!({
-        "trim": {
-            "start_secs": start_secs,
-            "end_secs": end_secs,
-        }
-    });
-    insert_source_context(&mut metadata, source.metadata_json.as_ref());
-    metadata
-}
-
-pub(in crate::actions::video_records) fn validate_video_trim_range(
-    start_secs: f32,
-    end_secs: f32,
-) -> Result<(), String> {
-    if !start_secs.is_finite()
-        || !end_secs.is_finite()
-        || start_secs < 0.0
-        || end_secs <= start_secs
-    {
-        return Err("裁剪时间范围无效".into());
-    }
-    Ok(())
 }

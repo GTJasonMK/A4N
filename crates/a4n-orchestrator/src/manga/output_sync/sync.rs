@@ -39,7 +39,7 @@ impl OrchestratorContext {
             .collect::<Vec<_>>();
 
         let rows = sync_manga_prompts_by_chapter(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             chapter_id,
             sync_drafts.iter().map(|(draft, _)| draft.clone()).collect(),
@@ -54,8 +54,12 @@ impl OrchestratorContext {
             }
         }
         for (row, trace) in trace_bindings {
-            self.record_chapter_manga_prompt_generation_run(self.db.connection(), &row, trace)
-                .await?;
+            self.record_chapter_manga_prompt_generation_run(
+                self.database.connection(),
+                &row,
+                trace,
+            )
+            .await?;
         }
         self.sync_project_asset_lineage(project_id).await?;
         Ok(rows)

@@ -12,7 +12,7 @@ pub(super) async fn append_story_records(
     expected: &mut ExpectedRagRecords,
 ) -> Result<(), String> {
     let chapters = state
-        .orchestrator
+        .rag()
         .chapters_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -21,14 +21,14 @@ pub(super) async fn append_story_records(
             continue;
         }
         let records = state
-            .orchestrator
+            .rag()
             .chapter_rag_records(chapter, crate::rag_ingest::chapter_rag_chunking_mode())
             .await?;
         expected.counts.chapters += expected.add_rag_records(records)?;
     }
 
     let outlines = state
-        .orchestrator
+        .rag()
         .chapter_outlines_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -39,7 +39,7 @@ pub(super) async fn append_story_records(
     }
 
     let parts = state
-        .orchestrator
+        .rag()
         .part_outlines_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -50,7 +50,7 @@ pub(super) async fn append_story_records(
     }
 
     let blueprints = state
-        .orchestrator
+        .rag()
         .novel_blueprints_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;

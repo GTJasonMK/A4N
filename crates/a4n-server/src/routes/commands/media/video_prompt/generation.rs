@@ -1,7 +1,7 @@
 use serde_json::{Value, json};
 
 use super::super::super::{
-    ApiError, ServerState, TaskType, finish_web_task, optional_string_field, register_web_task,
+    ApiError, ServerState, TaskKind, finish_web_task, optional_string_field, register_web_task,
     sanitize_optional_task_id, string_action_result, video_prompt_actions, web_chunk_reporter,
     web_progress_reporter,
 };

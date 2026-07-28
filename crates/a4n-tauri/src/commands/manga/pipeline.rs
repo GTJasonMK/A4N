@@ -1,15 +1,13 @@
 use crate::commands::request_preview::ModelRequestPreview;
-use a4n_core::event::sse::{ProgressMeta, ProgressPhaseKind, ProgressTaskKind};
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::manga_pipeline::{
     self as manga_pipeline_actions, MangaPipelineStartStage,
 };
-use tauri::{State, Window};
+use tauri::State;
 
 #[tauri::command]
 pub async fn start_manga_pipeline(
     state: State<'_, AppState>,
-    window: Window,
     user_id: i64,
     project_id: i64,
     chapter_number: i32,
@@ -18,7 +16,6 @@ pub async fn start_manga_pipeline(
     let start_from_stage = parse_manga_pipeline_start_stage(start_from_stage)?;
     spawn_manga_pipeline(
         state,
-        window,
         user_id,
         project_id,
         chapter_number,
@@ -31,21 +28,11 @@ pub async fn start_manga_pipeline(
 #[tauri::command]
 pub async fn resume_manga_pipeline(
     state: State<'_, AppState>,
-    window: Window,
     user_id: i64,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<String, String> {
-    spawn_manga_pipeline(
-        state,
-        window,
-        user_id,
-        project_id,
-        chapter_number,
-        true,
-        None,
-    )
-    .await
+    spawn_manga_pipeline(state, user_id, project_id, chapter_number, true, None).await
 }
 
 #[tauri::command]
@@ -90,7 +77,6 @@ pub async fn preview_resume_manga_pipeline_request(
 
 async fn spawn_manga_pipeline(
     state: State<'_, AppState>,
-    window: Window,
     user_id: i64,
     project_id: i64,
     chapter_number: i32,
@@ -109,40 +95,11 @@ async fn spawn_manga_pipeline(
         "manga-pipeline-{project_id}-{chapter_number}-{}",
         chrono::Utc::now().timestamp_millis()
     );
-    let bridge = std::sync::Arc::new(crate::events::bridge::EventBridge::new(window));
-    let start_message = if resume_from_checkpoint {
-        "续传漫画 8 步流水线"
-    } else {
-        "启动漫画 8 步流水线"
-    };
-    let _ = bridge.emit_progress_with_meta(
-        &task_id,
-        0,
-        8,
-        start_message,
-        Some(manga_progress_meta(
-            "manga_pipeline_start",
-            "漫画流水线",
-            start_message,
-        )),
-    );
 
     let state_clone: AppState = (*state.inner()).clone();
-    let bridge_clone = bridge.clone();
     let task_id_clone = task_id.clone();
     tokio::spawn(async move {
-        let _ = bridge_clone.emit_progress_with_meta(
-            &task_id_clone,
-            1,
-            8,
-            "正在运行 LLM 流水线",
-            Some(manga_progress_meta(
-                "manga_pipeline_llm",
-                "漫画 LLM 流水线",
-                "正在运行 LLM 流水线",
-            )),
-        );
-        let result = manga_pipeline_actions::run_manga_pipeline(
+        if let Err(error) = manga_pipeline_actions::run_manga_pipeline(
             &state_clone,
             user_id,
             project_id,
@@ -151,39 +108,19 @@ async fn spawn_manga_pipeline(
             resume_from_checkpoint,
             start_from_stage,
         )
-        .await;
-        match result {
-            Ok(panels) => {
-                let _ = bridge_clone.emit_complete(
-                    &task_id_clone,
-                    Some(format!(
-                        "漫画流水线完成，生成 {} 页整页提示词",
-                        panels.len()
-                    )),
-                );
-            }
-            Err(err) => {
-                let _ = bridge_clone.emit_error(
-                    &task_id_clone,
-                    "pipeline_failed",
-                    &err.to_string(),
-                    false,
-                );
-            }
+        .await
+        {
+            tracing::error!(
+                task_id = task_id_clone,
+                project_id,
+                chapter_number,
+                %error,
+                "漫画流水线执行失败"
+            );
         }
     });
 
     Ok(task_id)
-}
-
-fn manga_progress_meta(stage_code: &str, stage_label: &str, detail: &str) -> ProgressMeta {
-    ProgressMeta::new(
-        ProgressTaskKind::MangaGeneration,
-        stage_code,
-        stage_label,
-        ProgressPhaseKind::ModelStream,
-    )
-    .with_detail(detail)
 }
 
 fn parse_manga_pipeline_start_stage(

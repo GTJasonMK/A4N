@@ -15,8 +15,13 @@ import {
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import type { DownstreamConflictStrategy } from "../../../api/dependencyConflict";
-import { generatePageImage, previewPageImageRequest } from "../../../api/image";
+import {
+  previewPageImageRequest,
+  startImageGeneration,
+  verifyImageGenerationResult,
+} from "../../../api/image";
 import type { GeneratedImage } from "../../../api/image";
+import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import type { Portrait } from "../../../api/portrait";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
@@ -34,7 +39,7 @@ import {
   type PipelineStatus,
   updateMangaPrompt,
 } from "../../../api/manga";
-import { createProgressTaskId, useProgressTask } from "../../../hooks/useProgressTask";
+import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { chooseDownstreamConflictStrategy } from "../dependencyConflict";
 import { isChapterGenerating, type ChapterRow } from "../shared";
@@ -335,24 +340,31 @@ export function MangaChapterDetailPanel({
 
     const actionSeq = beginAction(requestScope);
     if (actionSeq == null) return;
-    const taskId = createProgressTaskId("manga-page-image", projectId);
     setGeneratingPageNumber(pageNumber);
     try {
-      await runPageImageProgressTask(
+      const handle = await startImageGeneration({
+        project_id: projectId,
+        operation: {
+          kind: "page",
+          chapter_number: chapter.chapter_number,
+          page_number: pageNumber,
+        },
+      });
+      await runGenerationProgressTaskThen(
+        runPageImageProgressTask,
+        handle,
         {
           title: "生成整页漫画",
           startMessage: `正在准备第 ${pageNumber} 页图片生成`,
           successMessage: "整页漫画生成完成",
           errorMessage: "整页漫画生成失败",
-          taskId,
           total: 4,
           cancelLabel: "停止生成",
           runningHint: "使用当前页 page_generation 提示词直接生成完整漫画页",
         },
-        async () => {
+        async (task) => {
           ensureCurrentAction(requestScope, actionSeq);
-          await generatePageImage(projectId, chapter.chapter_number, pageNumber, taskId);
-          ensureCurrentAction(requestScope, actionSeq);
+          await verifyImageGenerationResult(task, projectId);
         },
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;

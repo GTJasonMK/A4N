@@ -5,12 +5,16 @@ pub use a4n_db::scene_profile::{
     SceneProfileRecordInput, SceneSyncRecordInput, SceneSyncRecordResult,
     SceneTransitionRecordInput,
 };
-use std::collections::BTreeMap;
-
+mod application;
 mod contracts;
 mod mapping;
 mod rules;
+mod workflow_rules;
 
+pub use application::{
+    SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncHostPort, SceneProfileSyncPreviewStep,
+    SceneProfileSyncProgress, SceneProfileSyncProgressReporter, SceneProfileSyncTaskScope,
+};
 pub use contracts::{
     SCENE_ENTITY_STATE_KEYS, SCENE_ENTITY_TYPES, SCENE_TRANSITION_MOVEMENT_TYPES, SCENE_TYPES,
     SceneEntityStateDraft, SceneOccurrenceDraft, SceneProfileDraft, SceneSyncInput,
@@ -24,114 +28,12 @@ pub use rules::{
     normalize_movement_type_value, normalize_scene_entity_state_key_value,
     normalize_scene_entity_type_value, normalize_scene_type_value,
 };
+pub use workflow_rules::{
+    scene_profile_sync_business_key, scene_profile_sync_workflow_fingerprint,
+};
 
 #[cfg(test)]
 mod tests;
-
-impl OrchestratorContext {
-    pub async fn scene_profiles_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<a4n_core::models::scene::scene_profile::Model>, AppError> {
-        a4n_db::scene_profile::scene_profiles_by_project(self.db.connection(), project_id)
-            .await
-            .map_err(scene_profile_db_error)
-    }
-
-    pub async fn scene_profile_by_id(
-        &self,
-        scene_profile_id: i64,
-    ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
-        a4n_db::scene_profile::scene_profile_by_id(self.db.connection(), scene_profile_id)
-            .await
-            .map_err(scene_profile_db_error)
-    }
-
-    pub async fn create_scene_profile_record(
-        &self,
-        project_id: i64,
-        input: SceneProfileRecordInput,
-    ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
-        a4n_db::scene_profile::create_scene_profile_record_checked(
-            self.db.connection(),
-            project_id,
-            input,
-        )
-        .await
-        .map_err(scene_profile_db_error)
-    }
-
-    pub async fn update_scene_profile_record(
-        &self,
-        scene_profile_id: i64,
-        input: SceneProfileRecordInput,
-    ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
-        a4n_db::scene_profile::update_scene_profile_record_checked(
-            self.db.connection(),
-            scene_profile_id,
-            input,
-        )
-        .await
-        .map_err(scene_profile_db_error)
-    }
-
-    pub async fn delete_scene_profile_records(
-        &self,
-        scene_profile_id: i64,
-    ) -> Result<(), AppError> {
-        a4n_db::scene_profile::delete_scene_profile_records(self.db.connection(), scene_profile_id)
-            .await
-            .map_err(scene_profile_db_error)
-    }
-
-    pub async fn replace_chapter_scene_sync_with_generation_run_records(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        chapter_number: i32,
-        input: SceneSyncRecordInput,
-        generation_run: a4n_db::generation::RecordCompletedGenerationRunInput,
-    ) -> Result<SceneSyncRecordResult, AppError> {
-        a4n_db::scene_profile::replace_chapter_scene_sync_with_generation_run_records(
-            self.db.connection(),
-            project_id,
-            chapter_id,
-            chapter_number,
-            input,
-            generation_run,
-        )
-        .await
-        .map_err(scene_profile_db_error)
-    }
-
-    pub async fn scene_occurrence_count(
-        &self,
-        project_id: i64,
-        scene_profile_id: i64,
-    ) -> Result<u64, AppError> {
-        a4n_db::scene_profile::scene_occurrence_count(
-            self.db.connection(),
-            project_id,
-            scene_profile_id,
-        )
-        .await
-        .map_err(scene_profile_db_error)
-    }
-
-    pub async fn scene_occurrence_counts_by_profile(
-        &self,
-        project_id: i64,
-        profile_ids: &[i64],
-    ) -> Result<BTreeMap<i64, u64>, AppError> {
-        a4n_db::scene_profile::scene_occurrence_counts_by_profile(
-            self.db.connection(),
-            project_id,
-            profile_ids,
-        )
-        .await
-        .map_err(scene_profile_db_error)
-    }
-}
 
 pub(crate) fn scene_profile_db_error(
     error: a4n_db::scene_profile::SceneProfileDbError,
@@ -144,5 +46,49 @@ pub(crate) fn scene_profile_db_error(
         a4n_db::scene_profile::SceneProfileDbError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
+    }
+}
+
+use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
+use a4n_core::models::chapter::chapter;
+use a4n_core::models::generation::workflow_run;
+
+impl OrchestratorContext {
+    /// 场景档案同步：校验后创建 workflow_run（RUNNING）。
+    pub(crate) async fn begin_scene_profile_sync_workflow_validated(
+        &self,
+        project_id: i64,
+        chapter_number: Option<i32>,
+        chapters: &[chapter::Model],
+    ) -> Result<workflow_run::Model, AppError> {
+        if project_id <= 0 {
+            return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
+        }
+        let mode = chapter_number
+            .map(|value| format!("chapter:{value}"))
+            .unwrap_or_else(|| "all".to_string());
+        self.begin_workflow_run_validated(UpsertWorkflowRunInput {
+            business_key: scene_profile_sync_business_key(project_id, chapter_number),
+            workflow_kind: "scene_profile_sync".to_string(),
+            project_id: Some(project_id),
+            root_project_id: None,
+            source_snapshot_id: None,
+            scope_table: Some("novel_project".to_string()),
+            scope_id: Some(project_id),
+            chapter_id: None,
+            mode: Some(mode),
+            input_fingerprint_json: Some(scene_profile_sync_workflow_fingerprint(
+                project_id,
+                chapter_number,
+                chapters,
+            )),
+            status: WORKFLOW_STATUS_RUNNING.to_string(),
+            current_step_key: Some("scene_profile_sync.prepare".to_string()),
+            active_task_id: None,
+            can_resume: false,
+            resume_block_reason: None,
+            error_message: None,
+        })
+        .await
     }
 }

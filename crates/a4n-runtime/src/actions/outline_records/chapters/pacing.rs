@@ -1,8 +1,8 @@
-use super::super::required_outline_pacing_score;
 use crate::AppState;
 use crate::actions::access as project_access;
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_outline;
+use a4n_orchestrator::outline::required_outline_pacing_score;
 use serde_json::{Value, json};
 
 pub async fn get_chapter_outlines_pacing(
@@ -12,7 +12,7 @@ pub async fn get_chapter_outlines_pacing(
 ) -> Result<Value, AppError> {
     project_access::verify_project_editor(state, user_id, project_id).await?;
     let outlines = state
-        .orchestrator
+        .project_outline_records()
         .chapter_outlines_for_project(project_id)
         .await?;
     build_chapter_outlines_pacing(&outlines)

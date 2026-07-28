@@ -1,9 +1,7 @@
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatRequest, ChatResponse};
+use a4n_llm::provider::ChatRequest;
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
-
-use crate::OrchestratorContext;
 
 mod schema_repair;
 
@@ -75,66 +73,4 @@ fn json_response_preview(trimmed: &str) -> String {
         .replace('\r', "\\r")
         .replace('\n', "\\n")
         .replace('\t', "\\t")
-}
-
-impl OrchestratorContext {
-    pub async fn chat_llm(&self, request: ChatRequest) -> Result<ChatResponse, AppError> {
-        self.llm.chat(request).await
-    }
-
-    pub async fn chat_json_stream_with_progress(
-        &self,
-        input: ChatJsonStreamInput<'_>,
-        report_progress: impl FnMut(u32, &str) -> Result<(), String>,
-    ) -> Result<String, String> {
-        let ChatJsonStreamInput {
-            request,
-            prompt_name,
-            truncated_message,
-            structured_progress,
-            cancel_token,
-            cancelled_message,
-        } = input;
-        a4n_llm::structured_stream::chat_json_stream_with_progress(
-            a4n_llm::structured_stream::ChatJsonStreamInput {
-                llm: self.llm.as_ref(),
-                request,
-                prompt_name,
-                truncated_message,
-                structured_progress,
-                cancel_token,
-                cancelled_message,
-            },
-            report_progress,
-        )
-        .await
-    }
-
-    pub async fn chat_json_stream_result_with_progress(
-        &self,
-        input: ChatJsonStreamInput<'_>,
-        report_progress: impl FnMut(u32, &str) -> Result<(), String>,
-    ) -> Result<StructuredLlmStreamResult, String> {
-        let ChatJsonStreamInput {
-            request,
-            prompt_name,
-            truncated_message,
-            structured_progress,
-            cancel_token,
-            cancelled_message,
-        } = input;
-        a4n_llm::structured_stream::chat_json_stream_result_with_progress(
-            a4n_llm::structured_stream::ChatJsonStreamInput {
-                llm: self.llm.as_ref(),
-                request,
-                prompt_name,
-                truncated_message,
-                structured_progress,
-                cancel_token,
-                cancelled_message,
-            },
-            report_progress,
-        )
-        .await
-    }
 }

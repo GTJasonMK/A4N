@@ -2,11 +2,27 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
+use a4n_core::error::AppError;
+use a4n_core::event::bridge::{EventBus, InternalEvent};
 use a4n_db::DbHandle;
 use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
 
-use super::{BootstrapUnavailableEmbedding, BootstrapUnavailableLlm, OrchestratorContext};
+use super::{
+    AdminApplication, AssetApplication, AssetLineageSyncApplication, AuthApplication,
+    BootstrapUnavailableEmbedding, BootstrapUnavailableLlm, CanvasApplication,
+    ChapterContentApplication, CharacterApplication, CollaborationApplication, ConfigApplication,
+    ExportApplication, GalgameApplication, GenerationApplication, ImportReverseApplication,
+    ImportReviewApplication, InspirationApplication, LlmContextApplication, MangaApplication,
+    OptimizeApplication, OrchestratorContext, OutlineApplication, ProfileMaterialApplication,
+    ProjectBlueprintApplication, ProjectChapterContextApplication,
+    ProjectChapterRecordsApplication, ProjectDependencyGraphApplication,
+    ProjectDuplicationApplication, ProjectFamilyApplication, ProjectMutationApplication,
+    ProjectOutlineRecordsApplication, ProjectReadApplication, ProjectSceneRecordsApplication,
+    ProjectStatusApplication, PromptOverrideApplication, RagApplication, SceneProfileApplication,
+    ShootingScriptApplication, SourceSyncApplication, TextAnchorApplication, VideoApplication,
+    WorkflowApplication,
+};
 use crate::chapter_generation::ChapterGenerationService;
 use crate::task_queue::PersistentTaskQueue;
 
@@ -15,8 +31,11 @@ impl OrchestratorContext {
         &self.capabilities
     }
 
+    pub(crate) fn chapter_generation_service(&self) -> ChapterGenerationService {
+        self.chapter.clone()
+    }
+
     /// 引导构造：仅用于初始化 LLM/embedding provider 的短暂阶段。
-    /// 业务请求不得使用该状态下的占位 provider。
     pub fn bootstrap(
         db: DbHandle,
         capabilities: A4nCapabilities,
@@ -31,12 +50,89 @@ impl OrchestratorContext {
         engine: Arc<dyn a4n_prompt::engine::PromptEngine>,
         snapshot_store: Arc<a4n_db::character::snapshot_store::Sha256SnapshotStore>,
     ) -> Self {
+        let admin = AdminApplication::new(db.clone());
+        let asset = AssetApplication::new(db.clone());
+        let asset_lineage_sync = AssetLineageSyncApplication::new(db.clone());
+        let auth = AuthApplication::new(db.clone());
+        let canvas = CanvasApplication::new(db.clone());
+        let chapter_content = ChapterContentApplication::new(db.clone());
+        let character = CharacterApplication::new(db.clone());
+        let collaboration = CollaborationApplication::new(db.clone());
+        let export = ExportApplication::new(db.clone());
+        let galgame = GalgameApplication::new(db.clone());
+        let generation = GenerationApplication::new(db.clone(), Arc::clone(&task_queue));
+        let import_reverse = ImportReverseApplication::new(db.clone());
+        let import_review = ImportReviewApplication::new(db.clone());
+        let inspiration = InspirationApplication::new(db.clone());
+        let llm_context = LlmContextApplication::new(db.clone());
+        let manga = MangaApplication::new(db.clone());
+        let optimize = OptimizeApplication::new(db.clone());
+        let outline = OutlineApplication::new(db.clone());
+        let profile_material = ProfileMaterialApplication::new(db.clone());
+        let project_blueprint = ProjectBlueprintApplication::new(db.clone());
+        let project_chapter_context = ProjectChapterContextApplication::new(db.clone());
+        let project_chapter_records = ProjectChapterRecordsApplication::new(db.clone());
+        let project_dependency_graph = ProjectDependencyGraphApplication::new(db.clone());
+        let project_duplication = ProjectDuplicationApplication::new(db.clone());
+        let project_family = ProjectFamilyApplication::new(db.clone());
+        let project_mutation = ProjectMutationApplication::new(db.clone());
+        let project_outline_records = ProjectOutlineRecordsApplication::new(db.clone());
+        let project_read = ProjectReadApplication::new(db.clone());
+        let project_scene_records = ProjectSceneRecordsApplication::new(db.clone());
+        let project_status = ProjectStatusApplication::new(db.clone());
+        let prompt_override = PromptOverrideApplication::new(db.clone());
+        let rag = RagApplication::new(db.clone());
+        let scene_profile = SceneProfileApplication::new(db.clone());
+        let settings = ConfigApplication::new(db.clone());
+        let shooting_script = ShootingScriptApplication::new(db.clone());
+        let source_sync = SourceSyncApplication::new(db.clone());
+        let text_anchor = TextAnchorApplication::new(db.clone());
+        let video = VideoApplication::new(db.clone());
+        let workflow = WorkflowApplication::new(db.clone());
         Self {
-            db,
+            database: db,
+            admin,
+            asset,
+            asset_lineage_sync,
+            auth,
+            canvas,
+            chapter_content,
+            character,
+            collaboration,
+            export,
+            galgame,
+            generation,
+            import_reverse,
+            import_review,
+            inspiration,
+            llm_context,
+            manga,
+            optimize,
+            outline,
+            profile_material,
+            project_blueprint,
+            project_chapter_context,
+            project_chapter_records,
+            project_dependency_graph,
+            project_duplication,
+            project_family,
+            project_mutation,
+            project_outline_records,
+            project_read,
+            project_scene_records,
+            project_status,
+            prompt_override,
+            rag,
+            scene_profile,
+            settings,
+            shooting_script,
+            source_sync,
+            text_anchor,
+            video,
+            workflow,
             capabilities,
             service_manager,
             service_pid_dir,
-            managed_service_pids: None,
             config,
             event_bus,
             task_manager,
@@ -59,5 +155,134 @@ impl OrchestratorContext {
         self.llm = llm;
         self.embedding = embedding;
         self
+    }
+
+    /// 发布内部事件（状态/蓝图等），统一经 EventBus，避免旁路直连。
+    pub async fn publish_internal_event(&self, event: InternalEvent) -> Result<usize, AppError> {
+        self.event_bus.publish(event).await
+    }
+
+    /// 订阅内部事件流（Host/Tauri 桥接用）。
+    pub async fn subscribe_internal_events(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<InternalEvent> {
+        self.event_bus.subscribe().await
+    }
+}
+
+impl OrchestratorContext {
+    /// 在给定章节号列表中查找当前被生成锁占用的章节号。
+    pub fn active_generation_chapter(
+        &self,
+        project_id: i64,
+        chapter_numbers: &[i32],
+    ) -> Option<i32> {
+        self.chapter
+            .active_generation_chapter(project_id, chapter_numbers)
+    }
+
+    /// embedding 批大小（runtime/RAG 同步用，不暴露完整 provider）。
+    pub fn embedding_batch_size(&self) -> usize {
+        self.embedding.batch_size()
+    }
+
+    /// embedding 模型身份（runtime/RAG 同步用）。
+    pub async fn embedding_model_identity(
+        &self,
+    ) -> Result<a4n_embedding::provider::EmbeddingModelIdentity, AppError> {
+        self.embedding.model_identity().await
+    }
+
+    /// 要求配置中已设置非空 JWT secret。
+    pub fn required_jwt_secret(&self) -> Result<&str, AppError> {
+        let secret = self
+            .config
+            .security
+            .jwt_secret
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| AppError::InvalidState {
+                current: "jwt_secret 未配置".to_string(),
+                operation: "读取 JWT 密钥".to_string(),
+            })?;
+        Ok(secret)
+    }
+
+    /// Host 窗口/路径初始化用配置视图（不暴露字段）。
+    pub fn host_app_config(&self) -> &a4n_core::config::app_config::AppConfig {
+        &self.config
+    }
+
+    /// 数据目录。
+    pub fn data_dir(&self) -> &std::path::Path {
+        &self.config.data_dir
+    }
+
+    /// 日志目录。
+    pub fn log_dir(&self) -> &std::path::Path {
+        &self.config.log_dir
+    }
+
+    /// 临时目录。
+    pub fn temp_dir(&self) -> &std::path::Path {
+        &self.config.temp_dir
+    }
+
+    /// 应用路径聚合。
+    pub fn app_paths(&self) -> a4n_core::files::paths::AppPaths {
+        a4n_core::files::paths::AppPaths::from_config(&self.config)
+    }
+
+    /// 配置中的数据库 URL。
+    pub fn configured_database_url(&self) -> &str {
+        &self.config.database_url
+    }
+
+    /// FastEmbed 默认缓存目录。
+    pub fn default_fastembed_cache_dir(&self) -> std::path::PathBuf {
+        self.config.cache_dir.join("embedding-models")
+    }
+
+    /// 注册任务句柄。
+    pub fn register_task_handle(
+        &self,
+        handle: a4n_core::event::channel::TaskHandle,
+    ) -> std::sync::Arc<a4n_core::event::channel::TaskHandle> {
+        self.task_manager.register(handle)
+    }
+
+    /// 移除任务句柄。
+    pub fn remove_task_handle(
+        &self,
+        task_id: &str,
+    ) -> Option<std::sync::Arc<a4n_core::event::channel::TaskHandle>> {
+        self.task_manager.remove(task_id)
+    }
+
+    pub fn task_handle(
+        &self,
+        task_id: &str,
+    ) -> Option<std::sync::Arc<a4n_core::event::channel::TaskHandle>> {
+        self.task_manager.get(task_id)
+    }
+
+    /// 取消已注册任务句柄。
+    pub fn cancel_task_handle(&self, task_id: &str) -> bool {
+        self.task_manager.cancel(task_id)
+    }
+
+    /// 当前活跃任务快照。
+    pub fn active_task_snapshots(&self) -> Vec<a4n_core::event::channel::TaskSnapshot> {
+        self.task_manager.list_active_snapshots()
+    }
+
+    /// 按内容哈希加载角色快照（不暴露 snapshot_store 句柄）。
+    pub(crate) async fn character_snapshot_by_hash(
+        &self,
+        content_hash: &str,
+    ) -> Result<Option<a4n_core::event::snapshot::Snapshot>, AppError> {
+        use a4n_core::event::snapshot::SnapshotStore;
+        self.snapshot_store.load_snapshot(content_hash).await
     }
 }

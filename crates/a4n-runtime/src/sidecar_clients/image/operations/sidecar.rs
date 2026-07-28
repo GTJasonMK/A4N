@@ -94,7 +94,8 @@ pub(super) async fn generate_image_via_sidecar(
         a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
         payload,
     )?;
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (event_tx, mut event_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
     let mut request_future = Box::pin(client.generate_events(request, event_tx));
     let mut transport_complete = false;
     let output = loop {

@@ -3,5 +3,6 @@
 pub mod capability;
 pub mod embedding;
 pub mod llm;
+pub mod process;
 pub mod rag;
 pub mod workflow;

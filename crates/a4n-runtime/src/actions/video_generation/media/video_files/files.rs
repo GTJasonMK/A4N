@@ -1,21 +1,24 @@
 use super::paths::ensure_chapter_videos_dir;
-use crate::AppState;
+use crate::file_utils::{persist_created_media_file, remove_created_file_on_error_sync};
+use a4n_core::files::paths::ProjectPaths;
 use a4n_core::models::ai::generated_video;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 pub(crate) fn save_video_bytes(
-    state: &AppState,
+    data_dir: &Path,
     project_id: i64,
     chapter_id: i64,
     video_id: i64,
     bytes: &[u8],
     format: &str,
 ) -> Result<PathBuf, String> {
-    let dir = ensure_chapter_videos_dir(state, project_id, chapter_id)?;
+    let dir = ensure_chapter_videos_dir(data_dir, project_id, chapter_id)?;
     let extension = required_video_file_extension(format)?;
     let path = dir.join(format!("video_{video_id}.{extension}"));
-    std::fs::write(&path, bytes).map_err(|e| format!("无法写入视频：{e}"))?;
+    remove_created_file_on_error_sync(&path, "视频文件", || {
+        std::fs::write(&path, bytes).map_err(|e| format!("无法写入视频：{e}"))
+    })?;
     Ok(path)
 }
 
@@ -31,6 +34,31 @@ pub(crate) fn required_video_file_extension(format: &str) -> Result<&'static str
         "m4v" => Ok("m4v"),
         _ => Err(format!("视频 provider 返回了不支持的文件格式：{format}")),
     }
+}
+
+pub(crate) fn persist_canvas_video_bytes(
+    data_dir: &Path,
+    project_id: i64,
+    video_id: i64,
+    bytes: &[u8],
+    format: &str,
+) -> Result<(String, i64), String> {
+    if bytes.is_empty() {
+        return Err("画布视频 provider 返回了空文件，无法保存生成结果".to_string());
+    }
+    let extension = required_video_file_extension(format)?;
+    let dir = ProjectPaths::new(data_dir, project_id).videos_dir();
+    std::fs::create_dir_all(&dir)
+        .map_err(|error| format!("无法创建画布视频目录 {}：{error}", dir.display()))?;
+    let output = dir.join(format!("canvas_video_{video_id}.{extension}"));
+    persist_created_media_file(
+        data_dir,
+        &output,
+        |path| std::fs::write(path, bytes).map_err(|error| format!("无法写入画布视频：{error}")),
+        "已写出的画布视频文件",
+        "画布视频文件",
+        "画布视频文件",
+    )
 }
 
 pub(crate) fn video_mime_from_path(path: &Path) -> Result<&'static str, String> {

@@ -3,14 +3,14 @@ use crate::workflow::{
     WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED, WorkflowReadError,
 };
 use a4n_core::models::{generation::workflow_checkpoint, task::task_queue};
-use a4n_queue::priority::{TaskInfo, TaskPriority, TaskProgress, TaskStatus, TaskType};
+use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskProgress, TaskStatus};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
 pub fn task_info_from_row(row: task_queue::Model) -> Result<TaskInfo, WorkflowReadError> {
     Ok(TaskInfo {
         id: row.id,
-        task_type: TaskType::parse_storage(&row.task_type)
+        task_type: TaskKind::parse_storage(&row.task_type)
             .map_err(|error| WorkflowReadError::InvalidData(error.to_string()))?,
         priority: TaskPriority::parse_storage(&row.priority)
             .map_err(|error| WorkflowReadError::InvalidData(error.to_string()))?,

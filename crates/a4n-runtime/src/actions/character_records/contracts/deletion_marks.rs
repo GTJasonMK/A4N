@@ -1,22 +1,6 @@
 use super::attributes::AttributeEventSummary;
+pub use a4n_orchestrator::character::DeletionMarkSummary;
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeletionMarkSummary {
-    pub id: i64,
-    pub profile_id: i64,
-    pub category: String,
-    pub key: String,
-    pub chapter_number: i32,
-    pub reason: String,
-    pub evidence: String,
-    pub consecutive_count: i32,
-    pub threshold: i32,
-    pub last_marked_chapter: i32,
-    pub is_executed: bool,
-    pub created_at: String,
-    pub updated_at: String,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]

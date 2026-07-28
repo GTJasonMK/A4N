@@ -1,0 +1,774 @@
+name: Signed Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  supply-chain:
+    name: Release advisory, license and SBOM gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Require release tag version
+        shell: bash
+        run: |
+          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/a4n-tauri/tauri.conf.json")).fetch("version")')"
+          test "$GITHUB_REF_NAME" = "v$version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@f1b61bf3a1373bccc1ebdc11506122709bd40dee # cargo-audit
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@0843b7c6f00e5da5a08f795c041bd69dbba2ba6d # cargo-deny
+
+      - name: Install cargo-cyclonedx
+        uses: taiki-e/install-action@267ee3b185642de47023eface7caa6ec9a5a999c # cargo-cyclonedx
+
+      - name: Run release advisory and policy checks
+        shell: bash
+        run: |
+          mkdir -p artifacts/supply-chain
+          cargo audit 2>&1 | tee artifacts/supply-chain/cargo-audit.log
+          cargo deny check 2>&1 | tee artifacts/supply-chain/cargo-deny.log
+
+      - name: Generate release CycloneDX SBOM
+        shell: bash
+        run: ./scripts/checks/generate-release-sbom.sh artifacts/supply-chain "$GITHUB_REF_NAME"
+
+      - name: Upload release supply-chain evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-supply-chain
+          path: artifacts/supply-chain
+          retention-days: 30
+
+  linux-x86_64:
+    name: Linux x86_64 portable release
+    needs: supply-chain
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: a4n_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d a4n_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      A4N_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
+      A4N_QDRANT_URL: http://127.0.0.1:6334
+      A4N_RELEASE_SMOKE_ARTIFACT_DIR: artifacts/linux-release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Linux release dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            pkg-config \
+            xvfb
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Migrate PostgreSQL test database
+        run: cargo run -p a4n-migration -- "$A4N_DATABASE_URL"
+
+      - name: Start verified Qdrant 1.18.3
+        shell: bash
+        run: |
+          mkdir -p artifacts/qdrant "$RUNNER_TEMP/qdrant"
+          archive="$RUNNER_TEMP/qdrant.tar.gz"
+          curl -fL --retry 3 -o "$archive" \
+            https://github.com/qdrant/qdrant/releases/download/v1.18.3/qdrant-x86_64-unknown-linux-gnu.tar.gz
+          actual="$(sha256sum "$archive" | awk '{print $1}')"
+          test "$actual" = "60663a254cf421dba4db45710872895cd3a714fe1e6978f7927923b5cfae4718"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/qdrant"
+          chmod +x "$RUNNER_TEMP/qdrant/qdrant"
+          pushd "$RUNNER_TEMP/qdrant"
+          ./qdrant >"$GITHUB_WORKSPACE/artifacts/qdrant/qdrant.log" 2>&1 &
+          echo $! >"$GITHUB_WORKSPACE/artifacts/qdrant/pid"
+          popd
+          for _ in {1..300}; do
+            curl -fsS --max-time 1 http://127.0.0.1:6333/readyz && break
+            sleep 0.1
+          done
+          curl -fsS --max-time 2 http://127.0.0.1:6333/readyz
+
+      - name: Build real Linux portable archive
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          source scripts/lib/common.sh
+          require_onnxruntime
+          ./scripts/deploy.sh --target linux-x86_64
+
+      - name: Run installed Host and sidecar lifecycle
+        run: |
+          A4N_JWT_SECRET="$(openssl rand -hex 32)" \
+            xvfb-run -a timeout 180 \
+            ./scripts/checks/smoke-linux-release-package.sh \
+            deploy/a4n-tauri-*-linux-x86_64.tar.gz
+
+      - name: Package verified Linux release asset
+        shell: bash
+        run: |
+          source_archive="$(find deploy -maxdepth 1 -type f -name 'a4n-tauri-*-linux-x86_64.tar.gz' -print -quit)"
+          test -n "$source_archive"
+          output="artifacts/release"
+          archive="$output/A4N-${GITHUB_REF_NAME}-linux-x86_64.tar.gz"
+          mkdir -p "$output"
+          cp "$source_archive" "$archive"
+          (
+            cd "$output"
+            sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256"
+          )
+
+      - name: Upload verified Linux release
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-x86_64-release
+          path: |
+            artifacts/linux-release
+            artifacts/qdrant
+            artifacts/release
+          retention-days: 30
+
+  macos-arm64:
+    name: Signed and notarized macOS arm64 release
+    needs: linux-x86_64
+    permissions:
+      contents: write
+    runs-on: macos-15
+    timeout-minutes: 150
+    environment: release
+    env:
+      A4N_DATABASE_URL: postgres://a4n@127.0.0.1:5432/a4n_test
+      A4N_QDRANT_URL: http://127.0.0.1:6334
+      A4N_RELEASE_SMOKE_ARTIFACT_DIR: artifacts/macos-signed-release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download release supply-chain evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-supply-chain
+          path: artifacts/supply-chain
+
+      - name: Download verified Linux release
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: linux-x86_64-release
+          path: artifacts/linux
+
+      - name: Require release tag and Apple identity
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          : "${APPLE_CERTIFICATE:?APPLE_CERTIFICATE secret is required}"
+          : "${APPLE_CERTIFICATE_PASSWORD:?APPLE_CERTIFICATE_PASSWORD secret is required}"
+          : "${APPLE_ID:?APPLE_ID secret is required}"
+          : "${APPLE_PASSWORD:?APPLE_PASSWORD secret is required}"
+          : "${APPLE_TEAM_ID:?APPLE_TEAM_ID secret is required}"
+          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/a4n-tauri/tauri.conf.json")).fetch("version")')"
+          test "$GITHUB_REF_NAME" = "v$version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Import Developer ID certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        shell: bash
+        run: |
+          keychain="$RUNNER_TEMP/a4n-release.keychain-db"
+          certificate="$RUNNER_TEMP/a4n-release.p12"
+          keychain_password="$(openssl rand -hex 32)"
+          printf '%s' "$APPLE_CERTIFICATE" | openssl base64 -d -A > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security default-keychain -s "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -t 7200 -u "$keychain"
+          security import "$certificate" \
+            -k "$keychain" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain"
+          identities="$(security find-identity -v -p codesigning "$keychain" | awk -F'"' '/Developer ID Application:/ { print $2 }')"
+          test "$(printf '%s\n' "$identities" | sed '/^$/d' | wc -l | tr -d ' ')" = 1
+          printf 'APPLE_SIGNING_IDENTITY=%s\n' "$identities" >> "$GITHUB_ENV"
+
+      - name: Start PostgreSQL 16 and migrate a4n_test
+        shell: bash
+        run: |
+          brew list postgresql@16 >/dev/null 2>&1 || brew install postgresql@16
+          postgres_bin="$(brew --prefix postgresql@16)/bin"
+          export PATH="$postgres_bin:$PATH"
+          brew services start postgresql@16
+          for _ in {1..60}; do
+            pg_isready -h 127.0.0.1 -d postgres && break
+            sleep 1
+          done
+          pg_isready -h 127.0.0.1 -d postgres
+          psql -h 127.0.0.1 -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='a4n'" | grep -q 1 || createuser -h 127.0.0.1 -s a4n
+          psql -h 127.0.0.1 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='a4n_test'" | grep -q 1 || createdb -h 127.0.0.1 -O a4n a4n_test
+          cargo run -p a4n-migration -- "$A4N_DATABASE_URL"
+
+      - name: Start verified Qdrant 1.18.3
+        shell: bash
+        run: |
+          mkdir -p artifacts/qdrant "$RUNNER_TEMP/qdrant"
+          archive="$RUNNER_TEMP/qdrant.tar.gz"
+          curl -fL --retry 3 -o "$archive" \
+            https://github.com/qdrant/qdrant/releases/download/v1.18.3/qdrant-aarch64-apple-darwin.tar.gz
+          actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+          test "$actual" = "0cb040a261035c316779bd7b4cca2e6ab39faf62640d6918bbbe320e2a9a6547"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/qdrant"
+          chmod +x "$RUNNER_TEMP/qdrant/qdrant"
+          pushd "$RUNNER_TEMP/qdrant"
+          ./qdrant >"$GITHUB_WORKSPACE/artifacts/qdrant/qdrant.log" 2>&1 &
+          echo $! >"$GITHUB_WORKSPACE/artifacts/qdrant/pid"
+          popd
+          for _ in {1..300}; do
+            curl -fsS --max-time 1 http://127.0.0.1:6333/readyz && break
+            sleep 0.1
+          done
+          curl -fsS --max-time 2 http://127.0.0.1:6333/readyz
+
+      - name: Build signed and notarized Tauri app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          cargo install tauri-cli --version 2.11.0 --locked
+          ./scripts/dev/build-tauri-bundle.sh \
+            --target aarch64-apple-darwin \
+            --ci \
+            --bundles app,dmg
+
+      - name: Verify signature, notarization and stapling
+        shell: bash
+        run: |
+          app="target/aarch64-apple-darwin/release/bundle/macos/A4N.app"
+          mkdir -p "$A4N_RELEASE_SMOKE_ARTIFACT_DIR"
+          codesign --verify --deep --strict --verbose=2 "$app" \
+            2>&1 | tee "$A4N_RELEASE_SMOKE_ARTIFACT_DIR/codesign-verify.log"
+          codesign -dv --verbose=4 "$app" \
+            2>&1 | tee "$A4N_RELEASE_SMOKE_ARTIFACT_DIR/codesign-details.log"
+          xcrun stapler validate "$app" \
+            2>&1 | tee "$A4N_RELEASE_SMOKE_ARTIFACT_DIR/stapler.log"
+          spctl --assess --type execute --verbose=4 "$app" \
+            2>&1 | tee "$A4N_RELEASE_SMOKE_ARTIFACT_DIR/gatekeeper.log"
+
+      - name: Generate and sign final Tauri bundle manifest
+        shell: bash
+        run: |
+          app="target/aarch64-apple-darwin/release/bundle/macos/A4N.app"
+          output="artifacts/release"
+          manifest="$output/A4N-${GITHUB_REF_NAME}-macos-arm64.manifest.json"
+          cms="$output/A4N-${GITHUB_REF_NAME}-macos-arm64.manifest.cms"
+          verified="$RUNNER_TEMP/a4n-verified-manifest.json"
+          mkdir -p "$output"
+          ruby scripts/release_manifest.rb generate \
+            --package-root "$(dirname "$app")" \
+            --target aarch64-apple-darwin \
+            --package a4n-tauri \
+            --host a4n-tauri \
+            --catalog crates/a4n-service-protocol/service-catalog.json \
+            --tauri-app "$app" \
+            --output "$manifest"
+          ruby scripts/release_manifest.rb verify \
+            --package-root "$(dirname "$app")" \
+            --manifest "$manifest" \
+            --catalog crates/a4n-service-protocol/service-catalog.json
+          security cms -S -u 6 -H SHA256 -Y NONE \
+            -N "$APPLE_SIGNING_IDENTITY" -i "$manifest" -o "$cms"
+          security cms -D -u 6 -i "$cms" -o "$verified"
+          cmp "$manifest" "$verified"
+
+      - name: Start signed Host and eight sidecars
+        shell: bash
+        run: |
+          A4N_JWT_SECRET="$(openssl rand -hex 32)" \
+            ./scripts/checks/smoke-macos-tauri-bundle.sh \
+            target/aarch64-apple-darwin/release/bundle/macos/A4N.app
+
+      - name: Package verified release
+        shell: bash
+        run: |
+          output="artifacts/release"
+          app="target/aarch64-apple-darwin/release/bundle/macos/A4N.app"
+          archive="$output/A4N-${GITHUB_REF_NAME}-macos-arm64.zip"
+          manifest="$output/A4N-${GITHUB_REF_NAME}-macos-arm64.manifest.json"
+          cms="$output/A4N-${GITHUB_REF_NAME}-macos-arm64.manifest.cms"
+          source_dmg="$(find target/aarch64-apple-darwin/release/bundle/dmg -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          dmg="$output/A4N-${GITHUB_REF_NAME}-macos-arm64.dmg"
+          zip_root="$RUNNER_TEMP/a4n-macos-release"
+          test -n "$source_dmg"
+          test -s "$manifest"
+          test -s "$cms"
+          rm -rf "$zip_root"
+          mkdir -p "$zip_root"
+          ditto "$app" "$zip_root/A4N.app"
+          cp "$manifest" "$zip_root/release-manifest.json"
+          cp "$cms" "$zip_root/release-manifest.cms"
+          ditto -c -k --sequesterRsrc --keepParent "$zip_root" "$archive"
+          cp "$source_dmg" "$dmg"
+          (
+            cd "$output"
+            shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256"
+            shasum -a 256 "$(basename "$dmg")" > "$(basename "$dmg").sha256"
+          )
+          archive_check="$RUNNER_TEMP/a4n-macos-archive-check"
+          ditto -x -k "$archive" "$archive_check"
+          packaged_manifest="$(find "$archive_check" -type f -name release-manifest.json -print -quit)"
+          test -n "$packaged_manifest"
+          package_root="$(dirname "$packaged_manifest")"
+          ruby scripts/release_manifest.rb verify \
+            --package-root "$package_root" \
+            --manifest "$packaged_manifest" \
+            --catalog crates/a4n-service-protocol/service-catalog.json
+          security cms -D -u 6 \
+            -i "$package_root/release-manifest.cms" \
+            -o "$archive_check/verified-manifest.json"
+          cmp "$packaged_manifest" "$archive_check/verified-manifest.json"
+
+      - name: Verify packaged DMG application
+        shell: bash
+        run: |
+          dmg="artifacts/release/A4N-${GITHUB_REF_NAME}-macos-arm64.dmg"
+          manifest="artifacts/release/A4N-${GITHUB_REF_NAME}-macos-arm64.manifest.json"
+          mountpoint="$RUNNER_TEMP/a4n-release-dmg"
+          mkdir -p "$mountpoint"
+          cleanup() { hdiutil detach "$mountpoint" -quiet || true; }
+          trap cleanup EXIT
+          hdiutil attach "$dmg" -mountpoint "$mountpoint" -nobrowse -readonly
+          app="$(find "$mountpoint" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app"
+          ruby scripts/release_manifest.rb verify \
+            --package-root "$mountpoint" \
+            --manifest "$manifest" \
+            --catalog crates/a4n-service-protocol/service-catalog.json
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=4 "$app"
+
+      - name: Stage verified GitHub release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          archive="artifacts/release/A4N-${GITHUB_REF_NAME}-macos-arm64.zip"
+          dmg="artifacts/release/A4N-${GITHUB_REF_NAME}-macos-arm64.dmg"
+          manifest="artifacts/release/A4N-${GITHUB_REF_NAME}-macos-arm64.manifest.json"
+          cms="artifacts/release/A4N-${GITHUB_REF_NAME}-macos-arm64.manifest.cms"
+          sbom="artifacts/supply-chain/A4N-${GITHUB_REF_NAME}-cyclonedx.tar.gz"
+          linux="artifacts/linux/release/A4N-${GITHUB_REF_NAME}-linux-x86_64.tar.gz"
+          if release_is_draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            test "$release_is_draft" = true
+            gh release upload "$GITHUB_REF_NAME" \
+              "$archive" "$archive.sha256" "$dmg" "$dmg.sha256" "$manifest" "$cms" \
+              "$sbom" "$sbom.sha256" "$linux" "$linux.sha256" \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              "$archive" "$archive.sha256" "$dmg" "$dmg.sha256" "$manifest" "$cms" \
+              "$sbom" "$sbom.sha256" "$linux" "$linux.sha256" \
+              --verify-tag \
+              --draft \
+              --title "A4N $GITHUB_REF_NAME" \
+              --generate-notes
+          fi
+
+      - name: Download and verify staged release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          verify_dir="$RUNNER_TEMP/a4n-published-release"
+          mkdir -p "$verify_dir"
+          gh release download "$GITHUB_REF_NAME" \
+            --dir "$verify_dir" \
+            --pattern "A4N-${GITHUB_REF_NAME}-macos-arm64.*"
+          test "$(find "$verify_dir" -maxdepth 1 -type f | wc -l | tr -d ' ')" = 6
+          (
+            cd "$verify_dir"
+            shasum -a 256 -c ./*.sha256
+          )
+          manifest="$verify_dir/A4N-${GITHUB_REF_NAME}-macos-arm64.manifest.json"
+          cms="$verify_dir/A4N-${GITHUB_REF_NAME}-macos-arm64.manifest.cms"
+          security cms -D -u 6 -i "$cms" -o "$verify_dir/verified-manifest.json"
+          cmp "$manifest" "$verify_dir/verified-manifest.json"
+          gh release download "$GITHUB_REF_NAME" \
+            --dir "$verify_dir" \
+            --pattern "A4N-${GITHUB_REF_NAME}-cyclonedx.*"
+          test "$(find "$verify_dir" -maxdepth 1 -type f -name 'A4N-*-cyclonedx.*' | wc -l | tr -d ' ')" = 2
+          (
+            cd "$verify_dir"
+            shasum -a 256 -c "A4N-${GITHUB_REF_NAME}-cyclonedx.tar.gz.sha256"
+          )
+          gh release download "$GITHUB_REF_NAME" \
+            --dir "$verify_dir" \
+            --pattern "A4N-${GITHUB_REF_NAME}-linux-x86_64.*"
+          test "$(find "$verify_dir" -maxdepth 1 -type f -name 'A4N-*-linux-x86_64.*' | wc -l | tr -d ' ')" = 2
+          (
+            cd "$verify_dir"
+            shasum -a 256 -c "A4N-${GITHUB_REF_NAME}-linux-x86_64.tar.gz.sha256"
+          )
+
+      - name: Upload signed release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-arm64-signed-release
+          path: |
+            artifacts/macos-signed-release
+            artifacts/qdrant
+            artifacts/release
+            artifacts/linux
+            artifacts/supply-chain
+            target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          retention-days: 30
+
+  windows-x86_64:
+    name: Signed Windows x86_64 portable release
+    needs: macos-arm64
+    permissions:
+      contents: write
+    runs-on: windows-2025
+    timeout-minutes: 120
+    environment: release
+    env:
+      A4N_DATABASE_URL: postgres://postgres:root@127.0.0.1:5432/a4n_test
+      A4N_QDRANT_URL: http://127.0.0.1:6334
+      A4N_RELEASE_SMOKE_ARTIFACT_DIR: artifacts/windows-signed-release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Require release tag and Azure Artifact Signing identity
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE }}
+        shell: pwsh
+        run: |
+          foreach ($name in @(
+            "AZURE_CLIENT_ID",
+            "AZURE_CLIENT_SECRET",
+            "AZURE_TENANT_ID",
+            "AZURE_ARTIFACT_SIGNING_ENDPOINT",
+            "AZURE_ARTIFACT_SIGNING_ACCOUNT",
+            "AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE"
+          )) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "$name is required"
+            }
+          }
+          $endpoint = [Uri]$env:AZURE_ARTIFACT_SIGNING_ENDPOINT
+          if ($endpoint.Scheme -ne "https" -or $endpoint.Host -notmatch '\.codesigning\.azure\.net$') {
+            throw "Azure Artifact Signing endpoint must use the official HTTPS domain"
+          }
+          $version = (Get-Content -Raw crates/a4n-tauri/tauri.conf.json | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+            throw "release tag $env:GITHUB_REF_NAME does not match v$version"
+          }
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Start PostgreSQL 17
+        shell: pwsh
+        run: |
+          Set-Service -Name postgresql-x64-17 -StartupType Manual
+          Start-Service -Name postgresql-x64-17
+          $env:PGPASSWORD = "root"
+          & "$env:PGBIN\createdb.exe" -h 127.0.0.1 -U postgres a4n_test
+          if ($LASTEXITCODE -ne 0) { throw "unable to create a4n_test" }
+
+      - name: Start verified Qdrant 1.18.3
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts\qdrant | Out-Null
+          $archive = "$env:RUNNER_TEMP\qdrant.zip"
+          Invoke-WebRequest -Uri "https://github.com/qdrant/qdrant/releases/download/v1.18.3/qdrant-x86_64-pc-windows-msvc.zip" -OutFile $archive
+          $actual = (Get-FileHash -Algorithm SHA256 -Path $archive).Hash.ToLowerInvariant()
+          if ($actual -ne "984619bbd4032ace578656174c465c5d6b71d1267ecad5b7b4c21cc6549ca833") {
+            throw "Qdrant SHA-256 mismatch: $actual"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath "$env:RUNNER_TEMP\qdrant"
+          $qdrant = Start-Process -FilePath "$env:RUNNER_TEMP\qdrant\qdrant.exe" `
+            -RedirectStandardOutput artifacts\qdrant\stdout.log `
+            -RedirectStandardError artifacts\qdrant\stderr.log -PassThru
+          $qdrant.Id | Out-File -FilePath artifacts\qdrant\pid -Encoding ascii
+          for ($attempt = 0; $attempt -lt 300; $attempt++) {
+            try {
+              Invoke-RestMethod -Uri "http://127.0.0.1:6333/readyz" -TimeoutSec 1 | Out-Null
+              exit 0
+            } catch {
+              if ($qdrant.HasExited) { throw "Qdrant exited before becoming ready" }
+              Start-Sleep -Milliseconds 100
+            }
+          }
+          throw "Qdrant did not become ready"
+
+      - name: Build unsigned Windows portable binaries
+        shell: bash
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          source scripts/lib/common.sh
+          require_onnxruntime
+          ./scripts/deploy.sh --target windows-x86_64
+
+      - name: Sign host and eight sidecars with Azure Artifact Signing
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE }}
+        shell: pwsh
+        run: |
+          if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+            throw "dotnet is required for Azure Artifact Signing"
+          }
+          $env:AZURE_CLI_PATH = (Get-Command az.cmd -ErrorAction Stop).Source
+          $signTools = @(Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending)
+          if ($signTools.Count -eq 0) {
+            throw "Windows SDK signtool.exe is required for Azure Artifact Signing"
+          }
+          $env:SIGNTOOL_PATH = $signTools[0].FullName
+          cargo install artifact-signing-cli --version 0.11.0 --locked
+          if ($LASTEXITCODE -ne 0) { throw "unable to install artifact-signing-cli" }
+          $catalog = Get-Content -Raw crates/a4n-service-protocol/service-catalog.json | ConvertFrom-Json
+          $binaries = @((Resolve-Path target\release\a4n-tauri.exe).Path)
+          $binaries += @($catalog | ForEach-Object {
+            (Resolve-Path ("target\release\{0}.exe" -f $_.binary)).Path
+          })
+          if ($binaries.Count -ne 9 -or ($binaries | Sort-Object -Unique).Count -ne 9) {
+            throw "expected host and eight unique sidecar binaries"
+          }
+          foreach ($binary in $binaries) {
+            & artifact-signing-cli `
+              -e $env:AZURE_ARTIFACT_SIGNING_ENDPOINT `
+              -a $env:AZURE_ARTIFACT_SIGNING_ACCOUNT `
+              -c $env:AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE `
+              -d A4N `
+              $binary
+            if ($LASTEXITCODE -ne 0) { throw "signing failed: $binary" }
+          }
+
+      - name: Repackage signed binaries and regenerate manifest
+        shell: bash
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          source scripts/lib/common.sh
+          require_onnxruntime
+          ./scripts/deploy.sh --target windows-x86_64 --no-build
+
+      - name: Verify final Authenticode signatures and manifest hashes
+        shell: pwsh
+        run: |
+          $roots = @(Get-ChildItem deploy -Directory -Filter "a4n-tauri-*-windows-x86_64")
+          if ($roots.Count -ne 1) { throw "expected one Windows package root" }
+          $root = $roots[0].FullName
+          $manifest = Get-Content -Raw (Join-Path $root "release-manifest.json") | ConvertFrom-Json
+          if ($manifest.schema_version -ne 2 -or $manifest.binaries.Count -ne 9) {
+            throw "release manifest must contain schema v2 host and eight sidecars"
+          }
+          $evidence = foreach ($entry in $manifest.binaries) {
+            $path = Join-Path $root ($entry.path -replace '/', [IO.Path]::DirectorySeparatorChar)
+            $actual = (Get-FileHash -Algorithm SHA256 -Path $path).Hash.ToLowerInvariant()
+            if ($actual -ne $entry.sha256.ToLowerInvariant()) {
+              throw "manifest hash mismatch after signing: $($entry.path)"
+            }
+            $signature = Get-AuthenticodeSignature -FilePath $path
+            if ($signature.Status.ToString() -ne "Valid" -or -not $signature.SignerCertificate) {
+              throw "invalid Authenticode signature: $($entry.path) ($($signature.Status))"
+            }
+            [pscustomobject]@{
+              path = $entry.path
+              sha256 = $actual
+              status = $signature.Status.ToString()
+              signer_subject = $signature.SignerCertificate.Subject
+              signer_thumbprint = $signature.SignerCertificate.Thumbprint
+            }
+          }
+          New-Item -ItemType Directory -Force -Path $env:A4N_RELEASE_SMOKE_ARTIFACT_DIR | Out-Null
+          $evidence | ConvertTo-Json -Depth 3 | Out-File (Join-Path $env:A4N_RELEASE_SMOKE_ARTIFACT_DIR "authenticode.json") -Encoding utf8
+
+      - name: Run signed start.ps1 host and sidecar lifecycle
+        shell: pwsh
+        run: |
+          $bytes = New-Object byte[] 32
+          $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+          try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+          $env:A4N_JWT_SECRET = -join ($bytes | ForEach-Object { $_.ToString("x2") })
+          $archives = @(Get-ChildItem -Path deploy\a4n-tauri-*-windows-x86_64.tar.gz)
+          if ($archives.Count -ne 1) { throw "expected one signed Windows archive" }
+          ./scripts/checks/smoke-windows-release-package.ps1 -Archive $archives[0].FullName
+
+      - name: Package verified Windows release asset
+        shell: pwsh
+        run: |
+          $archives = @(Get-ChildItem -Path deploy\a4n-tauri-*-windows-x86_64.tar.gz)
+          if ($archives.Count -ne 1) { throw "expected one signed Windows archive" }
+          $output = New-Item -ItemType Directory -Force -Path artifacts\release
+          $name = "A4N-$env:GITHUB_REF_NAME-windows-x86_64.tar.gz"
+          $destination = Join-Path $output.FullName $name
+          Copy-Item -LiteralPath $archives[0].FullName -Destination $destination
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $destination).Hash.ToLowerInvariant()
+          "$hash  $name" | Out-File "$destination.sha256" -Encoding ascii
+
+      - name: Stage verified Windows release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $archive = "artifacts\release\A4N-$env:GITHUB_REF_NAME-windows-x86_64.tar.gz"
+          & gh release upload $env:GITHUB_REF_NAME $archive "$archive.sha256" --clobber
+          if ($LASTEXITCODE -ne 0) { throw "unable to upload Windows release assets" }
+
+      - name: Download and verify staged Windows release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $verifyDir = New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\a4n-published-windows"
+          & gh release download $env:GITHUB_REF_NAME `
+            --dir $verifyDir.FullName `
+            --pattern "A4N-$env:GITHUB_REF_NAME-windows-x86_64.*"
+          if ($LASTEXITCODE -ne 0) { throw "unable to download Windows release assets" }
+          $files = @(Get-ChildItem -File $verifyDir.FullName)
+          if ($files.Count -ne 2) { throw "expected Windows archive and SHA-256 asset" }
+          $archive = $files | Where-Object { $_.Name -like "*.tar.gz" }
+          $checksum = $files | Where-Object { $_.Name -like "*.sha256" }
+          if (-not $archive -or -not $checksum) { throw "published Windows assets are incomplete" }
+          $expected = ((Get-Content -Raw $checksum.FullName).Trim() -split '\s+')[0].ToLowerInvariant()
+          $actual = (Get-FileHash -Algorithm SHA256 -Path $archive.FullName).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "staged Windows archive SHA-256 mismatch" }
+
+      - name: Publish complete verified GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $expected = @(
+            "A4N-$tag-cyclonedx.tar.gz",
+            "A4N-$tag-cyclonedx.tar.gz.sha256",
+            "A4N-$tag-linux-x86_64.tar.gz",
+            "A4N-$tag-linux-x86_64.tar.gz.sha256",
+            "A4N-$tag-macos-arm64.zip",
+            "A4N-$tag-macos-arm64.zip.sha256",
+            "A4N-$tag-macos-arm64.dmg",
+            "A4N-$tag-macos-arm64.dmg.sha256",
+            "A4N-$tag-macos-arm64.manifest.json",
+            "A4N-$tag-macos-arm64.manifest.cms",
+            "A4N-$tag-windows-x86_64.tar.gz",
+            "A4N-$tag-windows-x86_64.tar.gz.sha256"
+          ) | Sort-Object
+          $assets = @(& gh release view $tag --json assets --jq ".assets[].name") | Sort-Object
+          if ($LASTEXITCODE -ne 0 -or (Compare-Object $expected $assets)) {
+            throw "release draft does not contain the exact verified asset set"
+          }
+          $isDraft = @(& gh release view $tag --json isDraft --jq ".isDraft")
+          if ($LASTEXITCODE -ne 0 -or (($isDraft -join "").Trim()) -ne "true") {
+            throw "release must remain a draft until every platform is verified"
+          }
+          & gh release edit $tag --draft=false
+          if ($LASTEXITCODE -ne 0) { throw "unable to publish verified release" }
+
+      - name: Upload signed Windows release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-x86_64-signed-release
+          path: |
+            artifacts/windows-signed-release
+            artifacts/qdrant
+            artifacts/release/A4N-*-windows-x86_64.*
+          retention-days: 30

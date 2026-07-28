@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   Eye,
   Image as ImageIcon,
   Images,
@@ -12,13 +14,15 @@ import {
   Trash2,
   Upload,
   Wand2,
+  X,
 } from "lucide-react";
 import type { GeneratedImage } from "../../../api/image";
 import type {
   ChapterVideoPrompt,
   GeneratedVideo,
   UpdateVideoInput,
-  VideoWorkflowMode,
+  SegmentGuidanceMode,
+  VideoGenConfig,
 } from "../../../api/video";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -32,13 +36,16 @@ import {
   parseNumberInput,
   promptByteCount,
   promptCharCount,
+  readSavedReferenceImageIds,
   staleVideoPromptMessage,
   videoPromptUnitFrameNumbers,
   videoFrameImageRoleLabel,
   videoFrameImageRoleOfImage,
   videoImageGenerationPromptId,
   videoTailFrameBoundaryNumber,
+  videoWorkflowModeOfPrompt,
   isVideoPromptFrameImage,
+  type ChapterVideoWorkflowMode,
   type PromptDraft,
   type VideoDurationLimits,
   type VideoGenOptions,
@@ -57,7 +64,7 @@ interface VideoGenerationWorkspaceProps {
   generationPrompts: ChapterVideoPrompt[];
   selectedPrompt: ChapterVideoPrompt | null;
   selectedPromptId: number | null;
-  workflowMode: VideoWorkflowMode;
+  workflowMode: ChapterVideoWorkflowMode;
   pendingVideo: GeneratedVideo | null;
   selectedPromptStale: boolean;
   expectedBoundaryFrameCount: number | null;
@@ -66,6 +73,8 @@ interface VideoGenerationWorkspaceProps {
   durationLimits: VideoDurationLimits;
   providerBackend: string | null;
   providerOptionsJson: unknown;
+  providerCapabilities?: VideoGenConfig["capabilities"];
+  selectableReferenceImages: GeneratedImage[];
   promptInputSelectionError: string | null;
   loading: boolean;
   acting: string | null;
@@ -98,13 +107,24 @@ interface VideoGenerationWorkspaceProps {
   onGeneratePromptRequests: (options?: {
     regenerateExisting?: boolean;
     promptBatchSize?: number;
+    targetShotNumber?: number;
   }) => void | Promise<void>;
   onPreviewPromptRequests: () => void | Promise<void>;
   onSelectPrompt: (id: number) => void;
   onDeletePrompt: (prompt: ChapterVideoPrompt) => void | Promise<void>;
   onDeleteAllVideoPrompts: () => void | Promise<void>;
   onPollPendingVideo: (video: GeneratedVideo) => void | Promise<void>;
-  onOpenFrames: () => void;
+  onWorkflowModeChange: (mode: ChapterVideoWorkflowMode, shotNumber?: number) => void;
+  onUpdateGuidance: (
+    prompt: ChapterVideoPrompt,
+    guidanceMode: SegmentGuidanceMode,
+    referenceImageIds: number[],
+    continuitySourceVideoId: number | null,
+  ) => void | Promise<void>;
+  onGenerateFramePrompts: () => void | Promise<void>;
+  onPreviewFrameImage: (prompt: ChapterVideoPrompt) => void | Promise<void>;
+  onGenerateFrameImage: (prompt: ChapterVideoPrompt) => void | Promise<void>;
+  onImportFrameImage: (prompt: ChapterVideoPrompt) => void | Promise<void>;
   onDraftChange: (draft: PromptDraft) => void;
   onClearInvalidPromptReferences: () => void;
   onSavePrompt: () => void | Promise<void>;
@@ -116,6 +136,7 @@ interface VideoGenerationWorkspaceProps {
   onGenerateAllVideos: () => void | Promise<void>;
   onImportVideo: () => boolean | Promise<boolean>;
   onSelectVideo: (id: number) => void;
+  onAdoptVideo: (video: GeneratedVideo) => void | Promise<void>;
   onPollVideo: (video: GeneratedVideo) => void | Promise<void>;
   onToggleVideoFavorite: (video: GeneratedVideo) => void | Promise<void>;
   onUpdateVideo: (
@@ -127,6 +148,7 @@ interface VideoGenerationWorkspaceProps {
   onTrimStartChange: (value: string) => void;
   onTrimEndChange: (value: string) => void;
   onTrim: () => void | Promise<void>;
+  workspaceOverride?: React.ReactNode;
 }
 
 const DraftDurationControl: React.FC<{
@@ -198,6 +220,8 @@ export const VideoGenerationWorkspace: React.FC<
   durationLimits,
   providerBackend,
   providerOptionsJson,
+  providerCapabilities,
+  selectableReferenceImages,
   promptInputSelectionError,
   loading,
   acting,
@@ -233,7 +257,12 @@ export const VideoGenerationWorkspace: React.FC<
   onDeletePrompt,
   onDeleteAllVideoPrompts,
   onPollPendingVideo,
-  onOpenFrames,
+  onWorkflowModeChange,
+  onUpdateGuidance,
+  onGenerateFramePrompts,
+  onPreviewFrameImage,
+  onGenerateFrameImage,
+  onImportFrameImage,
   onDraftChange,
   onClearInvalidPromptReferences,
   onSavePrompt,
@@ -245,6 +274,7 @@ export const VideoGenerationWorkspace: React.FC<
   onGenerateAllVideos,
   onImportVideo,
   onSelectVideo,
+  onAdoptVideo,
   onPollVideo,
   onToggleVideoFavorite,
   onUpdateVideo,
@@ -253,9 +283,60 @@ export const VideoGenerationWorkspace: React.FC<
   onTrimStartChange,
   onTrimEndChange,
   onTrim,
+  workspaceOverride,
 }) => {
   const [promptDetailOpen, setPromptDetailOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"setup" | "results">("setup");
+  const [guidanceMode, setGuidanceMode] = useState<SegmentGuidanceMode>("system_frames");
+  const [keyframeImageIds, setKeyframeImageIds] = useState<number[]>([]);
+  const [continuitySourceVideoId, setContinuitySourceVideoId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const metadata =
+      selectedPrompt?.metadata_json &&
+      typeof selectedPrompt.metadata_json === "object" &&
+      !Array.isArray(selectedPrompt.metadata_json)
+        ? (selectedPrompt.metadata_json as Record<string, unknown>)
+        : null;
+    const storedMode = metadata?.guidance_mode;
+    setGuidanceMode(
+      storedMode === "keyframes" || storedMode === "none" || storedMode === "continuity"
+        ? storedMode
+        : "system_frames",
+    );
+    setKeyframeImageIds(readSavedReferenceImageIds(selectedPrompt?.reference_image_ids_json).ids);
+    const continuity = metadata?.continuity_source;
+    setContinuitySourceVideoId(
+      continuity && typeof continuity === "object" && !Array.isArray(continuity)
+        ? (typeof (continuity as Record<string, unknown>).video_id === "number"
+            ? ((continuity as Record<string, unknown>).video_id as number)
+            : null)
+        : null,
+    );
+  }, [selectedPrompt?.id, selectedPrompt?.metadata_json, selectedPrompt?.reference_image_ids_json]);
+
+  const previousCompletedVideos = useMemo(() => {
+    if (!selectedPrompt) return [];
+    return videos.filter((video) => {
+      if (video.status !== "completed" || !video.file_path) return false;
+      const metadata =
+        video.metadata_json && typeof video.metadata_json === "object" && !Array.isArray(video.metadata_json)
+          ? (video.metadata_json as Record<string, unknown>)
+          : null;
+      return typeof metadata?.shot_number === "number" && metadata.shot_number < selectedPrompt.shot_number;
+    });
+  }, [selectedPrompt, videos]);
+
+  const segmentVideos = useMemo(() => {
+    if (!selectedPrompt) return videos;
+    return videos.filter((video) => {
+      const metadata =
+        video.metadata_json && typeof video.metadata_json === "object" && !Array.isArray(video.metadata_json)
+          ? (video.metadata_json as Record<string, unknown>)
+          : null;
+      return metadata?.shot_number === selectedPrompt.shot_number;
+    });
+  }, [selectedPrompt, videos]);
 
   const updateDraft = (patch: Partial<PromptDraft>) =>
     onDraftChange({ ...draft, ...patch });
@@ -313,7 +394,13 @@ export const VideoGenerationWorkspace: React.FC<
   }, [prompts]);
 
   const selectPrompt = (id: number) => {
-    onSelectPrompt(id);
+    const prompt = prompts.find((row) => row.id === id);
+    const promptMode = prompt ? videoWorkflowModeOfPrompt(prompt) : null;
+    if (prompt && promptMode && promptMode !== workflowMode) {
+      onWorkflowModeChange(promptMode, prompt.shot_number);
+    } else {
+      onSelectPrompt(id);
+    }
     setPromptDetailOpen(true);
   };
 
@@ -392,6 +479,34 @@ export const VideoGenerationWorkspace: React.FC<
         <div className="mt-1 line-clamp-1 text-[10px] text-book-text-sub">
           {prompt?.title || prompt?.scene_summary || emptyText}
         </div>
+        {prompt ? (
+          <div className="mt-1.5 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => void onPreviewFrameImage(prompt)}
+              className="pyqt-btn-icon !h-7 !w-7"
+              title={`预览${label}生成请求`}
+            >
+              <Eye size={11} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void onGenerateFrameImage(prompt)}
+              className="pyqt-btn-icon !h-7 !w-7"
+              title={image ? `重新生成${label}` : `生成${label}`}
+            >
+              <Wand2 size={11} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void onImportFrameImage(prompt)}
+              className="pyqt-btn-icon !h-7 !w-7"
+              title={`导入${label}`}
+            >
+              <Upload size={11} />
+            </button>
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -523,6 +638,41 @@ export const VideoGenerationWorkspace: React.FC<
     const chatVideoMode = workflowMode === "chat_video";
     const firstFrameChainMode = workflowMode === "first_frame_chain";
     const storyboardMode = workflowMode === "storyboard";
+    const keyframeRangeValid =
+      providerCapabilities?.supports_keyframes === true &&
+      Number.isInteger(providerCapabilities.keyframe_min) &&
+      Number.isInteger(providerCapabilities.keyframe_max) &&
+      providerCapabilities.keyframe_min > 0 &&
+      providerCapabilities.keyframe_max >= providerCapabilities.keyframe_min;
+    const keyframeMin = keyframeRangeValid ? providerCapabilities.keyframe_min : 0;
+    const keyframeMax = keyframeRangeValid ? providerCapabilities.keyframe_max : 0;
+    const systemFramesSupported = storyboardMode
+      ? providerCapabilities?.supports_storyboard_reference === true
+      : firstFrameChainMode
+        ? providerCapabilities?.supports_first_frame === true
+        : providerCapabilities?.supports_first_frame === true &&
+          providerCapabilities.supports_last_frame === true;
+    const guidanceCapabilityError =
+      providerCapabilities == null
+        ? "当前视频服务未返回媒体能力合同"
+        : guidanceMode === "system_frames" && !systemFramesSupported
+          ? "当前视频服务不支持此系统帧输入"
+          : guidanceMode === "continuity" && providerCapabilities.supports_first_frame !== true
+            ? "当前视频服务不支持首帧续接输入"
+            : guidanceMode === "keyframes" && !keyframeRangeValid
+              ? "当前视频服务不支持有效的关键帧范围"
+              : guidanceMode === "none" && providerCapabilities.supports_text_only !== true
+                ? "当前视频服务不支持纯文本生成"
+                : null;
+    const guidanceSaveBlockedReason =
+      guidanceCapabilityError ??
+      (guidanceMode === "keyframes" &&
+      (keyframeImageIds.length < keyframeMin || keyframeImageIds.length > keyframeMax)
+        ? `关键帧数量必须为 ${keyframeMin}-${keyframeMax} 张`
+        : null) ??
+      (guidanceMode === "continuity" && continuitySourceVideoId == null
+        ? "请选择续接来源视频"
+        : null);
     const frameStageLabel = chatVideoMode
       ? "Chat 生视频"
       : storyboardMode
@@ -585,9 +735,11 @@ export const VideoGenerationWorkspace: React.FC<
         ? `当前草稿中有 ${invalidPromptReferenceIds.length} 张参考图已不可用，请重新选择`
         : undefined) ??
       (selectedPromptDirty ? "请先保存当前更改" : undefined) ??
-      frameInputMissingMessage ??
+      guidanceCapabilityError ??
+      ((guidanceMode === "system_frames" || guidanceMode === "continuity")
+        ? frameInputMissingMessage
+        : undefined) ??
       (selectedPromptRunning ? "当前视频提示词正在运行" : undefined) ??
-      (selectedPromptHasVideo ? "当前视频提示词已生成视频" : undefined) ??
       (chapterGenerating ? "当前章节正在生成，暂不能生成视频" : undefined) ??
       (!chapterContentReady ? "当前章节正文为空，不能生成视频" : undefined);
     const selectedImportBlockedReason =
@@ -599,7 +751,6 @@ export const VideoGenerationWorkspace: React.FC<
         : undefined) ??
       (selectedPromptDirty ? "请先保存当前更改" : undefined) ??
       (selectedPromptRunning ? "当前视频提示词正在运行" : undefined) ??
-      (selectedPromptHasVideo ? "当前视频提示词已关联视频" : undefined) ??
       (chapterGenerating ? "当前章节正在生成，暂不能导入视频" : undefined) ??
       (!chapterContentReady ? "当前章节正文为空，不能导入视频" : undefined);
     const deletePromptBlockedReason =
@@ -623,6 +774,139 @@ export const VideoGenerationWorkspace: React.FC<
 
     return (
       <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
+        {!chatVideoMode && (
+          <div className="a4n-flat-surface mb-3 p-3">
+            <div className="mb-2 text-xs font-medium text-book-text-main">媒体引导</div>
+            <SegmentedControl
+              ariaLabel="片段媒体引导"
+              value={guidanceMode}
+              onChange={(value) => setGuidanceMode(value as SegmentGuidanceMode)}
+              options={[
+                {
+                  id: "system_frames",
+                  label: storyboardMode ? "分镜板" : firstFrameChainMode ? "系统首帧" : "系统首尾帧",
+                  disabled: !systemFramesSupported,
+                  title: "当前视频模型不支持该系统帧输入合同",
+                },
+                ...(firstFrameChainMode && selectedPrompt.shot_number > 1
+                  ? [{
+                      id: "continuity" as const,
+                      label: "指定续接",
+                      disabled: providerCapabilities?.supports_first_frame !== true,
+                      title: "当前视频模型不支持首帧输入",
+                    }]
+                  : []),
+                {
+                  id: "keyframes",
+                  label: keyframeRangeValid ? `关键帧 ${keyframeMin}-${keyframeMax}` : "关键帧",
+                  disabled: !keyframeRangeValid,
+                  title: "当前视频模型不支持多关键帧输入",
+                },
+                {
+                  id: "none",
+                  label: "纯文本",
+                  disabled: providerCapabilities?.supports_text_only !== true,
+                  title: "当前视频模型要求图像输入",
+                },
+              ]}
+            />
+
+            {guidanceMode === "keyframes" && (
+              <div className="mt-3">
+                <div className="mb-2 flex items-center justify-between gap-2 text-[10px] text-book-text-muted">
+                  <span>按此顺序发送给视频 provider</span>
+                  <span>{keyframeImageIds.length} / {keyframeMax || "-"}</span>
+                </div>
+                <div className="space-y-1.5">
+                  {keyframeImageIds.map((imageId, index) => {
+                    const image = selectableReferenceImages.find((item) => item.id === imageId);
+                    return (
+                      <div key={imageId} className="flex min-w-0 items-center gap-2 border-b border-book-border/35 pb-1.5 text-[11px]">
+                        <span className="w-5 shrink-0 text-book-text-muted">{index + 1}</span>
+                        <span className="min-w-0 flex-1 truncate text-book-text-main">
+                          {image?.prompt || `图片 #${imageId}`}
+                        </span>
+                        <button type="button" className="pyqt-btn-icon !h-7 !w-7" title="上移"
+                          disabled={index === 0}
+                          onClick={() => setKeyframeImageIds((ids) => ids.map((id, current) => current === index - 1 ? imageId : current === index ? ids[index - 1] : id))}>
+                          <ArrowUp size={11} />
+                        </button>
+                        <button type="button" className="pyqt-btn-icon !h-7 !w-7" title="下移"
+                          disabled={index === keyframeImageIds.length - 1}
+                          onClick={() => setKeyframeImageIds((ids) => ids.map((id, current) => current === index + 1 ? imageId : current === index ? ids[index + 1] : id))}>
+                          <ArrowDown size={11} />
+                        </button>
+                        <button type="button" className="pyqt-btn-icon !h-7 !w-7" title="移除"
+                          onClick={() => setKeyframeImageIds((ids) => ids.filter((id) => id !== imageId))}>
+                          <X size={11} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {keyframeRangeValid && keyframeImageIds.length < keyframeMax && (
+                  <select
+                    value=""
+                    onChange={(event) => {
+                      const id = Number(event.target.value);
+                      if (id > 0) setKeyframeImageIds((ids) => [...ids, id]);
+                    }}
+                    className="pyqt-input mt-2 w-full !px-2 !py-1.5 text-xs"
+                  >
+                    <option value="">添加项目参考图...</option>
+                    {selectableReferenceImages
+                      .filter((image) => !keyframeImageIds.includes(image.id))
+                      .map((image) => <option key={image.id} value={image.id}>{image.prompt || `图片 #${image.id}`}</option>)}
+                  </select>
+                )}
+                {keyframeRangeValid && keyframeImageIds.length < keyframeMin && (
+                  <div className="mt-2 text-[10px] text-warning">至少选择 {keyframeMin} 张关键帧。</div>
+                )}
+              </div>
+            )}
+
+            {guidanceMode === "continuity" && (
+              <label className="mt-3 flex flex-col gap-1 text-xs">
+                <span className="text-book-text-muted">续接来源视频</span>
+                <select
+                  value={continuitySourceVideoId ?? ""}
+                  onChange={(event) => setContinuitySourceVideoId(Number(event.target.value) || null)}
+                  className="pyqt-input !px-2 !py-1.5"
+                >
+                  <option value="">选择更早片段的已完成视频</option>
+                  {previousCompletedVideos.map((video) => {
+                    const metadata = video.metadata_json as Record<string, unknown> | null;
+                    return <option key={video.id} value={video.id}>片段 {String(metadata?.shot_number ?? "?")} · 视频 #{video.id}</option>;
+                  })}
+                </select>
+              </label>
+            )}
+
+            {guidanceMode === "none" && (
+              <div className="mt-2 text-[10px] text-book-text-muted">生成时不发送系统帧或参考图；provider 不支持纯文本时服务端会明确拒绝。</div>
+            )}
+
+            <div className="mt-3 flex justify-end">
+              <BookButton
+                variant="secondary"
+                size="sm"
+                disabled={
+                  acting === `guidance-${selectedPrompt.id}` ||
+                  guidanceSaveBlockedReason != null
+                }
+                title={guidanceSaveBlockedReason ?? undefined}
+                onClick={() => void onUpdateGuidance(
+                  selectedPrompt,
+                  guidanceMode,
+                  guidanceMode === "none" ? [] : keyframeImageIds,
+                  guidanceMode === "continuity" ? continuitySourceVideoId : null,
+                )}
+              >
+                {acting === `guidance-${selectedPrompt.id}` ? "保存中" : "保存媒体引导"}
+              </BookButton>
+            </div>
+          </div>
+        )}
         <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/40 pb-3">
           <span className="min-w-0 flex-1 text-[11px] text-book-text-muted">
             {editorMetadata.join(" · ")}
@@ -789,7 +1073,7 @@ export const VideoGenerationWorkspace: React.FC<
           </div>
         ) : (
           <>
-        {chatVideoMode ? null : firstFrameChainMode ? (
+        {chatVideoMode || (guidanceMode !== "system_frames" && guidanceMode !== "continuity") ? null : firstFrameChainMode ? (
           <div className="a4n-flat-surface mb-3 p-3">
             <div className="mb-2 flex items-center gap-2">
               <div className="inline-flex items-center gap-1.5 text-xs text-book-text-main">
@@ -833,10 +1117,14 @@ export const VideoGenerationWorkspace: React.FC<
               </div>
               <button
                 type="button"
-                onClick={onOpenFrames}
+                onClick={() =>
+                  startFramePrompt
+                    ? void onGenerateFrameImage(startFramePrompt)
+                    : void onGenerateFramePrompts()
+                }
                 className="pyqt-btn-secondary !min-h-9 !px-2.5 text-[10px] sm:!min-h-7"
               >
-                前往生成
+                {startFramePrompt ? "生成分镜板" : "准备分镜提示词"}
               </button>
             </div>
             {frameInputMissingMessage && (
@@ -865,10 +1153,14 @@ export const VideoGenerationWorkspace: React.FC<
               </div>
               <button
                 type="button"
-                onClick={onOpenFrames}
+                onClick={() =>
+                  endFramePrompt
+                    ? void onGenerateFrameImage(endFramePrompt)
+                    : void onGenerateFramePrompts()
+                }
                 className="pyqt-btn-secondary !min-h-9 !px-2.5 text-[10px] sm:!min-h-7"
               >
-                前往生成
+                {startFramePrompt && endFramePrompt ? "生成缺失帧" : "准备首尾帧提示词"}
               </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -1078,7 +1370,9 @@ export const VideoGenerationWorkspace: React.FC<
             { id: "setup", label: "配置" },
             {
               id: "results",
-              label: `成片${videos.length > 0 ? ` ${videos.length}` : ""}`,
+              label: workspaceOverride
+                ? "参考媒体"
+                : `候选${segmentVideos.length > 0 ? ` ${segmentVideos.length}` : ""}`,
             },
           ]}
         />
@@ -1117,6 +1411,7 @@ export const VideoGenerationWorkspace: React.FC<
             onGeneratePrompts={onGeneratePromptRequests}
             onPreviewPromptRequests={onPreviewPromptRequests}
             onSelectPrompt={selectPrompt}
+            onWorkflowModeChange={onWorkflowModeChange}
             onDeletePrompt={onDeletePrompt}
             onDeleteAllVideoPrompts={onDeleteAllVideoPrompts}
             onPollPendingVideo={onPollPendingVideo}
@@ -1128,27 +1423,30 @@ export const VideoGenerationWorkspace: React.FC<
           aria-label="视频结果"
           className={`min-h-0 flex-col ${mobilePane === "results" ? "flex" : "hidden xl:flex"}`}
         >
-          <VideoResultsPane
-            videos={videos}
-            selectedVideo={selectedVideo}
-            selectedVideoId={selectedVideoId}
-            totalVideoAssetCount={totalVideoAssetCount}
-            selectedVideoPath={selectedVideoPath}
-            trimStart={trimStart}
-            trimEnd={trimEnd}
-            acting={acting}
-            onSelectVideo={selectVideo}
-            onPollVideo={onPollVideo}
-            onPreviewVideoRequest={onPreviewVideoRequest}
-            onToggleVideoFavorite={onToggleVideoFavorite}
-            onUpdateVideo={onUpdateVideo}
-            onDeleteVideo={onDeleteVideo}
-            onDeleteAllVideoAssets={onDeleteAllVideoAssets}
-            onTrimStartChange={onTrimStartChange}
-            onTrimEndChange={onTrimEndChange}
-            onTrim={onTrim}
-            onOpenSetup={() => setMobilePane("setup")}
-          />
+          {workspaceOverride ?? (
+            <VideoResultsPane
+              videos={segmentVideos}
+              selectedVideo={selectedVideo}
+              selectedVideoId={selectedVideoId}
+              totalVideoAssetCount={totalVideoAssetCount}
+              selectedVideoPath={selectedVideoPath}
+              trimStart={trimStart}
+              trimEnd={trimEnd}
+              acting={acting}
+              onSelectVideo={selectVideo}
+              onAdoptVideo={onAdoptVideo}
+              onPollVideo={onPollVideo}
+              onPreviewVideoRequest={onPreviewVideoRequest}
+              onToggleVideoFavorite={onToggleVideoFavorite}
+              onUpdateVideo={onUpdateVideo}
+              onDeleteVideo={onDeleteVideo}
+              onDeleteAllVideoAssets={onDeleteAllVideoAssets}
+              onTrimStartChange={onTrimStartChange}
+              onTrimEndChange={onTrimEndChange}
+              onTrim={onTrim}
+              onOpenSetup={() => setMobilePane("setup")}
+            />
+          )}
         </section>
       </div>
 

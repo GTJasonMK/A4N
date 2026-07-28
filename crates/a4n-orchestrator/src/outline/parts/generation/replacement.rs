@@ -27,7 +27,7 @@ impl OrchestratorContext {
             workflow_run_id,
         } = input;
         let context = load_part_generation_context(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             part_count,
             chapters_per_part,
@@ -104,9 +104,13 @@ impl OrchestratorContext {
                 },
             )
             .collect();
-        let results =
-            sync_part_outlines_and_assign_chapters_transaction(&self.db, project_id, drafts, now)
-                .await?;
+        let results = sync_part_outlines_and_assign_chapters_transaction(
+            &self.database,
+            project_id,
+            drafts,
+            now,
+        )
+        .await?;
         for part in &results {
             if let Some((_, _, _, generated)) = generated_jsons
                 .iter()

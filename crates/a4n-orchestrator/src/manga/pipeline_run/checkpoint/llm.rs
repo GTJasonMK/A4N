@@ -53,7 +53,7 @@ impl OrchestratorContext {
             .transpose()
             .map_err(AppError::Serialization)?;
         workflow::save_completed_llm_call_checkpoint(
-            self.db.connection(),
+            self.database.connection(),
             CompletedLlmCallCheckpointInput {
                 workflow_run_id: workflow::required_llm_call_workflow_run_id(
                     trace.workflow_run_id,

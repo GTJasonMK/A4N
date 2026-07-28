@@ -1,10 +1,10 @@
 use a4n_core::error::AppError;
 use a4n_db::optimize::OptimizationSessionUpdateInput;
 
-use super::super::{OrchestratorContext, is_cancelled_optimize_error, optimize_db_error};
+use super::super::{OrchestratorContext, optimize_db_error};
 
 impl OrchestratorContext {
-    pub async fn record_command_error(
+    pub(crate) async fn record_command_error(
         &self,
         session_id: i64,
         phase: &str,
@@ -20,19 +20,6 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(in crate::optimize) async fn release_in_progress_session_after_failure(
-        &self,
-        session_id: i64,
-        phase: &str,
-        error: &AppError,
-    ) -> Result<(), AppError> {
-        if is_cancelled_optimize_error(error) {
-            return Ok(());
-        }
-        self.release_in_progress_session_with_message(session_id, phase, &error.to_string())
-            .await
-    }
-
     async fn release_in_progress_session_with_message(
         &self,
         session_id: i64,
@@ -45,7 +32,7 @@ impl OrchestratorContext {
         }
 
         a4n_db::optimize::update_optimization_session(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationSessionUpdateInput {
                 session,
                 status: Some("waiting_user".to_string()),
@@ -87,7 +74,7 @@ impl OrchestratorContext {
         session: a4n_core::models::ai::optimization_session::Model,
     ) -> Result<(), AppError> {
         a4n_db::optimize::update_optimization_session(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationSessionUpdateInput {
                 session,
                 status: Some("cancelled".to_string()),

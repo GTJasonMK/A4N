@@ -1,9 +1,5 @@
-use a4n_core::error::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-pub type BlueprintProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlueprintSummary {
@@ -49,26 +45,19 @@ pub struct BlueprintDiffSummary {
     pub diff: Value,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct BlueprintTaskScope {
-    pub project_id: i64,
-    pub total: u32,
-}
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GenerateBlueprintInput {
+pub struct PreviewBlueprintGenerationInput {
     pub project_id: i64,
     pub title: String,
     pub genre: String,
     pub target_length: i32,
-    pub task_id: Option<String>,
     pub variables: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct RefineBlueprintInput {
+pub struct PreviewBlueprintRefinementInput {
     pub project_id: i64,
     pub focus: Option<String>,
     pub variables: Option<Value>,

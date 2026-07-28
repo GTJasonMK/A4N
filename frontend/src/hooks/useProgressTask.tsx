@@ -6,10 +6,6 @@ import React, {
   useState,
 } from "react";
 import { extractErrorMessage } from "../api";
-import {
-  listenAppEvent,
-  type UnlistenFn,
-} from "../api/runtime";
 import { cancelWorkflow } from "../api/streaming";
 import { ProgressDialog } from "../components/feedback/ProgressDialog";
 import type {
@@ -37,13 +33,17 @@ interface ProgressTaskState {
   formatProgress?: (current: number, total: number, percent: number) => React.ReactNode;
 }
 
-interface ProgressTaskOptions {
+export interface ProgressTaskOptions {
   title: string;
   startMessage: string;
   successMessage: string;
   errorMessage: string;
   total?: number;
-  taskId?: string | null;
+  /**
+   * 仅作取消身份；不得再用于订阅旧 workflow 事件。
+   * 新 generation 路径请用 runGenerationProgressTask。
+   */
+  cancelTaskId?: string | null;
   showStream?: boolean;
   onTimelineEvent?: (event: ProgressTimelineItem) => void;
   onChunk?: (content: string, index: number) => void;
@@ -51,11 +51,16 @@ interface ProgressTaskOptions {
   runningHint?: React.ReactNode;
   formatProgress?: (current: number, total: number, percent: number) => React.ReactNode;
   cancelTask?: (taskId: string) => Promise<void>;
-  eventSource?: "auto" | "tauri" | "server";
 }
 
-interface ProgressTaskControl {
-  setProgress: (message: string, current?: number, total?: number) => void;
+export interface ProgressTaskControl {
+  setProgress: (
+    message: string,
+    current?: number,
+    total?: number,
+    meta?: ProgressMeta | null,
+  ) => void;
+  appendStreamChunk: (content: string) => void;
 }
 
 export type RunProgressTask = <T>(
@@ -74,21 +79,6 @@ interface ProgressTaskController extends ProgressTaskApi {
   activeTaskId: string | null;
   cancelling: boolean;
 }
-
-type WorkflowEvent =
-  | {
-      type: "Progress";
-      data: {
-        current: number;
-        total: number;
-        message: string;
-        percent?: number | null;
-        meta?: ProgressMeta | null;
-      };
-    }
-  | { type: "Chunk"; data: { content: string; index: number } }
-  | { type: "Complete"; data: { summary?: string | null } }
-  | { type: "Error"; data: { code?: string; message: string } };
 
 const MAX_PROGRESS_EVENTS = 160;
 const MAX_STREAM_BUFFER_CHARS = 800;
@@ -116,16 +106,16 @@ const createProgressTaskState = (): ProgressTaskState => ({
 const validTotal = (value?: number): number =>
   Number.isInteger(value) && value != null && value > 0 ? value : 1;
 
-export const createProgressTaskId = (scope: string, projectId: number): string =>
-  `${scope}-${projectId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-const terminalEventError = (
-  status: ProgressDialogStatus | null,
-  message: string | null,
-): Error | null => {
-  if (status === "cancelled") return new Error(message || "任务已停止");
-  if (status === "error") return new Error(message || "任务失败");
-  return null;
+/**
+ * 仅分配 Host 取消/后端 progress 注册身份，不订阅任何旧事件通道。
+ * 不得用于前端自建规范 generation task id。
+ */
+export const allocateHostTaskId = (scope: string, projectId: number): string => {
+  const random =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${scope}-${projectId}-${random}`;
 };
 
 const appendProgressEvent = <T extends { events: ProgressTimelineItem[] }>(
@@ -149,10 +139,16 @@ const streamLineFromBuffer = (buffer: string): string => {
 
 const ProgressTaskContext = createContext<ProgressTaskApi | null>(null);
 
+export function useProgressTask(): ProgressTaskApi {
+  const ctx = useContext(ProgressTaskContext);
+  if (!ctx) {
+    throw new Error("useProgressTask 必须在 ProgressTaskProvider 内使用");
+  }
+  return ctx;
+}
+
 function useProgressTaskController(): ProgressTaskController {
-  const [progressTask, setProgressTask] = useState<ProgressTaskState>(
-    createProgressTaskState,
-  );
+  const [progressTask, setProgressTask] = useState<ProgressTaskState>(createProgressTaskState);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const activeTaskIdRef = useRef<string | null>(null);
@@ -160,79 +156,66 @@ function useProgressTaskController(): ProgressTaskController {
   const cancellingRef = useRef(false);
 
   const closeProgressTask = useCallback(() => {
-    setProgressTask((prev) => ({ ...prev, open: false }));
+    setProgressTask(createProgressTaskState());
   }, []);
 
-  const runProgressTask: RunProgressTask = useCallback(async (options, task) => {
-    if (activeTaskIdRef.current) {
-      throw new Error("已有任务正在运行，请等待当前任务完成后再开始新任务");
-    }
-    const total = validTotal(options.total);
-    let eventSequence = 0;
-    const eventScope = options.taskId?.trim() || `local-${Date.now()}`;
+  const runProgressTask = useCallback<RunProgressTask>(async (options, task) => {
+    const showStream = options.showStream === true;
+    const eventScope = `progress-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    let taskCurrent = 0;
+    let taskTotal = validTotal(options.total);
+    let streamBuffer = "";
+    let streamFlushTimer: number | null = null;
+
     const createEvent = (
       status: ProgressDialogStatus,
       current: number,
-      nextTotal: number,
+      total: number,
       message: string,
-      meta?: ProgressMeta | null,
-    ): ProgressTimelineItem => {
-      const boundedTotal = validTotal(nextTotal);
-      return {
-        id: `${eventScope}-${Date.now()}-${eventSequence++}`,
-        taskId: eventScope,
-        status,
-        current: Math.max(0, Math.min(current, boundedTotal)),
-        total: boundedTotal,
-        message,
-        meta: meta ?? null,
-        timestamp: Date.now(),
-      };
-    };
-    const emitTimelineEvent = (event: ProgressTimelineItem) => {
+      meta: ProgressMeta | null = null,
+    ): ProgressTimelineItem => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      taskId: eventScope,
+      status,
+      current,
+      total,
+      percent: total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0,
+      message,
+      meta,
+      timestamp: Date.now(),
+    });
+
+    const emitTimelineEvent = (event: ProgressTimelineItem): ProgressTimelineItem => {
       options.onTimelineEvent?.(event);
       return event;
     };
-    const initialEvent = createEvent("running", 0, total, options.startMessage);
-    emitTimelineEvent(initialEvent);
-    let taskCurrent = initialEvent.current;
-    let taskTotal = initialEvent.total;
+
     setProgressTask({
+      ...createProgressTaskState(),
       open: true,
       title: options.title,
       status: "running",
       current: 0,
-      total,
+      total: taskTotal,
       message: options.startMessage,
-      meta: initialEvent.meta ?? null,
-      streamText: null,
-      streamVersion: 0,
-      error: null,
-      connectionWarning: null,
-      events: [initialEvent],
       cancelLabel: options.cancelLabel,
       runningHint: options.runningHint,
       formatProgress: options.formatProgress,
+      streamText: showStream ? "" : null,
+      events: [
+        emitTimelineEvent(createEvent("running", 0, taskTotal, options.startMessage, null)),
+      ],
     });
-
-    let terminalEventStatus: ProgressDialogStatus | null = null;
-    let terminalEventMessage: string | null = null;
-    let streamBuffer = "";
-    let lastStreamLine = "";
-    let streamVersion = 0;
-    let streamFlushTimer: ReturnType<typeof window.setTimeout> | null = null;
-    const showStream = options.showStream ?? true;
 
     const flushStreamBuffer = () => {
       streamFlushTimer = null;
-      const nextLine = streamLineFromBuffer(streamBuffer);
-      if (!nextLine || nextLine === lastStreamLine) return;
-      lastStreamLine = nextLine;
-      streamVersion += 1;
+      if (!showStream) return;
+      const line = streamLineFromBuffer(streamBuffer);
+      if (!line) return;
       setProgressTask((prev) => ({
         ...prev,
-        streamText: nextLine,
-        streamVersion,
+        streamText: line,
+        streamVersion: prev.streamVersion + 1,
       }));
     };
 
@@ -248,15 +231,14 @@ function useProgressTaskController(): ProgressTaskController {
     };
 
     const control: ProgressTaskControl = {
-      setProgress: (message, current, nextTotal) => {
-        if (terminalEventStatus) return;
+      setProgress: (message, current, nextTotal, meta) => {
         const timelineEvent = emitTimelineEvent(
           createEvent(
             "running",
             current ?? taskCurrent,
             nextTotal == null ? taskTotal : validTotal(nextTotal),
             message,
-            null,
+            meta ?? null,
           ),
         );
         taskCurrent = timelineEvent.current;
@@ -274,138 +256,18 @@ function useProgressTaskController(): ProgressTaskController {
           ),
         );
       },
+      appendStreamChunk,
     };
 
-    let unlisten: UnlistenFn | null = null;
-    const cancellableTaskId = options.taskId?.trim() || null;
+    const cancellableTaskId = options.cancelTaskId?.trim() || null;
     activeTaskIdRef.current = cancellableTaskId || eventScope;
     cancelTaskRef.current = options.cancelTask ?? null;
     cancellingRef.current = false;
     setActiveTaskId(cancellableTaskId);
     setCancelling(false);
-    if (options.taskId) {
-      unlisten = await listenAppEvent<WorkflowEvent>(`workflow:${options.taskId}`, (event) => {
-        const payload = event.payload;
-        if (payload.type === "Progress") {
-          if (terminalEventStatus) return;
-          const nextTotal = validTotal(payload.data.total);
-          const nextCurrent =
-            nextTotal === taskTotal
-              ? Math.max(payload.data.current, taskCurrent)
-              : payload.data.current;
-          const timelineEvent = emitTimelineEvent(
-            createEvent(
-              "running",
-              nextCurrent,
-              nextTotal,
-              payload.data.message,
-              payload.data.meta ?? null,
-            ),
-          );
-          taskCurrent = timelineEvent.current;
-          taskTotal = timelineEvent.total;
-          setProgressTask((prev) =>
-            appendProgressEvent(
-              {
-                ...prev,
-                status: "running",
-                current: timelineEvent.current,
-                total: timelineEvent.total,
-                message: payload.data.message,
-                meta: timelineEvent.meta ?? null,
-                error: null,
-                connectionWarning: null,
-              },
-              timelineEvent,
-            ),
-          );
-          return;
-        }
-        if (payload.type === "Chunk") {
-          options.onChunk?.(payload.data.content, payload.data.index);
-          if (showStream) appendStreamChunk(payload.data.content);
-          return;
-        }
-        if (payload.type === "Complete") {
-          if (terminalEventStatus) return;
-          terminalEventStatus = "success";
-          terminalEventMessage = payload.data.summary ?? options.successMessage;
-          const timelineEvent = emitTimelineEvent(
-            createEvent(
-              "success",
-              taskTotal,
-              taskTotal,
-              terminalEventMessage ?? options.successMessage,
-              null,
-            ),
-          );
-          taskCurrent = timelineEvent.current;
-          taskTotal = timelineEvent.total;
-          setProgressTask((prev) =>
-            appendProgressEvent(
-              {
-                ...prev,
-                status: "success",
-                current: timelineEvent.current,
-                total: timelineEvent.total,
-                message: terminalEventMessage ?? options.successMessage,
-                meta: timelineEvent.meta ?? null,
-                error: null,
-              },
-              timelineEvent,
-            ),
-          );
-          return;
-        }
-        if (payload.type === "Error") {
-          if (terminalEventStatus) return;
-          const cancelled =
-            payload.data.code === "cancelled" || isCancelledOperation(payload.data.message);
-          terminalEventStatus = cancelled ? "cancelled" : "error";
-          terminalEventMessage = payload.data.message;
-          const timelineEvent = emitTimelineEvent(
-            createEvent(
-              terminalEventStatus ?? "error",
-              taskCurrent,
-              taskTotal,
-              payload.data.message,
-              null,
-            ),
-          );
-          taskCurrent = timelineEvent.current;
-          taskTotal = timelineEvent.total;
-          setProgressTask((prev) =>
-            appendProgressEvent(
-              {
-                ...prev,
-                status: terminalEventStatus ?? "error",
-                current: timelineEvent.current,
-                total: timelineEvent.total,
-                message: cancelled ? payload.data.message : options.errorMessage,
-                meta: timelineEvent.meta ?? null,
-                error: cancelled ? null : terminalEventMessage,
-              },
-              timelineEvent,
-            ),
-          );
-        }
-      }, {
-        onError: () => {
-          if (terminalEventStatus) return;
-          setProgressTask((prev) => ({
-            ...prev,
-            connectionWarning: "进度连接已断开，任务可能仍在后台运行。可在任务队列中查看最新状态。",
-          }));
-        },
-        source: options.eventSource ?? "auto",
-      });
-    }
 
     try {
       const result = await task(control);
-      if (terminalEventStatus === "success") return result;
-      const terminalError = terminalEventError(terminalEventStatus, terminalEventMessage);
-      if (terminalError) throw terminalError;
       const timelineEvent = emitTimelineEvent(
         createEvent("success", taskTotal, taskTotal, options.successMessage),
       );
@@ -427,7 +289,6 @@ function useProgressTaskController(): ProgressTaskController {
       );
       return result;
     } catch (err) {
-      if (terminalEventStatus) throw err;
       const errorMessage = extractErrorMessage(err, options.errorMessage);
       const cancelled = isCancelledOperation(errorMessage);
       const timelineEvent = emitTimelineEvent(
@@ -455,7 +316,6 @@ function useProgressTaskController(): ProgressTaskController {
         window.clearTimeout(streamFlushTimer);
         flushStreamBuffer();
       }
-      unlisten?.();
       activeTaskIdRef.current = null;
       cancelTaskRef.current = null;
       cancellingRef.current = false;
@@ -519,17 +379,15 @@ export const ProgressTaskProvider: React.FC<{ children: React.ReactNode }> = ({ 
         error={controller.progressTask.error}
         connectionWarning={controller.progressTask.connectionWarning}
         events={controller.progressTask.events}
-        onClose={controller.closeProgressTask}
-        onCancel={controller.activeTaskId ? controller.cancelProgressTask : undefined}
         cancelLabel={controller.progressTask.cancelLabel}
-        cancelling={controller.cancelling}
         runningHint={controller.progressTask.runningHint}
         formatProgress={controller.progressTask.formatProgress}
+        onCancel={
+          controller.activeTaskId ? () => void controller.cancelProgressTask() : undefined
+        }
+        cancelling={controller.cancelling}
+        onClose={controller.closeProgressTask}
       />
     </ProgressTaskContext.Provider>
   );
 };
-
-export function useProgressTask() {
-  return useContext(ProgressTaskContext) ?? useProgressTaskController();
-}

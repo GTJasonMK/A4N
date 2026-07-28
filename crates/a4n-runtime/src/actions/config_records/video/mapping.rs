@@ -1,9 +1,9 @@
 mod params;
 
 use super::contracts::{UpdateVideoConfigInput, VideoConfigInput, VideoConfigSummary};
-use a4n_core::{error::AppError, models::ai::video_gen_config};
-use a4n_orchestrator::config::{VideoConfigCreateRecordInput, VideoConfigUpdateRecordInput};
-use a4n_orchestrator::video::{VideoConfigParams, validate_video_config_params};
+use a4n_core::models::ai::video_gen_config;
+use a4n_orchestrator::video::validate_video_config_params;
+use a4n_orchestrator::video::video_generation_capabilities;
 
 use params::{video_config_params, video_update_config_params};
 
@@ -29,80 +29,15 @@ pub(super) fn video_config_summary(config: &video_gen_config::Model) -> VideoCon
         supported_durations_json: config.supported_durations_json.clone(),
         default_fps: config.default_fps,
         provider_options_json: config.provider_options_json.clone(),
+        capabilities: video_generation_capabilities(
+            &config.backend,
+            &config.model,
+            config.provider_options_json.as_ref(),
+        ),
         is_default: config.is_default,
         created_at: Some(config.created_at.to_string()),
         updated_at: Some(config.updated_at.to_string()),
     }
-}
-
-pub(super) fn video_create_record_input(
-    input: VideoConfigInput,
-) -> Result<VideoConfigCreateRecordInput, String> {
-    let params = validate_video_config_params(video_config_params(input))
-        .map_err(|err| AppError::InvalidArgument(err).to_string())?;
-    Ok(VideoConfigCreateRecordInput {
-        name: params.name,
-        backend: params.backend,
-        base_url: params.base_url,
-        api_key_encrypted: params.api_key_encrypted,
-        model: params.model,
-        max_concurrent: params.max_concurrent,
-        default_width: params.default_width,
-        default_height: params.default_height,
-        default_duration_secs: params.default_duration_secs,
-        min_duration_secs: params.min_duration_secs,
-        max_duration_secs: params.max_duration_secs,
-        duration_mode: params.duration_mode,
-        supported_durations_json: params.supported_durations_json,
-        default_fps: params.default_fps,
-        provider_options_json: params.provider_options_json,
-    })
-}
-
-pub(super) fn video_update_record_input(
-    existing: &video_gen_config::Model,
-    input: UpdateVideoConfigInput,
-) -> Result<VideoConfigUpdateRecordInput, String> {
-    let params = video_update_config_params(input);
-    let api_key_encrypted = params
-        .api_key_encrypted
-        .clone()
-        .unwrap_or_else(|| existing.api_key_encrypted.clone());
-    let params = validate_video_config_params(VideoConfigParams {
-        name: params.name,
-        backend: params.backend,
-        base_url: params.base_url,
-        api_key_encrypted,
-        model: params.model,
-        max_concurrent: params.max_concurrent,
-        default_width: params.default_width,
-        default_height: params.default_height,
-        default_duration_secs: params.default_duration_secs,
-        min_duration_secs: params.min_duration_secs,
-        max_duration_secs: params.max_duration_secs,
-        duration_mode: params.duration_mode,
-        supported_durations_json: params.supported_durations_json,
-        default_fps: params.default_fps,
-        provider_options_json: params.provider_options_json,
-    })
-    .map_err(|err| AppError::InvalidArgument(err).to_string())?;
-    Ok(VideoConfigUpdateRecordInput {
-        name: params.name,
-        backend: params.backend,
-        base_url: params.base_url,
-        api_key_encrypted: params.api_key_encrypted,
-        model: params.model,
-        max_concurrent: params.max_concurrent,
-        default_width: params.default_width,
-        default_height: params.default_height,
-        default_duration_secs: params.default_duration_secs,
-        min_duration_secs: params.min_duration_secs,
-        max_duration_secs: params.max_duration_secs,
-        duration_mode: params.duration_mode,
-        supported_durations_json: params.supported_durations_json,
-        default_fps: params.default_fps,
-        provider_options_json: params.provider_options_json,
-    })
 }
 
 #[cfg(test)]
@@ -149,4 +84,18 @@ mod tests {
             Some(Some("sk-new".to_string()))
         );
     }
+}
+
+pub(super) fn video_create_params(
+    input: VideoConfigInput,
+) -> Result<a4n_orchestrator::video::VideoConfigParams, String> {
+    validate_video_config_params(video_config_params(input))
+        .map_err(|err| a4n_core::error::AppError::InvalidArgument(err).to_string())
+}
+
+pub(super) fn video_update_params(
+    _existing: &video_gen_config::Model,
+    input: UpdateVideoConfigInput,
+) -> Result<a4n_orchestrator::video::UpdateVideoConfigParams, String> {
+    Ok(video_update_config_params(input))
 }

@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, Loader2 } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import {
-  generateAgeVariant,
   previewGenerateAgeVariantRequest,
+  startPortraitGeneration,
+  verifyPortraitGenerationResult,
   type Portrait,
 } from "../../../api/portrait";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
@@ -13,7 +14,8 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
-import { createProgressTaskId, useProgressTask } from "../../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
+import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 
 interface AgeVariantDialogProps {
@@ -76,26 +78,32 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
     }
     const requestScope = `${portrait.project_id}:${portrait.id}`;
     const requestPortraitId = portrait.id;
-    const nextTaskId = createProgressTaskId("portrait-age-variant", portrait.project_id);
+    const requestProjectId = portrait.project_id;
     submitBusyRef.current = true;
     setBusy(true);
     try {
-      await runProgressTask(
+      const handle = await startPortraitGeneration({
+        project_id: requestProjectId,
+        operation: {
+          kind: "generate_age_variant",
+          portrait_id: requestPortraitId,
+          age: trimmedAge,
+          reference_image_ids: [],
+        },
+      });
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "生成年龄变体",
           startMessage: "正在准备年龄变体",
           successMessage: "年龄变体生成完成",
           errorMessage: "生成失败",
           total: 4,
-          taskId: nextTaskId,
           cancelLabel: "停止生成",
-          runningHint: "年龄变体生成过程中请保持当前窗口打开",
         },
-        () => {
-          if (!isCurrentPortrait(requestScope)) {
-            return Promise.reject(new Error("任务已停止"));
-          }
-          return generateAgeVariant(requestPortraitId, trimmedAge, nextTaskId);
+        async (task) => {
+          await verifyPortraitGenerationResult(task, requestProjectId);
         },
       );
       if (!isCurrentPortrait(requestScope)) return;

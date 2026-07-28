@@ -1,35 +1,14 @@
-export interface RagSearchResult {
-  id: string;
-  content: string;
-  score: number;
-  vector_score: number | null;
-  bm25_score: number | null;
-  metadata: unknown;
-}
+import type {
+  RagEnhancedQuerySummary as GeneratedRagEnhancedQuerySummary,
+  RagEnhancedSearchOutput as GeneratedRagEnhancedSearchOutput,
+  RagPreparedEnhancedSearchOutput as GeneratedRagPreparedEnhancedSearchOutput,
+  RagSearchResult as GeneratedRagSearchResult,
+} from "../generated/host";
 
-export interface RagEnhancedQuerySummary {
-  kind: string;
-  query: string;
-  weight: number;
-}
-
-export interface RagEnhancedSearchOutput {
-  results: RagSearchResult[];
-  queries: RagEnhancedQuerySummary[];
-  candidate_count: number;
-}
-
-export interface RagPreparedEnhancedSearchOutput {
-  queries: RagEnhancedQuerySummary[];
-  query_texts: string[];
-  embedding_identity: {
-    backend: string;
-    model: string;
-    dimension: number;
-  };
-  top_k: number;
-  pull_k: number;
-}
+export type RagSearchResult = GeneratedRagSearchResult;
+export type RagEnhancedQuerySummary = GeneratedRagEnhancedQuerySummary;
+export type RagEnhancedSearchOutput = GeneratedRagEnhancedSearchOutput;
+export type RagPreparedEnhancedSearchOutput = GeneratedRagPreparedEnhancedSearchOutput;
 
 export interface RagIngestResult {
   status: string;

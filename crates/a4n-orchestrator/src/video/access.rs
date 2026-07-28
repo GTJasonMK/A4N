@@ -10,7 +10,7 @@ use super::{ChapterVideoPromptOptions, errors::video_db_error};
 
 impl OrchestratorContext {
     pub(crate) async fn get_chapter(&self, chapter_id: i64) -> Result<chapter::Model, AppError> {
-        a4n_db::video::video_chapter_record(self.db.connection(), chapter_id)
+        a4n_db::video::video_chapter_record(self.database.connection(), chapter_id)
             .await
             .map_err(video_db_error)
     }
@@ -21,7 +21,7 @@ impl OrchestratorContext {
         chapter_id: i64,
     ) -> Result<(), AppError> {
         a4n_db::video::ensure_video_chapter_belongs_to_project_record(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             chapter_id,
         )
@@ -33,7 +33,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
     ) -> Result<Vec<i64>, AppError> {
-        a4n_db::video::video_asset_project_ids_record(self.db.connection(), project_id)
+        a4n_db::video::video_asset_project_ids_record(self.database.connection(), project_id)
             .await
             .map_err(video_db_error)
     }
@@ -56,7 +56,7 @@ impl OrchestratorContext {
         reference_image_ids_json: Option<&Value>,
     ) -> Result<Vec<generated_image::Model>, AppError> {
         a4n_db::video::validated_video_reference_image_records(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             chapter_id,
             reference_image_ids_json,

@@ -45,7 +45,7 @@ pub fn validate_service_request_envelope<T>(
     match required_secret_policy {
         RequiredSecretPolicy::AllowAny => {}
         RequiredSecretPolicy::DenyAll { rejection_message } => {
-            if !request.secret_policy.is_deny_all() {
+            if !request.secret_policy.is_secret_free() {
                 return Err(unauthorized_error(rejection_message.to_string()));
             }
         }

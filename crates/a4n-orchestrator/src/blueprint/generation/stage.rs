@@ -14,7 +14,7 @@ use self::call::execute_blueprint_stage_call;
 use self::preparation::prepare_blueprint_stage;
 
 pub(super) use contracts::BlueprintStageRunInput;
-pub(super) use rules::{ensure_not_cancelled, report};
+pub(super) use rules::ensure_not_cancelled;
 
 impl OrchestratorContext {
     pub(super) async fn generate_or_resume_blueprint_stage(

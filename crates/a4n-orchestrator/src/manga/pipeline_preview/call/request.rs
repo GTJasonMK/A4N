@@ -42,7 +42,7 @@ pub(in crate::manga::pipeline_preview) async fn build_manga_preview_call(
             workflow::required_llm_call_workflow_run_id(workflow_run_id, &prepared.call_key)
                 .map_err(workflow_checkpoint_contract_app_error)?;
         if let Some(restored) = load_manga_restored_llm_checkpoint(
-            &service.db,
+            &service.database,
             workflow_run_id,
             &prepared.call_key,
             &prepared.input_fingerprint_json,

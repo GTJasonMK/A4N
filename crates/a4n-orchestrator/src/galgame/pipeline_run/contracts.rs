@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use a4n_core::config::app_config::llm_token_profiles;
 use a4n_core::error::AppError;
-use a4n_core::event::sse::ProgressMeta;
+use a4n_core::event::progress::ProgressMeta;
 use serde_json::Value;
 
 use super::super::{

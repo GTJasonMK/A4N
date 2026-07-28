@@ -2,21 +2,20 @@ use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, UsageInfo};
 use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
+    CapabilityTaskEvent, CapabilityTaskEventKind,
     LLM_CHAT_CAPABILITY_VERSION as LLM_CAPABILITY_VERSION, PROTOCOL_VERSION, ServiceErrorCode,
-    ServiceRequest, ServiceStatus, ServiceTaskEvent, ServiceTaskEventKind,
+    ServiceRequest, ServiceStatus,
 };
 use axum::{Json, body::Bytes};
 use futures::{Stream, StreamExt, stream};
-use serde_json::json;
 
 use crate::contracts::{HttpLlmProviderConfig, LlmChatPayload};
-use crate::handlers::{
-    chat, discover_models, llm_event_stream, probe_existing_provider, stream_chat,
-};
+use crate::handlers::{discover_models, llm_event_stream, probe_existing_provider, stream_chat};
 use crate::protocol::validate_provider_secret_policy;
 use a4n_service_protocol::{SchemaVersion, SecretForwardingPolicy, TraceContext};
 use a4n_test_support::llm::CountingLlmProvider;
 use std::convert::Infallible;
+use std::time::Duration;
 
 mod http;
 
@@ -56,13 +55,13 @@ fn service_request<T>(payload: T) -> ServiceRequest<T> {
 }
 
 #[tokio::test]
-async fn probe_with_request_calls_chat_once() {
+async fn probe_with_request_calls_stream_once() {
     let provider = CountingLlmProvider::default();
     let request = ChatRequest::system_user("system", "ping", Some(0.0), Some(16), None);
 
     let output = probe_existing_provider(&provider, Some(request))
         .await
-        .expect("probe with request should use chat response");
+        .expect("probe with request should collect chat_stream");
 
     assert!(output.ok);
     assert_eq!(output.response_preview.as_deref(), Some("probe ok"));
@@ -71,7 +70,7 @@ async fn probe_with_request_calls_chat_once() {
         output.usage.as_ref().map(|usage| usage.total_tokens),
         Some(5)
     );
-    assert_eq!(provider.chat_call_count(), 1);
+    assert_eq!(provider.stream_call_count(), 1);
     assert_eq!(provider.test_connection_call_count(), 0);
 }
 
@@ -85,100 +84,7 @@ async fn probe_without_request_uses_connection_test_only() {
 
     assert!(output.ok);
     assert_eq!(output.response_preview, None);
-    assert_eq!(provider.chat_call_count(), 0);
     assert_eq!(provider.test_connection_call_count(), 1);
-}
-
-#[tokio::test]
-async fn chat_rejects_incompatible_capability_version() {
-    let mut request = service_request(LlmChatPayload {
-        provider: test_provider_config(),
-        request: ChatRequest::system_user("system", "ping", None, None, None),
-    });
-    request.capability_version = "llm-chat-v0".to_string();
-
-    let Json(response) = chat(Json(request)).await;
-
-    assert_eq!(response.status, ServiceStatus::Error);
-    assert_eq!(
-        response.error.as_ref().map(|error| error.code.clone()),
-        Some(ServiceErrorCode::VersionMismatch)
-    );
-    assert!(response.payload.is_none());
-}
-
-#[tokio::test]
-async fn chat_rejects_root_project_scope_without_project() {
-    let mut request = service_request(LlmChatPayload {
-        provider: test_provider_config(),
-        request: ChatRequest::system_user("system", "ping", None, None, None),
-    });
-    request.project_id = None;
-    request.root_project_id = Some(3);
-
-    let Json(response) = chat(Json(request)).await;
-
-    assert_eq!(response.status, ServiceStatus::Error);
-    assert_eq!(
-        response.error.as_ref().map(|error| error.code.clone()),
-        Some(ServiceErrorCode::ConfigurationError)
-    );
-    assert!(response.error.as_ref().is_some_and(|error| {
-        error
-            .message
-            .contains("root_project_id requires project_id")
-    }));
-    assert!(response.payload.is_none());
-}
-
-#[tokio::test]
-async fn chat_rejects_unredacted_runtime_config_snapshot() {
-    let mut request = service_request(LlmChatPayload {
-        provider: test_provider_config(),
-        request: ChatRequest::system_user("system", "ping", None, None, None),
-    });
-    request.runtime_config_snapshot = Some(json!({
-        "llm": {
-            "api_key_encrypted": "sk-runtime-secret",
-            "base_url": "https://provider.example/v1"
-        }
-    }));
-
-    let Json(response) = chat(Json(request)).await;
-
-    assert_eq!(response.status, ServiceStatus::Error);
-    assert_eq!(
-        response.error.as_ref().map(|error| error.code.clone()),
-        Some(ServiceErrorCode::ConfigurationError)
-    );
-    assert!(
-        response
-            .error
-            .as_ref()
-            .is_some_and(|error| error.message.contains("unredacted sensitive fields"))
-    );
-    let response_text = serde_json::to_string(&response).expect("response should serialize");
-    assert!(!response_text.contains("sk-runtime-secret"));
-    assert!(!response_text.contains("provider.example"));
-    assert!(response.payload.is_none());
-}
-
-#[tokio::test]
-async fn chat_rejects_api_key_when_user_secret_forwarding_is_denied() {
-    let mut request = service_request(LlmChatPayload {
-        provider: test_provider_config_with_api_key(),
-        request: ChatRequest::system_user("system", "ping", None, None, None),
-    });
-    request.secret_policy = SecretForwardingPolicy::deny_all();
-
-    let Json(response) = chat(Json(request)).await;
-
-    assert_eq!(response.status, ServiceStatus::Error);
-    assert_eq!(
-        response.error.as_ref().map(|error| error.code.clone()),
-        Some(ServiceErrorCode::Unauthorized)
-    );
-    assert!(response.payload.is_none());
 }
 
 #[tokio::test]
@@ -212,14 +118,44 @@ async fn stream_rejects_api_key_when_user_secret_forwarding_is_denied() {
     let body = axum::body::to_bytes(response.into_body(), 1024)
         .await
         .expect("failed event response body should be readable");
-    let event: ServiceTaskEvent =
+    let event: CapabilityTaskEvent =
         serde_json::from_slice(&body).expect("failed event should deserialize");
 
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Failed);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Failed);
     assert_eq!(
         event.error.as_ref().map(|error| error.code.clone()),
         Some(ServiceErrorCode::Unauthorized)
     );
+}
+
+#[tokio::test]
+async fn stream_response_headers_do_not_wait_for_provider_connection() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("fake provider listener should bind");
+    let addr = listener
+        .local_addr()
+        .expect("fake provider listener should expose its address");
+    let provider = tokio::spawn(async move {
+        let _connection = listener
+            .accept()
+            .await
+            .expect("provider request connection");
+        std::future::pending::<()>().await;
+    });
+    let mut config = test_provider_config();
+    config.base_url = format!("http://{addr}");
+    let request = service_request(LlmChatPayload {
+        provider: config,
+        request: ChatRequest::system_user("system", "ping", None, None, None),
+    });
+
+    let response = tokio::time::timeout(Duration::from_millis(50), stream_chat(Json(request)))
+        .await
+        .expect("gateway must return stream headers before connecting to the provider");
+
+    drop(response);
+    provider.abort();
 }
 
 #[test]
@@ -278,10 +214,10 @@ async fn stream_rejects_incompatible_protocol_version_as_failed_event() {
     let body = axum::body::to_bytes(response.into_body(), 1024)
         .await
         .expect("failed event response body should be readable");
-    let event: ServiceTaskEvent =
+    let event: CapabilityTaskEvent =
         serde_json::from_slice(&body).expect("failed event should deserialize");
 
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Failed);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Failed);
     assert_eq!(event.sequence, 1);
     assert_eq!(
         event.error.as_ref().map(|error| error.code.clone()),
@@ -321,13 +257,13 @@ async fn llm_stream_emits_chunks_and_completed_final_usage() {
     let events = collect_events(llm_event_stream("llm-task".to_string(), Box::pin(chunks))).await;
 
     assert_eq!(events.len(), 3);
-    assert_eq!(events[0].event_kind, ServiceTaskEventKind::Chunk);
+    assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[0].sequence, 1);
     assert_eq!(events[0].chunk_index, Some(0));
     assert_eq!(events[0].chunk_delta.as_deref(), Some("hel"));
     assert_eq!(events[0].usage_delta, None);
 
-    assert_eq!(events[1].event_kind, ServiceTaskEventKind::Chunk);
+    assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[1].sequence, 2);
     assert_eq!(events[1].chunk_index, Some(1));
     assert_eq!(events[1].chunk_delta.as_deref(), Some("lo"));
@@ -335,7 +271,7 @@ async fn llm_stream_emits_chunks_and_completed_final_usage() {
     assert_eq!(events[1].finish_reason.as_deref(), Some("stop"));
     assert_eq!(events[1].is_truncated_finish_reason, Some(false));
 
-    assert_eq!(events[2].event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(events[2].event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(events[2].sequence, 3);
     assert_eq!(events[2].chunk_delta, None);
     assert_eq!(events[2].usage_delta, None);
@@ -352,7 +288,7 @@ async fn llm_stream_error_emits_failed_event_without_completed() {
     let events = collect_events(llm_event_stream("llm-task".to_string(), Box::pin(chunks))).await;
 
     assert_eq!(events.len(), 1);
-    assert_eq!(events[0].event_kind, ServiceTaskEventKind::Failed);
+    assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Failed);
     assert_eq!(events[0].sequence, 1);
     assert_eq!(
         events[0].error.as_ref().map(|error| error.code.clone()),
@@ -363,11 +299,11 @@ async fn llm_stream_error_emits_failed_event_without_completed() {
 
 async fn collect_events(
     events: impl Stream<Item = Result<Bytes, Infallible>> + Send,
-) -> Vec<ServiceTaskEvent> {
+) -> Vec<CapabilityTaskEvent> {
     events
         .map(|line| {
             let line = line.expect("event stream uses infallible line items");
-            serde_json::from_slice::<ServiceTaskEvent>(&line)
+            serde_json::from_slice::<CapabilityTaskEvent>(&line)
                 .expect("event line should deserialize")
         })
         .collect::<Vec<_>>()

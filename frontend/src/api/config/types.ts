@@ -1,17 +1,64 @@
-export interface LlmConfig {
-  id: number;
-  name: string;
-  provider: string;
-  base_url: string;
-  model: string;
-  max_concurrent: number;
-  timeout_secs: number;
-  max_context_tokens: number;
-  max_output_tokens: number;
-  request_options_json?: unknown | null;
-  is_default: boolean;
-  has_api_key: boolean;
-}
+import type {
+  CreateEmbeddingInput as ApiCreateEmbeddingInput,
+  CreateLlmInput as ApiCreateLlmInput,
+  EmbeddingConfigSummary,
+  UpdateEmbeddingInput as ApiUpdateEmbeddingInput,
+  UpdateLlmInput as ApiUpdateLlmInput,
+  LlmConfigSummary,
+} from "../generated/config";
+import type {
+  EmbeddingModelDownloadInfoSummary,
+  EmbeddingModelIdentity as ApiEmbeddingModelIdentity,
+  LocalEmbedTextsOutput as ApiLocalEmbedTextsOutput,
+  LocalEmbeddingModelSummary,
+} from "../generated/host";
+
+export type {
+  EmbeddingConfigSummary,
+  ImageConfigInput,
+  ImageConfigSummary,
+  LlmConfigSummary,
+  UpdateImageConfigInput,
+  UpdateVideoConfigInput,
+  VideoConfigInput,
+  VideoConfigSummary,
+} from "../generated/config";
+
+export type LlmConfig = Omit<LlmConfigSummary, "created_at" | "updated_at">;
+export type CreateEmbeddingInput = ApiCreateEmbeddingInput;
+export type CreateLlmInput = ApiCreateLlmInput;
+export type UpdateEmbeddingInput = Omit<
+  ApiUpdateEmbeddingInput,
+  "name" | "backend" | "base_url" | "model" | "dimension" | "batch_size" | "local_model_path"
+> & {
+  name?: string;
+  backend?: string;
+  base_url?: string | null;
+  model?: string;
+  dimension?: number;
+  batch_size?: number | null;
+  local_model_path?: string | null;
+};
+export type UpdateLlmInput = Omit<
+  ApiUpdateLlmInput,
+  | "name"
+  | "provider"
+  | "base_url"
+  | "model"
+  | "max_concurrent"
+  | "timeout_secs"
+  | "max_context_tokens"
+  | "max_output_tokens"
+> & {
+  name?: string;
+  provider?: string;
+  base_url?: string;
+  model?: string;
+  max_concurrent?: number;
+  timeout_secs?: number;
+  max_context_tokens?: number;
+  max_output_tokens?: number;
+};
 
 export interface LlmMaxTokensConfig {
   connection_test: number;
@@ -29,79 +76,11 @@ export interface LlmMaxTokensConfig {
   media_prompt: number;
 }
 
-export interface CreateLlmInput {
-  name: string;
-  provider: string;
-  base_url: string;
-  api_key_encrypted?: string;
-  model: string;
-  max_concurrent: number;
-  timeout_secs: number;
-  max_context_tokens: number;
-  max_output_tokens: number;
-  request_options_json?: unknown | null;
-}
-
-export interface UpdateLlmInput {
-  name?: string;
-  provider?: string;
-  base_url?: string;
-  api_key_encrypted?: string | null;
-  model?: string;
-  max_concurrent?: number;
-  timeout_secs?: number;
-  max_context_tokens?: number;
-  max_output_tokens?: number;
-  request_options_json?: unknown | null;
-}
-
-export interface EmbeddingConfig {
-  id: number;
-  name: string;
-  backend: string;
-  base_url: string | null;
-  api_key_encrypted: string | null;
+export type EmbeddingConfig = Omit<EmbeddingConfigSummary, "has_api_key" | "created_at" | "updated_at"> & {
   has_api_key?: boolean;
-  model: string;
-  dimension: number;
-  batch_size: number;
-  local_model_path: string | null;
-  is_default: boolean;
-}
+};
 
-export interface LocalEmbeddingModel {
-  name: string;
-  model_code: string;
-  description: string;
-  dimension: number;
-  downloaded: boolean;
-  cache_path: string;
-  size_bytes: number;
-}
-
-export interface EmbeddingModelDownloadInfo {
-  model_name: string;
-  model_code: string;
-  total_size_bytes: number;
-  downloaded_size_bytes: number;
-  missing_size_bytes: number;
-  files: EmbeddingModelDownloadFile[];
-}
-
-interface EmbeddingModelDownloadFile {
-  path: string;
-  size_bytes: number;
-  downloaded_size_bytes: number;
-  downloaded: boolean;
-}
-
-export interface EmbeddingModelIdentity {
-  backend: string;
-  model: string;
-  dimension: number;
-}
-
-export interface LocalEmbedTextsOutput {
-  identity: EmbeddingModelIdentity;
-  embeddings: number[][];
-}
+export type LocalEmbeddingModel = LocalEmbeddingModelSummary;
+export type EmbeddingModelDownloadInfo = EmbeddingModelDownloadInfoSummary;
+export type EmbeddingModelIdentity = ApiEmbeddingModelIdentity;
+export type LocalEmbedTextsOutput = ApiLocalEmbedTextsOutput;

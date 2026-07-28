@@ -4,24 +4,7 @@ use crate::actions::character_records::{
 };
 use a4n_core::models::character::snapshot_reference;
 use a4n_orchestrator::character::snapshot_attributes_from_data;
-use serde_json::{Value, json};
-
-pub(in crate::actions::character_records) fn initial_snapshot_data() -> Value {
-    json!({
-        "synced_chapter": 0,
-        "state_summary": "初始空状态",
-        "changes_in_chapter": 0,
-        "behaviors_in_chapter": 0,
-        "attributes": {
-            "explicit_attributes": {},
-            "implicit_attributes": {},
-            "social_attributes": {},
-        },
-        "explicit_attributes": {},
-        "implicit_attributes": {},
-        "social_attributes": {},
-    })
-}
+use serde_json::Value;
 
 pub(in crate::actions::character_records) fn snapshot_data_summary(
     snapshot: &snapshot_reference::Model,

@@ -1,9 +1,7 @@
 use crate::AppState;
-use a4n_orchestrator::optimize::OptimizationSessionMessageInsertInput;
 
 use super::{
     OptimizationPatchSetSummary, OptimizationSessionSummary, OptimizationTurnSummary,
-    access::{optimize_session, verify_optimize_project_access, verify_optimize_session_access},
     projections::{to_patch_set_summary, to_session_summary, to_turn_summary},
 };
 
@@ -13,10 +11,9 @@ pub async fn list_optimize_sessions(
     project_id: i64,
     chapter_id: Option<i64>,
 ) -> Result<Vec<OptimizationSessionSummary>, String> {
-    verify_optimize_project_access(state, user_id, project_id).await?;
     let sessions = state
-        .orchestrator
-        .optimization_sessions(project_id, chapter_id)
+        .optimize()
+        .optimize_sessions_for_user(user_id, project_id, chapter_id)
         .await
         .map_err(|err| err.to_string())?;
     Ok(sessions.iter().map(to_session_summary).collect())
@@ -27,8 +24,11 @@ pub async fn get_optimize_session(
     user_id: i64,
     session_id: i64,
 ) -> Result<OptimizationSessionSummary, String> {
-    verify_optimize_session_access(state, user_id, session_id).await?;
-    let session = optimize_session(state, session_id).await?;
+    let session = state
+        .optimize()
+        .optimize_session_for_user(user_id, session_id)
+        .await
+        .map_err(|error| error.to_string())?;
     Ok(to_session_summary(&session))
 }
 
@@ -37,22 +37,15 @@ pub async fn list_optimize_turns(
     user_id: i64,
     session_id: i64,
 ) -> Result<Vec<OptimizationTurnSummary>, String> {
-    verify_optimize_session_access(state, user_id, session_id).await?;
     let turns = state
-        .orchestrator
-        .optimization_turns(session_id)
+        .optimize()
+        .optimize_turns_for_user(user_id, session_id)
         .await
         .map_err(|err| err.to_string())?;
-    let mut summaries = Vec::with_capacity(turns.len());
-    for turn in turns {
-        let events = state
-            .orchestrator
-            .optimization_turn_events(turn.id)
-            .await
-            .map_err(|err| err.to_string())?;
-        summaries.push(to_turn_summary(&turn, events));
-    }
-    Ok(summaries)
+    Ok(turns
+        .into_iter()
+        .map(|(turn, events)| to_turn_summary(&turn, events))
+        .collect())
 }
 
 pub async fn list_optimize_patch_sets(
@@ -60,22 +53,15 @@ pub async fn list_optimize_patch_sets(
     user_id: i64,
     session_id: i64,
 ) -> Result<Vec<OptimizationPatchSetSummary>, String> {
-    verify_optimize_session_access(state, user_id, session_id).await?;
     let patch_sets = state
-        .orchestrator
-        .optimization_patch_sets(session_id)
+        .optimize()
+        .optimize_patch_sets_for_user(user_id, session_id)
         .await
         .map_err(|err| err.to_string())?;
-    let mut summaries = Vec::with_capacity(patch_sets.len());
-    for patch_set in patch_sets {
-        let patches = state
-            .orchestrator
-            .optimization_patch_set_patches(patch_set.id)
-            .await
-            .map_err(|err| err.to_string())?;
-        summaries.push(to_patch_set_summary(&patch_set, patches));
-    }
-    Ok(summaries)
+    Ok(patch_sets
+        .into_iter()
+        .map(|(patch_set, patches)| to_patch_set_summary(&patch_set, patches))
+        .collect())
 }
 
 pub async fn delete_optimize_session(
@@ -83,17 +69,11 @@ pub async fn delete_optimize_session(
     user_id: i64,
     session_id: i64,
 ) -> Result<(), String> {
-    verify_optimize_session_access(state, user_id, session_id).await?;
-    optimize_session(state, session_id).await?;
-    let rows_affected = state
-        .orchestrator
-        .delete_optimization_session_with_messages(session_id)
+    state
+        .optimize()
+        .delete_optimize_session_for_user_validated(user_id, session_id)
         .await
-        .map_err(|err| err.to_string())?;
-    if rows_affected != 1 {
-        return Err(format!("优化会话不存在: {session_id}"));
-    }
-    Ok(())
+        .map_err(|err| err.to_string())
 }
 
 pub async fn record_optimize_agent_event(
@@ -102,20 +82,9 @@ pub async fn record_optimize_agent_event(
     session_id: i64,
     content: String,
 ) -> Result<(), String> {
-    verify_optimize_session_access(state, user_id, session_id).await?;
-    let content = content.trim();
-    if content.is_empty() {
-        return Err("Agent 事件内容不能为空".to_string());
-    }
     state
-        .orchestrator
-        .insert_optimization_session_message(OptimizationSessionMessageInsertInput {
-            session_id,
-            role: "agent_event".to_string(),
-            content: content.to_string(),
-            tool_calls: None,
-        })
+        .optimize()
+        .record_optimize_agent_event_for_user_validated(user_id, session_id, &content)
         .await
-        .map_err(|err| err.to_string())?;
-    Ok(())
+        .map_err(|err| err.to_string())
 }

@@ -4,7 +4,6 @@ use super::trace::{SchemaVersion, TraceContext};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
 pub struct ServiceRequest<T> {
     pub request_id: String,
     pub trace_context: TraceContext,

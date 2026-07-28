@@ -1,29 +1,7 @@
 use a4n_core::blueprint::ParsedBlueprintRelationship;
-use a4n_core::error::AppError;
 use a4n_db::project::BlueprintRelationshipDraft;
-use chrono::Utc;
 
-use crate::blueprint::{OrchestratorContext, blueprint_sync_error};
-
-impl OrchestratorContext {
-    pub(in crate::blueprint) async fn replace_blueprint_relationships(
-        &self,
-        project_id: i64,
-        relationships: &[ParsedBlueprintRelationship],
-    ) -> Result<(), AppError> {
-        a4n_db::project::sync_blueprint_relationships(
-            self.db.connection(),
-            project_id,
-            blueprint_relationship_drafts(relationships),
-            Utc::now().naive_utc(),
-        )
-        .await
-        .map_err(blueprint_sync_error)?;
-        Ok(())
-    }
-}
-
-fn blueprint_relationship_drafts(
+pub fn blueprint_relationship_drafts(
     relationships: &[ParsedBlueprintRelationship],
 ) -> Vec<BlueprintRelationshipDraft> {
     relationships

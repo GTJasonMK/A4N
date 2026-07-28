@@ -13,18 +13,22 @@ import type { DownstreamConflictStrategy } from "../../api/dependencyConflict";
 import {
   createObjectProfile,
   deleteObjectProfile,
-  generateObjectProfileImage,
   listObjectProfiles,
   updateObjectProfile,
   type ObjectProfile,
   type ObjectProfileInput,
 } from "../../api/objectProfiles";
+import {
+  startImageGeneration,
+  verifyImageGenerationResult,
+} from "../../api/image";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
+import { useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import {
   getObjectProfileImportanceLabel,
@@ -211,34 +215,32 @@ export const ObjectProfilesTab: React.FC<{
     }
     const requestSeq = beginAction(requestProjectId);
     if (requestSeq == null) return;
-    const taskId = createProgressTaskId("object-profile-image", requestProjectId);
     setBusyId(requestProfile.id);
     try {
-      await runProgressTask(
+      const handle = await startImageGeneration({
+        project_id: requestProjectId,
+        operation: {
+          kind: "object_profile",
+          object_profile_id: requestProfile.id,
+          style: DEFAULT_IMAGE_STYLE,
+        },
+      });
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "生成物体素材图",
           startMessage: "正在准备物体素材图",
           successMessage: "物体素材图已生成",
           errorMessage: "物体素材图生成失败",
           total: 3,
-          taskId,
           cancelLabel: "停止生成",
-          runningHint: "图片生成过程中请保持当前窗口打开",
         },
-        async () => {
+        async (task) => {
           if (!isCurrentAction(requestProjectId, requestSeq)) {
             throw new Error("任务已停止");
           }
-          await generateObjectProfileImage(
-            {
-              object_profile_id: requestProfile.id,
-              style: DEFAULT_IMAGE_STYLE,
-            },
-            taskId,
-          );
-          if (!isCurrentAction(requestProjectId, requestSeq)) {
-            throw new Error("任务已停止");
-          }
+          await verifyImageGenerationResult(task, requestProjectId);
           await load({ silent: true, force: true, projectId: requestProjectId });
         },
       );

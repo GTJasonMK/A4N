@@ -7,7 +7,6 @@ use a4n_runtime::state::RuntimeProfile;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{RwLock, broadcast};
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
@@ -52,7 +51,6 @@ impl ServerConfig {
 #[derive(Clone)]
 pub struct ServerState {
     runtime: Arc<a4n_runtime::AppState>,
-    pub web_events: Arc<WebEventHub>,
 }
 
 impl ServerState {
@@ -72,10 +70,7 @@ impl ServerState {
         });
         auth_records::require_existing_user_or_bootstrap_admin(runtime.as_ref(), bootstrap).await?;
 
-        Ok(Self {
-            runtime,
-            web_events: Arc::new(WebEventHub::new()),
-        })
+        Ok(Self { runtime })
     }
 
     pub fn runtime(&self) -> &a4n_runtime::AppState {
@@ -96,36 +91,6 @@ fn runtime_profile_for_server_host() -> Result<RuntimeProfile, AppError> {
     RuntimeProfile::from_env()
 }
 
-#[derive(Debug, Default)]
-pub struct WebEventHub {
-    channels: RwLock<std::collections::HashMap<String, broadcast::Sender<serde_json::Value>>>,
-}
-
-impl WebEventHub {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub async fn subscribe(&self, channel: &str) -> broadcast::Receiver<serde_json::Value> {
-        let mut channels = self.channels.write().await;
-        channels
-            .entry(channel.to_string())
-            .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(1024);
-                tx
-            })
-            .subscribe()
-    }
-
-    pub async fn publish(&self, channel: &str, payload: serde_json::Value) -> usize {
-        let channels = self.channels.read().await;
-        channels
-            .get(channel)
-            .and_then(|sender| sender.send(payload).ok())
-            .unwrap_or(0)
-    }
-}
-
 impl ServerConfig {
     fn into_app_config(self) -> Result<AppConfig, AppError> {
         let mut config = AppConfig {
@@ -135,6 +100,7 @@ impl ServerConfig {
             },
             ..Default::default()
         };
+        apply_optional_path_env("A4N_DATA_DIR", |path| config.data_dir = path)?;
         apply_optional_path_env("A4N_CACHE_DIR", |path| config.cache_dir = path)?;
         apply_optional_path_env("A4N_TEMP_DIR", |path| config.temp_dir = path)?;
         apply_optional_path_env("A4N_LOG_DIR", |path| config.log_dir = path)?;

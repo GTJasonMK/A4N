@@ -1,20 +1,13 @@
 import { apiInvoke } from "./index";
+import type {
+  LogReadResult,
+  ReadLogsInput,
+  SetLogLevelInput,
+} from "./generated/host";
 
-export interface LogReadResult {
-  file_path: string;
-  total_lines: number;
-  returned_lines: number;
-  lines: string[];
-}
+export type { LogReadResult, ReadLogsInput, SetLogLevelInput } from "./generated/host";
 
-export interface ReadRecentLogsInput {
-  lines: number;
-  days_ago: number;
-}
-
-export interface SetLogLevelInput {
-  filter: string;
-}
+export type ReadRecentLogsInput = ReadLogsInput;
 
 export async function readRecentLogs(
   callerUserId: number,

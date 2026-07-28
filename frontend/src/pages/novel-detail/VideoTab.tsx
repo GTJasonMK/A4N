@@ -1,15 +1,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
   Clapperboard,
-  ChevronRight,
   Film,
-  Image,
   ImagePlus,
-  Images,
-  MessageSquare,
   PanelTop,
-  PlaySquare,
   Scissors,
 } from "lucide-react";
 import { useToast } from "../../components/feedback/Toast";
@@ -18,15 +12,18 @@ import { extractErrorMessage } from "../../api";
 import { previewBatchImagesRequest, type GeneratedImage } from "../../api/image";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import {
-  generateReferenceMediaVideo,
-  previewChapterVideoFramePromptRequests,
   previewChapterVideoPromptRequests,
   previewReferenceMediaVideoRequest,
+  selectSegmentVideo,
+  startVideoGeneration,
+  updateChapterVideoPrompt,
   uploadReferenceMediaVideo,
+  verifyVideoGenerationResult,
   type ChapterVideoPrompt,
   type GeneratedVideo,
   type ReferenceMediaVideoInput,
   type VideoGenConfig,
+  type SegmentGuidanceMode,
 } from "../../api/video";
 import { usePersistedState } from "../../hooks/usePersistedState";
 import {
@@ -35,7 +32,8 @@ import {
   isChapterGenerating,
   type ChapterRow,
 } from "./shared";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { useProgressTask } from "../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
 import { textInputValue } from "../../utils/text";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
@@ -46,7 +44,7 @@ import {
 } from "../../utils/videoUpload";
 import { ImageActionDialog } from "./images/ImageActionDialog";
 import { VideoAssemblyWorkspace } from "./video/VideoAssemblyWorkspace";
-import { VideoFrameWorkspace } from "./video/VideoFrameWorkspace";
+import { VideoPlanningWorkspace } from "./video/VideoPlanningWorkspace";
 import { VideoGenerationWorkspace } from "./video/VideoGenerationWorkspace";
 import { VideoMaterialWorkspace } from "./video/VideoMaterialWorkspace";
 import { VideoPostProcessWorkspace } from "./video/VideoPostProcessWorkspace";
@@ -107,13 +105,9 @@ import {
   serializeVideoWorkflowMode,
   shiftReferenceLabels,
   VIDEO_CHAT_FRAME_PROMPT_TYPE,
-  VIDEO_FIRST_FRAME_PROMPT_TYPE,
-  VIDEO_FRAME_PROMPT_TYPE,
   VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
   VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE,
   VIDEO_WORKFLOW_MODE_LABELS,
-  VIDEO_WORKFLOW_MODE_SUMMARIES,
-  VIDEO_WORKFLOW_MODES,
   VIDEO_STORYBOARD_PROMPT_TYPE,
   expectedVideoPromptCountFromSegmentPlanPrompt,
   videoOptionsValidationError,
@@ -150,14 +144,14 @@ const VIDEO_WORKSPACE_TABS: Array<{
   icon: React.ReactNode;
 }> = [
   { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-  { id: "frames", label: "首尾帧生成", icon: <PanelTop size={13} /> },
-  { id: "video", label: "视频生成", icon: <Film size={13} /> },
+  { id: "frames", label: "片段规划", icon: <PanelTop size={13} /> },
+  { id: "video", label: "片段生成", icon: <Film size={13} /> },
   { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
   { id: "postprocess", label: "成片后处理", icon: <Scissors size={13} /> },
 ];
 
 interface PersistedWorkflowModeState {
-  mode: ChapterVideoWorkflowMode | null;
+  mode: ChapterVideoWorkflowMode;
   storageError: string | null;
 }
 
@@ -171,17 +165,29 @@ interface PersistedNullableIdState {
   storageError: string | null;
 }
 
+interface ReferenceMediaSegmentState {
+  promptId: number;
+  shotNumber: number;
+}
+
+const parseReferenceMediaSegmentState = (raw: string): ReferenceMediaSegmentState | null => {
+  const value = JSON.parse(raw) as Partial<ReferenceMediaSegmentState> | null;
+  return value && Number.isInteger(value.promptId) && Number.isInteger(value.shotNumber)
+    ? { promptId: value.promptId as number, shotNumber: value.shotNumber as number }
+    : null;
+};
+
 const createPersistedWorkflowModeState = (
-  mode: ChapterVideoWorkflowMode | null,
+  mode: ChapterVideoWorkflowMode,
   storageError: string | null = null,
 ): PersistedWorkflowModeState => ({ mode, storageError });
 
 const parsePersistedWorkflowModeState = (raw: string): PersistedWorkflowModeState => {
   try {
-    return createPersistedWorkflowModeState(parseVideoWorkflowMode(raw) ?? DEFAULT_VIDEO_WORKFLOW_MODE);
+    return createPersistedWorkflowModeState(parseVideoWorkflowMode(raw));
   } catch (err) {
     return createPersistedWorkflowModeState(
-      null,
+      DEFAULT_VIDEO_WORKFLOW_MODE,
       `视频生成模式本地存储损坏：${extractErrorMessage(err, "")}`,
     );
   }
@@ -233,65 +239,6 @@ const parsePersistedNullableIdState = (
 
 const serializePersistedNullableIdState = (state: PersistedNullableIdState): string =>
   serializeNullableNumber(state.id);
-
-const WORKFLOW_MODE_ICONS: Record<(typeof VIDEO_WORKFLOW_MODES)[number], React.ReactNode> = {
-  boundary_frames: <PanelTop size={16} />,
-  first_frame_chain: <PlaySquare size={16} />,
-  storyboard: <Clapperboard size={16} />,
-  chat_video: <MessageSquare size={16} />,
-  reference_media: <Images size={16} />,
-};
-
-const videoWorkspaceTabsForMode = (
-  mode: ChapterVideoWorkflowMode | null,
-): Array<{
-  id: VideoWorkspaceTab;
-  label: string;
-  icon: React.ReactNode;
-}> => {
-  if (mode === "boundary_frames") {
-    return VIDEO_WORKSPACE_TABS;
-  }
-  if (mode === "first_frame_chain") {
-    return [
-      { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-      { id: "frames", label: "首帧生成", icon: <Image size={13} /> },
-      { id: "video", label: "视频生成", icon: <Film size={13} /> },
-      { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
-      { id: "postprocess", label: "成片后处理", icon: <Scissors size={13} /> },
-    ];
-  }
-  if (mode === "storyboard") {
-    return [
-      { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-      { id: "frames", label: "分镜生成", icon: <Image size={13} /> },
-      { id: "video", label: "视频生成", icon: <Film size={13} /> },
-      { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
-      { id: "postprocess", label: "成片后处理", icon: <Scissors size={13} /> },
-    ];
-  }
-  if (mode === "reference_media") {
-    return [
-      { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-      { id: "video", label: "参考媒体生成", icon: <Images size={13} /> },
-    ];
-  }
-  if (mode === "chat_video") {
-    return [
-      { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-      { id: "frames", label: "首尾帧生成", icon: <PanelTop size={13} /> },
-      { id: "video", label: "Chat 生视频", icon: <MessageSquare size={13} /> },
-      { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
-      { id: "postprocess", label: "成片后处理", icon: <Scissors size={13} /> },
-    ];
-  }
-  return [];
-};
-
-const defaultWorkspaceTabForMode = (mode: ChapterVideoWorkflowMode | null): VideoWorkspaceTab => {
-  if (mode === "reference_media") return "video";
-  return "frames";
-};
 
 const VideoWorkspaceHeader: React.FC<{
   tabs: Array<{ id: VideoWorkspaceTab; label: string; icon: React.ReactNode }>;
@@ -345,80 +292,6 @@ const VideoWorkspaceHeader: React.FC<{
   );
 };
 
-const VideoWorkflowModeSelector: React.FC<{
-  value: ChapterVideoWorkflowMode | null;
-  onChange: (mode: ChapterVideoWorkflowMode) => void;
-  className?: string;
-}> = ({ value, onChange, className = "" }) => (
-  <div
-    role="radiogroup"
-    aria-label="视频生成模式"
-    className={`grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-6 ${className}`}
-  >
-    {VIDEO_WORKFLOW_MODES.map((mode, index) => {
-      const active = value === mode;
-      return (
-        <button
-          key={mode}
-          type="button"
-          role="radio"
-          aria-checked={active}
-          onClick={() => onChange(mode)}
-          className={[
-            "group flex min-h-[88px] w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition-[border-color,background-color,box-shadow,transform] active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-book-primary sm:px-4 xl:col-span-2",
-            index === 3 ? "xl:col-start-2" : "",
-            active
-              ? "border-book-primary/60 bg-book-primary/10 shadow-[var(--shadow-soft)]"
-              : "border-book-border/60 bg-book-bg-paper/55 hover:border-book-primary/40 hover:bg-book-bg-paper/90 hover:shadow-[var(--shadow-soft)]",
-          ].join(" ")}
-          title={VIDEO_WORKFLOW_MODE_SUMMARIES[mode]}
-        >
-          <span
-            className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
-              active
-                ? "bg-book-primary text-white"
-                : "bg-book-primary/10 text-book-primary group-hover:bg-book-primary/15"
-            }`}
-          >
-            {WORKFLOW_MODE_ICONS[mode]}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-xs font-semibold text-book-text-main">
-              {VIDEO_WORKFLOW_MODE_LABELS[mode]}
-            </span>
-            <span className="mt-1 block text-[11px] leading-relaxed text-book-text-muted">
-              {VIDEO_WORKFLOW_MODE_SUMMARIES[mode]}
-            </span>
-          </span>
-          <ChevronRight
-            size={14}
-            className="mt-2.5 shrink-0 text-book-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-book-primary"
-            aria-hidden
-          />
-        </button>
-      );
-    })}
-  </div>
-);
-
-const VideoModeReturnButton: React.FC<{
-  onClick: () => void;
-  disabled?: boolean;
-  title?: string;
-  className?: string;
-}> = ({ onClick, disabled = false, title, className = "" }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    className={`pyqt-btn-secondary inline-flex min-h-[28px] items-center gap-1.5 px-2.5 text-xs ${className}`}
-    title={title ?? "切换视频生成模式"}
-  >
-    <ArrowLeft size={13} />
-    切换模式
-  </button>
-);
-
 export const VideoTab: React.FC<VideoTabProps> = ({
   projectId,
   fixedChapter,
@@ -451,28 +324,20 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   );
   const workflowMode = workflowModeState.mode;
   const setWorkflowMode = useCallback(
-    (mode: ChapterVideoWorkflowMode | null) =>
+    (mode: ChapterVideoWorkflowMode) =>
       setWorkflowModeState(createPersistedWorkflowModeState(mode)),
     [setWorkflowModeState],
   );
-  const modeStorageKey =
-    chapterStorageKey && workflowMode ? `${chapterStorageKey}:${workflowMode}` : null;
+  const modeStorageKey = chapterStorageKey ? `${chapterStorageKey}:${workflowMode}` : null;
   const projectModeStorageKey =
-    Number.isFinite(projectId) && projectId > 0 && workflowMode
+    Number.isFinite(projectId) && projectId > 0
       ? `a4n:video:${projectId}:${workflowMode}`
       : null;
   const videoActionScopeKey = videoDataKey
-    ? `${videoDataKey}:${workflowMode ?? "no-mode"}`
+    ? `${videoDataKey}:${workflowMode}`
     : null;
-  const visibleWorkspaceTabsForMode = useMemo(
-    () => videoWorkspaceTabsForMode(workflowMode),
-    [workflowMode],
-  );
-  const workspaceTabIdsForMode = useMemo(
-    () => visibleWorkspaceTabsForMode.map((tab) => tab.id),
-    [visibleWorkspaceTabsForMode],
-  );
-  const defaultWorkspaceTab = defaultWorkspaceTabForMode(workflowMode);
+  const workspaceTabIds = VIDEO_WORKSPACE_TABS.map((tab) => tab.id);
+  const defaultWorkspaceTab: VideoWorkspaceTab = "video";
   const workspaceTabInitialValue = useMemo(
     () => createPersistedWorkspaceTabState(defaultWorkspaceTab),
     [defaultWorkspaceTab, modeStorageKey],
@@ -483,7 +348,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       workspaceTabInitialValue,
       {
         parse: (raw) =>
-          parsePersistedWorkspaceTabState(raw, defaultWorkspaceTab, workspaceTabIdsForMode),
+          parsePersistedWorkspaceTabState(raw, defaultWorkspaceTab, workspaceTabIds),
         serialize: serializePersistedWorkspaceTabState,
       },
     );
@@ -493,6 +358,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     [setWorkspaceTabState],
   );
   const [prompts, setPrompts] = useState<ChapterVideoPrompt[]>([]);
+  const workflowTargetShotRef = useRef<number | null>(null);
+  const [referenceMediaSegment, setReferenceMediaSegment] = usePersistedState<ReferenceMediaSegmentState | null>(
+    chapterStorageKey ? `${chapterStorageKey}:reference-media-segment` : null,
+    null,
+    { parse: parseReferenceMediaSegmentState, serialize: JSON.stringify },
+  );
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const persistedNullIdInitialValue = useMemo(
@@ -645,7 +516,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setImageScoreInput,
     handleCloseImageDetails,
     handleDeleteImage,
-    handleOpenImageDetails,
     handleScoreImage,
     handleToggleImageFavorite,
     handleUpdateImage,
@@ -673,7 +543,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     selectedPromptStale,
     selectedPromptRunning,
     workflowVideos,
-    workflowAssemblyVideos,
     selectableReferenceImages,
     selectableReferenceIds,
     systemPromptReferenceIds,
@@ -698,36 +567,39 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     currentContentHash,
     activeVideoConfig,
   });
+
+  const referenceMediaSegmentVideos = useMemo(() => {
+    if (!referenceMediaSegment) return workflowVideos;
+    return workflowVideos.filter((video) => {
+      const metadata =
+        video.metadata_json && typeof video.metadata_json === "object" && !Array.isArray(video.metadata_json)
+          ? (video.metadata_json as Record<string, unknown>)
+          : null;
+      return metadata?.shot_number === referenceMediaSegment.shotNumber;
+    });
+  }, [referenceMediaSegment, workflowVideos]);
+  const allSegmentPrompts = useMemo(
+    () => prompts
+      .filter((prompt) => prompt.prompt_type === "video_prompt")
+      .sort((a, b) => a.shot_number - b.shot_number || a.id - b.id),
+    [prompts],
+  );
   const expectedVideoPromptCount = useMemo(
     () => expectedVideoPromptCountFromSegmentPlanPrompt(frameSegmentPlanPrompt),
     [frameSegmentPlanPrompt],
   );
   const chapterGenerating = isChapterGenerating(chapter);
-  const visibleWorkspaceTabs = visibleWorkspaceTabsForMode;
+  const visibleWorkspaceTabs = VIDEO_WORKSPACE_TABS;
   const activeWorkspaceTab =
-    workflowMode && visibleWorkspaceTabs.some((tab) => tab.id === workspaceTab)
-      ? workspaceTab
-      : defaultWorkspaceTabForMode(workflowMode);
-  const currentFramePromptRecordType =
-    workflowMode === "chat_video"
-      ? VIDEO_CHAT_FRAME_PROMPT_TYPE
-      : workflowMode === "storyboard"
-        ? VIDEO_STORYBOARD_PROMPT_TYPE
-      : workflowMode === "first_frame_chain"
-      ? VIDEO_FIRST_FRAME_PROMPT_TYPE
-      : workflowMode === "boundary_frames"
-        ? VIDEO_FRAME_PROMPT_TYPE
-        : null;
+    visibleWorkspaceTabs.some((tab) => tab.id === workspaceTab) ? workspaceTab : defaultWorkspaceTab;
   const {
     chapterVideoAssetCount,
     chapterVideoChainPromptCount,
-    chapterFramePromptRecordCount,
   } = useMemo(() => {
     if (!chapter) {
       return {
         chapterVideoAssetCount: 0,
         chapterVideoChainPromptCount: 0,
-        chapterFramePromptRecordCount: 0,
       };
     }
 
@@ -737,25 +609,16 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     }
 
     let chapterVideoChainPromptCount = 0;
-    let chapterFramePromptRecordCount = 0;
     for (const prompt of prompts) {
       if (prompt.chapter_id !== chapter.id) continue;
       chapterVideoChainPromptCount += 1;
-      if (
-        currentFramePromptRecordType != null &&
-        prompt.prompt_type === currentFramePromptRecordType &&
-        videoWorkflowModeOfPrompt(prompt) === workflowMode
-      ) {
-        chapterFramePromptRecordCount += 1;
-      }
     }
 
     return {
       chapterVideoAssetCount,
       chapterVideoChainPromptCount,
-      chapterFramePromptRecordCount,
     };
-  }, [chapter, currentFramePromptRecordType, prompts, videos, workflowMode]);
+  }, [chapter, prompts, videos]);
   const selectionValidationReady = loadedDataKey === videoDataKey;
   const invalidGenerationReferenceIds = useMemo(
     () =>
@@ -818,10 +681,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setReferenceMediaDraft((prev) => ({ ...clearReferenceMediaDraftStorageError(prev), videoRows }));
   const setReferenceMediaAudioRows = (audioRows: ReferenceMediaBindingRow[]) =>
     setReferenceMediaDraft((prev) => ({ ...clearReferenceMediaDraftStorageError(prev), audioRows }));
-  const handleReturnToModeSelection = () => {
-    setWorkflowMode(null);
-  };
-
   const loadAll = async () => {
     if (!chapter || !videoDataKey) return;
     const requestSeq = loadAllSeqRef.current + 1;
@@ -849,30 +708,20 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       setLoadedDataKey(requestDataKey);
       if (!selectedPromptState.storageError) {
         setSelectedPromptId((current) => {
-          const sourcePromptType =
-            workflowMode === "boundary_frames" ||
-            workflowMode === "first_frame_chain" ||
-            workflowMode === "storyboard" ||
-            workflowMode === "chat_video"
-              ? VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE
-              : null;
           const isSelectableVideoPrompt = (id: number) =>
             promptRows.some(
               (p) =>
                 p.id === id &&
                 isFinalVideoPrompt(p.prompt_type) &&
                 videoWorkflowModeOfPrompt(p) === workflowMode &&
-                sourcePromptType != null &&
-                promptSourcePromptType(p) === sourcePromptType,
+                promptSourcePromptType(p) === VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE,
             );
           return current && isSelectableVideoPrompt(current) ? current : null;
         });
       }
       if (!selectedVideoState.storageError) {
         setSelectedVideoId((current) => {
-          return current &&
-            workflowMode &&
-            videoRows.some(
+          return current && videoRows.some(
               (v) =>
                 v.id === current &&
                 videoWorkflowModeOfVideo(v) === workflowMode,
@@ -883,8 +732,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       }
       if (!pendingVideoState.storageError) {
         setPendingVideoId((current) => {
-          const pending =
-            current && workflowMode
+          const pending = current
               ? videoRows.find(
                   (v) =>
                     v.id === current &&
@@ -931,7 +779,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   }, [videoDataKey]);
 
   useEffect(() => {
-    if (!workflowMode || selectedPromptState.storageError) return;
+    if (selectedPromptState.storageError) return;
     setSelectedPromptId((current) => {
       if (current && finalVideoPrompts.some((prompt) => prompt.id === current)) {
         return current;
@@ -941,7 +789,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   }, [finalVideoPrompts, selectedPromptState.storageError, setSelectedPromptId, workflowMode]);
 
   useEffect(() => {
-    if (!workflowMode) return;
     const pending = workflowVideos.find(hasPendingProviderJob) ?? null;
     if (!pendingVideoState.storageError) {
       setPendingVideoId((current) => {
@@ -1017,13 +864,11 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   const {
     acting,
     setActing,
-    videoTaskId,
     setVideoTaskId,
     trimStart,
     trimEnd,
     setTrimStart,
     setTrimEnd,
-    handleUpdatePromptRow,
     handleOptimizePromptRow,
     handleDeletePromptRow,
     handleSavePrompt,
@@ -1039,7 +884,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     handleDeleteVideo,
     handleDeleteAllVideoAssets,
     handleDeleteAllVideoPrompts,
-    handleDeleteAllFramePrompts,
     handleTrim,
     requestPreviewOpen: videoRequestPreviewOpen,
     requestPreviewLoading: videoRequestPreviewLoading,
@@ -1116,11 +960,97 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setVideoTaskId,
   });
 
-  const videoPromptRequestOptions = (
-    workflowModeOverride: ChapterVideoWorkflowMode | null = workflowMode,
+  const handleAdoptSegmentVideo = async (video: GeneratedVideo) => {
+    const videoMetadata =
+      video.metadata_json && typeof video.metadata_json === "object" && !Array.isArray(video.metadata_json)
+        ? (video.metadata_json as Record<string, unknown>)
+        : null;
+    const shotNumber =
+      selectedPrompt?.shot_number ??
+      (typeof videoMetadata?.shot_number === "number" ? videoMetadata.shot_number : null);
+    if (!chapter || shotNumber == null) {
+      addToast("请先选择片段提示词", "error");
+      return;
+    }
+    setActing(`adopt-video-${video.id}`);
+    try {
+      await selectSegmentVideo(
+        projectId,
+        chapter.id,
+        video.id,
+        shotNumber,
+      );
+      addToast(`已采用片段 ${shotNumber} 的当前视频`, "success");
+      await loadAll();
+    } catch (err) {
+      addToast(extractErrorMessage(err, "采用片段视频失败"), "error");
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const handleSegmentWorkflowModeChange = (
+    mode: ChapterVideoWorkflowMode,
+    shotNumber?: number,
   ) => {
-    if (!workflowMode) throw new Error("请先选择视频生成模式");
-    if (!workflowModeOverride) throw new Error("请先选择视频生成模式");
+    const targetShotNumber = shotNumber ?? selectedPrompt?.shot_number ?? null;
+    workflowTargetShotRef.current = targetShotNumber;
+    if (mode === "reference_media") {
+      const targetPrompt =
+        (selectedPrompt?.shot_number === targetShotNumber ? selectedPrompt : null) ??
+        allSegmentPrompts.find(
+          (prompt) =>
+            prompt.shot_number === targetShotNumber &&
+            videoWorkflowModeOfPrompt(prompt) === workflowMode,
+        ) ??
+        allSegmentPrompts.find((prompt) => prompt.shot_number === targetShotNumber);
+      if (!targetPrompt) {
+        addToast("当前片段还没有可关联的视频提示词", "error");
+        return;
+      }
+      setReferenceMediaSegment({
+        promptId: targetPrompt.id,
+        shotNumber: targetPrompt.shot_number,
+      });
+    }
+    setWorkflowMode(mode);
+    setWorkspaceTab("video");
+  };
+
+  const handleUpdateSegmentGuidance = async (
+    prompt: ChapterVideoPrompt,
+    guidanceMode: SegmentGuidanceMode,
+    referenceImageIds: number[],
+    continuitySourceVideoId: number | null,
+  ) => {
+    setActing(`guidance-${prompt.id}`);
+    try {
+      await updateChapterVideoPrompt(prompt.id, {
+        reference_image_ids_json: referenceImageIds,
+        guidance_mode: guidanceMode,
+        continuity_source_video_id: continuitySourceVideoId,
+      });
+      addToast("片段生成方式已保存", "success");
+      await loadAll();
+    } catch (err) {
+      addToast(extractErrorMessage(err, "保存片段生成方式失败"), "error");
+    } finally {
+      setActing(null);
+    }
+  };
+
+  useEffect(() => {
+    const shotNumber = workflowTargetShotRef.current;
+    if (shotNumber == null || finalVideoPrompts.length === 0) return;
+    const target = finalVideoPrompts.find((prompt) => prompt.shot_number === shotNumber);
+    if (!target) return;
+    workflowTargetShotRef.current = null;
+    setSelectedPromptId(target.id);
+  }, [finalVideoPrompts, setSelectedPromptId]);
+
+  const videoPromptRequestOptions = (
+    workflowModeOverride: ChapterVideoWorkflowMode = workflowMode,
+  ) => {
     if (videoOptionsStateError) throw new Error(videoOptionsStateError);
     if (promptInputSelectionError) throw new Error(promptInputSelectionError);
     return {
@@ -1137,10 +1067,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 
   const validatePromptRequestPreview = (): boolean => {
     if (!chapter) return false;
-    if (!workflowMode) {
-      addToast("请先选择视频生成模式", "error");
-      return false;
-    }
     if (videoOptionsStateError) {
       addToast(videoOptionsStateError, "error");
       return false;
@@ -1174,35 +1100,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         setPromptRequestPreviewLoading(false);
       }
     }
-  };
-
-  const handlePreviewFramePromptRequests = async () => {
-    if (!chapter || !validatePromptRequestPreview()) return;
-    if (
-      workflowMode !== "boundary_frames" &&
-      workflowMode !== "first_frame_chain" &&
-      workflowMode !== "storyboard" &&
-      workflowMode !== "chat_video"
-    ) {
-      addToast("当前模式不能使用帧提示词链路", "error");
-      return;
-    }
-    const firstFrameMode = workflowMode === "first_frame_chain";
-    await openPromptRequestPreview(
-      () =>
-        previewChapterVideoFramePromptRequests(
-          projectId,
-          chapter.id,
-          videoPromptRequestOptions(),
-        ),
-      workflowMode === "chat_video"
-        ? "预览 Chat 首尾帧提示词请求失败"
-        : workflowMode === "storyboard"
-          ? "预览分镜提示词请求失败"
-        : firstFrameMode
-          ? "预览首帧提示词请求失败"
-          : "预览边界帧提示词请求失败",
-    );
   };
 
   const handlePreviewVideoPromptRequests = async () => {
@@ -1329,6 +1226,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       return null;
     }
     const firstMissing = missingPrompts[0];
+    if (!firstMissing) return null;
     const dynamicTailCount = missingPrompts.length - 1;
     const extraPreviewNote =
       dynamicTailCount > 0
@@ -1382,7 +1280,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const activeRows = normalizeReferenceMediaRows(rows);
     const meta = REFERENCE_MEDIA_KIND_META[kind];
     if (purpose === "generate" && activeRows.length > REFERENCE_MEDIA_LIMITS[kind]) {
-      addToast(`${meta.field} 最多允许 ${REFERENCE_MEDIA_LIMITS[kind]} 个 URL`, "error");
+      addToast(`${meta.label}最多允许 ${REFERENCE_MEDIA_LIMITS[kind]} 个输入`, "error");
       return null;
     }
     if (purpose === "preview") {
@@ -1390,11 +1288,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     }
     for (const [index, row] of activeRows.entries()) {
       const token = `@${meta.tokenPrefix}_${index + 1}`;
-      if (!row.url) {
-        addToast(`${token} 缺少 URL`, "error");
+      if (row.url && row.upload) {
+        addToast(`${token} 不能同时使用 URL 和本地文件`, "error");
         return null;
       }
-      if (!validReferenceMediaUrl(row.url)) {
+      if (!row.url && !row.upload) {
+        addToast(`${token} 缺少 URL 或本地文件`, "error");
+        return null;
+      }
+      if (row.url && !validReferenceMediaUrl(row.url)) {
         addToast(`${token} URL 必须以小写 http:// 或 https:// 开头`, "error");
         return null;
       }
@@ -1407,6 +1309,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   };
 
   const buildReferenceMediaVideoInput = (
+    segment: ReferenceMediaSegmentState,
     purpose: ReferenceMediaInputPurpose = "generate",
   ): ReferenceMediaVideoInput | null => {
     if (referenceMediaDraft.storageError) {
@@ -1426,7 +1329,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     if (!audioRows) return null;
     if (imageRows.length === 0 && videoRows.length === 0 && audioRows.length === 0) {
       if (purpose !== "preview") {
-        addToast("参考媒体模式至少需要一个 image_files、video_files 或 audio_files URL", "error");
+        addToast("参考媒体模式至少需要一个图片、视频或音频输入", "error");
         return null;
       }
     }
@@ -1446,10 +1349,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       }
     }
     const input: ReferenceMediaVideoInput = {
+      segment_prompt_id: segment.promptId,
+      shot_number: segment.shotNumber,
       prompt,
-      image_files: imageRows.map((row) => row.url),
-      video_files: videoRows.map((row) => row.url),
-      audio_files: audioRows.map((row) => row.url),
+      image_files: imageRows.flatMap((row) => row.url ? [row.url] : []),
+      image_uploads: imageRows.flatMap((row) => row.upload ? [row.upload] : []),
+      video_files: videoRows.flatMap((row) => row.url ? [row.url] : []),
+      video_uploads: videoRows.flatMap((row) => row.upload ? [row.upload] : []),
+      audio_files: audioRows.flatMap((row) => row.url ? [row.url] : []),
+      audio_uploads: audioRows.flatMap((row) => row.upload ? [row.upload] : []),
       duration_secs: options.durationSecs,
       aspect_ratio: options.aspectRatio,
       config_id: null,
@@ -1457,35 +1365,44 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     return input;
   };
 
-  const ensureReferenceMediaReady = (operation: string, requireWritable = true): boolean => {
-    if (!chapter) return false;
+  const referenceMediaSegmentFor = (
+    operation: string,
+    requireWritable = true,
+  ): ReferenceMediaSegmentState | null => {
+    if (!chapter) return null;
+    if (!referenceMediaSegment) {
+      addToast("请从片段提示词卡片选择参考媒体方案", "error");
+      return null;
+    }
     if (requireWritable && chapterGenerating) {
       addToast(chapterGeneratingMessage(chapter, operation), "error");
-      return false;
+      return null;
     }
     if (videoOptionsStateError) {
       addToast(videoOptionsStateError, "error");
-      return false;
+      return null;
     }
-    if (!requireWritable) return true;
-    if (activeVideoConfig?.backend !== "seedance2-video") {
-      addToast("参考媒体模式必须先激活 seedance2-video 视频配置", "error");
-      return false;
+    if (!requireWritable) return referenceMediaSegment;
+    if (activeVideoConfig?.capabilities?.supports_reference_media !== true) {
+      addToast("当前视频服务不支持参考媒体生成", "error");
+      return null;
     }
     if (effectiveDurationLimits.configError) {
       addToast(effectiveDurationLimits.configError, "error");
-      return false;
+      return null;
     }
     if (!isDurationAllowed(options.durationSecs, effectiveDurationLimits)) {
       addToast("视频时长不在默认视频模型支持范围内", "error");
-      return false;
+      return null;
     }
-    return true;
+    return referenceMediaSegment;
   };
 
   const handlePreviewReferenceMediaVideoRequest = async () => {
-    if (!chapter || !ensureReferenceMediaReady("预览参考媒体视频请求", false)) return;
-    const input = buildReferenceMediaVideoInput("preview");
+    if (!chapter) return;
+    const segment = referenceMediaSegmentFor("预览参考媒体视频请求", false);
+    if (!segment) return;
+    const input = buildReferenceMediaVideoInput(segment, "preview");
     if (!input) return;
     const previewScope = promptRequestPreviewScopeRef.current;
     setPromptRequestPreviewOpen(true);
@@ -1507,7 +1424,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   };
 
   const handleGenerateReferenceMediaVideo = async () => {
-    if (!chapter || !ensureReferenceMediaReady("生成参考媒体视频")) return;
+    if (!chapter) return;
+    const segment = referenceMediaSegmentFor("生成参考媒体视频");
+    if (!segment) return;
     const generateInputError = referenceMediaGenerateDraftError(
       referenceMediaDraft.prompt,
       referenceMediaRowsByKindFromDraft(referenceMediaDraft),
@@ -1517,53 +1436,45 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       addToast(generateInputError, "error");
       return;
     }
-    const input = buildReferenceMediaVideoInput();
+    const input = buildReferenceMediaVideoInput(segment);
     if (!input) return;
-    const taskId = createProgressTaskId("reference-media-video", projectId);
     setActing("reference-media-video");
-    setVideoTaskId(taskId);
-    let providerPending = false;
-    let failedVideoId: number | null = null;
     try {
-      await runProgressTask(
+      const handle = await startVideoGeneration({
+        project_id: projectId,
+        operation: {
+          kind: "reference_media",
+          chapter_id: chapter.id,
+          input,
+        },
+      });
+      setVideoTaskId(handle.task_id);
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "参考媒体视频生成",
           startMessage: "正在准备参考媒体视频生成",
           successMessage: "参考媒体视频生成完成",
           errorMessage: "参考媒体视频生成失败",
           total: 7,
-          taskId,
           cancelLabel: "停止生成",
         },
-        async () => {
-          const row = await generateReferenceMediaVideo(projectId, chapter.id, input, taskId);
-          providerPending = hasPendingProviderJob(row);
-          if (row.status === "failed") {
-            failedVideoId = row.id;
-            setPendingVideoId(null);
-          } else {
-            setSelectedVideoId(row.id);
-            setPendingVideoId(providerPending ? row.id : null);
-          }
+        async (task) => {
+          const [row] = await verifyVideoGenerationResult(
+            task,
+            projectId,
+            chapter.id,
+          );
+          if (!row) throw new Error("参考媒体视频生成已结束，但没有正式视频结果");
+          setSelectedVideoId(row.id);
+          setPendingVideoId(null);
         },
       );
-      if (failedVideoId != null) {
-        addToast("参考媒体视频生成失败，请调整提示词或参考媒体后重试", "error");
-      } else {
-        addToast(
-          providerPending
-            ? "参考媒体视频任务已提交到供应商，等待生成结果，可稍后轮询"
-            : "参考媒体视频生成完成",
-          "success",
-        );
-      }
+      addToast("参考媒体视频生成完成", "success");
     } catch (err) {
       const message = extractErrorMessage(err, "参考媒体视频生成失败");
-      if (failedVideoId != null) {
-        addToast("参考媒体视频生成失败，请调整提示词或参考媒体后重试", "error");
-      } else {
-        addToast(message, "error");
-      }
+      addToast(message, "error");
     } finally {
       await loadAll();
       setActing(null);
@@ -1573,10 +1484,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 
   const handleImportReferenceMediaVideo = async () => {
     if (!chapter) return;
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, "导入参考媒体视频"), "error");
-      return;
-    }
+    const segment = referenceMediaSegmentFor("导入参考媒体视频");
+    if (!segment) return;
     if (referenceMediaDraft.storageError) {
       addToast(`${referenceMediaDraft.storageError}；请重新编辑后再导入`, "error");
       return;
@@ -1622,6 +1531,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         prompt,
         duration_secs: options.durationSecs,
         aspect_ratio: options.aspectRatio,
+        segment_prompt_id: segment.promptId,
+        shot_number: segment.shotNumber,
       });
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
@@ -1634,16 +1545,56 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     }
   };
 
-  const modeReturnBlockedReason =
-    acting || videoTaskId
-      ? "当前视频任务正在运行，完成或停止后再切换模式"
-      : promptRequestPreviewLoading || imageRequestPreviewLoading
-        ? "正在构造模型请求预览，请等待完成后再切换模式"
-        : null;
-
   if (!chapter) {
     return <EmptyHint text="请先在写作桌选择已生成的章节。" />;
   }
+
+  const referenceMediaWorkspace = workflowMode === "reference_media" ? (
+    <ReferenceMediaWorkspace
+      prompt={referenceMediaDraft.prompt}
+      imageRows={referenceMediaDraft.imageRows}
+      videoRows={referenceMediaDraft.videoRows}
+      audioRows={referenceMediaDraft.audioRows}
+      draftStorageError={referenceMediaDraft.storageError}
+      durationSecs={options.durationSecs}
+      aspectRatio={options.aspectRatio}
+      durationLimits={effectiveDurationLimits}
+      activeVideoConfig={activeVideoConfig}
+      videos={referenceMediaSegmentVideos}
+      totalVideoAssetCount={chapterVideoAssetCount}
+      selectedVideo={selectedVideo}
+      selectedVideoId={selectedVideo?.id ?? selectedVideoId}
+      selectedVideoPath={selectedVideoPath}
+      trimStart={trimStart}
+      trimEnd={trimEnd}
+      acting={acting}
+      previewing={promptRequestPreviewLoading}
+      onPromptChange={setReferenceMediaPrompt}
+      onImageRowsChange={setReferenceMediaImageRows}
+      onVideoRowsChange={setReferenceMediaVideoRows}
+      onAudioRowsChange={setReferenceMediaAudioRows}
+      onDurationSecsChange={(durationSecs) =>
+        setVideoOptions((prev) => ({ ...prev, durationSecs }))
+      }
+      onAspectRatioChange={(aspectRatio) =>
+        setVideoOptions((prev) => ({ ...prev, aspectRatio }))
+      }
+      onPreview={handlePreviewReferenceMediaVideoRequest}
+      onGenerate={handleGenerateReferenceMediaVideo}
+      onImport={handleImportReferenceMediaVideo}
+      onSelectVideo={setSelectedVideoId}
+      onAdoptVideo={handleAdoptSegmentVideo}
+      onPollVideo={(video) => void handlePollVideo(video)}
+      onPreviewVideoRequest={handlePreviewVideoRequestForVideo}
+      onToggleVideoFavorite={(video) => void handleToggleVideoFavorite(video)}
+      onUpdateVideo={handleUpdateVideo}
+      onDeleteVideo={(video) => void handleDeleteVideo(video)}
+      onDeleteAllVideoAssets={handleDeleteAllVideoAssets}
+      onTrimStartChange={setTrimStart}
+      onTrimEndChange={setTrimEnd}
+      onTrim={handleTrim}
+    />
+  ) : undefined;
 
   return (
     <>
@@ -1653,98 +1604,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             {videoPersistedStateError}；请重新选择当前视频生成模式、工作区或条目后继续。
           </div>
         )}
-        {!workflowMode ? (
-          <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-1 py-4 custom-scrollbar sm:items-center sm:px-4 sm:py-6">
-            <section aria-labelledby="video-mode-title" className="w-full max-w-5xl">
-              <div className="mb-4 px-1 text-left sm:mb-5 sm:text-center">
-                <h2 id="video-mode-title" className="font-serif text-lg font-semibold text-book-text-main">
-                  选择视频生成方式
-                </h2>
-                <p className="mx-auto mt-1 max-w-2xl text-xs leading-relaxed text-book-text-muted">
-                  每种方式对应独立的素材和生成流程。进入后仍可随时切换。
-                </p>
-              </div>
-              <VideoWorkflowModeSelector
-                value={workflowMode}
-                onChange={setWorkflowMode}
-              />
-            </section>
-          </div>
-        ) : workflowMode === "reference_media" ? (
-          <>
-            <VideoWorkspaceHeader
-              tabs={visibleWorkspaceTabs}
-              activeTab={activeWorkspaceTab}
-              onTabChange={setWorkspaceTab}
-            >
-              <VideoModeReturnButton
-                onClick={handleReturnToModeSelection}
-                disabled={modeReturnBlockedReason != null}
-                title={modeReturnBlockedReason ?? undefined}
-              />
-            </VideoWorkspaceHeader>
-            {activeWorkspaceTab === "materials" ? (
-              <div className="min-h-0 flex-1">
-                <VideoMaterialWorkspace
-                  projectId={profileMaterialProjectId}
-                  onToast={addToast}
-                  runProgressTask={runProgressTask}
-                  onRefreshVideoData={loadAll}
-                />
-              </div>
-            ) : (
-              <ReferenceMediaWorkspace
-                prompt={referenceMediaDraft.prompt}
-                imageRows={referenceMediaDraft.imageRows}
-                videoRows={referenceMediaDraft.videoRows}
-                audioRows={referenceMediaDraft.audioRows}
-                draftStorageError={referenceMediaDraft.storageError}
-                durationSecs={options.durationSecs}
-                aspectRatio={options.aspectRatio}
-                durationLimits={effectiveDurationLimits}
-                activeVideoConfig={activeVideoConfig}
-                videos={workflowVideos}
-                totalVideoAssetCount={chapterVideoAssetCount}
-                selectedVideo={selectedVideo}
-                selectedVideoId={selectedVideo?.id ?? selectedVideoId}
-                selectedVideoPath={selectedVideoPath}
-                trimStart={trimStart}
-                trimEnd={trimEnd}
-                acting={acting}
-                previewing={promptRequestPreviewLoading}
-                onPromptChange={setReferenceMediaPrompt}
-                onImageRowsChange={setReferenceMediaImageRows}
-                onVideoRowsChange={setReferenceMediaVideoRows}
-                onAudioRowsChange={setReferenceMediaAudioRows}
-                onDurationSecsChange={(durationSecs) =>
-                  setVideoOptions((prev) => ({ ...prev, durationSecs }))
-                }
-                onAspectRatioChange={(aspectRatio) =>
-                  setVideoOptions((prev) => ({ ...prev, aspectRatio }))
-                }
-                onPreview={handlePreviewReferenceMediaVideoRequest}
-                onGenerate={handleGenerateReferenceMediaVideo}
-                onImport={handleImportReferenceMediaVideo}
-                onSelectVideo={setSelectedVideoId}
-                onPollVideo={(video) => void handlePollVideo(video)}
-                onPreviewVideoRequest={handlePreviewVideoRequestForVideo}
-                onToggleVideoFavorite={(video) => void handleToggleVideoFavorite(video)}
-                onUpdateVideo={handleUpdateVideo}
-                onDeleteVideo={(video) => void handleDeleteVideo(video)}
-                onDeleteAllVideoAssets={handleDeleteAllVideoAssets}
-                onTrimStartChange={setTrimStart}
-                onTrimEndChange={setTrimEnd}
-                onTrim={handleTrim}
-              />
-            )}
-          </>
-        ) : (
-          <>
-            <VideoWorkspaceHeader
-              tabs={visibleWorkspaceTabs}
-              activeTab={activeWorkspaceTab}
-              onTabChange={setWorkspaceTab}
-            >
+        <VideoWorkspaceHeader
+          tabs={visibleWorkspaceTabs}
+          activeTab={activeWorkspaceTab}
+          onTabChange={setWorkspaceTab}
+        >
+          {workflowMode === "reference_media" ? (
+            <span>参考媒体 · 当前片段</span>
+          ) : (
+            <>
               <VideoPromptReferenceInputDialog
                 images={selectableReferenceImages}
                 chapter={chapter}
@@ -1770,80 +1638,54 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 onClearInvalidGenerationReferences={clearInvalidGenerationReferences}
                 onClearInvalidVideoLibraryImages={clearInvalidVideoLibraryImages}
               />
-              <VideoModeReturnButton
-                onClick={handleReturnToModeSelection}
-                disabled={modeReturnBlockedReason != null}
-                title={modeReturnBlockedReason ?? undefined}
-              />
-            </VideoWorkspaceHeader>
+              <span>{VIDEO_WORKFLOW_MODE_LABELS[workflowMode]} · 当前片段</span>
+            </>
+          )}
+        </VideoWorkspaceHeader>
 
-            {activeWorkspaceTab === "materials" ? (
-              <div className="min-h-0 flex-1">
-                <VideoMaterialWorkspace
-                  projectId={profileMaterialProjectId}
-                  onToast={addToast}
-                  runProgressTask={runProgressTask}
-                  onRefreshVideoData={loadAll}
-                />
-              </div>
-            ) : activeWorkspaceTab === "frames" ? (
-              <VideoFrameWorkspace
-                key={`frames:${workflowMode}`}
-                prompts={framePrompts}
-                generationPrompts={currentLanguageFramePrompts}
-                workflowMode={workflowMode}
-                segmentPlanPrompt={frameSegmentPlanPrompt}
-                videoPromptCount={finalVideoPrompts.length}
-                totalFramePromptRecordCount={chapterFramePromptRecordCount}
-                availableImages={selectableReferenceImages}
-                referenceLookupImages={images}
-                frameImages={videoFrameImages}
-                options={options}
-                durationLimits={effectiveDurationLimits}
-                promptInputSelectionError={promptInputSelectionError}
-                acting={acting}
-                chapterGenerating={chapterGenerating}
-                previewingPromptRequests={promptRequestPreviewLoading}
-                onOptionsChange={setVideoOptions}
-                onGenerateSegments={handleGenerateSegmentPlan}
-                onDeleteSegmentPlan={(prompt) => void handleDeletePromptRow(prompt)}
-                onGeneratePrompts={handleGenerateFramePrompts}
-                onPreviewPromptRequests={handlePreviewFramePromptRequests}
-                onDeleteAllFramePrompts={handleDeleteAllFramePrompts}
-                onPreviewFrameImages={handlePreviewFrameImageRequest}
-                onUpdatePrompt={(prompt, input) => void handleUpdatePromptRow(prompt, input)}
-                onOptimizePrompt={(prompt) => void handleOptimizePromptRow(prompt)}
-                onDeletePrompt={(prompt) => void handleDeletePromptRow(prompt)}
-                onGenerateFrameImages={(prompt) => void handleGenerateFrameImages(prompt)}
-                onImportFrameImage={(prompt) => void handleImportFrameImage(prompt)}
-                onToggleFavorite={(image) => void handleToggleImageFavorite(image)}
-                onOpenImageDetails={handleOpenImageDetails}
-              />
-            ) : activeWorkspaceTab === "assembly" ? (
-              <VideoAssemblyWorkspace
-                key={`assembly:${workflowMode}`}
-                projectId={projectId}
+        {activeWorkspaceTab === "materials" ? (
+          <div className="min-h-0 flex-1">
+            <VideoMaterialWorkspace
+              projectId={profileMaterialProjectId}
+              onToast={addToast}
+              runProgressTask={runProgressTask}
+              onRefreshVideoData={loadAll}
+            />
+          </div>
+        ) : activeWorkspaceTab === "frames" ? (
+          <VideoPlanningWorkspace
+            prompt={frameSegmentPlanPrompt}
+            acting={acting}
+            chapterGenerating={chapterGenerating}
+            onGenerate={(regenerateExisting) =>
+              handleGenerateSegmentPlan({ regenerateExisting })
+            }
+            onDelete={(prompt) => void handleDeletePromptRow(prompt)}
+          />
+        ) : activeWorkspaceTab === "assembly" ? (
+          <VideoAssemblyWorkspace
+            key="assembly:mixed"
+            projectId={projectId}
+            chapter={chapter}
+            workflowMode="mixed"
+            videos={videos}
+            onToast={addToast}
+            onRefresh={loadAll}
+          />
+        ) : activeWorkspaceTab === "postprocess" ? (
+          <VideoPostProcessWorkspace
+            key="postprocess:mixed"
+            projectId={projectId}
+            chapter={chapter}
+            workflowMode="mixed"
+            videos={videos}
+            onToast={addToast}
+            onRefresh={loadAll}
+          />
+        ) : (
+          <VideoGenerationWorkspace
                 chapter={chapter}
-                workflowMode={workflowMode}
-                videos={workflowAssemblyVideos}
-                onToast={addToast}
-                onRefresh={loadAll}
-              />
-            ) : activeWorkspaceTab === "postprocess" ? (
-              <VideoPostProcessWorkspace
-                key={`postprocess:${workflowMode}`}
-                projectId={projectId}
-                chapter={chapter}
-                workflowMode={workflowMode}
-                videos={videos}
-                onToast={addToast}
-                onRefresh={loadAll}
-              />
-            ) : (
-              <VideoGenerationWorkspace
-                key={`video:${workflowMode}`}
-                chapter={chapter}
-                prompts={finalVideoPrompts}
+                prompts={allSegmentPrompts}
                 generationPrompts={currentLanguageFinalVideoPrompts}
                 selectedPrompt={selectedPrompt}
                 selectedPromptId={selectedPromptId}
@@ -1856,6 +1698,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 durationLimits={effectiveDurationLimits}
                 providerBackend={activeVideoConfig?.backend ?? null}
                 providerOptionsJson={activeVideoConfig?.provider_options_json ?? null}
+                providerCapabilities={activeVideoConfig?.capabilities}
                 promptInputSelectionError={promptInputSelectionError}
                 loading={loading}
                 acting={acting}
@@ -1874,7 +1717,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 boundReferenceImages={boundReferenceImages}
                 framePrompts={currentLanguageFramePrompts}
                 frameImages={videoFrameImages}
-                videos={workflowVideos}
+                videos={videos}
+                selectableReferenceImages={selectableReferenceImages}
                 totalVideoAssetCount={chapterVideoAssetCount}
                 totalVideoChainPromptCount={chapterVideoChainPromptCount}
                 selectedVideo={selectedVideo}
@@ -1887,13 +1731,28 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 }
                 onLoad={loadAll}
                 onOptionsChange={setVideoOptions}
-                onGeneratePromptRequests={handleGenerateVideoPrompts}
+                onGeneratePromptRequests={(requestOptions) =>
+                  handleGenerateVideoPrompts({
+                    ...requestOptions,
+                    targetShotNumber:
+                      requestOptions?.targetShotNumber ?? workflowTargetShotRef.current ?? undefined,
+                    promptBatchSize:
+                      workflowTargetShotRef.current != null
+                        ? 1
+                        : requestOptions?.promptBatchSize,
+                  })
+                }
                 onPreviewPromptRequests={handlePreviewVideoPromptRequests}
                 onSelectPrompt={setSelectedPromptId}
                 onDeletePrompt={(prompt) => void handleDeletePromptRow(prompt)}
                 onDeleteAllVideoPrompts={handleDeleteAllVideoPrompts}
                 onPollPendingVideo={handlePollVideo}
-                onOpenFrames={() => setWorkspaceTab("frames")}
+                onWorkflowModeChange={handleSegmentWorkflowModeChange}
+                onUpdateGuidance={handleUpdateSegmentGuidance}
+                onGenerateFramePrompts={() => handleGenerateFramePrompts({ runUntilComplete: true })}
+                onPreviewFrameImage={handlePreviewFrameImageRequest}
+                onGenerateFrameImage={(prompt) => handleGenerateFrameImages(prompt)}
+                onImportFrameImage={(prompt) => handleImportFrameImage(prompt)}
                 onDraftChange={setDraft}
                 onClearInvalidPromptReferences={clearInvalidPromptReferences}
                 onSavePrompt={handleSavePrompt}
@@ -1905,6 +1764,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 onGenerateAllVideos={handleGenerateAllVideos}
                 onImportVideo={handleImportVideo}
                 onSelectVideo={setSelectedVideoId}
+                onAdoptVideo={handleAdoptSegmentVideo}
                 onPollVideo={(video) => void handlePollVideo(video)}
                 onToggleVideoFavorite={(video) => void handleToggleVideoFavorite(video)}
                 onUpdateVideo={handleUpdateVideo}
@@ -1913,9 +1773,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 onTrimStartChange={setTrimStart}
                 onTrimEndChange={setTrimEnd}
                 onTrim={handleTrim}
-              />
-            )}
-          </>
+                workspaceOverride={referenceMediaWorkspace}
+          />
         )}
       </div>
       <ImageActionDialog

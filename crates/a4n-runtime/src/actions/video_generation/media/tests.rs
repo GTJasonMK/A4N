@@ -1,4 +1,8 @@
 use super::*;
+use a4n_orchestrator::video::{
+    encode_query_component, image_mime_from_path, is_provider_supported_image_content_type,
+    tail_frame_image_belongs_to_video, video_shot_number,
+};
 use chrono::Utc;
 use serde_json::{Value, json};
 
@@ -238,6 +242,23 @@ fn required_video_file_extension_accepts_supported_formats() {
     assert_eq!(required_video_file_extension(" WEBM "), Ok("webm"));
     assert_eq!(required_video_file_extension("mov"), Ok("mov"));
     assert_eq!(required_video_file_extension("m4v"), Ok("m4v"));
+}
+
+#[test]
+fn canvas_video_persistence_uses_project_video_directory_without_chapter() {
+    let root = tempfile::tempdir().expect("create canvas video test directory");
+    let data_dir = root.path().join("data");
+    std::fs::create_dir_all(&data_dir).expect("create data directory");
+
+    let (relative_path, file_size) = persist_canvas_video_bytes(&data_dir, 7, 42, b"video", "mp4")
+        .expect("persist canvas video");
+
+    assert_eq!(relative_path, "projects/7/videos/canvas_video_42.mp4");
+    assert_eq!(file_size, 5);
+    assert_eq!(
+        std::fs::read(data_dir.join(relative_path)).unwrap(),
+        b"video"
+    );
 }
 
 #[test]

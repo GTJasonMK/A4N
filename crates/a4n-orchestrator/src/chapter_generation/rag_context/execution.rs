@@ -7,41 +7,11 @@ use super::{
     projection::generation_rag_context_from_results,
     rules::{validate_generation_embedding_identity_match, validate_generation_query_vectors},
 };
-use crate::OrchestratorContext;
 use crate::rag::{hybrid_rag_search_filtered_in_store, hybrid_rag_search_with_embedding_in_store};
 
 const GENERATION_RAG_PULL_K: usize = 24;
 
-impl OrchestratorContext {
-    pub async fn execute_prepared_chapter_generation_rag_search(
-        &self,
-        prepared: &PreparedGenerationRagSearch,
-    ) -> Result<GenerationRagContext, String> {
-        execute_prepared_chapter_generation_rag_search_in_store(
-            self.rag_store.as_ref(),
-            self.embedding.as_ref(),
-            prepared,
-        )
-        .await
-    }
-
-    pub async fn execute_prepared_chapter_generation_rag_search_with_vectors(
-        &self,
-        prepared: &PreparedGenerationRagSearch,
-        embedding_identity: &EmbeddingModelIdentity,
-        query_vectors: Vec<Vec<f32>>,
-    ) -> Result<GenerationRagContext, String> {
-        execute_prepared_chapter_generation_rag_search_with_vectors_in_store(
-            self.rag_store.as_ref(),
-            prepared,
-            embedding_identity,
-            query_vectors,
-        )
-        .await
-    }
-}
-
-pub(super) async fn execute_prepared_chapter_generation_rag_search_in_store(
+pub(crate) async fn execute_prepared_chapter_generation_rag_search_in_store(
     store: &dyn VectorStore,
     provider: &dyn EmbeddingProvider,
     prepared: &PreparedGenerationRagSearch,
@@ -72,7 +42,7 @@ pub(super) async fn execute_prepared_chapter_generation_rag_search_in_store(
     ))
 }
 
-pub(super) async fn execute_prepared_chapter_generation_rag_search_with_vectors_in_store(
+pub(crate) async fn execute_prepared_chapter_generation_rag_search_with_vectors_in_store(
     store: &dyn VectorStore,
     prepared: &PreparedGenerationRagSearch,
     embedding_identity: &EmbeddingModelIdentity,

@@ -1,12 +1,22 @@
 import { apiInvoke } from "../index";
 import { readCurrentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
-import type { GeneratedImage } from "./types";
 import { idNum, integerNum, type ApiId as Id } from "../shared";
 import { getLocalImageConfig } from "../localRuntimeSettings";
 import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
 import { SYSTEM_IMAGE_CONFIG_ID } from "./configs";
+import { generationClient } from "../generationTasks";
+import { generationTaskKey, useGenerationTasksStore } from "../../store/generationTasks";
+import { sha256Hex } from "../../utils/contentHash";
+import type { GenerationTaskViewState } from "../../utils/generationEventReducer";
+import type {
+  GenerationTaskHandle,
+  ImageGenerationOperation,
+  StartImageGenerationInput,
+} from "../generated/generationContracts";
+import { listImagesByProject } from "./queries";
+import type { GeneratedImage } from "./types";
 
 const currentUserId = (): number => {
   const id = readCurrentUserId();
@@ -20,32 +30,72 @@ function normalizeImageConfigId(configId?: Id | null): number | null {
   return id === SYSTEM_IMAGE_CONFIG_ID ? null : idNum(id, "图片配置 ID");
 }
 
-/** 后端 generate_scene_image(project_id, prompt, _config_id?, _post_process?, chapter_id?) —— 平铺参数 */
-export async function generateSceneImage(
+export type ImageGenerationInput = Omit<StartImageGenerationInput, "meta">;
+export type { ImageGenerationOperation };
+
+export async function startImageGeneration(
+  input: ImageGenerationInput,
+): Promise<GenerationTaskHandle> {
+  return generationClient.start((meta) =>
+    apiInvoke<GenerationTaskHandle>("start_image_generation", {
+      userId: currentUserId(),
+      input: {
+        ...input,
+        meta,
+        project_id: idNum(input.project_id, "项目 ID"),
+        operation: normalizeGenerationOperation(input.operation),
+      },
+    }),
+  );
+}
+
+export async function verifyImageGenerationResult(
+  task: GenerationTaskViewState,
   projectId: Id,
-  prompt: string,
-  configId?: Id | null,
-  postProcess?: string[] | null,
-  chapterId?: Id | null,
-  taskId?: string | null,
-): Promise<GeneratedImage> {
-  const normalizedConfigId = normalizeImageConfigId(configId);
-  return apiInvoke<GeneratedImage>("generate_scene_image", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    prompt,
-    configId: normalizedConfigId,
-    postProcess: postProcess ?? null,
-    chapterId: chapterId == null ? null : idNum(chapterId, "章节 ID"),
-    taskId: taskId ?? null,
-    ...(usesLocalRuntimeSettings() && normalizedConfigId != null
-      ? {
-          runtime_config_snapshot: buildRuntimeConfigSnapshot({
-            image: getLocalImageConfig(normalizedConfigId),
-          }),
-        }
-      : {}),
-  });
+): Promise<GeneratedImage[]> {
+  const project = idNum(projectId, "项目 ID");
+  const images = await listImagesByProject(project);
+  const resultRef = task.resultRef;
+  let generated: GeneratedImage[] = [];
+  let valid = false;
+
+  if (resultRef?.kind === "generated_image") {
+    const imageId = Number(resultRef.id);
+    const image = images.find((item) => item.id === imageId && item.project_id === project);
+    if (image) {
+      const revision = await imageRevision(image);
+      valid = revision != null
+        && revision === resultRef.revision
+        && task.artifacts.some(
+          (artifact) => artifact.artifact_id === `generated-image:${image.id}`,
+        );
+      if (valid) generated = [image];
+    }
+  } else if (resultRef?.kind === "generated_image_batch" && Number(resultRef.id) === project) {
+    const ids = task.artifacts
+      .filter((artifact) => artifact.artifact_kind === "generated_image")
+      .map((artifact) => artifact.artifact_id.match(/^generated-image:(\d+)$/)?.[1])
+      .filter((id): id is string => id != null)
+      .map(Number);
+    const uniqueIds = [...new Set(ids)].sort((left, right) => left - right);
+    const revision = await sha256Hex(JSON.stringify(uniqueIds));
+    generated = uniqueIds
+      .map((id) => images.find((image) => image.id === id && image.project_id === project))
+      .filter((image): image is GeneratedImage => image != null);
+    valid = uniqueIds.length > 0
+      && revision != null
+      && revision === resultRef.revision
+      && generated.length === uniqueIds.length;
+  }
+
+  if (!valid) {
+    useGenerationTasksStore.getState().dispatch(
+      generationTaskKey(task.taskId, task.attempt),
+      { type: "client_state", state: "consistency_error" },
+    );
+    throw new Error("图片生成已结束，但正式结果校验失败");
+  }
+  return generated;
 }
 
 export async function previewSceneImageRequest(
@@ -71,22 +121,6 @@ export async function previewSceneImageRequest(
   });
 }
 
-/** 后端 generate_page_image(project_id, chapter_number, page_number) —— 平铺参数 */
-export async function generatePageImage(
-  projectId: Id,
-  chapterNumber: number,
-  pageNumber: number,
-  taskId?: string | null,
-): Promise<GeneratedImage> {
-  return apiInvoke<GeneratedImage>("generate_page_image", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterNumber,
-    pageNumber,
-    taskId: taskId ?? null,
-  });
-}
-
 export async function previewPageImageRequest(
   projectId: Id,
   chapterNumber: number,
@@ -100,20 +134,6 @@ export async function previewPageImageRequest(
   });
 }
 
-/** 后端 batch_generate_images(project_id, requests_json) —— 按图片配置并发上限批量生成，返回每张图的 summary 数组 */
-export async function batchGenerateImages(
-  projectId: Id,
-  requestsJson: unknown,
-  taskId?: string | null,
-): Promise<GeneratedImage[]> {
-  return apiInvoke<GeneratedImage[]>("batch_generate_images", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    requestsJson,
-    taskId: taskId ?? null,
-  });
-}
-
 export async function previewBatchImagesRequest(
   projectId: Id,
   requestsJson: unknown,
@@ -123,4 +143,56 @@ export async function previewBatchImagesRequest(
     projectId: idNum(projectId, "项目 ID"),
     requestsJson,
   });
+}
+
+function normalizeGenerationOperation(
+  operation: ImageGenerationOperation,
+): ImageGenerationOperation {
+  switch (operation.kind) {
+    case "scene":
+      return {
+        ...operation,
+        config_id: normalizeImageConfigId(operation.config_id),
+        chapter_id: operation.chapter_id == null
+          ? null
+          : idNum(operation.chapter_id, "章节 ID"),
+      };
+    case "object_profile":
+      return {
+        ...operation,
+        object_profile_id: idNum(operation.object_profile_id, "物体档案 ID"),
+        config_id: normalizeImageConfigId(operation.config_id),
+        chapter_id: operation.chapter_id == null
+          ? null
+          : idNum(operation.chapter_id, "章节 ID"),
+      };
+    case "scene_profile":
+      return {
+        ...operation,
+        scene_profile_id: idNum(operation.scene_profile_id, "场景档案 ID"),
+        config_id: normalizeImageConfigId(operation.config_id),
+        chapter_id: operation.chapter_id == null
+          ? null
+          : idNum(operation.chapter_id, "章节 ID"),
+      };
+    default:
+      return operation;
+  }
+}
+
+async function imageRevision(image: GeneratedImage): Promise<string | null> {
+  return sha256Hex(JSON.stringify([
+    image.id,
+    image.project_id,
+    image.image_type,
+    image.file_path,
+    image.prompt,
+    image.model,
+    image.width,
+    image.height,
+    image.file_size,
+    image.chapter_id,
+    image.panel_id,
+    image.created_at,
+  ]));
 }

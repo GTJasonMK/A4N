@@ -46,6 +46,17 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::shooting_script_narrative_units::Migration),
             Box::new(crate::migrations::shooting_script_staged_generation::Migration),
             Box::new(crate::migrations::video_execution_contract_v5_reset::Migration),
+            Box::new(crate::migrations::video_workflow_exclusive_claim::Migration),
+            Box::new(crate::migrations::video_workflow_task_binding::Migration),
+            Box::new(crate::migrations::neutral_video_segment_plan::Migration),
+            Box::new(
+                crate::migrations::shooting_script_transition_type_canonicalization::Migration,
+            ),
+            Box::new(crate::migrations::generation_task_persistence::Migration),
+            Box::new(crate::migrations::cleanup_outbox_generation_scope::Migration),
+            Box::new(crate::migrations::generation_snapshot_retention::Migration),
+            Box::new(crate::migrations::generation_snapshot_hash_contract::Migration),
+            Box::new(crate::migrations::segment_card_video_workflow::Migration),
         ]
     }
 }
@@ -90,6 +101,27 @@ mod tests {
         assert!(
             cleanup_outbox_index < directing_workflow_index,
             "directing workflow migration enqueues cleanup intents and must run after cleanup_outbox"
+        );
+        assert_eq!(
+            names
+                .iter()
+                .rev()
+                .take(9)
+                .rev()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            [
+                "video_workflow_exclusive_claim",
+                "video_workflow_task_binding",
+                "neutral_video_segment_plan",
+                "shooting_script_transition_type_canonicalization",
+                "generation_task_persistence",
+                "cleanup_outbox_generation_scope",
+                "generation_snapshot_retention",
+                "generation_snapshot_hash_contract",
+                "segment_card_video_workflow",
+            ],
+            "deployed migration history must remain registered in execution order"
         );
         assert_eq!(
             names.last().map(String::as_str),

@@ -1,4 +1,4 @@
-use a4n_core::event::sse::ProgressMeta;
+use a4n_core::event::progress::ProgressMeta;
 use a4n_queue::priority::TaskInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

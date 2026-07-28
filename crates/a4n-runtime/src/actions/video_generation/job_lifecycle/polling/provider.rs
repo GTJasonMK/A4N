@@ -1,12 +1,12 @@
 use a4n_core::models::ai::video_gen_config;
-use a4n_queue::priority::{TaskPriority, TaskType as QueueTaskType};
+use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_video::VideoJobState;
 use tokio_util::sync::CancellationToken;
 
 use crate::AppState;
 use crate::actions::image_generation::run_queued_request_with_cancel_and_workflow;
 
-pub(super) async fn poll_provider_job(
+pub(in crate::actions) async fn poll_provider_job(
     state: &AppState,
     cfg: &video_gen_config::Model,
     project_id: i64,
@@ -18,14 +18,14 @@ pub(super) async fn poll_provider_job(
 ) -> Result<VideoJobState, String> {
     run_queued_request_with_cancel_and_workflow(
         state,
-        QueueTaskType::VideoPoll,
+        QueueTaskKind::VideoPoll,
         priority,
         Some(project_id),
         workflow_run_id,
         cancel_token,
         || async {
             crate::sidecar_clients::poll_video(
-                state.runtime_profile,
+                state.runtime_profile(),
                 state.capabilities(),
                 cfg,
                 job_id,

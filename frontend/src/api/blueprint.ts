@@ -2,13 +2,19 @@ import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
+import { generationClient } from "./generationTasks";
+import type {
+  GenerationTaskHandle,
+  StartBlueprintGenerationInput,
+  StartBlueprintRefinementInput,
+} from "./generated/generationContracts";
 
 /**
  * Blueprint API wrapper —— 对齐 crates/a4n-tauri/src/commands/blueprint.rs
  *
  * 命令组：
  *  - get/list_*: 用 projectId 平铺参数
- *  - generate_blueprint / refine_blueprint: 用 input 包装
+ *  - start_blueprint_generation / start_blueprint_refinement: canonical generation task
  */
 
 // ============================================================================
@@ -62,16 +68,18 @@ export async function getBlueprint(projectId: Id): Promise<Blueprint | null> {
   });
 }
 
-/** 后端 generate_blueprint(input: { project_id, title, genre, target_length, variables?, task_id? }) */
-export async function generateBlueprint(input: {
-  project_id: number;
-  title: string;
-  genre: string;
-  target_length: number;
-  task_id?: string | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<Blueprint> {
-  return apiInvoke<Blueprint>("generate_blueprint", { userId: currentUserId(), input });
+export type BlueprintGenerationInput = Omit<StartBlueprintGenerationInput, "meta">;
+export type BlueprintRefinementInput = Omit<StartBlueprintRefinementInput, "meta">;
+
+export async function generateBlueprint(
+  input: BlueprintGenerationInput,
+): Promise<GenerationTaskHandle> {
+  return generationClient.start((meta) =>
+    apiInvoke<GenerationTaskHandle>("start_blueprint_generation", {
+      userId: currentUserId(),
+      input: { ...input, meta, project_id: idNum(input.project_id) },
+    }),
+  );
 }
 
 export async function previewGenerateBlueprintRequest(input: {
@@ -79,7 +87,6 @@ export async function previewGenerateBlueprintRequest(input: {
   title: string;
   genre: string;
   target_length: number;
-  task_id?: string | null;
   variables?: Record<string, unknown> | null;
 }): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_generate_blueprint_request", {
@@ -88,13 +95,15 @@ export async function previewGenerateBlueprintRequest(input: {
   });
 }
 
-/** 后端 refine_blueprint(input: { project_id, focus?, variables? }) */
-export async function refineBlueprint(input: {
-  project_id: number;
-  focus?: string | null;
-  variables?: Record<string, unknown> | null;
-}): Promise<Blueprint> {
-  return apiInvoke<Blueprint>("refine_blueprint", { userId: currentUserId(), input });
+export async function refineBlueprint(
+  input: BlueprintRefinementInput,
+): Promise<GenerationTaskHandle> {
+  return generationClient.start((meta) =>
+    apiInvoke<GenerationTaskHandle>("start_blueprint_refinement", {
+      userId: currentUserId(),
+      input: { ...input, meta, project_id: idNum(input.project_id) },
+    }),
+  );
 }
 
 export async function previewRefineBlueprintRequest(input: {

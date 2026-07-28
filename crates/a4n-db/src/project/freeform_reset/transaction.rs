@@ -24,6 +24,15 @@ where
         .await
         .map_err(FreeformGeneratedResetDbError::from)?
         .ok_or(FreeformGeneratedResetDbError::ProjectNotFound { project_id })?;
+    crate::generation::require_project_lifecycle_gate(
+        &txn,
+        project_id,
+        crate::generation::PROJECT_GATE_RESETTING,
+    )
+    .await
+    .map_err(|error| FreeformGeneratedResetDbError::Database {
+        source: sea_orm::DbErr::Custom(error.to_string()),
+    })?;
     if project.project_kind != PROJECT_KIND_VIDEO || project.source_mode != SOURCE_MODE_FREEFORM {
         return Err(FreeformGeneratedResetDbError::UnsupportedProject {
             project_kind: project.project_kind,
@@ -57,6 +66,19 @@ where
     .await?;
     let media_paths =
         crate::media::filter_unreferenced_media_paths(&txn, &targets.media_paths).await?;
+    if !media_paths.is_empty() {
+        crate::cleanup_outbox::insert_file_artifact_cleanup_intent(
+            &txn,
+            format!("project-generated-data-reset:{project_id}"),
+            crate::cleanup_outbox::FileArtifactCleanupPayload::new(project_id, media_paths.clone()),
+        )
+        .await?;
+    }
+    crate::generation::complete_project_reset_gate(&txn, project_id)
+        .await
+        .map_err(|error| FreeformGeneratedResetDbError::Database {
+            source: sea_orm::DbErr::Custom(error.to_string()),
+        })?;
     txn.commit().await?;
 
     Ok(FreeformVideoGeneratedDataResetResult {

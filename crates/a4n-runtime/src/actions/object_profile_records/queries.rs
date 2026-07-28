@@ -12,7 +12,7 @@ pub async fn list_object_profiles(
 ) -> Result<Vec<ObjectProfileSummary>, String> {
     access::verify_project_access_string(state, user_id, project_id).await?;
     let profiles = state
-        .orchestrator
+        .asset()
         .object_profiles_by_project(project_id)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -21,7 +21,7 @@ pub async fn list_object_profiles(
         .map(|profile| profile.id)
         .collect::<Vec<_>>();
     let image_counts = profile_materials::count_profile_material_images_by_profile(
-        state,
+        state.profile_material(),
         project_id,
         PROFILE_KIND_OBJECT,
         &profile_ids,

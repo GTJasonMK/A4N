@@ -8,5 +8,5 @@ mod tests;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    app::run().await
+    app::run_from_args().await
 }

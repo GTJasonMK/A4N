@@ -1,4 +1,4 @@
-use super::{QueueStats, TaskInfo, TaskPermit, TaskPriority, TaskType};
+use super::{QueueStats, TaskInfo, TaskKind, TaskPermit, TaskPriority};
 use a4n_core::error::AppError;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
@@ -11,18 +11,18 @@ pub trait TaskQueue: Send + Sync {
     /// 提交单个任务，返回任务 ID
     async fn submit(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
         project_id: Option<i64>,
     ) -> Result<String, AppError>;
 
     /// 获取执行许可（阻塞直到有可用槽位，高优先级优先）
-    async fn acquire(&self, task_type: TaskType) -> Result<TaskPermit, AppError>;
+    async fn acquire(&self, task_type: TaskKind) -> Result<TaskPermit, AppError>;
 
     /// 获取执行许可（支持取消令牌）
     async fn acquire_with_cancel(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         cancel_token: CancellationToken,
     ) -> Result<Option<TaskPermit>, AppError>;
 

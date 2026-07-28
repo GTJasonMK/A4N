@@ -1,24 +1,24 @@
 use super::output::project_enhanced_rag_search_output;
-use crate::AppState;
+use crate::state::RagRuntimeFacade;
 use a4n_core::error::AppError;
 
+use super::super::contract_identity_to_provider;
 use super::super::{
     RagEnhancedSearchOutput, RagEnhancedSearchWithVectorsInput,
     preparation::{prepare_enhanced_rag_search, prepare_enhanced_rag_search_parts},
 };
 
 pub(super) async fn execute_enhanced_rag_search_with_vectors(
-    state: &AppState,
+    rag: &RagRuntimeFacade<'_>,
     project_id: i64,
     input: RagEnhancedSearchWithVectorsInput,
 ) -> Result<RagEnhancedSearchOutput, AppError> {
-    let prepared = prepare_enhanced_rag_search(state, project_id, input.search).await?;
-    let result = state
-        .orchestrator
+    let prepared = prepare_enhanced_rag_search(rag, project_id, input.search).await?;
+    let result = rag
         .execute_prepared_enhanced_rag_search_with_vectors(
             project_id,
             &prepared,
-            &input.embedding_identity,
+            &contract_identity_to_provider(&input.embedding_identity),
             input.query_vectors,
         )
         .await?;
@@ -26,7 +26,7 @@ pub(super) async fn execute_enhanced_rag_search_with_vectors(
 }
 
 pub(super) async fn execute_enhanced_rag_search(
-    state: &AppState,
+    rag: &RagRuntimeFacade<'_>,
     project_id: i64,
     base_query: &str,
     top_k: usize,
@@ -34,7 +34,7 @@ pub(super) async fn execute_enhanced_rag_search(
     data_types: Option<Vec<String>>,
 ) -> Result<RagEnhancedSearchOutput, AppError> {
     let prepared = prepare_enhanced_rag_search_parts(
-        state,
+        rag,
         project_id,
         base_query,
         top_k,
@@ -42,8 +42,7 @@ pub(super) async fn execute_enhanced_rag_search(
         data_types,
     )
     .await?;
-    let result = state
-        .orchestrator
+    let result = rag
         .execute_prepared_enhanced_rag_search(project_id, &prepared)
         .await?;
     Ok(project_enhanced_rag_search_output(result))

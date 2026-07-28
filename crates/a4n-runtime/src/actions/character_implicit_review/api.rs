@@ -1,33 +1,71 @@
 use super::{
-    GetImplicitReviewInput, ImplicitReviewSummary, build_implicit_review_summary,
-    context::implicit_review_context_for_user, validate_implicit_review_params,
+    CheckImplicitUpdateInput, GetImplicitReviewInput, ImplicitReviewSummary,
+    ImplicitUpdateDecisionSummary,
 };
-use crate::AppState;
-
-mod execution;
-mod preview;
-
-pub use execution::check_implicit_update;
-pub use preview::preview_check_implicit_update_request;
+use crate::{
+    AppState,
+    actions::request_preview::{
+        ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state,
+        model_request_preview,
+    },
+    prompt_renderer::RuntimePromptRenderer,
+};
 
 pub async fn get_implicit_review(
     state: &AppState,
     user_id: i64,
     input: GetImplicitReviewInput,
 ) -> Result<ImplicitReviewSummary, String> {
-    let (threshold, window_chapters, evidence_limit) = validate_implicit_review_params(
-        input.threshold,
-        input.window_chapters,
-        input.evidence_limit,
-    )?;
-    let (profile, records) =
-        implicit_review_context_for_user(state, user_id, input.profile_id).await?;
-    build_implicit_review_summary(
-        input.profile_id,
-        &profile.current_state,
-        &records,
-        threshold,
-        window_chapters,
-        evidence_limit,
+    state
+        .character()
+        .implicit_review_summary_validated(user_id, input)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+pub async fn check_implicit_update(
+    state: &AppState,
+    user_id: i64,
+    input: CheckImplicitUpdateInput,
+) -> Result<ImplicitUpdateDecisionSummary, String> {
+    let prompt_renderer = RuntimePromptRenderer::new(state);
+    state
+        .character()
+        .check_implicit_update_validated(user_id, input, &prompt_renderer)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+pub async fn preview_check_implicit_update_request(
+    state: &AppState,
+    user_id: i64,
+    input: &CheckImplicitUpdateInput,
+) -> Result<ModelRequestPreview, String> {
+    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let preview = state
+        .character()
+        .prepare_implicit_update_review_request_preview_validated(
+            user_id,
+            input.clone(),
+            &prompt_renderer,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+    let step = chat_request_step_for_state(
+        state,
+        ChatRequestStepInput {
+            key: "implicit_update_review".to_string(),
+            title: "隐性属性复审 LLM 请求".to_string(),
+            prompt_name: Some("implicit_update".to_string()),
+            state: "ready".to_string(),
+            note: None,
+            request: preview.request,
+        },
     )
+    .await?;
+    Ok(model_request_preview(
+        "implicit_attribute_update_review",
+        "隐性属性复审 LLM 请求预览",
+        vec![step],
+    ))
 }

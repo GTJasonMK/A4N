@@ -237,7 +237,7 @@ fn persisted_task_info_from_row_maps_task_fields_and_workflow_id() {
 
     assert_eq!(task.workflow_run_id, Some(42));
     assert_eq!(task.task.id, "task-1");
-    assert_eq!(task.task.task_type, TaskType::VideoGeneration);
+    assert_eq!(task.task.task_type, TaskKind::VideoGeneration);
     assert_eq!(task.task.priority, TaskPriority::High);
     assert!(matches!(task.task.status, TaskStatus::Running));
     assert_eq!(task.task.project_id, Some(7));

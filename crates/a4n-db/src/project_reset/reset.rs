@@ -13,6 +13,15 @@ pub async fn reset_project_generated_data_record(
     let project = project_db::project_by_id_for_update(&tx, project_id)
         .await?
         .ok_or(ProjectResetDbError::ProjectNotFound { project_id })?;
+    crate::generation::require_project_lifecycle_gate(
+        &tx,
+        project_id,
+        crate::generation::PROJECT_GATE_RESETTING,
+    )
+    .await
+    .map_err(|error| ProjectResetDbError::Database {
+        source: sea_orm::DbErr::Custom(error.to_string()),
+    })?;
 
     if project.project_kind == PROJECT_KIND_GALGAME {
         let candidate_media_paths = project_db::project_generated_media_paths(&tx, project_id)
@@ -119,6 +128,15 @@ pub async fn reset_project_generated_data_record(
 
     let media_paths =
         crate::media::filter_unreferenced_media_paths(&tx, &candidate_media_paths).await?;
+    if !media_paths.is_empty() {
+        crate::cleanup_outbox::insert_file_artifact_cleanup_intent(
+            &tx,
+            format!("project-generated-data-reset:{project_id}"),
+            crate::cleanup_outbox::FileArtifactCleanupPayload::new(project_id, media_paths.clone()),
+        )
+        .await?;
+    }
+    // gate 保持 resetting；Host 清理 RAG 成功后再完成，崩溃时由同一 gate 接续。
     tx.commit().await?;
 
     Ok(ProjectGeneratedDataResetOutcome {

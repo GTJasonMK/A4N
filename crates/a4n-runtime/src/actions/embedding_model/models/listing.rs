@@ -8,18 +8,17 @@ use crate::AppState;
 
 use super::super::{
     contracts::{EmbeddingModelExecution, LocalEmbeddingModelSummary},
-    provider::fastembed_cache_dir,
-    rules::embedding_model_execution,
+    host_adapter::embedding_model_execution,
 };
 
 pub async fn list_local_embedding_models(
     state: &AppState,
 ) -> Result<Vec<LocalEmbeddingModelSummary>, AppError> {
-    if embedding_model_execution(state.runtime_profile) == EmbeddingModelExecution::Sidecar {
+    if embedding_model_execution(state.runtime_profile()) == EmbeddingModelExecution::Sidecar {
         return crate::sidecar_clients::embedding_model_operation(state.capabilities(), "list", "")
             .await;
     }
-    list_local_embedding_models_in_cache(&fastembed_cache_dir(state))
+    list_local_embedding_models_in_cache(&state.default_fastembed_cache_dir())
 }
 
 pub fn list_local_embedding_models_in_cache(

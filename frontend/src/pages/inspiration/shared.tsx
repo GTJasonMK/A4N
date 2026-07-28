@@ -25,6 +25,7 @@ export interface Message {
   streaming?: boolean;
   streamingOptions?: MessageOption[];
   optionsPending?: boolean;
+  consistencyWarning?: string;
   createdAt: number;
 }
 

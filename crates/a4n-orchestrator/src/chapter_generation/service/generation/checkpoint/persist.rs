@@ -9,18 +9,18 @@ mod contract;
 
 use contract::completed_chapter_generation_checkpoint_json;
 
-pub struct ChapterGenerationCheckpointSaveInput<'a> {
-    pub(in crate::chapter_generation::service) service: &'a ChapterGenerationService,
-    pub(in crate::chapter_generation::service) workflow_run_id: i64,
-    pub(in crate::chapter_generation::service) call_key: String,
-    pub(in crate::chapter_generation::service) chapter_number: i32,
-    pub(in crate::chapter_generation::service) input_fingerprint_json: Value,
-    pub(in crate::chapter_generation::service) response_content: &'a str,
-    pub(in crate::chapter_generation::service) parsed_content: &'a str,
-    pub(in crate::chapter_generation::service) finish_reason: Option<&'a str>,
+pub(in crate::chapter_generation) struct ChapterGenerationCheckpointSaveInput<'a> {
+    pub(in crate::chapter_generation) service: &'a ChapterGenerationService,
+    pub(in crate::chapter_generation) workflow_run_id: i64,
+    pub(in crate::chapter_generation) call_key: String,
+    pub(in crate::chapter_generation) chapter_number: i32,
+    pub(in crate::chapter_generation) input_fingerprint_json: Value,
+    pub(in crate::chapter_generation) response_content: &'a str,
+    pub(in crate::chapter_generation) parsed_content: &'a str,
+    pub(in crate::chapter_generation) finish_reason: Option<&'a str>,
 }
 
-pub async fn save_completed_chapter_generation_checkpoint(
+pub(in crate::chapter_generation) async fn save_completed_chapter_generation_checkpoint(
     input: ChapterGenerationCheckpointSaveInput<'_>,
 ) -> Result<(), AppError> {
     let ChapterGenerationCheckpointSaveInput {

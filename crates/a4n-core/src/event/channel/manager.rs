@@ -71,6 +71,10 @@ impl TaskManager {
         self.tasks.remove(task_id).map(|(_, handle)| handle)
     }
 
+    pub fn get(&self, task_id: &str) -> Option<Arc<TaskHandle>> {
+        self.tasks.get(task_id).map(|entry| entry.value().clone())
+    }
+
     /// 活跃任务总数
     pub fn active_count(&self) -> usize {
         self.tasks

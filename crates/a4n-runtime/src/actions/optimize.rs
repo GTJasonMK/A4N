@@ -1,4 +1,3 @@
-mod access;
 mod analysis;
 mod chat;
 mod contracts;
@@ -6,8 +5,6 @@ mod patches;
 mod preview;
 mod projections;
 mod sessions;
-mod variables;
-mod workflow;
 
 pub use analysis::*;
 pub use chat::*;

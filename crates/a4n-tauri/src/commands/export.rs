@@ -9,12 +9,10 @@ macro_rules! tauri_export_read_command {
         $start_message:expr,
         $progress_message:expr,
         $success_message:expr,
-        $error_code:expr,
         |$state:ident, $user_id:ident, $scope:ident| $run:expr $(,)?
     ) => {
         #[tauri::command]
         pub async fn $name(
-            window: tauri::Window,
             $state: tauri::State<'_, a4n_runtime::AppState>,
             $user_id: i64,
             $($arg: $arg_ty,)*
@@ -22,10 +20,9 @@ macro_rules! tauri_export_read_command {
         ) -> Result<$output, String> {
             let $scope = $scope_expr;
             let progress = crate::progress_task::WorkflowProgressTask::new(
-                window,
                 $state.inner(),
                 task_id,
-                a4n_core::event::channel::TaskType::ExportGeneration,
+                a4n_core::event::channel::TaskKind::ExportGeneration,
                 Some($scope.project_id),
                 $scope.total,
                 $start_message,
@@ -35,7 +32,7 @@ macro_rules! tauri_export_read_command {
             if result.is_ok() {
                 progress.progress($scope.total, $scope.total, $success_message);
             }
-            progress.finish_result($state.inner(), &result, $error_code, |_| $success_message);
+            progress.remove($state.inner());
             result
         }
     };
@@ -45,13 +42,11 @@ macro_rules! tauri_export_read_command {
         $start_message:expr,
         $progress_message:expr,
         $success_message:expr,
-        $error_code:expr,
         cancel: $cancel_message:expr,
         |$state:ident, $user_id:ident, $scope:ident| $run:expr $(,)?
     ) => {
         #[tauri::command]
         pub async fn $name(
-            window: tauri::Window,
             $state: tauri::State<'_, a4n_runtime::AppState>,
             $user_id: i64,
             $($arg: $arg_ty,)*
@@ -59,10 +54,9 @@ macro_rules! tauri_export_read_command {
         ) -> Result<$output, String> {
             let $scope = $scope_expr;
             let progress = crate::progress_task::WorkflowProgressTask::new(
-                window,
                 $state.inner(),
                 task_id,
-                a4n_core::event::channel::TaskType::ExportGeneration,
+                a4n_core::event::channel::TaskKind::ExportGeneration,
                 Some($scope.project_id),
                 $scope.total,
                 $start_message,
@@ -76,7 +70,7 @@ macro_rules! tauri_export_read_command {
                 Ok(value)
             }
             .await;
-            progress.finish_result($state.inner(), &result, $error_code, |_| $success_message);
+            progress.remove($state.inner());
             result
         }
     };
@@ -87,13 +81,10 @@ macro_rules! tauri_export_progress_command {
         $name:ident($($arg:ident: $arg_ty:ty),* $(,)?) -> $output:ty,
         $scope_expr:expr,
         $start_message:expr,
-        $success_message:expr,
-        $error_code:expr,
         |$state:ident, $user_id:ident, $scope:ident, $progress:ident| $run:expr $(,)?
     ) => {
         #[tauri::command]
         pub async fn $name(
-            window: tauri::Window,
             $state: tauri::State<'_, a4n_runtime::AppState>,
             $user_id: i64,
             $($arg: $arg_ty,)*
@@ -101,10 +92,9 @@ macro_rules! tauri_export_progress_command {
         ) -> Result<$output, String> {
             let $scope = $scope_expr;
             let progress_task = crate::progress_task::WorkflowProgressTask::new(
-                window,
                 $state.inner(),
                 task_id,
-                a4n_core::event::channel::TaskType::ExportGeneration,
+                a4n_core::event::channel::TaskKind::ExportGeneration,
                 Some($scope.project_id),
                 $scope.total,
                 $start_message,
@@ -122,9 +112,7 @@ macro_rules! tauri_export_progress_command {
                 let $progress = &export_progress;
                 $run.await
             };
-            progress_task.finish_result($state.inner(), &result, $error_code, |_| {
-                $success_message
-            });
+            progress_task.remove($state.inner());
             result
         }
     };

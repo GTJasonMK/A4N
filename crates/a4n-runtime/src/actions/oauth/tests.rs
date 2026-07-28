@@ -1,9 +1,9 @@
 use a4n_core::error::AppError;
+use a4n_orchestrator::auth::required_authorization_code;
 
 use super::provider::{
     DEFAULT_OAUTH2_REDIRECT_URI, oauth2_provider_from_credentials, oauth2_provider_from_env,
 };
-use super::rules::required_authorization_code;
 
 #[test]
 fn authorize_url_uses_provider_specific_endpoint_and_redirect_uri() {

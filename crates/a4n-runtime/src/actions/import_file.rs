@@ -1,44 +1,12 @@
-use serde::{Deserialize, Serialize};
-
 mod parsing;
 mod upload;
 
 use parsing::parse_import_file_bytes;
 use upload::decode_import_upload;
 
-#[derive(Debug, Deserialize)]
-pub struct ImportUploadedFileInput {
-    /// 用户选择的源文件名，仅用于错误信息和审核记录展示
-    pub file_name: String,
-    /// 文件类型：txt / md / markdown / epub / docx
-    pub file_type: String,
-    /// 文件内容 base64，可带 data URL 前缀
-    pub data_base64: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ParsedChapterSummary {
-    /// 章节序号（从 1 开始）
-    pub number: i32,
-    /// 章节标题
-    pub title: String,
-    /// 章节正文
-    pub content: String,
-    /// SimHash 指纹（16 进制字符串）
-    pub content_hash: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImportFileResult {
-    /// 解析出的章节列表
-    pub chapters: Vec<ParsedChapterSummary>,
-    /// 检测到的文件编码
-    pub detected_encoding: String,
-    /// 总字数
-    pub total_words: i32,
-    /// 解析警告
-    pub warnings: Vec<String>,
-}
+pub use a4n_api_contract::import::{
+    ImportFileResult, ImportUploadedFileInput, ParsedChapterSummary,
+};
 
 pub fn import_uploaded_file(input: ImportUploadedFileInput) -> Result<ImportFileResult, String> {
     let upload = decode_import_upload(input)?;

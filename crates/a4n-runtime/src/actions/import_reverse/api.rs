@@ -1,18 +1,14 @@
-use super::context::{apply_reverse_engineering_result, reverse_content_sample};
+use super::ReverseEngineeringTarget;
 use super::contracts::{
     REVERSE_VARIABLES_ERROR, ReverseEngineerInput, ReverseEngineerTaskScope,
     ReverseProgressReporter,
 };
-use super::request::reverse_engineer_with_target;
-use super::target::ReverseEngineeringTarget;
-use super::workflow::{
-    complete_reverse_workflow_run, fail_reverse_workflow_run, start_reverse_workflow_run,
-};
 use crate::actions::template_variables::parse_template_variables_app_error_from_ref_with_message;
-use crate::actions::workflow_status_write_app_error;
+use crate::prompt_renderer::RuntimePromptRenderer;
 use crate::{AppState, actions::access};
 use a4n_core::error::AppError;
-use serde_json::{Value, json};
+use a4n_orchestrator::import_reverse::ReverseEngineerApplicationInput;
+use serde_json::Value;
 
 pub async fn reverse_engineer_task_scope(
     state: &AppState,
@@ -55,61 +51,24 @@ async fn run_reverse_engineer(
     apply: bool,
     progress: ReverseProgressReporter<'_>,
 ) -> Result<Value, AppError> {
-    let scope = reverse_engineer_task_scope(state, user_id, input, apply).await?;
-    progress(0, scope.total, target.preparing_context_message())?;
+    reverse_engineer_task_scope(state, user_id, input, apply).await?;
     let variables = parse_template_variables_app_error_from_ref_with_message(
         input.variables.as_ref(),
         REVERSE_VARIABLES_ERROR,
     )?;
-    let content_sample = reverse_content_sample(state, input, target).await?;
-    let workflow_run_id =
-        start_reverse_workflow_run(state, input, target, apply, &content_sample, &variables)
-            .await?;
-
-    progress(1, scope.total, target.calling_model_message())?;
-    let result = match reverse_engineer_with_target(
-        state,
-        input.project_id,
-        target,
-        &content_sample,
-        &variables,
-        Some(workflow_run_id),
-    )
-    .await
-    {
-        Ok(result) => result,
-        Err(error) => {
-            if let Err(status_error) =
-                fail_reverse_workflow_run(state, workflow_run_id, &error).await
-            {
-                return Err(workflow_status_write_app_error(&error, &status_error));
-            }
-            return Err(error);
-        }
-    };
-    progress(2, scope.total, target.organizing_message())?;
-    if !apply {
-        complete_reverse_workflow_run(state, workflow_run_id).await?;
-        return Ok(result);
-    }
-
-    progress(3, scope.total, target.applying_message())?;
-    let applied =
-        match apply_reverse_engineering_result(state, input.project_id, target, &result).await {
-            Ok(applied) => applied,
-            Err(error) => {
-                if let Err(status_error) =
-                    fail_reverse_workflow_run(state, workflow_run_id, &error).await
-                {
-                    return Err(workflow_status_write_app_error(&error, &status_error));
-                }
-                return Err(error);
-            }
-        };
-    progress(4, scope.total, target.applied_message())?;
-    complete_reverse_workflow_run(state, workflow_run_id).await?;
-    Ok(json!({
-        "result": result,
-        "applied": applied
-    }))
+    let prompt_renderer = RuntimePromptRenderer::new(state);
+    state
+        .import_reverse()
+        .run_reverse_engineering_validated(ReverseEngineerApplicationInput {
+            project_id: input.project_id,
+            manual_sample: &input.content_sample,
+            auto_context: input.auto_context,
+            context_limit: input.context_limit,
+            variables: &variables,
+            target,
+            apply,
+            prompt_renderer: &prompt_renderer,
+            progress,
+        })
+        .await
 }

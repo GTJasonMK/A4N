@@ -1,21 +1,52 @@
-use super::{CharacterConflictChapterScope, CharacterConflictRequestContext};
-use crate::{AppState, actions::access};
+use crate::{
+    AppState,
+    actions::request_preview::{
+        ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state,
+        model_request_preview,
+    },
+    prompt_renderer::RuntimePromptRenderer,
+};
 use a4n_core::error::AppError;
+use a4n_orchestrator::character::CharacterConflictCheckInput;
 
-mod build;
-mod preview;
-
-pub use preview::preview_character_conflict_request;
-
-pub(super) async fn build_character_conflict_request(
+pub async fn preview_character_conflict_request(
     state: &AppState,
     user_id: i64,
     project_id: i64,
     name: &str,
     start_chapter: Option<i32>,
     end_chapter: Option<i32>,
-) -> Result<CharacterConflictRequestContext, AppError> {
-    access::verify_project_editor(state, user_id, project_id).await?;
-    let chapter_scope = CharacterConflictChapterScope::new(start_chapter, end_chapter)?;
-    build::build_character_conflict_request_unchecked(state, project_id, name, chapter_scope).await
+) -> Result<ModelRequestPreview, AppError> {
+    let prompt_renderer = RuntimePromptRenderer::new(state);
+    let preview = state
+        .character()
+        .prepare_character_conflict_request_preview_validated(
+            user_id,
+            CharacterConflictCheckInput {
+                project_id,
+                name: name.to_string(),
+                start_chapter,
+                end_chapter,
+            },
+            &prompt_renderer,
+        )
+        .await?;
+    let step = chat_request_step_for_state(
+        state,
+        ChatRequestStepInput {
+            key: "character_conflict".to_string(),
+            title: "角色一致性检查 LLM 请求".to_string(),
+            prompt_name: Some("character_conflict_check".to_string()),
+            state: "ready".to_string(),
+            note: None,
+            request: preview.request,
+        },
+    )
+    .await
+    .map_err(AppError::InvalidArgument)?;
+    Ok(model_request_preview(
+        "character_conflict_check",
+        "角色一致性检查 LLM 请求预览",
+        vec![step],
+    ))
 }

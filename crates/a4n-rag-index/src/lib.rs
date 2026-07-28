@@ -1,8 +1,11 @@
-//! Persistent RAG index implementations.
+//! Persistent RAG index implementations backed by Qdrant.
 //!
-//! This crate owns the heavy LanceDB/Tantivy dependencies. Host code should
-//! depend on it only in full or embedded-index profiles.
+//! Host code should depend on this crate only in full / embedded-rag profiles.
+//! Upstream Qdrant server source may live under `crates/qdrant` for reference only
+//! and must not be a workspace member.
 
-pub mod hybrid_store;
-pub mod lance_store;
-pub mod tantivy_index;
+pub mod point_id;
+pub mod qdrant_store;
+pub mod sparse_text;
+
+pub use qdrant_store::{QdrantStoreConfig, QdrantVectorStore};

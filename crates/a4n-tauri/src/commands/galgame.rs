@@ -1,7 +1,7 @@
 //! Galgame commands.
 
 use crate::progress_task::WorkflowProgressTask;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use a4n_core::models::galgame::{galgame_choice, galgame_line, galgame_scene};
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::export_files::ExportFileData;
@@ -16,7 +16,7 @@ use a4n_runtime::host_api::galgame_records::{
 };
 use a4n_runtime::host_api::request_preview::ModelRequestPreview;
 use std::sync::Arc;
-use tauri::{State, Window};
+use tauri::State;
 
 #[tauri::command]
 pub async fn get_galgame_script(
@@ -29,16 +29,14 @@ pub async fn get_galgame_script(
 
 #[tauri::command]
 pub async fn start_galgame_pipeline(
-    window: Window,
     state: State<'_, AppState>,
     user_id: i64,
     input: StartGalgamePipelineInput,
 ) -> Result<GalgameScriptDetail, String> {
     let progress_task = Arc::new(WorkflowProgressTask::new(
-        window,
         state.inner(),
         input.task_id.clone(),
-        TaskType::GalgameGeneration,
+        TaskKind::GalgameGeneration,
         Some(input.project_id),
         GALGAME_PIPELINE_TOTAL_STEPS,
         "正在准备 Galgame 管线",
@@ -60,10 +58,6 @@ pub async fn start_galgame_pipeline(
         Some(progress_reporter),
     )
     .await;
-    match &result {
-        Ok(_) => progress_task.complete("Galgame 管线已完成"),
-        Err(err) => progress_task.error("galgame_pipeline_failed", err),
-    }
     progress_task.remove(state.inner());
     result
 }

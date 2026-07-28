@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use hf_hub::api::sync::{Api, ApiBuilder};
+use hf_hub::api::tokio::{Api, ApiBuilder};
 use reqwest::Client;
 use tokio_util::sync::CancellationToken;
 

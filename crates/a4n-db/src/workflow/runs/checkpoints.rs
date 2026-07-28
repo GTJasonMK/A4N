@@ -107,3 +107,16 @@ pub async fn completed_workflow_checkpoint_by_fingerprint(
         .await
         .map_err(WorkflowReadError::Database)
 }
+
+pub async fn workflow_checkpoint_model_by_step(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    step_key: &str,
+) -> Result<Option<workflow_checkpoint::Model>, WorkflowReadError> {
+    workflow_checkpoint::Entity::find()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .filter(workflow_checkpoint::Column::StepKey.eq(step_key))
+        .one(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+}

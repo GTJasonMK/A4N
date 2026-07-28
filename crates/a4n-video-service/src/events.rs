@@ -2,7 +2,7 @@ use crate::contracts::{VideoGenerationOutput, VideoProviderPayload};
 use crate::protocol::service_error;
 use crate::providers::video_generation_output;
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceRequest, ServiceTaskEvent, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError, ServiceErrorCode, ServiceRequest,
     redact_sensitive_message,
 };
 use a4n_sidecar_bootstrap::service_event_line;
@@ -15,11 +15,14 @@ use std::convert::Infallible;
 pub(crate) fn video_generation_event_stream(
     request: ServiceRequest<VideoProviderPayload>,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> + Send + 'static {
-    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel::<ServiceTaskEvent>();
+    let (event_tx, event_rx) = tokio::sync::mpsc::channel::<CapabilityTaskEvent>(
+        a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY,
+    );
     let task_id = request.request_id.clone();
     tokio::spawn(async move {
         if event_tx
             .send(progress_generation_event(task_id.clone(), 1))
+            .await
             .is_err()
         {
             return;
@@ -32,7 +35,10 @@ pub(crate) fn video_generation_event_stream(
                 request.payload.provider_options_json.as_ref(),
             )?;
             provider
-                .generate(request.payload.request.clone())
+                .generate(
+                    request.payload.request.clone(),
+                    request.payload.provider_idempotency_key_sha256.as_deref(),
+                )
                 .await
                 .map(video_generation_output)
         });
@@ -57,7 +63,7 @@ pub(crate) fn video_generation_event_stream(
                         },
                     ),
                 };
-                if event_tx.send(event).is_err() {
+                if event_tx.send(event).await.is_err() {
                     return;
                 }
             }
@@ -71,10 +77,10 @@ pub(crate) fn video_generation_event_stream(
     })
 }
 
-pub(crate) fn progress_generation_event(task_id: String, sequence: u64) -> ServiceTaskEvent {
+pub(crate) fn progress_generation_event(task_id: String, sequence: u64) -> CapabilityTaskEvent {
     video_generation_event(
         task_id,
-        ServiceTaskEventKind::Progress,
+        CapabilityTaskEventKind::Progress,
         sequence,
         None,
         Some(json!({
@@ -89,7 +95,7 @@ pub(crate) fn completed_generation_event(
     task_id: String,
     sequence: u64,
     output: VideoGenerationOutput,
-) -> Result<ServiceTaskEvent, ServiceError> {
+) -> Result<CapabilityTaskEvent, ServiceError> {
     let payload = serde_json::to_value(output).map_err(|error| ServiceError {
         code: ServiceErrorCode::Internal,
         message: redact_sensitive_message(format!(
@@ -99,7 +105,7 @@ pub(crate) fn completed_generation_event(
     })?;
     Ok(video_generation_event(
         task_id,
-        ServiceTaskEventKind::Completed,
+        CapabilityTaskEventKind::Completed,
         sequence,
         None,
         Some(payload),
@@ -110,10 +116,10 @@ pub(crate) fn failed_generation_event(
     task_id: String,
     sequence: u64,
     error: ServiceError,
-) -> ServiceTaskEvent {
+) -> CapabilityTaskEvent {
     video_generation_event(
         task_id,
-        ServiceTaskEventKind::Failed,
+        CapabilityTaskEventKind::Failed,
         sequence,
         Some(error),
         None,
@@ -122,12 +128,12 @@ pub(crate) fn failed_generation_event(
 
 pub(crate) fn video_generation_event(
     task_id: String,
-    event_kind: ServiceTaskEventKind,
+    event_kind: CapabilityTaskEventKind,
     sequence: u64,
     error: Option<ServiceError>,
     payload: Option<Value>,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id,
         event_kind,
         sequence,

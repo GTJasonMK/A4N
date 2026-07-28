@@ -30,7 +30,7 @@ impl OrchestratorContext {
             .cloned()
             .unwrap_or_else(|| OptimizeAgentPermissions::from_session(session));
         let analysis_context = build_content_optimization_context(
-            self.db.connection(),
+            self.database.connection(),
             session.project_id,
             session.chapter_id,
             &permissions,

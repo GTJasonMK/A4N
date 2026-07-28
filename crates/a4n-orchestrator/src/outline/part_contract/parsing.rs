@@ -5,7 +5,7 @@ use crate::outline::chapter_contract::{
 use a4n_core::error::AppError;
 use serde_json::{Value, json};
 
-pub(in crate::outline) fn part_outline_single_response_schema() -> Value {
+pub fn part_outline_single_response_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
@@ -20,7 +20,7 @@ pub(in crate::outline) fn part_outline_single_response_schema() -> Value {
     })
 }
 
-pub(in crate::outline) fn parse_part_outline_single_response(
+pub fn parse_part_outline_single_response(
     content: &str,
     part_number: i32,
     start_chapter: i32,
@@ -62,7 +62,7 @@ pub(in crate::outline) fn parse_part_outline_single_response(
     Ok(Value::Object(materialized))
 }
 
-pub(in crate::outline) fn validate_materialized_part_outline(
+pub fn validate_materialized_part_outline(
     value: &Value,
     part_number: i32,
     start_chapter: i32,

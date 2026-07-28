@@ -6,20 +6,20 @@ use crate::{AppState, actions::app_error_message};
 use a4n_core::{error::AppError, models::ai::image_gen_config};
 use a4n_image::ImageGenerationRequest;
 use a4n_orchestrator::config::configured_image_provider;
-use a4n_queue::priority::{TaskPriority, TaskType as QueueTaskType};
+use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 
 const IMAGE_CONNECTIVITY_TEST_PROMPT: &str = "test connectivity, draw a tiny dot";
 
 pub async fn test_image_config(state: &AppState, config_id: i64) -> Result<bool, String> {
     let config = resolve_image_config_for_connectivity_test(state, config_id).await?;
     let request = build_image_connectivity_test_request(&config);
-    if state.runtime_profile.uses_sidecars() {
+    if state.runtime_profile().uses_sidecars() {
         let capabilities = state.capabilities().clone();
         let config = config.clone();
         state
-            .task_queue
-            .run_tracked(
-                QueueTaskType::ImageGeneration,
+            .task_queue()
+            .queue_run_tracked(
+                QueueTaskKind::ImageGeneration,
                 TaskPriority::High,
                 None,
                 || async move {
@@ -35,9 +35,9 @@ pub async fn test_image_config(state: &AppState, config_id: i64) -> Result<bool,
 
     let provider = configured_image_provider(&config).map_err(|e| e.to_string())?;
     state
-        .task_queue
-        .run_tracked(
-            QueueTaskType::ImageGeneration,
+        .task_queue()
+        .queue_run_tracked(
+            QueueTaskKind::ImageGeneration,
             TaskPriority::High,
             None,
             || async move { provider.generate(request).await.map(|_| ()) },
@@ -53,7 +53,7 @@ pub async fn preview_test_image_config_request(
 ) -> Result<ModelRequestPreview, String> {
     let config = resolve_image_config_for_connectivity_test(state, config_id).await?;
     let request = build_image_connectivity_test_request(&config);
-    if state.runtime_profile.uses_sidecars() {
+    if state.runtime_profile().uses_sidecars() {
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
             state.capabilities(),
             &config,
@@ -104,7 +104,7 @@ async fn resolve_image_config_for_connectivity_test(
         return Ok(config);
     }
     state
-        .orchestrator
+        .settings()
         .image_config_record_by_id(config_id)
         .await
         .map_err(app_error_message)

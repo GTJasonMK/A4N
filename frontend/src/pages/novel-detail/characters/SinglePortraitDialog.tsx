@@ -3,7 +3,12 @@ import { Check, Eye, Images, Loader2, Upload } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import { listImagesByProject, type GeneratedImage, uploadImage } from "../../../api/image";
-import { generatePortrait, previewGeneratePortraitRequest } from "../../../api/portrait";
+import {
+  previewGeneratePortraitRequest,
+  startPortraitGeneration,
+  verifyPortraitGenerationResult,
+  type PortraitGenerationOperation,
+} from "../../../api/portrait";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../../components/feedback/Toast";
@@ -11,7 +16,8 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
-import { createProgressTaskId, useProgressTask } from "../../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
+import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { nonEmptyText } from "../../../utils/text";
@@ -203,33 +209,33 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
     const requestStyle = nonEmptyText(style);
     const requestExpressions = parsedExpressions();
     const requestReferenceImageIds = selectedReferenceImageIds;
-    const nextTaskId = createProgressTaskId("portrait-single", requestProjectId);
     submitBusyRef.current = true;
     setBusy(true);
     try {
-      await runProgressTask(
+      const handle = await startPortraitGeneration({
+        project_id: requestProjectId,
+        operation: {
+          kind: "generate",
+          character_name: requestName,
+          style: requestStyle,
+          expressions: requestExpressions.length > 0 ? requestExpressions : null,
+          pose: null,
+          reference_image_ids: requestReferenceImageIds,
+        } as PortraitGenerationOperation,
+      });
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
         {
           title: "生成人物三视图拆解",
           startMessage: "正在准备人物三视图拆解生成",
           successMessage: "人物三视图拆解生成完成",
           errorMessage: "生成失败",
           total: 6,
-          taskId: nextTaskId,
           cancelLabel: "停止生成",
-          runningHint: "人物三视图拆解生成过程中请保持当前窗口打开",
         },
-        () => {
-          if (!isCurrentProject(requestProjectId)) {
-            return Promise.reject(new Error("任务已停止"));
-          }
-          return generatePortrait(
-            requestProjectId,
-            requestName,
-            requestStyle,
-            requestExpressions.length > 0 ? requestExpressions : null,
-            nextTaskId,
-            requestReferenceImageIds,
-          );
+        async (task) => {
+          await verifyPortraitGenerationResult(task, requestProjectId);
         },
       );
       if (!isCurrentProject(requestProjectId)) return;

@@ -1,4 +1,3 @@
-mod chat;
 mod config;
 mod request;
 mod streaming;

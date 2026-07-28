@@ -7,10 +7,6 @@ import { RequestPreviewModal } from "../../../components/feedback/RequestPreview
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../../api";
 import {
-  applyBeatMapping,
-  batchGeneratePartOutlines,
-  continuePartOutlines,
-  generatePartChapterOutlines,
   getChapterOutlinesPacing,
   getGenerationProgress,
   previewApplyBeatMappingRequest,
@@ -19,26 +15,21 @@ import {
   previewGeneratePartChapterOutlinesRequest,
   previewRegeneratePartOutlineRequest,
   previewRegeneratePartsRequest,
-  regeneratePartOutline,
-  regenerateParts,
   type ChapterOutlinePacing,
   type GenerationProgress,
   type PartOutline,
 } from "../../../api/outline";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
-import {
-  createProgressTaskId,
-  type RunProgressTask,
-} from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { nonEmptyText } from "../../../utils/text";
+import type { RunOutlineGeneration } from "./useOutlineGeneration";
 
 interface OutlineAdvancedPanelProps {
   projectId: number;
   parts: PartOutline[];
   partCount: number | null;
   chaptersPerPart: number | null;
-  runProgressTask: RunProgressTask;
+  runGeneration: RunOutlineGeneration;
   disabled?: boolean;
   onChanged: () => void | Promise<void>;
   onBusyChange?: (busy: boolean) => void;
@@ -177,7 +168,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   parts,
   partCount,
   chaptersPerPart,
-  runProgressTask,
+  runGeneration,
   disabled = false,
   onChanged,
   onBusyChange,
@@ -513,27 +504,25 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setBeatBusy(true);
     try {
-      const taskId = createProgressTaskId("outline-beat-mapping", requestProjectId);
-      await runProgressTask(
+      await runGeneration(
         {
           title: "应用节拍映射",
-          startMessage: "准备调用模型应用节拍映射…",
+          startMessage: "模型正在把节拍映射到章节大纲…",
           successMessage: "节拍映射已应用",
           errorMessage: "应用节拍失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress("模型正在把节拍映射到章节大纲…", 1);
-          await applyBeatMapping({
-            project_id: requestProjectId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "apply_beat_mapping",
             part_id: requestPart.id,
             beat_sheet: beatSheet,
-            task_id: taskId,
-          });
+          },
+        },
+        async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress("正在刷新章纲列表…", 2);
+          control.setProgress("正在刷新章纲列表…", 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
@@ -585,26 +574,24 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setPartGenBusy(true);
     try {
-      const taskId = createProgressTaskId("outline-part-chapters", requestProjectId);
-      await runProgressTask(
+      await runGeneration(
         {
           title: `生成第 ${requestPart.part_number} 部章纲`,
-          startMessage: "准备调用模型生成本部章纲…",
+          startMessage: `模型正在为第 ${requestPart.part_number} 部生成章纲…`,
           successMessage: `已为第 ${requestPart.part_number} 部生成章纲`,
           errorMessage: "生成失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress(`模型正在为第 ${requestPart.part_number} 部生成章纲…`, 1);
-          await generatePartChapterOutlines({
-            project_id: requestProjectId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "generate_part_chapter_outlines",
             part_id: requestPart.id,
-            task_id: taskId,
-          });
+          },
+        },
+        async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress("正在刷新章纲列表…", 2);
+          control.setProgress("正在刷新章纲列表…", 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
@@ -649,37 +636,35 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       addToast("分部列表包含其他项目的数据，无法批量生成", "error");
       return;
     }
-    const partIds = requestParts.map((part) => part.id);
+    const partIds = requestParts.map((part) => part.id) as [number, ...number[]];
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setBatchBusy(true);
     try {
-      const taskId = createProgressTaskId("outline-batch-part-chapters", requestProjectId);
-      await runProgressTask(
+      await runGeneration(
         {
           title: "批量生成各部章纲",
-          startMessage: "准备批量生成各部章纲…",
-          successMessage: "批量生成已触发",
+          startMessage: `正在生成 ${partIds.length} 个分部的章纲…`,
+          successMessage: "批量生成已完成",
           errorMessage: "批量生成失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress(`正在提交 ${partIds.length} 个分部的章纲生成任务…`, 1);
-          await batchGeneratePartOutlines({
-            project_id: requestProjectId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "batch_generate_part_outlines",
             part_ids: partIds,
-            task_id: taskId,
-          });
+          },
+        },
+        async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress("正在刷新章纲列表…", 2);
+          control.setProgress("正在刷新章纲列表…", 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast("批量生成已触发", "success");
+      addToast("批量生成已完成", "success");
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
@@ -723,26 +708,25 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setPartRegenBusy(true);
     try {
-      const taskId = createProgressTaskId("outline-regenerate-part", requestProjectId);
-      await runProgressTask(
+      await runGeneration(
         {
           title: `重新生成第 ${requestPart.part_number} 部`,
-          startMessage: "准备调用模型重写部大纲…",
+          startMessage: `模型正在重写第 ${requestPart.part_number} 部大纲…`,
           successMessage: "已重新生成部大纲",
           errorMessage: "重新生成失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress(`模型正在重写第 ${requestPart.part_number} 部大纲…`, 1);
-          await regeneratePartOutline({
-            project_id: requestProjectId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "regenerate_part_outline",
             part_id: requestPart.id,
-            task_id: taskId,
-          });
+            variables: null,
+          },
+        },
+        async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress("正在刷新分部列表…", 2);
+          control.setProgress("正在刷新分部列表…", 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
@@ -801,27 +785,26 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     finishConfirmAction();
     setRegenPartsBusy(true);
     try {
-      const taskId = createProgressTaskId("outline-regenerate-parts", requestProjectId);
-      await runProgressTask(
+      await runGeneration(
         {
           title: "重新生成所有部",
-          startMessage: "准备调用模型重新生成所有分部…",
+          startMessage: "模型正在重新生成所有分部大纲，耗时可能较长…",
           successMessage: "已重新生成所有部",
           errorMessage: "重新生成失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress("模型正在重新生成所有分部大纲，耗时可能较长…", 1);
-          await regenerateParts({
-            project_id: requestProjectId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "regenerate_parts",
             part_count: requestPartCount,
             chapters_per_part: requestChaptersPerPart,
-            task_id: taskId,
-          });
+            variables: null,
+          },
+        },
+        async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress("正在刷新分部列表…", 2);
+          control.setProgress("正在刷新分部列表…", 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
@@ -881,38 +864,34 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setContinueBusy(true);
     try {
-      const taskId = createProgressTaskId("outline-continue-part", requestProjectId);
-      const created = await runProgressTask(
+      await runGeneration(
         {
           title: `续作第 ${lastPart.part_number + 1} 部`,
-          startMessage: "准备调用模型续作分部…",
+          startMessage:
+            `模型正在生成第 ${lastPart.part_number + 1} 部（${startChapter}-${endChapter} 章）…`,
           successMessage: `已续作第 ${lastPart.part_number + 1} 部`,
           errorMessage: "续作失败",
           total: 3,
-          taskId,
         },
-        async ({ setProgress }) => {
-          ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress(
-            `模型正在生成第 ${lastPart.part_number + 1} 部（${startChapter}-${endChapter} 章）…`,
-            1,
-          );
-          const createdPart = await continuePartOutlines({
-            project_id: requestProjectId,
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "continue_part_outlines",
             part_number: lastPart.part_number + 1,
             start_chapter: startChapter,
             end_chapter: endChapter,
-            task_id: taskId,
-          });
+            variables: null,
+          },
+        },
+        async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          setProgress("正在刷新分部列表…", 2);
+          control.setProgress("正在刷新分部列表…", 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
-          return createdPart;
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast(`已续作第 ${created.part_number} 部`, "success");
+      addToast(`已续作第 ${lastPart.part_number + 1} 部`, "success");
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();

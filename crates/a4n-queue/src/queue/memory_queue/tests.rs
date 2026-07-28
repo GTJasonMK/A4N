@@ -1,11 +1,11 @@
 use super::*;
-use crate::queue::priority::{TaskPriority, TaskQueue, TaskStatus, TaskType};
+use crate::queue::priority::{TaskKind, TaskPriority, TaskQueue, TaskStatus};
 
 #[tokio::test]
 async fn test_submit_and_status() {
     let queue = MemoryTaskQueue::new(4, 2);
     let task_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, Some(1))
+        .submit(TaskKind::LlmCall, TaskPriority::High, Some(1))
         .await
         .unwrap();
 
@@ -14,15 +14,42 @@ async fn test_submit_and_status() {
     assert!(matches!(info.status, TaskStatus::Pending));
 }
 
+#[test]
+fn persisted_task_registration_is_idempotent_but_rejects_other_identity() {
+    let queue = MemoryTaskQueue::new(4, 2);
+    let task = crate::queue::priority::TaskInfo {
+        id: "persisted-task".to_string(),
+        task_type: TaskKind::TextGeneration,
+        priority: TaskPriority::High,
+        status: TaskStatus::Pending,
+        project_id: Some(7),
+        root_project_id: Some(7),
+        source_snapshot_id: None,
+        task_scope: Some("generation".to_string()),
+        progress: None,
+        created_at: chrono::Utc::now().naive_utc(),
+        started_at: None,
+        completed_at: None,
+    };
+
+    queue.submit_persisted(task.clone()).unwrap();
+    queue.submit_persisted(task.clone()).unwrap();
+    assert_eq!(queue.queue_stats().high_priority_waiting, 1);
+
+    let mut conflicting = task;
+    conflicting.project_id = Some(8);
+    assert!(queue.submit_persisted(conflicting).is_err());
+}
+
 #[tokio::test]
 async fn test_acquire_and_complete() {
     let queue = MemoryTaskQueue::new(4, 2);
     let task_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, None)
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
         .await
         .unwrap();
 
-    let permit = queue.acquire(TaskType::LlmCall).await.unwrap();
+    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
     assert_eq!(permit.task_id(), &task_id);
 
     permit.complete();
@@ -35,7 +62,7 @@ async fn test_acquire_and_complete() {
 async fn test_cancel() {
     let queue = MemoryTaskQueue::new(4, 2);
     let task_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::Low, None)
+        .submit(TaskKind::LlmCall, TaskPriority::Low, None)
         .await
         .unwrap();
 
@@ -49,11 +76,11 @@ async fn test_cancel() {
 async fn cancel_completed_task_preserves_terminal_status() {
     let queue = MemoryTaskQueue::new(4, 2);
     let task_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, None)
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
         .await
         .unwrap();
 
-    let permit = queue.acquire(TaskType::LlmCall).await.unwrap();
+    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
     assert_eq!(permit.task_id(), &task_id);
     permit.complete();
 
@@ -67,10 +94,10 @@ async fn cancel_completed_task_preserves_terminal_status() {
 async fn completing_cancelled_running_task_preserves_cancelled_status() {
     let queue = MemoryTaskQueue::new(1, 1);
     let task_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, None)
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
         .await
         .unwrap();
-    let permit = queue.acquire(TaskType::LlmCall).await.unwrap();
+    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
     assert_eq!(permit.task_id(), &task_id);
 
     queue.cancel(&task_id).await.unwrap();
@@ -80,12 +107,12 @@ async fn completing_cancelled_running_task_preserves_cancelled_status() {
     assert!(matches!(info.status, TaskStatus::Cancelled));
 
     let next_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, None)
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
         .await
         .unwrap();
     let next_permit = tokio::time::timeout(
         std::time::Duration::from_millis(250),
-        queue.acquire(TaskType::LlmCall),
+        queue.acquire(TaskKind::LlmCall),
     )
     .await
     .expect("cancelled task permit should still release its slot")
@@ -95,20 +122,59 @@ async fn completing_cancelled_running_task_preserves_cancelled_status() {
 }
 
 #[tokio::test]
+async fn running_permit_observes_queue_cancellation() {
+    let queue = MemoryTaskQueue::new(1, 1);
+    let task_id = queue
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
+        .await
+        .unwrap();
+    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
+    let cancellation = permit.cancellation_token();
+
+    queue.signal_task_cancel(&task_id).unwrap();
+
+    assert!(cancellation.is_cancelled());
+    permit.fail("cancelled by owner".to_string());
+}
+
+#[tokio::test]
+async fn persisted_terminal_projection_removes_pending_task() {
+    let queue = MemoryTaskQueue::new(1, 1);
+    let task_id = queue
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
+        .await
+        .unwrap();
+
+    queue
+        .project_task_terminal(
+            &task_id,
+            TaskStatus::Interrupted {
+                reason: Some("host restart".to_string()),
+            },
+        )
+        .unwrap();
+
+    let info = queue.status(&task_id).await.unwrap();
+    assert!(matches!(info.status, TaskStatus::Interrupted { .. }));
+    assert!(info.completed_at.is_some());
+    assert_eq!(queue.queue_stats().high_priority_waiting, 0);
+}
+
+#[tokio::test]
 async fn cancelled_pending_task_is_not_acquired() {
     let queue = MemoryTaskQueue::new(4, 2);
     let cancelled_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, None)
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
         .await
         .unwrap();
     let next_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::Medium, None)
+        .submit(TaskKind::LlmCall, TaskPriority::Medium, None)
         .await
         .unwrap();
 
     queue.cancel(&cancelled_id).await.unwrap();
 
-    let permit = queue.acquire(TaskType::LlmCall).await.unwrap();
+    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
     assert_eq!(permit.task_id(), next_id);
     permit.complete();
 }
@@ -117,11 +183,11 @@ async fn cancelled_pending_task_is_not_acquired() {
 async fn acquire_task_waits_for_its_priority_turn() {
     let queue = std::sync::Arc::new(MemoryTaskQueue::new(1, 1));
     let low_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::Low, None)
+        .submit(TaskKind::LlmCall, TaskPriority::Low, None)
         .await
         .unwrap();
     let high_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, None)
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
         .await
         .unwrap();
 
@@ -161,11 +227,11 @@ async fn acquire_task_waits_for_its_priority_turn() {
 async fn test_queue_stats() {
     let queue = MemoryTaskQueue::new(4, 2);
     queue
-        .submit(TaskType::LlmCall, TaskPriority::High, None)
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
         .await
         .unwrap();
     queue
-        .submit(TaskType::LlmCall, TaskPriority::Medium, None)
+        .submit(TaskKind::LlmCall, TaskPriority::Medium, None)
         .await
         .unwrap();
 
@@ -179,15 +245,15 @@ async fn test_priority_ordering() {
     let queue = MemoryTaskQueue::new(4, 2);
 
     queue
-        .submit(TaskType::LlmCall, TaskPriority::Low, None)
+        .submit(TaskKind::LlmCall, TaskPriority::Low, None)
         .await
         .unwrap();
     let high_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, None)
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
         .await
         .unwrap();
 
-    let permit = queue.acquire(TaskType::LlmCall).await.unwrap();
+    let permit = queue.acquire(TaskKind::LlmCall).await.unwrap();
     assert_eq!(permit.task_id(), &high_id);
     permit.complete();
 }

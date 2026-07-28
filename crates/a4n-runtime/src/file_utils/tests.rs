@@ -2,7 +2,7 @@ use super::{
     CanonicalDataPathError, canonicalize_data_file_path, canonicalize_path_in_data_dir,
     deletable_data_dir_path, error_with_rollback_file_cleanup, persist_created_media_file,
     remove_created_file_on_error, remove_created_file_on_error_sync, remove_data_dir_in_data_dir,
-    remove_data_file_in_data_dir,
+    remove_data_file_in_data_dir, write_new_data_file,
 };
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -214,6 +214,48 @@ fn created_media_file_keeps_successful_output_and_reports_size() {
     assert_eq!(file_size, 8);
     assert!(output.is_file());
     let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn new_data_file_is_scoped_and_never_overwrites_existing_content() {
+    let data_dir = unique_temp_dir("a4n_write_new_data_file");
+    std::fs::create_dir_all(&data_dir).expect("create data dir");
+
+    write_new_data_file(
+        &data_dir,
+        "projects/7/media/imported.bin",
+        b"first",
+        "导入媒体文件",
+    )
+    .expect("write new data file");
+    let target = data_dir.join("projects/7/media/imported.bin");
+    assert_eq!(std::fs::read(&target).unwrap(), b"first");
+
+    assert!(
+        write_new_data_file(
+            &data_dir,
+            "projects/7/media/imported.bin",
+            b"second",
+            "导入媒体文件",
+        )
+        .is_err()
+    );
+    assert_eq!(std::fs::read(&target).unwrap(), b"first");
+    let outside_name = format!(
+        "{}_outside.bin",
+        data_dir.file_name().unwrap().to_string_lossy()
+    );
+    assert!(
+        write_new_data_file(
+            &data_dir,
+            &format!("../{outside_name}"),
+            b"outside",
+            "导入媒体文件",
+        )
+        .is_err()
+    );
+    assert!(!data_dir.parent().unwrap().join(outside_name).exists());
+    let _ = std::fs::remove_dir_all(&data_dir);
 }
 
 #[test]

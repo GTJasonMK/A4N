@@ -1,26 +1,45 @@
-use super::{TaskPriority, TaskStatus, TaskType};
+use super::{TaskKind, TaskPriority, TaskStatus};
+use tokio_util::sync::CancellationToken;
 
 /// 任务许可（RAII 自动释放）
 ///
 /// 获取许可后必须调用 `complete()` 或 `fail()` 释放槽位。
 pub struct TaskPermit {
     task_id: String,
-    task_type: TaskType,
+    task_type: TaskKind,
     priority: TaskPriority,
+    cancellation_token: CancellationToken,
     on_complete: Option<Box<dyn FnOnce(TaskStatus) + Send>>,
 }
 
 impl TaskPermit {
     pub fn new(
         task_id: String,
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
+        on_complete: Box<dyn FnOnce(TaskStatus) + Send>,
+    ) -> Self {
+        Self::with_cancellation_token(
+            task_id,
+            task_type,
+            priority,
+            CancellationToken::new(),
+            on_complete,
+        )
+    }
+
+    pub(crate) fn with_cancellation_token(
+        task_id: String,
+        task_type: TaskKind,
+        priority: TaskPriority,
+        cancellation_token: CancellationToken,
         on_complete: Box<dyn FnOnce(TaskStatus) + Send>,
     ) -> Self {
         Self {
             task_id,
             task_type,
             priority,
+            cancellation_token,
             on_complete: Some(on_complete),
         }
     }
@@ -29,12 +48,16 @@ impl TaskPermit {
         &self.task_id
     }
 
-    pub fn task_type(&self) -> &TaskType {
+    pub fn task_type(&self) -> &TaskKind {
         &self.task_type
     }
 
     pub fn priority(&self) -> TaskPriority {
         self.priority
+    }
+
+    pub fn cancellation_token(&self) -> CancellationToken {
+        self.cancellation_token.clone()
     }
 
     /// 标记任务完成（释放槽位）
@@ -48,6 +71,18 @@ impl TaskPermit {
     pub fn fail(mut self, error: String) {
         if let Some(on_complete) = self.on_complete.take() {
             on_complete(TaskStatus::Failed { error });
+        }
+    }
+
+    pub fn cancel(mut self) {
+        if let Some(on_complete) = self.on_complete.take() {
+            on_complete(TaskStatus::Cancelled);
+        }
+    }
+
+    pub fn interrupt(mut self, reason: Option<String>) {
+        if let Some(on_complete) = self.on_complete.take() {
+            on_complete(TaskStatus::Interrupted { reason });
         }
     }
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Eye, ListChecks, Loader2, Play, RefreshCw, RotateCcw, Trash2, Wand2 } from "lucide-react";
-import type { ChapterVideoPrompt, GeneratedVideo, VideoWorkflowMode } from "../../../api/video";
+import type { ChapterVideoPrompt, GeneratedVideo } from "../../../api/video";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
@@ -16,6 +16,8 @@ import {
   PROMPT_OUTPUT_LANGUAGES,
   PROMPT_OUTPUT_LANGUAGE_LABELS,
   VIDEO_ASPECT_RATIOS,
+  VIDEO_WORKFLOW_MODE_LABELS,
+  type ChapterVideoWorkflowMode,
   type VideoAspectRatio,
   type VideoDurationLimits,
   type VideoGenOptions,
@@ -28,6 +30,7 @@ type PromptPanelTab = "generate" | "prompts";
 type VideoPromptGenerationRequestOptions = {
   regenerateExisting?: boolean;
   promptBatchSize?: number;
+  targetShotNumber?: number;
 };
 
 interface VideoPromptSetupPanelProps {
@@ -36,7 +39,7 @@ interface VideoPromptSetupPanelProps {
   generationPrompts: ChapterVideoPrompt[];
   selectedPrompt: ChapterVideoPrompt | null;
   selectedPromptId: number | null;
-  workflowMode: VideoWorkflowMode;
+  workflowMode: ChapterVideoWorkflowMode;
   providerBackend: string | null;
   providerOptionsJson: unknown;
   pendingVideo: GeneratedVideo | null;
@@ -60,6 +63,7 @@ interface VideoPromptSetupPanelProps {
   onGeneratePrompts: (options?: VideoPromptGenerationRequestOptions) => void | Promise<void>;
   onPreviewPromptRequests: () => void | Promise<void>;
   onSelectPrompt: (id: number) => void;
+  onWorkflowModeChange: (mode: ChapterVideoWorkflowMode, shotNumber?: number) => void;
   onDeletePrompt: (prompt: ChapterVideoPrompt) => void | Promise<void>;
   onDeleteAllVideoPrompts: () => void | Promise<void>;
   onPollPendingVideo: (video: GeneratedVideo) => void | Promise<void>;
@@ -155,12 +159,22 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
   onGeneratePrompts,
   onPreviewPromptRequests,
   onSelectPrompt,
+  onWorkflowModeChange,
   onDeletePrompt,
   onDeleteAllVideoPrompts,
   onPollPendingVideo,
   onGenerateAllVideos,
 }) => {
   const [promptPanelTab, setPromptPanelTab] = useState<PromptPanelTab>("generate");
+  const promptGroups = useMemo(() => {
+    const groups = new Map<number, ChapterVideoPrompt[]>();
+    for (const prompt of prompts) {
+      const rows = groups.get(prompt.shot_number) ?? [];
+      rows.push(prompt);
+      groups.set(prompt.shot_number, rows);
+    }
+    return [...groups.entries()].sort(([left], [right]) => left - right);
+  }, [prompts]);
   const chatVideoMode = workflowMode === "chat_video";
   const framePromptCountLabel =
     expectedBoundaryFrameCount == null
@@ -302,11 +316,11 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
     framePromptCount > 0 || (expectedBoundaryFrameCount ?? 0) > 0
       ? `${framePromptLabel} ${framePromptCountLabel}`
       : null,
-    prompts.length > 0 || (expectedVideoPromptCount ?? 0) > 0
+    generationPrompts.length > 0 || (expectedVideoPromptCount ?? 0) > 0
       ? `视频提示词 ${
           expectedVideoPromptCount == null
-            ? prompts.length
-            : `${prompts.length}/${expectedVideoPromptCount}`
+            ? generationPrompts.length
+            : `${generationPrompts.length}/${expectedVideoPromptCount}`
         }`
       : null,
     remainingVideoPromptCount != null && remainingVideoPromptCount > 0
@@ -345,6 +359,13 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
           : null;
     const metadata = [
       `${prompt.duration_secs} 秒`,
+      prompt.workflow_mode === "boundary_frames" ||
+      prompt.workflow_mode === "first_frame_chain" ||
+      prompt.workflow_mode === "storyboard" ||
+      prompt.workflow_mode === "reference_media" ||
+      prompt.workflow_mode === "chat_video"
+        ? VIDEO_WORKFLOW_MODE_LABELS[prompt.workflow_mode]
+        : prompt.workflow_mode,
       PROMPT_OUTPUT_LANGUAGE_LABELS[promptLanguage],
       getOperationStatusLabel(prompt.status),
       prompt.generated_video_id != null ? "已生成视频" : null,
@@ -687,9 +708,63 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
           {prompts.length === 0 ? (
             <EmptyHint text="本章还没有视频提示词。" />
           ) : (
-            <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
-              {prompts.map(renderPromptRow)}
-            </ul>
+            <div className="space-y-2">
+              {promptGroups.map(([shotNumber, variants]) => {
+                const currentVariant = variants.find(
+                  (prompt) => prompt.workflow_mode === workflowMode,
+                );
+                const canGenerateCurrentVariant =
+                  workflowMode !== "reference_media";
+                return (
+                  <section key={shotNumber} className="a4n-flat-surface overflow-hidden">
+                    <div className="border-b border-book-border/40 px-3 py-2">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-book-text-main">片段 {shotNumber}</span>
+                        <span className="text-[10px] text-book-text-muted">{variants.length} 个执行方案</span>
+                      </div>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <div className="max-w-full">
+                          <SegmentedControl
+                            ariaLabel={`片段 ${shotNumber} 生成方案`}
+                            value={workflowMode}
+                            onChange={(mode) => onWorkflowModeChange(mode, shotNumber)}
+                            className="a4n-seg--segment-workflows"
+                            options={[
+                              { id: "boundary_frames", label: "首尾帧" },
+                              { id: "first_frame_chain", label: "首帧续接" },
+                              { id: "storyboard", label: "分镜" },
+                              { id: "reference_media", label: "参考媒体" },
+                              { id: "chat_video", label: "Chat" },
+                            ]}
+                          />
+                        </div>
+                        {!currentVariant && canGenerateCurrentVariant && (
+                          <BookButton
+                            variant="secondary"
+                            size="sm"
+                            disabled={acting != null || chapterGenerating}
+                            onClick={() =>
+                              void onGeneratePrompts({
+                                targetShotNumber: shotNumber,
+                                promptBatchSize: 1,
+                              })
+                            }
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              <Wand2 size={11} />
+                              生成此方案提示词
+                            </span>
+                          </BookButton>
+                        )}
+                      </div>
+                    </div>
+                    <ul className="divide-y divide-book-border/35">
+                      {variants.map(renderPromptRow)}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

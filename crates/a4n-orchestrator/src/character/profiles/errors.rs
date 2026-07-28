@@ -4,7 +4,7 @@ use super::super::{
     CharacterPortraitRecordError, CharacterPortraitRollbackError, CharacterProfileCreateError,
 };
 
-pub(super) fn character_portrait_record_error(error: CharacterPortraitRecordError) -> AppError {
+pub fn character_portrait_record_error(error: CharacterPortraitRecordError) -> AppError {
     match error {
         CharacterPortraitRecordError::NotFound(message) => AppError::NotFound(message),
         CharacterPortraitRecordError::InvalidArgument(message) => {
@@ -14,7 +14,7 @@ pub(super) fn character_portrait_record_error(error: CharacterPortraitRecordErro
     }
 }
 
-pub(super) fn character_profile_create_error(error: CharacterProfileCreateError) -> AppError {
+pub fn character_profile_create_error(error: CharacterProfileCreateError) -> AppError {
     match error {
         CharacterProfileCreateError::AlreadyExists { name } => AppError::InvalidState {
             current: "character_profile_already_exists".to_string(),
@@ -28,7 +28,7 @@ pub(super) fn character_profile_create_error(error: CharacterProfileCreateError)
     }
 }
 
-pub(super) fn character_portrait_rollback_error(error: CharacterPortraitRollbackError) -> AppError {
+pub fn character_portrait_rollback_error(error: CharacterPortraitRollbackError) -> AppError {
     use CharacterPortraitRollbackError as Error;
 
     match error {

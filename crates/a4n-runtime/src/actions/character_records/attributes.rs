@@ -17,8 +17,8 @@ pub async fn add_profile_attribute(
 ) -> Result<AttributeMutationResultSummary, String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
     let result = state
-        .orchestrator
-        .add_profile_attribute(CharacterAttributeValueChangeInput {
+        .character()
+        .add_profile_attribute_validated(CharacterAttributeValueChangeInput {
             profile_id: input.profile_id,
             chapter_number: input.chapter_number,
             category: input.category,
@@ -42,8 +42,8 @@ pub async fn modify_profile_attribute(
 ) -> Result<AttributeMutationResultSummary, String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
     let result = state
-        .orchestrator
-        .modify_profile_attribute(CharacterAttributeValueChangeInput {
+        .character()
+        .modify_profile_attribute_validated(CharacterAttributeValueChangeInput {
             profile_id: input.profile_id,
             chapter_number: input.chapter_number,
             category: input.category,
@@ -67,7 +67,7 @@ pub async fn attribute_history(
 ) -> Result<Vec<AttributeEventSummary>, String> {
     require_profile_for_user(state, user_id, input.profile_id).await?;
     let events = state
-        .orchestrator
+        .character()
         .attribute_history(
             input.profile_id,
             CharacterAttributeEventHistoryFilter {

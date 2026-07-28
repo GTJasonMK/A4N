@@ -27,8 +27,7 @@ impl RagSyncContext {
         ids: &[String],
     ) -> Result<Self, RagSyncError> {
         let stored_metadata = context
-            .rag_store
-            .metadata_by_ids(&project_id.to_string(), ids)
+            .rag_project_metadata_by_ids(project_id, ids)
             .await
             .map_err(|error| RagSyncError::ReadStoredMetadata {
                 message: error.to_string(),
@@ -80,8 +79,7 @@ impl RagSyncContext {
         filter: DeleteFilter,
     ) -> Result<Self, RagSyncError> {
         let stored_metadata = context
-            .rag_store
-            .metadata_by_filter(&project_id.to_string(), filter)
+            .rag_project_metadata_by_filter(project_id, filter)
             .await
             .map_err(|error| RagSyncError::ReadStoredMetadata {
                 message: error.to_string(),

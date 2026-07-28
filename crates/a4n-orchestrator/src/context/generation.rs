@@ -1,0 +1,2326 @@
+//! 生成运行账本领域私有 owner。
+//!
+//! 持有 `DbHandle`，封装 generation_run / llm_call_trace 的落库与按目标完成/失败。
+
+use a4n_api_contract::{
+    blueprint::{StartBlueprintGenerationInput, StartBlueprintRefinementInput},
+    chapter::StartChapterGenerationInput,
+    generation_tasks::{GenerationSnapshotState, GenerationTaskHandle, GenerationTaskSummary},
+    image_generation::{ImageGenerationOperation, StartImageGenerationInput},
+    inspiration::StartInspirationGenerationInput,
+    optimize::{
+        StartOptimizeAnalysisGenerationInput, StartOptimizeChatGenerationInput,
+        StartOptimizePatchGenerationInput,
+    },
+    outline::{OutlineGenerationOperation, StartOutlineGenerationInput},
+    portrait::{PortraitGenerationOperation, StartPortraitGenerationInput},
+    video::{StartVideoGenerationInput, VideoGenerationOperation},
+};
+use a4n_core::error::AppError;
+use a4n_core::models::generation::{generation_run, llm_call_trace};
+use a4n_db::DbHandle;
+use a4n_db::generation::{
+    AttachGenerationRunsToWorkflowInput, GenerationLifecycleGateError, GenerationLifecycleTask,
+    GenerationPublicSnapshot, GenerationTaskCheckpointPage, GenerationTaskLifecycleError,
+    GenerationTaskListCursor, GenerationTaskPersistenceError, PendingLifecycleOperation,
+    PersistedGenerationTask, ProjectLifecycleGateClaim, ProjectLifecycleOperation,
+    RecordCompletedGenerationRunInput, RecordCompletedGenerationRunWithCheckpointInput,
+    RecordLlmCallTraceInput, ReserveGenerationTaskInput, UserLifecycleGateClaim,
+};
+use a4n_queue::priority::{TaskKind, TaskPermit, TaskPriority, TaskStatus};
+use a4n_service_protocol::{
+    BatchSummary, GENERATION_EVENT_SCHEMA_VERSION, GenerationError, GenerationEvent,
+    GenerationTaskEvent, GenerationTaskSnapshot, GenerationTaskStatus, InterruptionReason,
+};
+use chrono::{DateTime, Utc};
+use serde_json::Value;
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+
+use super::OrchestratorContext;
+use crate::generation::{
+    artifacts::PreparedArtifactEvent,
+    events::{
+        GenerationReplay, GenerationSessionConfig, GenerationSessionError,
+        GenerationSessionRegistry, GenerationSubscription, GenerationTaskSession,
+    },
+    generation_error,
+    terminal::{
+        GenerationTerminalCoordinator, GenerationTerminalError, GenerationTerminalWriteOutcome,
+    },
+};
+use crate::task_queue::PersistentTaskQueue;
+use crate::video::validate_reference_media_start_input;
+
+/// 生成运行账本 owner；章节生成服务可持有克隆以写 generation run。
+#[derive(Clone)]
+pub(crate) struct GenerationApplication {
+    database: DbHandle,
+    task_queue: Arc<PersistentTaskQueue>,
+    terminal: GenerationTerminalCoordinator,
+}
+
+#[derive(Debug, Clone)]
+pub struct GenerationTaskHistorySummaries {
+    pub items: Vec<GenerationTaskSummary>,
+    pub next_cursor: Option<GenerationTaskListCursor>,
+}
+
+/// 统一 generation read/subscribe 的权限与 attempt 错误。
+#[derive(Debug, thiserror::Error)]
+pub enum GenerationTaskAccessError {
+    #[error("generation task 不存在: {0}")]
+    NotFound(String),
+    #[error("generation task 无权访问: {0}")]
+    Forbidden(String),
+    #[error("generation task attempt 不匹配: expected={expected}, actual={actual}")]
+    AttemptMismatch { expected: u32, actual: u32 },
+    #[error("generation task 没有 live session，需要 snapshot 恢复")]
+    SnapshotRequired,
+    #[error("generation request invalid: {0}")]
+    InvalidArgument(String),
+    #[error(transparent)]
+    Persistence(#[from] GenerationTaskPersistenceError),
+    #[error(transparent)]
+    Session(#[from] GenerationSessionError),
+    #[error(transparent)]
+    Terminal(#[from] GenerationTerminalError),
+    #[error("generation queue operation failed: {0}")]
+    Queue(#[source] AppError),
+    #[error("generation project authorization failed: {0}")]
+    Project(#[source] AppError),
+}
+
+impl GenerationTaskAccessError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::NotFound(_) => "generation_task_not_found",
+            Self::Forbidden(_) => "generation_task_forbidden",
+            Self::AttemptMismatch { .. } => "generation_attempt_mismatch",
+            Self::SnapshotRequired => "generation_snapshot_required",
+            Self::InvalidArgument(_) => "generation_request_invalid",
+            Self::Persistence(error) => error.code(),
+            Self::Session(error) => error.code(),
+            Self::Terminal(error) => error.code(),
+            Self::Queue(_) => "generation_persist_failed",
+            Self::Project(AppError::Forbidden(_)) => "generation_task_forbidden",
+            Self::Project(AppError::Unauthorized(_)) => "generation_task_unauthenticated",
+            Self::Project(AppError::NotFound(_)) => "generation_task_not_found",
+            Self::Project(_) => "generation_persist_failed",
+        }
+    }
+}
+
+/// 章节 generation start 的唯一 owner 返回值。
+#[derive(Debug, Clone)]
+pub struct GenerationTaskStart {
+    pub handle: GenerationTaskHandle,
+    pub should_run: bool,
+}
+
+/// 已取得 generation queue execution permit 的运行上下文。
+pub(crate) struct GenerationTaskExecution {
+    pub(crate) session: Arc<GenerationTaskSession>,
+    pub(crate) terminal: GenerationTerminalCoordinator,
+    pub(crate) queue: Arc<PersistentTaskQueue>,
+    pub(crate) permit: TaskPermit,
+}
+
+impl GenerationTaskExecution {
+    pub(crate) async fn fail(self, error: GenerationError) -> String {
+        self.fail_with_batch_summary(error, None, Vec::new()).await
+    }
+
+    pub(crate) async fn fail_with_batch_summary(
+        self,
+        error: GenerationError,
+        batch_summary: Option<BatchSummary>,
+        artifacts: Vec<PreparedArtifactEvent>,
+    ) -> String {
+        let Self {
+            session,
+            terminal,
+            queue,
+            permit,
+        } = self;
+        let terminal_result = match session.snapshot().status {
+            GenerationTaskStatus::Cancelling => {
+                terminal
+                    .cancel(&session, None, batch_summary.clone(), artifacts)
+                    .await
+            }
+            _ if error.code.as_str() == "generation_interrupted" => {
+                terminal
+                    .interrupt(
+                        &session,
+                        InterruptionReason::SessionOwnerLost,
+                        Some(error.message.clone()),
+                        batch_summary.clone(),
+                        artifacts,
+                    )
+                    .await
+            }
+            _ => {
+                terminal
+                    .fail(&session, error.clone(), batch_summary, artifacts)
+                    .await
+            }
+        };
+        let final_status = session.snapshot().status;
+        let task_id = permit.task_id().to_string();
+        let queue_result = match final_status {
+            GenerationTaskStatus::Completed => queue.complete_generation_task(permit).await,
+            GenerationTaskStatus::Cancelled => {
+                let result = queue.project_generation_terminal(&task_id, TaskStatus::Cancelled);
+                permit.cancel();
+                result
+            }
+            GenerationTaskStatus::Interrupted => {
+                let result = queue.project_generation_terminal(
+                    &task_id,
+                    TaskStatus::Interrupted {
+                        reason: Some(error.message.clone()),
+                    },
+                );
+                permit.interrupt(Some(error.message.clone()));
+                result
+            }
+            _ => queue.fail_generation_task(permit, &error.message).await,
+        };
+
+        let mut message = error.message;
+        if let Err(terminal_error) = terminal_result {
+            message.push_str(&format!("; generation 终态写入失败: {terminal_error}"));
+        }
+        if let Err(queue_error) = queue_result {
+            message.push_str(&format!("; generation queue 终态投影失败: {queue_error}"));
+        }
+        message
+    }
+}
+
+impl GenerationApplication {
+    pub(crate) fn new(database: DbHandle, task_queue: Arc<PersistentTaskQueue>) -> Self {
+        let registry = Arc::new(
+            GenerationSessionRegistry::new(GenerationSessionConfig::default())
+                .expect("default generation session config must be valid"),
+        );
+        let terminal = GenerationTerminalCoordinator::new(database.clone(), registry);
+        Self {
+            database,
+            task_queue,
+            terminal,
+        }
+    }
+
+    fn connection(&self) -> &sea_orm::DatabaseConnection {
+        self.database.connection()
+    }
+
+    async fn initialize_reserved_task(
+        &self,
+        reservation: a4n_db::generation::GenerationTaskReservation,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let a4n_db::generation::GenerationTaskReservation {
+            created,
+            task,
+            queue_task,
+        } = reservation;
+        let snapshot = required_public_snapshot(task.clone())
+            .map_err(|error| GenerationTaskAccessError::InvalidArgument(error.to_string()))?;
+        let handle = generation_task_handle(&snapshot);
+        let queue_pending = matches!(queue_task.status, TaskStatus::Pending);
+
+        if queue_pending {
+            if let Err(error) = self.task_queue.register_persisted(queue_task) {
+                self.terminate_start_failure(
+                    &task.checkpoint.task_id,
+                    task.checkpoint.attempt,
+                    false,
+                    error.to_string(),
+                )
+                .await;
+                return Err(GenerationTaskAccessError::Queue(error));
+            }
+        }
+
+        if snapshot.status.is_terminal()
+            || self.session(&snapshot.task_id, snapshot.attempt)?.is_some()
+        {
+            return Ok(GenerationTaskStart {
+                handle,
+                should_run: false,
+            });
+        }
+
+        // A duplicate request can resume only a still-reserved attempt. Running
+        // and cancelling attempts belong to an existing executor/recovery path.
+        if !created && snapshot.status != GenerationTaskStatus::Reserved {
+            return Ok(GenerationTaskStart {
+                handle,
+                should_run: false,
+            });
+        }
+
+        let admission = match self.terminal.registry().try_admit() {
+            Ok(admission) => admission,
+            Err(error) => {
+                self.terminate_start_failure(
+                    &task.checkpoint.task_id,
+                    task.checkpoint.attempt,
+                    queue_pending,
+                    error.to_string(),
+                )
+                .await;
+                return Err(GenerationTaskAccessError::Session(error));
+            }
+        };
+        let started = a4n_db::generation::started_event_from_checkpoint(&task.checkpoint)?;
+        let started_event = GenerationTaskEvent {
+            schema_version: GENERATION_EVENT_SCHEMA_VERSION,
+            task_id: snapshot.task_id.clone(),
+            attempt: snapshot.attempt,
+            sequence: snapshot.covers_through_sequence,
+            emitted_at_ms: snapshot.updated_at_ms,
+            event: GenerationEvent::Started(started),
+        };
+        let reserved_through_sequence =
+            match u64::try_from(task.checkpoint.reserved_through_sequence) {
+                Ok(value) => value,
+                Err(_) => {
+                    let error = GenerationSessionError::InvalidSequenceLease {
+                        current: snapshot.covers_through_sequence,
+                        next: u64::MAX,
+                    };
+                    self.terminate_start_failure(
+                        &task.checkpoint.task_id,
+                        task.checkpoint.attempt,
+                        queue_pending,
+                        error.to_string(),
+                    )
+                    .await;
+                    return Err(GenerationTaskAccessError::Session(error));
+                }
+            };
+        let session = match GenerationTaskSession::from_snapshot(
+            snapshot.clone(),
+            vec![started_event],
+            task.checkpoint.checkpoint_revision,
+            reserved_through_sequence,
+            snapshot.updated_at_ms,
+            admission,
+        ) {
+            Ok(session) => session,
+            Err(error) => {
+                self.terminate_start_failure(
+                    &task.checkpoint.task_id,
+                    task.checkpoint.attempt,
+                    queue_pending,
+                    error.to_string(),
+                )
+                .await;
+                return Err(GenerationTaskAccessError::Session(error));
+            }
+        };
+        if let Err(error) = self.terminal.registry().insert(session) {
+            self.terminate_start_failure(
+                &task.checkpoint.task_id,
+                task.checkpoint.attempt,
+                queue_pending,
+                error.to_string(),
+            )
+            .await;
+            return Err(GenerationTaskAccessError::Session(error));
+        }
+
+        Ok(GenerationTaskStart {
+            handle,
+            should_run: true,
+        })
+    }
+
+    async fn terminate_start_failure(
+        &self,
+        task_id: &str,
+        attempt: i32,
+        queue_registered: bool,
+        summary: String,
+    ) {
+        if let Ok(attempt) = u32::try_from(attempt) {
+            let _ = self
+                .terminal
+                .interrupt_persisted_task(
+                    task_id,
+                    attempt,
+                    a4n_service_protocol::InterruptionReason::SessionOwnerLost,
+                    Some(summary),
+                    None,
+                )
+                .await;
+        }
+        if queue_registered {
+            let _ = self.task_queue.project_generation_terminal(
+                task_id,
+                TaskStatus::Interrupted {
+                    reason: Some("generation start failed".to_string()),
+                },
+            );
+        }
+    }
+
+    pub(crate) async fn start_chapter_generation_task(
+        &self,
+        user_id: i64,
+        input: StartChapterGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let fingerprint = chapter_generation_input_fingerprint(&input);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "chapter_generation",
+                    "project_id": input.project_id,
+                    "chapter_number": input.chapter_number,
+                }),
+                input_fingerprint_json: fingerprint,
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: Some(input.project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("chapter_generation".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: "chapter".to_string(),
+                    id: format!("{}:{}", input.project_id, input.chapter_number),
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_inspiration_generation_task(
+        &self,
+        user_id: i64,
+        input: StartInspirationGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let fingerprint = inspiration_generation_input_fingerprint(&input);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "inspiration_generation",
+                    "project_id": input.project_id,
+                }),
+                input_fingerprint_json: fingerprint,
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: Some(input.project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("inspiration_generation".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: "inspiration_conversation".to_string(),
+                    id: input.project_id.to_string(),
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_outline_generation_task(
+        &self,
+        user_id: i64,
+        input: StartOutlineGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let operation_kind = outline_generation_operation_kind(&input.operation);
+        let target_id = outline_generation_target_id(input.project_id, &input.operation);
+        let fingerprint = outline_generation_input_fingerprint(&input);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "outline_generation",
+                    "project_id": input.project_id,
+                    "operation_kind": operation_kind,
+                }),
+                input_fingerprint_json: fingerprint,
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: Some(input.project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("outline_generation".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: format!("outline_{operation_kind}"),
+                    id: target_id,
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_portrait_generation_task(
+        &self,
+        user_id: i64,
+        input: StartPortraitGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let operation_kind = portrait_generation_operation_kind(&input.operation);
+        let fingerprint = portrait_generation_input_fingerprint(&input);
+        let batch_policy = matches!(
+            &input.operation,
+            PortraitGenerationOperation::GenerateMissing
+        )
+        .then_some(a4n_service_protocol::BatchCommitPolicy::BestEffort);
+        let target_id = portrait_generation_target_id(input.project_id, &input.operation);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "portrait_generation",
+                    "project_id": input.project_id,
+                    "operation_kind": operation_kind,
+                }),
+                input_fingerprint_json: fingerprint,
+                task_kind: TaskKind::ImageGeneration,
+                priority: TaskPriority::Medium,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::StageOnly,
+                batch_policy,
+                project_id: Some(input.project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("portrait_generation".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: format!("portrait_{operation_kind}"),
+                    id: target_id,
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_image_generation_task(
+        &self,
+        user_id: i64,
+        input: StartImageGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let operation_kind = image_generation_operation_kind(&input.operation);
+        let fingerprint = image_generation_input_fingerprint(&input);
+        let batch_policy = matches!(&input.operation, ImageGenerationOperation::Batch { .. })
+            .then_some(a4n_service_protocol::BatchCommitPolicy::BestEffort);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "image_generation",
+                    "project_id": input.project_id,
+                    "operation_kind": operation_kind,
+                }),
+                input_fingerprint_json: fingerprint,
+                task_kind: TaskKind::ImageGeneration,
+                priority: TaskPriority::Medium,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::StageOnly,
+                batch_policy,
+                project_id: Some(input.project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("image_generation".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: format!("image_{operation_kind}"),
+                    id: image_generation_target_id(input.project_id, &input.operation),
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_video_generation_task(
+        &self,
+        user_id: i64,
+        input: StartVideoGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let operation_kind = video_generation_operation_kind(&input.operation);
+        let fingerprint = video_generation_input_fingerprint(&input);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "video_generation",
+                    "project_id": input.project_id,
+                    "operation_kind": operation_kind,
+                }),
+                input_fingerprint_json: fingerprint,
+                task_kind: TaskKind::VideoGeneration,
+                priority: TaskPriority::Medium,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::StageOnly,
+                batch_policy: matches!(
+                    &input.operation,
+                    VideoGenerationOperation::ChapterBatch { .. }
+                )
+                .then_some(a4n_service_protocol::BatchCommitPolicy::BestEffort),
+                project_id: Some(input.project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("video_generation".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: format!("video_{operation_kind}"),
+                    id: video_generation_target_id(input.project_id, &input.operation),
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_blueprint_generation_task(
+        &self,
+        user_id: i64,
+        input: StartBlueprintGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let fingerprint = blueprint_generation_input_fingerprint(&input);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "blueprint_mutation",
+                    "project_id": input.project_id,
+                    "operation_mode": "blueprint",
+                }),
+                input_fingerprint_json: fingerprint,
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: Some(input.project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("blueprint_generation".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: "blueprint_generation".to_string(),
+                    id: input.project_id.to_string(),
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_blueprint_refinement_task(
+        &self,
+        user_id: i64,
+        input: StartBlueprintRefinementInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let fingerprint = blueprint_refinement_input_fingerprint(&input);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "blueprint_mutation",
+                    "project_id": input.project_id,
+                    "operation_mode": "blueprint",
+                }),
+                input_fingerprint_json: fingerprint,
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: Some(input.project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("blueprint_refinement".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: "blueprint_refinement".to_string(),
+                    id: input.project_id.to_string(),
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_optimize_chat_generation_task(
+        &self,
+        user_id: i64,
+        input: StartOptimizeChatGenerationInput,
+        project_id: i64,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let fingerprint = optimize_chat_generation_input_fingerprint(&input);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "optimization_chat",
+                    "session_id": input.request.session_id,
+                }),
+                input_fingerprint_json: fingerprint,
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: Some(project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("optimization_chat".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: "optimization_chat".to_string(),
+                    id: input.request.session_id.to_string(),
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_optimize_analysis_generation_task(
+        &self,
+        user_id: i64,
+        input: StartOptimizeAnalysisGenerationInput,
+        project_id: i64,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let input_fingerprint_json = optimize_analysis_generation_input_fingerprint(&input);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "optimization_analysis",
+                    "session_id": input.session_id,
+                }),
+                input_fingerprint_json,
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: Some(project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("optimization_analysis".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: "optimization_analysis".to_string(),
+                    id: input.session_id.to_string(),
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn start_optimize_patch_generation_task(
+        &self,
+        user_id: i64,
+        input: StartOptimizePatchGenerationInput,
+        project_id: i64,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let input_fingerprint_json = optimize_patch_generation_input_fingerprint(&input);
+        let reservation = a4n_db::generation::reserve_generation_task(
+            self.connection(),
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user_id,
+                start_request_id: input.meta.start_request_id,
+                business_key_json: serde_json::json!({
+                    "version": 1,
+                    "task_kind": "optimization_patch",
+                    "session_id": input.request.session_id,
+                }),
+                input_fingerprint_json,
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: Some(project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: Some("optimization_patch".to_string()),
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: Some(a4n_service_protocol::GenerationTargetRef {
+                    kind: "optimization_patch".to_string(),
+                    id: input.request.session_id.to_string(),
+                    revision: None,
+                }),
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: input.meta.retry_of_task_id,
+            },
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        self.initialize_reserved_task(reservation).await
+    }
+
+    pub(crate) async fn acquire_task_execution(
+        &self,
+        handle: &GenerationTaskHandle,
+    ) -> Result<Option<GenerationTaskExecution>, GenerationTaskAccessError> {
+        let session = self
+            .session(&handle.task_id, handle.attempt)?
+            .ok_or(GenerationTaskAccessError::SnapshotRequired)?;
+        let Some(permit) = self
+            .task_queue
+            .acquire_generation_task_with_cancel(&handle.task_id, CancellationToken::new())
+            .await
+            .map_err(GenerationTaskAccessError::Queue)?
+        else {
+            return Ok(None);
+        };
+        match self.terminal.begin_running(&session).await {
+            Ok(GenerationTerminalWriteOutcome::Persisted)
+            | Ok(GenerationTerminalWriteOutcome::RebuiltFromPersistedSnapshot) => {
+                Ok(Some(GenerationTaskExecution {
+                    session,
+                    terminal: self.terminal.clone(),
+                    queue: Arc::clone(&self.task_queue),
+                    permit,
+                }))
+            }
+            Ok(GenerationTerminalWriteOutcome::AlreadyTerminal)
+            | Ok(GenerationTerminalWriteOutcome::NoLiveSession) => {
+                permit.cancel();
+                Ok(None)
+            }
+            Err(error) => {
+                permit.fail(error.to_string());
+                Err(GenerationTaskAccessError::Terminal(error))
+            }
+        }
+    }
+
+    async fn load_task_checkpoint(
+        &self,
+        task_id: &str,
+    ) -> Result<
+        a4n_core::models::generation::generation_task_checkpoint::Model,
+        GenerationTaskAccessError,
+    > {
+        a4n_db::generation::load_generation_task_checkpoint(self.connection(), task_id)
+            .await
+            .map_err(|error| match error {
+                GenerationTaskPersistenceError::NotFound(message) => {
+                    GenerationTaskAccessError::NotFound(message)
+                }
+                other => GenerationTaskAccessError::Persistence(other),
+            })
+    }
+
+    async fn list_active_task_summaries(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+    ) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError> {
+        let page = a4n_db::generation::list_active_generation_task_checkpoints(
+            self.connection(),
+            user_id,
+            project_id,
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        summarize_checkpoint_page(page)
+    }
+
+    async fn list_history_task_summaries(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+        limit: u32,
+        cursor: Option<GenerationTaskListCursor>,
+    ) -> Result<GenerationTaskHistorySummaries, GenerationTaskAccessError> {
+        let page = a4n_db::generation::list_generation_task_history_checkpoints(
+            self.connection(),
+            user_id,
+            project_id,
+            limit,
+            cursor,
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Persistence)?;
+        let next_cursor = if page.has_more {
+            page.items
+                .last()
+                .map(|checkpoint| GenerationTaskListCursor {
+                    updated_at_ms: DateTime::<Utc>::from_naive_utc_and_offset(
+                        checkpoint.updated_at,
+                        Utc,
+                    )
+                    .timestamp_millis(),
+                    task_id: checkpoint.task_id.clone(),
+                })
+        } else {
+            None
+        };
+        let items = summarize_checkpoint_page(page)?;
+        Ok(GenerationTaskHistorySummaries { items, next_cursor })
+    }
+
+    pub(crate) async fn record_completed_generation_run(
+        &self,
+        input: RecordCompletedGenerationRunInput,
+    ) -> Result<generation_run::Model, AppError> {
+        a4n_db::generation::record_completed_generation_run(self.connection(), input)
+            .await
+            .map_err(generation_error)
+    }
+
+    async fn record_completed_generation_run_with_checkpoint(
+        &self,
+        input: RecordCompletedGenerationRunWithCheckpointInput,
+    ) -> Result<generation_run::Model, AppError> {
+        a4n_db::generation::record_completed_run_with_checkpoint_transaction(
+            self.connection(),
+            input,
+        )
+        .await
+        .map_err(generation_error)
+    }
+
+    async fn attach_generation_runs_to_workflow_for_target(
+        &self,
+        input: AttachGenerationRunsToWorkflowInput,
+    ) -> Result<Vec<generation_run::Model>, AppError> {
+        a4n_db::generation::attach_runs_to_workflow_for_target(self.connection(), input)
+            .await
+            .map_err(generation_error)
+    }
+
+    pub(crate) async fn record_llm_call_trace(
+        &self,
+        input: RecordLlmCallTraceInput,
+    ) -> Result<llm_call_trace::Model, AppError> {
+        a4n_db::generation::record_llm_call_trace(self.connection(), input)
+            .await
+            .map_err(generation_error)
+    }
+
+    pub(super) async fn complete_generation_runs_for_target(
+        &self,
+        target_table: &str,
+        target_id: i64,
+        response_summary_json: Option<Value>,
+    ) -> Result<Vec<generation_run::Model>, AppError> {
+        a4n_db::generation::complete_runs_for_target(
+            self.connection(),
+            target_table,
+            target_id,
+            response_summary_json,
+        )
+        .await
+        .map_err(generation_error)
+    }
+
+    pub(super) async fn fail_generation_runs_for_target(
+        &self,
+        target_table: &str,
+        target_id: i64,
+        error_message: String,
+        response_summary_json: Option<Value>,
+    ) -> Result<Vec<generation_run::Model>, AppError> {
+        a4n_db::generation::fail_runs_for_target(
+            self.connection(),
+            target_table,
+            target_id,
+            error_message,
+            response_summary_json,
+        )
+        .await
+        .map_err(generation_error)
+    }
+
+    async fn delete_generation_run_targets_for(
+        &self,
+        target_table: &str,
+        target_ids: &[i64],
+    ) -> Result<u64, AppError> {
+        a4n_db::generation::delete_generation_run_targets_for(
+            self.connection(),
+            target_table,
+            target_ids,
+        )
+        .await
+        .map_err(generation_error)
+    }
+
+    async fn generation_run_exists_for_target_output(
+        &self,
+        target_table: &str,
+        target_id: i64,
+        step_key: &str,
+        response_output: &str,
+    ) -> Result<bool, AppError> {
+        a4n_db::generation::generation_run_exists_for_target_output(
+            self.connection(),
+            target_table,
+            target_id,
+            step_key,
+            response_output,
+        )
+        .await
+        .map_err(generation_error)
+    }
+
+    fn session(
+        &self,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<Option<Arc<GenerationTaskSession>>, GenerationTerminalError> {
+        self.terminal
+            .registry()
+            .get(task_id, attempt)
+            .map_err(Into::into)
+    }
+
+    fn session_for_authorized_task(
+        &self,
+        task: &PersistedGenerationTask,
+    ) -> Result<Option<Arc<GenerationTaskSession>>, GenerationTerminalError> {
+        let Some(snapshot) = task.public_snapshot.as_ref() else {
+            return Ok(None);
+        };
+        if let Some(session) = self.session(&snapshot.task_id, snapshot.attempt)? {
+            return Ok(Some(session));
+        }
+        self.terminal.restore_snapshot_only_session(task)
+    }
+
+    async fn begin_project_lifecycle_gate(
+        &self,
+        project_id: i64,
+        user_id: i64,
+        operation: ProjectLifecycleOperation,
+    ) -> Result<ProjectLifecycleGateClaim, GenerationLifecycleGateError> {
+        a4n_db::generation::begin_project_lifecycle_gate(
+            self.connection(),
+            project_id,
+            user_id,
+            operation,
+        )
+        .await
+    }
+
+    async fn begin_user_disable_gate(
+        &self,
+        caller_user_id: i64,
+        user_id: i64,
+    ) -> Result<UserLifecycleGateClaim, GenerationLifecycleGateError> {
+        a4n_db::generation::begin_user_disable_gate(self.connection(), caller_user_id, user_id)
+            .await
+    }
+
+    async fn active_generation_tasks_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
+        a4n_db::generation::active_generation_tasks_for_project(self.connection(), project_id).await
+    }
+
+    async fn active_generation_tasks_for_user(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
+        a4n_db::generation::active_generation_tasks_for_user(self.connection(), user_id).await
+    }
+
+    async fn active_generation_tasks(
+        &self,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
+        a4n_db::generation::active_generation_tasks(self.connection()).await
+    }
+
+    async fn expire_generation_snapshot_bodies(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError> {
+        a4n_db::generation::expire_generation_snapshot_bodies(self.connection(), limit).await
+    }
+
+    async fn purge_expired_generation_task_trees(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError> {
+        a4n_db::generation::purge_expired_generation_task_trees(self.connection(), limit).await
+    }
+
+    async fn pending_lifecycle_operations(
+        &self,
+    ) -> Result<Vec<PendingLifecycleOperation>, GenerationLifecycleGateError> {
+        a4n_db::generation::pending_lifecycle_operations(self.connection()).await
+    }
+
+    async fn request_destructive_cancel(
+        &self,
+        task: &GenerationLifecycleTask,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
+        let Some(session) = self.session(&task.task_id, task.attempt)? else {
+            return Ok(GenerationTerminalWriteOutcome::NoLiveSession);
+        };
+        let was_reserved =
+            session.snapshot().status == a4n_service_protocol::GenerationTaskStatus::Reserved;
+        let outcome = self
+            .terminal
+            .request_cancel(
+                &session,
+                a4n_service_protocol::CancellationReason::Superseded,
+            )
+            .await?;
+        self.task_queue
+            .signal_generation_cancel(&task.task_id)
+            .map_err(GenerationTerminalError::QueueSignal)?;
+        if was_reserved {
+            let outcome = self
+                .terminal
+                .cancel(&session, None, None, Vec::new())
+                .await?;
+            self.project_generation_queue_terminal(&session)?;
+            return Ok(outcome);
+        }
+        Ok(outcome)
+    }
+
+    pub(crate) async fn request_generation_cancel(
+        &self,
+        requested_by_user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<GenerationTaskHandle, GenerationTerminalError> {
+        let targets = a4n_db::generation::generation_cancel_targets(
+            self.connection(),
+            requested_by_user_id,
+            task_id,
+            attempt,
+        )
+        .await?;
+        let mut live = Vec::new();
+        let mut missing = Vec::new();
+        for target in &targets {
+            let reason = if target.task_id == task_id {
+                a4n_service_protocol::CancellationReason::UserRequested
+            } else {
+                a4n_service_protocol::CancellationReason::ParentCancelled
+            };
+            match self.session(&target.task_id, target.attempt)? {
+                Some(session) => live.push((target.clone(), session, reason)),
+                None => missing.push((target.clone(), reason)),
+            }
+        }
+
+        for (target, _) in missing {
+            self.terminal
+                .interrupt_persisted_task(
+                    &target.task_id,
+                    target.attempt,
+                    a4n_service_protocol::InterruptionReason::SessionOwnerLost,
+                    Some("用户取消时未找到 live generation session".to_string()),
+                    None,
+                )
+                .await?;
+        }
+
+        let requests = live
+            .iter()
+            .map(|(_, session, reason)| (Arc::clone(session), *reason))
+            .collect();
+        self.terminal.request_cancel_tree(requests).await?;
+
+        let mut first_queue_error = None;
+        for (target, session, _) in &live {
+            match self.task_queue.signal_generation_cancel(&target.task_id) {
+                Ok(true) => {
+                    if target.status == GenerationTaskStatus::Reserved {
+                        self.terminal
+                            .cancel(session, None, None, Vec::new())
+                            .await?;
+                        self.project_generation_queue_terminal(session)?;
+                    }
+                }
+                Ok(false) | Err(AppError::NotFound(_)) => {
+                    // A snapshot-only session can outlive the in-memory queue entry.
+                    // Keep the lifecycle authoritative: reserved work can finish the
+                    // cancellation immediately; running work without an executor is
+                    // an interrupted attempt, not a request that remains cancelling.
+                    if target.status == GenerationTaskStatus::Reserved {
+                        self.terminal
+                            .cancel(session, None, None, Vec::new())
+                            .await?;
+                    } else {
+                        self.terminal
+                            .interrupt(
+                                session,
+                                a4n_service_protocol::InterruptionReason::SessionOwnerLost,
+                                Some(
+                                    "用户取消时未找到 live generation execution owner".to_string(),
+                                ),
+                                None,
+                                Vec::new(),
+                            )
+                            .await?;
+                    }
+                }
+                Err(error) => {
+                    first_queue_error.get_or_insert(error);
+                }
+            }
+        }
+        if let Some(error) = first_queue_error {
+            return Err(GenerationTerminalError::QueueSignal(error));
+        }
+
+        let snapshot = if let Some((_, session, _)) =
+            live.iter().find(|(target, _, _)| target.task_id == task_id)
+        {
+            session.snapshot()
+        } else {
+            let persisted = a4n_db::generation::load_generation_task(self.connection(), task_id)
+                .await
+                .map_err(GenerationTaskLifecycleError::from)?;
+            required_public_snapshot(persisted)
+                .map_err(|error| GenerationTerminalError::Completion(error))?
+        };
+        Ok(generation_task_handle(&snapshot))
+    }
+
+    fn project_generation_queue_terminal(
+        &self,
+        session: &GenerationTaskSession,
+    ) -> Result<(), GenerationTerminalError> {
+        let snapshot = session.snapshot();
+        let status = match snapshot.status {
+            GenerationTaskStatus::Completed => TaskStatus::Completed,
+            GenerationTaskStatus::Failed => TaskStatus::Failed {
+                error: "generation task failed".to_string(),
+            },
+            GenerationTaskStatus::Cancelled => TaskStatus::Cancelled,
+            GenerationTaskStatus::Interrupted => TaskStatus::Interrupted {
+                reason: Some("generation task interrupted".to_string()),
+            },
+            _ => return Ok(()),
+        };
+        self.task_queue
+            .project_generation_terminal(&snapshot.task_id, status)
+            .map_err(GenerationTerminalError::QueueSignal)
+    }
+
+    async fn interrupt_destructive_task(
+        &self,
+        task: &GenerationLifecycleTask,
+        reason: a4n_service_protocol::InterruptionReason,
+        summary: String,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
+        if let Some(session) = self.session(&task.task_id, task.attempt)? {
+            return self
+                .terminal
+                .interrupt(&session, reason, Some(summary), None, Vec::new())
+                .await;
+        }
+        self.terminal
+            .interrupt_persisted_task(&task.task_id, task.attempt, reason, Some(summary), None)
+            .await
+    }
+}
+
+impl OrchestratorContext {
+    pub async fn validate_video_generation_start(
+        &self,
+        user_id: i64,
+        input: &StartVideoGenerationInput,
+    ) -> Result<(), AppError> {
+        if input.project_id <= 0 {
+            return Err(AppError::InvalidArgument(
+                "project_id 必须大于 0".to_string(),
+            ));
+        }
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        match &input.operation {
+            VideoGenerationOperation::Chapter {
+                chapter_id,
+                prompt_id,
+                config_id,
+            } => {
+                if *chapter_id <= 0 || *prompt_id <= 0 || config_id.is_some_and(|id| id <= 0) {
+                    return Err(AppError::InvalidArgument(
+                        "章节视频的 chapter_id、prompt_id、config_id 必须为正数".to_string(),
+                    ));
+                }
+            }
+            VideoGenerationOperation::ChapterBatch {
+                chapter_id,
+                prompt_ids,
+                config_id,
+            } => {
+                if *chapter_id <= 0 || prompt_ids.is_empty() || config_id.is_some_and(|id| id <= 0)
+                {
+                    return Err(AppError::InvalidArgument(
+                        "批量视频必须包含 chapter_id 和 prompt_ids".to_string(),
+                    ));
+                }
+                if prompt_ids.iter().any(|id| *id <= 0) {
+                    return Err(AppError::InvalidArgument(
+                        "批量视频 prompt_id 必须为正数".to_string(),
+                    ));
+                }
+                let mut unique = prompt_ids.clone();
+                unique.sort_unstable();
+                unique.dedup();
+                if unique.len() != prompt_ids.len() {
+                    return Err(AppError::InvalidArgument(
+                        "批量视频 prompt_ids 不能重复".to_string(),
+                    ));
+                }
+            }
+            VideoGenerationOperation::ReferenceMedia { chapter_id, input } => {
+                if *chapter_id <= 0 {
+                    return Err(AppError::InvalidArgument(
+                        "参考媒体视频必须包含 chapter_id".to_string(),
+                    ));
+                }
+                if input.config_id.is_some_and(|id| id <= 0) {
+                    return Err(AppError::InvalidArgument(
+                        "参考媒体视频的 config_id 无效".to_string(),
+                    ));
+                }
+                validate_reference_media_start_input(input).map_err(AppError::InvalidArgument)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn start_chapter_generation_task(
+        &self,
+        user_id: i64,
+        input: StartChapterGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.validate_chapter_generation_application_access(
+            user_id,
+            input.project_id,
+            input.chapter_number,
+            "生成章节正文",
+        )
+        .await
+        .map_err(GenerationTaskAccessError::InvalidArgument)?;
+        self.generation
+            .start_chapter_generation_task(user_id, input)
+            .await
+    }
+
+    pub async fn start_inspiration_generation_task(
+        &self,
+        user_id: i64,
+        input: StartInspirationGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        crate::inspiration::required_message_content(&input.message)
+            .map_err(|error| GenerationTaskAccessError::InvalidArgument(error.to_string()))?;
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Project)?;
+        self.ensure_text_source_project(input.project_id, "灵感对话")
+            .await
+            .map_err(GenerationTaskAccessError::InvalidArgument)?;
+        self.generation
+            .start_inspiration_generation_task(user_id, input)
+            .await
+    }
+
+    pub async fn start_outline_generation_task(
+        &self,
+        user_id: i64,
+        input: StartOutlineGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.validate_outline_generation_start(user_id, &input)
+            .await
+            .map_err(map_outline_generation_start_error)?;
+        self.generation
+            .start_outline_generation_task(user_id, input)
+            .await
+    }
+
+    pub async fn start_portrait_generation_task(
+        &self,
+        user_id: i64,
+        input: StartPortraitGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.validate_portrait_generation_start(user_id, &input)
+            .await
+            .map_err(map_portrait_generation_start_error)?;
+        self.generation
+            .start_portrait_generation_task(user_id, input)
+            .await
+    }
+
+    pub async fn start_image_generation_task(
+        &self,
+        user_id: i64,
+        input: StartImageGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.validate_image_generation_start(user_id, &input)
+            .await
+            .map_err(map_image_generation_start_error)?;
+        self.generation
+            .start_image_generation_task(user_id, input)
+            .await
+    }
+
+    pub async fn start_video_generation_task(
+        &self,
+        user_id: i64,
+        input: StartVideoGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.validate_video_generation_start(user_id, &input)
+            .await
+            .map_err(map_video_generation_start_error)?;
+        self.generation
+            .start_video_generation_task(user_id, input)
+            .await
+    }
+
+    pub async fn start_blueprint_generation_task(
+        &self,
+        user_id: i64,
+        input: StartBlueprintGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        if input.title.trim().is_empty() || input.genre.trim().is_empty() {
+            return Err(GenerationTaskAccessError::InvalidArgument(
+                "蓝图标题和题材不能为空".to_string(),
+            ));
+        }
+        if input.target_length <= 0 {
+            return Err(GenerationTaskAccessError::InvalidArgument(
+                "蓝图目标章节数必须大于 0".to_string(),
+            ));
+        }
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Project)?;
+        self.generation
+            .start_blueprint_generation_task(user_id, input)
+            .await
+    }
+
+    pub async fn start_blueprint_refinement_task(
+        &self,
+        user_id: i64,
+        input: StartBlueprintRefinementInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await
+        .map_err(GenerationTaskAccessError::Project)?;
+        if self
+            .novel_blueprint_for_project(input.project_id)
+            .await
+            .map_err(|error| GenerationTaskAccessError::InvalidArgument(error.to_string()))?
+            .is_none()
+        {
+            return Err(GenerationTaskAccessError::InvalidArgument(
+                "蓝图不存在".to_string(),
+            ));
+        }
+        self.generation
+            .start_blueprint_refinement_task(user_id, input)
+            .await
+    }
+
+    pub async fn start_optimize_chat_generation_task(
+        &self,
+        user_id: i64,
+        input: StartOptimizeChatGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let session = self
+            .validated_optimize_chat_generation_session(
+                user_id,
+                input.request.session_id,
+                &input.request.message,
+            )
+            .await
+            .map_err(map_optimize_generation_start_error)?;
+        self.generation
+            .start_optimize_chat_generation_task(user_id, input, session.project_id)
+            .await
+    }
+
+    pub async fn start_optimize_analysis_generation_task(
+        &self,
+        user_id: i64,
+        input: StartOptimizeAnalysisGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let session = self
+            .optimize_session_for_user(user_id, input.session_id)
+            .await
+            .map_err(map_optimize_generation_start_error)?;
+        self.generation
+            .start_optimize_analysis_generation_task(user_id, input, session.project_id)
+            .await
+    }
+
+    pub async fn start_optimize_patch_generation_task(
+        &self,
+        user_id: i64,
+        input: StartOptimizePatchGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let session = self
+            .optimize_session_for_user(user_id, input.request.session_id)
+            .await
+            .map_err(map_optimize_generation_start_error)?;
+        self.generation
+            .start_optimize_patch_generation_task(user_id, input, session.project_id)
+            .await
+    }
+
+    pub(crate) async fn acquire_generation_task_execution(
+        &self,
+        handle: &GenerationTaskHandle,
+    ) -> Result<Option<GenerationTaskExecution>, GenerationTaskAccessError> {
+        self.generation.acquire_task_execution(handle).await
+    }
+
+    /// 读取 generation task 前统一检查 owner、attempt 和项目 Viewer 权限。
+    pub async fn authorize_generation_task(
+        &self,
+        user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<PersistedGenerationTask, GenerationTaskAccessError> {
+        let checkpoint = self.generation.load_task_checkpoint(task_id).await?;
+        authorize_checkpoint(&checkpoint, user_id, attempt, self).await?;
+        a4n_db::generation::persisted_generation_task_from_checkpoint(checkpoint)
+            .map_err(GenerationTaskAccessError::Persistence)
+    }
+
+    /// 读取 summary 时只校验 checkpoint 规范列；损坏/过期 snapshot 仍返回可展示条目。
+    pub async fn generation_task_summary_for_user(
+        &self,
+        user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
+        let checkpoint = self.generation.load_task_checkpoint(task_id).await?;
+        authorize_checkpoint(&checkpoint, user_id, attempt, self).await?;
+        generation_task_summary_from_checkpoint(
+            &checkpoint,
+            a4n_db::generation::generation_public_snapshot_for_summary(&checkpoint),
+        )
+    }
+
+    pub async fn list_active_generation_task_summaries(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+    ) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError> {
+        if let Some(project_id) = project_id {
+            self.verify_project_permission(
+                project_id,
+                user_id,
+                crate::collaboration::ProjectAccessRole::Viewer,
+            )
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
+        }
+        self.generation
+            .list_active_task_summaries(user_id, project_id)
+            .await
+    }
+
+    pub async fn list_generation_task_history_summaries(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+        limit: u32,
+        cursor: Option<GenerationTaskListCursor>,
+    ) -> Result<GenerationTaskHistorySummaries, GenerationTaskAccessError> {
+        if let Some(project_id) = project_id {
+            self.verify_project_permission(
+                project_id,
+                user_id,
+                crate::collaboration::ProjectAccessRole::Viewer,
+            )
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
+        }
+        self.generation
+            .list_history_task_summaries(user_id, project_id, limit, cursor)
+            .await
+    }
+
+    /// 只从已授权 task 取得进程内 session；不存在 live session 时显式要求 snapshot。
+    pub fn subscribe_generation_task(
+        &self,
+        task: &PersistedGenerationTask,
+        after_sequence: Option<u64>,
+    ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
+        let session = self
+            .generation
+            .session_for_authorized_task(task)?
+            .ok_or(GenerationTaskAccessError::SnapshotRequired)?;
+        session.subscribe(after_sequence).map_err(Into::into)
+    }
+
+    pub fn generation_task_replay(
+        &self,
+        task_id: &str,
+        attempt: u32,
+        after_sequence: Option<u64>,
+    ) -> Result<GenerationReplay, GenerationTaskAccessError> {
+        let session = self
+            .generation
+            .session(task_id, attempt)?
+            .ok_or(GenerationTaskAccessError::SnapshotRequired)?;
+        Ok(session.replay_after(after_sequence))
+    }
+
+    pub async fn begin_generation_project_lifecycle_gate(
+        &self,
+        project_id: i64,
+        user_id: i64,
+        operation: ProjectLifecycleOperation,
+    ) -> Result<ProjectLifecycleGateClaim, GenerationLifecycleGateError> {
+        self.generation
+            .begin_project_lifecycle_gate(project_id, user_id, operation)
+            .await
+    }
+
+    pub async fn begin_generation_user_disable_gate(
+        &self,
+        caller_user_id: i64,
+        user_id: i64,
+    ) -> Result<UserLifecycleGateClaim, GenerationLifecycleGateError> {
+        self.generation
+            .begin_user_disable_gate(caller_user_id, user_id)
+            .await
+    }
+
+    pub async fn active_generation_tasks_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
+        self.generation
+            .active_generation_tasks_for_project(project_id)
+            .await
+    }
+
+    pub async fn active_generation_tasks_for_user(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
+        self.generation
+            .active_generation_tasks_for_user(user_id)
+            .await
+    }
+
+    pub async fn active_generation_tasks(
+        &self,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
+        self.generation.active_generation_tasks().await
+    }
+
+    pub async fn expire_generation_snapshot_bodies(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError> {
+        self.generation
+            .expire_generation_snapshot_bodies(limit)
+            .await
+    }
+
+    pub async fn purge_expired_generation_task_trees(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError> {
+        self.generation
+            .purge_expired_generation_task_trees(limit)
+            .await
+    }
+
+    pub async fn pending_generation_lifecycle_operations(
+        &self,
+    ) -> Result<Vec<PendingLifecycleOperation>, GenerationLifecycleGateError> {
+        self.generation.pending_lifecycle_operations().await
+    }
+
+    pub async fn request_generation_destructive_cancel(
+        &self,
+        task: &GenerationLifecycleTask,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
+        self.generation.request_destructive_cancel(task).await
+    }
+
+    pub async fn request_generation_cancel(
+        &self,
+        requested_by_user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<GenerationTaskHandle, GenerationTerminalError> {
+        self.generation
+            .request_generation_cancel(requested_by_user_id, task_id, attempt)
+            .await
+    }
+
+    pub async fn interrupt_generation_destructive_task(
+        &self,
+        task: &GenerationLifecycleTask,
+        reason: a4n_service_protocol::InterruptionReason,
+        summary: String,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
+        self.generation
+            .interrupt_destructive_task(task, reason, summary)
+            .await
+    }
+
+    pub async fn restore_generation_project_lifecycle_gate(
+        &self,
+        project_id: i64,
+        operation: ProjectLifecycleOperation,
+    ) -> Result<(), GenerationLifecycleGateError> {
+        a4n_db::generation::restore_project_lifecycle_gate(
+            self.database.connection(),
+            project_id,
+            operation,
+        )
+        .await
+    }
+
+    pub async fn restore_generation_user_lifecycle_gate(
+        &self,
+        user_id: i64,
+    ) -> Result<(), GenerationLifecycleGateError> {
+        a4n_db::generation::restore_user_lifecycle_gate(self.database.connection(), user_id).await
+    }
+
+    pub async fn complete_generation_project_reset_gate(
+        &self,
+        project_id: i64,
+    ) -> Result<(), GenerationLifecycleGateError> {
+        a4n_db::generation::complete_project_reset_gate(self.database.connection(), project_id)
+            .await
+    }
+
+    pub async fn complete_generation_user_disable_gate(
+        &self,
+        user_id: i64,
+    ) -> Result<(), GenerationLifecycleGateError> {
+        a4n_db::generation::complete_user_disable_gate(self.database.connection(), user_id).await
+    }
+
+    pub async fn record_completed_generation_run(
+        &self,
+        input: RecordCompletedGenerationRunInput,
+    ) -> Result<generation_run::Model, AppError> {
+        self.generation.record_completed_generation_run(input).await
+    }
+
+    pub async fn record_completed_generation_run_with_checkpoint(
+        &self,
+        input: RecordCompletedGenerationRunWithCheckpointInput,
+    ) -> Result<generation_run::Model, AppError> {
+        self.generation
+            .record_completed_generation_run_with_checkpoint(input)
+            .await
+    }
+
+    pub async fn attach_generation_runs_to_workflow_for_target(
+        &self,
+        input: AttachGenerationRunsToWorkflowInput,
+    ) -> Result<Vec<generation_run::Model>, AppError> {
+        self.generation
+            .attach_generation_runs_to_workflow_for_target(input)
+            .await
+    }
+
+    pub async fn record_llm_call_trace(
+        &self,
+        input: RecordLlmCallTraceInput,
+    ) -> Result<llm_call_trace::Model, AppError> {
+        self.generation.record_llm_call_trace(input).await
+    }
+
+    pub async fn delete_generation_run_targets_for(
+        &self,
+        target_table: &str,
+        target_ids: &[i64],
+    ) -> Result<u64, AppError> {
+        self.generation
+            .delete_generation_run_targets_for(target_table, target_ids)
+            .await
+    }
+
+    pub async fn generation_run_exists_for_target_output(
+        &self,
+        target_table: &str,
+        target_id: i64,
+        step_key: &str,
+        response_output: &str,
+    ) -> Result<bool, AppError> {
+        self.generation
+            .generation_run_exists_for_target_output(
+                target_table,
+                target_id,
+                step_key,
+                response_output,
+            )
+            .await
+    }
+}
+
+async fn authorize_checkpoint(
+    checkpoint: &a4n_core::models::generation::generation_task_checkpoint::Model,
+    user_id: i64,
+    attempt: u32,
+    context: &OrchestratorContext,
+) -> Result<(), GenerationTaskAccessError> {
+    if checkpoint.requested_by_user_id != user_id {
+        return Err(GenerationTaskAccessError::Forbidden(
+            checkpoint.task_id.clone(),
+        ));
+    }
+    let actual_attempt = u32::try_from(checkpoint.attempt).map_err(|_| {
+        GenerationTaskAccessError::Persistence(GenerationTaskPersistenceError::Corrupt(format!(
+            "generation task {} attempt 超出 u32 范围",
+            checkpoint.task_id
+        )))
+    })?;
+    if actual_attempt != attempt {
+        return Err(GenerationTaskAccessError::AttemptMismatch {
+            expected: attempt,
+            actual: actual_attempt,
+        });
+    }
+    if let Some(project_id) = checkpoint.project_id.or(checkpoint.root_project_id) {
+        context
+            .verify_project_permission(
+                project_id,
+                user_id,
+                crate::collaboration::ProjectAccessRole::Viewer,
+            )
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
+    }
+    Ok(())
+}
+
+fn summarize_checkpoint_page(
+    page: GenerationTaskCheckpointPage,
+) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError> {
+    page.items
+        .iter()
+        .map(|checkpoint| {
+            generation_task_summary_from_checkpoint(
+                checkpoint,
+                a4n_db::generation::generation_public_snapshot_for_summary(checkpoint),
+            )
+        })
+        .collect()
+}
+
+/// 将规范 checkpoint 投影为 Host summary；snapshot 正文到期或损坏不影响 summary 查询。
+pub fn generation_task_summary(
+    task: &PersistedGenerationTask,
+) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
+    let public_snapshot = task
+        .public_snapshot
+        .clone()
+        .map(GenerationPublicSnapshot::Available)
+        .unwrap_or_else(|| {
+            a4n_db::generation::generation_public_snapshot_for_summary(&task.checkpoint)
+        });
+    generation_task_summary_from_checkpoint(&task.checkpoint, public_snapshot)
+}
+
+fn generation_task_summary_from_checkpoint(
+    checkpoint: &a4n_core::models::generation::generation_task_checkpoint::Model,
+    public_snapshot: GenerationPublicSnapshot,
+) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
+    let started = a4n_db::generation::started_event_from_checkpoint(checkpoint)
+        .map_err(GenerationTaskAccessError::Persistence)?;
+    let status: GenerationTaskStatus =
+        serde_json::from_value(Value::String(checkpoint.status.clone())).map_err(|error| {
+            GenerationTaskAccessError::Persistence(GenerationTaskPersistenceError::Corrupt(
+                format!(
+                    "generation task {} status 无效: {error}",
+                    checkpoint.task_id
+                ),
+            ))
+        })?;
+    let attempt = u32::try_from(checkpoint.attempt).map_err(|_| {
+        GenerationTaskAccessError::Persistence(GenerationTaskPersistenceError::Corrupt(format!(
+            "generation task {} attempt 超出 u32 范围",
+            checkpoint.task_id
+        )))
+    })?;
+    if attempt == 0 {
+        return Err(GenerationTaskAccessError::Persistence(
+            GenerationTaskPersistenceError::Corrupt(format!(
+                "generation task {} attempt 必须大于 0",
+                checkpoint.task_id
+            )),
+        ));
+    }
+    let result_ref = match (
+        checkpoint.result_kind.as_ref(),
+        checkpoint.result_id.as_ref(),
+        checkpoint.result_revision.as_ref(),
+    ) {
+        (None, None, None) => None,
+        (Some(kind), Some(id), Some(revision)) if status == GenerationTaskStatus::Completed => {
+            Some(a4n_service_protocol::GenerationResultRef {
+                kind: kind.clone(),
+                id: id.clone(),
+                revision: revision.clone(),
+            })
+        }
+        (Some(_), Some(_), Some(_)) => None,
+        _ => {
+            return Err(GenerationTaskAccessError::Persistence(
+                GenerationTaskPersistenceError::Corrupt(format!(
+                    "generation task {} result ref 规范列不成组",
+                    checkpoint.task_id
+                )),
+            ));
+        }
+    };
+    let (snapshot_state, terminal_event) = match public_snapshot {
+        GenerationPublicSnapshot::Available(snapshot) => (
+            GenerationSnapshotState::Available,
+            snapshot
+                .status
+                .is_terminal()
+                .then(|| snapshot.terminal_event)
+                .flatten(),
+        ),
+        GenerationPublicSnapshot::Expired => (GenerationSnapshotState::Expired, None),
+        GenerationPublicSnapshot::Corrupt => (GenerationSnapshotState::Corrupt, None),
+    };
+    let updated_at_ms =
+        DateTime::<Utc>::from_naive_utc_and_offset(checkpoint.updated_at, Utc).timestamp_millis();
+    if !(0..=a4n_service_protocol::JS_SAFE_INTEGER_I64).contains(&updated_at_ms) {
+        return Err(GenerationTaskAccessError::Persistence(
+            GenerationTaskPersistenceError::Corrupt(format!(
+                "generation task {} updated_at 超出 JavaScript safe integer",
+                checkpoint.task_id
+            )),
+        ));
+    }
+    Ok(GenerationTaskSummary {
+        handle: GenerationTaskHandle {
+            event_schema_version: GENERATION_EVENT_SCHEMA_VERSION,
+            task_id: checkpoint.task_id.clone(),
+            attempt,
+            status,
+        },
+        started,
+        updated_at_ms,
+        result_ref,
+        snapshot_state,
+        terminal_event,
+    })
+}
+
+fn generation_task_handle(snapshot: &GenerationTaskSnapshot) -> GenerationTaskHandle {
+    GenerationTaskHandle {
+        event_schema_version: GENERATION_EVENT_SCHEMA_VERSION,
+        task_id: snapshot.task_id.clone(),
+        attempt: snapshot.attempt,
+        status: snapshot.status,
+    }
+}
+
+fn chapter_generation_input_fingerprint(input: &StartChapterGenerationInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "chapter_generation",
+        "project_id": input.project_id,
+        "chapter_number": input.chapter_number,
+        "writing_notes": input.writing_notes,
+        "min_word_count": input.min_word_count,
+        "max_word_count": input.max_word_count,
+        "client_rag_context": input.client_rag_context,
+    })
+}
+
+fn inspiration_generation_input_fingerprint(input: &StartInspirationGenerationInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "inspiration_generation",
+        "project_id": input.project_id,
+        "message": input.message,
+        "variables": input.variables,
+    })
+}
+
+fn outline_generation_input_fingerprint(input: &StartOutlineGenerationInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "outline_generation",
+        "project_id": input.project_id,
+        "operation": &input.operation,
+    })
+}
+
+fn outline_generation_operation_kind(operation: &OutlineGenerationOperation) -> &'static str {
+    match operation {
+        OutlineGenerationOperation::GenerateParts { .. } => "generate_parts",
+        OutlineGenerationOperation::RegenerateParts { .. } => "regenerate_parts",
+        OutlineGenerationOperation::RegenerateLastPart { .. } => "regenerate_last_part",
+        OutlineGenerationOperation::ContinuePartOutlines { .. } => "continue_part_outlines",
+        OutlineGenerationOperation::RegeneratePartOutline { .. } => "regenerate_part_outline",
+        OutlineGenerationOperation::GeneratePartChapterOutlines { .. } => {
+            "generate_part_chapter_outlines"
+        }
+        OutlineGenerationOperation::BatchGeneratePartOutlines { .. } => {
+            "batch_generate_part_outlines"
+        }
+        OutlineGenerationOperation::GenerateChapterOutlinesByCount { .. } => {
+            "generate_chapter_outlines_by_count"
+        }
+        OutlineGenerationOperation::RegenerateChapterOutline { .. } => "regenerate_chapter_outline",
+        OutlineGenerationOperation::ApplyBeatMapping { .. } => "apply_beat_mapping",
+    }
+}
+
+fn outline_generation_target_id(project_id: i64, operation: &OutlineGenerationOperation) -> String {
+    match operation {
+        OutlineGenerationOperation::RegeneratePartOutline { part_id, .. }
+        | OutlineGenerationOperation::GeneratePartChapterOutlines { part_id }
+        | OutlineGenerationOperation::ApplyBeatMapping { part_id, .. } => {
+            format!("{project_id}:part:{part_id}")
+        }
+        OutlineGenerationOperation::RegenerateChapterOutline { outline_id, .. } => {
+            format!("{project_id}:outline:{outline_id}")
+        }
+        _ => project_id.to_string(),
+    }
+}
+
+fn portrait_generation_input_fingerprint(input: &StartPortraitGenerationInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "portrait_generation",
+        "project_id": input.project_id,
+        "operation": &input.operation,
+    })
+}
+
+fn portrait_generation_operation_kind(operation: &PortraitGenerationOperation) -> &'static str {
+    match operation {
+        PortraitGenerationOperation::Generate { .. } => "generate",
+        PortraitGenerationOperation::Regenerate { .. } => "regenerate",
+        PortraitGenerationOperation::GenerateAgeVariant { .. } => "age_variant",
+        PortraitGenerationOperation::GenerateMissing => "generate_missing",
+    }
+}
+
+fn portrait_generation_target_id(
+    project_id: i64,
+    operation: &PortraitGenerationOperation,
+) -> String {
+    match operation {
+        PortraitGenerationOperation::Regenerate { portrait_id, .. }
+        | PortraitGenerationOperation::GenerateAgeVariant { portrait_id, .. } => {
+            format!("{project_id}:portrait:{portrait_id}")
+        }
+        _ => project_id.to_string(),
+    }
+}
+
+fn image_generation_input_fingerprint(input: &StartImageGenerationInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "image_generation",
+        "project_id": input.project_id,
+        "operation": &input.operation,
+    })
+}
+
+fn image_generation_operation_kind(operation: &ImageGenerationOperation) -> &'static str {
+    match operation {
+        ImageGenerationOperation::Scene { .. } => "scene",
+        ImageGenerationOperation::Page { .. } => "page",
+        ImageGenerationOperation::Batch { .. } => "batch",
+        ImageGenerationOperation::ObjectProfile { .. } => "object_profile",
+        ImageGenerationOperation::SceneProfile { .. } => "scene_profile",
+    }
+}
+
+fn image_generation_target_id(project_id: i64, operation: &ImageGenerationOperation) -> String {
+    match operation {
+        ImageGenerationOperation::ObjectProfile {
+            object_profile_id, ..
+        } => format!("{project_id}:object_profile:{object_profile_id}"),
+        ImageGenerationOperation::SceneProfile {
+            scene_profile_id, ..
+        } => format!("{project_id}:scene_profile:{scene_profile_id}"),
+        _ => project_id.to_string(),
+    }
+}
+
+fn video_generation_input_fingerprint(input: &StartVideoGenerationInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "video_generation",
+        "project_id": input.project_id,
+        "operation": &input.operation,
+    })
+}
+
+fn video_generation_operation_kind(operation: &VideoGenerationOperation) -> &'static str {
+    match operation {
+        VideoGenerationOperation::Chapter { .. } => "chapter",
+        VideoGenerationOperation::ChapterBatch { .. } => "chapter_batch",
+        VideoGenerationOperation::ReferenceMedia { .. } => "reference_media",
+    }
+}
+
+fn video_generation_target_id(project_id: i64, operation: &VideoGenerationOperation) -> String {
+    match operation {
+        VideoGenerationOperation::Chapter {
+            chapter_id,
+            prompt_id,
+            ..
+        } => format!("{project_id}:chapter:{chapter_id}:prompt:{prompt_id}"),
+        VideoGenerationOperation::ChapterBatch { chapter_id, .. } => {
+            format!("{project_id}:chapter:{chapter_id}")
+        }
+        VideoGenerationOperation::ReferenceMedia { chapter_id, .. } => {
+            format!("{project_id}:chapter:{chapter_id}:reference_media")
+        }
+    }
+}
+
+fn blueprint_generation_input_fingerprint(input: &StartBlueprintGenerationInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "blueprint_generation",
+        "project_id": input.project_id,
+        "title": input.title,
+        "genre": input.genre,
+        "target_length": input.target_length,
+        "variables": input.variables,
+    })
+}
+
+fn blueprint_refinement_input_fingerprint(input: &StartBlueprintRefinementInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "blueprint_refinement",
+        "project_id": input.project_id,
+        "focus": input.focus,
+        "variables": input.variables,
+    })
+}
+
+fn optimize_chat_generation_input_fingerprint(input: &StartOptimizeChatGenerationInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "optimization_chat",
+        "session_id": input.request.session_id,
+        "message": input.request.message,
+        "permissions": input.request.permissions,
+    })
+}
+
+fn optimize_analysis_generation_input_fingerprint(
+    input: &StartOptimizeAnalysisGenerationInput,
+) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "optimization_analysis",
+        "session_id": input.session_id,
+    })
+}
+
+fn optimize_patch_generation_input_fingerprint(input: &StartOptimizePatchGenerationInput) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "optimization_patch",
+        "session_id": input.request.session_id,
+        "issue_ids": input.request.issue_ids,
+        "agent_instruction": input.request.agent_instruction,
+    })
+}
+
+fn map_optimize_generation_start_error(error: AppError) -> GenerationTaskAccessError {
+    match error {
+        AppError::Forbidden(_) | AppError::Unauthorized(_) | AppError::NotFound(_) => {
+            GenerationTaskAccessError::Project(error)
+        }
+        other => GenerationTaskAccessError::InvalidArgument(other.to_string()),
+    }
+}
+
+fn map_outline_generation_start_error(error: AppError) -> GenerationTaskAccessError {
+    match error {
+        AppError::Forbidden(_) | AppError::Unauthorized(_) | AppError::NotFound(_) => {
+            GenerationTaskAccessError::Project(error)
+        }
+        other => GenerationTaskAccessError::InvalidArgument(other.to_string()),
+    }
+}
+
+fn map_portrait_generation_start_error(error: AppError) -> GenerationTaskAccessError {
+    match error {
+        AppError::Forbidden(_) | AppError::Unauthorized(_) | AppError::NotFound(_) => {
+            GenerationTaskAccessError::Project(error)
+        }
+        other => GenerationTaskAccessError::InvalidArgument(other.to_string()),
+    }
+}
+
+fn map_image_generation_start_error(error: AppError) -> GenerationTaskAccessError {
+    match error {
+        AppError::Forbidden(_) | AppError::Unauthorized(_) | AppError::NotFound(_) => {
+            GenerationTaskAccessError::Project(error)
+        }
+        other => GenerationTaskAccessError::InvalidArgument(other.to_string()),
+    }
+}
+
+fn map_video_generation_start_error(error: AppError) -> GenerationTaskAccessError {
+    match error {
+        AppError::Forbidden(_) | AppError::Unauthorized(_) | AppError::NotFound(_) => {
+            GenerationTaskAccessError::Project(error)
+        }
+        other => GenerationTaskAccessError::InvalidArgument(other.to_string()),
+    }
+}
+
+fn required_public_snapshot(
+    task: a4n_db::generation::PersistedGenerationTask,
+) -> Result<GenerationTaskSnapshot, AppError> {
+    task.public_snapshot.ok_or_else(|| AppError::InvalidState {
+        current: format!(
+            "generation task {} 缺少 public snapshot",
+            task.checkpoint.task_id
+        ),
+        operation: "初始化 generation session".to_string(),
+    })
+}

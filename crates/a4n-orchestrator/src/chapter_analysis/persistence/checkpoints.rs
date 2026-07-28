@@ -17,7 +17,7 @@ impl OrchestratorContext {
         input_fingerprint_json: &Value,
     ) -> Result<Option<Value>, AppError> {
         workflow::load_completed_llm_call_checkpoint(
-            self.db.connection(),
+            self.database.connection(),
             workflow_run_id,
             step_key,
             input_fingerprint_json,
@@ -41,7 +41,7 @@ impl OrchestratorContext {
         parsed_output: Value,
     ) -> Result<(), AppError> {
         workflow::save_completed_llm_call_checkpoint(
-            self.db.connection(),
+            self.database.connection(),
             CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key: step_key.to_string(),
@@ -72,7 +72,7 @@ impl OrchestratorContext {
         let input_fingerprint_sha256 =
             a4n_db::generation::generation_checkpoint_fingerprint_sha256(&input_fingerprint_json)?;
         workflow::upsert_workflow_checkpoint(
-            self.db.connection(),
+            self.database.connection(),
             UpsertWorkflowCheckpointInput {
                 workflow_run_id,
                 step_key: step_key.to_string(),
@@ -97,7 +97,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         step_key: &str,
     ) -> Result<(), AppError> {
-        workflow::mark_workflow_current_step(self.db.connection(), workflow_run_id, step_key)
+        workflow::mark_workflow_current_step(self.database.connection(), workflow_run_id, step_key)
             .await
             .map_err(workflow_write_app_error)?;
         Ok(())

@@ -9,6 +9,16 @@ fn default_secret_policy_denies_all() {
     assert!(!policy.allow_user_secret);
     assert!(!policy.allow_upload_token);
     assert!(policy.is_deny_all());
+    assert!(policy.is_secret_free());
+}
+
+#[test]
+fn trusted_remote_content_policy_is_secret_free_but_not_local_deny_all() {
+    let policy = SecretForwardingPolicy::trusted_remote_no_secrets();
+    assert!(policy.denies_all_secrets());
+    assert!(policy.is_secret_free());
+    assert!(!policy.is_deny_all());
+    assert_eq!(policy.scope, SecretMaterialScope::TrustedRemote);
 }
 
 #[test]

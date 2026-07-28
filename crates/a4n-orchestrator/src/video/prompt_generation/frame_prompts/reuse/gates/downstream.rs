@@ -14,7 +14,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_no_existi
         operation,
     } = input;
     let rows = a4n_db::video::chapter_video_prompt_records_for_workflow_types_by_prompt_and_shot(
-        service.db.connection(),
+        service.database.connection(),
         project_id,
         chapter_id,
         spec.workflow_mode.as_str(),

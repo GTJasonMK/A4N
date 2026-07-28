@@ -97,7 +97,7 @@ pub(in crate::video) async fn boundary_frame_image_ids_by_number(
 
     let allowed_project_ids = service.video_asset_project_ids_app(project_id).await?;
     let images = a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
-        service.db.connection(),
+        service.database.connection(),
         &allowed_project_ids,
         chapter_id,
     )
@@ -149,7 +149,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_no_orphan
     prompt_type: &str,
 ) -> Result<(), AppError> {
     let prompt_ids = a4n_db::video::chapter_video_prompt_workflow_records(
-        service.db.connection(),
+        service.database.connection(),
         project_id,
         chapter_id,
         prompt_type,
@@ -162,7 +162,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_no_orphan
     .map(|row| row.id)
     .collect::<HashSet<_>>();
     let images = a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
-        service.db.connection(),
+        service.database.connection(),
         &[project_id],
         chapter_id,
     )
@@ -199,7 +199,7 @@ pub(in crate::video) async fn storyboard_frame_image_ids_by_number(
 
     let allowed_project_ids = service.video_asset_project_ids_app(project_id).await?;
     let images = a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
-        service.db.connection(),
+        service.database.connection(),
         &allowed_project_ids,
         chapter_id,
     )

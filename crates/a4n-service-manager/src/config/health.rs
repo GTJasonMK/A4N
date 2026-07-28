@@ -1,4 +1,6 @@
-use a4n_service_protocol::{HealthStatus, PROTOCOL_VERSION, ServiceHealth, ServiceVersion};
+use a4n_service_protocol::{
+    HealthStatus, PROTOCOL_VERSION, ServiceHealth, ServiceVersion, service_compatibility,
+};
 
 use super::contracts::ManagedServiceConfig;
 use crate::errors::ServiceManagerError;
@@ -30,6 +32,7 @@ impl ManagedServiceConfig {
                 service_version: env!("CARGO_PKG_VERSION").to_string(),
                 protocol_version: PROTOCOL_VERSION,
                 capability_version: capability_version.to_string(),
+                compatibility: service_compatibility(&self.name),
             },
         })
     }

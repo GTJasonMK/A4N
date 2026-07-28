@@ -4,9 +4,7 @@ pub(crate) mod actions;
 ///
 /// `a4n-server` / `a4n-tauri` 只能通过本模块调用业务。
 /// 实现体在 `actions`（`pub(crate)`），对外不暴露。
-pub mod host_api {
-    pub use crate::actions::*;
-}
+pub mod host_api;
 
 mod baseline_configs;
 mod cleanup_outbox;
@@ -23,5 +21,4 @@ pub(crate) mod sidecar_clients;
 pub mod state;
 pub mod workflow;
 
-pub use a4n_orchestrator::OrchestratorContext;
 pub use state::AppState;

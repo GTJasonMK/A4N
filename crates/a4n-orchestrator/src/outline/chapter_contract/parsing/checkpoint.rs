@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 
 use super::batch::parse_chapter_outline_batch;
 
-pub(in crate::outline) fn validate_materialized_chapter_outline_batch(
+pub fn validate_materialized_chapter_outline_batch(
     value: &Value,
     start_chapter: i32,
     count: i32,

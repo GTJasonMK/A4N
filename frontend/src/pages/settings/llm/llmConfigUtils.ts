@@ -40,6 +40,26 @@ const RESERVED_REQUEST_OPTION_KEYS = new Set([
 export function validateLlmForm(form: LlmForm): string | null {
   if (!form.name.trim()) return "请填写配置名称";
   if (!form.api_base_url.trim()) return "请填写 API Base URL";
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(form.api_base_url.trim());
+  } catch {
+    return "API Base URL 必须是有效的 http:// 或 https:// URL";
+  }
+  if (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:") {
+    return "API Base URL 必须是有效的 http:// 或 https:// URL";
+  }
+  const hostname = baseUrl.hostname.toLowerCase();
+  const loopback =
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]" ||
+    hostname === "::1";
+  const hasApiKey = Boolean(form.api_key.trim() || (form.has_api_key && !form.clear_api_key));
+  if (baseUrl.protocol === "http:" && hasApiKey && !loopback) {
+    return "携带 API Key 的远程 LLM 地址必须使用 HTTPS；HTTP 重定向会丢失鉴权信息";
+  }
   if (!form.model.trim()) return "请填写模型名";
   if (!Number.isInteger(form.max_concurrent) || form.max_concurrent <= 0) {
     return "并发上限必须为正整数";

@@ -1,5 +1,5 @@
 use a4n_core::models::task::task_queue;
-use a4n_queue::priority::{TaskPriority, TaskQueue, TaskType};
+use a4n_queue::priority::{TaskKind, TaskPriority, TaskQueue};
 use sea_orm::EntityTrait;
 
 use super::super::super::PersistentTaskQueue;
@@ -10,7 +10,7 @@ async fn mark_done_updates_database_status() {
     let db = setup_db().await;
     let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
     let task_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::High, None)
+        .submit(TaskKind::LlmCall, TaskPriority::High, None)
         .await
         .unwrap();
 
@@ -30,7 +30,7 @@ async fn mark_failed_records_error() {
     let db = setup_db().await;
     let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
     let task_id = queue
-        .submit(TaskType::LlmCall, TaskPriority::Medium, None)
+        .submit(TaskKind::LlmCall, TaskPriority::Medium, None)
         .await
         .unwrap();
 

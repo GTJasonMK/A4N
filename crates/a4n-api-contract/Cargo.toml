@@ -1,0 +1,10 @@
+[package]
+name = "a4n-api-contract"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

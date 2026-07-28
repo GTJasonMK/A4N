@@ -16,6 +16,8 @@ impl ManagedServiceConfig {
             health_path: default_health_path(),
             env: HashMap::new(),
             startup_timeout_ms: default_startup_timeout_ms(),
+            restart_policy: Default::default(),
+            remote_security: Default::default(),
         }
     }
 
@@ -36,6 +38,8 @@ impl ManagedServiceConfig {
             health_path: default_health_path(),
             env: HashMap::new(),
             startup_timeout_ms: default_startup_timeout_ms(),
+            restart_policy: Default::default(),
+            remote_security: Default::default(),
         }
     }
 
@@ -53,6 +57,8 @@ impl ManagedServiceConfig {
             health_path: default_health_path(),
             env: HashMap::new(),
             startup_timeout_ms: default_startup_timeout_ms(),
+            restart_policy: Default::default(),
+            remote_security: Default::default(),
         }
     }
 }

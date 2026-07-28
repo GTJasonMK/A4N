@@ -9,18 +9,182 @@ use super::transport::*;
 use a4n_export_core::ExportRenderZipOutput;
 use a4n_import_core::{ImportNormalizeJsonOutput, ImportReadMediaPackageZipInput};
 use a4n_service_protocol::{
-    EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, HealthStatus, IMAGE_SERVICE_NAME,
-    IMPORT_SERVICE_NAME, LLM_SERVICE_NAME, PROMPT_SERVICE_NAME, PROTOCOL_VERSION, RAG_SERVICE_NAME,
-    ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME,
-    expected_capability_version_for_service,
+    CapabilityTaskEventKind, EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, HealthStatus,
+    IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME, LLM_SERVICE_NAME, PROMPT_SERVICE_NAME,
+    PROTOCOL_VERSION, RAG_SERVICE_NAME, SIDECAR_REQUEST_ID_HEADER, SIDECAR_TRACE_ID_HEADER,
+    ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, TraceContext,
+    VIDEO_SERVICE_NAME, expected_capability_version_for_service,
 };
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc, time::Duration};
+use tokio::{io::AsyncWriteExt, net::TcpListener};
 
 #[test]
 fn sidecar_transport_joins_paths_without_double_slashes() {
     let transport = HttpSidecarTransport::new("http://127.0.0.1:47641/");
 
     assert_eq!(transport.url("/healthz"), "http://127.0.0.1:47641/healthz");
+}
+
+#[test]
+fn sidecar_transport_debug_never_exposes_url_or_token() {
+    let transport = HttpSidecarTransport::new("https://user:secret@sidecar.example.test")
+        .with_auth_token("manager-issued-secret-token");
+    let debug = format!("{transport:?}");
+    assert!(!debug.contains("sidecar.example.test"));
+    assert!(!debug.contains("manager-issued-secret-token"));
+    assert!(debug.contains("auth_token_configured: true"));
+}
+
+#[test]
+fn sidecar_transport_propagates_request_and_trace_headers_without_body_duplication() {
+    let transport =
+        HttpSidecarTransport::new("http://127.0.0.1:47641").with_auth_token("manager-token");
+    let request = ServiceRequest {
+        request_id: "request-42".to_string(),
+        trace_context: TraceContext {
+            trace_id: "workflow:42".to_string(),
+            parent_span_id: None,
+        },
+        schema_version: Default::default(),
+        user_id: None,
+        project_id: None,
+        root_project_id: None,
+        runtime_config_snapshot: None,
+        secret_policy: a4n_service_protocol::SecretForwardingPolicy::deny_all(),
+        capability_version: "demo".to_string(),
+        payload: serde_json::json!({"safe": true}),
+    };
+    let built = transport
+        .authorize_request(transport.client.post(transport.url("/trace")), &request)
+        .json(&request)
+        .build()
+        .unwrap();
+
+    assert_eq!(
+        built
+            .headers()
+            .get(a4n_service_protocol::SIDECAR_AUTH_HEADER)
+            .and_then(|value| value.to_str().ok()),
+        Some("manager-token")
+    );
+
+    assert_eq!(
+        built
+            .headers()
+            .get(SIDECAR_REQUEST_ID_HEADER)
+            .and_then(|value| value.to_str().ok()),
+        Some("request-42")
+    );
+    assert_eq!(
+        built
+            .headers()
+            .get(SIDECAR_TRACE_ID_HEADER)
+            .and_then(|value| value.to_str().ok()),
+        Some("workflow:42")
+    );
+}
+
+#[test]
+fn sidecar_transport_authorizes_health_requests() {
+    let transport =
+        HttpSidecarTransport::new("https://sidecar.example.test").with_auth_token("manager-token");
+    let request = transport
+        .authorize(transport.client.get(transport.url("/healthz")))
+        .build()
+        .expect("health request should build");
+
+    assert_eq!(
+        request
+            .headers()
+            .get(a4n_service_protocol::SIDECAR_AUTH_HEADER)
+            .and_then(|value| value.to_str().ok()),
+        Some("manager-token")
+    );
+}
+
+#[tokio::test]
+async fn event_stream_response_headers_have_a_connect_deadline() {
+    let (addr, server) =
+        delayed_http_server(Duration::from_millis(100), Vec::new(), Duration::ZERO).await;
+    let transport = HttpSidecarTransport::new(format!("http://{addr}")).with_test_timeouts(
+        Duration::from_millis(20),
+        Duration::from_secs(1),
+        Duration::from_secs(1),
+        Duration::from_secs(1),
+    );
+    let (events, _receiver) = tokio::sync::mpsc::channel(crate::EVENT_QUEUE_CAPACITY);
+
+    let error = transport
+        .post_event_stream("/events", test_json_request(), events)
+        .await
+        .expect_err("delayed response headers must hit the connect deadline");
+
+    assert_eq!(error.code, ServiceErrorCode::ServiceUnavailable);
+    assert!(error.message.contains("event stream connect timeout"));
+    server.abort();
+}
+
+#[tokio::test]
+async fn non_streaming_responses_have_a_request_deadline() {
+    let (addr, server) = delayed_http_server(
+        Duration::from_millis(100),
+        vec![r#"{"status":"ok"}"#],
+        Duration::ZERO,
+    )
+    .await;
+    let transport = HttpSidecarTransport::new(format!("http://{addr}")).with_test_timeouts(
+        Duration::from_secs(1),
+        Duration::from_millis(20),
+        Duration::from_secs(1),
+        Duration::from_secs(1),
+    );
+
+    let error = transport
+        .post_json("/json", test_json_request())
+        .await
+        .expect_err("a delayed JSON response must hit the request deadline");
+
+    assert_eq!(error.code, ServiceErrorCode::ServiceUnavailable);
+    assert!(error.message.contains("sidecar request timeout"));
+    server.abort();
+}
+
+#[tokio::test]
+async fn event_stream_chunks_have_an_idle_deadline() {
+    let (addr, server) = delayed_http_server(
+        Duration::ZERO,
+        vec![
+            r#"{"task_id":"task","event_kind":"chunk","sequence":1,"chunk_delta":"x"}
+"#,
+            r#"{"task_id":"task","event_kind":"completed","sequence":2}
+"#,
+        ],
+        Duration::from_millis(100),
+    )
+    .await;
+    let transport = HttpSidecarTransport::new(format!("http://{addr}")).with_test_timeouts(
+        Duration::from_secs(1),
+        Duration::from_secs(1),
+        Duration::from_millis(20),
+        Duration::from_secs(1),
+    );
+    let (events, mut receiver) = tokio::sync::mpsc::channel(crate::EVENT_QUEUE_CAPACITY);
+
+    let error = transport
+        .post_event_stream("/events", test_json_request(), events)
+        .await
+        .expect_err("a silent event stream must hit the idle deadline");
+
+    assert_eq!(error.code, ServiceErrorCode::ServiceUnavailable);
+    assert!(error.message.contains("event stream idle timeout"));
+    assert_eq!(
+        receiver
+            .try_recv()
+            .expect("the first event should arrive before the idle gap")
+            .event_kind,
+        a4n_service_protocol::CapabilityTaskEventKind::Chunk
+    );
+    server.abort();
 }
 
 #[test]
@@ -87,6 +251,7 @@ fn health_validation_rejects_unhealthy_status() {
                 service_version: "test".to_string(),
                 protocol_version: PROTOCOL_VERSION,
                 capability_version: prompt_capability_version.to_string(),
+                compatibility: None,
             },
         },
         Some(PROMPT_SERVICE_NAME),
@@ -360,13 +525,15 @@ fn embedding_model_operation_path_rejects_unknown_operation() {
     }
 }
 
-#[test]
-fn drains_ndjson_events_across_chunks() {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+#[tokio::test]
+async fn drains_ndjson_events_across_chunks() {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(crate::EVENT_QUEUE_CAPACITY);
     let mut buffer =
         br#"{"task_id":"task","event_kind":"chunk","sequence":1,"chunk_delta":"he"}"#.to_vec();
 
-    let terminal = drain_event_lines(&mut buffer, &tx).expect("partial line should stay buffered");
+    let terminal = drain_event_lines(&mut buffer, &tx)
+        .await
+        .expect("partial line should stay buffered");
     assert!(!terminal);
     assert!(rx.try_recv().is_err());
 
@@ -375,41 +542,72 @@ fn drains_ndjson_events_across_chunks() {
 {"task_id":"task","event_kind":"completed","sequence":2}
 "#,
     );
-    let terminal = drain_event_lines(&mut buffer, &tx).expect("complete lines should drain");
+    let terminal = drain_event_lines(&mut buffer, &tx)
+        .await
+        .expect("complete lines should drain");
     assert!(terminal);
 
     let first = rx.try_recv().expect("chunk event");
     assert_eq!(
         first.event_kind,
-        a4n_service_protocol::ServiceTaskEventKind::Chunk
+        a4n_service_protocol::CapabilityTaskEventKind::Chunk
     );
     assert_eq!(first.chunk_delta.as_deref(), Some("he"));
 
     let second = rx.try_recv().expect("completed event");
     assert_eq!(
         second.event_kind,
-        a4n_service_protocol::ServiceTaskEventKind::Completed
+        a4n_service_protocol::CapabilityTaskEventKind::Completed
     );
 }
 
-#[test]
-fn drain_event_lines_stops_after_terminal_event() {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+#[tokio::test]
+async fn drain_event_lines_stops_after_terminal_event() {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(crate::EVENT_QUEUE_CAPACITY);
     let mut buffer = br#"{"task_id":"task","event_kind":"completed","sequence":1}
 {"task_id":"task","event_kind":"chunk","sequence":2,"chunk_delta":"late"}
 "#
     .to_vec();
 
-    let terminal = drain_event_lines(&mut buffer, &tx).expect("terminal line should drain");
+    let terminal = drain_event_lines(&mut buffer, &tx)
+        .await
+        .expect("terminal line should drain");
     assert!(terminal);
     assert!(buffer.is_empty());
 
     let event = rx.try_recv().expect("completed event");
     assert_eq!(
         event.event_kind,
-        a4n_service_protocol::ServiceTaskEventKind::Completed
+        a4n_service_protocol::CapabilityTaskEventKind::Completed
     );
     assert!(rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn drain_event_lines_waits_for_queue_capacity() {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    let mut buffer = br#"{"task_id":"task","event_kind":"chunk","sequence":1,"chunk_delta":"a"}
+{"task_id":"task","event_kind":"completed","sequence":2}
+"#
+    .to_vec();
+
+    let drain = tokio::spawn(async move { drain_event_lines(&mut buffer, &tx).await });
+    tokio::task::yield_now().await;
+    assert!(!drain.is_finished());
+
+    let first = rx.recv().await.expect("first queued event");
+    assert_eq!(first.event_kind, CapabilityTaskEventKind::Chunk);
+    assert!(
+        drain
+            .await
+            .expect("drain task")
+            .expect("backpressure drain")
+    );
+    let terminal = rx
+        .recv()
+        .await
+        .expect("terminal event after capacity frees");
+    assert_eq!(terminal.event_kind, CapabilityTaskEventKind::Completed);
 }
 
 #[test]
@@ -436,6 +634,57 @@ fn parse_event_line_redacts_error_message() {
     assert!(message.contains("api_key=[REDACTED]"));
     assert!(!message.contains("provider.example"));
     assert!(!message.contains("sk-test"));
+}
+
+async fn delayed_http_server(
+    header_delay: Duration,
+    chunks: Vec<&'static str>,
+    inter_chunk_delay: Duration,
+) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("test HTTP server should bind");
+    let addr = listener
+        .local_addr()
+        .expect("test HTTP server should expose its address");
+    let server = tokio::spawn(async move {
+        let Ok((mut socket, _)) = listener.accept().await else {
+            return;
+        };
+        let mut request = [0_u8; 4096];
+        let _ = socket.readable().await;
+        let _ = socket.try_read(&mut request);
+        tokio::time::sleep(header_delay).await;
+        let body_len = chunks.iter().map(|chunk| chunk.len()).sum::<usize>();
+        let headers = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\nContent-Length: {body_len}\r\nConnection: close\r\n\r\n"
+        );
+        if socket.write_all(headers.as_bytes()).await.is_err() {
+            return;
+        }
+        for (index, chunk) in chunks.iter().enumerate() {
+            if index > 0 {
+                tokio::time::sleep(inter_chunk_delay).await;
+            }
+            if socket.write_all(chunk.as_bytes()).await.is_err() {
+                return;
+            }
+            let _ = socket.flush().await;
+        }
+    });
+    (addr, server)
+}
+
+fn test_json_request() -> JsonRequest {
+    a4n_service_protocol::ServiceRequestContext::deny_all(
+        "transport-timeout-test",
+        a4n_service_protocol::TraceContext {
+            trace_id: "transport-timeout-trace".to_string(),
+            parent_span_id: None,
+        },
+    )
+    .with_payload("transport-test-v1", serde_json::json!({}))
+    .expect("transport timeout request should be valid")
 }
 
 fn typed_test_request<T>(capability_version: &str, payload: T) -> ServiceRequest<T> {
@@ -476,6 +725,7 @@ fn health(
             service_version: "test".to_string(),
             protocol_version,
             capability_version: capability_version.to_string(),
+            compatibility: None,
         },
     }
 }

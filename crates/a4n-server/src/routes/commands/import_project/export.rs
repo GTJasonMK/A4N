@@ -4,7 +4,7 @@ use super::super::{
     web_fire_and_forget_progress_reporter, web_progress_reporter,
 };
 use crate::state::ServerState;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use serde_json::{Value, json};
 
 macro_rules! export_web_project_read_command {
@@ -32,13 +32,13 @@ macro_rules! export_web_project_read_command {
             let task = register_web_task(
                 $state,
                 task_id.clone(),
-                TaskType::ExportGeneration,
+                TaskKind::ExportGeneration,
                 scope.project_id,
                 scope.total,
                 $start_message,
             )
             .await;
-            let progress = web_progress_reporter($state, task, task_id.clone());
+            let progress = web_progress_reporter(task);
             let result = async {
                 progress(0, scope.total, $progress_message)?;
                 let value = $run
@@ -48,7 +48,7 @@ macro_rules! export_web_project_read_command {
                 Ok(value)
             }
             .await;
-            let value = finish_web_task($state, task_id, result, $success_message).await?;
+            let value = finish_web_task($state, task_id, result).await?;
             Ok(json!(value))
         }
     };
@@ -75,15 +75,14 @@ macro_rules! export_web_progress_command {
             let task = register_web_task(
                 $state,
                 task_id.clone(),
-                TaskType::ExportGeneration,
+                TaskKind::ExportGeneration,
                 scope.project_id,
                 scope.total,
                 $start_message,
             )
             .await;
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
-            let reporter =
-                web_fire_and_forget_progress_reporter($state, task.clone(), task_id.clone());
+            let reporter = web_fire_and_forget_progress_reporter(task.clone());
             let $progress =
                 export_files_actions::ExportProgress::new(Some(&reporter), cancel_token.as_ref());
             let result = $run.await;
@@ -94,7 +93,6 @@ macro_rules! export_web_progress_command {
                     result,
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),
                 ),
-                $success_message,
             )
             .await?;
             Ok(json!(value))

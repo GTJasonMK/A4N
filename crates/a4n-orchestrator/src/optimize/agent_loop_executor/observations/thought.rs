@@ -16,7 +16,6 @@ impl OrchestratorContext {
             decision,
             think_event_prefix,
             error_context,
-            release_operation,
         } = input;
         self.append_turn_event(
             turn_id,
@@ -51,10 +50,6 @@ impl OrchestratorContext {
                     &format!("{error_context} think 参数无效：{err}"),
                 )
                 .await?;
-                if let Some(operation) = release_operation {
-                    self.release_in_progress_session_after_failure(session_id, operation, &err)
-                        .await?;
-                }
                 return Err(err);
             }
         };

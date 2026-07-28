@@ -15,8 +15,11 @@ pub(super) async fn run_shooting_script_projection_stage(
     execution: &GalgamePipelineExecution<'_>,
 ) -> Result<(Value, GalgameShootingScriptProjection), AppError> {
     let stage = GalgamePipelineStartStage::ShootingScriptProjection;
-    ensure_galgame_pipeline_not_cancelled(&execution.service.db, execution.options.workflow_run_id)
-        .await?;
+    ensure_galgame_pipeline_not_cancelled(
+        &execution.service.database,
+        execution.options.workflow_run_id,
+    )
+    .await?;
     let scenes = galgame_shooting_script_projection(execution.prompt_context)?;
     let scenes_json = serde_json::to_value(&scenes)?;
     execution

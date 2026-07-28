@@ -1,24 +1,10 @@
-use a4n_core::blueprint::BLUEPRINT_GENERATE_PROGRESS_TOTAL;
 use a4n_core::error::AppError;
 use tokio_util::sync::CancellationToken;
 
-use crate::blueprint::BlueprintProgressReporter;
-
-pub(in crate::blueprint::generation) fn report(
-    progress: BlueprintProgressReporter<'_>,
-    current: u32,
-    message: &str,
-) -> Result<(), AppError> {
-    if let Some(report) = progress {
-        report(current, BLUEPRINT_GENERATE_PROGRESS_TOTAL, message)?;
-    }
-    Ok(())
-}
-
 pub(in crate::blueprint::generation) fn ensure_not_cancelled(
-    cancel_token: Option<&CancellationToken>,
+    cancel_token: &CancellationToken,
 ) -> Result<(), AppError> {
-    if cancel_token.is_some_and(CancellationToken::is_cancelled) {
+    if cancel_token.is_cancelled() {
         return Err(AppError::Cancelled);
     }
     Ok(())
@@ -42,10 +28,10 @@ mod tests {
         token.cancel();
 
         assert!(matches!(
-            ensure_not_cancelled(Some(&token)),
+            ensure_not_cancelled(&token),
             Err(AppError::Cancelled)
         ));
-        assert!(ensure_not_cancelled(None).is_ok());
+        assert!(ensure_not_cancelled(&CancellationToken::new()).is_ok());
     }
 
     #[test]

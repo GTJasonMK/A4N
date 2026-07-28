@@ -1,12 +1,12 @@
 use a4n_db::queue::{PersistTaskFamilyContext, PersistTaskQueueRecordInput};
 use a4n_queue::{
-    priority::{TaskPriority, TaskType},
+    priority::{TaskKind, TaskPriority},
     queue::{TaskFamilyContext, TaskWorkflowContext},
 };
 
 pub(super) fn task_queue_record_input(
     task_id: &str,
-    task_type: &TaskType,
+    task_type: &TaskKind,
     priority: &TaskPriority,
     project_id: Option<i64>,
     context: Option<&TaskFamilyContext>,
@@ -30,7 +30,7 @@ pub(super) fn task_queue_record_input(
 #[cfg(test)]
 mod tests {
     use a4n_queue::{
-        priority::{TaskPriority, TaskType},
+        priority::{TaskKind, TaskPriority},
         queue::{TaskFamilyContext, TaskWorkflowContext},
     };
 
@@ -44,7 +44,7 @@ mod tests {
 
         let record = task_queue_record_input(
             "task-1",
-            &TaskType::SourceSync,
+            &TaskKind::SourceSync,
             &TaskPriority::Medium,
             Some(5),
             Some(&family),
@@ -52,7 +52,7 @@ mod tests {
         );
 
         assert_eq!(record.task_id, "task-1");
-        assert_eq!(record.task_type, TaskType::SourceSync.as_str());
+        assert_eq!(record.task_type, TaskKind::SourceSync.as_str());
         assert_eq!(record.priority, TaskPriority::Medium.as_str());
         assert_eq!(record.project_id, Some(5));
         assert_eq!(record.workflow_run_id, Some(99));

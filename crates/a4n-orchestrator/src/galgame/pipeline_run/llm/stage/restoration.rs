@@ -21,7 +21,7 @@ where
         return Ok(None);
     }
     if let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-        service.db.connection(),
+        service.database.connection(),
         input.workflow_run_id,
         input.checkpoint_key,
         &prepared.fingerprint_json,

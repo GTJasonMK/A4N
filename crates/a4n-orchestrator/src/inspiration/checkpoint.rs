@@ -1,17 +1,18 @@
 use a4n_core::error::AppError;
 use a4n_db::workflow::{self, CompletedLlmCallCheckpointInput};
-use a4n_llm::provider::{ChatRequest, UsageInfo};
+use a4n_llm::provider::ChatRequest;
+use a4n_service_protocol::GenerationUsage;
 use serde_json::{Value, json};
 
 use crate::workflow::{
     workflow_checkpoint_contract_app_error, workflow_read_app_error, workflow_write_app_error,
 };
 
-use super::OrchestratorContext;
 use super::validation::{
     inspiration_call_fingerprint_json, required_checkpoint_string,
     validate_inspiration_response_json,
 };
+use crate::OrchestratorContext;
 
 pub(super) struct InspirationCheckpointRequest {
     pub(super) request: ChatRequest,
@@ -40,9 +41,13 @@ impl OrchestratorContext {
             trace_context.call_key = Some(call_key.clone());
             trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
         }
-        workflow::mark_workflow_current_step(self.db.connection(), workflow_run_id, &call_key)
-            .await
-            .map_err(workflow_write_app_error)?;
+        workflow::mark_workflow_current_step(
+            self.database.connection(),
+            workflow_run_id,
+            &call_key,
+        )
+        .await
+        .map_err(workflow_write_app_error)?;
         Ok(InspirationCheckpointRequest {
             request,
             workflow_run_id,
@@ -59,7 +64,7 @@ impl OrchestratorContext {
     ) -> Result<Option<String>, AppError> {
         let call_key = format!("inspiration_conversation.project_{project_id}.turn");
         let Some(checkpoint) = workflow::load_completed_llm_call_checkpoint(
-            self.db.connection(),
+            self.database.connection(),
             workflow_run_id,
             &call_key,
             fingerprint_json,
@@ -92,10 +97,10 @@ impl OrchestratorContext {
         fingerprint_json: Value,
         output: &str,
         finish_reason: Option<String>,
-        usage: Option<UsageInfo>,
+        usage: Option<GenerationUsage>,
     ) -> Result<(), AppError> {
         workflow::save_completed_llm_call_checkpoint(
-            self.db.connection(),
+            self.database.connection(),
             CompletedLlmCallCheckpointInput {
                 workflow_run_id,
                 call_key,

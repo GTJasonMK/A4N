@@ -6,7 +6,7 @@ use crate::{
 
 use super::super::{
     SendOptimizationMessageInput,
-    access::verify_optimize_session_access,
+    contracts::orchestrator_permissions,
     preview::{blocked_step, chat_step},
 };
 
@@ -15,13 +15,15 @@ pub async fn preview_send_optimization_message_request(
     user_id: i64,
     input: SendOptimizationMessageInput,
 ) -> Result<ModelRequestPreview, String> {
-    verify_optimize_session_access(state, user_id, input.session_id).await?;
+    let permissions = input.permissions.as_ref().map(orchestrator_permissions);
     let prompt_renderer = RuntimePromptRenderer::new(state);
     let request = state
-        .build_send_user_message_preview_request(
+        .optimize()
+        .build_send_user_message_preview_request_for_user_validated(
+            user_id,
             input.session_id,
             &input.message,
-            input.permissions.as_ref(),
+            permissions.as_ref(),
             &prompt_renderer,
         )
         .await

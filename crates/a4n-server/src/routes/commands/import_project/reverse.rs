@@ -3,7 +3,7 @@ use super::super::{
     sanitize_optional_task_id, to_value, web_progress_reporter,
 };
 use crate::state::ServerState;
-use a4n_core::event::channel::TaskType;
+use a4n_core::event::channel::TaskKind;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -171,13 +171,13 @@ pub(in crate::routes::commands) async fn reverse_engineer_command(
     let task = register_web_task(
         state,
         task_id.clone(),
-        TaskType::LlmCall,
+        TaskKind::LlmCall,
         scope.project_id,
         scope.total,
         target.initial_message(apply),
     )
     .await;
-    let progress = web_progress_reporter(state, task, task_id.clone());
+    let progress = web_progress_reporter(task);
     let result = if apply {
         import_reverse_actions::reverse_engineer_and_apply(
             state.runtime(),
@@ -197,7 +197,7 @@ pub(in crate::routes::commands) async fn reverse_engineer_command(
         )
         .await
     };
-    finish_web_task(state, task_id, result, target.success_message(apply)).await
+    finish_web_task(state, task_id, result).await
 }
 
 pub(in crate::routes::commands) async fn preview_reverse_engineer_request_command(

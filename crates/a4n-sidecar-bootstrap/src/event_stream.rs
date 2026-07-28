@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceTaskEvent, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError, ServiceErrorCode,
     redact_sensitive_message,
 };
 use axum::{
@@ -13,7 +13,7 @@ use futures::{Stream, stream};
 
 const SERIALIZATION_FAILURE_EVENT: &[u8] = br#"{"task_id":"service-event-serialization","event_kind":"failed","sequence":0,"error":{"code":"internal","message":"service task event serialization failed","retryable":false}}"#;
 
-pub fn service_event_line(event: ServiceTaskEvent) -> Bytes {
+pub fn service_event_line(event: CapabilityTaskEvent) -> Bytes {
     let mut line = match serde_json::to_vec(&event) {
         Ok(line) => line,
         Err(error) => {
@@ -29,7 +29,7 @@ pub fn service_event_line(event: ServiceTaskEvent) -> Bytes {
 }
 
 pub fn single_service_event_stream(
-    event: ServiceTaskEvent,
+    event: CapabilityTaskEvent,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> + Send + 'static {
     stream::once(async move { Ok(service_event_line(event)) })
 }
@@ -45,16 +45,18 @@ pub fn service_event_ndjson_response(
         Ok(response) => response,
         Err(error) => (
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            format!("failed to build {event_context} event response: {error}"),
+            redact_sensitive_message(format!(
+                "failed to build {event_context} event response: {error}"
+            )),
         )
             .into_response(),
     }
 }
 
-fn serialization_failed_event(error: serde_json::Error) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+fn serialization_failed_event(error: serde_json::Error) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id: "service-event-serialization".to_string(),
-        event_kind: ServiceTaskEventKind::Failed,
+        event_kind: CapabilityTaskEventKind::Failed,
         sequence: 0,
         chunk_index: None,
         chunk_delta: None,

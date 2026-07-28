@@ -1,57 +1,21 @@
 import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
-import type { GeneratedImage } from "./image";
-import { idNum, integerNum, type ApiId as Id } from "./shared";
+import { idNum, type ApiId as Id } from "./shared";
 import type { DownstreamConflictStrategy } from "./dependencyConflict";
-import { getLocalImageConfig } from "./localRuntimeSettings";
-import { buildRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
-import { usesLocalRuntimeSettings } from "../utils/runtimeMode";
-import { SYSTEM_IMAGE_CONFIG_ID } from "./image";
+import type {
+  SceneProfileInput as ApiSceneProfileInput,
+  SceneProfileSummary,
+} from "./generated/host";
 
-export interface SceneProfile {
-  id: number;
-  project_id: number;
-  name: string;
-  normalized_name: string;
-  aliases_json: unknown;
-  scene_type: string;
-  importance: string;
-  parent_scene_id: number | null;
-  base_description: string;
-  visual_description: string;
-  spatial_layout: string;
-  atmosphere: string;
-  entry_points_json: unknown;
-  rules_json: unknown;
-  current_state_json: unknown;
-  first_seen_chapter: number;
-  last_seen_chapter: number;
-  evidence_json: unknown;
-  image_prompt_seed: string;
-  occurrence_count: number;
-  generated_image_count: number;
-  created_at: string | null;
-  updated_at: string | null;
-}
+export type SceneProfile = SceneProfileSummary;
 
-export interface SceneProfileInput {
-  name: string;
-  aliases?: string[];
-  scene_type: string;
-  importance: string;
+export type SceneProfileInput = Omit<
+  ApiSceneProfileInput,
+  "parent_scene_id" | "downstream_strategy"
+> & {
   parent_scene_id?: Id | null;
-  base_description: string;
-  visual_description: string;
-  spatial_layout: string;
-  atmosphere: string;
-  entry_points_json?: unknown | null;
-  rules_json?: unknown | null;
-  first_seen_chapter: number;
-  last_seen_chapter: number;
-  evidence?: string[];
-  image_prompt_seed: string;
   downstream_strategy?: DownstreamConflictStrategy;
-}
+};
 
 interface SceneProfileImageInput {
   scene_profile_id: number;
@@ -75,12 +39,6 @@ const currentUserId = (): number => {
   if (id == null) throw new Error("未登录，无法访问场景档案");
   return id;
 };
-
-function normalizeImageConfigId(configId?: Id | null): number | null {
-  if (configId == null) return null;
-  const id = integerNum(configId, "图片配置 ID");
-  return id === SYSTEM_IMAGE_CONFIG_ID ? null : idNum(id, "图片配置 ID");
-}
 
 export async function listSceneProfiles(projectId: Id): Promise<SceneProfile[]> {
   return apiInvoke<SceneProfile[]>("list_scene_profiles", {
@@ -153,25 +111,6 @@ export async function syncSceneProfiles(
     projectId: idNum(projectId),
     chapterNumber: chapterNumber ?? null,
     taskId: taskId ?? null,
-  });
-}
-
-export async function generateSceneProfileImage(
-  input: SceneProfileImageInput,
-  taskId?: string | null,
-): Promise<GeneratedImage> {
-  const configId = normalizeImageConfigId(input.config_id);
-  return apiInvoke<GeneratedImage>("generate_scene_profile_image", {
-    userId: currentUserId(),
-    input: { ...input, config_id: configId },
-    taskId: taskId ?? null,
-    ...(usesLocalRuntimeSettings() && configId != null
-      ? {
-          runtime_config_snapshot: buildRuntimeConfigSnapshot({
-            image: getLocalImageConfig(configId),
-          }),
-        }
-      : {}),
   });
 }
 

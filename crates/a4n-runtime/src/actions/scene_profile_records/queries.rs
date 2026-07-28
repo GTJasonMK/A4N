@@ -12,7 +12,7 @@ pub async fn list_scene_profiles(
 ) -> Result<Vec<SceneProfileSummary>, String> {
     access::verify_project_access_string(state, user_id, project_id).await?;
     let profiles = state
-        .orchestrator
+        .scene_profile()
         .scene_profiles_by_project(project_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -21,9 +21,10 @@ pub async fn list_scene_profiles(
         .map(|profile| profile.id)
         .collect::<Vec<_>>();
     let occurrence_counts =
-        projections::occurrence_counts_by_profile(state, project_id, &profile_ids).await?;
+        projections::occurrence_counts_by_profile(state.scene_profile(), project_id, &profile_ids)
+            .await?;
     let image_counts = profile_materials::count_profile_material_images_by_profile(
-        state,
+        state.profile_material(),
         project_id,
         PROFILE_KIND_SCENE,
         &profile_ids,

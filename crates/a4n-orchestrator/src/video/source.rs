@@ -9,7 +9,7 @@ impl OrchestratorContext {
         writable: bool,
     ) -> Result<ProjectChapterVideoSource, AppError> {
         let (project, chapter) = a4n_db::video::project_and_chapter_for_video_source(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             chapter_id,
         )
@@ -52,7 +52,7 @@ impl OrchestratorContext {
                             operation: operation.to_string(),
                         })?;
                 let snapshot_chapter = a4n_db::video::source_snapshot_chapter_for_video_source(
-                    self.db.connection(),
+                    self.database.connection(),
                     snapshot_id,
                     chapter_id,
                 )
@@ -110,7 +110,6 @@ pub(super) fn validate_import_chapter_video_prompt(
         prompt.chapter_id,
         &prompt.prompt_type,
         &prompt.status,
-        prompt.generated_video_id,
         project_id,
         chapter_id,
     )
@@ -122,7 +121,6 @@ pub(super) fn validate_import_chapter_video_prompt_fields(
     prompt_chapter_id: i64,
     prompt_type: &str,
     status: &str,
-    generated_video_id: Option<i64>,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<(), String> {
@@ -143,9 +141,6 @@ pub(super) fn validate_import_chapter_video_prompt_fields(
     }
     if status == "running" {
         return Err(format!("视频提示词 #{} 正在运行，不能导入视频", prompt_id));
-    }
-    if generated_video_id.is_some() {
-        return Err("该视频提示词已关联视频，请先删除对应视频后再导入".to_string());
     }
     Ok(())
 }

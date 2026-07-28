@@ -11,7 +11,7 @@ use crate::galgame::{
 };
 use a4n_db::project::ProjectFamilyContext;
 
-pub(super) fn galgame_script_record_input(
+pub(crate) fn galgame_script_record_input(
     context: &ProjectFamilyContext,
     plan: GalgameScriptPersistPlan,
 ) -> Result<PersistGalgameScriptRecordInput, AppError> {

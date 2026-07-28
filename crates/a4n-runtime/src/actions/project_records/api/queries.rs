@@ -2,7 +2,6 @@ use super::super::contracts::{
     AssetDependencyGraph, AssetGraphNodeDetail, PaginatedProjects, ProjectSummary,
     SourceSnapshotChapterSummary,
 };
-use super::super::rules::project_list_offset;
 use super::super::summaries::{
     project_record_by_id, project_summaries_with_family_for_user,
     project_summary_with_family_for_user,
@@ -10,6 +9,7 @@ use super::super::summaries::{
 use crate::AppState;
 use crate::actions::{access, app_error_message};
 use a4n_orchestrator::collaboration::{AccessibleProjectListInput, ProjectAccessScope};
+use a4n_orchestrator::project::project_list_offset;
 
 pub async fn get_project_summary(
     state: &AppState,
@@ -28,6 +28,7 @@ pub async fn get_project_asset_dependency_graph(
 ) -> Result<AssetDependencyGraph, String> {
     access::verify_project_access_string(state, user_id, project_id).await?;
     state
+        .project_dependency_graph()
         .asset_dependency_graph(project_id)
         .await
         .map_err(|error| error.to_string())
@@ -41,6 +42,7 @@ pub async fn get_project_asset_dependency_graph_node_detail(
 ) -> Result<AssetGraphNodeDetail, String> {
     access::verify_project_access_string(state, user_id, project_id).await?;
     state
+        .project_dependency_graph()
         .asset_dependency_graph_node_detail(project_id, &node_id)
         .await
         .map_err(|error| error.to_string())
@@ -57,7 +59,7 @@ pub async fn list_projects(
 ) -> Result<PaginatedProjects, String> {
     let offset = project_list_offset(page, page_size)?;
     let page_result = state
-        .orchestrator
+        .collaboration()
         .accessible_projects(AccessibleProjectListInput {
             user_id,
             offset,
@@ -85,7 +87,7 @@ pub async fn list_source_snapshot_chapters(
 ) -> Result<Vec<SourceSnapshotChapterSummary>, String> {
     access::verify_project_access_string(state, user_id, project_id).await?;
     state
-        .orchestrator
+        .project_family()
         .source_snapshot_chapters(project_id)
         .await
         .map_err(app_error_message)

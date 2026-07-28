@@ -1,25 +1,4 @@
-use serde_json::{Map, Value, json};
-
-pub(in crate::actions::video_generation) fn provider_request_snapshot_value(
-    key: &'static str,
-    title: &'static str,
-    kind: &'static str,
-    prompt_name: Option<&'static str>,
-    note: Option<String>,
-    request: Value,
-) -> Value {
-    json!({
-        "schema_version": 1,
-        "captured_at": chrono::Utc::now().to_rfc3339(),
-        "key": key,
-        "title": title,
-        "kind": kind,
-        "prompt_name": prompt_name,
-        "state": "ready",
-        "note": note,
-        "request": request,
-    })
-}
+use serde_json::{Map, Value};
 
 pub(super) fn required_snapshot_string(
     snapshot: &Map<String, Value>,

@@ -2,7 +2,7 @@ use super::{
     contracts::{
         EmbeddingModelDownloadInfoSummary, EmbeddingModelExecution, LocalEmbeddingModelSummary,
     },
-    rules::{embedding_model_execution, required_text},
+    host_adapter::{embedding_model_execution, required_text},
 };
 use a4n_core::error::AppError;
 

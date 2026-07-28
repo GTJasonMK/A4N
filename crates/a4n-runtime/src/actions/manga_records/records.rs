@@ -1,18 +1,9 @@
-use crate::{
-    AppState,
-    actions::{
-        access,
-        dependency_conflict::{DownstreamConflictStrategy, delete_downstream_images_if_requested},
-    },
-};
-use a4n_orchestrator::manga::{MANGA_PAGE_PROMPT_TYPE, ensure_manga_source_can_write};
+use crate::{AppState, actions::app_error_message};
+use a4n_core::dependency_conflict::DownstreamConflictStrategy;
 
 use super::{
-    BindReferenceImageInput, MangaPromptSummary, UpdateMangaPromptInput,
-    access::{load_manga_page_prompt, required_trimmed, resolve_manga_prompt_downstream_conflict},
-    layout::bind_reference_asset_in_layout,
-    projections::to_summary,
-    reference::resolve_reference_bound_asset,
+    BindReferenceImageInput, MangaPromptSummary, RuntimeMangaDownstreamCleanup,
+    UpdateMangaPromptInput, projections::to_summary,
 };
 
 pub async fn list_manga_panels(
@@ -21,14 +12,11 @@ pub async fn list_manga_panels(
     project_id: i64,
     chapter_id: i64,
 ) -> Result<Vec<MangaPromptSummary>, String> {
-    access::verify_project_or_derived_family_access(state, user_id, project_id)
-        .await
-        .map_err(|err| err.to_string())?;
     let panels = state
-        .orchestrator
-        .manga_page_prompts_by_chapter(project_id, chapter_id, MANGA_PAGE_PROMPT_TYPE)
+        .manga()
+        .list_manga_panels_validated(user_id, project_id, chapter_id)
         .await
-        .map_err(crate::actions::app_error_message)?;
+        .map_err(app_error_message)?;
     panels.iter().map(to_summary).collect()
 }
 
@@ -37,33 +25,12 @@ pub async fn bind_manga_reference_image(
     user_id: i64,
     input: BindReferenceImageInput,
 ) -> Result<MangaPromptSummary, String> {
-    let slot_id = required_trimmed(&input.slot_id, "参考图槽位")?;
-    let panel = load_manga_page_prompt(state, input.prompt_id, "整页漫画提示词不存在").await?;
-    access::verify_project_or_derived_family_editor(state, user_id, panel.project_id)
-        .await
-        .map_err(|err| err.to_string())?;
-    let source = state
-        .orchestrator
-        .chapter_manga_source_by_id(panel.chapter_id, panel.project_id, false)
-        .await
-        .map_err(|err| err.to_string())?;
-    ensure_manga_source_can_write(&source, "绑定漫画参考图").map_err(|err| err.to_string())?;
-    let downstream_image_id =
-        resolve_manga_prompt_downstream_conflict(&panel, input.downstream_strategy, "绑定参考图")?;
-    let bound_asset = resolve_reference_bound_asset(
-        state,
-        panel.project_id,
-        input.asset_kind.trim(),
-        input.asset_id,
-    )
-    .await?;
-    let layout = bind_reference_asset_in_layout(panel.layout.clone(), slot_id, bound_asset)?;
+    let cleanup = RuntimeMangaDownstreamCleanup { state, user_id };
     let updated = state
-        .orchestrator
-        .update_manga_page_prompt_layout(panel, layout)
+        .manga()
+        .bind_manga_reference_image_validated(user_id, input, &cleanup)
         .await
-        .map_err(crate::actions::app_error_message)?;
-    delete_downstream_images_if_requested(state, user_id, downstream_image_id).await?;
+        .map_err(app_error_message)?;
     to_summary(&updated)
 }
 
@@ -72,28 +39,12 @@ pub async fn update_manga_prompt(
     user_id: i64,
     input: UpdateMangaPromptInput,
 ) -> Result<MangaPromptSummary, String> {
-    let image_prompt = required_trimmed(&input.image_prompt, "整页漫画提示词")?;
-    let panel = load_manga_page_prompt(state, input.prompt_id, "整页漫画提示词不存在").await?;
-    access::verify_project_or_derived_family_editor(state, user_id, panel.project_id)
-        .await
-        .map_err(|err| err.to_string())?;
-    let source = state
-        .orchestrator
-        .chapter_manga_source_by_id(panel.chapter_id, panel.project_id, false)
-        .await
-        .map_err(|err| err.to_string())?;
-    ensure_manga_source_can_write(&source, "修改整页漫画提示词").map_err(|err| err.to_string())?;
-    if panel.image_prompt.trim() == image_prompt {
-        return to_summary(&panel);
-    }
-    let downstream_image_id =
-        resolve_manga_prompt_downstream_conflict(&panel, input.downstream_strategy, "修改提示词")?;
+    let cleanup = RuntimeMangaDownstreamCleanup { state, user_id };
     let updated = state
-        .orchestrator
-        .update_manga_page_prompt_image_prompt(panel, image_prompt.to_string())
+        .manga()
+        .update_manga_prompt_validated(user_id, input, &cleanup)
         .await
-        .map_err(crate::actions::app_error_message)?;
-    delete_downstream_images_if_requested(state, user_id, downstream_image_id).await?;
+        .map_err(app_error_message)?;
     to_summary(&updated)
 }
 
@@ -103,21 +54,11 @@ pub async fn delete_manga_by_chapter(
     project_id: i64,
     chapter_id: i64,
 ) -> Result<(), String> {
-    access::verify_project_or_derived_family_editor(state, user_id, project_id)
-        .await
-        .map_err(|err| err.to_string())?;
-    let source = state
-        .orchestrator
-        .chapter_manga_source_by_id(chapter_id, project_id, false)
-        .await
-        .map_err(|err| err.to_string())?;
-    ensure_manga_source_can_write(&source, "删除漫画产物").map_err(|err| err.to_string())?;
     state
-        .orchestrator
-        .delete_manga_prompts_by_chapter(project_id, chapter_id)
+        .manga()
+        .delete_manga_by_chapter_validated(user_id, project_id, chapter_id)
         .await
-        .map(|_| ())
-        .map_err(crate::actions::app_error_message)
+        .map_err(app_error_message)
 }
 
 pub async fn delete_manga_prompt(
@@ -126,23 +67,10 @@ pub async fn delete_manga_prompt(
     prompt_id: i64,
     downstream_strategy: DownstreamConflictStrategy,
 ) -> Result<(), String> {
-    let panel = load_manga_page_prompt(state, prompt_id, "整页漫画提示词不存在").await?;
-    access::verify_project_or_derived_family_editor(state, user_id, panel.project_id)
-        .await
-        .map_err(|err| err.to_string())?;
-    let source = state
-        .orchestrator
-        .chapter_manga_source_by_id(panel.chapter_id, panel.project_id, false)
-        .await
-        .map_err(|err| err.to_string())?;
-    ensure_manga_source_can_write(&source, "删除漫画提示词").map_err(|err| err.to_string())?;
-    let downstream_image_id =
-        resolve_manga_prompt_downstream_conflict(&panel, downstream_strategy, "删除提示词")?;
-    delete_downstream_images_if_requested(state, user_id, downstream_image_id).await?;
+    let cleanup = RuntimeMangaDownstreamCleanup { state, user_id };
     state
-        .orchestrator
-        .delete_manga_prompt_record(prompt_id)
+        .manga()
+        .delete_manga_prompt_validated(user_id, prompt_id, downstream_strategy, &cleanup)
         .await
-        .map_err(crate::actions::app_error_message)?;
-    Ok(())
+        .map_err(app_error_message)
 }

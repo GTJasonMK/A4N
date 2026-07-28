@@ -16,7 +16,7 @@ pub(in crate::optimize) const INFORMATION_SOURCES: &[&str] = &[
     "next_chapters",
 ];
 
-pub(in crate::optimize) fn optimization_runtime_tool_specs() -> Vec<Value> {
+pub(crate) fn optimization_runtime_tool_specs() -> Vec<Value> {
     vec![
         json!({
             "type": "function",

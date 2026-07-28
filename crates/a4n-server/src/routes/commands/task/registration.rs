@@ -1,16 +1,14 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use a4n_core::event::channel::{TaskHandle, TaskProgress, TaskType};
+use a4n_core::event::channel::{TaskHandle, TaskKind, TaskProgress};
 use a4n_runtime::host_api::task_records as task_records_actions;
 
 use super::super::ServerState;
-use super::events::emit_workflow_progress;
-
 pub(in crate::routes::commands) async fn register_web_task(
     state: &ServerState,
     task_id: Option<String>,
-    task_type: TaskType,
+    task_type: TaskKind,
     project_id: impl Into<Option<i64>>,
     total: u32,
     message: &str,
@@ -35,6 +33,5 @@ pub(in crate::routes::commands) async fn register_web_task(
             task_scope: None,
         },
     );
-    emit_workflow_progress(state, &task_id, 0, total, message).await;
     Some(handle)
 }

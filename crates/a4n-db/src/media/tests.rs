@@ -128,9 +128,18 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
     )
     .await
     .unwrap();
-    let profile = crate::character::create_profile(&db, project.id, "路径测试角色", json!({}))
-        .await
-        .unwrap();
+    let profile = crate::character::create_profile(
+        &db,
+        project.id,
+        "路径测试角色",
+        json!({
+            "explicit_attributes": {},
+            "implicit_attributes": {},
+            "social_attributes": {},
+        }),
+    )
+    .await
+    .unwrap();
     let portrait_path = format!("projects/{}/portraits/ref.png", project.id);
     let portrait = crate::character::create_character_portrait_record(
         &db,

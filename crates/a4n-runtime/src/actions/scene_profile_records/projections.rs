@@ -1,16 +1,20 @@
 use super::SceneProfileSummary;
-use crate::{AppState, actions::profile_materials};
+use crate::{
+    actions::profile_materials,
+    state::{ProfileMaterialRuntimeFacade, SceneProfileRuntimeFacade},
+};
 use a4n_core::models::scene::scene_profile;
 use a4n_orchestrator::profile_material::PROFILE_KIND_SCENE;
 use std::collections::BTreeMap;
 
 pub(super) async fn to_summary(
-    state: &AppState,
+    scene_profile: SceneProfileRuntimeFacade<'_>,
+    profile_material: ProfileMaterialRuntimeFacade<'_>,
     profile: &scene_profile::Model,
 ) -> Result<SceneProfileSummary, String> {
-    let occurrence_count = occurrence_count(state, profile).await?;
+    let occurrence_count = occurrence_count(scene_profile, profile).await?;
     let generated_image_count = profile_materials::count_profile_material_images(
-        state,
+        profile_material,
         profile.project_id,
         PROFILE_KIND_SCENE,
         profile.id,
@@ -55,24 +59,25 @@ pub(super) fn to_summary_with_counts(
     }
 }
 
-async fn occurrence_count(state: &AppState, profile: &scene_profile::Model) -> Result<u64, String> {
-    state
-        .orchestrator
+async fn occurrence_count(
+    scene_profile: SceneProfileRuntimeFacade<'_>,
+    profile: &scene_profile::Model,
+) -> Result<u64, String> {
+    scene_profile
         .scene_occurrence_count(profile.project_id, profile.id)
         .await
         .map_err(|error| error.to_string())
 }
 
 pub(super) async fn occurrence_counts_by_profile(
-    state: &AppState,
+    scene_profile: SceneProfileRuntimeFacade<'_>,
     project_id: i64,
     profile_ids: &[i64],
 ) -> Result<BTreeMap<i64, u64>, String> {
     if profile_ids.is_empty() {
         return Ok(BTreeMap::new());
     }
-    state
-        .orchestrator
+    scene_profile
         .scene_occurrence_counts_by_profile(project_id, profile_ids)
         .await
         .map_err(|error| error.to_string())

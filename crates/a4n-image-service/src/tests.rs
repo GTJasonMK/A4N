@@ -1,9 +1,9 @@
 use a4n_image::ImageGenerationRequest;
 use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
+    CapabilityTaskEvent, CapabilityTaskEventKind,
     IMAGE_PROVIDER_CAPABILITY_VERSION as IMAGE_CAPABILITY_VERSION, PROTOCOL_VERSION, ServiceError,
-    ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus, ServiceTaskEvent,
-    ServiceTaskEventKind,
+    ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
 };
 
 use crate::contracts::{ImageGenerationOutput, ImageProviderPayload};
@@ -15,7 +15,7 @@ use crate::protocol::{error_response, validate_image_request, validate_model_dis
 #[test]
 fn image_generation_events_keep_terminal_payload_and_error_contracts() {
     let progress = progress_generation_event("task-1".to_string(), 1);
-    assert_eq!(progress.event_kind, ServiceTaskEventKind::Progress);
+    assert_eq!(progress.event_kind, CapabilityTaskEventKind::Progress);
     assert_eq!(
         progress.payload.as_ref().unwrap()["message"],
         "image sidecar 正在调用 provider"
@@ -30,7 +30,7 @@ fn image_generation_events_keep_terminal_payload_and_error_contracts() {
         },
     )
     .expect("completed event");
-    assert_eq!(completed.event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(completed.event_kind, CapabilityTaskEventKind::Completed);
     assert_eq!(completed.payload.as_ref().unwrap()["format"], "png");
     assert!(completed.error.is_none());
     let failed = failed_generation_event(
@@ -42,7 +42,7 @@ fn image_generation_events_keep_terminal_payload_and_error_contracts() {
             retryable: Some(false),
         },
     );
-    assert_eq!(failed.event_kind, ServiceTaskEventKind::Failed);
+    assert_eq!(failed.event_kind, CapabilityTaskEventKind::Failed);
     assert_eq!(failed.error.unwrap().code, ServiceErrorCode::ProviderError);
     assert!(failed.payload.is_none());
 }
@@ -51,10 +51,10 @@ fn image_generation_events_keep_terminal_payload_and_error_contracts() {
 fn image_generation_event_line_is_newline_delimited_json() {
     let line = event_line(progress_generation_event("task-1".to_string(), 1));
     assert_eq!(line.last(), Some(&b'\n'));
-    let event: ServiceTaskEvent =
+    let event: CapabilityTaskEvent =
         serde_json::from_slice(&line[..line.len() - 1]).expect("event json");
     assert_eq!(event.task_id, "task-1");
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Progress);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Progress);
 }
 
 #[test]

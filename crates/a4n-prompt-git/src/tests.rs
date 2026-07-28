@@ -3,7 +3,7 @@ use std::path::Path;
 
 use git2::Repository;
 
-use crate::GitPromptStore;
+use crate::{GitPromptStore, backup_prompt_repository, restore_prompt_repository};
 
 fn store() -> (tempfile::TempDir, GitPromptStore) {
     let tmp = tempfile::tempdir().unwrap();
@@ -176,4 +176,24 @@ fn corrupted_repository_is_not_reinitialized() {
         Err(error) => error,
     };
     assert!(error.to_string().contains("git 仓库 HEAD 校验失败"));
+}
+
+#[test]
+fn backup_and_restore_preserve_committed_history() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("prompts.git");
+    let backup = root.path().join("backup");
+    let store = GitPromptStore::open_or_init(source.clone()).unwrap();
+    store.commit_prompt("greeting", "v1", "init").unwrap();
+    store.commit_prompt("greeting", "v2", "update").unwrap();
+
+    backup_prompt_repository(&source, &backup).unwrap();
+    store.commit_prompt("greeting", "v3", "later").unwrap();
+    drop(store);
+    restore_prompt_repository(&backup, &source).unwrap();
+
+    let restored = GitPromptStore::open_or_init(source.clone()).unwrap();
+    assert_eq!(restored.latest("greeting").unwrap().as_deref(), Some("v2"));
+    assert_eq!(restored.history("greeting").unwrap().len(), 2);
+    assert!(backup_prompt_repository(&source, &source.join("nested-backup")).is_err());
 }

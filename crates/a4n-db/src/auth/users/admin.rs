@@ -32,10 +32,10 @@ pub async fn disable_user(
         return Err(AppError::InvalidArgument("不能禁用当前登录用户".into()));
     }
 
-    let user = user_by_id(db, user_id).await?;
-    let mut active: user::ActiveModel = user.into();
-    active.is_active = Set(false);
-    active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(AppError::Database)?;
-    Ok(())
+    crate::generation::complete_user_disable_gate(db, user_id)
+        .await
+        .map_err(|error| AppError::InvalidState {
+            current: error.to_string(),
+            operation: "完成用户禁用 lifecycle gate".to_string(),
+        })
 }

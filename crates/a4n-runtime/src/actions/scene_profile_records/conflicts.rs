@@ -1,18 +1,17 @@
 use crate::{
-    AppState,
     actions::{
         dependency_conflict::{DownstreamConflictStrategy, resolve_downstream_id_conflict},
         profile_materials,
     },
+    state::{ProfileMaterialRuntimeFacade, SceneProfileRuntimeFacade},
 };
 use a4n_orchestrator::profile_material::PROFILE_KIND_SCENE;
 
 pub(super) async fn scene_profile_project_id(
-    state: &AppState,
+    scene_profile: &SceneProfileRuntimeFacade<'_>,
     scene_profile_id: i64,
 ) -> Result<i64, String> {
-    let profile = state
-        .orchestrator
+    let profile = scene_profile
         .scene_profile_by_id(scene_profile_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -20,14 +19,14 @@ pub(super) async fn scene_profile_project_id(
 }
 
 pub(super) async fn resolve_scene_profile_downstream_conflict(
-    state: &AppState,
+    profile_material: ProfileMaterialRuntimeFacade<'_>,
     project_id: i64,
     scene_profile_id: i64,
     strategy: DownstreamConflictStrategy,
     operation: &str,
 ) -> Result<Vec<i64>, String> {
     let image_ids = profile_materials::list_profile_material_image_ids(
-        state,
+        profile_material,
         project_id,
         PROFILE_KIND_SCENE,
         scene_profile_id,

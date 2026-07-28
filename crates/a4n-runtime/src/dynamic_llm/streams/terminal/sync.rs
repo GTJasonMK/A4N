@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use a4n_core::error::AppError;
 use a4n_llm::provider::{LlmTraceContext, UsageInfo};
-use a4n_orchestrator::{OrchestratorContext, task_queue::PersistentTaskQueue};
+use a4n_orchestrator::DynamicProviderFacade;
 
 use crate::dynamic_llm::trace::record_dynamic_llm_trace;
 
@@ -11,8 +9,7 @@ use super::StreamKind;
 pub(super) struct TerminalSyncContext {
     pub(super) kind: StreamKind,
     pub(super) task_id: String,
-    pub(super) task_queue: Arc<PersistentTaskQueue>,
-    pub(super) orchestrator: OrchestratorContext,
+    pub(super) facade: DynamicProviderFacade,
     pub(super) trace_context: Option<LlmTraceContext>,
     pub(super) model_name: String,
     pub(super) duration_ms: Option<i64>,
@@ -24,9 +21,9 @@ pub(super) fn start_completed_sync(
     finish_reason: Option<String>,
 ) -> tokio::task::JoinHandle<Result<(), AppError>> {
     tokio::spawn(async move {
-        let status_result = context.task_queue.mark_done(&context.task_id).await;
+        let status_result = context.facade.queue_mark_done(&context.task_id).await;
         record_dynamic_llm_trace(
-            &context.orchestrator,
+            &context.facade,
             context.trace_context.as_ref(),
             Some(context.model_name.as_str()),
             usage,
@@ -49,11 +46,11 @@ pub(super) fn start_failed_sync(
 ) -> tokio::task::JoinHandle<Result<(), AppError>> {
     tokio::spawn(async move {
         let status_result = context
-            .task_queue
-            .mark_failed(&context.task_id, &message)
+            .facade
+            .queue_mark_failed(&context.task_id, &message)
             .await;
         record_dynamic_llm_trace(
-            &context.orchestrator,
+            &context.facade,
             context.trace_context.as_ref(),
             Some(context.model_name.as_str()),
             None,

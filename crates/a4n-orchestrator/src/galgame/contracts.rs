@@ -3,6 +3,7 @@ use super::{
 };
 use a4n_core::models::{
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
+    generation::{workflow_checkpoint, workflow_run},
     media::{media_asset, media_binding},
 };
 use a4n_core::shooting_script::ChapterShootingScriptV1;
@@ -23,6 +24,7 @@ pub const GALGAME_TARGET_PORTRAIT_EXPRESSION: &str = "portrait_expression";
 pub const GALGAME_ENTITY_SCENE: &str = "galgame_scene";
 pub const GALGAME_ENTITY_LINE: &str = "galgame_line";
 pub const GALGAME_ENTITY_CHARACTER_PROFILE: &str = "character_profile";
+pub const GALGAME_CG_IMPORTANCE: &[&str] = &["normal", "high", "critical"];
 pub const GALGAME_EXPRESSIONS: &[&str] = &[
     "neutral",
     "smile",
@@ -32,6 +34,12 @@ pub const GALGAME_EXPRESSIONS: &[&str] = &[
     "shy",
     "serious",
 ];
+
+#[derive(Debug, Clone)]
+pub struct GalgamePipelineStatusReadModel {
+    pub run: Option<workflow_run::Model>,
+    pub checkpoints: Vec<workflow_checkpoint::Model>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GalgameScriptDetail {

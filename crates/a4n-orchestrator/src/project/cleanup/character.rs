@@ -5,7 +5,7 @@ use super::super::{
     ChapterDerivedCleanupArtifacts, chapter_cleanup_profile_state_should_restore_base,
 };
 
-pub(in crate::project) async fn cleanup_character_profile_timeline_for_chapter_in<C>(
+pub(crate) async fn cleanup_character_profile_timeline_for_chapter_in<C>(
     db: &C,
     project_id: i64,
     chapter_number: i32,

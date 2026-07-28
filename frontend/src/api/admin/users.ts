@@ -51,8 +51,8 @@ export async function updateUserRole(
   });
 }
 
-export async function deleteUser(callerUserId: Id, userId: Id): Promise<void> {
-  return apiInvoke<void>("delete_user", {
+export async function disableUser(callerUserId: Id, userId: Id): Promise<void> {
+  return apiInvoke<void>("disable_user", {
     callerUserId: idNum(callerUserId),
     userId: idNum(userId),
   });

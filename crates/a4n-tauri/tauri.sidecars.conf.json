@@ -9,6 +9,12 @@
       "../../target/tauri-sidecars/a4n-video-service",
       "../../target/tauri-sidecars/a4n-import-service",
       "../../target/tauri-sidecars/a4n-export-service"
-    ]
+    ],
+    "resources": {
+      "../../target/tauri-sidecars/*onnxruntime*": ""
+    },
+    "macOS": {
+      "hardenedRuntime": true
+    }
   }
 }

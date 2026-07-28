@@ -16,8 +16,6 @@ pub use records::{
     update_llm_config,
 };
 
-use contracts::positive_model_output_cap;
-
 #[cfg(test)]
 use super::shared::validate_runtime_snapshot_config_id;
 #[cfg(test)]

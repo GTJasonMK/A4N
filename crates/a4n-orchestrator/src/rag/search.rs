@@ -1,5 +1,5 @@
 mod api;
-mod enhanced;
+pub(crate) mod enhanced;
 mod execution;
 mod filter;
 

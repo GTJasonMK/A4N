@@ -1,15 +1,14 @@
 use super::contracts::{
     CreateEmbeddingInput, EmbeddingConfigSummary, UpdateEmbeddingInput, embedding_config_summary,
-    embedding_create_record_input, embedding_update_record_input,
 };
+use super::mapping::{embedding_create_params, embedding_update_params};
 use crate::{AppState, actions::app_error_message};
-use a4n_core::config::validate_embedding_config_model;
 
 pub async fn list_embedding_config(
     state: &AppState,
 ) -> Result<Vec<EmbeddingConfigSummary>, String> {
     let configs = state
-        .orchestrator
+        .settings()
         .list_embedding_configs()
         .await
         .map_err(app_error_message)?;
@@ -20,10 +19,10 @@ pub async fn create_embedding_config(
     state: &AppState,
     input: CreateEmbeddingInput,
 ) -> Result<EmbeddingConfigSummary, String> {
-    let record_input = embedding_create_record_input(input)?;
+    let params = embedding_create_params(input)?;
     let config = state
-        .orchestrator
-        .create_embedding_config_record(record_input)
+        .settings()
+        .create_embedding_config_validated(params)
         .await
         .map_err(app_error_message)?;
     Ok(embedding_config_summary(&config))
@@ -35,45 +34,32 @@ pub async fn update_embedding_config(
     input: UpdateEmbeddingInput,
 ) -> Result<EmbeddingConfigSummary, String> {
     let existing = state
-        .orchestrator
+        .settings()
         .embedding_config_by_id(config_id)
         .await
         .map_err(app_error_message)?;
-    let record_input = embedding_update_record_input(&existing, input)?;
+    let params = embedding_update_params(&existing, input)?;
     let updated = state
-        .orchestrator
-        .update_embedding_config_record(existing, record_input)
+        .settings()
+        .update_embedding_config_validated(config_id, params)
         .await
         .map_err(app_error_message)?;
     Ok(embedding_config_summary(&updated))
 }
 
 pub async fn set_default_embedding_config(state: &AppState, config_id: i64) -> Result<(), String> {
-    let target = state
-        .orchestrator
-        .embedding_config_by_id(config_id)
-        .await
-        .map_err(app_error_message)?;
-    validate_embedding_config_model(&target).map_err(|err| err.to_string())?;
     state
-        .orchestrator
-        .set_default_embedding_config_record(target)
+        .settings()
+        .set_default_embedding_config_validated(config_id)
         .await
         .map(drop)
         .map_err(app_error_message)
 }
 
 pub async fn delete_embedding_config(state: &AppState, config_id: i64) -> Result<(), String> {
-    let target = state
-        .orchestrator
-        .embedding_config_by_id(config_id)
-        .await
-        .map_err(app_error_message)?;
-    a4n_core::config::ensure_default_config_delete_allowed(" Embedding 配置", target.is_default)
-        .map_err(|err| err.to_string())?;
     state
-        .orchestrator
-        .delete_embedding_config_record(config_id)
+        .settings()
+        .delete_embedding_config_if_allowed(config_id)
         .await
         .map_err(app_error_message)
 }

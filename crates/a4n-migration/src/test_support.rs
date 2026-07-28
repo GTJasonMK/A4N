@@ -9,6 +9,31 @@ pub async fn connect_test_database() -> DatabaseConnection {
         .expect("PostgreSQL 测试数据库初始化失败")
 }
 
+pub async fn connect_test_database_with_url() -> (DatabaseConnection, String) {
+    let base_database_url = std::env::var("A4N_TEST_DATABASE_URL")
+        .expect("数据库测试必须显式设置 A4N_TEST_DATABASE_URL");
+    let db = connect_test_database().await;
+    let schema = db
+        .query_one(Statement::from_string(
+            db.get_database_backend(),
+            "SELECT current_schema() AS schema".to_string(),
+        ))
+        .await
+        .expect("读取 PostgreSQL 测试 schema 失败")
+        .expect("PostgreSQL 测试 schema 查询未返回结果")
+        .try_get::<String>("", "schema")
+        .expect("解析 PostgreSQL 测试 schema 失败");
+    let separator = if base_database_url.contains('?') {
+        '&'
+    } else {
+        '?'
+    };
+    (
+        db,
+        format!("{base_database_url}{separator}options[search_path]={schema}"),
+    )
+}
+
 async fn connect_test_database_result() -> Result<DatabaseConnection, DbErr> {
     let database_url = std::env::var("A4N_TEST_DATABASE_URL").map_err(|_| {
         DbErr::Custom("缺少 A4N_TEST_DATABASE_URL，数据库测试必须显式指定 PostgreSQL 测试库".into())

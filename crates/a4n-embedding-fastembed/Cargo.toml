@@ -10,7 +10,7 @@ a4n-embedding = { path = "../a4n-embedding" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 fastembed = { version = "5.14.0", default-features = false, features = ["hf-hub-native-tls"] }
-hf-hub = { version = "0.5", default-features = false, features = ["ureq", "native-tls"] }
+hf-hub = { version = "0.5", default-features = false, features = ["ureq", "tokio", "native-tls"] }
 reqwest = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }

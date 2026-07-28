@@ -33,8 +33,10 @@ mod prompt_json_contract;
 mod prompt_preview_flow;
 mod prompt_store_flow;
 mod prompt_update_flow;
+mod provider_generation_application;
 mod record_flow;
 mod runtime_contract;
+mod shooting_script_source;
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
@@ -198,15 +200,10 @@ async fn replace_video_chapter_shooting_script_with_single_shot(
     let source = a4n_db::project::resolve_chapter_source(db, project_id, chapter.id)
         .await
         .expect("video test chapter source should resolve");
-    let existing = a4n_db::shooting_script::chapter_shooting_script_for_source(
-        db,
-        source.root_project_id,
-        source.source_chapter_id,
-        &source.source_revision_key,
-    )
-    .await
-    .expect("video test shooting script should load")
-    .expect("video test shooting script should exist");
+    let existing = a4n_db::shooting_script::chapter_shooting_script_for_source(db, &source)
+        .await
+        .expect("video test shooting script should load")
+        .expect("video test shooting script should exist");
     let source_span = a4n_core::source_spans::source_spans_for_content(
         chapter.id,
         chapter.chapter_number,

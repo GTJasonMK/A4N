@@ -1,4 +1,4 @@
-use a4n_core::rag::RAG_TEXT_INDEX_VERSION;
+use a4n_core::rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION};
 use a4n_embedding::provider::EmbeddingModelIdentity;
 
 use super::*;
@@ -35,6 +35,11 @@ fn metadata_normalization_uses_argument_project_and_embedding_identity() {
     assert_eq!(metadata["derived_project_id"], serde_json::Value::Null);
     assert_eq!(metadata["data_type"], serde_json::json!("chapter"));
     assert_eq!(metadata["hash_algorithm"], serde_json::json!("sha256"));
+    assert_eq!(metadata["source_generation"], metadata["content_hash"]);
+    assert_eq!(
+        metadata["index_format_version"],
+        serde_json::json!(RAG_INDEX_FORMAT_VERSION)
+    );
     assert_eq!(
         metadata["text_index_version"],
         serde_json::json!(RAG_TEXT_INDEX_VERSION)
@@ -54,6 +59,11 @@ fn metadata_normalization_uses_argument_project_and_embedding_identity() {
             .is_some_and(|value| value.len() == 64)
     );
     assert!(metadata_matches_current_text_index(&metadata));
+    assert!(metadata_matches_current_index_format(&metadata));
+    assert!(metadata_matches_source_generation(
+        &metadata,
+        metadata["content_hash"].as_str().unwrap()
+    ));
     assert!(metadata_matches_embedding_identity(&metadata, &identity()));
     assert_eq!(
         metadata_content_hash(&metadata),

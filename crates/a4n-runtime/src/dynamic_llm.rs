@@ -19,8 +19,8 @@ use a4n_llm::provider::{
 };
 #[cfg(feature = "embedded-llm-provider")]
 use a4n_llm_http::http::HttpLlmProvider;
-use a4n_orchestrator::{OrchestratorContext, llm_context::RecordOrReuseContextPackInput};
-use a4n_service_protocol::{ServiceError, ServiceTaskEvent, ServiceTaskEventKind};
+use a4n_orchestrator::llm_context::RecordOrReuseContextPackInput;
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError};
 use async_trait::async_trait;
 use futures::stream::Stream;
 use serde_json::json;

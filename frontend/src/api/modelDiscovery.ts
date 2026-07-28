@@ -1,12 +1,7 @@
 import { usesLocalRuntimeSettings } from "../utils/runtimeMode";
+import type { ModelDiscoveryInput as ApiModelDiscoveryInput } from "./generated/config";
 
-export interface ModelDiscoveryInput {
-  provider: string;
-  base_url: string;
-  api_key_encrypted?: string | null;
-  config_id?: number | null;
-  use_saved_api_key?: boolean;
-}
+export type ModelDiscoveryInput = ApiModelDiscoveryInput;
 
 export interface DiscoveredModel {
   id: string;

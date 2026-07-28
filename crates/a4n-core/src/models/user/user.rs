@@ -26,6 +26,9 @@ pub struct Model {
     pub avatar_url: Option<String>,
 
     pub is_active: bool,
+    /// 内部破坏性操作门禁：active / disabling / disabled
+    #[serde(skip)]
+    pub lifecycle_gate: String,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
     pub last_login_at: Option<chrono::NaiveDateTime>,

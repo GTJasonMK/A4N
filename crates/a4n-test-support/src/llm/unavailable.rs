@@ -1,19 +1,17 @@
 use std::pin::Pin;
 
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, ChatResponse, LlmProvider, ModelCapabilities};
+use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use async_trait::async_trait;
 use futures::Stream;
 
 pub struct UnavailableLlmProvider {
-    chat_error: String,
     stream_error: String,
 }
 
 impl UnavailableLlmProvider {
-    pub fn new(chat_error: impl Into<String>, stream_error: impl Into<String>) -> Self {
+    pub fn new(_chat_error: impl Into<String>, stream_error: impl Into<String>) -> Self {
         Self {
-            chat_error: chat_error.into(),
             stream_error: stream_error.into(),
         }
     }
@@ -21,10 +19,6 @@ impl UnavailableLlmProvider {
 
 #[async_trait]
 impl LlmProvider for UnavailableLlmProvider {
-    async fn chat(&self, _request: ChatRequest) -> Result<ChatResponse, AppError> {
-        Err(AppError::LlmError(self.chat_error.clone()))
-    }
-
     async fn chat_stream(
         &self,
         _request: ChatRequest,

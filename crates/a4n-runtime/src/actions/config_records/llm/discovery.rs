@@ -14,7 +14,7 @@ pub async fn detect_llm_config_models(
         }
         let config_id = required_existing_config_id(input.config_id, "LLM")?;
         let config = state
-            .orchestrator
+            .settings()
             .llm_config_record_by_id(config_id)
             .await
             .map_err(app_error_message)?;
@@ -22,7 +22,7 @@ pub async fn detect_llm_config_models(
     })
     .await?;
     crate::sidecar_clients::discover_llm_models(
-        state.runtime_profile,
+        state.runtime_profile(),
         state.capabilities(),
         &input.provider,
         &input.base_url,

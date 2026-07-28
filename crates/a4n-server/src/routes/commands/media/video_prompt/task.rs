@@ -14,7 +14,7 @@ macro_rules! video_prompt_web_task_command {
             let task = register_web_task(
                 state,
                 task_id.clone(),
-                TaskType::LlmCall,
+                TaskKind::LlmCall,
                 scope.project_id,
                 scope.total,
                 $start_message,
@@ -24,8 +24,8 @@ macro_rules! video_prompt_web_task_command {
                 .as_ref()
                 .map(|handle| handle.cancel_token.clone())
                 .unwrap_or_else(tokio_util::sync::CancellationToken::new);
-            let mut progress = web_progress_reporter(state, task.clone(), task_id.clone());
-            let mut chunk_reporter = web_chunk_reporter(state, task.clone(), task_id.clone());
+            let mut progress = web_progress_reporter(task.clone());
+            let mut chunk_reporter = web_chunk_reporter(task.clone());
             let mut chunks = move |content: &str, index: u32| {
                 let _ = chunk_reporter(content, index);
             };
@@ -44,7 +44,6 @@ macro_rules! video_prompt_web_task_command {
                     result,
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),
                 ),
-                $success_message,
             )
             .await?;
             Ok(json!(prompts))

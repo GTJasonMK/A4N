@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
 use a4n_capabilities::{CapabilityResult, JsonRequest};
-use a4n_service_protocol::{ServiceError, ServiceErrorCode, ServiceTaskEvent};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceError, ServiceErrorCode};
 
 use super::unexpected_call;
 
@@ -34,17 +34,17 @@ impl RequestLedger {
     }
 }
 
-pub(super) fn send_configured_events(
+pub(super) async fn send_configured_events(
     client: &str,
     operation: &str,
-    configured: Option<&[ServiceTaskEvent]>,
+    configured: Option<&[CapabilityTaskEvent]>,
     request_id: &str,
-    events: &tokio::sync::mpsc::UnboundedSender<ServiceTaskEvent>,
+    events: &tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
 ) -> CapabilityResult<()> {
     let configured = configured.ok_or_else(|| unexpected_call(client, operation))?;
     for mut event in configured.iter().cloned() {
         event.task_id = request_id.to_string();
-        events.send(event).map_err(|_| ServiceError {
+        events.send(event).await.map_err(|_| ServiceError {
             code: ServiceErrorCode::Cancelled,
             message: "event receiver closed".to_string(),
             retryable: Some(false),

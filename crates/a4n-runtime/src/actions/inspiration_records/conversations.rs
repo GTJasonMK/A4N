@@ -1,93 +1,44 @@
-use super::contracts::{ConverseInput, ConverseStreamInput, INSPIRATION_VARIABLES_ERROR};
-use super::request::build_inspiration_request_for_runtime;
-use super::rules::inspiration_stream_task_id;
-use super::workflow::{finalize_inspiration_workflow, start_inspiration_workflow};
 use crate::AppState;
-use crate::actions::access;
-use crate::actions::template_variables::parse_template_variables_app_error_from_ref_with_message;
-use a4n_core::error::AppError;
-use a4n_orchestrator::inspiration::InspirationStreamInput;
+use crate::prompt_renderer::RuntimePromptRenderer;
+use a4n_api_contract::generation_tasks::GenerationTaskHandle;
+use a4n_api_contract::inspiration::StartInspirationGenerationInput;
+use a4n_orchestrator::GenerationTaskAccessError;
 
-pub async fn converse_inspiration(
+pub async fn start_inspiration_generation_typed(
     state: &AppState,
     user_id: i64,
-    input: ConverseInput,
-) -> Result<String, AppError> {
-    access::verify_project_editor(state, user_id, input.project_id).await?;
-    let variables = parse_template_variables_app_error_from_ref_with_message(
-        input.variables.as_ref(),
-        INSPIRATION_VARIABLES_ERROR,
-    )?;
-    let request = build_inspiration_request_for_runtime(
-        state,
-        input.project_id,
-        &input.user_input,
-        &variables,
-    )
-    .await?;
-    let workflow_run_id = start_inspiration_workflow(
-        state,
-        input.project_id,
-        "non_stream",
-        input.variables.as_ref(),
-        &request,
-        None,
-    )
-    .await?;
-    let result = state
-        .orchestrator
-        .converse_inspiration_with_request(
-            input.project_id,
-            &input.user_input,
-            request,
-            Some(workflow_run_id),
-        )
-        .await;
-    finalize_inspiration_workflow(state, workflow_run_id, &result).await?;
-    result
-}
+    input: StartInspirationGenerationInput,
+) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+    let start = state
+        .inspiration()
+        .start_inspiration_generation_task(user_id, input.clone())
+        .await?;
+    if !start.should_run {
+        return Ok(start.handle);
+    }
 
-pub async fn converse_inspiration_stream<F>(
-    state: &AppState,
-    user_id: i64,
-    input: ConverseStreamInput,
-    on_chunk: F,
-) -> Result<String, AppError>
-where
-    F: FnMut(&str, u32),
-{
-    access::verify_project_editor(state, user_id, input.project_id).await?;
-    let variables = parse_template_variables_app_error_from_ref_with_message(
-        input.variables.as_ref(),
-        INSPIRATION_VARIABLES_ERROR,
-    )?;
-    let request =
-        build_inspiration_request_for_runtime(state, input.project_id, &input.message, &variables)
-            .await?;
-    let active_task_id = input
-        .task_id
-        .as_ref()
-        .map(|task_id| inspiration_stream_task_id(input.project_id, Some(task_id.clone())))
-        .transpose()?;
-    let workflow_run_id = start_inspiration_workflow(
-        state,
-        input.project_id,
-        "stream",
-        input.variables.as_ref(),
-        &request,
-        active_task_id,
-    )
-    .await?;
-    let result = state
-        .orchestrator
-        .converse_inspiration_stream_with_request(InspirationStreamInput {
-            project_id: input.project_id,
-            user_input: &input.message,
-            request,
-            workflow_run_id: Some(workflow_run_id),
-            on_chunk,
-        })
-        .await;
-    finalize_inspiration_workflow(state, workflow_run_id, &result).await?;
-    result
+    let worker_state = state.clone();
+    let handle = start.handle.clone();
+    state.spawn_generation_execution(handle.task_id.clone(), async move {
+        let prompt_renderer = RuntimePromptRenderer::new(&worker_state);
+        if let Err(error) = worker_state
+            .inspiration()
+            .run_inspiration_generation_task(
+                a4n_orchestrator::inspiration::InspirationGenerationApplicationContext {
+                    prompt_renderer: &prompt_renderer,
+                },
+                input,
+                handle.clone(),
+            )
+            .await
+        {
+            tracing::error!(
+                task_id = %handle.task_id,
+                attempt = handle.attempt,
+                error = %error,
+                "灵感 generation worker 失败"
+            );
+        }
+    });
+    Ok(start.handle)
 }

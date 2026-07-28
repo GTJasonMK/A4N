@@ -1,4 +1,4 @@
-use a4n_service_protocol::{ServiceTaskEvent, ServiceTaskEventKind};
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
 use axum::http::header;
 
 use super::{service_event_line, service_event_ndjson_response, single_service_event_stream};
@@ -7,10 +7,10 @@ use super::{service_event_line, service_event_ndjson_response, single_service_ev
 fn service_event_line_is_newline_delimited_json() {
     let line = service_event_line(test_event());
     assert_eq!(line.last(), Some(&b'\n'));
-    let event: ServiceTaskEvent =
+    let event: CapabilityTaskEvent =
         serde_json::from_slice(&line[..line.len() - 1]).expect("event JSON");
     assert_eq!(event.task_id, "task-1");
-    assert_eq!(event.event_kind, ServiceTaskEventKind::Completed);
+    assert_eq!(event.event_kind, CapabilityTaskEventKind::Completed);
 }
 
 #[test]
@@ -23,10 +23,10 @@ fn service_event_response_uses_ndjson_content_type() {
     );
 }
 
-fn test_event() -> ServiceTaskEvent {
-    ServiceTaskEvent {
+fn test_event() -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id: "task-1".to_string(),
-        event_kind: ServiceTaskEventKind::Completed,
+        event_kind: CapabilityTaskEventKind::Completed,
         sequence: 1,
         chunk_index: None,
         chunk_delta: None,

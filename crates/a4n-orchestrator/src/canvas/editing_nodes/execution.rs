@@ -1,0 +1,330 @@
+use a4n_core::{error::AppError, source_spans::source_text_hash};
+use a4n_db::canvas::{
+    CanvasAssemblyContractSyncInput, CanvasAssemblySourceVideoInput,
+    CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput,
+    FreeformCanvasGenerationSpecUpsertInput,
+};
+use serde_json::{Value, json};
+
+use crate::{
+    OrchestratorContext,
+    project::SOURCE_MODE_FREEFORM,
+    workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
+};
+
+use super::{
+    contracts::{
+        CanvasAssembleVideosHostInput, CanvasEditingNodeExecutionInput, CanvasEditingNodeHostPort,
+        CanvasEditingNodeInput, CanvasExtractFrameHostInput, CanvasExtractFrameNodeInput,
+        CanvasTrimVideoHostInput, CanvasTrimVideoNodeInput,
+    },
+    input::build_canvas_editing_node_input,
+};
+
+impl OrchestratorContext {
+    pub async fn run_canvas_editing_node_validated(
+        &self,
+        input: CanvasEditingNodeExecutionInput<'_>,
+        host_port: &dyn CanvasEditingNodeHostPort,
+    ) -> Result<crate::canvas::CanvasNodeRunSummary, AppError> {
+        let checkpoints = match input.shared_run {
+            Some(run) => Some(self.workflow_checkpoint_models(run.workflow_run_id).await?),
+            None => None,
+        };
+        let node_input =
+            build_canvas_editing_node_input(input.node, input.document, checkpoints.as_deref())
+                .map_err(AppError::InvalidArgument)?;
+        let step_key = format!("canvas_node:{}", input.node.id);
+        let input_json = editing_input_json(&input, &node_input);
+        let mut lifecycle = self
+            .start_canvas_node_execution(
+                input.project_id,
+                input.graph_id,
+                input.mode,
+                step_key,
+                input_json,
+                input.shared_run,
+            )
+            .await?;
+
+        let result = async {
+            let spec = self
+                .upsert_canvas_editing_generation_spec(&input, &node_input)
+                .await?;
+            lifecycle.generation_spec_id = spec.as_ref().map(|row| row.id);
+            let artifact_json = match &node_input {
+                CanvasEditingNodeInput::ExtractFrame(node_input) => {
+                    let output = host_port
+                        .extract_frame(CanvasExtractFrameHostInput {
+                            user_id: input.user_id,
+                            project_id: input.project_id,
+                            workflow_run_id: lifecycle.run.workflow_run_id,
+                            video_id: node_input.video_id,
+                            frame_kind: node_input.frame_kind.clone(),
+                            at_secs: node_input.at_secs,
+                        })
+                        .await?;
+                    let image = self
+                        .generated_image_by_id(output.generated_image_id)
+                        .await?
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "extract_frame_completed".to_string(),
+                            operation: format!("画布抽帧产物不存在: {}", output.generated_image_id),
+                        })?;
+                    let media_asset = self
+                        .ensure_canvas_image_media_asset_record(CanvasImageMediaAssetEnsureInput {
+                            project_id: input.project_id,
+                            image: image.clone(),
+                            generation_spec_id: spec.as_ref().map(|row| row.id),
+                            origin: "canvas_extracted_frame".to_string(),
+                        })
+                        .await?;
+                    json!({
+                        "data_type": "image",
+                        "generated_image_id": image.id,
+                        "file_path": image.file_path,
+                        "generation_spec_id": spec.as_ref().map(|row| row.id),
+                        "media_asset_id": media_asset.id,
+                    })
+                }
+                CanvasEditingNodeInput::TrimVideo(node_input) => {
+                    let output = host_port
+                        .trim_video(CanvasTrimVideoHostInput {
+                            user_id: input.user_id,
+                            project_id: input.project_id,
+                            workflow_run_id: lifecycle.run.workflow_run_id,
+                            video_id: node_input.video_id,
+                            start_secs: node_input.start_secs,
+                            end_secs: node_input.end_secs,
+                        })
+                        .await?;
+                    let video = self
+                        .generated_video_by_id(output.generated_video_id)
+                        .await?
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "trim_video_completed".to_string(),
+                            operation: format!("画布裁剪产物不存在: {}", output.generated_video_id),
+                        })?;
+                    let media_asset = self
+                        .ensure_canvas_video_media_asset_record(CanvasVideoMediaAssetEnsureInput {
+                            project_id: input.project_id,
+                            video: video.clone(),
+                            generation_spec_id: spec.as_ref().map(|row| row.id),
+                            origin: "canvas_trim".to_string(),
+                        })
+                        .await?;
+                    json!({
+                        "data_type": "video",
+                        "generated_video_id": video.id,
+                        "file_path": video.file_path,
+                        "thumbnail_path": video.thumbnail_path,
+                        "generation_spec_id": spec.as_ref().map(|row| row.id),
+                        "media_asset_id": media_asset.id,
+                    })
+                }
+                CanvasEditingNodeInput::AssembleVideo(node_input) => {
+                    let output = host_port
+                        .assemble_videos(CanvasAssembleVideosHostInput {
+                            user_id: input.user_id,
+                            project_id: input.project_id,
+                            workflow_run_id: lifecycle.run.workflow_run_id,
+                            video_ids: node_input.video_ids.clone(),
+                            title: node_input.title.clone(),
+                        })
+                        .await?;
+                    let video = self
+                        .generated_video_by_id(output.generated_video_id)
+                        .await?
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "assemble_video_completed".to_string(),
+                            operation: format!("画布成片产物不存在: {}", output.generated_video_id),
+                        })?;
+                    let contract = self
+                        .sync_canvas_assembly_contract_records(CanvasAssemblyContractSyncInput {
+                            project_id: input.project_id,
+                            graph_id: input.graph_id,
+                            node_id: input.node.id,
+                            assembly_video_id: video.id,
+                            source_videos: node_input
+                                .video_ids
+                                .iter()
+                                .copied()
+                                .map(|video_id| CanvasAssemblySourceVideoInput { video_id })
+                                .collect(),
+                            generation_spec_id: spec.as_ref().map(|row| row.id),
+                        })
+                        .await?;
+                    json!({
+                        "data_type": "video",
+                        "generated_video_id": video.id,
+                        "file_path": video.file_path,
+                        "thumbnail_path": video.thumbnail_path,
+                        "generation_spec_id": spec.as_ref().map(|row| row.id),
+                        "media_asset_id": contract.preview_media_asset_id,
+                    })
+                }
+            };
+            if let Some(spec) = &spec {
+                self.mark_canvas_generation_spec_status_record(spec.id, WORKFLOW_STATUS_COMPLETED)
+                    .await?;
+            }
+            self.record_canvas_node_checkpoint(
+                lifecycle.run.workflow_run_id,
+                lifecycle.step_key.clone(),
+                WORKFLOW_STATUS_COMPLETED,
+                lifecycle.input_json.clone(),
+                Some(artifact_json),
+                None,
+                true,
+            )
+            .await?;
+            self.finish_canvas_node_success(&lifecycle).await
+        }
+        .await;
+
+        match result {
+            Ok(summary) => Ok(summary),
+            Err(primary) => {
+                let cancelled = self
+                    .canvas_workflow_run_is_cancelled(lifecycle.run.workflow_run_id)
+                    .await
+                    .map_err(|status_error| {
+                        AppError::Internal(anyhow::anyhow!(
+                            "{primary}；画布 workflow 取消状态复验失败: {status_error}"
+                        ))
+                    })?;
+                if cancelled {
+                    self.cancel_canvas_node(lifecycle, "用户取消画布运行").await
+                } else {
+                    self.fail_canvas_node(lifecycle, primary).await
+                }
+            }
+        }
+    }
+
+    async fn upsert_canvas_editing_generation_spec(
+        &self,
+        input: &CanvasEditingNodeExecutionInput<'_>,
+        node_input: &CanvasEditingNodeInput,
+    ) -> Result<Option<a4n_core::models::generation::generation_spec::Model>, AppError> {
+        let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
+            AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
+        })?;
+        if project.source_mode != SOURCE_MODE_FREEFORM {
+            return Ok(None);
+        }
+        let (target_kind, workflow, canvas_text_asset_id, source_material_json) =
+            editing_spec_fields(node_input);
+        let source_version_hash = source_text_hash(
+            &serde_json::to_string(&source_material_json)
+                .map_err(|error| AppError::InvalidArgument(error.to_string()))?,
+        );
+        self.upsert_freeform_canvas_generation_spec_record(
+            FreeformCanvasGenerationSpecUpsertInput {
+                project_id: input.project_id,
+                target_entity_id: input.node.id,
+                canvas_text_asset_id,
+                target_kind: target_kind.to_string(),
+                target_entity_kind: "canvas_node".to_string(),
+                status: WORKFLOW_STATUS_RUNNING.to_string(),
+                source_version_hash,
+                params_json: json!({
+                    "canvas_graph_id": input.graph_id,
+                    "canvas_node_id": input.node.id,
+                    "source_material": source_material_json,
+                    "params": {
+                        "workflow": workflow,
+                        "node_config": input.node.config_json,
+                    },
+                }),
+            },
+        )
+        .await
+        .map(Some)
+    }
+}
+
+fn editing_input_json(
+    input: &CanvasEditingNodeExecutionInput<'_>,
+    node_input: &CanvasEditingNodeInput,
+) -> Value {
+    match node_input {
+        CanvasEditingNodeInput::ExtractFrame(node_input) => json!({
+            "project_id": input.project_id,
+            "graph_id": input.graph_id,
+            "node_id": input.node.id,
+            "video_id": node_input.video_id,
+            "frame_kind": node_input.frame_kind,
+            "at_secs": node_input.at_secs,
+            "source_node_ids": node_input.source_node_ids,
+        }),
+        CanvasEditingNodeInput::TrimVideo(node_input) => json!({
+            "project_id": input.project_id,
+            "graph_id": input.graph_id,
+            "node_id": input.node.id,
+            "video_id": node_input.video_id,
+            "start_secs": node_input.start_secs,
+            "end_secs": node_input.end_secs,
+            "source_node_ids": node_input.source_node_ids,
+        }),
+        CanvasEditingNodeInput::AssembleVideo(node_input) => json!({
+            "project_id": input.project_id,
+            "graph_id": input.graph_id,
+            "node_id": input.node.id,
+            "video_ids": node_input.video_ids,
+            "title": node_input.title,
+            "source_node_ids": node_input.source_node_ids,
+        }),
+    }
+}
+
+fn editing_spec_fields(
+    node_input: &CanvasEditingNodeInput,
+) -> (&'static str, &'static str, Option<i64>, Value) {
+    match node_input {
+        CanvasEditingNodeInput::ExtractFrame(CanvasExtractFrameNodeInput {
+            video_id,
+            frame_kind,
+            at_secs,
+            canvas_text_asset_id,
+            source_node_ids,
+        }) => (
+            "canvas_image",
+            "extract_frame",
+            *canvas_text_asset_id,
+            json!({
+                "video_id": video_id,
+                "frame_kind": frame_kind,
+                "at_secs": at_secs,
+                "source_node_ids": source_node_ids,
+            }),
+        ),
+        CanvasEditingNodeInput::TrimVideo(CanvasTrimVideoNodeInput {
+            video_id,
+            start_secs,
+            end_secs,
+            canvas_text_asset_id,
+            source_node_ids,
+        }) => (
+            "canvas_video",
+            "trim_video",
+            *canvas_text_asset_id,
+            json!({
+                "video_id": video_id,
+                "start_secs": start_secs,
+                "end_secs": end_secs,
+                "source_node_ids": source_node_ids,
+            }),
+        ),
+        CanvasEditingNodeInput::AssembleVideo(node_input) => (
+            "canvas_assembly",
+            "assemble",
+            node_input.canvas_text_asset_id,
+            json!({
+                "video_ids": node_input.video_ids,
+                "title": node_input.title,
+                "source_node_ids": node_input.source_node_ids,
+            }),
+        ),
+    }
+}

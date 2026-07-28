@@ -6,15 +6,10 @@ pub(super) const REMOTE_TEMP_UPLOAD_URL_ENV: &str = "A4N_VIDEO_REMOTE_TEMP_UPLOA
 pub(super) const REMOTE_TEMP_UPLOAD_TOKEN_ENV: &str = "A4N_VIDEO_REMOTE_TEMP_UPLOAD_TOKEN";
 pub(super) const PROVIDER_IMAGE_URL_PROBE_TIMEOUT_SECS: u64 = 20;
 
+pub(crate) use a4n_orchestrator::video::ProviderImageInputTransport;
+
 #[derive(Debug, Default)]
 pub(crate) struct ReferenceImagePreviewPlaceholders {
     pub(crate) urls: Vec<String>,
     pub(crate) notes: Vec<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ProviderImageInputTransport {
-    PublicUrl,
-    InlineDataUrl,
-    RemoteTempUpload,
 }

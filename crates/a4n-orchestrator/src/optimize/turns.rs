@@ -8,7 +8,6 @@ use serde_json::Value;
 use super::{OptimizeAgentPermissions, OrchestratorContext, optimize_db_error};
 
 const TURN_STATUS_RUNNING: &str = "running";
-const TURN_STATUS_COMPLETED: &str = "completed";
 pub(super) const TURN_STATUS_FAILED: &str = "failed";
 pub(super) const TURN_STATUS_CANCELLED: &str = "cancelled";
 
@@ -22,24 +21,6 @@ pub(super) const EVENT_KIND_TOOL_RESULT: &str = "tool_result";
 pub(super) const EVENT_KIND_ERROR: &str = "error";
 
 impl OrchestratorContext {
-    pub async fn optimization_turns(
-        &self,
-        session_id: i64,
-    ) -> Result<Vec<optimization_turn::Model>, AppError> {
-        a4n_db::optimize::optimization_turns(self.db.connection(), session_id)
-            .await
-            .map_err(optimize_db_error)
-    }
-
-    pub async fn optimization_turn_events(
-        &self,
-        turn_id: i64,
-    ) -> Result<Vec<optimization_turn_event::Model>, AppError> {
-        a4n_db::optimize::optimization_turn_events(self.db.connection(), turn_id)
-            .await
-            .map_err(optimize_db_error)
-    }
-
     pub(super) async fn create_turn(
         &self,
         session_id: i64,
@@ -53,7 +34,7 @@ impl OrchestratorContext {
             ));
         }
         a4n_db::optimize::create_optimization_turn(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationTurnCreateInput {
                 session_id,
                 user_text: text.to_string(),
@@ -100,38 +81,13 @@ impl OrchestratorContext {
         }
 
         a4n_db::optimize::append_optimization_turn_event(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationTurnEventAppendInput {
                 turn_id,
                 kind: kind.to_string(),
                 status: status.to_string(),
                 public_text: public_text.to_string(),
                 payload,
-            },
-        )
-        .await
-        .map_err(optimize_db_error)
-    }
-
-    pub(super) async fn finish_turn(
-        &self,
-        turn_id: i64,
-        final_reply: &str,
-    ) -> Result<optimization_turn::Model, AppError> {
-        let reply = final_reply.trim();
-        if reply.is_empty() {
-            return Err(AppError::InvalidArgument(
-                "Turn final_reply 不能为空".to_string(),
-            ));
-        }
-        let turn = self.get_turn(turn_id).await?;
-        a4n_db::optimize::update_optimization_turn(
-            self.db.connection(),
-            OptimizationTurnUpdateInput {
-                turn,
-                status: Some(TURN_STATUS_COMPLETED.to_string()),
-                final_reply: Some(Some(reply.to_string())),
-                error: Some(None),
             },
         )
         .await
@@ -156,7 +112,7 @@ impl OrchestratorContext {
         }
         let turn = self.get_turn(turn_id).await?;
         a4n_db::optimize::update_optimization_turn(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationTurnUpdateInput {
                 turn,
                 status: Some(status.to_string()),
@@ -172,7 +128,7 @@ impl OrchestratorContext {
         &self,
         turn_id: i64,
     ) -> Result<optimization_turn::Model, AppError> {
-        a4n_db::optimize::optimization_turn_by_id(self.db.connection(), turn_id)
+        a4n_db::optimize::optimization_turn_by_id(self.database.connection(), turn_id)
             .await
             .map_err(optimize_db_error)?
             .ok_or_else(|| AppError::NotFound(format!("优化 Turn 不存在: {turn_id}")))

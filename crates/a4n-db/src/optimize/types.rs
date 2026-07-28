@@ -81,6 +81,25 @@ pub struct OptimizationPatchSetCreateInput {
     pub patches: Vec<OptimizationPatchCreateInput>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompleteOptimizationPatchTurnInput {
+    pub session_id: i64,
+    pub turn_id: i64,
+    pub assistant_content: String,
+    pub tool_content: String,
+    pub tool_calls: Option<Value>,
+    pub patch_set: OptimizationPatchSetCreateInput,
+    pub final_reply: String,
+    pub session_summary: String,
+    pub tool_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompleteOptimizationPatchTurnResult {
+    pub turn: optimization_turn::Model,
+    pub patch_set: Option<optimization_patch_set::Model>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationContextReadInput {
     pub project_id: i64,

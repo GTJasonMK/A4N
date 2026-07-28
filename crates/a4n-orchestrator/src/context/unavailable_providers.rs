@@ -2,15 +2,6 @@ pub(super) struct BootstrapUnavailableLlm;
 
 #[async_trait::async_trait]
 impl a4n_llm::provider::LlmProvider for BootstrapUnavailableLlm {
-    async fn chat(
-        &self,
-        _request: a4n_llm::provider::ChatRequest,
-    ) -> Result<a4n_llm::provider::ChatResponse, a4n_core::error::AppError> {
-        Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
-            "OrchestratorContext bootstrap 占位 LLM，尚未完成 with_providers"
-        )))
-    }
-
     async fn chat_stream(
         &self,
         _request: a4n_llm::provider::ChatRequest,

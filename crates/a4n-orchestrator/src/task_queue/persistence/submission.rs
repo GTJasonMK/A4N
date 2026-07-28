@@ -1,6 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_queue::{
-    priority::{TaskPriority, TaskQueue, TaskType},
+    priority::{TaskInfo, TaskKind, TaskPriority, TaskQueue},
     queue::{TaskFamilyContext, TaskWorkflowContext},
 };
 
@@ -13,10 +13,15 @@ mod tests;
 use record::task_queue_record_input;
 
 impl PersistentTaskQueue {
+    /// 登记已由同一数据库事务创建的 task_queue row；不再次写库或生成 id。
+    pub fn register_persisted(&self, task: TaskInfo) -> Result<(), AppError> {
+        self.inner.submit_persisted(task)
+    }
+
     async fn persist_task(
         &self,
         task_id: &str,
-        task_type: &TaskType,
+        task_type: &TaskKind,
         priority: &TaskPriority,
         project_id: Option<i64>,
         context: Option<&TaskFamilyContext>,
@@ -32,7 +37,7 @@ impl PersistentTaskQueue {
 
     pub(in crate::task_queue) async fn submit_internal(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
         project_id: Option<i64>,
         context: Option<&TaskFamilyContext>,
@@ -52,7 +57,7 @@ impl PersistentTaskQueue {
 
     pub async fn submit_with_workflow_context(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
         project_id: Option<i64>,
         workflow: TaskWorkflowContext,

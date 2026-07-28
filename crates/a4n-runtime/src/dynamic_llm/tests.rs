@@ -41,6 +41,17 @@ fn max_tokens_cap_rejects_profile_above_model_limit() {
     assert!(err.to_string().contains("model_max_output_tokens=8192"));
 }
 
+#[test]
+fn resolved_model_rejects_remote_http_with_api_key() {
+    let mut model = test_llm_model();
+    model.base_url = "http://api.example/v1".to_string();
+
+    let error = ResolvedLlmModel::new(model)
+        .expect_err("runtime snapshots must not send credentials over remote HTTP");
+
+    assert!(error.to_string().contains("必须使用 HTTPS"));
+}
+
 #[tokio::test]
 async fn llm_connectivity_uses_probe_without_chat_fallback() {
     let client = Arc::new(RecordingLlmClient::new(successful_probe_response()));
@@ -56,7 +67,6 @@ async fn llm_connectivity_uses_probe_without_chat_fallback() {
     assert!(output.ok);
     assert_eq!(output.response_preview.as_deref(), Some("pong"));
     assert_eq!(client.probe_call_count(), 1);
-    assert_eq!(client.chat_call_count(), 0);
     let request = client.last_probe_request().expect("recorded probe request");
     assert!(request.secret_policy.is_local_user_secret_only());
     assert_eq!(request.payload["provider"]["model"], "test-model");

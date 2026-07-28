@@ -5,10 +5,10 @@ import type {
   GeneratedVideo,
   VideoGenConfig,
   PromptOutputLanguage,
-  VideoWorkflowMode,
 } from "../../../api/video";
 import type { ChapterRow } from "../shared";
 import {
+  type ChapterVideoWorkflowMode,
   extractPromptSourceHash,
   boundaryFramePromptsAreComplete,
   boundaryFrameStageMessage,
@@ -55,7 +55,7 @@ interface UseVideoTabDerivedStateParams {
   pendingVideoId: number | null;
   promptReferenceIds: number[];
   videoLibraryImageIds: number[];
-  workflowMode: VideoWorkflowMode | null;
+  workflowMode: ChapterVideoWorkflowMode;
   promptOutputLanguage: PromptOutputLanguage;
   currentContentHash: string | null;
   activeVideoConfig: VideoGenConfig | null;
@@ -76,13 +76,7 @@ export const useVideoTabDerivedState = ({
   currentContentHash,
   activeVideoConfig,
 }: UseVideoTabDerivedStateParams) => {
-  const frameSegmentPlanType =
-    workflowMode === "boundary_frames" ||
-    workflowMode === "first_frame_chain" ||
-    workflowMode === "storyboard" ||
-    workflowMode === "chat_video"
-      ? VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE
-      : null;
+  const frameSegmentPlanType = VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE;
   const framePromptType =
     workflowMode === "chat_video"
       ? VIDEO_CHAT_FRAME_PROMPT_TYPE
@@ -93,8 +87,7 @@ export const useVideoTabDerivedState = ({
       : workflowMode === "boundary_frames"
         ? VIDEO_FRAME_PROMPT_TYPE
         : null;
-  const frameSegmentPlanContractVersion =
-    frameSegmentPlanType != null ? VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION : null;
+  const frameSegmentPlanContractVersion = VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION;
   const framePromptContractVersion =
     workflowMode === "chat_video"
       ? VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION
@@ -116,18 +109,11 @@ export const useVideoTabDerivedState = ({
         ? VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION
         : null;
   const frameSegmentPlanPrompt = useMemo(() => {
-    if (
-      frameSegmentPlanType == null ||
-      frameSegmentPlanContractVersion == null ||
-      workflowMode == null
-    ) {
-      return null;
-    }
     let latest: ChapterVideoPrompt | null = null;
     for (const prompt of prompts) {
       if (
         prompt.prompt_type === frameSegmentPlanType &&
-        videoWorkflowModeOfPrompt(prompt) === "boundary_frames" &&
+        prompt.workflow_mode === "shared_segment_plan" &&
         promptHasVideoWorkflowContract(prompt, frameSegmentPlanContractVersion) &&
         videoExecutionIdentityOfPrompt(prompt) != null &&
         (latest == null || prompt.id > latest.id)
@@ -136,7 +122,7 @@ export const useVideoTabDerivedState = ({
       }
     }
     return latest;
-  }, [frameSegmentPlanContractVersion, frameSegmentPlanType, prompts, workflowMode]);
+  }, [prompts]);
   const videoPromptSourceType = VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE;
   const finalVideoPrompts = useMemo(
     () =>
@@ -181,7 +167,7 @@ export const useVideoTabDerivedState = ({
           videoWorkflowModeOfPrompt(prompt) === workflowMode &&
           (workflowMode !== "first_frame_chain" || prompt.shot_number === 1) &&
           promptHasVideoWorkflowContract(prompt, framePromptContractVersion) &&
-          (frameSegmentPlanType == null || promptSourcePromptType(prompt) === frameSegmentPlanType) &&
+          promptSourcePromptType(prompt) === frameSegmentPlanType &&
           videoExecutionIdentityMatches(prompt, frameSegmentPlanPrompt),
       )
       .sort((a, b) => a.shot_number - b.shot_number || a.id - b.id);
@@ -251,14 +237,6 @@ export const useVideoTabDerivedState = ({
       const workflowRows: GeneratedVideo[] = [];
       let selected: GeneratedVideo | null = null;
       let pending: GeneratedVideo | null = null;
-      if (!workflowMode) {
-        return {
-          workflowAssemblyVideos: assemblyRows,
-          workflowVideos: workflowRows,
-          selectedVideo: selected,
-          pendingVideo: pending,
-        };
-      }
       for (const video of videos) {
         if (videoWorkflowModeOfVideo(video) !== workflowMode) continue;
         assemblyRows.push(video);

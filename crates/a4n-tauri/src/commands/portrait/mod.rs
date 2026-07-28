@@ -4,6 +4,7 @@
 //! 项目级人物参考图查询、主图设置、提示词生成与图像生成。
 
 pub(crate) mod generation;
+pub(crate) mod start;
 
 use crate::commands::request_preview::ModelRequestPreview;
 use a4n_runtime::AppState;

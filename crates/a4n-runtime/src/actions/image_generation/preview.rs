@@ -1,7 +1,39 @@
 use super::*;
+use crate::state::{CollaborationRuntimeFacade, RuntimeProfile};
+use a4n_capabilities::A4nCapabilities;
+use a4n_orchestrator::media::PreparedImageGenerationRequest;
+
+pub(super) async fn prepared_image_generation_preview_step(
+    state: &AppState,
+    project_id: i64,
+    key: impl Into<String>,
+    title: impl Into<String>,
+    prepared: PreparedImageGenerationRequest,
+    include_image_type_note: bool,
+) -> Result<ModelRequestPreviewStep, String> {
+    let mut notes = prepared.preview_notes;
+    if include_image_type_note {
+        notes.insert(0, format!("image_type: {}", prepared.image_type));
+    }
+    image_generation_preview_step(
+        state.runtime_profile(),
+        state.capabilities(),
+        &state.collaboration(),
+        project_id,
+        key,
+        title,
+        prepared.prompt_name,
+        (!notes.is_empty()).then(|| notes.join("\n")),
+        &prepared.config,
+        prepared.request,
+    )
+    .await
+}
 
 pub(super) async fn image_generation_preview_step(
-    state: &AppState,
+    runtime_profile: RuntimeProfile,
+    capabilities: &A4nCapabilities,
+    collaboration: &CollaborationRuntimeFacade<'_>,
     project_id: i64,
     key: impl Into<String>,
     title: impl Into<String>,
@@ -12,10 +44,14 @@ pub(super) async fn image_generation_preview_step(
 ) -> Result<ModelRequestPreviewStep, String> {
     let key = key.into();
     let title = title.into();
-    if state.runtime_profile.uses_sidecars() {
-        let root_project_id = crate::actions::sidecar_root_project_id(state, project_id).await?;
+    if runtime_profile.uses_sidecars() {
+        let root_project_id = collaboration
+            .collaboration_root_project(project_id)
+            .await
+            .map(|root| Some(root.id))
+            .map_err(crate::actions::app_error_message)?;
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
-            state.capabilities(),
+            capabilities,
             config,
             request,
             Some(project_id),

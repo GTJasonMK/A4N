@@ -7,10 +7,10 @@ edition = "2024"
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
 reqwest = { workspace = true }
+notify = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-
-[dev-dependencies]
-serde_json = { workspace = true }

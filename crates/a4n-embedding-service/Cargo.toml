@@ -3,10 +3,14 @@ name = "a4n-embedding-service"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["fastembed"]
+fastembed = ["dep:a4n-embedding-fastembed"]
+
 [dependencies]
 a4n-core = { path = "../a4n-core" }
 a4n-embedding = { path = "../a4n-embedding" }
-a4n-embedding-fastembed = { path = "../a4n-embedding-fastembed" }
+a4n-embedding-fastembed = { path = "../a4n-embedding-fastembed", optional = true }
 a4n-sidecar-bootstrap = { path = "../a4n-sidecar-bootstrap" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
@@ -16,4 +20,8 @@ futures = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+a4n-test-support = { path = "../a4n-test-support" }

@@ -25,6 +25,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 PACKAGE_NAME="a4n-tauri"
 VERSION=$(grep '^version' "$PROJECT_ROOT/crates/a4n-tauri/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
+SERVICE_CATALOG="$PROJECT_ROOT/crates/a4n-service-protocol/service-catalog.json"
 SIDECAR_PACKAGES=(
     "a4n-prompt-service"
     "a4n-llm-gateway"
@@ -255,6 +256,27 @@ prepare_package() {
         echo -e "  ${GREEN}✓${NC} sidecar: bin/services/$(basename "$sidecar_binary") (${module})"
     done
 
+    require_onnxruntime
+    local runtime_source runtime_name
+    case "$TARGET_PLATFORM" in
+        windows-*) runtime_source="$A4N_ONNXRUNTIME_ROOT/lib/onnxruntime.dll"; runtime_name="onnxruntime.dll" ;;
+        macos-*) runtime_source="$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.dylib"; runtime_name="libonnxruntime.dylib" ;;
+        *) runtime_source="$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.so.1"; runtime_name="libonnxruntime.so.1" ;;
+    esac
+    [[ -r "$runtime_source" ]] || die "缺少 ONNX Runtime 发布文件: $runtime_source"
+    cp -L "$runtime_source" "$PACKAGE_DIR/bin/services/$runtime_name"
+    echo -e "  ${GREEN}✓${NC} runtime: bin/services/${runtime_name}"
+
+    require_command ruby
+    ruby "$PROJECT_ROOT/scripts/release_manifest.rb" generate \
+        --package-root "$PACKAGE_DIR" \
+        --target "$TARGET_PLATFORM" \
+        --package "$PACKAGE_NAME" \
+        --host "$PACKAGE_NAME" \
+        --catalog "$SERVICE_CATALOG" \
+        --output "$PACKAGE_DIR/release-manifest.json"
+    echo -e "  ${GREEN}✓${NC} release-manifest.json（host + ${#SIDECAR_PACKAGES[@]} 个 sidecar）"
+
     # 复制前端产物
     if [[ -d "$FRONTEND_DIST" ]]; then
         cp -r "$FRONTEND_DIST"/* "$PACKAGE_DIR/static/"
@@ -300,6 +322,38 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
+function Assert-ReleaseManifest {
+    $manifestPath = Join-Path $ScriptDir "release-manifest.json"
+    if (-not (Test-Path $manifestPath)) {
+        throw "缺少 release-manifest.json"
+    }
+    $manifest = Get-Content -Raw -Path $manifestPath | ConvertFrom-Json
+    if ($manifest.schema_version -ne 2 -or $manifest.binaries.Count -ne 9 -or $manifest.runtime_files.Count -ne 1) {
+        throw "release manifest 必须包含 schema v2 的 host + 8 个 sidecar + runtime"
+    }
+    $seen = @{}
+    foreach ($entry in @($manifest.binaries) + @($manifest.runtime_files)) {
+        if ($seen.ContainsKey($entry.path)) {
+            throw "release manifest 存在重复路径: $($entry.path)"
+        }
+        $seen[$entry.path] = $true
+        if ([IO.Path]::IsPathRooted($entry.path) -or $entry.path -match '(^|[\\/])\.\.([\\/]|$)') {
+            throw "release manifest 路径越界: $($entry.path)"
+        }
+        $relative = $entry.path -replace '/', [IO.Path]::DirectorySeparatorChar
+        $binary = Join-Path $ScriptDir $relative
+        if (-not (Test-Path $binary)) {
+            throw "release manifest 缺少二进制: $relative"
+        }
+        $actual = (Get-FileHash -Algorithm SHA256 -Path $binary).Hash.ToLowerInvariant()
+        if ($actual -ne $entry.sha256.ToLowerInvariant()) {
+            throw "release manifest SHA-256 不匹配: $($entry.path)"
+        }
+    }
+}
+
+Assert-ReleaseManifest
+
 function Set-DefaultEnv {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -317,6 +371,7 @@ Set-DefaultEnv "A4N_CACHE_DIR" (Join-Path $env:A4N_DATA_DIR "cache")
 Set-DefaultEnv "A4N_LOG_DIR" (Join-Path $env:A4N_DATA_DIR "logs")
 Set-DefaultEnv "A4N_TEMP_DIR" (Join-Path $env:A4N_DATA_DIR "tmp")
 Set-DefaultEnv "A4N_RUNTIME_PROFILE" "sidecar"
+Set-DefaultEnv "A4N_RELEASE_MANIFEST_PATH" (Join-Path $ScriptDir "release-manifest.json")
 Set-DefaultEnv "A4N_SIDECAR_BIN_DIR" (Join-Path $ScriptDir "bin\services")
 Set-DefaultEnv "A4N_PROMPT_SERVICE_PROMPTS_DIR" (Join-Path $ScriptDir "prompts")
 Set-DefaultEnv "A4N_RAG_SERVICE_DATA_DIR" $env:A4N_DATA_DIR
@@ -343,6 +398,26 @@ Set-DefaultEnv "A4N_EXPORT_SERVICE_URL" "http://$env:A4N_EXPORT_SERVICE_ADDR"
 $ServicePidDir = Join-Path $env:A4N_DATA_DIR "services"
 $ServiceLogDir = Join-Path $env:A4N_LOG_DIR "services"
 New-Item -ItemType Directory -Force -Path $ServicePidDir, $ServiceLogDir, $env:A4N_CACHE_DIR, $env:A4N_TEMP_DIR | Out-Null
+
+$tokenFile = Join-Path $ServicePidDir "auth-token"
+if ([string]::IsNullOrWhiteSpace($env:A4N_SIDECAR_AUTH_TOKEN)) {
+    if (Test-Path $tokenFile) {
+        $env:A4N_SIDECAR_AUTH_TOKEN = (Get-Content -Raw -Path $tokenFile).Trim()
+    } else {
+        $bytes = New-Object byte[] 32
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        try {
+            $rng.GetBytes($bytes)
+        } finally {
+            $rng.Dispose()
+        }
+        $env:A4N_SIDECAR_AUTH_TOKEN = -join ($bytes | ForEach-Object { $_.ToString("x2") })
+        Set-Content -Path $tokenFile -Value $env:A4N_SIDECAR_AUTH_TOKEN -Encoding ascii
+    }
+}
+if ([string]::IsNullOrWhiteSpace($env:A4N_SIDECAR_AUTH_TOKEN)) {
+    throw "sidecar 认证 token 为空"
+}
 
 $managedPidFiles = New-Object System.Collections.Generic.List[string]
 $hostProcess = $null
@@ -377,6 +452,21 @@ function Stop-ManagedProcess {
     }
 }
 
+function Test-ServiceHealth {
+    param(
+        [Parameter(Mandatory = $true)][string]$Module,
+        [Parameter(Mandatory = $true)][string]$Url
+    )
+
+    try {
+        $response = Invoke-WebRequest -Uri "$($Url.TrimEnd('/'))/healthz" -UseBasicParsing -TimeoutSec 2
+        $health = $response.Content | ConvertFrom-Json
+        return $health.service -eq $Module -and $health.status -eq "healthy"
+    } catch {
+        return $false
+    }
+}
+
 function Invoke-Cleanup {
     if ($script:hostProcess -ne $null -and -not ($script:hostProcess).HasExited) {
         Stop-ManagedProcess ($script:hostProcess).Id
@@ -404,15 +494,13 @@ function Wait-ForHealth {
 
     $healthUrl = "$($Url.TrimEnd('/'))/healthz"
     for ($i = 0; $i -lt 50; $i++) {
-        try {
-            Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2 | Out-Null
+        if (Test-ServiceHealth -Module $Module -Url $Url) {
             return
-        } catch {
-            if ($Process.HasExited) {
-                throw "sidecar $Module 启动后已退出，日志: $(Join-Path $ServiceLogDir "$Module.log")"
-            }
-            Start-Sleep -Milliseconds 100
         }
+        if ($Process.HasExited) {
+            throw "sidecar $Module 启动后已退出，日志: $(Join-Path $ServiceLogDir "$Module.log")"
+        }
+        Start-Sleep -Milliseconds 100
     }
     throw "sidecar $Module 健康检查超时: $healthUrl"
 }
@@ -443,8 +531,11 @@ function Start-A4nService {
         $rawPid = (Get-Content -Path $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
         $pidValue = 0
         if ([int]::TryParse($rawPid, [ref]$pidValue) -and (Test-ProcessAlive $pidValue)) {
-            Write-Host "sidecar $Module 已在运行，PID: $pidValue"
-            return
+            if (Test-ServiceHealth -Module $Module -Url $Url) {
+                Write-Host "sidecar $Module 已在运行，PID: $pidValue"
+                return
+            }
+            Write-Warning "忽略无法通过 $Module health 身份校验的旧 PID: $pidValue"
         }
         Remove-Item -Path $pidFile -Force -ErrorAction SilentlyContinue
     }
@@ -505,13 +596,53 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+
+verify_release_manifest() {
+    local checksum_file="$SCRIPT_DIR/release-manifest.sha256"
+    [[ -r "$SCRIPT_DIR/release-manifest.json" ]] || {
+        echo "缺少 release-manifest.json" >&2
+        return 1
+    }
+    [[ -r "$checksum_file" ]] || {
+        echo "缺少 release-manifest.sha256" >&2
+        return 1
+    }
+    while read -r expected relative; do
+        [[ -n "$expected" && -n "$relative" ]] || continue
+        case "$relative" in
+            /*|../*|*/../*|\\..\\*|..\\*)
+                echo "release manifest 路径越界: $relative" >&2
+                return 1
+                ;;
+        esac
+        [[ -f "$SCRIPT_DIR/$relative" ]] || {
+            echo "release manifest 缺少二进制: $relative" >&2
+            return 1
+        }
+        if command -v sha256sum >/dev/null 2>&1; then
+            printf '%s  %s\n' "$expected" "$relative" | (cd "$SCRIPT_DIR" && sha256sum -c -) >/dev/null || return 1
+        elif command -v shasum >/dev/null 2>&1; then
+            actual="$(shasum -a 256 "$SCRIPT_DIR/$relative" | awk '{print $1}')"
+            [[ "$actual" == "$expected" ]] || return 1
+        else
+            echo "缺少 sha256sum 或 shasum，拒绝启动" >&2
+            return 1
+        fi
+    done <"$checksum_file"
+}
+
+verify_release_manifest
+
 export A4N_PORTABLE_HOME="${A4N_PORTABLE_HOME:-$SCRIPT_DIR}"
 export A4N_DATA_DIR="${A4N_DATA_DIR:-$A4N_PORTABLE_HOME/data}"
 export A4N_CACHE_DIR="${A4N_CACHE_DIR:-$A4N_DATA_DIR/cache}"
 export A4N_LOG_DIR="${A4N_LOG_DIR:-$A4N_DATA_DIR/logs}"
 export A4N_TEMP_DIR="${A4N_TEMP_DIR:-$A4N_DATA_DIR/tmp}"
 export A4N_RUNTIME_PROFILE="${A4N_RUNTIME_PROFILE:-sidecar}"
+export A4N_RELEASE_MANIFEST_PATH="${A4N_RELEASE_MANIFEST_PATH:-$SCRIPT_DIR/release-manifest.json}"
 export A4N_SIDECAR_BIN_DIR="${A4N_SIDECAR_BIN_DIR:-$SCRIPT_DIR/bin/services}"
+export LD_LIBRARY_PATH="$A4N_SIDECAR_BIN_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export DYLD_LIBRARY_PATH="$A4N_SIDECAR_BIN_DIR${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 export A4N_PROMPT_SERVICE_PROMPTS_DIR="${A4N_PROMPT_SERVICE_PROMPTS_DIR:-$SCRIPT_DIR/prompts}"
 export A4N_RAG_SERVICE_DATA_DIR="${A4N_RAG_SERVICE_DATA_DIR:-$A4N_DATA_DIR}"
 export A4N_EMBEDDING_CACHE_DIR="${A4N_EMBEDDING_CACHE_DIR:-$A4N_CACHE_DIR/embedding-models}"
@@ -538,20 +669,48 @@ SERVICE_PID_DIR="$A4N_DATA_DIR/services"
 SERVICE_LOG_DIR="$A4N_LOG_DIR/services"
 mkdir -p "$SERVICE_PID_DIR" "$SERVICE_LOG_DIR" "$A4N_CACHE_DIR" "$A4N_TEMP_DIR"
 
+token_file="$SERVICE_PID_DIR/auth-token"
+if [[ -z "${A4N_SIDECAR_AUTH_TOKEN:-}" ]]; then
+    if [[ -s "$token_file" ]]; then
+        A4N_SIDECAR_AUTH_TOKEN="$(tr -d '[:space:]' <"$token_file")"
+    else
+        A4N_SIDECAR_AUTH_TOKEN="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
+        umask 077
+        printf '%s\n' "$A4N_SIDECAR_AUTH_TOKEN" >"$token_file"
+    fi
+fi
+[[ -n "$A4N_SIDECAR_AUTH_TOKEN" ]] || {
+    echo "sidecar 认证 token 为空" >&2
+    exit 1
+}
+export A4N_SIDECAR_AUTH_TOKEN
+
 managed_pid_files=()
 host_pid=""
 
+stop_managed_pid() {
+    local pid="$1"
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 0
+    kill -0 "$pid" 2>/dev/null || return 0
+    kill -TERM "$pid" 2>/dev/null || true
+    for _ in {1..20}; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            wait "$pid" 2>/dev/null || true
+            return 0
+        fi
+        sleep 0.1
+    done
+    kill -KILL "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+}
+
 cleanup() {
     local pid_file pid
-    if [[ -n "$host_pid" ]] && kill -0 "$host_pid" 2>/dev/null; then
-        kill -TERM "$host_pid" 2>/dev/null || true
-    fi
+    [[ -z "$host_pid" ]] || stop_managed_pid "$host_pid"
     for pid_file in "${managed_pid_files[@]}"; do
         [[ -f "$pid_file" ]] || continue
         pid="$(cat "$pid_file" 2>/dev/null || true)"
-        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-            kill -TERM "$pid" 2>/dev/null || true
-        fi
+        stop_managed_pid "$pid"
         rm -f "$pid_file"
     done
 }
@@ -563,27 +722,31 @@ wait_for_health() {
     local pid="$2"
     local url="$3"
 
-    if command -v curl >/dev/null 2>&1; then
-        for _ in {1..50}; do
-            if curl -fsS "$url/healthz" >/dev/null 2>&1; then
-                return 0
-            fi
-            if ! kill -0 "$pid" 2>/dev/null; then
-                echo "sidecar $module 启动后已退出，日志: $SERVICE_LOG_DIR/$module.log" >&2
-                return 1
-            fi
-            sleep 0.1
-        done
-        echo "sidecar $module 健康检查超时: $url/healthz" >&2
+    command -v curl >/dev/null 2>&1 || {
+        echo "缺少 curl，无法验证 sidecar $module health" >&2
         return 1
-    fi
-
-    sleep 0.5
-    if kill -0 "$pid" 2>/dev/null; then
-        return 0
-    fi
-    echo "sidecar $module 启动后已退出，日志: $SERVICE_LOG_DIR/$module.log" >&2
+    }
+    for _ in {1..50}; do
+        if service_is_healthy "$module" "$url"; then
+            return 0
+        fi
+        if ! kill -0 "$pid" 2>/dev/null; then
+            echo "sidecar $module 启动后已退出，日志: $SERVICE_LOG_DIR/$module.log" >&2
+            return 1
+        fi
+        sleep 0.1
+    done
+    echo "sidecar $module 健康检查超时或身份不匹配: $url/healthz" >&2
     return 1
+}
+
+service_is_healthy() {
+    local module="$1"
+    local url="$2"
+    local payload
+    payload="$(curl -fsS --max-time 2 "$url/healthz" 2>/dev/null)" || return 1
+    printf '%s\n' "$payload" | grep -Eq '"service"[[:space:]]*:[[:space:]]*"'"$module"'"' || return 1
+    printf '%s\n' "$payload" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"healthy"'
 }
 
 start_service() {
@@ -609,8 +772,11 @@ start_service() {
     if [[ -f "$pid_file" ]]; then
         old_pid="$(cat "$pid_file" 2>/dev/null || true)"
         if [[ -n "$old_pid" ]] && kill -0 "$old_pid" 2>/dev/null; then
-            echo "sidecar $module 已在运行，PID: $old_pid"
-            return 0
+            if service_is_healthy "$module" "$url"; then
+                echo "sidecar $module 已在运行，PID: $old_pid"
+                return 0
+            fi
+            echo "忽略无法通过 $module health 身份校验的旧 PID: $old_pid" >&2
         fi
         rm -f "$pid_file"
     fi
@@ -682,6 +848,7 @@ A4N - AI 辅助小说创作工具
   - Linux: webkit2gtk-4.1, gtk3
   - macOS: 无额外依赖
   - Windows: WebView2 运行时（通常已预装）
+  - ONNX Runtime 由发布包携带，不依赖开发机安装目录
 EOF
     echo -e "  ${GREEN}✓${NC} README"
 

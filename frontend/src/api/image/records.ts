@@ -1,6 +1,7 @@
 import { apiInvoke } from "../index";
 import { readCurrentUserId } from "../authStorage";
 import type { GeneratedImage } from "./types";
+import type { UploadImageInput as ApiUploadImageInput } from "../generated/host";
 import { idNum, type ApiId as Id } from "../shared";
 
 export interface UpdateImageInput {
@@ -12,17 +13,7 @@ export interface UpdateImageInput {
   is_favorite?: boolean;
 }
 
-export interface UploadImageInput {
-  file_name: string;
-  mime_type: string;
-  data_base64: string;
-  image_type: string;
-  prompt: string;
-  model?: string | null;
-  chapter_id?: Id | null;
-  panel_id?: string | null;
-  metadata_json?: unknown | null;
-}
+export type UploadImageInput = ApiUploadImageInput;
 
 const currentUserId = (): number => {
   const id = readCurrentUserId();

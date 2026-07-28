@@ -1,5 +1,4 @@
 mod image;
-mod image_task;
 mod manga;
 mod profile;
 mod video_generation;

@@ -8,7 +8,10 @@ pub async fn list_chapters(
     project_id: i64,
 ) -> Result<Vec<ChapterSummary>, AppError> {
     access::verify_project_access(state, user_id, project_id).await?;
-    let chapters = state.orchestrator.chapters_for_project(project_id).await?;
+    let chapters = state
+        .chapter_content()
+        .chapters_for_project(project_id)
+        .await?;
     let mut summaries = chapters
         .iter()
         .map(projections::chapter_summary)

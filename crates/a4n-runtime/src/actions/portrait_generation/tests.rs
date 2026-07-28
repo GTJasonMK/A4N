@@ -1,4 +1,8 @@
-use super::*;
+use a4n_core::models::character::protagonist_profile;
+use a4n_orchestrator::portrait::{
+    DEFAULT_PORTRAIT_EXPRESSION, PersistPortraitFileInput, first_expression_or_default,
+    optional_profile_text, portrait_profile_context, profile_portrait_seed_prompt,
+};
 use chrono::NaiveDate;
 use serde_json::json;
 use std::path::PathBuf;
@@ -83,20 +87,26 @@ fn first_expression_or_default_trims_first_value() {
 fn portrait_file_persistence_keeps_output_and_reports_actual_size() {
     let data_dir = unique_temp_dir("a4n_portrait_persist");
 
-    let (path, relative_path, file_size) = super::image_pipeline::persist_portrait_file(
+    let (path, persisted) = super::host_port::persist_portrait_file_at(
         &data_dir,
-        7,
-        42,
-        b"portrait-image",
-        "png",
-        "立绘图片",
+        PersistPortraitFileInput {
+            project_id: 7,
+            profile_id: 42,
+            bytes: b"portrait-image",
+            format: "png",
+            path_context: "立绘图片",
+        },
     )
     .expect("persist portrait file");
 
     assert!(path.is_file());
-    assert!(relative_path.starts_with("projects/7/portraits/portrait_42_"));
-    assert!(relative_path.ends_with(".png"));
-    assert_eq!(file_size, 14);
+    assert!(
+        persisted
+            .relative_path
+            .starts_with("projects/7/portraits/portrait_42_")
+    );
+    assert!(persisted.relative_path.ends_with(".png"));
+    assert_eq!(persisted.file_size, 14);
     let _ = std::fs::remove_dir_all(&data_dir);
 }
 

@@ -6,7 +6,7 @@ use a4n_core::error::AppError;
 use a4n_core::models::ai::image_gen_config;
 use a4n_image::ImageGenerationRequest;
 use a4n_service_protocol::{
-    ServiceErrorCode, ServiceResponse, ServiceStatus, ServiceTaskEvent, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode, ServiceResponse, ServiceStatus,
 };
 use a4n_test_support::capability::RecordingImageClient;
 use serde_json::json;
@@ -119,9 +119,9 @@ async fn image_generation_maps_workflow_run_to_service_trace() {
 
 #[test]
 fn image_generation_terminal_events_preserve_failure_and_cancel_semantics() {
-    let failed = ServiceTaskEvent {
+    let failed = CapabilityTaskEvent {
         task_id: "task-1".to_string(),
-        event_kind: ServiceTaskEventKind::Failed,
+        event_kind: CapabilityTaskEventKind::Failed,
         sequence: 1,
         chunk_index: None,
         chunk_delta: None,
@@ -142,9 +142,9 @@ fn image_generation_terminal_events_preserve_failure_and_cancel_semantics() {
         .expect_err("provider failure must terminate generation");
     assert!(error.contains("provider failed"));
 
-    let cancelled = ServiceTaskEvent {
+    let cancelled = CapabilityTaskEvent {
         task_id: "task-1".to_string(),
-        event_kind: ServiceTaskEventKind::CancelAck,
+        event_kind: CapabilityTaskEventKind::CancelAck,
         sequence: 2,
         chunk_index: None,
         chunk_delta: None,
@@ -238,10 +238,10 @@ async fn image_provider_preview_missing_capability_has_no_embedded_fallback() {
     assert!(error.contains("image sidecar capability 未配置"));
 }
 
-fn successful_image_generation_events() -> Vec<ServiceTaskEvent> {
+fn successful_image_generation_events() -> Vec<CapabilityTaskEvent> {
     vec![
         image_event(
-            ServiceTaskEventKind::Progress,
+            CapabilityTaskEventKind::Progress,
             1,
             json!({
                 "current": 1,
@@ -250,7 +250,7 @@ fn successful_image_generation_events() -> Vec<ServiceTaskEvent> {
             }),
         ),
         image_event(
-            ServiceTaskEventKind::Completed,
+            CapabilityTaskEventKind::Completed,
             2,
             json!({
                 "bytes_base64": "aW1n",
@@ -286,11 +286,11 @@ fn image_response(payload: serde_json::Value) -> JsonResponse {
 }
 
 fn image_event(
-    event_kind: ServiceTaskEventKind,
+    event_kind: CapabilityTaskEventKind,
     sequence: u64,
     payload: serde_json::Value,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id: "configured-task".to_string(),
         event_kind,
         sequence,

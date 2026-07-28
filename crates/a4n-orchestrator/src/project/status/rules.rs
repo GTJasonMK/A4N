@@ -2,7 +2,7 @@ use a4n_core::{error::AppError, models::project::novel_project, state::status::P
 
 use super::super::{PROJECT_KIND_TEXT, ProjectStatusArtifacts};
 
-pub(super) fn ensure_text_project_status_machine_record(
+pub(crate) fn ensure_text_project_status_machine_record(
     project: &novel_project::Model,
 ) -> Result<(), AppError> {
     if project.project_kind == PROJECT_KIND_TEXT {
@@ -14,7 +14,7 @@ pub(super) fn ensure_text_project_status_machine_record(
     }
 }
 
-pub(super) fn validate_forward_status_artifacts_record(
+pub(crate) fn validate_forward_status_artifacts_record(
     project: &novel_project::Model,
     _from: ProjectStatus,
     to: ProjectStatus,

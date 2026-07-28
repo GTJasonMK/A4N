@@ -1,5 +1,4 @@
 use super::contracts::ExportProjectPackageData;
-use crate::state::AppState;
 use a4n_core::models::project::novel_project;
 use base64::Engine as _;
 use std::path::Path;
@@ -12,18 +11,6 @@ pub(super) fn export_package_data(
         file_name: project_package_file_name(project),
         data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
     }
-}
-
-pub(super) async fn project_record_by_id(
-    state: &AppState,
-    project_id: i64,
-) -> Result<novel_project::Model, String> {
-    state
-        .orchestrator
-        .project_by_id(project_id)
-        .await
-        .map_err(|error| error.to_string())?
-        .ok_or_else(|| format!("项目不存在: {project_id}"))
 }
 
 pub(super) fn validate_uploaded_project_file_name(

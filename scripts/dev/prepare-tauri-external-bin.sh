@@ -117,6 +117,21 @@ PROFILE_DIR="$(cargo_profile_dir "$TARGET_ROOT")"
 EXTERNAL_BIN_DIR="$TARGET_ROOT/tauri-sidecars"
 BINARY_EXT="$(binary_extension)"
 
+case "$TARGET_TRIPLE" in
+    *-apple-darwin)
+        RUNTIME_NAME="libonnxruntime.dylib"
+        ;;
+    *-windows-*)
+        RUNTIME_NAME="onnxruntime.dll"
+        ;;
+    *-linux-*)
+        RUNTIME_NAME="libonnxruntime.so.1"
+        ;;
+    *)
+        die "不支持的 Tauri bundle target: $TARGET_TRIPLE"
+        ;;
+esac
+
 if ! $DRY_RUN; then
     mkdir -p "$EXTERNAL_BIN_DIR"
 fi
@@ -130,8 +145,10 @@ log_info "target: $TARGET_TRIPLE"
 log_info "profile: $BUILD_MODE"
 log_info "output: $EXTERNAL_BIN_DIR"
 
-if ! $SKIP_BUILD && ! $DRY_RUN; then
+if ! $DRY_RUN; then
     require_onnxruntime
+fi
+if ! $SKIP_BUILD && ! $DRY_RUN; then
     guard_build_cache
 fi
 
@@ -171,3 +188,18 @@ for package in "${SIDECAR_PACKAGES[@]}"; do
         log_ok "$(basename "$target_binary")"
     fi
 done
+
+runtime_source="$(onnxruntime_root)/lib/$RUNTIME_NAME"
+runtime_target="$EXTERNAL_BIN_DIR/$RUNTIME_NAME"
+if $DRY_RUN; then
+    log_info "copy ONNX Runtime:"
+    print_command cp "$runtime_source" "$runtime_target"
+else
+    [[ -f "$runtime_source" ]] || die "缺少 ONNX Runtime 动态库: $runtime_source"
+    rm -f \
+        "$EXTERNAL_BIN_DIR/libonnxruntime.dylib" \
+        "$EXTERNAL_BIN_DIR/libonnxruntime.so.1" \
+        "$EXTERNAL_BIN_DIR/onnxruntime.dll"
+    cp "$runtime_source" "$runtime_target"
+    log_ok "$RUNTIME_NAME"
+fi

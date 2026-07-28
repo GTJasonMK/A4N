@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 
-pub(in crate::outline) fn chapter_outline_batch_response_schema() -> Value {
+pub fn chapter_outline_batch_response_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,

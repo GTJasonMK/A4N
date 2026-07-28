@@ -1,7 +1,7 @@
 use super::contracts::{
     CapabilityClient, CapabilityResult, ExportClient, ImportClient, JsonRequest, JsonResponse,
 };
-use super::transport::HttpSidecarTransport;
+use super::transport::{HttpClientFactory, HttpSidecarTransport};
 use a4n_export_core::{
     ExportRenderJsonInput, ExportRenderJsonOutput, ExportRenderZipInput, ExportRenderZipOutput,
 };
@@ -26,6 +26,24 @@ impl HttpImportClient {
             transport: HttpSidecarTransport::new(base_url)
                 .with_expected_service(IMPORT_SERVICE_NAME),
         }
+    }
+
+    pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
+        Self {
+            transport: HttpSidecarTransport::new(base_url)
+                .with_expected_service(IMPORT_SERVICE_NAME)
+                .with_auth_token(token),
+        }
+    }
+
+    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
+        self.transport = self.transport.with_http_client(client);
+        self
+    }
+
+    pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
+        self.transport = self.transport.with_http_client_factory(factory);
+        self
     }
 }
 
@@ -80,6 +98,24 @@ impl HttpExportClient {
             transport: HttpSidecarTransport::new(base_url)
                 .with_expected_service(EXPORT_SERVICE_NAME),
         }
+    }
+
+    pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
+        Self {
+            transport: HttpSidecarTransport::new(base_url)
+                .with_expected_service(EXPORT_SERVICE_NAME)
+                .with_auth_token(token),
+        }
+    }
+
+    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
+        self.transport = self.transport.with_http_client(client);
+        self
+    }
+
+    pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
+        self.transport = self.transport.with_http_client_factory(factory);
+        self
     }
 }
 

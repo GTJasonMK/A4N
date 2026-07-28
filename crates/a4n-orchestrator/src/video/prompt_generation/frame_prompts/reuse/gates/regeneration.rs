@@ -9,7 +9,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_existing_
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<(), AppError> {
     let rows = a4n_db::video::chapter_video_prompt_workflow_records(
-        service.db.connection(),
+        service.database.connection(),
         project_id,
         chapter_id,
         prompt_type,

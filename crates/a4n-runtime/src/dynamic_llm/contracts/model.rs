@@ -1,7 +1,7 @@
 use super::gateway::{LlmChatPayload, LlmGatewayProviderConfig, LlmProbePayload};
 use crate::dynamic_llm::config::{estimate_llm_tokens, model_capabilities, validated_timeout_secs};
 use a4n_core::{error::AppError, models::ai::llm_config};
-use a4n_llm::provider::{ChatChunk, ChatRequest, ChatResponse, LlmProvider, ModelCapabilities};
+use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use async_trait::async_trait;
 use futures::Stream;
 use std::pin::Pin;
@@ -15,6 +15,7 @@ pub(in crate::dynamic_llm) struct ResolvedLlmModel {
 
 impl ResolvedLlmModel {
     pub(in crate::dynamic_llm) fn new(model: llm_config::Model) -> Result<Self, AppError> {
+        a4n_llm::config::validate_llm_config_model(&model)?;
         let timeout_secs = validated_timeout_secs(&model)?;
         let capabilities = model_capabilities(&model)?;
         Ok(Self {
@@ -67,12 +68,6 @@ pub(in crate::dynamic_llm) struct PlanningLlmProvider {
 
 #[async_trait]
 impl LlmProvider for PlanningLlmProvider {
-    async fn chat(&self, _request: ChatRequest) -> Result<ChatResponse, AppError> {
-        Err(AppError::ConfigError(
-            "PlanningLlmProvider 只用于上下文规划，不能执行 chat".to_string(),
-        ))
-    }
-
     async fn chat_stream(
         &self,
         _request: ChatRequest,

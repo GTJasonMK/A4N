@@ -12,77 +12,14 @@ pub use a4n_db::generation::{
     is_valid_generation_spec_target_kind, is_valid_generation_text_anchor_role, render_prompt_text,
 };
 
+pub mod artifacts;
+pub mod checkpoint;
+pub mod events;
+pub mod stream;
+pub mod terminal;
+
 use a4n_core::error::AppError;
-use a4n_core::models::generation::{generation_run, llm_call_trace};
-use serde_json::Value;
-
-use crate::OrchestratorContext;
-
-impl OrchestratorContext {
-    pub async fn record_completed_generation_run_with_checkpoint(
-        &self,
-        input: RecordCompletedGenerationRunWithCheckpointInput,
-    ) -> Result<generation_run::Model, AppError> {
-        a4n_db::generation::record_completed_run_with_checkpoint_transaction(
-            self.db.connection(),
-            input,
-        )
-        .await
-        .map_err(generation_error)
-    }
-
-    pub async fn attach_generation_runs_to_workflow_for_target(
-        &self,
-        input: AttachGenerationRunsToWorkflowInput,
-    ) -> Result<Vec<generation_run::Model>, AppError> {
-        a4n_db::generation::attach_runs_to_workflow_for_target(self.db.connection(), input)
-            .await
-            .map_err(generation_error)
-    }
-
-    pub async fn record_llm_call_trace(
-        &self,
-        input: RecordLlmCallTraceInput,
-    ) -> Result<llm_call_trace::Model, AppError> {
-        a4n_db::generation::record_llm_call_trace(self.db.connection(), input)
-            .await
-            .map_err(generation_error)
-    }
-
-    pub async fn complete_generation_runs_for_target(
-        &self,
-        target_table: &str,
-        target_id: i64,
-        response_summary_json: Option<Value>,
-    ) -> Result<Vec<generation_run::Model>, AppError> {
-        a4n_db::generation::complete_runs_for_target(
-            self.db.connection(),
-            target_table,
-            target_id,
-            response_summary_json,
-        )
-        .await
-        .map_err(generation_error)
-    }
-
-    pub async fn fail_generation_runs_for_target(
-        &self,
-        target_table: &str,
-        target_id: i64,
-        error_message: String,
-        response_summary_json: Option<Value>,
-    ) -> Result<Vec<generation_run::Model>, AppError> {
-        a4n_db::generation::fail_runs_for_target(
-            self.db.connection(),
-            target_table,
-            target_id,
-            error_message,
-            response_summary_json,
-        )
-        .await
-        .map_err(generation_error)
-    }
-}
+use a4n_service_protocol::{GenerationError, GenerationErrorCode, GenerationFinishReason};
 
 pub(crate) fn generation_error(error: a4n_db::generation::GenerationDbError) -> AppError {
     match error {
@@ -92,4 +29,33 @@ pub(crate) fn generation_error(error: a4n_db::generation::GenerationDbError) -> 
         a4n_db::generation::GenerationDbError::NotFound(message) => AppError::NotFound(message),
         a4n_db::generation::GenerationDbError::Database(error) => AppError::Database(error),
     }
+}
+
+pub(crate) fn generation_public_error(
+    code: &str,
+    stage_code: &str,
+    message: impl ToString,
+) -> GenerationError {
+    GenerationError {
+        code: GenerationErrorCode::registered(code).expect("registered generation error code"),
+        message: message.to_string().chars().take(4_000).collect(),
+        retryable: matches!(
+            code,
+            "generation_checkpoint_unavailable"
+                | "generation_interrupted"
+                | "generation_persist_failed"
+                | "provider_job_failed"
+        ),
+        stage_code: stage_code.to_string(),
+        trace_id: None,
+        source_error: None,
+    }
+}
+
+pub(crate) fn generation_finish_reason_text(reason: GenerationFinishReason) -> String {
+    match reason {
+        GenerationFinishReason::Stop => "stop",
+        GenerationFinishReason::ToolCallsComplete => "tool_calls",
+    }
+    .to_string()
 }

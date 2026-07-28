@@ -16,6 +16,7 @@ pub mod embedding_model;
 pub mod export_files;
 pub mod galgame_records;
 pub mod generation_analytics;
+pub mod generation_tasks;
 pub mod image_generation;
 pub mod image_records;
 pub mod import_analysis;
@@ -23,13 +24,10 @@ pub mod import_file;
 pub mod import_reverse;
 pub mod import_review;
 pub mod inspiration_records;
-pub(crate) mod json_contract;
-pub(crate) mod llm_request;
 pub mod logging;
 pub mod manga_pipeline;
 pub mod manga_records;
 pub mod oauth;
-pub mod object_discovery;
 pub mod object_profile_records;
 pub mod optimize;
 pub mod outline_records;
@@ -52,48 +50,26 @@ pub mod source_sync;
 pub mod storage_paths;
 pub mod task_records;
 pub(crate) mod template_variables;
-pub(crate) mod text_anchor_contract;
 pub mod theme;
-pub(crate) mod uploaded_image;
 pub mod video_generation;
-pub(crate) mod video_prompt_text;
 pub mod video_prompts;
 pub mod video_records;
-pub(crate) mod workflow_checkpoint;
 
 use a4n_core::error::AppError;
-use std::fmt::Display;
 
 pub(crate) fn app_error_message(error: AppError) -> String {
     error.to_string()
-}
-
-pub(crate) fn workflow_status_write_error(
-    primary: &impl Display,
-    status_error: &impl Display,
-) -> String {
-    format!("{primary}；工作流失败状态写入失败: {status_error}")
-}
-
-pub(crate) fn workflow_status_write_app_error(
-    primary: &AppError,
-    status_error: &AppError,
-) -> AppError {
-    AppError::Internal(anyhow::anyhow!(workflow_status_write_error(
-        primary,
-        status_error
-    )))
 }
 
 pub(crate) async fn sidecar_root_project_id(
     state: &crate::AppState,
     project_id: i64,
 ) -> Result<Option<i64>, String> {
-    if !state.runtime_profile.uses_sidecars() {
+    if !state.runtime_profile().uses_sidecars() {
         return Ok(None);
     }
     state
-        .orchestrator
+        .collaboration()
         .collaboration_root_project(project_id)
         .await
         .map(|root| Some(root.id))

@@ -8,6 +8,7 @@ default = []
 embedded-media-providers = ["dep:a4n-image-providers", "dep:a4n-video-providers"]
 
 [dependencies]
+a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-capabilities = { path = "../a4n-capabilities" }
 a4n-core = { path = "../a4n-core" }
 a4n-db = { path = "../a4n-db" }
@@ -19,14 +20,18 @@ a4n-prompt = { path = "../a4n-prompt" }
 a4n-queue = { path = "../a4n-queue" }
 a4n-embedding = { path = "../a4n-embedding" }
 a4n-rag-core = { path = "../a4n-rag-core" }
+a4n-import-core = { path = "../a4n-import-core" }
+a4n-export-core = { path = "../a4n-export-core" }
 a4n-image = { path = "../a4n-image" }
 a4n-image-providers = { path = "../a4n-image-providers", optional = true }
 a4n-video = { path = "../a4n-video" }
 a4n-video-providers = { path = "../a4n-video-providers", optional = true }
 
 anyhow = { workspace = true }
+base64 = { workspace = true }
 dashmap = { workspace = true }
 chrono = { workspace = true }
+image = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -38,6 +43,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
+uuid = { workspace = true }
 
 async-trait = { workspace = true }
 futures = { workspace = true }

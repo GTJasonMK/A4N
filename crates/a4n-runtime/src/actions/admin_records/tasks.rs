@@ -1,11 +1,10 @@
 use super::TaskQueueSummary;
 use crate::{AppState, actions::app_error_message};
-use a4n_queue::priority::TaskQueue;
 use serde_json::{Value, json};
 
 pub async fn list_pending_tasks(state: &AppState) -> Result<Vec<TaskQueueSummary>, String> {
     state
-        .orchestrator
+        .admin()
         .pending_tasks()
         .await
         .map_err(app_error_message)
@@ -13,25 +12,25 @@ pub async fn list_pending_tasks(state: &AppState) -> Result<Vec<TaskQueueSummary
 
 pub async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<(), String> {
     state
-        .task_queue
-        .cancel(task_id)
+        .task_queue()
+        .queue_cancel(task_id)
         .await
         .map_err(|error| error.to_string())
 }
 
 pub async fn health_check(state: &AppState) -> Result<Value, String> {
     let mut health = state
-        .orchestrator
+        .admin()
         .database_health()
         .await
         .map_err(app_error_message)?;
     if let Value::Object(ref mut map) = health {
         map.insert(
             "runtime_profile".to_string(),
-            json!(state.runtime_profile.as_str()),
+            json!(state.runtime_profile().as_str()),
         );
         let services = state
-            .orchestrator
+            .admin()
             .managed_service_health_summaries()
             .await
             .map_err(app_error_message)?;

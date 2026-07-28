@@ -1,4 +1,5 @@
 use super::*;
+use serde::Serialize;
 
 pub(super) fn required_text<'a>(value: &'a str, label: &str) -> Result<&'a str, GenerationDbError> {
     let value = value.trim();
@@ -47,8 +48,36 @@ pub(super) fn validate_positive_id(value: i64, label: &str) -> Result<(), Genera
     }
 }
 
-pub(super) fn sha256_hex(content: &str) -> String {
+pub fn canonical_json_bytes<T>(value: &T) -> Result<Vec<u8>, serde_json::Error>
+where
+    T: Serialize,
+{
+    serde_json_canonicalizer::to_vec(value)
+}
+
+pub fn canonical_json_text<T>(value: &T) -> Result<String, serde_json::Error>
+where
+    T: Serialize,
+{
+    serde_json_canonicalizer::to_string(value)
+}
+
+pub fn canonical_json_sha256<T>(value: &T) -> Result<String, serde_json::Error>
+where
+    T: Serialize,
+{
+    let canonical = canonical_json_bytes(value)?;
     let mut hasher = Sha256::new();
-    hasher.update(content.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hasher.update(canonical);
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+pub fn verify_canonical_json_sha256<T>(
+    value: &T,
+    expected_sha256: &str,
+) -> Result<bool, serde_json::Error>
+where
+    T: Serialize,
+{
+    Ok(canonical_json_sha256(value)? == expected_sha256)
 }

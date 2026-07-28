@@ -1,11 +1,7 @@
-use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_scene;
-use a4n_llm::provider::ChatRequest;
+pub use a4n_orchestrator::chapter_scene::{ChapterSceneProgressReporter, ChapterSceneTaskScope};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-pub type ChapterSceneProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChapterSceneSummary {
@@ -46,19 +42,6 @@ pub struct GenerateChapterSceneInput {
     pub chapter_id: i64,
     pub scene_number: i32,
     pub scene_prompt: String,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ChapterSceneTaskScope {
-    pub project_id: i64,
-    pub total: u32,
-}
-
-pub(super) struct ChapterSceneGenerationRequestContext {
-    pub(super) project_id: i64,
-    pub(super) chapter_number: i32,
-    pub(super) request: ChatRequest,
-    pub(super) call_key: String,
 }
 
 pub(super) fn chapter_scene_summary(scene: &chapter_scene::Model) -> ChapterSceneSummary {

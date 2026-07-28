@@ -43,6 +43,7 @@ pub(super) async fn try_dispatch(
         }
         "cancel_workflow" => cancel_workflow(state, user_id, args).await?,
         "cancel_task" => cancel_task(state, user_id, args).await?,
+        "cancel_generation_task" => cancel_generation_task(state, user_id, args).await?,
         "get_queue_stats" => get_queue_stats(state, user_id, args).await?,
         "get_task_history" => get_task_history(state, user_id, args).await?,
         "set_profile_primary_material" => {
@@ -67,23 +68,16 @@ pub(super) async fn try_dispatch(
         "prepare_optimization_analysis_session" => {
             prepare_optimization_analysis_session(state, user_id, args).await?
         }
-        "execute_optimization_analysis_session" => {
-            execute_optimization_analysis_session(state, user_id, args).await?
-        }
         "preview_create_optimization_analysis_session_request" => {
             preview_create_optimization_analysis_session_request(state, user_id, args).await?
         }
         "preview_prepare_optimization_analysis_session_request" => {
             preview_prepare_optimization_analysis_session_request(state, user_id, args).await?
         }
-        "propose_optimization_patches" => {
-            propose_optimization_patches(state, user_id, args).await?
-        }
         "preview_propose_optimization_patches_request" => {
             preview_propose_optimization_patches_request(state, user_id, args).await?
         }
         "apply_optimization_patches" => apply_optimization_patches(state, user_id, args).await?,
-        "send_optimization_message" => send_optimization_message(state, user_id, args).await?,
         "preview_send_optimization_message_request" => {
             preview_send_optimization_message_request(state, user_id, args).await?
         }
@@ -105,7 +99,6 @@ pub(super) async fn try_dispatch(
         "export_epub_data" => export_epub_data(state, user_id, args).await?,
         "export_pdf_data" => export_pdf_data(state, user_id, args).await?,
         "export_batch_data" => export_batch_data(state, user_id, args).await?,
-        "generate_age_variant" => generate_age_variant(state, user_id, args).await?,
         "preview_generate_age_variant_request" => {
             preview_generate_age_variant_request(state, user_id, args).await?
         }
@@ -134,16 +127,13 @@ pub(super) async fn try_dispatch(
         "preview_rollback" => preview_rollback(state, user_id, args).await?,
         "update_world_setting" => update_world_setting(state, user_id, args).await?,
         "list_parts" => list_parts(state, user_id, args).await?,
-        "generate_parts" => generate_parts(state, user_id, args).await?,
         "preview_generate_parts_request" => {
             preview_generate_parts_request(state, user_id, args).await?
         }
         "delete_latest_parts" => delete_latest_parts(state, user_id, args).await?,
-        "regenerate_parts" => regenerate_parts(state, user_id, args).await?,
         "preview_regenerate_parts_request" => {
             preview_regenerate_parts_request(state, user_id, args).await?
         }
-        "regenerate_last_part" => regenerate_last_part(state, user_id, args).await?,
         "preview_regenerate_last_part_request" => {
             preview_regenerate_last_part_request(state, user_id, args).await?
         }

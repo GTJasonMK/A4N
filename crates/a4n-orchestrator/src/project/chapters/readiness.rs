@@ -1,37 +1,14 @@
+use a4n_core::models::chapter::chapter;
 use a4n_db::project::ChapterGenerationReadiness;
 
-use super::super::{chapter, project_status_read_error_to_app_error};
-use crate::OrchestratorContext;
-
-impl OrchestratorContext {
-    pub async fn validate_chapter_generation_readiness(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-    ) -> Result<(), String> {
-        validate_chapter_generation_number(chapter_number)?;
-
-        let readiness = a4n_db::project::chapter_generation_readiness(
-            self.db.connection(),
-            project_id,
-            chapter_number,
-        )
-        .await
-        .map_err(project_status_read_error_to_app_error)
-        .map_err(|error| error.to_string())?;
-
-        validate_chapter_generation_readiness_record(chapter_number, &readiness)
-    }
-}
-
-pub(super) fn validate_chapter_generation_number(chapter_number: i32) -> Result<(), String> {
+pub(crate) fn validate_chapter_generation_number(chapter_number: i32) -> Result<(), String> {
     if chapter_number <= 0 {
         return Err("章节序号必须大于 0".to_string());
     }
     Ok(())
 }
 
-pub(super) fn validate_chapter_generation_readiness_record(
+pub(crate) fn validate_chapter_generation_readiness_record(
     chapter_number: i32,
     readiness: &ChapterGenerationReadiness,
 ) -> Result<(), String> {

@@ -17,9 +17,11 @@ pub(crate) async fn delete_records(
         return Json(error_response(&request, error));
     }
     let payload = request.payload.clone();
+    let store = state.store.clone();
     let result = state
-        .store
-        .delete(&payload.collection, payload.filter)
+        .persist_mutation("delete", async move {
+            store.delete(&payload.collection, payload.filter).await
+        })
         .await
         .map(|deleted| DeleteOutput { deleted });
     Json(result_response(&request, result))
@@ -62,9 +64,12 @@ pub(crate) async fn drop_collection(
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
     }
+    let collection = request.payload.collection.clone();
+    let store = state.store.clone();
     let result = state
-        .store
-        .drop_collection(&request.payload.collection)
+        .persist_mutation("drop_collection", async move {
+            store.drop_collection(&collection).await
+        })
         .await
         .map(|_| EmptyOutput {});
     Json(result_response(&request, result))
@@ -93,9 +98,13 @@ pub(crate) async fn update_metadata(
         return Json(error_response(&request, error));
     }
     let payload = request.payload.clone();
+    let store = state.store.clone();
     let result = state
-        .store
-        .update_metadata(&payload.collection, &payload.id, payload.metadata)
+        .persist_mutation("update_metadata", async move {
+            store
+                .update_metadata(&payload.collection, &payload.id, payload.metadata)
+                .await
+        })
         .await
         .map(|_| EmptyOutput {});
     Json(result_response(&request, result))

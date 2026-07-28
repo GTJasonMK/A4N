@@ -1,0 +1,608 @@
+//! 章节 / 批量 / 参考媒体 provider generation 的 Orchestrator 定向测试。
+//!
+//! 不经过 Server/Tauri process；使用本地 HostPort 假实现与 PostgreSQL 测试库。
+
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicUsize, Ordering},
+};
+
+use a4n_core::{
+    error::AppError,
+    models::{
+        ai::{generated_video, video_gen_config},
+        user::user,
+    },
+};
+use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};
+use async_trait::async_trait;
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use serde_json::{Value, json};
+use tokio_util::sync::CancellationToken;
+
+use crate::test_support::TestOrchestratorBuilder;
+use crate::video::{
+    ChapterVideoGenerationHostPort, ChapterVideoImageInput, GenerateChapterVideoInput,
+    GenerateChapterVideosBatchInput, GenerateReferenceMediaVideoInput, PersistedVideoResult,
+    ProviderImageInputTransport, ReferenceMediaVideoGenerationHostPort, ReferenceMediaVideoInput,
+    ResolvedChapterVideoImageInputs, SEEDANCE2_VIDEO_BACKEND, VideoArtifactFile,
+    VideoGenerationProgress, VideoProviderHostPort, VideoProviderRequestBody,
+    VideoProviderRequestInput,
+};
+
+use super::*;
+
+#[derive(Default)]
+struct TestVideoProviderHost {
+    persist_calls: AtomicUsize,
+    remove_calls: AtomicUsize,
+    fail_persist: bool,
+}
+
+#[async_trait]
+impl VideoProviderHostPort for TestVideoProviderHost {
+    fn inspect_video_file(
+        &self,
+        _relative_path: &str,
+        _label: &str,
+    ) -> Result<VideoArtifactFile, AppError> {
+        Ok(VideoArtifactFile {
+            content_type: "video/mp4".to_string(),
+            sha256: "provider-gen-sha256".to_string(),
+            byte_size: 8,
+        })
+    }
+
+    async fn poll_video_job(
+        &self,
+        _project_id: i64,
+        _workflow_run_id: i64,
+        _config: &video_gen_config::Model,
+        _job_id: &str,
+        _cancel_token: CancellationToken,
+    ) -> Result<VideoJobState, AppError> {
+        Err(AppError::InvalidState {
+            current: "poll".to_string(),
+            operation: "定向测试不应进入轮询".to_string(),
+        })
+    }
+
+    async fn persist_video_result(
+        &self,
+        video: &generated_video::Model,
+        _prompt_id: Option<i64>,
+        result: VideoGenerationResult,
+    ) -> Result<PersistedVideoResult, AppError> {
+        self.persist_calls.fetch_add(1, Ordering::SeqCst);
+        if self.fail_persist {
+            return Err(AppError::InvalidState {
+                current: "file".to_string(),
+                operation: "测试视频落盘失败".to_string(),
+            });
+        }
+        Ok(PersistedVideoResult {
+            video_id: video.id,
+            project_id: video.project_id,
+            file_path: format!("generated/videos/{}.{}", video.id, result.format),
+            thumbnail_path: Some(format!("generated/videos/{}.jpg", video.id)),
+            file_size: i64::try_from(result.bytes.len())
+                .map_err(|_| AppError::InvalidArgument("测试视频过大".to_string()))?,
+            metadata_json: Some(json!({
+                "provider": "test-video-host",
+                "format": result.format,
+            })),
+        })
+    }
+
+    async fn remove_video_result(&self, _persisted: &PersistedVideoResult) -> Result<(), AppError> {
+        self.remove_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct TestReferenceMediaHost {
+    provider: TestVideoProviderHost,
+    submit_calls: AtomicUsize,
+    body_calls: AtomicUsize,
+    fail_submit: bool,
+    return_empty_bytes: bool,
+    last_request: Mutex<Option<VideoGenerationRequest>>,
+}
+
+#[async_trait]
+impl ReferenceMediaVideoGenerationHostPort for TestReferenceMediaHost {
+    async fn resolve_video_config(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<video_gen_config::Model, AppError> {
+        Ok(seedance_config(config_id.unwrap_or(42)))
+    }
+
+    async fn reference_media_provider_request_body(
+        &self,
+        input: VideoProviderRequestInput,
+    ) -> Result<VideoProviderRequestBody, AppError> {
+        self.body_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(VideoProviderRequestBody {
+            request: json!({
+                "model": input.config.model,
+                "prompt": input.request.prompt,
+                "reference_media": input.request.reference_media,
+            }),
+            source_label: "test-seedance-body".to_string(),
+        })
+    }
+
+    async fn submit_reference_media_video(
+        &self,
+        input: VideoProviderRequestInput,
+        _progress: &mut VideoGenerationProgress<'_>,
+    ) -> Result<VideoGenerationResult, AppError> {
+        self.submit_calls.fetch_add(1, Ordering::SeqCst);
+        *self.last_request.lock().expect("last_request lock") = Some(input.request.clone());
+        if self.fail_submit {
+            return Err(AppError::InvalidState {
+                current: "provider".to_string(),
+                operation: "测试参考媒体 provider 失败".to_string(),
+            });
+        }
+        let bytes = if self.return_empty_bytes {
+            Vec::new()
+        } else {
+            vec![1, 2, 3, 4, 5, 6, 7, 8]
+        };
+        Ok(VideoGenerationResult {
+            bytes,
+            format: "mp4".to_string(),
+            provider_job_id: if self.return_empty_bytes {
+                Some("job-async-1".to_string())
+            } else {
+                None
+            },
+            metadata: json!({"backend": SEEDANCE2_VIDEO_BACKEND}),
+        })
+    }
+
+    fn runtime_config_snapshot(&self) -> Option<Value> {
+        Some(json!({"profile": "reference-media-application-test"}))
+    }
+
+    fn video_provider_host_port(&self) -> &dyn VideoProviderHostPort {
+        &self.provider
+    }
+}
+
+/// 章节路径只用于校验 gate；不进入真实 provider 请求渲染。
+#[derive(Default)]
+struct RejectingChapterHost {
+    provider: TestVideoProviderHost,
+}
+
+#[async_trait]
+impl ChapterVideoGenerationHostPort for RejectingChapterHost {
+    async fn resolve_video_config(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<video_gen_config::Model, AppError> {
+        Ok(seedance_config(config_id.unwrap_or(7)))
+    }
+
+    fn resolve_image_transport(
+        &self,
+        _backend: &str,
+    ) -> Result<ProviderImageInputTransport, AppError> {
+        Ok(ProviderImageInputTransport::InlineDataUrl)
+    }
+
+    async fn resolve_chapter_video_image_inputs(
+        &self,
+        _input: ChapterVideoImageInput,
+    ) -> Result<ResolvedChapterVideoImageInputs, AppError> {
+        Ok(ResolvedChapterVideoImageInputs::default())
+    }
+
+    async fn chapter_video_provider_request_body(
+        &self,
+        _input: VideoProviderRequestInput,
+    ) -> Result<VideoProviderRequestBody, AppError> {
+        unreachable!("gate 测试不应到达 request body")
+    }
+
+    async fn submit_chapter_video(
+        &self,
+        _input: VideoProviderRequestInput,
+        _progress: &mut VideoGenerationProgress<'_>,
+    ) -> Result<VideoGenerationResult, AppError> {
+        unreachable!("gate 测试不应到达 submit")
+    }
+
+    fn runtime_config_snapshot(&self) -> Option<Value> {
+        None
+    }
+
+    fn video_provider_host_port(&self) -> &dyn VideoProviderHostPort {
+        &self.provider
+    }
+}
+
+fn seedance_config(id: i64) -> video_gen_config::Model {
+    let now = chrono::Utc::now().naive_utc();
+    video_gen_config::Model {
+        id,
+        name: "Seedance 测试配置".to_string(),
+        backend: SEEDANCE2_VIDEO_BACKEND.to_string(),
+        base_url: Some("http://127.0.0.1:47645".to_string()),
+        api_key_encrypted: None,
+        model: "seedance-2-0-pro".to_string(),
+        max_concurrent: 4,
+        default_width: 1280,
+        default_height: 720,
+        default_duration_secs: 8,
+        min_duration_secs: 1,
+        max_duration_secs: 60,
+        duration_mode: "range".to_string(),
+        supported_durations_json: None,
+        default_fps: 24,
+        provider_options_json: None,
+        is_default: true,
+        created_at: now,
+        updated_at: now,
+    }
+}
+
+fn long_reference_prompt() -> String {
+    format!(
+        "{} @image_file_1 用作人物外观与服装一致性参考，保持动作、光影与空间连续。",
+        "镜头保持人物、场景、动作、光影、构图和节奏连续，".repeat(8)
+    )
+}
+
+fn reference_media_input(segment_prompt_id: i64) -> ReferenceMediaVideoInput {
+    ReferenceMediaVideoInput {
+        segment_prompt_id,
+        shot_number: 1,
+        prompt: long_reference_prompt(),
+        image_files: vec!["https://example.test/ref.png".to_string()],
+        image_uploads: Vec::new(),
+        video_files: Vec::new(),
+        video_uploads: Vec::new(),
+        audio_files: Vec::new(),
+        audio_uploads: Vec::new(),
+        duration_secs: 8,
+        aspect_ratio: "16:9".to_string(),
+        config_id: Some(42),
+    }
+}
+
+async fn ensure_owner_user(db: &a4n_db::DatabaseConnection) -> i64 {
+    let now = fixed_time(3);
+    user::ActiveModel {
+        username: Set(format!(
+            "video-provider-owner-{}",
+            now.and_utc().timestamp_millis()
+        )),
+        email: Set(format!(
+            "video-provider-owner-{}@example.test",
+            now.and_utc().timestamp_millis()
+        )),
+        password_hash: Set("test-password-hash".to_string()),
+        role: Set("user".to_string()),
+        oauth_provider: Set(None),
+        oauth_subject: Set(None),
+        avatar_url: Set(None),
+        is_active: Set(true),
+        created_at: Set(now),
+        updated_at: Set(now),
+        last_login_at: Set(None),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("测试用户应创建成功")
+    .id
+}
+
+async fn insert_ready_video_prompt(
+    db: &a4n_db::DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+    shot_number: i32,
+    generated_video_id: Option<i64>,
+) -> chapter_video_prompt::Model {
+    let now = fixed_time(3);
+    chapter_video_prompt::ActiveModel {
+        project_id: Set(project_id),
+        chapter_id: Set(chapter_id),
+        style: Set(Some("电影感写实".to_string())),
+        prompt_type: Set("video_prompt".to_string()),
+        workflow_mode: Set("boundary_frames".to_string()),
+        shot_number: Set(shot_number),
+        title: Set(Some(format!("镜头 {shot_number}"))),
+        scene_summary: Set(Some("雨夜对峙".to_string())),
+        visual_prompt: Set("雨夜街巷，人物对峙".to_string()),
+        motion_prompt: Set(Some("慢推镜头".to_string())),
+        negative_prompt: Set(None),
+        duration_secs: Set(6),
+        aspect_ratio: Set(Some("16:9".to_string())),
+        reference_image_ids_json: Set(None),
+        status: Set("completed".to_string()),
+        generated_video_id: Set(generated_video_id),
+        metadata_json: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("测试视频提示词应创建成功")
+}
+
+async fn setup_project_chapter() -> (
+    Arc<a4n_db::DatabaseConnection>,
+    crate::OrchestratorContext,
+    i64,
+    i64,
+    i64,
+) {
+    let database = Arc::new(setup_db().await);
+    let owner_id = ensure_owner_user(database.as_ref()).await;
+    let context = TestOrchestratorBuilder::new(Arc::clone(&database))
+        .build()
+        .await;
+    let mut project = insert_video_project(database.as_ref(), "provider generation 定向").await;
+    project = novel_project::ActiveModel {
+        id: Set(project.id),
+        user_id: Set(owner_id),
+        ..Default::default()
+    }
+    .update(database.as_ref())
+    .await
+    .expect("测试项目应归属真实用户");
+    let chapter = insert_video_chapter(database.as_ref(), project.id, 1).await;
+    (database, context, owner_id, project.id, chapter.id)
+}
+
+fn empty_progress() -> VideoGenerationProgress<'static> {
+    VideoGenerationProgress::without_checkpoint(None, CancellationToken::new())
+}
+
+#[tokio::test]
+async fn reference_media_preview_returns_request_body_without_submit() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let prompt =
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let host = TestReferenceMediaHost::default();
+    let preview = context
+        .preview_reference_media_video_request_validated(
+            &host,
+            GenerateReferenceMediaVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                input: reference_media_input(prompt.id),
+            },
+        )
+        .await
+        .expect("参考媒体预览应成功");
+    assert_eq!(host.submit_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(host.body_calls.load(Ordering::SeqCst), 1);
+    assert!(preview.request.get("prompt").is_some());
+    assert!(preview.note.contains("当前表单") || !preview.note.is_empty());
+}
+
+#[tokio::test]
+async fn reference_media_generate_persists_completed_video() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let prompt =
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let host = TestReferenceMediaHost::default();
+    let mut progress = empty_progress();
+    let video = context
+        .run_reference_media_video_generation_validated(
+            &host,
+            GenerateReferenceMediaVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                input: reference_media_input(prompt.id),
+            },
+            &mut progress,
+        )
+        .await
+        .expect("参考媒体生成应完成");
+
+    assert_eq!(host.submit_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(host.provider.persist_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(video.status, crate::video::GENERATED_VIDEO_STATUS_COMPLETED);
+    assert_eq!(video.project_id, project_id);
+    assert_eq!(video.chapter_id, Some(chapter_id));
+    assert_eq!(video.video_type, "reference_media_video");
+    assert!(
+        video
+            .file_path
+            .as_deref()
+            .is_some_and(|path| path.contains(&format!("generated/videos/{}.mp4", video.id)))
+    );
+    let stored = generated_video::Entity::find_by_id(video.id)
+        .one(database.as_ref())
+        .await
+        .expect("查询正式视频")
+        .expect("正式视频应落库");
+    assert_eq!(
+        stored.status,
+        crate::video::GENERATED_VIDEO_STATUS_COMPLETED
+    );
+}
+
+#[tokio::test]
+async fn reference_media_generate_provider_failure_marks_failed() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let prompt =
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let host = TestReferenceMediaHost {
+        fail_submit: true,
+        ..Default::default()
+    };
+    let mut progress = empty_progress();
+    let video = context
+        .run_reference_media_video_generation_validated(
+            &host,
+            GenerateReferenceMediaVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                input: reference_media_input(prompt.id),
+            },
+            &mut progress,
+        )
+        .await
+        .expect("provider 失败应返回失败状态视频而不是上层 panic");
+
+    assert_eq!(host.submit_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(host.provider.persist_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        video.status,
+        crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED
+    );
+    assert!(
+        video
+            .error_message
+            .as_deref()
+            .is_some_and(|message| message.contains("测试参考媒体 provider 失败"))
+    );
+    let stored = generated_video::Entity::find_by_id(video.id)
+        .one(database.as_ref())
+        .await
+        .expect("查询失败视频")
+        .expect("失败视频应落库");
+    assert_eq!(
+        stored.status,
+        crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED
+    );
+}
+
+#[tokio::test]
+async fn chapter_video_generate_rejects_prompt_missing_execution_identity() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let prompt =
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let host = RejectingChapterHost::default();
+    let mut progress = empty_progress();
+    let err = context
+        .run_chapter_video_generation_validated(
+            &host,
+            GenerateChapterVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                prompt_id: prompt.id,
+                config_id: Some(7),
+            },
+            &mut progress,
+        )
+        .await
+        .expect_err("缺少 source_prompt_type / execution identity 必须显式失败");
+    let message = err.to_string();
+    assert!(
+        message.contains("source_prompt_type") || message.contains("video_execution_identity"),
+        "unexpected error: {message}"
+    );
+}
+
+#[tokio::test]
+async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_candidates() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+
+    let empty = context
+        .validate_chapter_video_batch_prompts(&GenerateChapterVideosBatchInput {
+            user_id: owner_id,
+            project_id,
+            chapter_id,
+            prompt_ids: Vec::new(),
+            config_id: None,
+        })
+        .await
+        .expect_err("空批量应失败");
+    assert!(empty.to_string().contains("至少需要选择一条视频提示词"));
+
+    let p1 = insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let duplicate = context
+        .validate_chapter_video_batch_prompts(&GenerateChapterVideosBatchInput {
+            user_id: owner_id,
+            project_id,
+            chapter_id,
+            prompt_ids: vec![p1.id, p1.id],
+            config_id: None,
+        })
+        .await
+        .expect_err("重复 id 应失败");
+    assert!(duplicate.to_string().contains("不能重复"));
+
+    let mut running =
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 2, None).await;
+    running = chapter_video_prompt::ActiveModel {
+        id: Set(running.id),
+        status: Set("running".to_string()),
+        ..Default::default()
+    }
+    .update(database.as_ref())
+    .await
+    .expect("更新 running 状态");
+    let running_err = context
+        .validate_chapter_video_batch_prompts(&GenerateChapterVideosBatchInput {
+            user_id: owner_id,
+            project_id,
+            chapter_id,
+            prompt_ids: vec![running.id],
+            config_id: None,
+        })
+        .await
+        .expect_err("running 提示词应失败");
+    assert!(running_err.to_string().contains("正在运行"));
+
+    let bound_video = a4n_db::video::create_generated_video_record(
+        database.as_ref(),
+        video_record_input(project_id),
+    )
+    .await
+    .expect("创建绑定视频");
+    let bound = insert_ready_video_prompt(
+        database.as_ref(),
+        project_id,
+        chapter_id,
+        3,
+        Some(bound_video.id),
+    )
+    .await;
+    let bound_ids = context
+        .validate_chapter_video_batch_prompts(&GenerateChapterVideosBatchInput {
+            user_id: owner_id,
+            project_id,
+            chapter_id,
+            prompt_ids: vec![bound.id],
+            config_id: None,
+        })
+        .await
+        .expect("已有候选的视频提示词仍可继续生成新候选");
+    assert_eq!(bound_ids, vec![bound.id]);
+}
+
+#[tokio::test]
+async fn chapter_batch_validation_accepts_ready_provider_prompts() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let first = insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let second =
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 2, None).await;
+    let ids = context
+        .validate_chapter_video_batch_prompts(&GenerateChapterVideosBatchInput {
+            user_id: owner_id,
+            project_id,
+            chapter_id,
+            prompt_ids: vec![first.id, second.id],
+            config_id: None,
+        })
+        .await
+        .expect("boundary_frames completed 提示词应通过批量门禁");
+    assert_eq!(ids, vec![first.id, second.id]);
+}

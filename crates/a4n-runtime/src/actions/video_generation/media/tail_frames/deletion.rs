@@ -1,16 +1,13 @@
-use super::rules::tail_frame_image_belongs_to_video;
 use crate::AppState;
-use crate::actions::video_generation::media::video_files::{
-    combine_optional_errors, remove_partial_video_file,
-};
-use crate::file_utils::deletable_data_file_path;
+use crate::actions::video_generation::media::video_files::combine_optional_errors;
+use a4n_orchestrator::video::tail_frame_image_belongs_to_video;
 
 pub(crate) async fn delete_video_tail_frame_assets(
     state: &AppState,
     video_id: i64,
 ) -> Result<(), String> {
     let images = state
-        .orchestrator
+        .video()
         .video_tail_frame_images()
         .await
         .map_err(|error| error.to_string())
@@ -21,40 +18,20 @@ pub(crate) async fn delete_video_tail_frame_assets(
 
     let mut error = None;
     for image in images {
-        let path = image.file_path.trim();
-        let image_path = if path.is_empty() {
-            None
-        } else {
-            deletable_data_file_path(
-                &state.config.data_dir,
-                path,
-                &format!("视频 #{} 真实尾帧图片 #{}", video_id, image.id),
-            )?
-        };
+        let image_id = image.id;
         match state
-            .orchestrator
-            .delete_generated_image_record(image.id)
+            .media()
+            .delete_generated_image_validated(image)
             .await
             .map_err(|error| error.to_string())
         {
-            Ok(()) => {
-                if let Some(path) = image_path.as_ref() {
-                    error = combine_optional_errors(
-                        error,
-                        remove_partial_video_file(
-                            path,
-                            &format!("视频 #{} 真实尾帧图片 #{}", video_id, image.id),
-                        )
-                        .err(),
-                    );
-                }
-            }
+            Ok(()) => {}
             Err(err) => {
                 error = combine_optional_errors(
                     error,
                     Some(format!(
                         "视频 #{} 真实尾帧图片 #{} 记录删除失败：{err}",
-                        video_id, image.id
+                        video_id, image_id
                     )),
                 );
             }

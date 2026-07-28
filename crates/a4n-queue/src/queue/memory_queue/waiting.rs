@@ -5,12 +5,12 @@ use dashmap::DashMap;
 use parking_lot::RwLock;
 
 use super::kind::{QueueKind, queue_kind_for_task_type};
-use crate::queue::priority::{TaskInfo, TaskPriority, TaskStatus, TaskType};
+use crate::queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskStatus};
 
 #[derive(Debug, Clone)]
 pub(super) enum SpecificPop {
     Ready {
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
     },
     Blocked,
@@ -68,7 +68,7 @@ pub(super) fn pop_matching_task(
     waiting: &Arc<RwLock<BinaryHeap<WaitingTask>>>,
     tasks: &Arc<DashMap<String, TaskInfo>>,
     kind: QueueKind,
-) -> Option<(String, TaskType, TaskPriority)> {
+) -> Option<(String, TaskKind, TaskPriority)> {
     let mut waiting = waiting.write();
     let mut found = None;
     let mut remaining = Vec::new();
@@ -138,17 +138,21 @@ pub(super) fn pop_specific_if_next(
     result
 }
 
-pub(super) fn remove_task(waiting: &Arc<RwLock<BinaryHeap<WaitingTask>>>, task_id: &str) {
+pub(super) fn remove_task(waiting: &Arc<RwLock<BinaryHeap<WaitingTask>>>, task_id: &str) -> bool {
     let mut waiting = waiting.write();
     let mut remaining = Vec::new();
+    let mut removed = false;
     while let Some(waiting_task) = waiting.pop() {
-        if waiting_task.task_id != task_id {
+        if waiting_task.task_id == task_id {
+            removed = true;
+        } else {
             remaining.push(waiting_task);
         }
     }
     for waiting_task in remaining {
         waiting.push(waiting_task);
     }
+    removed
 }
 
 pub(super) fn counts(

@@ -4,7 +4,10 @@ use crate::protocol::{
     error_response, result_response, validate_model_discovery_request, validate_video_poll_request,
     validate_video_provider_request,
 };
-use crate::providers::{video_generation_output, video_job_output, video_request_preview};
+use crate::providers::{
+    video_delete_output, video_generation_output, video_job_output, video_request_preview,
+    video_status_output,
+};
 use a4n_core::error::AppError;
 use a4n_model_discovery::{
     ModelDiscoveryRequest, ModelDiscoveryResult, discover_models_from_request,
@@ -29,7 +32,10 @@ pub(crate) async fn generate(
             request.payload.provider_options_json.as_ref(),
         )?;
         provider
-            .generate(request.payload.request.clone())
+            .generate(
+                request.payload.request.clone(),
+                request.payload.provider_idempotency_key_sha256.as_deref(),
+            )
             .await
             .map(video_generation_output)
     }
@@ -67,6 +73,50 @@ pub(crate) async fn poll(
             .poll(&request.payload.job_id)
             .await
             .map(video_job_output)
+    }
+    .await;
+    Json(result_response(&request, result))
+}
+
+pub(crate) async fn status(
+    Json(request): Json<ServiceRequest<VideoPollPayload>>,
+) -> Json<ServiceResponse<VideoStatusOutput>> {
+    if let Err(error) = validate_video_poll_request(&request) {
+        return Json(error_response(&request, error));
+    }
+    let result = async {
+        let provider = pick_video_provider(
+            &request.payload.backend,
+            &request.payload.base_url,
+            &request.payload.api_key,
+            request.payload.provider_options_json.as_ref(),
+        )?;
+        provider
+            .status(&request.payload.job_id)
+            .await
+            .map(video_status_output)
+    }
+    .await;
+    Json(result_response(&request, result))
+}
+
+pub(crate) async fn delete(
+    Json(request): Json<ServiceRequest<VideoPollPayload>>,
+) -> Json<ServiceResponse<VideoDeleteOutput>> {
+    if let Err(error) = validate_video_poll_request(&request) {
+        return Json(error_response(&request, error));
+    }
+    let result = async {
+        let provider = pick_video_provider(
+            &request.payload.backend,
+            &request.payload.base_url,
+            &request.payload.api_key,
+            request.payload.provider_options_json.as_ref(),
+        )?;
+        provider
+            .delete(&request.payload.job_id)
+            .await
+            .map(video_delete_output)
     }
     .await;
     Json(result_response(&request, result))

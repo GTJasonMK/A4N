@@ -8,4 +8,7 @@ pub mod data_type;
 /// 避免内容 hash 未变但 BM25 索引仍停留在旧 schema/分词策略。
 pub const RAG_TEXT_INDEX_VERSION: &str = "ngram-v3";
 
+/// 当前 RAG 向量/BM25 联合索引格式版本。
+pub const RAG_INDEX_FORMAT_VERSION: u32 = 1;
+
 pub use data_type::RagDataType;

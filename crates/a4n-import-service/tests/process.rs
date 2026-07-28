@@ -1,0 +1,201 @@
+use a4n_test_support::process::{
+    ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput, HttpImportClient,
+    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportClient, ImportDocumentKind,
+    ImportNormalizeJsonInput, ImportReadMediaPackageZipInput, SIDECAR_PROCESS_TEST_TOKEN,
+    ServiceRequestContext, ServiceStatus, TraceContext, assert_process_concurrency_saturation,
+    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
+    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
+    assert_route_rejects_version_mismatch, disconnect_during_request_body, finish_sidecar,
+    render_zip, sidecar_base_url, sidecar_manager, start_sidecar, unused_local_addr,
+};
+
+fn media_package_input(
+    manifest: serde_json::Value,
+    entries: &[(&str, &[u8])],
+) -> ImportReadMediaPackageZipInput {
+    let rendered = render_zip(ExportRenderZipInput::from_package_input(
+        ExportZipPackageInput {
+            manifest_path: "manifest.json".to_string(),
+            manifest_bytes: serde_json::to_vec(&manifest).expect("serialize import manifest"),
+            manifest_label: "process manifest".to_string(),
+            entries: entries
+                .iter()
+                .map(|(path, bytes)| ExportZipEntryBytes {
+                    path: (*path).to_string(),
+                    bytes: bytes.to_vec(),
+                    label: (*path).to_string(),
+                })
+                .collect(),
+            package_label: "process package".to_string(),
+        },
+    ))
+    .expect("render process import zip");
+    ImportReadMediaPackageZipInput {
+        zip_bytes_base64: rendered.bytes_base64,
+        manifest_path: "manifest.json".to_string(),
+        package_label: "process package".to_string(),
+        manifest_label: "process manifest".to_string(),
+    }
+}
+
+#[tokio::test]
+async fn import_service_process_serves_typed_normalize_and_stops() {
+    let addr = unused_local_addr();
+    let (manager, _temp_dir) = sidecar_manager(
+        "import",
+        env!("CARGO_BIN_EXE_a4n-import-service"),
+        addr,
+        "A4N_IMPORT_SERVICE_ADDR",
+        [],
+    );
+    let process = start_sidecar(&manager, IMPORT_SERVICE_NAME).await;
+    assert_process_concurrency_saturation(addr, IMPORT_SERVICE_NAME, "/import/normalize_json")
+        .await;
+    let base_url = sidecar_base_url(addr);
+    assert_protected_route_rejects_invalid_auth(&base_url, "/import/normalize_json").await;
+    assert_route_rejects_malformed_json(&base_url, "/import/normalize_json").await;
+    assert_route_rejects_oversized_json(&base_url, "/import/normalize_json", 8 * 1024 * 1024).await;
+    assert_route_rejects_oversized_json(
+        &base_url,
+        "/import/read_media_package_zip",
+        64 * 1024 * 1024,
+    )
+    .await;
+    let client = HttpImportClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
+    let request = ServiceRequestContext::new(
+        "import-process-normalize",
+        TraceContext {
+            trace_id: "import-process-trace".to_string(),
+            parent_span_id: None,
+        },
+        a4n_service_protocol::SecretForwardingPolicy::trusted_remote_no_secrets(),
+    )
+    .with_payload(
+        IMPORT_TRANSFORM_CAPABILITY_VERSION,
+        ImportNormalizeJsonInput {
+            kind: ImportDocumentKind::GenericJson,
+            content: " {\"value\":1} ".to_string(),
+        },
+    )
+    .expect("typed import request should be valid");
+    assert_route_rejects_unknown_payload_field(
+        &sidecar_base_url(addr),
+        "/import/normalize_json",
+        &request,
+    )
+    .await;
+    assert_route_rejects_version_mismatch(
+        &sidecar_base_url(addr),
+        "/import/normalize_json",
+        &request,
+    )
+    .await;
+    let response = client
+        .normalize_json_typed(request)
+        .await
+        .expect("typed import normalize should cross the independent process");
+    assert_eq!(response.status, ServiceStatus::Ok);
+    assert_eq!(
+        response.payload.expect("import payload").normalized["value"],
+        1
+    );
+
+    disconnect_during_request_body(addr, "/import/read_media_package_zip").await;
+    let invalid_zip = client
+        .read_media_package_zip_typed(
+            ServiceRequestContext::deny_all(
+                "import-process-invalid-zip",
+                TraceContext {
+                    trace_id: "import-process-invalid-zip-trace".to_string(),
+                    parent_span_id: None,
+                },
+            )
+            .with_payload(
+                IMPORT_TRANSFORM_CAPABILITY_VERSION,
+                ImportReadMediaPackageZipInput {
+                    zip_bytes_base64: "not-base64".to_string(),
+                    manifest_path: "manifest.json".to_string(),
+                    package_label:
+                        "token=process-import-secret base_url=https://process-import.invalid/v1"
+                            .to_string(),
+                    manifest_label: "process manifest".to_string(),
+                },
+            )
+            .expect("invalid import zip request envelope should be valid"),
+        )
+        .await
+        .expect("invalid import zip should return a typed response");
+    assert_eq!(invalid_zip.status, ServiceStatus::Error);
+    let invalid_error = invalid_zip.error.expect("invalid import zip error");
+    assert!(!invalid_error.message.contains("process-import-secret"));
+    assert!(!invalid_error.message.contains("process-import.invalid"));
+
+    let malicious = client
+        .read_media_package_zip_typed(
+            ServiceRequestContext::deny_all(
+                "import-process-malicious-path",
+                TraceContext {
+                    trace_id: "import-process-malicious-path-trace".to_string(),
+                    parent_span_id: None,
+                },
+            )
+            .with_payload(
+                IMPORT_TRANSFORM_CAPABILITY_VERSION,
+                media_package_input(
+                    serde_json::json!({
+                        "version": "process",
+                        "media_files": [{"package_path": "../secret.txt"}]
+                    }),
+                    &[],
+                ),
+            )
+            .expect("malicious import request envelope should be valid"),
+        )
+        .await
+        .expect("malicious import path should return a typed response");
+    assert_eq!(malicious.status, ServiceStatus::Error);
+    assert!(
+        malicious
+            .error
+            .expect("malicious import path error")
+            .message
+            .contains("不能越界")
+    );
+
+    let package = client
+        .read_media_package_zip_typed(
+            ServiceRequestContext::deny_all(
+                "import-process-media-package",
+                TraceContext {
+                    trace_id: "import-process-media-package-trace".to_string(),
+                    parent_span_id: None,
+                },
+            )
+            .with_payload(
+                IMPORT_TRANSFORM_CAPABILITY_VERSION,
+                media_package_input(
+                    serde_json::json!({
+                        "version": "process",
+                        "media_files": [{"package_path": "media/file.txt"}]
+                    }),
+                    &[("media/file.txt", b"process media payload")],
+                ),
+            )
+            .expect("media package import request should be valid"),
+        )
+        .await
+        .expect("media package import should cross the independent process");
+    assert_eq!(package.status, ServiceStatus::Ok);
+    let (manifest, entries) = package
+        .payload
+        .expect("media package import payload")
+        .into_manifest_and_entries_bytes()
+        .expect("decode imported media entries");
+    assert_eq!(manifest["version"], "process");
+    assert_eq!(
+        entries.get("media/file.txt").map(Vec::as_slice),
+        Some(b"process media payload".as_slice())
+    );
+
+    finish_sidecar(process, &manager, IMPORT_SERVICE_NAME, addr).await;
+}

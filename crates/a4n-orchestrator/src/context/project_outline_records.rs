@@ -1,0 +1,276 @@
+use a4n_core::{
+    error::AppError,
+    models::chapter::{chapter_outline, part_outline},
+    models::project::novel_blueprint,
+};
+use a4n_db::{
+    DbHandle,
+    project::{
+        ImportBlueprintUpsertInput, ImportChapterOutlineUpsertInput, ImportPartOutlineUpsertInput,
+        OutlineGenerationProgressRows, ProjectChapterOutlineUpdateInput,
+    },
+};
+
+use super::OrchestratorContext;
+use crate::project::{
+    ensure_positive_project_id, project_chapter_outline_update_error_to_app_error,
+    project_outline_record_error_to_app_error,
+};
+use serde_json::Value;
+
+#[derive(Clone)]
+pub(super) struct ProjectOutlineRecordsApplication {
+    database: DbHandle,
+}
+
+impl ProjectOutlineRecordsApplication {
+    pub(super) fn new(database: DbHandle) -> Self {
+        Self { database }
+    }
+
+    async fn chapter_outline_by_project_number(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+    ) -> Result<Option<chapter_outline::Model>, AppError> {
+        a4n_db::project::chapter_outline_by_project_number(
+            self.database.connection(),
+            project_id,
+            chapter_number,
+        )
+        .await
+        .map_err(project_outline_record_error_to_app_error)
+    }
+
+    async fn chapter_outline_by_id(
+        &self,
+        outline_id: i64,
+    ) -> Result<Option<chapter_outline::Model>, AppError> {
+        a4n_db::project::chapter_outline_by_id(self.database.connection(), outline_id)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+
+    async fn upsert_import_chapter_outline(
+        &self,
+        input: ImportChapterOutlineUpsertInput,
+    ) -> Result<chapter_outline::Model, AppError> {
+        a4n_db::project::upsert_import_chapter_outline(self.database.connection(), input)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+
+    /// 规范化标题/摘要/结构化字段后更新章节大纲。
+    async fn update_chapter_outline_validated(
+        &self,
+        input: ProjectChapterOutlineUpdateInput,
+    ) -> Result<chapter_outline::Model, AppError> {
+        let input = normalize_chapter_outline_update_input(input)?;
+        a4n_db::project::update_chapter_outline_record(self.database.connection(), input)
+            .await
+            .map_err(project_chapter_outline_update_error_to_app_error)
+    }
+
+    async fn upsert_import_part_outline(
+        &self,
+        input: ImportPartOutlineUpsertInput,
+    ) -> Result<part_outline::Model, AppError> {
+        a4n_db::project::upsert_import_part_outline(self.database.connection(), input)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+
+    async fn upsert_import_blueprint(
+        &self,
+        input: ImportBlueprintUpsertInput,
+    ) -> Result<novel_blueprint::Model, AppError> {
+        a4n_db::project::upsert_import_blueprint(self.database.connection(), input)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+
+    async fn chapter_outlines_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+        a4n_db::project::chapter_outlines_for_project(self.database.connection(), project_id)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+
+    async fn part_outlines_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<part_outline::Model>, AppError> {
+        a4n_db::project::part_outlines_for_project(self.database.connection(), project_id)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+
+    async fn part_outline_by_id(
+        &self,
+        part_id: i64,
+    ) -> Result<Option<part_outline::Model>, AppError> {
+        a4n_db::project::part_outline_by_id(self.database.connection(), part_id)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+
+    async fn outline_generation_progress_rows(
+        &self,
+        project_id: i64,
+    ) -> Result<OutlineGenerationProgressRows, AppError> {
+        a4n_db::project::outline_generation_progress_rows(self.database.connection(), project_id)
+            .await
+            .map_err(project_outline_record_error_to_app_error)
+    }
+}
+
+impl OrchestratorContext {
+    pub async fn chapter_outline_by_project_number(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+    ) -> Result<Option<chapter_outline::Model>, AppError> {
+        self.project_outline_records
+            .chapter_outline_by_project_number(project_id, chapter_number)
+            .await
+    }
+
+    pub async fn chapter_outline_by_id(
+        &self,
+        outline_id: i64,
+    ) -> Result<Option<chapter_outline::Model>, AppError> {
+        self.project_outline_records
+            .chapter_outline_by_id(outline_id)
+            .await
+    }
+
+    pub(crate) async fn upsert_import_chapter_outline(
+        &self,
+        input: ImportChapterOutlineUpsertInput,
+    ) -> Result<chapter_outline::Model, AppError> {
+        self.project_outline_records
+            .upsert_import_chapter_outline(input)
+            .await
+    }
+
+    /// 更新章节大纲：ID 门禁 + 可选字段规范化后落库。
+    pub async fn update_chapter_outline_validated(
+        &self,
+        input: ProjectChapterOutlineUpdateInput,
+    ) -> Result<chapter_outline::Model, AppError> {
+        self.project_outline_records
+            .update_chapter_outline_validated(input)
+            .await
+    }
+
+    pub(crate) async fn upsert_import_part_outline(
+        &self,
+        input: ImportPartOutlineUpsertInput,
+    ) -> Result<part_outline::Model, AppError> {
+        self.project_outline_records
+            .upsert_import_part_outline(input)
+            .await
+    }
+
+    pub(crate) async fn upsert_import_blueprint(
+        &self,
+        input: ImportBlueprintUpsertInput,
+    ) -> Result<novel_blueprint::Model, AppError> {
+        self.project_outline_records
+            .upsert_import_blueprint(input)
+            .await
+    }
+
+    pub async fn chapter_outlines_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+        self.project_outline_records
+            .chapter_outlines_for_project(project_id)
+            .await
+    }
+
+    pub async fn part_outlines_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<part_outline::Model>, AppError> {
+        self.project_outline_records
+            .part_outlines_for_project(project_id)
+            .await
+    }
+
+    pub async fn part_outline_by_id(
+        &self,
+        part_id: i64,
+    ) -> Result<Option<part_outline::Model>, AppError> {
+        self.project_outline_records
+            .part_outline_by_id(part_id)
+            .await
+    }
+
+    pub async fn outline_generation_progress_rows(
+        &self,
+        project_id: i64,
+    ) -> Result<OutlineGenerationProgressRows, AppError> {
+        self.project_outline_records
+            .outline_generation_progress_rows(project_id)
+            .await
+    }
+}
+
+fn normalize_chapter_outline_update_input(
+    input: ProjectChapterOutlineUpdateInput,
+) -> Result<ProjectChapterOutlineUpdateInput, AppError> {
+    ensure_positive_project_id(input.project_id)?;
+    if input.outline_id <= 0 {
+        return Err(AppError::InvalidArgument(
+            "章节大纲 ID 必须大于 0".to_string(),
+        ));
+    }
+    let title = match input.title {
+        Some(value) => Some(require_non_empty_outline_text(&value, "title")?),
+        None => None,
+    };
+    let summary = match input.summary {
+        Some(value) => Some(require_non_empty_outline_text(&value, "summary")?),
+        None => None,
+    };
+    let beats = match input.beats {
+        Some(value) => Some(require_outline_json_array(value, "beats")?),
+        None => None,
+    };
+    let key_scenes = match input.key_scenes {
+        Some(value) => Some(require_outline_json_array(value, "key_scenes")?),
+        None => None,
+    };
+    Ok(ProjectChapterOutlineUpdateInput {
+        project_id: input.project_id,
+        outline_id: input.outline_id,
+        title,
+        summary,
+        beats,
+        key_scenes,
+    })
+}
+
+fn require_non_empty_outline_text(value: &str, field: &str) -> Result<String, AppError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidArgument(format!(
+            "章节大纲字段 {field} 不能为空"
+        )));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn require_outline_json_array(value: Value, field: &str) -> Result<Value, AppError> {
+    if value.is_array() {
+        Ok(value)
+    } else {
+        Err(AppError::InvalidArgument(format!(
+            "章节大纲字段 {field} 必须是数组"
+        )))
+    }
+}

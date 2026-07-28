@@ -1,10 +1,71 @@
 use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_outline;
+use a4n_core::models::chapter::{chapter_outline, part_outline};
 use a4n_llm::provider::is_truncated_finish_reason;
 
 use super::ProgressReporter;
 
-pub(in crate::outline) fn report_progress(
+pub fn part_chapter_count(start_chapter: i32, end_chapter: i32) -> Result<i32, AppError> {
+    if start_chapter <= 0 || end_chapter < start_chapter {
+        return Err(AppError::InvalidArgument(format!(
+            "分部章节范围无效：start_chapter={start_chapter}, end_chapter={end_chapter}"
+        )));
+    }
+    let count = i64::from(end_chapter) - i64::from(start_chapter) + 1;
+    i32::try_from(count).map_err(|_| {
+        AppError::InvalidArgument(format!(
+            "分部章节数量超出 i32 范围：start_chapter={start_chapter}, end_chapter={end_chapter}"
+        ))
+    })
+}
+
+pub fn progress_total(chapter_count: i32) -> Result<u32, AppError> {
+    if chapter_count <= 0 {
+        return Err(AppError::InvalidArgument(format!(
+            "章节大纲进度总量必须大于 0，实际为 {chapter_count}"
+        )));
+    }
+    u32::try_from(chapter_count).map_err(|_| {
+        AppError::InvalidArgument(format!("章节大纲进度总量超出 u32 范围：{chapter_count}"))
+    })
+}
+
+pub fn batch_parts_progress_total(parts: &[part_outline::Model]) -> Result<u32, AppError> {
+    if parts.is_empty() {
+        return Err(AppError::InvalidArgument(
+            "批量章节大纲生成至少需要一个分部".to_string(),
+        ));
+    }
+    parts.iter().try_fold(0_u32, |total, part| {
+        let count = part_chapter_count(part.start_chapter, part.end_chapter)?;
+        total.checked_add(progress_total(count)?).ok_or_else(|| {
+            AppError::InvalidArgument("批量章节大纲进度总量超出 u32 范围".to_string())
+        })
+    })
+}
+
+pub fn order_parts_for_batch_generation(parts: &mut [part_outline::Model]) {
+    parts.sort_by_key(|part| (part.part_number, part.id));
+}
+
+pub fn required_outline_pacing_score(
+    pacing_score: Option<f32>,
+    chapter_number: i32,
+) -> Result<f32, AppError> {
+    let score = pacing_score.ok_or_else(|| {
+        AppError::InvalidArgument(format!(
+            "第 {chapter_number} 章缺少 pacing_score，无法分析节奏"
+        ))
+    })?;
+    if score.is_finite() {
+        Ok(score)
+    } else {
+        Err(AppError::InvalidArgument(format!(
+            "第 {chapter_number} 章 pacing_score 不是有限数字，无法分析节奏"
+        )))
+    }
+}
+
+pub fn report_progress(
     progress: ProgressReporter<'_>,
     current: i32,
     total: i32,
@@ -30,7 +91,7 @@ pub(in crate::outline) fn report_progress(
     Ok(())
 }
 
-pub(in crate::outline) fn ensure_response_not_truncated(
+pub fn ensure_response_not_truncated(
     finish_reason: Option<&str>,
     label: &str,
 ) -> Result<(), AppError> {
@@ -42,7 +103,7 @@ pub(in crate::outline) fn ensure_response_not_truncated(
     Ok(())
 }
 
-pub(in crate::outline) fn validate_existing_chapter_outline_for_request(
+pub fn validate_existing_chapter_outline_for_request(
     outline: &chapter_outline::Model,
     chapter_number: i32,
     expected_part_id: Option<i64>,

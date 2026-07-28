@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -61,6 +62,51 @@ pub fn delete_fastembed_model(model_name: &str, cache_dir: &Path) -> Result<(), 
         .join(repo_folder_name(&resolved.info.model_code));
     if locks_path.exists() {
         std::fs::remove_dir_all(locks_path)?;
+    }
+    Ok(())
+}
+
+pub fn remove_incomplete_fastembed_model_caches(cache_dir: &Path) -> Result<Vec<String>, AppError> {
+    let mut repositories = BTreeMap::<PathBuf, Vec<ModelInfo<EmbeddingModel>>>::new();
+    for info in TextEmbedding::list_supported_models() {
+        repositories
+            .entry(model_cache_path(&info, cache_dir))
+            .or_default()
+            .push(info);
+    }
+
+    let mut removed = Vec::new();
+    for (repo_path, variants) in repositories {
+        if !repo_path.exists() {
+            continue;
+        }
+        let mut complete = false;
+        for info in &variants {
+            if snapshot_with_required_files(info, &repo_path)?.is_some() {
+                complete = true;
+                break;
+            }
+        }
+        if complete {
+            continue;
+        }
+
+        remove_path(&repo_path)?;
+        let repo_name = repo_folder_name(&variants[0].model_code);
+        let lock_path = cache_dir.join(".locks").join(&repo_name);
+        if lock_path.exists() {
+            remove_path(&lock_path)?;
+        }
+        removed.push(repo_name);
+    }
+    Ok(removed)
+}
+
+fn remove_path(path: &Path) -> Result<(), AppError> {
+    if path.is_dir() {
+        std::fs::remove_dir_all(path)?;
+    } else {
+        std::fs::remove_file(path)?;
     }
     Ok(())
 }

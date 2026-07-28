@@ -4,11 +4,12 @@ use a4n_core::error::AppError;
 use a4n_embedding::provider::DownloadProgress;
 use a4n_embedding_fastembed::{download_fastembed_model, list_fastembed_local_models};
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceTaskEvent, redact_sensitive_message,
+    CapabilityTaskEvent, ServiceError, ServiceErrorCode, redact_sensitive_message,
 };
 use a4n_sidecar_bootstrap::service_event_line;
 use axum::body::Bytes;
 use futures::{Stream, stream};
+use tokio_util::sync::CancellationToken;
 
 use super::projection::{completed_download_event, download_progress_event, failed_download_event};
 use crate::protocol::service_error;
@@ -18,40 +19,53 @@ pub(super) fn embedding_download_event_stream(
     model: String,
     cache_dir: PathBuf,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> + Send + 'static {
-    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel::<ServiceTaskEvent>();
+    let (event_tx, event_rx) = tokio::sync::mpsc::channel::<CapabilityTaskEvent>(
+        a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY,
+    );
     tokio::spawn(async move {
         let (progress_tx, mut progress_rx) =
             tokio::sync::mpsc::unbounded_channel::<DownloadProgress>();
         let download_cache_dir = cache_dir.clone();
+        let cancel_token = CancellationToken::new();
+        let download_cancel_token = cancel_token.clone();
         let mut download_task = tokio::spawn(async move {
-            download_fastembed_model(&model, download_cache_dir.clone(), Some(progress_tx), None)
-                .await?;
+            download_fastembed_model(
+                &model,
+                download_cache_dir.clone(),
+                Some(progress_tx),
+                Some(download_cancel_token),
+            )
+            .await?;
             let models = list_fastembed_local_models(&download_cache_dir)?;
             serde_json::to_value(models).map_err(AppError::from)
         });
         let mut sequence = 0;
         let mut progress_open = true;
         loop {
-            if event_tx.is_closed() {
-                download_task.abort();
-                break;
-            }
             tokio::select! {
+                _ = event_tx.closed() => {
+                    cancel_token.cancel();
+                    let _ = download_task.await;
+                    break;
+                }
                 progress = progress_rx.recv(), if progress_open => match progress {
                     Some(progress) => {
                         sequence += 1;
                         let event = match download_progress_event(task_id.clone(), sequence, progress) {
                             Ok(event) => event,
                             Err(error) => {
-                                download_task.abort();
-                                if event_tx.send(failed_download_event(task_id.clone(), sequence, error)).is_err() {
+                                cancel_token.cancel();
+                                if event_tx.send(failed_download_event(task_id.clone(), sequence, error)).await.is_err() {
+                                    let _ = download_task.await;
                                     break;
                                 }
+                                let _ = download_task.await;
                                 break;
                             }
                         };
-                        if event_tx.send(event).is_err() {
-                            download_task.abort();
+                        if event_tx.send(event).await.is_err() {
+                            cancel_token.cancel();
+                            let _ = download_task.await;
                             break;
                         }
                     }
@@ -63,13 +77,13 @@ pub(super) fn embedding_download_event_stream(
                         let event = match download_progress_event(task_id.clone(), sequence, progress) {
                             Ok(event) => event,
                             Err(error) => {
-                                if event_tx.send(failed_download_event(task_id.clone(), sequence, error)).is_err() {
+                                    if event_tx.send(failed_download_event(task_id.clone(), sequence, error)).await.is_err() {
                                     return;
                                 }
                                 return;
                             }
                         };
-                        if event_tx.send(event).is_err() {
+                        if event_tx.send(event).await.is_err() {
                             return;
                         }
                     }
@@ -89,7 +103,7 @@ pub(super) fn embedding_download_event_stream(
                             },
                         ),
                     };
-                    if event_tx.send(event).is_err() {
+                    if event_tx.send(event).await.is_err() {
                         break;
                     }
                     break;

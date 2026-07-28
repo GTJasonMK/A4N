@@ -13,19 +13,23 @@ use crate::optimize::{
 
 impl OrchestratorContext {
     /// 创建一个不先跑分析的普通交互会话。
-    pub async fn start_chat_session(
+    pub(crate) async fn start_chat_session(
         &self,
         project_id: i64,
         chapter_id: i64,
         name: &str,
         variables: &HashMap<String, Value>,
     ) -> Result<optimization_session::Model, AppError> {
-        let name =
-            required_available_session_name(self.db.connection(), project_id, chapter_id, name)
-                .await?;
+        let name = required_available_session_name(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+            name,
+        )
+        .await?;
         let permissions = OptimizeAgentPermissions::from_variables(variables);
         let analysis_context = build_content_optimization_context(
-            self.db.connection(),
+            self.database.connection(),
             project_id,
             chapter_id,
             &permissions,
@@ -34,7 +38,7 @@ impl OrchestratorContext {
         let context_manifest =
             serde_json::to_string_pretty(&optimization_context_manifest(&analysis_context))?;
         let session = a4n_db::optimize::create_optimization_session(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationSessionCreateInput {
                 project_id,
                 chapter_id,

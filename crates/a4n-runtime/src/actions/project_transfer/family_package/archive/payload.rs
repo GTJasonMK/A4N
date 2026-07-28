@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
-use super::super::validation::{validate_media_bytes, validate_package_entry_path};
-use super::super::{ImportMediaPayload, ProjectFamilyPackage, media_asset_path, media_file_key};
+use super::super::{FamilyImportMediaPayload, ProjectFamilyPackage};
+use a4n_orchestrator::project::{
+    media_asset_path, media_file_key, validate_family_media_bytes as validate_media_bytes,
+    validate_family_package_entry_path as validate_package_entry_path,
+};
 
 pub(super) fn read_media_payloads_from_entries(
     package: &ProjectFamilyPackage,
     bytes: HashMap<String, Vec<u8>>,
-) -> Result<ImportMediaPayload, String> {
+) -> Result<FamilyImportMediaPayload, String> {
     let media_assets = package
         .media_assets
         .iter()
@@ -51,5 +54,5 @@ pub(super) fn read_media_payloads_from_entries(
             validate_media_bytes(asset, file_bytes)?;
         }
     }
-    Ok(ImportMediaPayload { entries, bytes })
+    Ok(FamilyImportMediaPayload { entries, bytes })
 }

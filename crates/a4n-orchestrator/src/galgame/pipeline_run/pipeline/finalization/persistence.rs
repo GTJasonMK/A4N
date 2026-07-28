@@ -24,10 +24,13 @@ pub(in crate::galgame::pipeline_run::pipeline) async fn persist_galgame_pipeline
     late: &GalgamePipelineLateOutputs,
 ) -> Result<GalgameScriptDetail, AppError> {
     let stage = GalgamePipelineStartStage::PersistScript;
-    ensure_galgame_pipeline_not_cancelled(&execution.service.db, execution.options.workflow_run_id)
-        .await?;
+    ensure_galgame_pipeline_not_cancelled(
+        &execution.service.database,
+        execution.options.workflow_run_id,
+    )
+    .await?;
     mark_workflow_current_step(
-        execution.service.db.connection(),
+        execution.service.database.connection(),
         execution.options.workflow_run_id,
         stage.key(),
     )
@@ -62,7 +65,7 @@ pub(in crate::galgame::pipeline_run::pipeline) async fn persist_galgame_pipeline
         .map(|scene| scene.lines.len())
         .sum::<usize>();
     upsert_workflow_checkpoint(
-        execution.service.db.connection(),
+        execution.service.database.connection(),
         UpsertWorkflowCheckpointInput {
             workflow_run_id: execution.options.workflow_run_id,
             step_key: CHECKPOINT_PERSIST_SCRIPT.to_string(),

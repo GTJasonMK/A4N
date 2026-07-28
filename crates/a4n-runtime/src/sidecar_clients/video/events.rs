@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use a4n_core::error::AppError;
 use a4n_core::models::ai::video_gen_config;
-use a4n_service_protocol::{ServiceErrorCode, ServiceTaskEvent, ServiceTaskEventKind};
+use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode};
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult};
 use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
@@ -17,12 +17,14 @@ pub(in crate::sidecar_clients::video) async fn generate_video_via_sidecar(
     client: Arc<dyn a4n_capabilities::VideoClient>,
     config: &video_gen_config::Model,
     request: VideoGenerationRequest,
+    provider_idempotency_key_sha256: Option<String>,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
     workflow_run_id: Option<i64>,
     progress_tx: Option<UnboundedSender<String>>,
 ) -> Result<VideoGenerationResult, String> {
-    let payload = video_provider_payload(config, request, project_id)?;
+    let payload =
+        video_provider_payload(config, request, provider_idempotency_key_sha256, project_id)?;
     let request = service_request_with_context_provider_secret_policy(
         sidecar_context_for_workflow_operation_with_root(
             project_id,
@@ -34,7 +36,8 @@ pub(in crate::sidecar_clients::video) async fn generate_video_via_sidecar(
         a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
         payload,
     )?;
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (event_tx, mut event_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
     let mut request_future = Box::pin(client.generate_events(request, event_tx));
     let mut transport_complete = false;
     let output = loop {
@@ -57,11 +60,11 @@ pub(in crate::sidecar_clients::video) async fn generate_video_via_sidecar(
 }
 
 pub(in crate::sidecar_clients::video) fn handle_video_generation_event(
-    event: ServiceTaskEvent,
+    event: CapabilityTaskEvent,
     progress_tx: Option<&UnboundedSender<String>>,
 ) -> Result<Option<VideoGenerationOutput>, String> {
     match event.event_kind {
-        ServiceTaskEventKind::Progress | ServiceTaskEventKind::StructuredProgress => {
+        CapabilityTaskEventKind::Progress | CapabilityTaskEventKind::StructuredProgress => {
             let payload = event
                 .payload
                 .ok_or_else(|| "video sidecar progress 事件缺少 payload".to_string())?;
@@ -78,7 +81,7 @@ pub(in crate::sidecar_clients::video) fn handle_video_generation_event(
             }
             Ok(None)
         }
-        ServiceTaskEventKind::Completed => {
+        CapabilityTaskEventKind::Completed => {
             let payload = event
                 .payload
                 .ok_or_else(|| "video sidecar completed 事件缺少 payload".to_string())?;
@@ -86,7 +89,7 @@ pub(in crate::sidecar_clients::video) fn handle_video_generation_event(
                 .map(Some)
                 .map_err(|error| format!("video sidecar completed payload 解析失败: {error}"))
         }
-        ServiceTaskEventKind::Failed => {
+        CapabilityTaskEventKind::Failed => {
             let error = event
                 .error
                 .ok_or_else(|| "video sidecar failed 事件缺少 error".to_string())?;
@@ -96,7 +99,10 @@ pub(in crate::sidecar_clients::video) fn handle_video_generation_event(
                 Err(service_error_string(error))
             }
         }
-        ServiceTaskEventKind::CancelAck => Err(AppError::Cancelled.to_string()),
-        other => Err(format!("video sidecar 生成事件类型不符合合同: {other:?}")),
+        CapabilityTaskEventKind::CancelAck => Err(AppError::Cancelled.to_string()),
+        CapabilityTaskEventKind::Chunk
+        | CapabilityTaskEventKind::Usage
+        | CapabilityTaskEventKind::Checkpoint
+        | CapabilityTaskEventKind::Artifact => Ok(None),
     }
 }

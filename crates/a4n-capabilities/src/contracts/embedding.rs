@@ -1,4 +1,4 @@
-use a4n_service_protocol::ServiceTaskEvent;
+use a4n_service_protocol::CapabilityTaskEvent;
 use async_trait::async_trait;
 
 use super::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse};
@@ -10,6 +10,6 @@ pub trait EmbeddingClient: CapabilityClient {
     async fn download_model_events(
         &self,
         request: JsonRequest,
-        events: tokio::sync::mpsc::UnboundedSender<ServiceTaskEvent>,
+        events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()>;
 }

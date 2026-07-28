@@ -46,6 +46,7 @@ interface VideoAssemblyWorkspaceProps {
 }
 
 const CHAPTER_VIDEO_TYPE = "chapter_video";
+const REFERENCE_MEDIA_VIDEO_TYPE = "reference_media_video";
 const ASSEMBLY_INSERT_VIDEO_TYPE = "assembly_insert";
 const ASSEMBLY_PUSH_VIDEO_TYPE = "assembly_push";
 const ASSEMBLY_ORDER_STEP = 1000;
@@ -64,7 +65,10 @@ const assemblyInsertAfterVideoId = (video: GeneratedVideo): number | null => {
 };
 
 const assemblyClipSortOrder = (video: GeneratedVideo): number | null => {
-  if (video.video_type === CHAPTER_VIDEO_TYPE) {
+  if (
+    video.video_type === CHAPTER_VIDEO_TYPE ||
+    video.video_type === REFERENCE_MEDIA_VIDEO_TYPE
+  ) {
     const shotNumber = clipShotNumber(video);
     return shotNumber == null ? null : shotNumber * ASSEMBLY_ORDER_STEP;
   }
@@ -168,8 +172,13 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         .filter(
           (video) =>
             (video.video_type === CHAPTER_VIDEO_TYPE ||
+              video.video_type === REFERENCE_MEDIA_VIDEO_TYPE ||
               video.video_type === ASSEMBLY_INSERT_VIDEO_TYPE) &&
-            video.workflow_mode === workflowMode &&
+            (workflowMode === "mixed"
+              ? video.video_type === ASSEMBLY_INSERT_VIDEO_TYPE
+                ? video.workflow_mode === "mixed"
+                : asRecord(video.metadata_json)?.selected_for_segment === true
+              : video.workflow_mode === workflowMode) &&
             video.status === "completed" &&
             Boolean(video.file_path?.trim()) &&
             assemblyClipSortOrder(video) != null,

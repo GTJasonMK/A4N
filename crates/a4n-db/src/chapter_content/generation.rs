@@ -94,10 +94,29 @@ where
         .begin()
         .await
         .map_err(ChapterGenerationLifecycleError::database)?;
+    let updated_chapter =
+        finish_generated_chapter_content_record_in_transaction(&tx, input).await?;
+    tx.commit()
+        .await
+        .map_err(ChapterGenerationLifecycleError::database)?;
+    Ok(updated_chapter)
+}
+
+/// Writes the canonical chapter result into an already-open transaction.
+///
+/// Generation terminal completion uses this entry so the chapter row and the
+/// generation terminal/checkpoint commit share one database transaction.
+pub async fn finish_generated_chapter_content_record_in_transaction<C>(
+    db: &C,
+    input: GeneratedChapterContentRecordInput,
+) -> Result<chapter::Model, ChapterGenerationLifecycleError>
+where
+    C: ConnectionTrait,
+{
     let updated_chapter = match input.existing_chapter_id {
         Some(chapter_id) => {
             let current = chapter::Entity::find_by_id(chapter_id)
-                .one(&tx)
+                .one(db)
                 .await
                 .map_err(ChapterGenerationLifecycleError::database)?
                 .ok_or_else(|| {
@@ -120,7 +139,7 @@ where
             active.status = Set(STATUS_DRAFT.to_string());
             active.updated_at = Set(input.now);
             active
-                .update(&tx)
+                .update(db)
                 .await
                 .map_err(ChapterGenerationLifecycleError::database)?
         }
@@ -139,15 +158,12 @@ where
             updated_at: Set(input.now),
             ..Default::default()
         }
-        .insert(&tx)
+        .insert(db)
         .await
         .map_err(ChapterGenerationLifecycleError::database)?,
     };
 
-    delete_generation_run_targets_for(&tx, "chapter_content", &[updated_chapter.id]).await?;
-    delete_generation_run_targets_for(&tx, "chapter_analysis", &[updated_chapter.id]).await?;
-    tx.commit()
-        .await
-        .map_err(ChapterGenerationLifecycleError::database)?;
+    delete_generation_run_targets_for(db, "chapter_content", &[updated_chapter.id]).await?;
+    delete_generation_run_targets_for(db, "chapter_analysis", &[updated_chapter.id]).await?;
     Ok(updated_chapter)
 }

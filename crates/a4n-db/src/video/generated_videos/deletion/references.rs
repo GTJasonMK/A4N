@@ -39,9 +39,60 @@ where
         .all(db)
         .await?;
     for prompt in prompts {
+        let replacement = generated_video::Entity::find()
+            .filter(generated_video::Column::ProjectId.eq(prompt.project_id))
+            .filter(generated_video::Column::ChapterId.eq(prompt.chapter_id))
+            .filter(generated_video::Column::Status.eq("completed"))
+            .all(db)
+            .await?
+            .into_iter()
+            .filter(|video| !video_ids.contains(&video.id))
+            .filter(|video| {
+                video
+                    .metadata_json
+                    .as_ref()
+                    .and_then(|metadata| metadata.get("prompt_id"))
+                    .and_then(Value::as_i64)
+                    == Some(prompt.id)
+            })
+            .max_by_key(|video| (video.updated_at, video.id));
         let mut active: chapter_video_prompt::ActiveModel = prompt.into();
-        active.generated_video_id = Set(None);
-        active.status = Set("pending".to_string());
+        active.generated_video_id = Set(replacement.as_ref().map(|video| video.id));
+        active.status = Set(if replacement.is_some() {
+            "completed".to_string()
+        } else {
+            "pending".to_string()
+        });
+        active.updated_at = Set(now);
+        active.update(db).await?;
+    }
+
+    let project_ids = video_projects.values().copied().collect::<Vec<_>>();
+    let continuity_prompts = chapter_video_prompt::Entity::find()
+        .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids))
+        .all(db)
+        .await?;
+    for prompt in continuity_prompts {
+        let source_video_id = prompt
+            .metadata_json
+            .as_ref()
+            .and_then(|metadata| metadata.get("continuity_source"))
+            .and_then(|source| source.get("video_id"))
+            .and_then(Value::as_i64);
+        if source_video_id.is_none_or(|source_id| !video_ids.contains(&source_id)) {
+            continue;
+        }
+        let mut metadata = prompt.metadata_json.clone().unwrap_or(Value::Null);
+        let Some(metadata) = metadata.as_object_mut() else {
+            continue;
+        };
+        metadata.insert("continuity_stale".to_string(), Value::Bool(true));
+        metadata.insert(
+            "continuity_stale_reason".to_string(),
+            Value::String("continuity_source_deleted".to_string()),
+        );
+        let mut active: chapter_video_prompt::ActiveModel = prompt.into();
+        active.metadata_json = Set(Some(Value::Object(metadata.clone())));
         active.updated_at = Set(now);
         active.update(db).await?;
     }

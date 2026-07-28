@@ -9,8 +9,7 @@ use crate::AppState;
 
 use super::super::{
     contracts::{EmbeddingModelExecution, EmbeddingModelInput},
-    provider::fastembed_cache_dir,
-    rules::{embedding_model_execution, required_text},
+    host_adapter::{embedding_model_execution, required_text},
 };
 
 pub async fn delete_local_embedding_model(
@@ -18,7 +17,7 @@ pub async fn delete_local_embedding_model(
     input: EmbeddingModelInput,
 ) -> Result<(), AppError> {
     let model = required_text(&input.model, "fastembed 模型名")?;
-    if embedding_model_execution(state.runtime_profile) == EmbeddingModelExecution::Sidecar {
+    if embedding_model_execution(state.runtime_profile()) == EmbeddingModelExecution::Sidecar {
         let output: DeleteEmbeddingModelOutput = crate::sidecar_clients::embedding_model_operation(
             state.capabilities(),
             "delete",
@@ -32,7 +31,7 @@ pub async fn delete_local_embedding_model(
         }
         return Ok(());
     }
-    delete_local_embedding_model_in_cache(&model, &fastembed_cache_dir(state))
+    delete_local_embedding_model_in_cache(&model, &state.default_fastembed_cache_dir())
 }
 
 #[derive(Debug, Deserialize)]

@@ -22,7 +22,7 @@ pub(in crate::actions::task_records) async fn verify_task_access(
     task_id: &str,
 ) -> Result<(), String> {
     if let Some(task) = state
-        .orchestrator
+        .workflow()
         .persisted_task_by_id(task_id)
         .await
         .map_err(app_error_message)?
@@ -36,8 +36,7 @@ pub(in crate::actions::task_records) async fn verify_task_access(
         .await;
     }
     let snapshot = state
-        .task_manager
-        .list_active_snapshots()
+        .active_task_snapshots()
         .into_iter()
         .find(|snapshot| snapshot.task_id == task_id)
         .ok_or_else(|| format!("任务不存在: {task_id}"))?;

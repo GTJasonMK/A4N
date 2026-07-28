@@ -1,5 +1,6 @@
 use super::super::contracts::ImportedVideoSource;
-use super::super::prelude::{AppState, Path, PathBuf, ProjectPaths, ensure_chapter_videos_dir};
+use super::super::prelude::{Path, PathBuf, ProjectPaths, ensure_chapter_videos_dir};
+use a4n_orchestrator::video::import_video_extension;
 
 pub(in crate::actions::video_records::imports) fn import_video_source(
     file_path: &str,
@@ -41,44 +42,26 @@ pub(in crate::actions::video_records) fn import_video_source_path(
         .map_err(|e| format!("无法解析导入视频路径：{e}"))
 }
 
-pub(in crate::actions::video_records) fn import_video_extension(
-    path: &Path,
-) -> Result<&'static str, String> {
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| format!("导入视频缺少文件扩展名：{}", path.display()))?;
-    match extension.to_ascii_lowercase().as_str() {
-        "mp4" => Ok("mp4"),
-        "webm" => Ok("webm"),
-        "mov" => Ok("mov"),
-        "m4v" => Ok("m4v"),
-        _ => Err(format!("导入视频格式不支持：{extension}")),
-    }
-}
-
 pub(in crate::actions::video_records) fn import_video_output_path(
-    state: &AppState,
+    data_dir: &Path,
     project_id: i64,
     chapter_id: i64,
     video_id: i64,
     prefix: &str,
     extension: &str,
 ) -> Result<PathBuf, String> {
-    let dir = ensure_chapter_videos_dir(state, project_id, chapter_id)?;
+    let dir = ensure_chapter_videos_dir(data_dir, project_id, chapter_id)?;
     Ok(dir.join(format!("{prefix}_{video_id}.{extension}")))
 }
 
 pub(in crate::actions::video_records::imports) fn import_project_video_output_path(
-    state: &AppState,
+    data_dir: &Path,
     project_id: i64,
     video_id: i64,
     prefix: &str,
     extension: &str,
 ) -> Result<PathBuf, String> {
-    let dir = ProjectPaths::new(&state.config.data_dir, project_id).videos_dir();
+    let dir = ProjectPaths::new(data_dir, project_id).videos_dir();
     std::fs::create_dir_all(&dir).map_err(|err| format!("无法创建项目视频目录：{err}"))?;
     Ok(dir.join(format!("{prefix}_{video_id}.{extension}")))
 }

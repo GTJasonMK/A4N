@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-pub(in crate::outline) fn required_string(json: &Value, key: &str) -> Result<String, AppError> {
+pub fn required_string(json: &Value, key: &str) -> Result<String, AppError> {
     let value = json
         .get(key)
         .ok_or_else(|| AppError::InvalidArgument(format!("大纲结果缺少必需字段: {key}")))?;
@@ -17,11 +17,7 @@ pub(in crate::outline) fn required_string(json: &Value, key: &str) -> Result<Str
     Ok(text.to_string())
 }
 
-pub(in crate::outline) fn required_i32(
-    json: &Value,
-    key: &str,
-    expected: i32,
-) -> Result<i32, AppError> {
+pub fn required_i32(json: &Value, key: &str, expected: i32) -> Result<i32, AppError> {
     let raw = json
         .get(key)
         .and_then(Value::as_i64)
@@ -34,7 +30,7 @@ pub(in crate::outline) fn required_i32(
     Ok(expected)
 }
 
-pub(in crate::outline) fn required_array(json: &Value, key: &str) -> Result<Value, AppError> {
+pub fn required_array(json: &Value, key: &str) -> Result<Value, AppError> {
     let value = json
         .get(key)
         .ok_or_else(|| AppError::InvalidArgument(format!("大纲结果缺少必需字段: {key}")))?;
@@ -46,10 +42,7 @@ pub(in crate::outline) fn required_array(json: &Value, key: &str) -> Result<Valu
     Ok(value.clone())
 }
 
-pub(in crate::outline) fn optional_array(
-    json: &Value,
-    key: &str,
-) -> Result<Option<Value>, AppError> {
+pub fn optional_array(json: &Value, key: &str) -> Result<Option<Value>, AppError> {
     let Some(value) = json.get(key) else {
         return Ok(None);
     };
@@ -61,7 +54,7 @@ pub(in crate::outline) fn optional_array(
     Ok(Some(value.clone()))
 }
 
-pub(in crate::outline) fn required_object(json: &Value, key: &str) -> Result<Value, AppError> {
+pub fn required_object(json: &Value, key: &str) -> Result<Value, AppError> {
     let value = json
         .get(key)
         .ok_or_else(|| AppError::InvalidArgument(format!("大纲结果缺少必需字段: {key}")))?;
@@ -73,11 +66,11 @@ pub(in crate::outline) fn required_object(json: &Value, key: &str) -> Result<Val
     Ok(value.clone())
 }
 
-pub(in crate::outline) fn optional_non_null(json: &Value, key: &str) -> Option<Value> {
+pub fn optional_non_null(json: &Value, key: &str) -> Option<Value> {
     json.get(key).filter(|value| !value.is_null()).cloned()
 }
 
-pub(in crate::outline) fn optional_i32(json: &Value, key: &str) -> Result<Option<i32>, AppError> {
+pub fn optional_i32(json: &Value, key: &str) -> Result<Option<i32>, AppError> {
     let Some(value) = json.get(key) else {
         return Ok(None);
     };
@@ -92,10 +85,7 @@ pub(in crate::outline) fn optional_i32(json: &Value, key: &str) -> Result<Option
         .map_err(|_| AppError::InvalidArgument(format!("大纲字段 {key} 超出 i32 范围")))
 }
 
-pub(in crate::outline) fn optional_positive_i32(
-    json: &Value,
-    key: &str,
-) -> Result<Option<i32>, AppError> {
+pub fn optional_positive_i32(json: &Value, key: &str) -> Result<Option<i32>, AppError> {
     let Some(value) = optional_i32(json, key)? else {
         return Ok(None);
     };
@@ -107,7 +97,7 @@ pub(in crate::outline) fn optional_positive_i32(
     Ok(Some(value))
 }
 
-pub(in crate::outline) fn optional_f32(json: &Value, key: &str) -> Result<Option<f32>, AppError> {
+pub fn optional_f32(json: &Value, key: &str) -> Result<Option<f32>, AppError> {
     let Some(value) = json.get(key) else {
         return Ok(None);
     };

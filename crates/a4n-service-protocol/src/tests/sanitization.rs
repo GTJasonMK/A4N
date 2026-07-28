@@ -54,6 +54,17 @@ fn redacts_sensitive_json_message() {
 }
 
 #[test]
+fn redacts_urls_in_json_message_values() {
+    let message = r#"{"endpoint":"https://user:secret@provider.example/v1","visible":"ok"}"#;
+
+    let redacted = redact_sensitive_message(message);
+
+    assert!(redacted.contains(r#""endpoint":"[REDACTED_URL]""#));
+    assert!(redacted.contains(r#""visible":"ok""#));
+    assert!(!redacted.contains("provider.example"));
+}
+
+#[test]
 fn redacts_sensitive_plain_text_key_values_and_urls() {
     let message =
         "provider failed: base_url=https://provider.example/v1 api_key=sk-test, visible=ok";

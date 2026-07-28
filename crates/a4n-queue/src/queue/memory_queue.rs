@@ -86,18 +86,50 @@ impl MemoryTaskQueue {
         }
     }
 
+    /// 将数据库已经分配 id 的 pending task 登记到同一内存队列。
+    pub fn submit_persisted(&self, task: TaskInfo) -> Result<(), a4n_core::error::AppError> {
+        if !matches!(&task.status, TaskStatus::Pending) {
+            return Err(a4n_core::error::AppError::InvalidState {
+                current: task.status.as_str().to_string(),
+                operation: "登记持久化任务到内存队列".to_string(),
+            });
+        }
+
+        let mut waiting = self.waiting.write();
+        if let Some(existing) = self.tasks.get(&task.id) {
+            let same_identity = existing.task_type == task.task_type
+                && existing.priority == task.priority
+                && existing.project_id == task.project_id
+                && existing.root_project_id == task.root_project_id
+                && existing.source_snapshot_id == task.source_snapshot_id
+                && existing.task_scope == task.task_scope;
+            return if same_identity {
+                Ok(())
+            } else {
+                Err(a4n_core::error::AppError::InvalidState {
+                    current: format!("task {} 已以其他队列元数据登记", task.id),
+                    operation: "重复登记持久化任务".to_string(),
+                })
+            };
+        }
+
+        let task_id = task.id.clone();
+        let priority = task.priority;
+        self.tasks.insert(task_id.clone(), task);
+        self.cancel_tokens
+            .insert(task_id.clone(), CancellationToken::new());
+        waiting.push(WaitingTask::new(priority, task_id));
+        Ok(())
+    }
+
     /// 更新任务状态
     fn update_status(&self, task_id: &str, status: TaskStatus, progress: Option<TaskProgress>) {
         if let Some(mut task) = self.tasks.get_mut(task_id) {
             let now = chrono::Utc::now().naive_utc();
-            match &status {
-                TaskStatus::Running if task.started_at.is_none() => {
-                    task.started_at = Some(now);
-                }
-                TaskStatus::Completed | TaskStatus::Failed { .. } | TaskStatus::Cancelled => {
-                    task.completed_at = Some(now);
-                }
-                _ => {}
+            if matches!(status, TaskStatus::Running) && task.started_at.is_none() {
+                task.started_at = Some(now);
+            } else if is_terminal_status(&status) {
+                task.completed_at = Some(now);
             }
             task.status = status;
             task.progress = progress;

@@ -1,4 +1,4 @@
-fn sample_analysis() -> Value {
+pub fn sample_analysis() -> Value {
     serde_json::json!({
         "metadata": {
             "characters": ["林岚"],

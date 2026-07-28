@@ -1,18 +1,15 @@
+#[cfg(feature = "local-embedding")]
+use super::models::{list_local_embedding_models, list_local_embedding_models_in_cache};
 use super::{
     DownloadProgress,
     contracts::{EmbeddingModelExecution, EmbeddingModelInput, LocalEmbeddingModelSummary},
-    rules::{downloaded_model_summary, embedding_model_execution, required_text},
-};
-#[cfg(feature = "local-embedding")]
-use super::{
-    models::{list_local_embedding_models, list_local_embedding_models_in_cache},
-    provider::fastembed_cache_dir,
+    host_adapter::{downloaded_model_summary, embedding_model_execution, required_text},
 };
 use crate::AppState;
 use a4n_core::error::AppError;
 #[cfg(feature = "local-embedding")]
 use a4n_embedding_fastembed::download_fastembed_model;
-use a4n_queue::priority::{TaskPriority, TaskType as QueueTaskType};
+use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use std::path::PathBuf;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
@@ -24,14 +21,14 @@ pub async fn download_embedding_model(
     cancel_token: Option<CancellationToken>,
 ) -> Result<LocalEmbeddingModelSummary, AppError> {
     let model = required_text(&input.model, "fastembed 模型名")?;
-    if embedding_model_execution(state.runtime_profile) == EmbeddingModelExecution::Sidecar {
+    if embedding_model_execution(state.runtime_profile()) == EmbeddingModelExecution::Sidecar {
         let capabilities = state.capabilities().clone();
         let model_for_download = model.clone();
         let queue_cancel_token = cancel_token.clone().unwrap_or_default();
         let models = state
-            .task_queue
-            .run_tracked_with_cancel(
-                QueueTaskType::EmbeddingDownload,
+            .task_queue()
+            .queue_run_tracked_with_cancel(
+                QueueTaskKind::EmbeddingDownload,
                 TaskPriority::Low,
                 None,
                 queue_cancel_token,
@@ -57,15 +54,15 @@ pub async fn download_embedding_model(
 
     #[cfg(feature = "local-embedding")]
     {
-        let cache_dir = fastembed_cache_dir(state);
+        let cache_dir = state.default_fastembed_cache_dir();
         let queue_cancel_token = cancel_token.clone().unwrap_or_default();
         let model_for_download = model.clone();
         let cache_dir_for_download = cache_dir.clone();
 
         let download_result = state
-            .task_queue
-            .run_tracked_with_cancel(
-                QueueTaskType::EmbeddingDownload,
+            .task_queue()
+            .queue_run_tracked_with_cancel(
+                QueueTaskKind::EmbeddingDownload,
                 TaskPriority::Low,
                 None,
                 queue_cancel_token,

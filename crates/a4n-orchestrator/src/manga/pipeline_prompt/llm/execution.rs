@@ -65,7 +65,7 @@ impl OrchestratorContext {
         let (response_text, usage, finish_reason, restored_parsed_output) =
             if restore_from_checkpoint
                 && let Some(restored) = load_manga_restored_llm_checkpoint(
-                    &self.db,
+                    &self.database,
                     workflow_run_id,
                     &prepared.call_key,
                     &prepared.input_fingerprint_json,
@@ -80,7 +80,7 @@ impl OrchestratorContext {
                     Some(restored.parsed_output),
                 )
             } else {
-                let response = self.llm.chat(prepared.request).await?;
+                let response = self.stream_complete_llm(prepared.request).await?;
                 if is_truncated_finish_reason(response.finish_reason.as_deref()) {
                     return Err(AppError::InvalidArgument(format!(
                         "{prompt_name} 输出被 max_tokens 截断，未形成完整 JSON。当前使用 token 档位 {MANGA_PIPELINE_MAX_TOKENS_PROFILE}，请减少本章输入规模或增大该档位后重试。"

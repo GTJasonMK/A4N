@@ -1,5 +1,4 @@
 use a4n_llm::provider::ChatRequest;
-use serde::Serialize;
 use serde_json::{Value, json};
 
 mod chat;

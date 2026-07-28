@@ -1,14 +1,13 @@
-use crate::events::bridge::EventBridge;
 use a4n_core::config::app_config::AppConfig;
 use a4n_runtime::host_api::embedding_model::{
-    CancelEmbeddingModelDownloadInput, DownloadProgress, EmbeddingModelDownloadInfoSummary,
-    EmbeddingModelInput, LocalEmbedTextsInput, LocalEmbedTextsOutput, LocalEmbeddingConfigInput,
+    CancelEmbeddingModelDownloadInput, EmbeddingModelDownloadInfoSummary, EmbeddingModelInput,
+    LocalEmbedTextsInput, LocalEmbedTextsOutput, LocalEmbeddingConfigInput,
     LocalEmbeddingModelSummary, LocalEmbeddingProviderRuntime,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{State, Window};
+use tauri::State;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -57,7 +56,6 @@ pub async fn local_get_embedding_model_download_info(
 
 #[tauri::command]
 pub async fn local_download_embedding_model(
-    window: Window,
     state: State<'_, LocalEmbeddingRuntimeState>,
     input: EmbeddingModelInput,
 ) -> Result<LocalEmbeddingModelSummary, String> {
@@ -78,27 +76,10 @@ pub async fn local_download_embedding_model(
     } else {
         None
     };
-    let progress_tx = task_id.as_deref().map(|task_id| {
-        let task_id = task_id.to_string();
-        let bridge = EventBridge::new(window.clone());
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<DownloadProgress>();
-        tauri::async_runtime::spawn(async move {
-            while let Some(progress) = rx.recv().await {
-                let _ = bridge.emit_progress_bytes(
-                    &task_id,
-                    progress.downloaded_bytes,
-                    progress.total_bytes,
-                    &progress.message,
-                );
-            }
-        });
-        tx
-    });
-
     let result = a4n_runtime::host_api::embedding_model::download_embedding_model_to_cache(
         input,
         state.fastembed_cache_dir(),
-        progress_tx,
+        None,
         cancel_token,
     )
     .await;
@@ -106,13 +87,7 @@ pub async fn local_download_embedding_model(
         state.download_tasks.lock().await.remove(task_id);
     }
     match result {
-        Ok(summary) => {
-            if let Some(task_id) = task_id.as_deref() {
-                let _ = EventBridge::new(window)
-                    .emit_complete(task_id, Some("模型已下载并完成初始化".into()));
-            }
-            Ok(summary)
-        }
+        Ok(summary) => Ok(summary),
         Err(err) => {
             let is_cancelled = matches!(&err, a4n_core::error::AppError::Cancelled);
             let message = if is_cancelled {
@@ -120,18 +95,6 @@ pub async fn local_download_embedding_model(
             } else {
                 err.to_string()
             };
-            if let Some(task_id) = task_id.as_deref() {
-                let _ = EventBridge::new(window).emit_error(
-                    task_id,
-                    if is_cancelled {
-                        "cancelled"
-                    } else {
-                        "download_failed"
-                    },
-                    &message,
-                    false,
-                );
-            }
             Err(message)
         }
     }
@@ -139,7 +102,6 @@ pub async fn local_download_embedding_model(
 
 #[tauri::command]
 pub async fn local_cancel_embedding_model_download(
-    window: Window,
     state: State<'_, LocalEmbeddingRuntimeState>,
     input: CancelEmbeddingModelDownloadInput,
 ) -> Result<(), String> {
@@ -150,9 +112,7 @@ pub async fn local_cancel_embedding_model_download(
         return Err(format!("模型下载任务不存在或已结束：{task_id}"));
     };
     token.cancel();
-    EventBridge::new(window)
-        .emit_error(&task_id, "cancelled", "模型下载已停止", false)
-        .map_err(|err| err.to_string())
+    Ok(())
 }
 
 #[tauri::command]

@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_core::models::ai::optimization_session;
 
-pub(super) fn required_chat_user_text(message: &str) -> Result<&str, AppError> {
+pub(in crate::optimize) fn required_chat_user_text(message: &str) -> Result<&str, AppError> {
     let user_text = message.trim();
     if user_text.is_empty() {
         return Err(AppError::InvalidArgument("对话消息不能为空".to_string()));
@@ -9,7 +9,7 @@ pub(super) fn required_chat_user_text(message: &str) -> Result<&str, AppError> {
     Ok(user_text)
 }
 
-pub(super) fn ensure_chat_session_accepts_message(
+pub(in crate::optimize) fn ensure_chat_session_accepts_message(
     session: &optimization_session::Model,
     operation: &str,
 ) -> Result<(), AppError> {

@@ -3,7 +3,7 @@ use a4n_core::error::AppError;
 use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::DownloadProgress;
 use a4n_service_protocol::{
-    EMBEDDING_CAPABILITY_VERSION, ServiceErrorCode, ServiceTaskEvent, ServiceTaskEventKind,
+    CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION, ServiceErrorCode,
 };
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -78,7 +78,8 @@ pub(crate) async fn download_embedding_model_events(
     let payload = embedding_model_operation_payload("download", model);
     let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (event_tx, mut event_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
     let mut request_future = Box::pin(client.download_model_events(request, event_tx));
     let cancel_token = cancel_token.unwrap_or_default();
     let mut transport_complete = false;
@@ -103,11 +104,11 @@ pub(crate) async fn download_embedding_model_events(
 }
 
 pub(super) fn handle_embedding_download_event(
-    event: ServiceTaskEvent,
+    event: CapabilityTaskEvent,
     progress_tx: Option<&UnboundedSender<DownloadProgress>>,
 ) -> Result<Option<Value>, AppError> {
     match event.event_kind {
-        ServiceTaskEventKind::Progress | ServiceTaskEventKind::StructuredProgress => {
+        CapabilityTaskEventKind::Progress | CapabilityTaskEventKind::StructuredProgress => {
             let payload = event.payload.ok_or_else(|| {
                 AppError::ConfigError("embedding sidecar progress 事件缺少 payload".to_string())
             })?;
@@ -122,7 +123,7 @@ pub(super) fn handle_embedding_download_event(
             }
             Ok(None)
         }
-        ServiceTaskEventKind::Completed => {
+        CapabilityTaskEventKind::Completed => {
             let mut payload = event.payload.ok_or_else(|| {
                 AppError::ConfigError("embedding sidecar completed 事件缺少 payload".to_string())
             })?;
@@ -131,7 +132,7 @@ pub(super) fn handle_embedding_download_event(
             })?;
             Ok(Some(models))
         }
-        ServiceTaskEventKind::Failed => {
+        CapabilityTaskEventKind::Failed => {
             let error = event.error.ok_or_else(|| {
                 AppError::ConfigError("embedding sidecar failed 事件缺少 error".to_string())
             })?;
@@ -141,7 +142,7 @@ pub(super) fn handle_embedding_download_event(
                 Err(service_error_app_error(error))
             }
         }
-        ServiceTaskEventKind::CancelAck => Err(AppError::Cancelled),
+        CapabilityTaskEventKind::CancelAck => Err(AppError::Cancelled),
         other => Err(AppError::ConfigError(format!(
             "embedding sidecar 下载事件类型不符合合同: {other:?}"
         ))),

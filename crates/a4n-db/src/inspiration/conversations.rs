@@ -3,8 +3,8 @@ use super::project::ensure_inspiration_project_exists;
 use a4n_core::models::user::{conversation, message};
 use chrono::{Duration, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 
 const INSPIRATION_CONVERSATION_TYPE: &str = "inspiration";
@@ -77,12 +77,31 @@ pub async fn insert_inspiration_exchange(
     db: &DatabaseConnection,
     input: InspirationExchangeInsertInput,
 ) -> Result<(), InspirationDbError> {
-    let conversation = get_or_create_inspiration_conversation(db, input.project_id).await?;
+    get_or_create_inspiration_conversation(db, input.project_id).await?;
+    let tx = db.begin().await.map_err(InspirationDbError::Database)?;
+    insert_inspiration_exchange_in_transaction(&tx, input).await?;
+    tx.commit().await.map_err(InspirationDbError::Database)
+}
+
+pub async fn insert_inspiration_exchange_in_transaction(
+    tx: &DatabaseTransaction,
+    input: InspirationExchangeInsertInput,
+) -> Result<i64, InspirationDbError> {
+    let conversation = conversation::Entity::find()
+        .filter(conversation::Column::ProjectId.eq(input.project_id))
+        .filter(conversation::Column::ConversationType.eq(INSPIRATION_CONVERSATION_TYPE))
+        .filter(conversation::Column::IsActive.eq(true))
+        .lock_exclusive()
+        .one(tx)
+        .await
+        .map_err(InspirationDbError::Database)?
+        .ok_or_else(|| {
+            InspirationDbError::NotFound(format!("项目 {} 的灵感对话不存在", input.project_id))
+        })?;
     let next_message_count = conversation.message_count.checked_add(2).ok_or_else(|| {
         InspirationDbError::InvalidArgument("对话消息数超出 i32 范围".to_string())
     })?;
     let now = Utc::now().naive_utc();
-    let tx = db.begin().await.map_err(InspirationDbError::Database)?;
     message::ActiveModel {
         conversation_id: Set(conversation.id),
         role: Set("user".to_string()),
@@ -95,10 +114,10 @@ pub async fn insert_inspiration_exchange(
         created_at: Set(now),
         ..Default::default()
     }
-    .insert(&tx)
+    .insert(tx)
     .await
     .map_err(InspirationDbError::Database)?;
-    message::ActiveModel {
+    let assistant = message::ActiveModel {
         conversation_id: Set(conversation.id),
         role: Set("assistant".to_string()),
         content: Set(input.assistant_output),
@@ -110,7 +129,7 @@ pub async fn insert_inspiration_exchange(
         created_at: Set(now + Duration::milliseconds(1)),
         ..Default::default()
     }
-    .insert(&tx)
+    .insert(tx)
     .await
     .map_err(InspirationDbError::Database)?;
 
@@ -118,8 +137,8 @@ pub async fn insert_inspiration_exchange(
     active.message_count = Set(next_message_count);
     active.updated_at = Set(now);
     active
-        .update(&tx)
+        .update(tx)
         .await
         .map_err(InspirationDbError::Database)?;
-    tx.commit().await.map_err(InspirationDbError::Database)
+    Ok(assistant.id)
 }

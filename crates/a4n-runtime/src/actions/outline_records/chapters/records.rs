@@ -11,7 +11,7 @@ pub async fn list_chapter_outlines(
 ) -> Result<Vec<ChapterOutlineSummary>, AppError> {
     project_access::verify_project_access(state, user_id, project_id).await?;
     let outlines = state
-        .orchestrator
+        .project_outline_records()
         .chapter_outlines_for_project(project_id)
         .await?;
     Ok(outlines.iter().map(chapter_outline_summary).collect())
@@ -24,9 +24,11 @@ pub async fn delete_latest_chapter_outlines(
     count: u64,
 ) -> Result<(), AppError> {
     project_access::verify_project_editor(state, user_id, project_id).await?;
-    crate::workflow::delete_latest_chapter_outlines_cascade(state, project_id, count)
+    let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
+    state
+        .chapter_content()
+        .delete_latest_chapter_outlines_validated(&host_port, project_id, count)
         .await
-        .map_err(AppError::InvalidArgument)
 }
 
 pub async fn update_chapter_outline(
@@ -36,8 +38,8 @@ pub async fn update_chapter_outline(
 ) -> Result<ChapterOutlineSummary, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let updated = state
-        .orchestrator
-        .update_chapter_outline_record(ProjectChapterOutlineUpdateInput {
+        .project_outline_records()
+        .update_chapter_outline_validated(ProjectChapterOutlineUpdateInput {
             project_id: input.project_id,
             outline_id: input.outline_id,
             title: input.title,

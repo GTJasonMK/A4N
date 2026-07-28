@@ -4,10 +4,9 @@ mod management;
 mod search;
 
 use a4n_service_protocol::{
-    HealthStatus, PROTOCOL_VERSION, RAG_INDEX_CAPABILITY_VERSION as RAG_CAPABILITY_VERSION,
-    RAG_SERVICE_NAME, ServiceHealth, ServiceVersion,
+    HealthStatus, RAG_SERVICE_NAME, ServiceHealth, known_service_health_for_host,
 };
-use axum::Json;
+use axum::{Json, http::HeaderMap};
 
 pub(crate) use events::ingest_events;
 #[cfg(test)]
@@ -20,14 +19,11 @@ pub(crate) use management::{
 };
 pub(crate) use search::{query, search, search_text};
 
-pub(crate) async fn healthz() -> Json<ServiceHealth> {
-    Json(ServiceHealth {
-        service: RAG_SERVICE_NAME.to_string(),
-        status: HealthStatus::Healthy,
-        version: ServiceVersion {
-            service_version: env!("CARGO_PKG_VERSION").to_string(),
-            protocol_version: PROTOCOL_VERSION,
-            capability_version: RAG_CAPABILITY_VERSION.to_string(),
-        },
-    })
+pub(crate) async fn healthz(headers: HeaderMap) -> Json<ServiceHealth> {
+    Json(known_service_health_for_host(
+        RAG_SERVICE_NAME,
+        env!("CARGO_PKG_VERSION"),
+        HealthStatus::Healthy,
+        a4n_sidecar_bootstrap::host_protocol_version(&headers),
+    ))
 }

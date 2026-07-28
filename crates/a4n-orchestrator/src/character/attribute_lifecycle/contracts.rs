@@ -9,7 +9,7 @@ pub enum CharacterAttributeLifecycleError {
 }
 
 impl CharacterAttributeLifecycleError {
-    pub(super) fn rag(error: impl std::fmt::Display) -> Self {
+    pub(crate) fn rag(error: impl std::fmt::Display) -> Self {
         Self::Rag(format!("角色属性事件写入后同步 RAG 失败: {error}"))
     }
 }

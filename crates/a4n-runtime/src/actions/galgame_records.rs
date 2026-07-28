@@ -1,9 +1,14 @@
-pub use a4n_orchestrator::galgame::GalgameMediaBindingResult;
-pub use a4n_orchestrator::galgame::{
-    GALGAME_PIPELINE_TOTAL_STEPS, GalgameAssetPlan, GalgamePipelineProgressUpdate,
-    GalgameScriptDetail, InsertGalgameLineInput, ReorderGalgameLinesInput,
-    UpdateGalgameChoicesInput, UpdateGalgameLineInput, UpdateGalgameSceneInput,
-};
+pub type GalgameMediaBindingResult = a4n_orchestrator::galgame::GalgameMediaBindingResult;
+pub type GalgameAssetPlan = a4n_orchestrator::galgame::GalgameAssetPlan;
+pub type GalgamePipelineProgressUpdate = a4n_orchestrator::galgame::GalgamePipelineProgressUpdate;
+pub type GalgameScriptDetail = a4n_orchestrator::galgame::GalgameScriptDetail;
+pub type InsertGalgameLineInput = a4n_orchestrator::galgame::InsertGalgameLineInput;
+pub type ReorderGalgameLinesInput = a4n_orchestrator::galgame::ReorderGalgameLinesInput;
+pub type UpdateGalgameChoicesInput = a4n_orchestrator::galgame::UpdateGalgameChoicesInput;
+pub type UpdateGalgameLineInput = a4n_orchestrator::galgame::UpdateGalgameLineInput;
+pub type UpdateGalgameSceneInput = a4n_orchestrator::galgame::UpdateGalgameSceneInput;
+pub const GALGAME_PIPELINE_TOTAL_STEPS: u32 =
+    a4n_orchestrator::galgame::GALGAME_PIPELINE_TOTAL_STEPS;
 
 mod asset_generation;
 pub use asset_generation::{
@@ -32,5 +37,3 @@ pub use mutations::{
     update_galgame_choices, update_galgame_line, update_galgame_scene,
 };
 pub use queries::{GalgameProjectInput, get_galgame_script};
-
-pub(super) use queries::{load_galgame_script_detail, project_record_by_id};

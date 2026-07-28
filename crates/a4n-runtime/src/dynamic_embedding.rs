@@ -9,9 +9,8 @@ use std::sync::Arc;
 use a4n_core::config::app_config;
 use a4n_core::error::AppError;
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider};
-use a4n_orchestrator::OrchestratorContext;
-use a4n_orchestrator::task_queue::PersistentTaskQueue;
-use a4n_queue::priority::{TaskPriority, TaskType};
+use a4n_orchestrator::DynamicProviderFacade;
+use a4n_queue::priority::{TaskKind, TaskPriority};
 use async_trait::async_trait;
 
 use crate::runtime_config;
@@ -24,22 +23,19 @@ use factory::make_provider_from_default_model;
 pub use factory::make_provider_from_model;
 
 pub struct DynamicEmbeddingProvider {
-    orchestrator: OrchestratorContext,
-    task_queue: Arc<PersistentTaskQueue>,
+    facade: DynamicProviderFacade,
     metadata_config: app_config::EmbeddingConfig,
     fastembed_cache_dir: PathBuf,
 }
 
 impl DynamicEmbeddingProvider {
     pub fn new(
-        orchestrator: OrchestratorContext,
-        task_queue: Arc<PersistentTaskQueue>,
+        facade: DynamicProviderFacade,
         metadata_config: app_config::EmbeddingConfig,
         fastembed_cache_dir: PathBuf,
     ) -> Self {
         Self {
-            orchestrator,
-            task_queue,
+            facade,
             metadata_config,
             fastembed_cache_dir,
         }
@@ -50,10 +46,7 @@ impl DynamicEmbeddingProvider {
             return make_provider_from_model(&model, self.fastembed_cache_dir.clone());
         }
 
-        let model = self
-            .orchestrator
-            .default_embedding_config_optional()
-            .await?;
+        let model = self.facade.default_embedding_config_optional().await?;
 
         make_provider_from_default_model(model, self.fastembed_cache_dir.clone())
     }
@@ -63,9 +56,9 @@ impl DynamicEmbeddingProvider {
 impl EmbeddingProvider for DynamicEmbeddingProvider {
     async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
         let provider = self.resolve_default().await?;
-        self.task_queue
-            .run_tracked(
-                TaskType::EmbeddingCall,
+        self.facade
+            .queue_run_tracked(
+                TaskKind::EmbeddingCall,
                 TaskPriority::Low,
                 None,
                 || async move { provider.embed(texts).await },
@@ -98,9 +91,9 @@ impl EmbeddingProvider for DynamicEmbeddingProvider {
         texts: Vec<String>,
     ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), AppError> {
         let provider = self.resolve_default().await?;
-        self.task_queue
-            .run_tracked(
-                TaskType::EmbeddingCall,
+        self.facade
+            .queue_run_tracked(
+                TaskKind::EmbeddingCall,
                 TaskPriority::Low,
                 None,
                 || async move {
@@ -114,9 +107,9 @@ impl EmbeddingProvider for DynamicEmbeddingProvider {
 
     async fn test_connection(&self) -> Result<bool, AppError> {
         let provider = self.resolve_default().await?;
-        self.task_queue
-            .run_tracked(
-                TaskType::EmbeddingCall,
+        self.facade
+            .queue_run_tracked(
+                TaskKind::EmbeddingCall,
                 TaskPriority::High,
                 None,
                 || async move { provider.test_connection().await },

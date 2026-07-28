@@ -54,7 +54,7 @@ impl OrchestratorContext {
             exclude_running,
         } = query;
         let rows = a4n_db::video::chapter_video_prompt_workflow_records(
-            self.db.connection(),
+            self.database.connection(),
             context.project_id,
             context.chapter_id,
             context.prompt_type,

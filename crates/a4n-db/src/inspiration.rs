@@ -9,7 +9,8 @@ pub use contracts::{
     InspirationProjectContextRows,
 };
 pub use conversations::{
-    get_or_create_inspiration_conversation, insert_inspiration_exchange, inspiration_messages,
+    get_or_create_inspiration_conversation, insert_inspiration_exchange,
+    insert_inspiration_exchange_in_transaction, inspiration_messages,
 };
 pub use project::inspiration_project_by_id;
 

@@ -4,15 +4,12 @@ macro_rules! character_ai_task_command {
         $name:ident,
         $scope:path,
         $start_message:expr,
-        $error_code:expr,
         ($($arg:ident : $arg_ty:ty),* $(,)?),
-        |$value:ident| $success_message:expr,
         |$app_state:ident, $user_id:ident, $project_id:ident, $progress:ident| $run:expr $(,)?
     ) => {
         $(#[$meta])*
         #[tauri::command]
         pub async fn $name(
-            window: tauri::Window,
             state: tauri::State<'_, a4n_runtime::AppState>,
             user_id: i64,
             project_id: i64,
@@ -21,10 +18,9 @@ macro_rules! character_ai_task_command {
         ) -> Result<serde_json::Value, String> {
             let scope = $scope(state.inner(), user_id, project_id).await?;
             let progress_task = crate::progress_task::WorkflowProgressTask::new(
-                window,
                 state.inner(),
                 task_id,
-                a4n_core::event::channel::TaskType::LlmCall,
+                a4n_core::event::channel::TaskKind::LlmCall,
                 Some(scope.project_id),
                 scope.total,
                 $start_message,
@@ -42,9 +38,7 @@ macro_rules! character_ai_task_command {
             let $project_id = project_id;
             let $progress = &runtime_progress;
             let result = $run.await;
-            progress_task.finish_result(state.inner(), &result, $error_code, |$value| {
-                $success_message
-            });
+            progress_task.remove(state.inner());
             result
         }
     };

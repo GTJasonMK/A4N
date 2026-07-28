@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
-import { createProgressTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import {
   canUseLocalDesktopEmbedding,
@@ -258,11 +258,12 @@ export const EmbeddingTab: React.FC = () => {
     if (!beginModelAction(actionKey)) return;
     setBusyModel(model);
     const cachedInfo = resolveDownloadInfo(model);
-    const taskId = createProgressTaskId("embedding-download", 0);
+    const taskId = allocateHostTaskId("embedding-download", 0);
     setDownloadTaskId(taskId);
     try {
       await runProgressTask(
         {
+          cancelTaskId: taskId,
           title: `下载${modelHostLabel}嵌入模型`,
           startMessage: cachedInfo
             ? formatDownloadStartMessage(cachedInfo)
@@ -270,12 +271,10 @@ export const EmbeddingTab: React.FC = () => {
           successMessage: "模型已下载并可用于 RAG",
           errorMessage: "模型下载失败",
           total: cachedInfo ? Math.max(1, cachedInfo.total_size_bytes) : 1,
-          taskId,
           cancelLabel: "停止下载",
           runningHint: "下载过程中请保持当前窗口打开",
           formatProgress: formatBytesProgress,
           cancelTask: cancelEmbeddingModelDownload,
-          eventSource: usesLocalDesktopEmbedding ? "tauri" : "auto",
         },
         async (control) => {
           if (cachedInfo) {

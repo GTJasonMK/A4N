@@ -1,41 +1,43 @@
 import { apiInvoke, type PaginatedResponse } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import { idNum, type ApiId as Id } from "./shared";
+import type {
+  CreateDerivedProjectInput,
+  CreateFreeformVideoProjectInput,
+  CreateProjectInput,
+  ExportDerivedProjectDataInput,
+  ExportProjectFamilyDataInput,
+  ExportProjectPackageData,
+  ExportVideoStudioProjectDataInput,
+  ImportProjectFamilyUploadInput,
+  ProjectGeneratedDataResetSummary as ApiProjectGeneratedDataResetSummary,
+  ProjectProgressSummary as ApiProjectProgressSummary,
+  ProjectSummary,
+  UpdateProjectInput,
+} from "./generated/host";
+
+export type {
+  ExportDerivedProjectDataInput,
+  ExportProjectFamilyDataInput,
+  ExportProjectPackageData,
+  ExportVideoStudioProjectDataInput,
+  ImportProjectFamilyUploadInput,
+} from "./generated/host";
 
 // ============================================================================
 // 类型定义（对齐后端 commands/project.rs::ProjectSummary）
 // ============================================================================
 
-export interface NovelProject {
-  id: number;
-  title: string;
-  description: string;
-  project_type: string;
+export type NovelProject = Omit<
+  ProjectSummary,
+  "project_kind" | "source_mode" | "source_sync_status" | "my_role" | "progress"
+> & {
   project_kind: ProjectKind;
   source_mode: ProjectSourceMode;
-  root_project_id: number | null;
-  parent_project_id: number | null;
-  source_snapshot_id: number | null;
   source_sync_status: SourceSyncStatus;
-  derived_project_status: string | null;
-  root_project_title: string | null;
-  source_snapshot_created_at: string | null;
-  derived_chapter_scope: unknown | null;
-  status: string;
-  current_chapter: number;
-  target_chapters: number;
-  total_chapters: number | null;
-  chapters_per_part: number | null;
-  owner_user_id: number;
-  owner_username: string | null;
   my_role: ProjectAccessRole | null;
-  collaboration_root_project_id: number;
-  member_count: number;
-  pending_invite_count: number | null;
   progress: ProjectProgressSummary;
-  created_at: string | null;
-  updated_at: string | null;
-}
+};
 
 export interface SourceSnapshotChapter {
   id: number;
@@ -61,15 +63,16 @@ export type ProjectMemberRole = "manager" | "editor" | "viewer";
 export type ProjectAccessScope = "all" | "owned" | "collaborating";
 export type ProjectProgressStatus = "idle" | "running" | "blocked" | "failed" | "completed";
 
-export interface ProjectProgressSummary {
-  kind: ProjectKind | string;
-  stage: string;
-  label: string;
-  current: number | null;
-  total: number | null;
+export type ProjectProgressSummary = Omit<ApiProjectProgressSummary, "status"> & {
   status: ProjectProgressStatus;
-  detail: string | null;
-}
+};
+
+type ProjectGeneratedDataResetSummary = Omit<
+  ApiProjectGeneratedDataResetSummary,
+  "project"
+> & {
+  project: NovelProject;
+};
 
 export interface ProjectMember {
   project_id: number;
@@ -261,54 +264,6 @@ export interface GenerationInputSource {
   source_record_id: number | null;
 }
 
-interface ProjectGeneratedDataResetSummary {
-  project: NovelProject;
-  deleted_galgame_scripts: number;
-  deleted_galgame_scenes: number;
-  deleted_galgame_lines: number;
-  deleted_galgame_choices: number;
-  deleted_chapters: number;
-  deleted_chapter_outlines: number;
-  deleted_part_outlines: number;
-  deleted_chapter_derived_rows: number;
-  deleted_current_blueprints: number;
-  deleted_blueprint_characters: number;
-  deleted_blueprint_relationships: number;
-  preserved_blueprint_versions: number;
-  reset_character_profiles: number;
-  deleted_character_profiles: number;
-  deleted_character_snapshots: number;
-  deleted_character_timeline_rows: number;
-  deleted_character_portraits: number;
-  deleted_object_profiles: number;
-  deleted_foreshadowing: number;
-  deleted_scene_profiles: number;
-  deleted_scene_occurrences: number;
-  deleted_scene_transitions: number;
-  deleted_scene_entity_states: number;
-  deleted_text_anchors: number;
-  deleted_profile_evidence: number;
-  deleted_import_reviews: number;
-  deleted_conversations: number;
-  deleted_conversation_messages: number;
-  deleted_optimization_sessions: number;
-  deleted_optimization_session_messages: number;
-  deleted_optimization_turns: number;
-  deleted_optimization_events: number;
-  deleted_optimization_patch_sets: number;
-  deleted_optimization_patches: number;
-  deleted_generated_images: number;
-  deleted_generated_videos: number;
-  deleted_generation_specs: number;
-  deleted_prompt_artifacts: number;
-  deleted_media_assets: number;
-  deleted_media_provenance: number;
-  deleted_media_bindings: number;
-  deleted_tasks: number;
-  deleted_task_dependencies: number;
-  deleted_media_files: number;
-}
-
 const currentUserId = (): number => {
   const id = readCurrentUserId();
   if (id == null) throw new Error("未登录，无法访问项目");
@@ -368,33 +323,22 @@ export async function getProjectAssetDependencyGraphNodeDetail(
 /**
  * 创建项目（后端 CreateProjectInput {title, description, project_type}）
  */
-export async function createProject(input: {
-  title: string;
-  description: string;
-  project_type: string;
-}): Promise<NovelProject> {
+export async function createProject(input: CreateProjectInput): Promise<NovelProject> {
   return apiInvoke<NovelProject>("create_project", { userId: currentUserId(), input });
 }
 
-export async function createDerivedProject(input: {
-  root_project_id: number;
-  derived_kind: Exclude<ProjectKind, "text">;
-  title: string;
-  description?: string;
-  start_chapter: number;
-  end_chapter: number;
-  creation_options: Record<string, unknown>;
-}): Promise<NovelProject> {
+export async function createDerivedProject(
+  input: CreateDerivedProjectInput,
+): Promise<NovelProject> {
   return apiInvoke<NovelProject>("create_derived_project", {
     userId: currentUserId(),
     input,
   });
 }
 
-export async function createFreeformVideoProject(input: {
-  title: string;
-  description?: string;
-}): Promise<NovelProject> {
+export async function createFreeformVideoProject(
+  input: CreateFreeformVideoProjectInput,
+): Promise<NovelProject> {
   return apiInvoke<NovelProject>("create_freeform_video_project", {
     userId: currentUserId(),
     input,
@@ -413,7 +357,7 @@ export async function listSourceSnapshotChapters(projectId: Id): Promise<SourceS
  */
 export async function updateProject(
   id: Id,
-  input: { title?: string; description?: string },
+  input: UpdateProjectInput,
 ): Promise<NovelProject> {
   return apiInvoke<NovelProject>("update_project", {
     userId: currentUserId(),
@@ -575,43 +519,36 @@ export async function branchProject(
   });
 }
 
-export interface ExportProjectPackageData {
-  file_name: string;
-  data_base64: string;
-}
-
-export async function exportProjectFamilyData(input: {
-  root_project_id: number;
-  include_derived_projects: boolean;
-}): Promise<ExportProjectPackageData> {
+export async function exportProjectFamilyData(
+  input: ExportProjectFamilyDataInput,
+): Promise<ExportProjectPackageData> {
   return apiInvoke<ExportProjectPackageData>("export_project_family_data", {
     userId: currentUserId(),
     input,
   });
 }
 
-export async function exportDerivedProjectData(input: {
-  derived_project_id: number;
-}): Promise<ExportProjectPackageData> {
+export async function exportDerivedProjectData(
+  input: ExportDerivedProjectDataInput,
+): Promise<ExportProjectPackageData> {
   return apiInvoke<ExportProjectPackageData>("export_derived_project_data", {
     userId: currentUserId(),
     input,
   });
 }
 
-export async function importProjectFamilyUpload(input: {
-  file_name: string;
-  data_base64: string;
-}): Promise<NovelProject[]> {
+export async function importProjectFamilyUpload(
+  input: ImportProjectFamilyUploadInput,
+): Promise<NovelProject[]> {
   return apiInvoke<NovelProject[]>("import_project_family_upload", {
     userId: currentUserId(),
     input,
   });
 }
 
-export async function exportVideoStudioProjectData(input: {
-  project_id: number;
-}): Promise<ExportProjectPackageData> {
+export async function exportVideoStudioProjectData(
+  input: ExportVideoStudioProjectDataInput,
+): Promise<ExportProjectPackageData> {
   return apiInvoke<ExportProjectPackageData>("export_video_studio_project_data", {
     userId: currentUserId(),
     input,

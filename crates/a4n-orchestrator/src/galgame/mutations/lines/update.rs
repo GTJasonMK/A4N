@@ -118,7 +118,7 @@ impl OrchestratorContext {
             text_anchor_id,
         };
         let updated = a4n_db::galgame::update_galgame_line_with_generation_cleanup_record(
-            self.db.connection(),
+            self.database.connection(),
             context.project.id,
             record_input,
             visual_generation_inputs_changed,

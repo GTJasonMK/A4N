@@ -1,39 +1,24 @@
 export type VideoDurationMode = "range" | "fixed";
 export type PromptOutputLanguage = "zh_cn" | "en";
 export type VideoWorkflowMode =
+  | "shared_segment_plan"
   | "boundary_frames"
   | "first_frame_chain"
   | "storyboard"
   | "reference_media"
   | "chat_video"
+  | "mixed"
   | "canvas_video"
   | "canvas_reference_media"
   | "canvas_trim"
   | "canvas_assembly";
 export type { DownstreamConflictStrategy } from "../dependencyConflict";
 
-export interface VideoGenConfig {
-  id: number;
-  name: string;
-  backend: string;
-  base_url: string | null;
-  api_key_encrypted?: string | null;
-  has_api_key?: boolean;
-  model: string;
-  max_concurrent: number;
-  default_width: number;
-  default_height: number;
-  default_duration_secs: number;
-  min_duration_secs: number;
-  max_duration_secs: number;
+export type VideoGenConfig = Omit<VideoConfigSummary, "duration_mode" | "capabilities"> & {
   duration_mode: VideoDurationMode;
   supported_durations_json: number[] | null;
-  default_fps: number;
-  provider_options_json?: unknown | null;
-  is_default: boolean;
-  created_at: string | null;
-  updated_at: string | null;
-}
+  capabilities?: VideoConfigSummary["capabilities"];
+};
 
 export interface ChapterVideoPrompt {
   id: number;
@@ -58,98 +43,45 @@ export interface ChapterVideoPrompt {
   updated_at: string | null;
 }
 
-export interface GeneratedVideo {
-  id: number;
-  project_id: number;
-  chapter_id: number | null;
-  video_type: string;
+export type GeneratedVideo = Omit<GeneratedVideoSummary, "workflow_mode"> & {
   workflow_mode: VideoWorkflowMode | null;
-  file_path: string | null;
-  thumbnail_path: string | null;
-  prompt: string;
-  negative_prompt: string | null;
-  model: string;
-  width: number;
-  height: number;
-  duration_secs: number;
-  fps: number;
-  file_size: number | null;
-  source_video_id: number | null;
-  source_image_id: number | null;
-  status: string;
-  provider_job_id: string | null;
-  error_message: string | null;
-  metadata_json: unknown | null;
-  is_favorite: boolean;
-  created_at: string | null;
-  updated_at: string | null;
-}
+};
 
-export interface VideoPlaybackData {
-  mime_type: string;
-  data_base64: string;
-}
+export type VideoPlaybackData = ApiVideoPlaybackData;
 
-interface AssembledChapterVideoClip {
-  video_id: number;
-  video_type: string;
-  shot_number: number;
-  sort_order: number;
-  insert_after_video_id: number | null;
-  duration_secs: number;
-  file_path: string;
-}
+export type AssembledChapterVideoPreview = ApiAssembledChapterVideoPreview;
 
-export interface AssembledChapterVideoPreview {
-  mime_type: string;
-  data_base64: string;
-  file_path: string;
-  video_ids: number[];
-  clips: AssembledChapterVideoClip[];
-  duration_secs: number;
-  file_size: number;
-  updated_at: string | null;
-  cached: boolean;
-}
-
-export interface AssemblyPushResult {
+export type AssemblyPushResult = Omit<ApiAssemblyPushResult, "video"> & {
   video: GeneratedVideo;
-  source_video_ids: number[];
-  push_index: number;
-  status: string;
-}
+};
 
-export interface CreateVideoConfigInput {
-  name: string;
-  backend: string;
-  base_url: string;
-  api_key_encrypted?: string | null;
-  model: string;
-  max_concurrent: number;
-  default_width: number;
-  default_height: number;
-  default_duration_secs: number;
-  min_duration_secs: number;
-  max_duration_secs: number;
+export type DeleteChapterVideoAssetsResult = ApiDeleteChapterVideoAssetsResult;
+export type UploadChapterVideoInput = ApiUploadChapterVideoInput;
+export type UploadReferenceMediaVideoInput = ApiUploadReferenceMediaVideoInput;
+export type UploadAssemblyInsertVideoInput = ApiUploadAssemblyInsertVideoInput;
+export type PushAssembledChapterVideoInput = Omit<
+  ApiPushAssembledChapterVideoInput,
+  "end_video_id"
+> & {
+  end_video_id?: number | string | null;
+};
+export type ApplyAssemblyPostprocessEditInput = Omit<
+  ApiApplyAssemblyPostprocessEditInput,
+  "operation" | "source_video_id"
+> & {
+  operation: "insert" | "delete" | "replace";
+  source_video_id?: number | string | null;
+};
+
+export type CreateVideoConfigInput = Omit<VideoConfigInput, "duration_mode"> & {
   duration_mode: VideoDurationMode;
   supported_durations_json?: number[] | null;
-  default_fps: number;
-  provider_options_json?: unknown | null;
-}
+};
 
-export interface UpdateVideoConfigInput extends Omit<CreateVideoConfigInput, "api_key_encrypted"> {
-  api_key_encrypted?: string | null;
-}
-
-export interface ReferenceMediaVideoInput {
-  prompt: string;
-  image_files: string[];
-  video_files: string[];
-  audio_files: string[];
-  duration_secs: number;
-  aspect_ratio: string;
-  config_id?: number | null;
-}
+export type UpdateVideoConfigInput = Omit<ApiUpdateVideoConfigInput, "duration_mode"> & {
+  duration_mode: VideoDurationMode;
+  supported_durations_json?: number[] | null;
+};
 
 export interface ChapterVideosBatchInput {
   prompt_ids: number[];
@@ -170,3 +102,25 @@ export interface PreviewChapterVideoPromptOverrideInput {
   duration_secs?: number | null;
   reference_image_ids_json?: unknown | null;
 }
+import type {
+  UpdateVideoConfigInput as ApiUpdateVideoConfigInput,
+  VideoConfigInput,
+  VideoConfigSummary,
+} from "../generated/config";
+import type {
+  ApplyAssemblyPostprocessEditInput as ApiApplyAssemblyPostprocessEditInput,
+  AssembledChapterVideoPreview as ApiAssembledChapterVideoPreview,
+  AssemblyPushResult as ApiAssemblyPushResult,
+  DeleteChapterVideoAssetsResult as ApiDeleteChapterVideoAssetsResult,
+  GeneratedVideoSummary,
+  PushAssembledChapterVideoInput as ApiPushAssembledChapterVideoInput,
+  UploadAssemblyInsertVideoInput as ApiUploadAssemblyInsertVideoInput,
+  UploadChapterVideoInput as ApiUploadChapterVideoInput,
+  UploadReferenceMediaVideoInput as ApiUploadReferenceMediaVideoInput,
+  VideoPlaybackData as ApiVideoPlaybackData,
+} from "../generated/host";
+import type {
+  ReferenceMediaVideoInput as ApiReferenceMediaVideoInput,
+} from "../generated/generationContracts";
+
+export type ReferenceMediaVideoInput = ApiReferenceMediaVideoInput;

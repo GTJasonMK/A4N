@@ -1,6 +1,6 @@
 use super::sync::{
-    ExpectedSyncStats as IngestStats, RagIngestProgress, RagSyncContext, cleanup_stale_records,
-    labeled_rag_record, progress_stage, sync_labeled_records_concurrent,
+    ExpectedSyncStats as IngestStats, RagIngestProgress, cleanup_stale_records, labeled_rag_record,
+    progress_stage, sync_labeled_records_concurrent,
 };
 use crate::state::AppState;
 use a4n_core::models::chapter::chapter;
@@ -11,15 +11,13 @@ pub(crate) async fn ingest_chapters_inner(
     mut progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
-    let mut sync = RagSyncContext::for_id_prefixes(
-        &state.orchestrator,
-        project_id,
-        vec![format!("chapter:{project_id}:")],
-    )
-    .await
-    .map_err(|error| error.to_string())?;
+    let mut sync = state
+        .rag()
+        .rag_sync_context_for_id_prefixes(project_id, vec![format!("chapter:{project_id}:")])
+        .await
+        .map_err(|error| error.to_string())?;
     let chapters = state
-        .orchestrator
+        .rag()
         .chapters_for_rag_ingest(project_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -38,7 +36,7 @@ pub(crate) async fn ingest_chapters_inner(
             ),
         )?;
         let records = state
-            .orchestrator
+            .rag()
             .chapter_rag_records(chapter, super::chapter_rag_chunking_mode())
             .await?;
         let labeled_records = records

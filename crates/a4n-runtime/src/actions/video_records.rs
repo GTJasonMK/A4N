@@ -5,6 +5,10 @@ mod imports;
 mod playback;
 mod records;
 
+pub use a4n_orchestrator::video::UpdateGeneratedVideoInput;
+pub(crate) use assembly::recover_expired_assembly_caches;
+pub(crate) use imports::recover_expired_uploaded_video_sources;
+
 pub use assembly::{
     ApplyAssemblyPostprocessEditInput, AssembledChapterVideoClipSummary,
     AssembledChapterVideoPreview, AssemblyPushResult, PushAssembledChapterVideoInput,

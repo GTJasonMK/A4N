@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Loader2 } from "lucide-react";
 import type { Message, MessageOption } from "./shared";
 
 interface ChatBubbleProps {
@@ -103,6 +103,12 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
               : "rounded-[18px] rounded-bl-md border border-book-border/45 bg-book-bg-paper/65 text-book-text-main"
           }`}
         >
+          {message.consistencyWarning ? (
+            <div className="mb-2 flex items-start gap-1.5 border-b border-book-border/50 pb-2 text-xs font-medium text-danger">
+              <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+              <span>{message.consistencyWarning}</span>
+            </div>
+          ) : null}
           {message.content}
           {message.streaming && (
             <span

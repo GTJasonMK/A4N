@@ -1,5 +1,7 @@
 use a4n_core::models::project::novel_project;
-use sea_orm::{ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+};
 
 use super::super::{
     AccessibleProjectListInput, AccessibleProjectsPage, CollaborationDbError, ProjectAccessScope,
@@ -11,23 +13,7 @@ pub async fn list_accessible_projects(
     db: &DatabaseConnection,
     input: AccessibleProjectListInput,
 ) -> Result<AccessibleProjectsPage, CollaborationDbError> {
-    let member_root_ids = member_root_ids(db, input.user_id).await?;
-    let mut condition = match input.access_scope {
-        ProjectAccessScope::Owned => {
-            Condition::all().add(novel_project::Column::UserId.eq(input.user_id))
-        }
-        ProjectAccessScope::Collaborating => accessible_member_condition(&member_root_ids),
-        ProjectAccessScope::All => {
-            let mut condition =
-                Condition::any().add(novel_project::Column::UserId.eq(input.user_id));
-            if !member_root_ids.is_empty() {
-                condition = condition
-                    .add(novel_project::Column::Id.is_in(member_root_ids.clone()))
-                    .add(novel_project::Column::RootProjectId.is_in(member_root_ids.clone()));
-            }
-            Condition::all().add(condition)
-        }
-    };
+    let mut condition = accessible_project_condition(db, input.user_id, input.access_scope).await?;
     if let Some(kind) = input.project_kind.as_deref() {
         condition =
             condition.add(novel_project::Column::ProjectKind.eq(normalize_project_kind(kind)?));
@@ -50,4 +36,43 @@ pub async fn list_accessible_projects(
         .await
         .map_err(CollaborationDbError::Database)?;
     Ok(AccessibleProjectsPage { items, total })
+}
+
+/// 返回当前用户按协作规则可见的项目 ID，供其他 DB 查询在分页前做授权过滤。
+pub async fn accessible_project_ids(
+    db: &DatabaseConnection,
+    user_id: i64,
+) -> Result<Vec<i64>, CollaborationDbError> {
+    novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .filter(accessible_project_condition(db, user_id, ProjectAccessScope::All).await?)
+        .order_by_asc(novel_project::Column::Id)
+        .into_tuple::<i64>()
+        .all(db)
+        .await
+        .map_err(CollaborationDbError::Database)
+}
+
+async fn accessible_project_condition(
+    db: &DatabaseConnection,
+    user_id: i64,
+    access_scope: ProjectAccessScope,
+) -> Result<Condition, CollaborationDbError> {
+    let member_root_ids = member_root_ids(db, user_id).await?;
+    Ok(match access_scope {
+        ProjectAccessScope::Owned => {
+            Condition::all().add(novel_project::Column::UserId.eq(user_id))
+        }
+        ProjectAccessScope::Collaborating => accessible_member_condition(&member_root_ids),
+        ProjectAccessScope::All => {
+            let mut condition = Condition::any().add(novel_project::Column::UserId.eq(user_id));
+            if !member_root_ids.is_empty() {
+                condition = condition
+                    .add(novel_project::Column::Id.is_in(member_root_ids.clone()))
+                    .add(novel_project::Column::RootProjectId.is_in(member_root_ids));
+            }
+            Condition::all().add(condition)
+        }
+    })
 }

@@ -26,7 +26,7 @@ pub(in crate::source_sync) async fn prepare_decision_execution_context(
             continue;
         }
         let conflict = a4n_db::source_sync::source_sync_conflict_for_decision(
-            service.db.connection(),
+            service.database.connection(),
             run.id,
             decision.conflict_id,
             "prepare_source_sync_decision",

@@ -1,4 +1,7 @@
 mod context;
 mod execution;
+mod generation;
 mod session;
-mod validation;
+pub(in crate::optimize) mod validation;
+
+pub use generation::OptimizeChatGenerationApplicationContext;

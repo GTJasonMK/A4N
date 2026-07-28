@@ -5,11 +5,31 @@ pub(super) async fn parse_gemini_veo_json_response(
     resp: reqwest::Response,
     label: &str,
 ) -> Result<Value, AppError> {
+    parse_gemini_veo_json_response_inner(resp, label, false)
+        .await
+        .map(|value| value.expect("not-found responses are disabled"))
+}
+
+pub(super) async fn parse_gemini_veo_json_response_allow_not_found(
+    resp: reqwest::Response,
+    label: &str,
+) -> Result<Option<Value>, AppError> {
+    parse_gemini_veo_json_response_inner(resp, label, true).await
+}
+
+async fn parse_gemini_veo_json_response_inner(
+    resp: reqwest::Response,
+    label: &str,
+    allow_not_found: bool,
+) -> Result<Option<Value>, AppError> {
     let status = resp.status();
     let text = resp
         .text()
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("读取{label}响应失败：{e}")))?;
+    if allow_not_found && status == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
     if !status.is_success() {
         return Err(AppError::Internal(anyhow::anyhow!(
             "{label}返回 {status}：{}",
@@ -17,6 +37,7 @@ pub(super) async fn parse_gemini_veo_json_response(
         )));
     }
     serde_json::from_str(&text)
+        .map(Some)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("{label}响应解析失败：{e}")))
 }
 
@@ -39,6 +60,22 @@ pub(super) fn operation_error_message(v: &Value) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())?;
     Some(message.chars().take(500).collect())
+}
+
+pub(super) fn operation_is_cancelled(v: &Value) -> bool {
+    let code = v
+        .pointer("/error/code")
+        .and_then(Value::as_str)
+        .map(str::to_ascii_uppercase);
+    let status = v
+        .pointer("/error/status")
+        .and_then(Value::as_str)
+        .map(str::to_ascii_uppercase);
+    code.as_deref()
+        .is_some_and(|value| value == "CANCELLED" || value == "CANCELED")
+        || status
+            .as_deref()
+            .is_some_and(|value| value == "CANCELLED" || value == "CANCELED")
 }
 
 pub(super) fn find_video_uri(v: &Value) -> Option<&str> {

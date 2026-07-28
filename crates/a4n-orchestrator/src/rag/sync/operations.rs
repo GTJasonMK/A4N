@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use a4n_core::rag::RagDataType;
-use a4n_rag_core::vector_store::{DeleteFilter, VectorStore};
+use a4n_rag_core::vector_store::DeleteFilter;
+#[cfg(test)]
+use a4n_rag_core::vector_store::VectorStore;
 use serde_json::Value;
 
 use super::contracts::{
@@ -15,7 +17,11 @@ use crate::OrchestratorContext;
 
 impl OrchestratorContext {
     pub async fn clear_project_rag(&self, project_id: i64) -> Result<(), RagSyncError> {
-        clear_project_rag_store(self.rag_store.as_ref(), project_id).await
+        self.rag_drop_project_collection(project_id)
+            .await
+            .map_err(|error| RagSyncError::Delete {
+                message: error.to_string(),
+            })
     }
 
     pub async fn delete_rag_records(
@@ -59,8 +65,7 @@ impl OrchestratorContext {
         project_id: i64,
         filter: DeleteFilter,
     ) -> Result<usize, RagSyncError> {
-        self.rag_store
-            .delete(&project_id.to_string(), filter)
+        self.rag_delete_project_records(project_id, filter)
             .await
             .map_err(|error| RagSyncError::Delete {
                 message: error.to_string(),
@@ -139,21 +144,20 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
     ) -> Result<HashMap<String, Value>, RagSyncError> {
-        self.rag_store
-            .metadata_by_filter(
-                &project_id.to_string(),
-                DeleteFilter {
-                    project_id,
-                    data_type: None,
-                    chapter_number: None,
-                    ids: Vec::new(),
-                    id_prefixes: Vec::new(),
-                },
-            )
-            .await
-            .map_err(|error| RagSyncError::ReadStoredMetadata {
-                message: error.to_string(),
-            })
+        self.rag_project_metadata_by_filter(
+            project_id,
+            DeleteFilter {
+                project_id,
+                data_type: None,
+                chapter_number: None,
+                ids: Vec::new(),
+                id_prefixes: Vec::new(),
+            },
+        )
+        .await
+        .map_err(|error| RagSyncError::ReadStoredMetadata {
+            message: error.to_string(),
+        })
     }
 
     pub async fn store_prepared_rag_records<'a, I>(
@@ -181,6 +185,7 @@ impl OrchestratorContext {
     }
 }
 
+#[cfg(test)]
 pub(super) async fn clear_project_rag_store(
     vector_store: &dyn VectorStore,
     project_id: i64,

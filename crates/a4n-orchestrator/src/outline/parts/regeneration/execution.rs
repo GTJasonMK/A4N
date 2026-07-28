@@ -68,7 +68,7 @@ impl OrchestratorContext {
         let now = Utc::now().naive_utc();
         let updated = if prepared.rebind_chapter_outlines {
             update_part_outline_and_rebind_chapters_transaction(
-                &self.db,
+                &self.database,
                 prepared.project_id,
                 prepared.target.clone(),
                 prepared.target.part_number,
@@ -80,7 +80,7 @@ impl OrchestratorContext {
             .await?
         } else {
             update_part_outline_from_json(
-                self.db.connection(),
+                self.database.connection(),
                 prepared.target.clone(),
                 prepared.target.part_number,
                 prepared.target.start_chapter,

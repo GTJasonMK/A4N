@@ -1,15 +1,6 @@
 use super::prelude::*;
 
 pub const CHAPTER_ANALYSIS_PROGRESS_TOTAL: u32 = 100;
-pub(super) const CHAPTER_ANALYSIS_STEP_FACTS: &str = "chapter_analysis.facts";
-pub(super) const CHAPTER_ANALYSIS_STEP_DERIVED_SYNC: &str = "chapter_analysis.derived_sync";
-pub(super) const CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS: &str = "chapter_analysis.sync_outputs";
-pub(super) const CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY: &str = "chapter_analysis.object_discovery";
-pub(super) const CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY: &str =
-    "chapter_analysis.character_discovery";
-pub(super) const CHAPTER_ANALYSIS_STEP_SCENE_SYNC: &str = "chapter_analysis.scene_sync";
-pub(super) const CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC: &str = "chapter_analysis.character_sync";
-pub(super) const CHAPTER_ANALYSIS_STEP_REFRESH_STATUS: &str = "chapter_analysis.refresh_status";
 pub type ChapterAnalysisProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + Sync);
 
 #[derive(Debug, Clone, Deserialize)]

@@ -21,7 +21,6 @@ tauri_chapter_progress_command!(
     project_id: ch.project_id,
     total: CHAPTER_ANALYSIS_PROGRESS_TOTAL,
     "正在准备章节结构化分析",
-    "chapter_analysis_failed",
     |window, state, user_id, progress| generate_chapter_analysis_inner(
         state.inner(),
         user_id,
@@ -30,7 +29,6 @@ tauri_chapter_progress_command!(
     ),
     |chapter| {
         emit_chapter_analysis_updated(&window, chapter, "章节分析完成事件发送失败");
-        format!("第 {} 章结构化分析和项目状态已同步", chapter.chapter_number)
     },
 );
 
@@ -47,7 +45,6 @@ tauri_chapter_progress_command!(
     project_id: ch.project_id,
     total: CHAPTER_ANALYSIS_PROGRESS_TOTAL,
     "正在准备继续同步章节分析",
-    "chapter_analysis_resume_failed",
     |window, state, user_id, progress| resume_chapter_analysis_sync_inner(
         state.inner(),
         user_id,
@@ -56,10 +53,6 @@ tauri_chapter_progress_command!(
     ),
     |chapter| {
         emit_chapter_analysis_updated(&window, chapter, "章节分析继续同步事件发送失败");
-        format!(
-            "第 {} 章结构化分析派生数据已继续同步",
-            chapter.chapter_number
-        )
     },
 );
 

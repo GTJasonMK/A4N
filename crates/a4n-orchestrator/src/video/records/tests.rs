@@ -1,5 +1,21 @@
 use serde_json::{Value, json};
 
+use super::*;
+
+#[test]
+fn assembly_push_status_transition_has_one_owner() {
+    assert_eq!(
+        next_assembly_push_status("accept", ASSEMBLY_PUSH_STATUS_PENDING).unwrap(),
+        ASSEMBLY_PUSH_STATUS_ACCEPTED
+    );
+    assert_eq!(
+        next_assembly_push_status("undo", ASSEMBLY_PUSH_STATUS_ACCEPTED).unwrap(),
+        ASSEMBLY_PUSH_STATUS_PENDING
+    );
+    assert!(next_assembly_push_status("reject", ASSEMBLY_PUSH_STATUS_ACCEPTED).is_err());
+    assert!(next_assembly_push_status("unknown", ASSEMBLY_PUSH_STATUS_PENDING).is_err());
+}
+
 #[test]
 fn metadata_update_rejects_clearing_system_fields() {
     let err = a4n_db::video::validate_video_metadata_update_preserves_system_fields(

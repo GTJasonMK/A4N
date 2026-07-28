@@ -43,12 +43,7 @@ export interface AdminUser {
   last_login_at: string | null;
 }
 
-export interface CreateAdminUserInput {
-  username: string;
-  email: string;
-  password: string;
-  role: string;
-}
+export type CreateAdminUserInput = CreateUserInput;
 
 export interface AdminInviteCode {
   id: number;
@@ -59,9 +54,7 @@ export interface AdminInviteCode {
   used_at: string | null;
 }
 
-export interface CreateInviteCodeInput {
-  code: string;
-}
+export type CreateInviteCodeInput = ApiCreateInviteCodeInput;
 
 export interface AdminProject {
   id: number;
@@ -141,3 +134,7 @@ export interface AdminHealthCheck {
   services?: AdminServiceHealth[];
   [key: string]: unknown;
 }
+import type {
+  CreateInviteCodeInput as ApiCreateInviteCodeInput,
+  CreateUserInput,
+} from "../../api/generated/host";

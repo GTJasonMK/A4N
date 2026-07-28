@@ -3,7 +3,7 @@ fn video_prompt_user_includes_action_load_and_temporal_capacity_rules() {
     let engine = prompt_renderer();
     let user = build_boundary_video_prompt_user(final_video_context!(
         &engine,
-        &json!({"segments": []}),
+        &json!({"segments": [{"segment_number": 1}]}),
         &json!({"frames": []}),
         &json!({"segment_number": 1}),
         None,

@@ -2,7 +2,7 @@ use std::future::Future;
 
 use a4n_core::error::AppError;
 use a4n_queue::{
-    priority::{TaskPriority, TaskType},
+    priority::{TaskKind, TaskPriority},
     queue::{TaskFamilyContext, TaskWorkflowContext},
 };
 use tokio_util::sync::CancellationToken;
@@ -12,7 +12,7 @@ use super::super::{PersistentTaskQueue, RunTrackedTaskInput};
 impl PersistentTaskQueue {
     pub(super) async fn run_tracked_with_family_context_and_cancel<F, Fut, T>(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
         context: TaskFamilyContext,
         cancel_token: CancellationToken,
@@ -38,7 +38,7 @@ impl PersistentTaskQueue {
 
     pub(super) async fn run_tracked_with_workflow_context_and_cancel<F, Fut, T>(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
         project_id: Option<i64>,
         workflow: TaskWorkflowContext,

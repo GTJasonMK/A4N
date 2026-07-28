@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_rag_core::metadata::{
-    metadata_content_hash, metadata_matches_current_text_index, metadata_matches_embedding_identity,
+    metadata_content_hash, metadata_matches_current_index_format,
+    metadata_matches_current_text_index, metadata_matches_embedding_identity,
+    metadata_matches_source_generation,
 };
 use serde_json::Value;
 
@@ -16,6 +18,8 @@ pub fn classify_rag_record(
 ) -> RagRecordSyncOutcome {
     let already_synced = stored.is_some_and(|metadata| {
         metadata_content_hash(metadata).is_some_and(|stored_hash| stored_hash == content_hash)
+            && metadata_matches_source_generation(metadata, content_hash)
+            && metadata_matches_current_index_format(metadata)
             && metadata_matches_current_text_index(metadata)
             && metadata_matches_embedding_identity(metadata, embedding_identity)
     });
@@ -77,8 +81,7 @@ pub(super) async fn current_embedding_identity(
     context: &OrchestratorContext,
 ) -> Result<EmbeddingModelIdentity, RagSyncError> {
     context
-        .embedding
-        .model_identity()
+        .embedding_model_identity()
         .await
         .map_err(|error| RagSyncError::ReadEmbeddingIdentity {
             message: error.to_string(),

@@ -64,6 +64,7 @@ async fn video_sidecar_missing_capability_fails_without_embedded_fallback() {
         None,
         None,
         None,
+        None,
     )
     .await
     .expect_err("missing video sidecar capability must fail");
@@ -150,6 +151,7 @@ async fn video_generation_maps_workflow_run_to_service_trace() {
         &capabilities,
         &video_config(),
         video_request(),
+        Some("a".repeat(64)),
         Some(42),
         Some(3),
         Some(77),
@@ -175,13 +177,17 @@ async fn video_generation_maps_workflow_run_to_service_trace() {
         Some("video.generate")
     );
     assert_eq!(request.payload["project_id"], 42);
+    assert_eq!(
+        request.payload["provider_idempotency_key_sha256"],
+        "a".repeat(64)
+    );
 }
 
 #[test]
 fn video_generation_terminal_events_preserve_failure_and_cancel_semantics() {
-    let failed = ServiceTaskEvent {
+    let failed = CapabilityTaskEvent {
         task_id: "task-1".to_string(),
-        event_kind: ServiceTaskEventKind::Failed,
+        event_kind: CapabilityTaskEventKind::Failed,
         sequence: 1,
         chunk_index: None,
         chunk_delta: None,
@@ -202,9 +208,9 @@ fn video_generation_terminal_events_preserve_failure_and_cancel_semantics() {
         .expect_err("provider failure must terminate generation");
     assert!(error.contains("provider failed"));
 
-    let cancelled = ServiceTaskEvent {
+    let cancelled = CapabilityTaskEvent {
         task_id: "task-1".to_string(),
-        event_kind: ServiceTaskEventKind::CancelAck,
+        event_kind: CapabilityTaskEventKind::CancelAck,
         sequence: 2,
         chunk_index: None,
         chunk_delta: None,
@@ -270,10 +276,71 @@ async fn video_poll_carries_project_scope_in_context_and_payload() {
     assert_eq!(request.payload["job_id"], "job-42");
 }
 
-fn successful_video_generation_events() -> Vec<ServiceTaskEvent> {
+#[tokio::test]
+async fn video_status_uses_status_only_capability_without_polling() {
+    let client = Arc::new(
+        RecordingVideoClient::new().with_status_response(video_response(json!({
+            "state": "completed"
+        }))),
+    );
+    let capabilities = A4nCapabilities::empty().with_video(client.clone());
+
+    let status = video_job_status(
+        RuntimeProfile::Sidecar,
+        &capabilities,
+        &video_config(),
+        "job-42",
+        Some(42),
+        Some(3),
+    )
+    .await
+    .expect("video status");
+
+    assert_eq!(status, VideoJobStatus::Completed);
+    assert_eq!(client.status_call_count(), 1);
+    assert_eq!(client.poll_call_count(), 0);
+    let request = client
+        .last_status_request()
+        .expect("recorded status request");
+    assert_eq!(request.project_id, Some(42));
+    assert_eq!(request.root_project_id, Some(3));
+    assert_eq!(request.payload["job_id"], "job-42");
+}
+
+#[tokio::test]
+async fn video_delete_carries_project_scope_and_maps_outcome() {
+    let client = Arc::new(
+        RecordingVideoClient::new().with_delete_response(video_response(json!({
+            "outcome": "deleted"
+        }))),
+    );
+    let capabilities = A4nCapabilities::empty().with_video(client.clone());
+
+    let outcome = delete_video_job(
+        RuntimeProfile::Sidecar,
+        &capabilities,
+        &video_config(),
+        "job-42",
+        Some(42),
+        Some(3),
+    )
+    .await
+    .expect("video delete");
+
+    assert_eq!(outcome, VideoJobDeleteOutcome::Deleted);
+    assert_eq!(client.delete_call_count(), 1);
+    let request = client
+        .last_delete_request()
+        .expect("recorded delete request");
+    assert_eq!(request.project_id, Some(42));
+    assert_eq!(request.root_project_id, Some(3));
+    assert_eq!(request.payload["job_id"], "job-42");
+}
+
+fn successful_video_generation_events() -> Vec<CapabilityTaskEvent> {
     vec![
         video_event(
-            ServiceTaskEventKind::Progress,
+            CapabilityTaskEventKind::Progress,
             1,
             json!({
                 "current": 1,
@@ -282,7 +349,7 @@ fn successful_video_generation_events() -> Vec<ServiceTaskEvent> {
             }),
         ),
         video_event(
-            ServiceTaskEventKind::Completed,
+            CapabilityTaskEventKind::Completed,
             2,
             json!({
                 "bytes_base64": "dmlkZW8=",
@@ -316,11 +383,11 @@ fn video_response(payload: serde_json::Value) -> JsonResponse {
 }
 
 fn video_event(
-    event_kind: ServiceTaskEventKind,
+    event_kind: CapabilityTaskEventKind,
     sequence: u64,
     payload: serde_json::Value,
-) -> ServiceTaskEvent {
-    ServiceTaskEvent {
+) -> CapabilityTaskEvent {
+    CapabilityTaskEvent {
         task_id: "configured-task".to_string(),
         event_kind,
         sequence,

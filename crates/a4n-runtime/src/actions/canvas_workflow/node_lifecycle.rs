@@ -1,10 +1,5 @@
-mod cancellation;
-mod run;
-mod task;
-
-pub(super) use cancellation::canvas_workflow_run_is_cancelled;
-pub(super) use run::{
-    CanvasRunHandle, finish_canvas_node_cancelled, finish_canvas_node_success,
-    start_canvas_node_run,
-};
-pub(super) use task::run_canvas_assembly_task;
+#[derive(Debug, Clone, Copy)]
+pub(in crate::actions::canvas_workflow) struct CanvasRunHandle {
+    pub(in crate::actions::canvas_workflow) workflow_run_id: i64,
+    pub(in crate::actions::canvas_workflow) finalize_on_success: bool,
+}

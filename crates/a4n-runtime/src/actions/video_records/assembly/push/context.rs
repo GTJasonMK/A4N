@@ -1,14 +1,10 @@
 use super::super::cache::{
-    assembled_video_output_path, assembly_cache_manifest_path, assembly_dimensions, assembly_fps,
-    build_assembly_cache_manifest,
+    assembled_video_output_path, assembly_cache_manifest_path, build_assembly_cache_manifest,
 };
-use super::super::clips::assembly_clips;
-use super::super::contracts::AssemblyRequestContext;
-use super::workflow::validate_assembly_workflow_mode;
+use super::super::contracts::{AssemblyClip, AssemblyRequestContext};
 use crate::AppState;
 use crate::actions::access;
 use crate::actions::app_error_message;
-use crate::actions::video_prompts::resolve_project_chapter_video_source;
 
 pub(in crate::actions::video_records::assembly) async fn assembly_request_context(
     state: &AppState,
@@ -19,22 +15,52 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
     action: &str,
 ) -> Result<AssemblyRequestContext, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
-    resolve_project_chapter_video_source(state, project_id, chapter_id, action, false).await?;
-    let workflow_mode = validate_assembly_workflow_mode(&workflow_mode)?;
-    let rows = state
-        .orchestrator
-        .generated_videos_for_chapter(project_id, chapter_id)
+    let prepared = state
+        .video()
+        .assembly_video_records_validated(project_id, chapter_id, &workflow_mode, action)
         .await
         .map_err(app_error_message)?;
-    let clips = assembly_clips(state, rows, project_id, chapter_id, workflow_mode)?;
-    let (width, height) = assembly_dimensions(&clips);
-    let fps = assembly_fps(&clips);
-    let output_path = assembled_video_output_path(state, project_id, chapter_id, workflow_mode)?;
+    let clips = prepared
+        .clips
+        .into_iter()
+        .map(|clip| {
+            let path = crate::file_utils::canonicalize_data_file_path(
+                state.data_dir(),
+                &clip.file_path,
+                &format!("成片片段视频 #{}", clip.video_id),
+            )?;
+            Ok(AssemblyClip {
+                video_id: clip.video_id,
+                video_type: clip.video_type,
+                shot_number: clip.shot_number,
+                sort_order: clip.sort_order,
+                insert_after_video_id: clip.insert_after_video_id,
+                path,
+                file_path: clip.file_path,
+                duration_secs: clip.duration_secs,
+                width: clip.width,
+                height: clip.height,
+                fps: clip.fps,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let first = clips.first();
+    let (width, height) = a4n_orchestrator::video::normalized_assembly_dimensions(
+        first.map(|clip| clip.width),
+        first.map(|clip| clip.height),
+    );
+    let fps = a4n_orchestrator::video::normalized_assembly_fps(first.map(|clip| clip.fps));
+    let chapter_videos_dir = crate::actions::video_generation::media::ensure_chapter_videos_dir(
+        state.data_dir(),
+        project_id,
+        chapter_id,
+    )?;
+    let output_path = assembled_video_output_path(&chapter_videos_dir, &prepared.workflow_mode)?;
     let manifest_path = assembly_cache_manifest_path(&output_path);
     let manifest = build_assembly_cache_manifest(
         project_id,
         chapter_id,
-        workflow_mode,
+        &prepared.workflow_mode,
         width,
         height,
         fps,

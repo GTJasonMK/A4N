@@ -17,11 +17,8 @@ pub(super) async fn try_dispatch(
             preview_test_image_config_request(state, user_id, args).await?
         }
         "detect_image_config_models" => detect_image_config_models(state, user_id, args).await?,
-        "generate_scene_image" => generate_scene_image(state, user_id, args).await?,
         "preview_scene_image_request" => preview_scene_image_request(state, user_id, args).await?,
-        "generate_page_image" => generate_page_image(state, user_id, args).await?,
         "preview_page_image_request" => preview_page_image_request(state, user_id, args).await?,
-        "batch_generate_images" => batch_generate_images(state, user_id, args).await?,
         "preview_batch_images_request" => {
             preview_batch_images_request(state, user_id, args).await?
         }
@@ -43,9 +40,6 @@ pub(super) async fn try_dispatch(
         "generate_object_profile_image_prompt" => {
             generate_object_profile_image_prompt(state, user_id, args).await?
         }
-        "generate_object_profile_image" => {
-            generate_object_profile_image(state, user_id, args).await?
-        }
         "preview_object_profile_image_request" => {
             preview_object_profile_image_request(state, user_id, args).await?
         }
@@ -55,9 +49,6 @@ pub(super) async fn try_dispatch(
         "delete_scene_profile" => delete_scene_profile(state, user_id, args).await?,
         "generate_scene_profile_image_prompt" => {
             generate_scene_profile_image_prompt(state, user_id, args).await?
-        }
-        "generate_scene_profile_image" => {
-            generate_scene_profile_image(state, user_id, args).await?
         }
         "sync_scene_profiles" => sync_scene_profiles(state, user_id, args).await?,
         "get_character_arc_status" => get_character_arc_status(state, user_id, args).await?,
@@ -91,15 +82,12 @@ pub(super) async fn try_dispatch(
         "preview_generate_portrait_prompt_request" => {
             preview_generate_portrait_prompt_request(state, user_id, args).await?
         }
-        "generate_portrait" => generate_portrait(state, user_id, args).await?,
         "preview_generate_portrait_request" => {
             preview_generate_portrait_request(state, user_id, args).await?
         }
-        "regenerate_portrait" => regenerate_portrait(state, user_id, args).await?,
         "preview_regenerate_portrait_request" => {
             preview_regenerate_portrait_request(state, user_id, args).await?
         }
-        "generate_missing_portraits" => generate_missing_portraits(state, user_id, args).await?,
         "preview_generate_missing_portraits_request" => {
             preview_generate_missing_portraits_request(state, user_id, args).await?
         }

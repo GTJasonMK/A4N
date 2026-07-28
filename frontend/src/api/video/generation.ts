@@ -1,17 +1,19 @@
 import { apiInvoke } from "../index";
 import { readCurrentUserId } from "../authStorage";
 import { idNum, integerNum, type ApiId as Id } from "../shared";
-import type {
-  ChapterVideosBatchInput,
-  ChapterVideosBatchResult,
-  GeneratedVideo,
-  ReferenceMediaVideoInput,
-} from "./types";
-import { getLocalVideoConfig } from "../localRuntimeSettings";
-import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
 import { assertRemoteBackendCanUsePaths } from "../remotePathGuard";
-import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
+import { generationClient } from "../generationTasks";
+import { generationTaskKey, useGenerationTasksStore } from "../../store/generationTasks";
+import { sha256Hex } from "../../utils/contentHash";
+import type { GenerationTaskViewState } from "../../utils/generationEventReducer";
+import type {
+  GenerationTaskHandle,
+  StartVideoGenerationInput,
+  VideoGenerationOperation,
+} from "../generated/generationContracts";
 import { SYSTEM_VIDEO_CONFIG_ID } from "./configs";
+import { listVideosByChapter } from "./records";
+import type { GeneratedVideo } from "./types";
 
 const currentUserId = (): number => {
   const id = readCurrentUserId();
@@ -25,53 +27,97 @@ function normalizeVideoConfigId(configId?: Id | null): number | null {
   return id === SYSTEM_VIDEO_CONFIG_ID ? null : idNum(id, "视频配置 ID");
 }
 
-export async function generateChapterVideo(
-  projectId: Id,
-  chapterId: Id,
-  promptId: Id,
-  configId?: Id | null,
-  taskId?: string | null,
-): Promise<GeneratedVideo> {
-  const normalizedConfigId = normalizeVideoConfigId(configId);
-  return apiInvoke<GeneratedVideo>("generate_chapter_video", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    promptId: idNum(promptId, "视频提示词 ID"),
-    configId: normalizedConfigId,
-    taskId: taskId ?? null,
-    ...(usesLocalRuntimeSettings() && normalizedConfigId != null
-      ? {
-          runtime_config_snapshot: buildRuntimeConfigSnapshot({
-            video: getLocalVideoConfig(normalizedConfigId),
-          }),
-        }
-      : {}),
-  });
+export type VideoGenerationInput = Omit<StartVideoGenerationInput, "meta">;
+export type { VideoGenerationOperation };
+
+export async function startVideoGeneration(
+  input: VideoGenerationInput,
+): Promise<GenerationTaskHandle> {
+  return generationClient.start((meta) =>
+    apiInvoke<GenerationTaskHandle>("start_video_generation", {
+      userId: currentUserId(),
+      input: {
+        ...input,
+        meta,
+        project_id: idNum(input.project_id, "项目 ID"),
+        operation: normalizeVideoGenerationOperation(input.operation),
+      },
+    }),
+  );
 }
 
-export async function generateChapterVideosBatch(
+export async function verifyVideoGenerationResult(
+  task: GenerationTaskViewState,
   projectId: Id,
   chapterId: Id,
-  input: ChapterVideosBatchInput,
-  taskId?: string | null,
-): Promise<ChapterVideosBatchResult> {
-  const normalizedConfigId = normalizeVideoConfigId(input.config_id);
-  return apiInvoke<ChapterVideosBatchResult>("generate_chapter_videos_batch", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    promptIds: input.prompt_ids.map((id) => idNum(id, "视频提示词 ID")),
-    configId: normalizedConfigId,
-    taskId: taskId ?? null,
-    ...(usesLocalRuntimeSettings() && normalizedConfigId != null
-      ? {
-          runtime_config_snapshot: buildRuntimeConfigSnapshot({
-            video: getLocalVideoConfig(normalizedConfigId),
-          }),
-        }
-      : {}),
-  });
+): Promise<GeneratedVideo[]> {
+  const project = idNum(projectId, "项目 ID");
+  const chapter = idNum(chapterId, "章节 ID");
+  const videos = await listVideosByChapter(project, chapter);
+  const resultRef = task.resultRef;
+  let generated: GeneratedVideo[] = [];
+  let valid = false;
+
+  if (resultRef?.kind === "generated_video") {
+    const videoId = Number(resultRef.id);
+    const video = videos.find(
+      (item) =>
+        item.id === videoId
+        && item.project_id === project
+        && item.chapter_id === chapter
+        && item.status === "completed",
+    );
+    const artifact = task.artifacts.find(
+      (item) =>
+        item.artifact_id === `generated-video:${videoId}`
+        && item.artifact_kind === "generated_video",
+    );
+    valid = video != null
+      && artifact != null
+      && !artifact.temporary
+      && artifact.revision === resultRef.revision
+      && artifact.sha256 === resultRef.revision;
+    if (valid && video) generated = [video];
+  } else if (
+    resultRef?.kind === "generated_video_batch"
+    && Number(resultRef.id) === project
+  ) {
+    const artifacts = task.artifacts.filter(
+      (item) => item.artifact_kind === "generated_video" && !item.temporary,
+    );
+    const ids = artifacts
+      .map((artifact) => artifact.artifact_id.match(/^generated-video:(\d+)$/)?.[1])
+      .filter((id): id is string => id != null)
+      .map(Number);
+    const uniqueIds = [...new Set(ids)].sort((left, right) => left - right);
+    const revision = await sha256Hex(JSON.stringify(uniqueIds));
+    generated = uniqueIds
+      .map((id) =>
+        videos.find(
+          (video) =>
+            video.id === id
+            && video.project_id === project
+            && video.chapter_id === chapter
+            && video.status === "completed",
+        ),
+      )
+      .filter((video): video is GeneratedVideo => video != null);
+    valid = uniqueIds.length > 0
+      && uniqueIds.length === artifacts.length
+      && artifacts.every((artifact) => artifact.revision === artifact.sha256)
+      && generated.length === uniqueIds.length
+      && revision != null
+      && revision === resultRef.revision;
+  }
+
+  if (!valid) {
+    useGenerationTasksStore.getState().dispatch(
+      generationTaskKey(task.taskId, task.attempt),
+      { type: "client_state", state: "consistency_error" },
+    );
+    throw new Error("视频生成已结束，但正式结果校验失败");
+  }
+  return generated;
 }
 
 export async function pollVideoJob(videoId: Id): Promise<GeneratedVideo> {
@@ -81,28 +127,42 @@ export async function pollVideoJob(videoId: Id): Promise<GeneratedVideo> {
   });
 }
 
-export async function generateReferenceMediaVideo(
-  projectId: Id,
-  chapterId: Id,
-  input: ReferenceMediaVideoInput,
-  taskId?: string | null,
-): Promise<GeneratedVideo> {
-  assertRemoteBackendCanUsePaths(input.image_files, "参考媒体图片");
-  assertRemoteBackendCanUsePaths(input.video_files, "参考媒体视频");
-  assertRemoteBackendCanUsePaths(input.audio_files, "参考媒体音频");
-  const normalizedConfigId = normalizeVideoConfigId(input.config_id);
-  return apiInvoke<GeneratedVideo>("generate_reference_media_video", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    input: { ...input, config_id: normalizedConfigId },
-    taskId: taskId ?? null,
-    ...(usesLocalRuntimeSettings() && normalizedConfigId != null
-      ? {
-          runtime_config_snapshot: buildRuntimeConfigSnapshot({
-            video: getLocalVideoConfig(normalizedConfigId),
-          }),
-        }
-      : {}),
-  });
+function normalizeVideoGenerationOperation(
+  operation: VideoGenerationOperation,
+): VideoGenerationOperation {
+  switch (operation.kind) {
+    case "chapter":
+      return {
+        ...operation,
+        chapter_id: idNum(operation.chapter_id, "章节 ID"),
+        prompt_id: idNum(operation.prompt_id, "视频提示词 ID"),
+        config_id: normalizeVideoConfigId(operation.config_id),
+      };
+    case "chapter_batch":
+      return {
+        ...operation,
+        chapter_id: idNum(operation.chapter_id, "章节 ID"),
+        prompt_ids: operation.prompt_ids.map((id) => idNum(id, "视频提示词 ID")),
+        config_id: normalizeVideoConfigId(operation.config_id),
+      };
+    case "reference_media": {
+      const imageFiles = operation.input.image_files ?? [];
+      const videoFiles = operation.input.video_files ?? [];
+      const audioFiles = operation.input.audio_files ?? [];
+      assertRemoteBackendCanUsePaths(imageFiles, "参考媒体图片");
+      assertRemoteBackendCanUsePaths(videoFiles, "参考媒体视频");
+      assertRemoteBackendCanUsePaths(audioFiles, "参考媒体音频");
+      return {
+        ...operation,
+        chapter_id: idNum(operation.chapter_id, "章节 ID"),
+        input: {
+          ...operation.input,
+          image_files: imageFiles,
+          video_files: videoFiles,
+          audio_files: audioFiles,
+          config_id: normalizeVideoConfigId(operation.input.config_id),
+        },
+      };
+    }
+  }
 }

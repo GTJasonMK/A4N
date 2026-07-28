@@ -1,6 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
-use a4n_queue::priority::{TaskPriority, TaskType};
+use a4n_queue::priority::{TaskKind, TaskPriority};
 
 use super::super::budget::{ensure_max_tokens_within_model_cap, llm_probe_succeeded};
 use super::super::config::probe_llm_via_sidecar;
@@ -29,8 +29,8 @@ impl DynamicLlmProvider {
             &model_name,
         )?;
         let output = self
-            .task_queue
-            .run_tracked(TaskType::LlmCall, TaskPriority::High, None, || async move {
+            .facade
+            .queue_run_tracked(TaskKind::LlmCall, TaskPriority::High, None, || async move {
                 probe_llm_via_sidecar(client, resolved_model, request).await
             })
             .await?;

@@ -398,19 +398,21 @@ async fn sync_chapter_prompts_rejects_unknown_reference_image_without_insert() {
 }
 
 #[tokio::test]
-async fn missing_chapter_prompt_queries_return_not_found_without_touching_orphans() {
+async fn missing_chapter_prompt_queries_return_not_found_without_touching_existing_prompts() {
     let db = Arc::new(setup_db().await);
     let project = insert_video_project(db.as_ref(), "视频项目").await;
-    let prompt = insert_video_prompt(db.as_ref(), project.id, 999, None).await;
+    let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
+    let prompt = insert_video_prompt(db.as_ref(), project.id, chapter.id, None).await;
+    let missing_chapter_id = chapter.id + 10_000;
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .ensure_chapter_belongs_to_project(project.id, 999)
+        .ensure_chapter_belongs_to_project(project.id, missing_chapter_id)
         .await
         .expect_err("missing chapter list must be visible");
     assert!(matches!(
         err,
-        AppError::NotFound(message) if message == "章节不存在: 999"
+        AppError::NotFound(message) if message == format!("章节不存在: {missing_chapter_id}")
     ));
 
     let stored = chapter_video_prompt::Entity::find_by_id(prompt.id)
@@ -418,6 +420,6 @@ async fn missing_chapter_prompt_queries_return_not_found_without_touching_orphan
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(stored.chapter_id, 999);
+    assert_eq!(stored.chapter_id, chapter.id);
     assert_eq!(stored.status, "completed");
 }

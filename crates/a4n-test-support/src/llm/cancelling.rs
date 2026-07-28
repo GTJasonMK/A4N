@@ -2,9 +2,9 @@ use std::future;
 use std::pin::Pin;
 
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, ChatResponse, LlmProvider, ModelCapabilities};
+use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use async_trait::async_trait;
-use futures::{Stream, stream};
+use futures::Stream;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
@@ -20,16 +20,12 @@ impl CancellingLlmProvider {
 
 #[async_trait]
 impl LlmProvider for CancellingLlmProvider {
-    async fn chat(&self, _request: ChatRequest) -> Result<ChatResponse, AppError> {
-        self.cancel_token.cancel();
-        future::pending::<Result<ChatResponse, AppError>>().await
-    }
-
     async fn chat_stream(
         &self,
         _request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
-        Ok(Box::pin(stream::empty()))
+        self.cancel_token.cancel();
+        future::pending().await
     }
 
     async fn test_connection(&self) -> Result<bool, AppError> {

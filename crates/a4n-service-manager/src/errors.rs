@@ -1,6 +1,6 @@
 use a4n_service_protocol::{HealthStatus, ServiceErrorCode};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(thiserror::Error)]
 pub enum ServiceManagerError {
     #[error("unknown service: {0}")]
     UnknownService(String),
@@ -8,7 +8,7 @@ pub enum ServiceManagerError {
     InvalidConfig(String),
     #[error("capability disabled: {0}")]
     CapabilityDisabled(String),
-    #[error("service {service} health check failed: {source}")]
+    #[error("service {service} health check failed")]
     HealthCheckFailed {
         service: String,
         #[source]
@@ -35,6 +35,12 @@ pub enum ServiceManagerError {
         expected: String,
         actual: String,
     },
+    #[error("service {service} build mismatch: expected {expected}, actual {actual}")]
+    ServiceBuildMismatch {
+        service: String,
+        expected: String,
+        actual: String,
+    },
     #[error("service {service} startup timed out after {timeout_ms}ms")]
     Timeout { service: String, timeout_ms: u64 },
     #[error("service {service} exited before becoming healthy: status {status:?}")]
@@ -54,6 +60,10 @@ pub enum ServiceManagerError {
         #[source]
         source: std::io::Error,
     },
+    #[error("release manifest validation failed: {0}")]
+    ReleaseManifestInvalid(String),
+    #[error("service {service} binary integrity validation failed: {reason}")]
+    BinaryIntegrityFailed { service: String, reason: String },
     #[error("service {service} stop failed: {source}")]
     StopFailed {
         service: String,
@@ -69,6 +79,20 @@ pub enum ServiceManagerError {
         #[source]
         kill_source: std::io::Error,
     },
+    #[error("service {service} supervisor task failed: {reason}")]
+    SupervisorTaskFailed { service: String, reason: String },
+    #[error("service {service} restart circuit opened after {restarts} attempts: {last_error}")]
+    RestartLimitExceeded {
+        service: String,
+        restarts: u32,
+        last_error: String,
+    },
+}
+
+impl std::fmt::Debug for ServiceManagerError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, formatter)
+    }
 }
 
 impl ServiceManagerError {
@@ -77,8 +101,11 @@ impl ServiceManagerError {
             Self::CapabilityDisabled(_) => ServiceErrorCode::CapabilityDisabled,
             Self::ProtocolMismatch { .. }
             | Self::ServiceIdentityMismatch { .. }
-            | Self::CapabilityMismatch { .. } => ServiceErrorCode::VersionMismatch,
-            Self::InvalidConfig(_) => ServiceErrorCode::ConfigurationError,
+            | Self::CapabilityMismatch { .. }
+            | Self::ServiceBuildMismatch { .. } => ServiceErrorCode::VersionMismatch,
+            Self::InvalidConfig(_)
+            | Self::ReleaseManifestInvalid(_)
+            | Self::BinaryIntegrityFailed { .. } => ServiceErrorCode::ConfigurationError,
             _ => ServiceErrorCode::ServiceUnavailable,
         }
     }

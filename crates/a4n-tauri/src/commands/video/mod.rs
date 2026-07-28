@@ -72,7 +72,13 @@ mod tests {
         [
             "crates/a4n-tauri/src/commands/video/config_commands.rs",
             "crates/a4n-tauri/src/commands/video/generation.rs",
+            "crates/a4n-tauri/src/commands/video/generation/commands.rs",
+            "crates/a4n-tauri/src/commands/video/generation/preview.rs",
+            "crates/a4n-tauri/src/commands/video/generation/records.rs",
             "crates/a4n-tauri/src/commands/video/prompts.rs",
+            "crates/a4n-tauri/src/commands/video/prompts/generation.rs",
+            "crates/a4n-tauri/src/commands/video/prompts/preview.rs",
+            "crates/a4n-tauri/src/commands/video/prompts/records.rs",
             "crates/a4n-tauri/src/commands/video/records.rs",
         ]
         .into_iter()

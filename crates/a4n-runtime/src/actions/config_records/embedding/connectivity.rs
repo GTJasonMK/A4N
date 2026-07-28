@@ -4,7 +4,7 @@ use super::super::shared::{
 use crate::actions::request_preview::{model_request_preview, provider_request_step};
 use crate::{AppState, actions::app_error_message};
 use a4n_core::models::ai::embedding_config;
-use a4n_queue::priority::{TaskPriority, TaskType as QueueTaskType};
+use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use serde::Serialize;
 
 const EMBEDDING_CONNECTIVITY_TEST_INPUT: &str = "test";
@@ -20,12 +20,12 @@ struct EmbeddingConnectivityPreviewRequest {
 pub async fn test_embedding_config(state: &AppState, config_id: i64) -> Result<bool, String> {
     let config = resolve_embedding_config_for_connectivity_test(state, config_id).await?;
     let expected_dimension = positive_i32_as_usize(config.dimension, "嵌入配置维度")?;
-    if state.runtime_profile.uses_sidecars() {
+    if state.runtime_profile().uses_sidecars() {
         let capabilities = state.capabilities().clone();
         return state
-            .task_queue
-            .run_tracked(
-                QueueTaskType::EmbeddingCall,
+            .task_queue()
+            .queue_run_tracked(
+                QueueTaskKind::EmbeddingCall,
                 TaskPriority::High,
                 None,
                 || async move {
@@ -42,13 +42,13 @@ pub async fn test_embedding_config(state: &AppState, config_id: i64) -> Result<b
     }
     let provider = crate::dynamic_embedding::make_provider_from_model(
         &config,
-        crate::dynamic_embedding::default_fastembed_cache_dir(&state.config),
+        state.default_fastembed_cache_dir(),
     )
     .map_err(|e| e.to_string())?;
     let vectors = state
-        .task_queue
-        .run_tracked(
-            QueueTaskType::EmbeddingCall,
+        .task_queue()
+        .queue_run_tracked(
+            QueueTaskKind::EmbeddingCall,
             TaskPriority::High,
             None,
             || async move {
@@ -94,7 +94,7 @@ async fn resolve_embedding_config_for_connectivity_test(
         return Ok(config);
     }
     state
-        .orchestrator
+        .settings()
         .embedding_config_by_id(config_id)
         .await
         .map_err(app_error_message)

@@ -1,10 +1,6 @@
 use a4n_core::error::AppError;
-use a4n_core::models::ai::{optimization_patch, optimization_patch_set};
-use a4n_core::models::chapter::chapter;
-use a4n_db::optimize::{
-    OptimizationChapterPatchWriteInput, OptimizationPatchCreateInput,
-    OptimizationPatchSetCreateInput,
-};
+use a4n_core::models::ai::optimization_patch_set;
+use a4n_db::optimize::{OptimizationPatchCreateInput, OptimizationPatchSetCreateInput};
 
 use serde_json::Value;
 
@@ -16,81 +12,6 @@ const PATCH_DECISION_PENDING: &str = "pending";
 const PATCH_APPLY_STATUS_PENDING: &str = "pending";
 
 impl OrchestratorContext {
-    pub async fn write_optimization_chapter_patch_content(
-        &self,
-        input: OptimizationChapterPatchWriteInput,
-    ) -> Result<chapter::Model, AppError> {
-        a4n_db::optimize::write_optimization_chapter_patch_content(self.db.connection(), input)
-            .await
-            .map_err(optimize_db_error)
-    }
-
-    pub async fn optimization_patch_sets(
-        &self,
-        session_id: i64,
-    ) -> Result<Vec<optimization_patch_set::Model>, AppError> {
-        a4n_db::optimize::optimization_patch_sets(self.db.connection(), session_id)
-            .await
-            .map_err(optimize_db_error)
-    }
-
-    pub async fn optimization_patch_set_patches(
-        &self,
-        patch_set_id: i64,
-    ) -> Result<Vec<optimization_patch::Model>, AppError> {
-        a4n_db::optimize::optimization_patch_set_patches(self.db.connection(), patch_set_id)
-            .await
-            .map_err(optimize_db_error)
-    }
-
-    pub async fn matching_pending_optimization_patch_sets(
-        &self,
-        session_id: i64,
-        base_content_hash: &str,
-        pending_status: &str,
-    ) -> Result<Vec<optimization_patch_set::Model>, AppError> {
-        a4n_db::optimize::matching_pending_optimization_patch_sets(
-            self.db.connection(),
-            session_id,
-            base_content_hash,
-            pending_status,
-        )
-        .await
-        .map_err(optimize_db_error)
-    }
-
-    pub async fn pending_optimization_patch_sets(
-        &self,
-        session_id: i64,
-        pending_status: &str,
-    ) -> Result<Vec<optimization_patch_set::Model>, AppError> {
-        a4n_db::optimize::pending_optimization_patch_sets(
-            self.db.connection(),
-            session_id,
-            pending_status,
-        )
-        .await
-        .map_err(optimize_db_error)
-    }
-
-    pub async fn update_optimization_patch_set_status(
-        &self,
-        patch_set: optimization_patch_set::Model,
-        patch_set_status: &str,
-        patch_decision: &str,
-        patch_apply_status: &str,
-    ) -> Result<(), AppError> {
-        a4n_db::optimize::update_optimization_patch_set_status(
-            self.db.connection(),
-            patch_set,
-            patch_set_status,
-            patch_decision,
-            patch_apply_status,
-        )
-        .await
-        .map_err(optimize_db_error)
-    }
-
     pub(super) async fn persist_patch_tool_result(
         &self,
         turn_id: i64,
@@ -131,7 +52,7 @@ impl OrchestratorContext {
         }
 
         a4n_db::optimize::create_optimization_patch_set(
-            self.db.connection(),
+            self.database.connection(),
             OptimizationPatchSetCreateInput {
                 turn_id,
                 session_id: proposal.session_id,

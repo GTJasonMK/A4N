@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use a4n_service_manager::{ManagedServiceConfig, ServiceManagerError, ServiceMode};
+use a4n_service_manager::{
+    ManagedServiceConfig, ManagedSidecarState, ManagedSidecarStatus, ServiceManagerError,
+    ServiceMode,
+};
 use a4n_service_protocol::{HealthStatus, ServiceErrorCode, ServiceHealth};
 
 use super::service_health::{redact_service_url, service_health_summary, service_url_port};
@@ -129,6 +132,7 @@ fn remote_service_summary_reads_observed_pid_file() {
             service_version: "test".to_string(),
             protocol_version: a4n_service_protocol::PROTOCOL_VERSION,
             capability_version: "test".to_string(),
+            compatibility: None,
         },
     };
 
@@ -181,6 +185,7 @@ fn embedded_service_summary_ignores_pid_file() {
                 service_version: "test".to_string(),
                 protocol_version: a4n_service_protocol::PROTOCOL_VERSION,
                 capability_version: "embedded".to_string(),
+                compatibility: None,
             },
         }),
         Some(&pid_dir),
@@ -206,6 +211,7 @@ fn sidecar_service_summary_prefers_manager_owned_pid() {
             service_version: "test".to_string(),
             protocol_version: a4n_service_protocol::PROTOCOL_VERSION,
             capability_version: "test".to_string(),
+            compatibility: None,
         },
     };
 
@@ -217,12 +223,21 @@ fn sidecar_service_summary_prefers_manager_owned_pid() {
         ),
         Ok(health),
         Some(&pid_dir),
-        Some(std::process::id()),
+        Some(&ManagedSidecarStatus {
+            service: "image".to_string(),
+            state: ManagedSidecarState::Running,
+            pid: Some(std::process::id()),
+            restart_count: 1,
+            next_restart_in_ms: None,
+            last_error: Some("previous crash".to_string()),
+        }),
     );
 
     assert_eq!(summary.pid, Some(std::process::id()));
     assert_eq!(summary.pid_status, Some(ManagedServicePidStatus::Observed));
     assert_eq!(summary.pid_source.as_deref(), Some("manager_owned"));
+    assert_eq!(summary.restart_count, Some(1));
+    assert_eq!(summary.last_error.as_deref(), Some("previous crash"));
 
     let _ = std::fs::remove_dir_all(pid_dir);
 }

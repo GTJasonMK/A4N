@@ -1,7 +1,7 @@
 use std::future::Future;
 
 use a4n_core::error::AppError;
-use a4n_queue::priority::{TaskPriority, TaskType};
+use a4n_queue::priority::{TaskKind, TaskPriority};
 use tokio_util::sync::CancellationToken;
 
 use super::{PersistentTaskQueue, RunTrackedTaskInput, SubmittedTaskGuard};
@@ -15,7 +15,7 @@ mod outcome;
 impl PersistentTaskQueue {
     pub async fn run_tracked_with_cancel<F, Fut, T>(
         &self,
-        task_type: TaskType,
+        task_type: TaskKind,
         priority: TaskPriority,
         project_id: Option<i64>,
         cancel_token: CancellationToken,
@@ -75,7 +75,13 @@ impl PersistentTaskQueue {
                 .cancel_submitted_task(&submitted_id, submitted_guard)
                 .await;
         };
-        self.finish_tracked_operation(permit, submitted_guard, operation().await)
+        let result = match task_type {
+            TaskKind::LlmCall | TaskKind::TextGeneration => {
+                a4n_queue::scope::with_llm_slot(operation()).await
+            }
+            _ => operation().await,
+        };
+        self.finish_tracked_operation(permit, submitted_guard, result)
             .await
     }
 }

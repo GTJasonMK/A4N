@@ -12,6 +12,7 @@ pub mod canvas;
 pub mod chapter_analysis;
 pub mod chapter_content;
 pub mod chapter_generation;
+pub mod chapter_scene;
 pub mod character;
 pub mod collaboration;
 pub mod config;
@@ -25,12 +26,14 @@ pub mod inspiration;
 pub mod llm_context;
 pub mod manga;
 pub mod media;
+pub mod object_discovery;
 pub mod optimize;
 pub mod outline;
 pub mod portrait;
 pub mod profile_material;
 pub mod project;
 pub mod prompt_override;
+pub mod prompt_records;
 pub mod rag;
 pub mod scene_profile;
 pub mod shooting_script;
@@ -38,6 +41,7 @@ pub mod source_sync;
 pub mod structured_llm;
 pub mod task_queue;
 pub mod text_anchor;
+pub mod theme;
 pub mod video;
 pub mod workflow;
 
@@ -48,7 +52,11 @@ mod service_health;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-pub use context::{ManagedServicePidMap, OrchestratorContext, OrchestratorScope};
+pub use context::dynamic_provider::DynamicProviderFacade;
+pub use context::{
+    GenerationTaskAccessError, GenerationTaskHistorySummaries, GenerationTaskStart,
+    OrchestratorContext, OrchestratorScope, PromptRegistryCategory, generation_task_summary,
+};
 pub use service_health::{
     CapabilityHealthSnapshot, ManagedServiceHealthSummary, ManagedServicePidStatus,
 };

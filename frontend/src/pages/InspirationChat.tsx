@@ -36,8 +36,6 @@ export const InspirationChat: React.FC = () => {
       <InspirationChatHeader
         projectTitle={chat.project.title}
         showConversationControls={chat.stage === "conversation"}
-        useStream={chat.useStream}
-        onUseStreamChange={chat.setUseStream}
         generating={chat.generating}
         canTryGenerate={chat.canTryGenerate}
         canGenerate={chat.canGenerate}
@@ -65,7 +63,7 @@ export const InspirationChat: React.FC = () => {
                   onInputFocus={chat.handleConversationFocus}
                   onInputBlur={chat.handleConversationBlur}
                   sending={chat.sending}
-                  showThinking={!chat.useStream && chat.sending}
+                  showThinking={chat.sending}
                   messagesEndRef={chat.messagesEndRef}
                   placeholder={chat.inputPlaceholder}
                   inputActive={chat.inputActive}
@@ -83,6 +81,7 @@ export const InspirationChat: React.FC = () => {
           {chat.stage === "confirm" && chat.blueprint && (
             <BlueprintConfirmationPane
               blueprint={chat.blueprint}
+              consistencyWarning={chat.blueprintConsistencyWarning}
               refining={chat.refining}
               onRefine={(focus) => void chat.handleRefineBlueprint(focus)}
               onPreviewRefine={(focus) => void chat.handlePreviewRefineBlueprint(focus)}
@@ -106,6 +105,8 @@ export const InspirationChat: React.FC = () => {
         total={chat.blueprintProgress.total}
         message={chat.blueprintProgress.message}
         error={chat.blueprintProgress.error}
+        streamText={chat.blueprintStreamText}
+        streamVersion={chat.blueprintStreamVersion}
         onClose={() => chat.setBlueprintProgressOpen(false)}
         closeLabel={chat.blueprintProgress.status === "success" ? "查看蓝图" : "关闭"}
         onCancel={

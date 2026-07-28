@@ -68,6 +68,7 @@ fn normalize_canvas_record_text_kind(value: &str) -> Result<&'static str, Canvas
         "narration" => Ok("narration"),
         "character_note" => Ok("character_note"),
         "freeform" => Ok("freeform"),
+        "canvas_output" => Ok("canvas_output"),
         other => Err(CanvasDbError::InvalidArgument(format!(
             "未知画布文本类型: {other}"
         ))),
@@ -77,4 +78,24 @@ fn normalize_canvas_record_text_kind(value: &str) -> Result<&'static str, Canvas
 fn canvas_record_sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_canvas_record_text_kind;
+
+    #[test]
+    fn canvas_output_is_a_canonical_canvas_text_kind() {
+        assert_eq!(
+            normalize_canvas_record_text_kind(" canvas_output ").unwrap(),
+            "canvas_output"
+        );
+    }
+
+    #[test]
+    fn unknown_canvas_text_kind_is_rejected() {
+        let error =
+            normalize_canvas_record_text_kind("legacy_output").expect_err("未知文本类型必须失败");
+        assert!(error.to_string().contains("未知画布文本类型"));
+    }
 }

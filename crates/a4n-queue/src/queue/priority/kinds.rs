@@ -1,4 +1,5 @@
 use a4n_core::error::AppError;
+pub use a4n_core::event::channel::TaskKind;
 use serde::{Deserialize, Serialize};
 
 /// 任务优先级
@@ -33,65 +34,5 @@ impl TaskPriority {
     pub fn parse_storage(value: &str) -> Result<Self, AppError> {
         Self::parse(value)
             .ok_or_else(|| AppError::InvalidArgument(format!("未知任务优先级: {value}")))
-    }
-}
-
-/// 任务类型
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TaskType {
-    LlmCall,
-    ImageGeneration,
-    VideoGeneration,
-    VideoPoll,
-    SourceSync,
-    Assembly,
-    EmbeddingCall,
-    RagIngestion,
-    ImportAnalysis,
-    ExportGeneration,
-    EmbeddingDownload,
-}
-
-impl TaskType {
-    const ALL: [Self; 11] = [
-        Self::LlmCall,
-        Self::ImageGeneration,
-        Self::VideoGeneration,
-        Self::VideoPoll,
-        Self::SourceSync,
-        Self::Assembly,
-        Self::EmbeddingCall,
-        Self::RagIngestion,
-        Self::ImportAnalysis,
-        Self::ExportGeneration,
-        Self::EmbeddingDownload,
-    ];
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::LlmCall => "llm_call",
-            Self::ImageGeneration => "image_generation",
-            Self::VideoGeneration => "video_generation",
-            Self::VideoPoll => "video_poll",
-            Self::SourceSync => "source_sync",
-            Self::Assembly => "assembly",
-            Self::EmbeddingCall => "embedding_call",
-            Self::RagIngestion => "rag_ingestion",
-            Self::ImportAnalysis => "import_analysis",
-            Self::ExportGeneration => "export_generation",
-            Self::EmbeddingDownload => "embedding_download",
-        }
-    }
-
-    pub fn parse(value: &str) -> Option<Self> {
-        Self::ALL
-            .iter()
-            .copied()
-            .find(|task_type| task_type.as_str() == value)
-    }
-
-    pub fn parse_storage(value: &str) -> Result<Self, AppError> {
-        Self::parse(value)
-            .ok_or_else(|| AppError::InvalidArgument(format!("未知任务类型: {value}")))
     }
 }

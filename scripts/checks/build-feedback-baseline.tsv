@@ -1,0 +1,13 @@
+# Provisional package-rebuild baseline collected on 2026-07-28, Linux x86_64,
+# rustc 1.95.0. The 100% bootstrap ceiling allows runner-class differences;
+# replace these medians after the first fixed ubuntu-24.04 artifact is available.
+# method	package-rebuild-v1
+# package	baseline_ms	max_regression_percent
+a4n-prompt-service	561	100
+a4n-llm-gateway	458	100
+a4n-embedding-service	532	100
+a4n-rag-service	617	100
+a4n-image-service	468	100
+a4n-video-service	527	100
+a4n-server	5044	100
+a4n-tauri	22615	100

@@ -21,7 +21,9 @@ async fn boundary_frame_prompt_preview_requires_current_shooting_script() {
     assert!(matches!(
         err,
         AppError::NotFound(message)
-            if message.contains("尚未生成当前来源版本的结构化拍摄剧本")
+            if message.contains("第 1 章")
+                && message.contains(&format!("章节 ID {}", chapter.id))
+                && message.contains("未找到与当前正文版本匹配的结构化拍摄剧本")
                 && message.contains("正文页")
                 && message.contains("剧本改编")
     ));
