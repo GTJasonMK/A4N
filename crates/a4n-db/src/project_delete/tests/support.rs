@@ -11,6 +11,16 @@ pub(super) async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
+pub(super) async fn set_project_gate(
+    db: &DatabaseConnection,
+    project: &novel_project::Model,
+    operation: crate::generation::ProjectLifecycleOperation,
+) {
+    let mut active: novel_project::ActiveModel = project.clone().into();
+    active.lifecycle_gate = Set(operation.gate().to_string());
+    active.update(db).await.unwrap();
+}
+
 pub(super) async fn freeform_video_project(
     db: &DatabaseConnection,
     title: &str,

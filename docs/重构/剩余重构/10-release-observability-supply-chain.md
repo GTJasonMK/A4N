@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 建立 Windows/macOS/Linux 发布实跑、sidecar metrics/restart、SBOM/advisory/license/binary manifest 闭环 |
 | V2 来源 | 3.17、3.25、3.26；阶段 H、阶段 M 的发布/运维/供应链部分 |
-| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed macOS/Windows 正式 tag release 流水线已落地；真实签名、公证、供应链和平台 artifact 仍缺 |
+| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；首轮 Module Checks 已产出三平台构建 artifact，成功 smoke、正式签名/公证、供应链和 GitHub Release 证据仍缺 |
 | 可并行性 | 平台、可观测性、供应链可分 agent；`.github/workflows` 和 release manifest 由集成者串行合并 |
 
 ## 子包 A：跨平台发布（3.17）
@@ -332,3 +332,18 @@ GitHub CLI 官方文档与源码确认 draft 创建/发布及按 tag 获取 draf
 - Module Checks 与正式 tag workflow 删除重复 Host-only 命令并复用该入口；draft、下载校验和 12 项最终资产集合同步切换到九包归档。
 
 快速 mock 只替代 `cargo-cyclonedx` 输出，生产 catalog/metadata/9 包/归档/hash 逻辑实际运行，结果 9/9 且 checksum 通过。YAML、Shell、checker、`actionlint v1.7.7` 和 diff check 通过；固定 runner 的真实 SBOM artifact 仍缺，3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `35/44`。
+
+## 批次 337 · 首轮 Module Checks 远端诊断与发布门禁修复（2026-07-28）
+
+状态：`未完成`
+
+- `gh` 已以 `GTJasonMK` 登录；远端 run `30372742923` 对应提交 `500425504a6330c690a47abc3e0574c16519e1ce`，共 36 个 job：25 个成功、11 个失败。build-feedback、Host minimal、full backend、frontend/API parity、Linux/Windows package layout、全部 sidecar package、Ubuntu/macOS native sidecar、三平台 remote mTLS、多实例 manager 等已在真实 runner 通过。
+- 该 run 生成四个真实 artifact：build-feedback `8694035916`（SHA-256 `3eb9aa…1074`）、Linux release `8694807418`（`8cfeb0…a28`）、Windows release `8695836724`（`5de2da…ea3e`）和 macOS arm64 Tauri bundle `8696436528`（`541371…a4b9`）。这些证明三平台产物可以构建，但 smoke 失败的 artifact 不能记为平台发布闭环。
+- 供应链 job 暴露五个真实 advisory：`anyhow`、`crossbeam-epoch`、`quick-xml`、`quinn-proto`、`git2`。lockfile 已升级到修复版本；`git2` 升为 `0.21` 并适配其 UTF-8 `Result` API。唯一无修复版本的 `RUSTSEC-2023-0071` 来自未激活的 `sqlx-mysql → rsa 0.9.10`，现由单一 audit 例外和 workspace/all-features/target-all 不可达门禁约束。41/41 个 A4N workspace crate 统一声明 `Apache-2.0`；未修改 vendored `crates/qdrant`。
+- Linux/Windows release smoke 在空数据库启动 Host 前没有执行 migration；两个 workflow 现复用 `a4n-migration`。Windows portable 的 GNU tar 无法以中文/空格路径作为 `-C` 目标，脚本改为 `Push-Location -LiteralPath` 后就地解压，仍保留非 ASCII 安装前缀。Windows manager 在 `env_clear()` 后删除 `SystemRoot`，导致 Winsock 10106；共享 spawn 入口只恢复该可信平台变量，不恢复数据库、JWT 或 provider secret。
+- macOS job 已完成 unsigned `.app` 构建并上传 artifact，但 smoke 错把产品目录名 `A4N.app` 当成 Host 文件名。artifact 真实布局证明 Host 是 `Contents/MacOS/a4n-tauri`；共享 macOS smoke 已改用 canonical Cargo binary 名，不改 Tauri product name 或跨平台打包命名。
+- Generation Web/Tauri job 的依赖检查错误调用 `WebKitWebDriver --version`；该工具会以非零码结束，现改为已有的 `command -v` 存在性检查，不添加跳过路径。
+- RAG/Image/Video/Embedding process test 仍引用已删除的 `assert_event_queue_backpressure`，且文档把旧 `try_send` 错误语义写成当前合同。现统一以 `a4n-capabilities` 的 `send().await` 为准：有界队列满时等待容量，消费后继续到达 `Completed`；receiver 关闭时返回 `Cancelled`。四个独立 process target 均已定向通过。
+- PostgreSQL CI 日志证明每项测试使用独立 schema，不是并行串库；18 个真实失败来自角色属性、`project_kind`、项目/章节外键、lifecycle gate、媒体路径、结构化错误和 canonical workflow 等陈旧 fixture。相关 fixture 已按当前 schema 修正；原失败集合的定向复验全部通过。本机全量 540 项中的额外失败来自 PostgreSQL `max_locks_per_transaction` 资源上限，不据此修改远端并发策略。`scripts/test.sh` 现复用已有 `load_dotenv`，让仓库 `.env` 中的测试库入口实际生效。
+
+本地已通过 audit 例外门禁、release 签名 workflow 门禁、`cargo audit`、`cargo deny check`、四个 sidecar process、`a4n-db --lib --no-run`、project delete/reset 定向测试、相关 Rust check、Shell/YAML 语法和 diff 检查。上述修复尚未进入新的远端提交/run；正式 Apple/Azure identity、受保护 `release` environment、`v*` tag、签名、公证、最终 manifest/CMS、九包 SBOM 和 GitHub Release 下载复验仍不存在。因此 3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成`，V2 仍为 `38/44`。

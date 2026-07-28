@@ -2,12 +2,12 @@ use a4n_service_protocol::ServiceErrorCode;
 use a4n_test_support::process::{
     HttpRagClient, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
     SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
-    assert_event_queue_backpressure, assert_process_concurrency_saturation,
-    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
-    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
-    assert_route_rejects_version_mismatch, assert_sidecar_rejects_non_loopback_without_auth,
-    finish_sidecar, force_finish_sidecar, request_context, sidecar_base_url,
-    sidecar_manager_with_dir, start_sidecar, trusted_remote_request_context, unused_local_addr,
+    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
+    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
+    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
+    assert_sidecar_rejects_non_loopback_without_auth, finish_sidecar, force_finish_sidecar,
+    request_context, sidecar_base_url, sidecar_manager_with_dir, start_sidecar,
+    trusted_remote_request_context, unused_local_addr,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -209,27 +209,53 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     assert_complete(&client, &["doc-1", "doc-2"]).await;
     assert_eq!(search_ids(&client, "重建").await, vec!["doc-1"]);
 
-    let (backpressure_tx, backpressure_rx) = tokio::sync::mpsc::channel(1);
-    let backpressure = client
-        .ingest_events(
-            rag_request(
-                "rag-process-backpressure",
-                json!({
-                    "collection": COLLECTION,
-                    "records": [{
-                        "id": "doc-backpressure",
-                        "embedding": [1.0, 1.0, 0.0],
-                        "metadata": {"project_id": 1, "data_type": "chapter", "chapter_number": 4},
-                        "content": "背压完成后仍应持久化"
-                    }]
-                }),
-            ),
-            backpressure_tx,
-        )
+    let backpressure_client =
+        HttpRagClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN);
+    let (backpressure_tx, mut backpressure_rx) = tokio::sync::mpsc::channel(1);
+    let backpressure = tokio::spawn(async move {
+        backpressure_client
+            .ingest_events(
+                rag_request(
+                    "rag-process-backpressure",
+                    json!({
+                        "collection": COLLECTION,
+                        "records": [{
+                            "id": "doc-backpressure",
+                            "embedding": [1.0, 1.0, 0.0],
+                            "metadata": {"project_id": 1, "data_type": "chapter", "chapter_number": 4},
+                            "content": "背压完成后仍应持久化"
+                        }]
+                    }),
+                ),
+                backpressure_tx,
+            )
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while backpressure_rx.len() == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("RAG stream should fill the bounded event queue");
+    assert!(
+        !backpressure.is_finished(),
+        "a full RAG event queue must apply backpressure"
+    );
+    loop {
+        let event = backpressure_rx.recv().await.expect("RAG terminal event");
+        if event.event_kind.is_terminal() {
+            assert_eq!(
+                event.event_kind,
+                a4n_service_protocol::CapabilityTaskEventKind::Completed
+            );
+            break;
+        }
+    }
+    backpressure
         .await
-        .expect_err("a full RAG event queue must fail the typed stream");
-    assert_event_queue_backpressure(&backpressure);
-    drop(backpressure_rx);
+        .expect("RAG backpressure task should join")
+        .expect("RAG stream should finish after queue capacity is released");
     assert_complete(&client, &["doc-1", "doc-2", "doc-backpressure"]).await;
 
     let failed_query = client

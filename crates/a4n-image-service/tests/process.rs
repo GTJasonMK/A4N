@@ -2,12 +2,11 @@ use a4n_service_protocol::{SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
 use a4n_test_support::process::{
     FakeJsonProvider, HangingJsonProvider, HttpImageClient, IMAGE_PROVIDER_CAPABILITY_VERSION,
     IMAGE_SERVICE_NAME, ImageClient, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus,
-    assert_event_queue_backpressure, assert_process_concurrency_saturation,
-    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
-    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
-    assert_route_rejects_version_mismatch, finish_sidecar, provider_request_context,
-    sidecar_base_url, sidecar_manager, start_sidecar, trusted_remote_request_context,
-    unused_local_addr,
+    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
+    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
+    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
+    finish_sidecar, provider_request_context, sidecar_base_url, sidecar_manager, start_sidecar,
+    trusted_remote_request_context, unused_local_addr,
 };
 use tokio::time::{Duration, timeout};
 
@@ -206,13 +205,40 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
             "request": {"prompt": "preview test", "width": 1, "height": 1, "model": "fake-image", "reference_images": []}
         }),
     );
-    let (backpressure_tx, backpressure_rx) = tokio::sync::mpsc::channel(1);
-    let backpressure = client
-        .generate_events(preview_request.clone(), backpressure_tx)
+    let backpressure_client =
+        HttpImageClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN);
+    let (backpressure_tx, mut backpressure_rx) = tokio::sync::mpsc::channel(1);
+    let backpressure_request = preview_request.clone();
+    let backpressure = tokio::spawn(async move {
+        backpressure_client
+            .generate_events(backpressure_request, backpressure_tx)
+            .await
+    });
+    timeout(Duration::from_secs(5), async {
+        while backpressure_rx.len() == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("image stream should fill the bounded event queue");
+    assert!(
+        !backpressure.is_finished(),
+        "a full image event queue must apply backpressure"
+    );
+    loop {
+        let event = backpressure_rx.recv().await.expect("image terminal event");
+        if event.event_kind.is_terminal() {
+            assert_eq!(
+                event.event_kind,
+                a4n_service_protocol::CapabilityTaskEventKind::Completed
+            );
+            break;
+        }
+    }
+    backpressure
         .await
-        .expect_err("a full image event queue must fail the typed stream");
-    assert_event_queue_backpressure(&backpressure);
-    drop(backpressure_rx);
+        .expect("image backpressure task should join")
+        .expect("image stream should finish after queue capacity is released");
     let preview = client
         .preview_request(preview_request.clone())
         .await

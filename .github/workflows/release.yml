@@ -44,6 +44,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts/supply-chain
+          ./scripts/checks/check-audit-exceptions.sh
           cargo audit 2>&1 | tee artifacts/supply-chain/cargo-audit.log
           cargo deny check 2>&1 | tee artifacts/supply-chain/cargo-deny.log
 
@@ -566,6 +567,12 @@ jobs:
           $env:PGPASSWORD = "root"
           & "$env:PGBIN\createdb.exe" -h 127.0.0.1 -U postgres a4n_test
           if ($LASTEXITCODE -ne 0) { throw "unable to create a4n_test" }
+
+      - name: Migrate PostgreSQL test database
+        shell: pwsh
+        run: |
+          cargo run -p a4n-migration -- "$env:A4N_DATABASE_URL"
+          if ($LASTEXITCODE -ne 0) { throw "database migration failed" }
 
       - name: Start verified Qdrant 1.18.3
         shell: pwsh

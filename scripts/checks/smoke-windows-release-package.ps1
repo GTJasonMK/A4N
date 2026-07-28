@@ -49,9 +49,14 @@ try {
             throw "release archive contains unsafe path: $entry"
         }
     }
-    & tar.exe -xzf $Archive -C $InstallRoot
-    if ($LASTEXITCODE -ne 0) {
-        throw "unable to extract release archive"
+    Push-Location -LiteralPath $InstallRoot
+    try {
+        & tar.exe -xzf $Archive
+        if ($LASTEXITCODE -ne 0) {
+            throw "unable to extract release archive"
+        }
+    } finally {
+        Pop-Location
     }
 
     $packageRoots = @(Get-ChildItem -LiteralPath $InstallRoot -Directory)

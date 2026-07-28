@@ -1,0 +1,3 @@
+[advisories]
+# sqlx-mysql is lockfile-only: A4N enables PostgreSQL, and the reachability check fails if RSA becomes active.
+ignore = ["RUSTSEC-2023-0071"]

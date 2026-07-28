@@ -21,7 +21,7 @@
 
 1. 每个 endpoint 使用命名的 capability-specific body limit；JSON、base64 media、ZIP、streaming 分开。
 2. capability client 统一 connect timeout；非流式 deadline；流式 connect/idle timeout。
-3. 重能力 sidecar 使用有界并发；event channel 保持容量 256，有明确背压错误。
+3. 重能力 sidecar 使用有界并发；event channel 保持容量 256，队列满时等待容量，receiver 关闭时明确取消。
 4. client disconnect、timeout、cancel 必须释放 provider、下载、索引和媒体任务。
 5. process test 覆盖 413、连接超时、idle timeout、并发饱和、队列背压和取消后资源释放。
 
@@ -96,7 +96,7 @@ timeout 60 cargo test -p <sidecar-crate> --test process -- --nocapture --test-th
 - `crates/a4n-service-manager/src/config/validation.rs`：sidecar 配置入口拒绝显式传入数据库 URL、JWT/admin secret、provider API key、password 和非 bootstrap token，避免调用方绕过 runtime 环境 allowlist。
 - `crates/a4n-sidecar-bootstrap/src/lib.rs`：`concurrency_limit` 使用 `GlobalConcurrencyLimitLayer`，让 Axum 按路由克隆 layer 时仍共享一个 sidecar 级 semaphore。
 - `crates/a4n-test-support/src/process.rs`、`crates/a4n-prompt-service/tests/process.rs`：真实 process 的 additive envelope 字段兼容断言。
-- `crates/a4n-llm-gateway/tests/process/{support,requests,cancellation}.rs`：复用现有 fake provider，真实验证 bounded concurrency 饱和恢复、provider idle timeout 后台响应体释放，以及容量 256 事件队列满时的明确背压错误。
+- `crates/a4n-llm-gateway/tests/process/{support,requests,cancellation}.rs`：复用现有 fake provider，真实验证 bounded concurrency 饱和恢复、provider idle timeout 后台响应体释放，以及容量 256 事件队列满时等待容量并在消费后完成。
 - `crates/a4n-capabilities/src/transport*` 与八个 typed client：复用 manager 提供的 HTTP client、统一超时和错误脱敏；health 请求同样经过认证头注入。
 - `crates/a4n-capabilities/src/transport/events.rs`：流式响应头等待也受统一 connect deadline 保护，之后再按 idle timeout 读取 NDJSON。
 - `crates/a4n-runtime/src/sidecar_clients/{service_manager,request_context}`：按 loopback/remote 自动选择 secret-free policy，并输出不含正文/token/完整 URL 的 metadata-only 审计事件。
@@ -116,7 +116,7 @@ cargo test -p a4n-service-manager remote_mtls_process_handshake_and_certificate_
 timeout 60s cargo check -p a4n-runtime --no-default-features：通过（仅既有 unused_mut 警告）
 ./scripts/checks/check-sidecar-security-boundary.sh：通过
 git diff --check：通过
-cargo test -p a4n-llm-gateway --test process event_queue_backpressure_is_reported_across_independent_gateway_process -- --nocapture --test-threads=1：1 passed
+cargo test -p a4n-llm-gateway --test process event_queue_backpressure_waits_for_capacity_across_independent_gateway_process -- --nocapture --test-threads=1：1 passed
 cargo test -p a4n-llm-gateway --test process bounded_concurrency_backpressures_saturated_gateway -- --nocapture --test-threads=1：1 passed
 cargo test -p a4n-llm-gateway --test process provider_idle_timeout_emits_failed_terminal_event_and_recovers -- --nocapture --test-threads=1：1 passed
 timeout 300 cargo test -p a4n-llm-gateway --test process -- --nocapture --test-threads=1：9 passed
@@ -183,7 +183,7 @@ export-service：1 passed
 - Prompt、Embedding、RAG、Image、Video、Import、Export 的现有 process runner 分别在 `/prompt/list`、`/embedding/embed_texts`、`/rag/list_collections`、`/image/models`、`/video/models`、`/import/normalize_json`、`/export/render_json` 接入该断言。加上既有 LLM runner，八个 sidecar 的共享并发上限均已有真实进程证据。
 - `HttpSidecarTransport` 不再让各 transport 模块直接引用散落 deadline 常量；typed client 在绑定 service 时从唯一 `sidecar_resource_policy` 取得 connect/request/idle/health deadline。测试专用短 deadline 只在 `cfg(test)` 下存在，不扩大生产配置面。
 - `a4n-capabilities` 使用本地原始 TCP server 覆盖非流式 request deadline、流式响应头 connect deadline 和流式 chunk idle deadline；没有启用 Tokio `test-util`，也没有新增依赖。
-- LLM 独立进程新增 semaphore 饱和时的 typed stream 响应头 connect deadline 断言，并在释放半包请求后验证 health 恢复；RAG、Image、Video 的真实事件流也使用容量 1 的 client queue 证明明确背压错误，RAG 同时确认写入结果未被伪装为失败回滚。
+- LLM 独立进程新增 semaphore 饱和时的 typed stream 响应头 connect deadline 断言，并在释放半包请求后验证 health 恢复；RAG、Image、Video 的真实事件流也使用容量 1 的 client queue 证明队列满时等待、消费后继续到达 `Completed`，RAG 同时确认写入结果未被伪装为失败回滚。
 - 协议合同新增 host-new/sidecar-old、host-old/sidecar-new、compatible rollback 和 breaking rollback 拒绝矩阵；未知顶层可选字段继续由 Prompt process 实证。
 
 集中验证结果：
@@ -198,7 +198,7 @@ prompt / embedding --no-default-features / rag / image / video / import / export
 
 ### 本会话增量（Embedding FastEmbed 事件队列背压）
 
-- `crates/a4n-embedding-service/tests/process.rs` 复用默认 `fastembed` feature 的真实 `BGESmallZHV15` 下载路径，使用不消费的容量 1 client queue，验证 `event queue 已满` typed 错误和 process token 不泄漏。
+- `crates/a4n-embedding-service/tests/process.rs` 复用默认 `fastembed` feature 的真实 `BGESmallZHV15` 下载路径；当前合同由批次 337 复核为容量 1 client queue 满时等待，消费后继续，receiver 关闭时返回 `Cancelled`，不泄漏 process token。
 - 继续复用既有 FastEmbed cancellation、取消后 local_hash 恢复、缓存清理/重启和 manifest 拒绝测试；没有新增 mock 下载器或第二套事件队列。
 - 集中验证：`source scripts/lib/common.sh && configure_onnxruntime && timeout 900 cargo test -p a4n-embedding-service --test process -- --nocapture --test-threads=1` **1/1 通过**；触及文件 `rustfmt --edition 2024 --check` 通过。
 

@@ -1,34 +1,20 @@
 use super::*;
 use a4n_core::models::project::novel_project;
-use chrono::Utc;
-use sea_orm::{ActiveModelTrait, Set};
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
 async fn insert_project(db: &DatabaseConnection) -> novel_project::Model {
-    let now = Utc::now().naive_utc();
-    novel_project::ActiveModel {
-        user_id: Set(1),
-        title: Set("导出测试项目".to_string()),
-        description: Set("验证导出边界行为".to_string()),
-        project_type: Set("novel_long".to_string()),
-        status: Set("writing".to_string()),
-        target_chapters: Set(10),
-        current_chapter: Set(0),
-        total_chapters: Set(Some(10)),
-        chapters_per_part: Set(Some(5)),
-        avatar_svg: Set(None),
-        avatar_animal: Set(None),
-        raw_blueprint: Set(None),
-        import_analysis_progress: Set(None),
-        export_config: Set(None),
-        created_at: Set(now),
-        updated_at: Set(now),
-        ..Default::default()
-    }
-    .insert(db)
+    crate::project::create_project_record(
+        db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "导出测试项目".to_string(),
+            description: "验证导出边界行为".to_string(),
+            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        },
+    )
     .await
     .unwrap()
 }

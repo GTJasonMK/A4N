@@ -44,6 +44,9 @@ members = [
     "crates/a4n-server",
 ]
 
+[workspace.package]
+license = "Apache-2.0"
+
 [workspace.dependencies]
 # 异步运行时
 tokio = { version = "1", features = ["full"] }

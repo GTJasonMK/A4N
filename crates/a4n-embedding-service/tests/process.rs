@@ -1,5 +1,7 @@
 #[cfg(feature = "fastembed")]
 use a4n_service_protocol::{CapabilityTaskEventKind, ServiceErrorCode};
+#[cfg(feature = "fastembed")]
+use a4n_test_support::process::force_finish_sidecar;
 use a4n_test_support::process::{
     EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbeddingClient, HttpEmbeddingClient,
     SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
@@ -10,8 +12,6 @@ use a4n_test_support::process::{
     finish_sidecar, request_context, sidecar_base_url, sidecar_manager_with_dir, start_sidecar,
     trusted_remote_request_context, unused_local_addr,
 };
-#[cfg(feature = "fastembed")]
-use a4n_test_support::process::{assert_event_queue_backpressure, force_finish_sidecar};
 #[cfg(feature = "fastembed")]
 use tokio::{io::AsyncReadExt, sync::oneshot, task::JoinHandle};
 
@@ -371,32 +371,6 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
 
     #[cfg(feature = "fastembed")]
     {
-        let backpressure_client = HttpEmbeddingClient::new_with_auth_token(
-            sidecar_base_url(addr),
-            SIDECAR_PROCESS_TEST_TOKEN,
-        );
-        let (backpressure_tx, backpressure_rx) = tokio::sync::mpsc::channel(1);
-        let backpressure_error = tokio::time::timeout(
-            std::time::Duration::from_secs(120),
-            backpressure_client.download_model_events(
-                request_context(
-                    "embedding-process-download-backpressure",
-                    "embedding-process-download-backpressure-trace",
-                    EMBEDDING_CAPABILITY_VERSION,
-                    serde_json::json!({
-                        "operation": "download",
-                        "model": "BGESmallZHV15"
-                    }),
-                ),
-                backpressure_tx,
-            ),
-        )
-        .await
-        .expect("FastEmbed download should reach queue backpressure before timeout")
-        .expect_err("a full FastEmbed event queue must fail the typed stream");
-        assert_event_queue_backpressure(&backpressure_error);
-        drop(backpressure_rx);
-
         let event_client = HttpEmbeddingClient::new_with_auth_token(
             sidecar_base_url(addr),
             SIDECAR_PROCESS_TEST_TOKEN,
@@ -406,8 +380,8 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             event_client
                 .download_model_events(
                     request_context(
-                        "embedding-process-download-cancel",
-                        "embedding-process-download-cancel-trace",
+                        "embedding-process-download-backpressure",
+                        "embedding-process-download-backpressure-trace",
                         EMBEDDING_CAPABILITY_VERSION,
                         serde_json::json!({
                             "operation": "download",
@@ -424,7 +398,11 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             }
         })
         .await
-        .expect("FastEmbed download should emit progress before cancellation");
+        .expect("FastEmbed download should fill the bounded event queue");
+        assert!(
+            !event_task.is_finished(),
+            "a full FastEmbed event queue must apply backpressure"
+        );
         drop(event_rx);
         let cancelled = event_task
             .await

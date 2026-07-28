@@ -65,7 +65,7 @@ ditto "$source_app" "$installed_app"
 
 macos_dir="$installed_app/Contents/MacOS"
 resources_dir="$installed_app/Contents/Resources"
-host="$macos_dir/A4N"
+host="$macos_dir/a4n-tauri"
 packages=(
     a4n-prompt-service
     a4n-llm-gateway

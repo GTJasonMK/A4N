@@ -10,7 +10,8 @@ use a4n_core::models::{
 
 use super::super::{GeneratedImageDeleteScope, delete_chapter_generation_outputs};
 use super::support::{
-    freeform_video_project, generated_image_with_asset, generated_video_with_asset, setup_db,
+    freeform_video_project, generated_image_with_asset, generated_video_with_asset,
+    set_project_gate, setup_db,
 };
 
 #[tokio::test]
@@ -134,6 +135,12 @@ async fn freeform_reset_rediscovers_targets_and_preserves_imported_media() {
     .unwrap();
     assert_eq!(generated_asset.id, imported_asset.id);
 
+    set_project_gate(
+        &db,
+        &project,
+        crate::generation::ProjectLifecycleOperation::Reset,
+    )
+    .await;
     let reset = crate::project::reset_freeform_video_generated_data_records(&db, project.id)
         .await
         .unwrap();

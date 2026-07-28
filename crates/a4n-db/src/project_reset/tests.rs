@@ -162,6 +162,9 @@ async fn reset_returns_only_paths_unreferenced_after_transaction_cleanup() {
     generated_image_record(&db, project.id, None, &unique_path).await;
     let other_image = generated_image_record(&db, other_project.id, None, shared_path).await;
 
+    let mut gated_project: novel_project::ActiveModel = project.clone().into();
+    gated_project.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
+    gated_project.update(&db).await.unwrap();
     let outcome = reset_project_generated_data_record(&db, project.id)
         .await
         .unwrap();

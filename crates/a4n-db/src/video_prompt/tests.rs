@@ -212,7 +212,7 @@ async fn prompt_sync_trace_failure_rolls_back_stale_delete_and_insert() {
             project_id,
             chapter.id,
             "frame_segment_plan",
-            "boundary_frames",
+            "shared_segment_plan",
             1,
         )
         .fields,
@@ -225,7 +225,7 @@ async fn prompt_sync_trace_failure_rolls_back_stale_delete_and_insert() {
         project_id,
         chapter.id,
         "frame_segment_plan",
-        "boundary_frames",
+        "shared_segment_plan",
         2,
     );
     replacement.generation_trace = Some(PreparedVideoPromptGenerationTrace {

@@ -12,6 +12,14 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
+fn empty_profile_attributes() -> Value {
+    json!({
+        "explicit_attributes": {},
+        "implicit_attributes": {},
+        "social_attributes": {}
+    })
+}
+
 async fn project_and_profile(
     db: &DatabaseConnection,
     title: &str,
@@ -26,9 +34,10 @@ async fn project_and_profile(
     )
     .await
     .unwrap();
-    let profile = crate::character::create_profile(db, project.id, "测试角色", json!({}))
-        .await
-        .unwrap();
+    let profile =
+        crate::character::create_profile(db, project.id, "测试角色", empty_profile_attributes())
+            .await
+            .unwrap();
     (project, profile)
 }
 
@@ -256,9 +265,10 @@ async fn portrait_rollback_is_transactional_and_project_scoped() {
     )
     .await
     .unwrap();
-    let profile = crate::character::create_profile(&db, project.id, "测试角色", json!({}))
-        .await
-        .unwrap();
+    let profile =
+        crate::character::create_profile(&db, project.id, "测试角色", empty_profile_attributes())
+            .await
+            .unwrap();
     let image_path = "projects/shared/portraits/same.png";
     let portrait = create_character_portrait_for_profile(
         &db,

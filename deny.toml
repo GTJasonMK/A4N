@@ -4,6 +4,7 @@ all-features = true
 [advisories]
 version = 2
 ignore = []
+unmaintained = "workspace"
 
 [licenses]
 confidence-threshold = 0.8

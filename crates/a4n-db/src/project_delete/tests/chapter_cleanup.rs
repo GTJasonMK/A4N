@@ -3,7 +3,7 @@ use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
 use a4n_core::models::{ai::generated_image, media::media_asset};
 
-use super::support::{setup_db, text_project};
+use super::support::{freeform_video_project, generated_image_with_asset, setup_db, text_project};
 
 #[tokio::test]
 async fn chapter_media_cleanup_rejects_cross_project_chapter() {
@@ -35,7 +35,12 @@ async fn chapter_media_cleanup_rejects_cross_project_chapter() {
     let error = crate::project::cleanup_chapter_media_data(&db, project_a.id, chapter_b.id)
         .await
         .expect_err("cross-project chapter cleanup must be rejected");
-    assert!(error.to_string().contains("不属于项目"));
+    assert!(matches!(
+        error,
+        crate::project::ProjectCleanupDbError::InvalidState { current, operation }
+            if current == format!("chapter_project_id={}", project_b.id)
+                && operation.contains(&format!("项目 {}", project_a.id))
+    ));
     assert!(
         chapter::Entity::find_by_id(chapter_b.id)
             .one(&db)
@@ -51,6 +56,12 @@ async fn chapter_media_cleanup_preserves_path_referenced_by_media_asset() {
 
     let db = setup_db().await;
     let project = text_project(&db, "章节媒体路径保留测试").await;
+    let asset_project = freeform_video_project(&db, "章节媒体路径跨项目引用").await;
+    let (asset_source, asset) =
+        generated_image_with_asset(&db, asset_project.id, "chapter-retained.png").await;
+    crate::video::delete_generated_image_record(&db, asset_source.id)
+        .await
+        .unwrap();
     let now = Utc::now().naive_utc();
     let chapter = chapter::ActiveModel {
         project_id: Set(project.id),
@@ -75,7 +86,7 @@ async fn chapter_media_cleanup_preserves_path_referenced_by_media_asset() {
         crate::video::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: "chapter_image".to_string(),
-            file_path: format!("projects/{}/images/chapter-retained.png", project.id),
+            file_path: asset_source.file_path,
             prompt: "chapter retained image".to_string(),
             model: "test".to_string(),
             width: 512,
@@ -89,18 +100,6 @@ async fn chapter_media_cleanup_preserves_path_referenced_by_media_asset() {
     )
     .await
     .unwrap();
-    let asset = crate::canvas::ensure_canvas_image_media_asset_record(
-        &db,
-        crate::canvas::CanvasImageMediaAssetEnsureInput {
-            project_id: project.id,
-            image: image.clone(),
-            generation_spec_id: None,
-            origin: "generated".to_string(),
-        },
-    )
-    .await
-    .unwrap();
-
     let paths = crate::project::cleanup_chapter_media_data(&db, project.id, chapter.id)
         .await
         .unwrap();

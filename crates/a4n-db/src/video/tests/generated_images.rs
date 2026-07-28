@@ -281,7 +281,7 @@ async fn create_rejects_chapter_from_another_project_without_insert() {
     assert!(matches!(
         error,
         VideoDbError::InvalidArgument(message)
-            if message == format!("章节 #{} 不属于项目 {}", other_chapter.id, first_project.id)
+            if message == format!("章节 #{} 不属于文本项目 {}", other_chapter.id, first_project.id)
     ));
     assert_eq!(image_count(&db).await, 0);
 }

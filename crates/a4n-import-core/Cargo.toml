@@ -2,6 +2,7 @@
 name = "a4n-import-core"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
 
 [dependencies]
 a4n-archive-core = { path = "../a4n-archive-core" }

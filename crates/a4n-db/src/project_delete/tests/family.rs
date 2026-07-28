@@ -5,7 +5,7 @@ use sea_orm::{
 };
 
 use super::super::{ProjectDeleteDbError, delete_project_cascade_record};
-use super::support::{root_with_video_derivative, setup_db, text_project};
+use super::support::{root_with_video_derivative, set_project_gate, setup_db, text_project};
 
 async fn insert_setting(
     db: &sea_orm::DatabaseConnection,
@@ -59,6 +59,12 @@ async fn project_delete_removes_only_target_prompt_override_settings() {
     )
     .await;
 
+    set_project_gate(
+        &db,
+        &project,
+        crate::generation::ProjectLifecycleOperation::Delete,
+    )
+    .await;
     delete_project_cascade_record(&db, project.id)
         .await
         .unwrap();
@@ -74,6 +80,12 @@ async fn project_delete_rejects_text_root_with_derivatives() {
     let db = setup_db().await;
     let (root, derived) = root_with_video_derivative(&db).await;
 
+    set_project_gate(
+        &db,
+        &root,
+        crate::generation::ProjectLifecycleOperation::Delete,
+    )
+    .await;
     let error = delete_project_cascade_record(&db, root.id)
         .await
         .expect_err("root delete should require explicit family delete");
@@ -106,6 +118,12 @@ async fn deleting_derived_project_preserves_root_text_data() {
     let db = setup_db().await;
     let (root, derived) = root_with_video_derivative(&db).await;
 
+    set_project_gate(
+        &db,
+        &derived,
+        crate::generation::ProjectLifecycleOperation::Delete,
+    )
+    .await;
     delete_project_cascade_record(&db, derived.id)
         .await
         .unwrap();

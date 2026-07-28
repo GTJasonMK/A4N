@@ -6,6 +6,7 @@ WORKFLOW="$ROOT/.github/workflows/release.yml"
 MODULE_WORKFLOW="$ROOT/.github/workflows/module-checks.yml"
 BUNDLE_CONFIG="$ROOT/crates/a4n-tauri/tauri.sidecars.conf.json"
 SBOM_SCRIPT="$ROOT/scripts/checks/generate-release-sbom.sh"
+AUDIT_EXCEPTION_CHECK="$ROOT/scripts/checks/check-audit-exceptions.sh"
 
 for workflow in "$WORKFLOW" "$MODULE_WORKFLOW"; do
     [[ -r "$workflow" ]] || {
@@ -17,6 +18,17 @@ done
     echo "missing executable release SBOM generator: $SBOM_SCRIPT" >&2
     exit 1
 }
+[[ -x "$AUDIT_EXCEPTION_CHECK" ]] || {
+    echo "missing executable audit exception check: $AUDIT_EXCEPTION_CHECK" >&2
+    exit 1
+}
+
+for workflow in "$WORKFLOW" "$MODULE_WORKFLOW"; do
+    rg -Fq './scripts/checks/check-audit-exceptions.sh' "$workflow" || {
+        echo "workflow does not validate cargo-audit exceptions: $workflow" >&2
+        exit 1
+    }
+done
 
 ruby -e 'require "yaml"; ARGV.each { |path| YAML.safe_load(File.read(path), aliases: true) }' "$WORKFLOW" "$MODULE_WORKFLOW"
 ruby -ryaml -e '

@@ -373,6 +373,9 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Migrate PostgreSQL test database
+        run: cargo run -p a4n-migration -- "$A4N_DATABASE_URL"
+
       - name: Build real Linux release archive
         run: |
           ./scripts/dev/setup-onnxruntime.sh
@@ -431,6 +434,12 @@ jobs:
           $env:PGPASSWORD = "root"
           & "$env:PGBIN\createdb.exe" -h 127.0.0.1 -U postgres a4n_test
           if ($LASTEXITCODE -ne 0) { throw "unable to create a4n_test" }
+
+      - name: Migrate PostgreSQL test database
+        shell: pwsh
+        run: |
+          cargo run -p a4n-migration -- "$env:A4N_DATABASE_URL"
+          if ($LASTEXITCODE -ne 0) { throw "database migration failed" }
 
       - name: Start verified Qdrant 1.18.3
         shell: pwsh
@@ -641,7 +650,7 @@ jobs:
             xvfb
           chromedriver --version
           google-chrome --version
-          WebKitWebDriver --version
+          command -v WebKitWebDriver
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
@@ -717,6 +726,7 @@ jobs:
 
       - name: Run advisory and policy checks
         run: |
+          ./scripts/checks/check-audit-exceptions.sh
           cargo audit
           cargo deny check
 

@@ -2,6 +2,7 @@
 name = "a4n-rag-service"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
 
 [dependencies]
 a4n-core = { path = "../a4n-core" }

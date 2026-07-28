@@ -20,6 +20,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
+load_dotenv
 
 # —— 配置 ——
 TEST_MODE="all"           # all | unit | integration

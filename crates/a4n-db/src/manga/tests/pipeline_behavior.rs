@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_manga_prompt;
+use a4n_core::models::chapter::{chapter, chapter_manga_prompt};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
@@ -11,6 +11,36 @@ use crate::manga::{
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
+}
+
+async fn project_and_chapter(db: &DatabaseConnection, title: &str) -> (i64, i64) {
+    let project = crate::project::create_project_record(
+        db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: title.to_string(),
+            description: String::new(),
+            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let now = fixed_time(1);
+    let chapter = chapter::ActiveModel {
+        project_id: Set(project.id),
+        chapter_number: Set(1),
+        title: Set(Some("第一章".to_string())),
+        content: Set("章节正文".to_string()),
+        word_count: Set(4),
+        status: Set(chapter::STATUS_DRAFT.to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+    (project.id, chapter.id)
 }
 
 fn fixed_time(day: u32) -> chrono::NaiveDateTime {
@@ -53,8 +83,7 @@ fn page_layout() -> serde_json::Value {
 #[tokio::test]
 async fn sync_generated_outputs_preserves_rendered_panel_when_prompt_unchanged() {
     let db = setup_db().await;
-    let chapter_id = 8101;
-    let project_id = 8201;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画提示词同步").await;
     let old_time = fixed_time(1);
     let kept = chapter_manga_prompt::ActiveModel {
         chapter_id: Set(chapter_id),
@@ -146,8 +175,7 @@ async fn sync_rejects_legacy_prompt_types_and_invalid_positions() {
 #[tokio::test]
 async fn clear_pipeline_checkpoint_rejects_invalid_status_layout() {
     let db = setup_db().await;
-    let chapter_id = 8301;
-    let project_id = 8302;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画流水线清理").await;
     let now = fixed_time(1);
     chapter_manga_prompt::ActiveModel {
         chapter_id: Set(chapter_id),

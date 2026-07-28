@@ -8,7 +8,9 @@ use a4n_core::models::{
 };
 
 use super::super::{ProjectDeleteDbError, delete_project_cascade_record};
-use super::support::{freeform_video_project, generated_image_with_asset, setup_db};
+use super::support::{
+    freeform_video_project, generated_image_with_asset, set_project_gate, setup_db,
+};
 
 #[tokio::test]
 async fn project_cascade_rolls_back_when_final_project_delete_fails() {
@@ -34,6 +36,12 @@ async fn project_cascade_rolls_back_when_final_project_delete_fails() {
     .await
     .unwrap();
 
+    set_project_gate(
+        &db,
+        &project,
+        crate::generation::ProjectLifecycleOperation::Delete,
+    )
+    .await;
     let error = delete_project_cascade_record(&db, project.id)
         .await
         .expect_err("late project delete failure must abort the cascade");
@@ -95,6 +103,12 @@ async fn project_delete_commits_cleanup_intent_with_media_paths() {
     let project = freeform_video_project(&db, "项目删除 cleanup outbox 测试").await;
     let (image, _) = generated_image_with_asset(&db, project.id, "cleanup-outbox.png").await;
 
+    set_project_gate(
+        &db,
+        &project,
+        crate::generation::ProjectLifecycleOperation::Delete,
+    )
+    .await;
     delete_project_cascade_record(&db, project.id)
         .await
         .unwrap();

@@ -83,14 +83,18 @@ impl GitPromptStore {
 
             if touches {
                 let author = commit.author();
-                let message = commit.message().ok_or_else(|| {
-                    AppError::Internal(anyhow::anyhow!("commit {oid} 缺少 UTF-8 message"))
+                let message = commit.message().map_err(|err| {
+                    AppError::Internal(anyhow::anyhow!("commit {oid} message 不是 UTF-8: {err}"))
                 })?;
-                let author_name = author.name().ok_or_else(|| {
-                    AppError::Internal(anyhow::anyhow!("commit {oid} 缺少 author name"))
+                let author_name = author.name().map_err(|err| {
+                    AppError::Internal(anyhow::anyhow!(
+                        "commit {oid} author name 不是 UTF-8: {err}"
+                    ))
                 })?;
-                let author_email = author.email().ok_or_else(|| {
-                    AppError::Internal(anyhow::anyhow!("commit {oid} 缺少 author email"))
+                let author_email = author.email().map_err(|err| {
+                    AppError::Internal(anyhow::anyhow!(
+                        "commit {oid} author email 不是 UTF-8: {err}"
+                    ))
                 })?;
                 out.push(CommitInfo {
                     sha: oid.to_string(),

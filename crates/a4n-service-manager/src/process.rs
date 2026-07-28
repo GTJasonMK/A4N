@@ -294,6 +294,10 @@ fn spawn_child(
     command.args(&config.args);
     command.env_clear();
     command.envs(config.env.clone());
+    #[cfg(windows)]
+    if let Some(system_root) = std::env::var_os("SystemRoot") {
+        command.env("SystemRoot", system_root);
+    }
     command.env(SIDECAR_RESTART_COUNT_ENV, restart_count.to_string());
     if let Some(last_error) = last_error {
         command.env(SIDECAR_LAST_ERROR_ENV, last_error);
