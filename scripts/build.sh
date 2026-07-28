@@ -123,6 +123,24 @@ cargo_target_args() {
     fi
 }
 
+needs_onnxruntime() {
+    if $FRONTEND_ONLY; then
+        return 1
+    fi
+
+    local cargo_args=()
+    local dependency_tree
+    while IFS= read -r arg; do
+        cargo_args+=("$arg")
+    done < <(cargo_target_args)
+
+    if ! dependency_tree=$(cd "$PROJECT_ROOT" && cargo tree -e normal,build --prefix none "${cargo_args[@]}"); then
+        die "无法解析 Cargo 依赖图，不能判断当前构建是否需要 ONNX Runtime"
+    fi
+
+    grep -Fq 'a4n-embedding-fastembed v' <<<"$dependency_tree"
+}
+
 run_cargo_capture() {
     local output_file=$1
     shift
@@ -156,7 +174,7 @@ check_prerequisites() {
     rust_ver=$(rustc --version | cut -d' ' -f2)
     echo -e "${GREEN}✓ rustc ${rust_ver}${NC}"
 
-    if ! $FRONTEND_ONLY; then
+    if needs_onnxruntime; then
         require_onnxruntime
         echo -e "${GREEN}✓ ONNX Runtime 1.24.2 ($A4N_ONNXRUNTIME_ROOT)${NC}"
     fi

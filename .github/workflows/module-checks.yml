@@ -29,7 +29,8 @@ jobs:
             libayatana-appindicator3-dev \
             libgtk-3-dev \
             libwebkit2gtk-4.1-dev \
-            pkg-config
+            pkg-config \
+            ripgrep
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
@@ -94,6 +95,11 @@ jobs:
           - a4n-export-service
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
@@ -172,7 +178,9 @@ jobs:
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Check full workspace
-        run: ./scripts/build.sh --all --check
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          ./scripts/build.sh --all --check
 
   build-feedback:
     name: Cold and warm build feedback budget
@@ -192,7 +200,8 @@ jobs:
             libayatana-appindicator3-dev \
             libgtk-3-dev \
             libwebkit2gtk-4.1-dev \
-            pkg-config
+            pkg-config \
+            ripgrep
 
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
@@ -278,6 +287,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
       - name: Validate deploy script syntax
         env:
           A4N_REFACTOR_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -342,6 +356,7 @@ jobs:
             libgtk-3-dev \
             libwebkit2gtk-4.1-dev \
             pkg-config \
+            ripgrep \
             xvfb
 
       - name: Install Rust
@@ -484,6 +499,9 @@ jobs:
       A4N_RELEASE_SMOKE_ARTIFACT_DIR: artifacts/macos-tauri-smoke
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install ripgrep
+        run: brew list ripgrep >/dev/null 2>&1 || brew install ripgrep
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
@@ -680,6 +698,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
@@ -788,6 +811,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0

@@ -86,7 +86,7 @@ if [[ -n "$BASE_REF" ]]; then
         printf 'refactor base commit is unavailable: %s\n' "$BASE_REF" >&2
         exit 1
     }
-    changed_output="$(git diff --name-only "${BASE_COMMIT}...HEAD" --)" || {
+    changed_output="$(git -c core.quotePath=false diff --no-renames --name-only "${BASE_COMMIT}...HEAD" --)" || {
         printf 'unable to diff refactor base against HEAD: %s\n' "$BASE_COMMIT" >&2
         exit 1
     }

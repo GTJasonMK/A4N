@@ -23,6 +23,7 @@ while IFS= read -r required; do
 done <<'EOF'
 runs-on: ubuntu-24.04
 CARGO_INCREMENTAL: "1"
+ripgrep
 actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 fetch-depth: 0
 dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
@@ -45,9 +46,11 @@ fi
 
 for required in \
     'refactor base commit is unavailable' \
-    'unable to diff refactor base against HEAD'; do
+    'unable to diff refactor base against HEAD' \
+    'core.quotePath=false' \
+    '--no-renames'; do
     rg -Fq -- "$required" "$SCRIPT_DIR/check-refactor-docs.sh" || {
-        echo "refactor document checker is missing fail-closed base handling: $required" >&2
+        echo "refactor document checker is missing required diff handling: $required" >&2
         exit 1
     }
 done

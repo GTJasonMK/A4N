@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 将编译反馈收益量化并设回归门禁，同时让重构状态文档进入可审查版本历史 |
 | V2 来源 | 3.23、3.27；阶段 L、阶段 M 的 timing/文档部分 |
-| 当前状态 | timing 采集、warm budget、状态检查和固定 CI job 已落地；固定 runner 的真实 cold/warm artifact 与状态文档提交历史仍缺 |
+| 当前状态 | 3.27 已由提交 `b458781` 的 commit/blame 证据关闭；timing 采集、warm budget 和固定 CI job 已落地，仍缺 fixed-runner 成功 cold/warm artifact |
 | 可并行性 | timing、doc checks、状态一致性可并行；最终阈值和 V2 状态回写由协调者确认 |
 
 ## 子包 A：编译反馈门禁（3.23）
@@ -17,7 +17,7 @@
 4. 建立局部 package warm check 回归阈值和 `check-build-feedback-budget.sh`；超阈值 CI 失败。
 5. 保留 minimal host 重依赖扫描硬门禁；不得用缩短 timing 的方式把重依赖偷偷移回 Host。
 
-## 子包 B：文档进入版本控制（3.27）
+## 子包 B：文档进入版本控制（3.27，已完成）
 
 1. 精确放行当前计划、进度记录和本工作包目录（是否修改 `.gitignore` 由协调者决定）。
 2. 将计划和进度记录纳入实际 Git 提交历史；仅出现在工作区或 `git status` 不算完成。
@@ -63,7 +63,7 @@ cargo check -p a4n-video-service --timings
 git check-ignore docs/重构/模块化重构执行计划-v2.md docs/重构/模块化重构进度记录.md
 ```
 
-最后一条命令应在计划真正纳入版本控制后返回“未被忽略”；在此之前只能记录为未关闭。
+最后一条命令当前应返回“未被忽略”；tracking、`HEAD:<file>` 和状态一致性由上述 checker 继续 fail closed。
 
 ## 交接要求
 
@@ -110,9 +110,8 @@ git check-ignore docs/重构/模块化重构执行计划-v2.md docs/重构/模�
 
 ### 未关闭条件
 
-1. `build-feedback` workflow 尚无远端 GitHub Actions 成功 artifact，不能证明固定 runner 的 cold/warm 中位数或当前 provisional budget 合理。
-2. 本计划、进度记录与工作包文档目前只是未被 ignore，尚未进入 commit/blame；新的跟踪门禁会明确失败，直到协调者提交这些文档。
-3. 因此 3.23、3.27、阶段 L/M 继续保持 `未完成`，不修改当前 `35/44` 状态数字。
+1. GitHub Actions run `30361691038` 的 build-feedback job 在 timing 前因 runner 缺少 `rg` 失败，504 字节 artifact 不含固定 runner 的 cold/warm 中位数、Cargo timings、hardware 或 dependency inventory。
+2. 因此 3.23 与阶段 L 继续保持 `未完成`；3.27 已完成，阶段 M 的文档部分已关闭，但阶段 M 整体仍等待工作包 10 的 3.26 正式供应链/签名/Release 证据。当前汇总为 `36/44`。
 
 ### 本会话追加（2026-07-25）
 
@@ -252,3 +251,13 @@ git check-ignore docs/重构/模块化重构执行计划-v2.md docs/重构/模�
 - 工作包 05 的当前观察同步为 253/829，明确未知一级域、本地纯 rules、透传壳和生产 `.orchestrator()` 均为 0；AppState 文本量不再作为待办。
 
 当前活跃工作包仍只有 10/11 的外部发布、固定 runner 和 Git 证据；总体保持 `未完成` / `35/44`。
+
+## 批次 333 · Git 文档证据与首轮 CI 前置修复 · 2026-07-28
+
+状态：`未完成`
+
+- `HEAD`、`origin/master` 与 Actions run `30361691038` 均对应提交 `b4587817303bdf91fd2bb1d2972d5f73bfe4f15e`。本计划、进度记录、工作包 README 和本文件均已被 Git 跟踪、存在于 `HEAD:<file>`，并有真实 `git log` / `git blame`；子包 B 和 V2 3.27 因此完成。
+- Actions run `30361691038` 最终为 11 个成功、25 个失败；其中 build-feedback job 在状态检查阶段因 `rg: command not found` 退出，always-upload artifact 只有 504 字节 provisional baseline，没有 workspace cold、八包三次 rebuild、Cargo timings、runner/hardware metadata 或 dependency inventory，不能关闭 3.23。
+- 同一远端 run 证明 Host minimal 被 `build.sh` 的无条件 ONNX 检查错误拦截，full backend 则确实需要但未准备 ONNX。本批让 `build.sh` 依据实际 Cargo normal/build 依赖图决定是否要求 FastEmbed/ONNX，full workspace 复用现有 setup；所有调用 `rg` checker/smoke 的受影响 Linux/macOS job 显式安装 `ripgrep`，既有 build-feedback 合同锁定该依赖。状态 checker 还关闭 Git 非 ASCII 路径转义，避免中文计划/进度文件在 diff 中无法匹配。
+- Bash/YAML、build-feedback fixture、状态/文档 checker 与 diff 检查通过；无效 ONNX 根下 minimal Server 已进入 Cargo check，但受共享 target 锁和 60 秒预算影响超时，full Server 则仍按预期 fail closed。
+- 最小本地门禁通过后仍需提交并推送本批补丁，再等待下一次固定 runner 成功 artifact。当前仅 3.23/阶段 L 属于本工作包未关闭范围；总体为 `36/44`、还差 8 条。
