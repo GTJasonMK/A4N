@@ -160,7 +160,13 @@ try {
         Get-Process -Id $pidValue -ErrorAction Stop | Out-Null
         $SidecarPids += $pidValue
     }
-    $serviceLogs = @(Get-ChildItem -LiteralPath (Join-Path $PackageRoot "data\logs\services") -File -Recurse | Where-Object Length -gt 0)
+    $serviceLogs = @()
+    for ($attempt = 0; $attempt -lt 300 -and $serviceLogs.Count -eq 0; $attempt++) {
+        $serviceLogs = @(Get-ChildItem -LiteralPath (Join-Path $PackageRoot "data\logs\services") -File -Recurse -ErrorAction SilentlyContinue | Where-Object Length -gt 0)
+        if ($serviceLogs.Count -eq 0) {
+            Start-Sleep -Milliseconds 100
+        }
+    }
     if ($serviceLogs.Count -eq 0) {
         throw "release sidecars did not create controlled logs"
     }
