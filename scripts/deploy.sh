@@ -346,7 +346,17 @@ function Assert-ReleaseManifest {
         if (-not (Test-Path $binary)) {
             throw "release manifest 缺少二进制: $relative"
         }
-        $actual = (Get-FileHash -Algorithm SHA256 -Path $binary).Hash.ToLowerInvariant()
+        $stream = [IO.File]::OpenRead($binary)
+        try {
+            $sha256 = [Security.Cryptography.SHA256]::Create()
+            try {
+                $actual = [BitConverter]::ToString($sha256.ComputeHash($stream)).Replace("-", "").ToLowerInvariant()
+            } finally {
+                $sha256.Dispose()
+            }
+        } finally {
+            $stream.Dispose()
+        }
         if ($actual -ne $entry.sha256.ToLowerInvariant()) {
             throw "release manifest SHA-256 不匹配: $($entry.path)"
         }

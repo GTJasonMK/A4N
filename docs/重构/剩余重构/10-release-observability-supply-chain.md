@@ -361,3 +361,16 @@ GitHub CLI 官方文档与源码确认 draft 创建/发布及按 tag 获取 draf
 本地已通过 Tauri sidecar JSON 解析、Rust 格式检查、Shell 语法、Tauri build dry-run、Generation E2E 语法和目标 diff 检查；Runtime 定向测试此前两次在 60 秒内仍处于编译阶段，未进入 runner，不能记为通过。本批修复仍待唯一一轮新 Module Checks 复验。
 
 正式 Apple/Azure identity、受保护 `release` environment、`v*` tag、签名、公证、最终 manifest/CMS、正式九包 SBOM 和 GitHub Release 下载复验仍不存在。普通 CI 的九包 SBOM 与 Linux artifact 是有效进展，但不能替代签名 Release；3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成`，V2 仍为 `38/44`。
+
+## 批次 339 · 第三轮 Module Checks 平台根因收敛（2026-07-29）
+
+状态：`未完成`
+
+- run `30425506981` 对提交 `41b5677ef92f7a11fb38fdccaecf8fc142e2055f` 已完成 36 个 job：34 成功、2 失败。PostgreSQL migration/DB/orchestrator/Runtime、Generation Chromium/Tauri、架构同步门禁、build-feedback、Linux installed release、advisory/license、九包 SBOM 和其余 package/process/mTLS 全部真实通过；失败只剩 Windows portable `90491035106` 与 macOS Tauri `90491035191`。
+- Windows BOM 修复已生效，包内 `start.ps1` 成功解析并进入 schema v2 manifest 校验。新失败是 Windows PowerShell 5.1 环境没有 `Get-FileHash`；workflow 自身的 `pwsh` 调用已经通过，不应扩大修改。唯一 launcher 生成处现用 .NET `SHA256` 对 `FileStream` 流式计算十个 manifest 条目，并通过嵌套 `finally` 释放 hash provider 和文件流，仍 fail closed。artifact `8714723379` 为 69,409,681 bytes，SHA-256 `7d86536f5f722431b6d16fecbf138f68fe2a73cecfb4df758ae68a2c05e35bf0`。
+- macOS prompts 资源修复已真实通过：artifact 含 `_registry.yaml`，Host 从 `Contents/Resources/prompts` 加载 73 个提示词并启动 prompt/LLM。新失败是 embedding 的 Mach-O load command 为 `@rpath/libonnxruntime.1.24.2.dylib`，而 artifact 只含唯一、由 manifest 记录的 `libonnxruntime.dylib`。不复制第二 runtime；现有 externalBin staging 使用 `otool` 读取实际依赖，只改复制后的 embedding 为更短的 `@rpath/libonnxruntime.dylib`，继续复用 setup 已设置且日志证明生效的 `DYLD_LIBRARY_PATH=Contents/Resources`。
+- `install_name_tool` 会使现有 Apple Silicon ad-hoc 签名失效；普通 unsigned smoke 没有 Tauri signing identity，因此 staging 立即以 `codesign --force --sign -` 恢复可执行状态。Tauri 2.11.0 官方 bundler 源码确认：有正式 identity 时 externalBin 会先于 app 按 inside-out 顺序重签，所以正式 Developer ID/hardened runtime/公证链路不降级，也不把 ad-hoc artifact 当 Release。
+
+本地已通过 `bash -n`、目标 `git diff --check`、Windows launcher 流式 .NET SHA-256 静态断言、macOS arm64 Tauri dry-run、sidecar inventory、Linux/Windows/Tauri 三布局 manifest 与篡改拒绝、正式 release signing fail-closed checker。当前 Linux 没有 Windows PowerShell、`otool`、`install_name_tool` 或 `codesign`，平台行为必须由下一轮真实 Windows/macOS runner 复验；Context7 月度配额已耗尽，Tauri 行为使用 2.11.0 官方源码和本次 artifact/log 核对。
+
+本批没有新增 workflow、runtime 副本、launcher 或 fallback。正式 Apple/Azure identity、受保护 `release` environment、`v*` tag、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和 GitHub Release 下载复验仍缺；3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成`，V2 仍为 `38/44`。

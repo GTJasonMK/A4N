@@ -185,6 +185,12 @@ for package in "${SIDECAR_PACKAGES[@]}"; do
         [[ -f "$source_binary" ]] || die "缺少 sidecar 二进制: $source_binary"
         cp "$source_binary" "$target_binary"
         chmod +x "$target_binary" 2>/dev/null || true
+        if [[ "$TARGET_TRIPLE" == *-apple-darwin && "$package" == "a4n-embedding-service" ]]; then
+            runtime_dependency="$(otool -L "$target_binary" | awk '/libonnxruntime.*dylib/ { print $1; exit }')"
+            [[ -n "$runtime_dependency" ]] || die "embedding sidecar 未链接 ONNX Runtime"
+            install_name_tool -change "$runtime_dependency" '@rpath/libonnxruntime.dylib' "$target_binary"
+            codesign --force --sign - "$target_binary"
+        fi
         log_ok "$(basename "$target_binary")"
     fi
 done
