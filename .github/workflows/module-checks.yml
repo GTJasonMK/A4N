@@ -453,7 +453,7 @@ jobs:
           require_onnxruntime
           ./scripts/deploy.sh --target windows-x86_64
 
-      - name: Start verified Qdrant 1.18.3
+      - name: Start verified Qdrant and run Windows lifecycle smoke
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifacts\qdrant | Out-Null
@@ -468,22 +468,20 @@ jobs:
             -RedirectStandardOutput artifacts\qdrant\stdout.log `
             -RedirectStandardError artifacts\qdrant\stderr.log -PassThru
           $qdrant.Id | Out-File -FilePath artifacts\qdrant\pid -Encoding ascii
+          $ready = $false
           for ($attempt = 0; $attempt -lt 300; $attempt++) {
             try {
               Invoke-RestMethod -Uri "http://127.0.0.1:6333/readyz" -TimeoutSec 1 | Out-Null
               $grpc = [System.Net.Sockets.TcpClient]::new()
               try { $grpc.Connect("127.0.0.1", 6334) } finally { $grpc.Dispose() }
-              exit 0
+              $ready = $true
+              break
             } catch {
               if ($qdrant.HasExited) { throw "Qdrant exited before becoming ready" }
               Start-Sleep -Milliseconds 100
             }
           }
-          throw "Qdrant did not become ready"
-
-      - name: Run start.ps1 host and sidecar lifecycle
-        shell: pwsh
-        run: |
+          if (-not $ready) { throw "Qdrant did not become ready" }
           $bytes = New-Object byte[] 32
           $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
           try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }

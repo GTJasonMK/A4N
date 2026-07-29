@@ -66,6 +66,30 @@ ruby -ryaml -e '
       abort "release workflow service image is not pinned to a digest: #{job_name}: #{service_name}: #{image}"
     end
   end
+  [
+    [release, {
+      "linux-x86_64" => ["Build real Linux portable archive", "Start verified Qdrant 1.18.3", "Run installed Host and sidecar lifecycle"],
+      "macos-arm64" => ["Build signed and notarized Tauri app", "Start verified Qdrant 1.18.3", "Start signed Host and eight sidecars"],
+      "windows-x86_64" => ["Verify final Authenticode signatures and manifest hashes", "Start verified Qdrant and run signed Windows lifecycle smoke"]
+    }],
+    [module_checks, {
+      "windows-release-smoke" => ["Build real Windows portable archive", "Start verified Qdrant and run Windows lifecycle smoke"],
+      "macos-tauri-smoke" => ["Build unsigned macOS arm64 Tauri app", "Start verified Qdrant 1.18.3", "Start bundled Host and eight sidecars"]
+    }]
+  ].each do |workflow, jobs|
+    jobs.each do |job_name, ordered_steps|
+      names = workflow.fetch("jobs").fetch(job_name).fetch("steps").map { |step| step["name"] }
+      positions = ordered_steps.map { |name| names.index(name) || abort("release step is missing: #{job_name}: #{name}") }
+      valid = positions.length == 2 ? positions[1] == positions[0] + 1 : positions[0] < positions[1] && positions[2] == positions[1] + 1
+      unless valid
+        abort "Qdrant must start after build and immediately before smoke: #{job_name}"
+      end
+    end
+  end
+  [release.fetch("jobs").fetch("windows-x86_64"), module_checks.fetch("jobs").fetch("windows-release-smoke")].each do |job|
+    step = job.fetch("steps").find { |candidate| candidate["name"]&.include?("Qdrant and run") }
+    abort "Windows Qdrant and lifecycle smoke must share one step" unless step&.fetch("run", "")&.include?("smoke-windows-release-package.ps1")
+  end
 ' "$WORKFLOW" "$MODULE_WORKFLOW"
 ruby -rjson -e 'abort "macOS hardened runtime must be enabled" unless JSON.parse(File.read(ARGV.fetch(0))).dig("bundle", "macOS", "hardenedRuntime") == true' "$BUNDLE_CONFIG"
 

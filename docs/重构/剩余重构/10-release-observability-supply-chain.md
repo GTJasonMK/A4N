@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 建立 Windows/macOS/Linux 发布实跑、sidecar metrics/restart、SBOM/advisory/license/binary manifest 闭环 |
 | V2 来源 | 3.17、3.25、3.26；阶段 H、阶段 M 的发布/运维/供应链部分 |
-| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；第二轮 Module Checks 的九包 SBOM 与 Linux installed release smoke 已通过，Windows/macOS 根因已本地修复；仍待新 run 和正式签名/公证/GitHub Release 证据 |
+| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；普通 CI 的九包 SBOM、Linux installed release 与 macOS Tauri lifecycle 已通过，Windows Qdrant/smoke 改为同 step；仍待新 Windows run 和正式签名/公证/GitHub Release 证据 |
 | 可并行性 | 平台、可观测性、供应链可分 agent；`.github/workflows` 和 release manifest 由集成者串行合并 |
 
 ## 子包 A：跨平台发布（3.17）
@@ -384,3 +384,13 @@ GitHub CLI 官方文档与源码确认 draft 创建/发布及按 tag 获取 draf
 - run `30442639338` 的三个早期失败都是 workflow 变化未同步架构文档，既有门禁按设计失败。本批同步 V2、进度记录、README 与工作包；平台 lifecycle 仍由下一轮真实 Windows/macOS runner 证明。
 
 本地只执行格式、目标 crate check、文档/发布静态门禁和 diff 检查，不重复跑整仓测试。正式签名、公证、受保护 environment、tag、最终 CMS/manifest 与 GitHub Release 下载证据仍缺，因此工作包 10、3.17、3.26、阶段 H/M 和总体保持未完成。
+
+## 批次 342 · macOS lifecycle 通过与 Windows 同 step Qdrant（2026-07-29）
+
+状态：`未完成`
+
+- run `30444186712` 已以 35/36 结束。macOS job `90550391253` 成功完成 unsigned `.app`、Qdrant、Host + 八 sidecar、日志、非 ASCII 路径和 Host 退出清理；artifact `8722886896` 为 65,882,736 bytes，SHA-256 `6914364f5c420747ae2d964803c2a264907ccc2e1c125f67d5ff0b8d6c860332`。批次 341 的 managed-sidecar shutdown 已取得真实 arm64 runner 证据。
+- Windows job `90550391318` 的构建和 Qdrant 双端口就绪均成功；artifact `8722575532` 的 Qdrant 日志先记录 `gRPC listening on 6334`，独立下一 step 的 RAG 随后返回 Winsock `10061`。因此普通 CI 与正式 Windows Release 直接在同一 PowerShell step 内启动 Qdrant 并运行既有 lifecycle smoke，消除跨 step 临时进程依赖。
+- 正式 Linux Release 也已把 Qdrant 从长构建前移到构建后、Smoke 前，并显式检查 `6333/6334`。现有 release checker 锁定 Linux/macOS 顺序和 Windows 同 step 合同；YAML、Bash、checker、目标 diff 通过，没有新增脚本、依赖或强杀兜底。
+
+Windows 同 step 修复仍待下一真实 runner。正式 Apple/Azure identity、受保护 `release` environment、`v0.1.0` tag、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和 GitHub Release 下载复验仍缺；工作包 10、3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `38/44`。
