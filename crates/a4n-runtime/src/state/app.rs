@@ -58,6 +58,30 @@ impl Drop for GenerationExecutionOwner {
 }
 
 impl AppState {
+    /// 在 Host 退出前停止其拥有的 managed sidecar；可重复调用。
+    pub async fn shutdown_managed_sidecars(&self) -> Result<(), String> {
+        let processes = std::mem::take(&mut *self._managed_sidecars.lock().await);
+        let failures = futures::future::join_all(
+            processes
+                .into_iter()
+                .map(a4n_service_manager::ManagedSidecarProcess::stop),
+        )
+        .await
+        .into_iter()
+        .filter_map(Result::err)
+        .map(|error| error.to_string())
+        .collect::<Vec<_>>();
+
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "停止 managed sidecars 失败: {}",
+                failures.join("; ")
+            ))
+        }
+    }
+
     /// 数据目录（来自 AppConfig）。
     pub fn data_dir(&self) -> &Path {
         self.orchestrator.data_dir()

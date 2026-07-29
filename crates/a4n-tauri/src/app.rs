@@ -6,7 +6,7 @@ pub(crate) fn run() {
     let early_log_dir = environment::early_log_dir().expect("日志目录配置无效");
     logging::init(early_log_dir).expect("日志系统初始化失败");
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(commands::generation_tasks::GenerationSubscriptionRegistry::default())
         .register_uri_scheme_protocol("a4n-media", media_protocol::handle_request)
         .on_window_event(|window, event| {
@@ -22,6 +22,7 @@ pub(crate) fn run() {
             }
         })
         .setup(|app| {
+            install_signal_exit(app.handle())?;
             if environment::remote_api_only().map_err(std::io::Error::other)? {
                 setup_remote_api_mode(app)?;
             } else {
@@ -31,8 +32,17 @@ pub(crate) fn run() {
             Ok(())
         })
         .invoke_handler(command_registry::handler())
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("启动 A4N 应用失败");
+
+    app.run(|app_handle, event| {
+        if matches!(event, tauri::RunEvent::Exit)
+            && let Some(state) = app_handle.try_state::<a4n_runtime::AppState>()
+        {
+            tauri::async_runtime::block_on(state.shutdown_managed_sidecars())
+                .expect("停止 managed sidecars 失败");
+        }
+    });
 }
 
 fn setup_remote_api_mode(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -52,5 +62,23 @@ fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::E
     window::create_main_window(app, app_state.host_app_config())?;
     app.manage(app_state);
     tracing::info!("A4N 应用启动完成");
+    Ok(())
+}
+
+#[cfg(unix)]
+fn install_signal_exit(app: &tauri::AppHandle) -> Result<(), std::io::Error> {
+    let mut terminate = tauri::async_runtime::block_on(async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+    })?;
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        terminate.recv().await;
+        app.exit(0);
+    });
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn install_signal_exit(_: &tauri::AppHandle) -> Result<(), std::io::Error> {
     Ok(())
 }

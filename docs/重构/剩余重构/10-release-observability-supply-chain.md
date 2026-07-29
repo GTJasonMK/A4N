@@ -374,3 +374,13 @@ GitHub CLI 官方文档与源码确认 draft 创建/发布及按 tag 获取 draf
 本地已通过 `bash -n`、目标 `git diff --check`、Windows launcher 流式 .NET SHA-256 静态断言、macOS arm64 Tauri dry-run、sidecar inventory、Linux/Windows/Tauri 三布局 manifest 与篡改拒绝、正式 release signing fail-closed checker。当前 Linux 没有 Windows PowerShell、`otool`、`install_name_tool` 或 `codesign`，平台行为必须由下一轮真实 Windows/macOS runner 复验；Context7 月度配额已耗尽，Tauri 行为使用 2.11.0 官方源码和本次 artifact/log 核对。
 
 本批没有新增 workflow、runtime 副本、launcher 或 fallback。正式 Apple/Azure identity、受保护 `release` environment、`v*` tag、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和 GitHub Release 下载复验仍缺；3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成`，V2 仍为 `38/44`。
+
+## 批次 341 · Qdrant 启动时序与 Tauri Host 退出清理（2026-07-29）
+
+状态：`未完成`
+
+- run `30436627213` 的 Windows artifact 已证明 package、migration、PowerShell 5.1 manifest hash 和 prompt registry 路径修复生效。Qdrant 服务端没有源码编译或进入 A4N 包；唯一问题是官方预编译 1.18.3 在长时间 release 编译前启动后被 runner 终止。普通 CI 与正式 Release 均已改为 Smoke 紧前面启动，并检查 HTTP `6333` 和 gRPC `6334`。
+- 同一 run 的 macOS `.app` 已成功启动 Host 与八个 sidecar；失败只剩 Host 收到 `SIGTERM` 后一个 managed sidecar 存活。`kill_on_drop`/Drop 只排队发送 supervisor 命令，不能保证进程退出前执行。AppState 现从唯一 managed-sidecar owner 原子取出进程并并发等待现有 graceful→force stop；Tauri 只把 Unix `SIGTERM` 转为正常退出，并在 `RunEvent::Exit` 调用该 owner，不在 Smoke 增加强杀兜底。
+- run `30442639338` 的三个早期失败都是 workflow 变化未同步架构文档，既有门禁按设计失败。本批同步 V2、进度记录、README 与工作包；平台 lifecycle 仍由下一轮真实 Windows/macOS runner 证明。
+
+本地只执行格式、目标 crate check、文档/发布静态门禁和 diff 检查，不重复跑整仓测试。正式签名、公证、受保护 environment、tag、最终 CMS/manifest 与 GitHub Release 下载证据仍缺，因此工作包 10、3.17、3.26、阶段 H/M 和总体保持未完成。

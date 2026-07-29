@@ -22,7 +22,7 @@
 | [07-sidecar-process-and-postgres.md](07-sidecar-process-and-postgres.md) | 已收口（批次 305 回写 V2） | 八项真实 sidecar process 能力矩阵和 PostgreSQL 门禁/失败恢复证据满足原始条件；3.13、阶段 D/E 已关闭，远端 run 继续作为发布审计证据而非源码关闭条件 | 2026-07-25 |
 | [08-sidecar-security-resource-protocol.md](08-sidecar-security-resource-protocol.md) | 已收口（批次 306） | 唯一安全/资源/兼容 owner、八项 capability process、Export 历史/current/rollback 四组合和 Linux mTLS/watcher 满足原始关闭条件；3.19–3.21 与阶段 J/K 已关闭 | 2026-07-25 |
 | [09-media-lifecycle-and-host-events.md](09-media-lifecycle-and-host-events.md) | 已收口（批次 303） | 33 个生命周期入口、created-media/scanner/cleanup outbox、PostgreSQL 双故障/强杀恢复、唯一 generation event、Server SSE/Tauri Channel、真实 Chromium/Wry 重挂载与 Destroyed 均满足原始关闭条件；远端与跨平台发布证据转交 10 | 2026-07-27 |
-| [10-release-observability-supply-chain.md](10-release-observability-supply-chain.md) | 进行中（批次 339 第三轮远端收敛） | run `30425506981` 已有 34/36 成功；Windows PowerShell 5.1 hash 与 macOS ONNX load command 根因已本地修复，仍待新 run 与正式签名 Release | 2026-07-25 |
+| [10-release-observability-supply-chain.md](10-release-observability-supply-chain.md) | 进行中（批次 341 生命周期收敛） | Windows Qdrant 改为 Smoke 前启动；macOS Host `SIGTERM` 统一等待 managed sidecar 清理；待新 run 与正式签名 Release | 2026-07-25 |
 | [11-compile-feedback-and-doc-governance.md](11-compile-feedback-and-doc-governance.md) | 已收口（批次 336） | 3.27 已有真实 Git 证据；两次 fixed-runner artifact 已建立并复验 `25%` cold/warm 编译反馈门禁，3.23 与阶段 L 已关闭 | 2026-07-28 |
 
 本会话当前工作包：`10-release-observability-supply-chain.md`。工作包 11 已于批次 336 收口：3.27、3.23 与阶段 L 全部关闭。总体为 `38/44`，剩余工作转入正式发布、签名与供应链证据。
@@ -39,7 +39,7 @@
 | A2 本地纯 rules | 0 文件 / 0 行 |
 | Orchestrator 透传壳 | 0 文件 / 0 行 |
 
-当前协调记录（2026-07-29）：批次 303–306 关闭 09、3.25、合同/process 阶段和工作包 08；批次 307–319 补上三平台发布与供应链，批次 320 收口 build-feedback job，批次 321–326 完成 GitHub 发布准备、公开配置治理、普通 CI pin、原子公开、checkout 凭证最小化和九包 SBOM，批次 327–336 收口文档门禁、真实 Git 证据、generation inventory tracking 和两轮 fixed-runner baseline/budget。批次 337 完成首轮远端诊断；批次 338–339 将 Module Checks 从 25/36、29/36 收敛到 run `30425506981` 的 34/36，PostgreSQL、Runtime、Generation、九包 SBOM 与 Linux installed release smoke 已真实通过；仅 Windows PowerShell 5.1 hash 和 macOS ONNX load command 的新平台根因已本地修复。仍需推送后的唯一新 run 与正式签名 Release。整体 V2 为 38/44；剩余 6 条由工作包 10 的正式平台、签名和 Release 证据承接。
+当前协调记录（2026-07-29）：批次 303–306 关闭 09、3.25、合同/process 阶段和工作包 08；批次 307–336 完成三平台发布接线、供应链、文档与编译反馈门禁；批次 337–340 将普通 CI 收敛到 Windows/macOS 生命周期尾项。批次 341 已把 Windows Qdrant 改为 Smoke 紧前启动，并把 macOS `SIGTERM` 接入 Tauri 正常退出与 AppState managed-sidecar shutdown；run `30442639338` 的三个早期失败仅为 `ca270c4` 未同步文档触发的既有门禁，本批已同步，平台修复待下一 run。正式签名/公证、受保护 environment、tag、最终 manifest/CMS 和 GitHub Release 下载证据仍缺。整体 V2 为 38/44；剩余 6 条继续由工作包 10 承接。
 
 `AppState` 数字是边界观察量，不是待迁业务 owner 数量。权限、队列、provider、文件系统、FFmpeg、缓存、事件桥和 DTO 适配可以合法留在 Host；不要为了降低数字而增加第二套 facade 或搬动基础设施。
 
