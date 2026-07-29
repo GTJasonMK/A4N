@@ -11,7 +11,8 @@
       "../../target/tauri-sidecars/a4n-export-service"
     ],
     "resources": {
-      "../../target/tauri-sidecars/*onnxruntime*": ""
+      "../../target/tauri-sidecars/*onnxruntime*": "",
+      "../../prompts": "prompts"
     },
     "macOS": {
       "hardenedRuntime": true

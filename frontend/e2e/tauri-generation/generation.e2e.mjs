@@ -138,7 +138,11 @@ describe("real Tauri generation lifecycle", () => {
     })}\n`);
     await browser.execute(() => {
       const { invoke, metadata } = window.__TAURI_INTERNALS__;
-      void invoke("plugin:window|destroy", { label: metadata.currentWindow.label });
+      // Let executeAsync reply before destroying its WebDriver session.
+      setTimeout(
+        () => void invoke("plugin:window|destroy", { label: metadata.currentWindow.label }),
+        100,
+      );
     });
     await new Promise((resolve) => setTimeout(resolve, 500));
   });

@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 建立 Windows/macOS/Linux 发布实跑、sidecar metrics/restart、SBOM/advisory/license/binary manifest 闭环 |
 | V2 来源 | 3.17、3.25、3.26；阶段 H、阶段 M 的发布/运维/供应链部分 |
-| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；首轮 Module Checks 已产出三平台构建 artifact，成功 smoke、正式签名/公证、供应链和 GitHub Release 证据仍缺 |
+| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；第二轮 Module Checks 的九包 SBOM 与 Linux installed release smoke 已通过，Windows/macOS 根因已本地修复；仍待新 run 和正式签名/公证/GitHub Release 证据 |
 | 可并行性 | 平台、可观测性、供应链可分 agent；`.github/workflows` 和 release manifest 由集成者串行合并 |
 
 ## 子包 A：跨平台发布（3.17）
@@ -347,3 +347,17 @@ GitHub CLI 官方文档与源码确认 draft 创建/发布及按 tag 获取 draf
 - PostgreSQL CI 日志证明每项测试使用独立 schema，不是并行串库；18 个真实失败来自角色属性、`project_kind`、项目/章节外键、lifecycle gate、媒体路径、结构化错误和 canonical workflow 等陈旧 fixture。相关 fixture 已按当前 schema 修正；原失败集合的定向复验全部通过。本机全量 540 项中的额外失败来自 PostgreSQL `max_locks_per_transaction` 资源上限，不据此修改远端并发策略。`scripts/test.sh` 现复用已有 `load_dotenv`，让仓库 `.env` 中的测试库入口实际生效。
 
 本地已通过 audit 例外门禁、release 签名 workflow 门禁、`cargo audit`、`cargo deny check`、四个 sidecar process、`a4n-db --lib --no-run`、project delete/reset 定向测试、相关 Rust check、Shell/YAML 语法和 diff 检查。上述修复尚未进入新的远端提交/run；正式 Apple/Azure identity、受保护 `release` environment、`v*` tag、签名、公证、最终 manifest/CMS、九包 SBOM 和 GitHub Release 下载复验仍不存在。因此 3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成`，V2 仍为 `38/44`。
+
+## 批次 338 · 第二轮 Module Checks 远端收敛（2026-07-29）
+
+状态：`未完成`
+
+- run `30421032715` 对提交 `2ad6cede7905d8057f5b69688bb8e24b3dd6a641` 已完成 36 个 job：29 成功、7 失败。供应链 job `90477694205` 真实通过 `cargo audit`、`cargo deny check` 和 Host + 八 sidecar 九包 CycloneDX；artifact `8711918179` 大小 1,132,645 bytes，SHA-256 为 `6163fbcf934df4b8dfbb8f275b3fb875fab12229b19b347ab6ceda2ce9de0fd2`，日志明确记录 `release SBOM: packages=9`。
+- Linux installed release smoke job `90477694215` 真实通过；artifact `8712478510` 大小 66,902,663 bytes，SHA-256 为 `20f4d6ef65729a71f11323c1060ea8bcace2bc021183107a9984438d3d78cbfd`。实际覆盖 PostgreSQL migration、真实 archive、Host + 八 sidecar、日志、stale PID、退出清理、非 ASCII/空格安装路径、九个 binary 和 ONNX Runtime manifest。
+- Windows job 完成真实 portable archive 构建并上传 artifact `8713027695`，但包内 `start.ps1` 是 UTF-8 无 BOM，由 `powershell.exe` 5.1 按本地代码页解析后在中文错误文本处产生 ParserError。唯一生成 owner `scripts/deploy.sh` 现先写 UTF-8 BOM 再追加原脚本；没有改成另一份 Windows launcher 或移除非 ASCII smoke。
+- macOS job 完成 unsigned arm64 `.app` 构建并上传 artifact `8712988250`，Host 与 prompt sidecar 已进入真实启动；失败点是 `prompts/_registry.yaml` 未进入 `.app/Contents/Resources`，sidecar 回落到用户数据目录后显式失败。现有 Tauri sidecar resource map 直接携带仓库 `prompts/`，Tauri setup 在 AppState 前复用 `A4N_PROMPT_SERVICE_PROMPTS_DIR`，缺注册表时显式返回配置错误；smoke 同时检查 bundle 内 registry。
+- PostgreSQL job 的 migration、a4n-db 与 orchestrator 均通过；Runtime 为 `478 passed / 3 failed`，三条均是当前实现与静态 convergence 文本漂移，已按 `stream_complete_llm` 和 `portrait` 窄 facade 修正。Generation Web/Tauri 已打印 cursor 重挂载与窗口销毁期间仍发送的成功证据；失败发生在同步 destroy 先于 WebDriver 回包，现仅延迟 100 ms 调用同一真实 destroy，Rust harness 的窗口销毁和订阅取消断言未弱化。其余三条失败是要求同步更新 V2/进度/README/工作包的文档门禁。
+
+本地已通过 Tauri sidecar JSON 解析、Rust 格式检查、Shell 语法、Tauri build dry-run、Generation E2E 语法和目标 diff 检查；Runtime 定向测试此前两次在 60 秒内仍处于编译阶段，未进入 runner，不能记为通过。本批修复仍待唯一一轮新 Module Checks 复验。
+
+正式 Apple/Azure identity、受保护 `release` environment、`v*` tag、签名、公证、最终 manifest/CMS、正式九包 SBOM 和 GitHub Release 下载复验仍不存在。普通 CI 的九包 SBOM 与 Linux artifact 是有效进展，但不能替代签名 Release；3.17、3.26、阶段 H/M、3.29 与总体继续保持 `未完成`，V2 仍为 `38/44`。

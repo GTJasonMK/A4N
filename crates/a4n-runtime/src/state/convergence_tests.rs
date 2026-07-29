@@ -2173,6 +2173,7 @@ fn character_implicit_review_runtime_uses_application_owner() {
         "render_prompt_template",
         "context_aware_system_user_json_llm_request",
         "chat_llm(",
+        "stream_complete_llm(",
         "load_completed_llm_call_checkpoint",
         "save_completed_llm_call_checkpoint",
         "parse_implicit_update_decision",
@@ -2301,7 +2302,7 @@ fn character_implicit_classification_runtime_uses_application_owner() {
         "mark_workflow_current_step",
         "load_completed_llm_call_checkpoint",
         "save_completed_llm_call_checkpoint",
-        "chat_llm(request)",
+        "stream_complete_llm(request)",
         "is_truncated_finish_reason",
     ] {
         assert!(
@@ -2380,6 +2381,7 @@ fn character_profile_sync_stages_runtime_uses_application_owner() {
         "context_aware_system_user_json_llm_request",
         "PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT",
         "chat_llm(",
+        "stream_complete_llm(",
         "mark_workflow_current_step",
         "load_completed_llm_call_checkpoint",
         "save_completed_llm_call_checkpoint",
@@ -2443,7 +2445,7 @@ fn character_profile_sync_stages_runtime_uses_application_owner() {
         "mark_workflow_current_step",
         "load_completed_llm_call_checkpoint",
         "save_completed_llm_call_checkpoint",
-        "chat_llm(request.clone())",
+        "stream_complete_llm(request.clone())",
         "is_truncated_finish_reason",
     ] {
         assert!(
@@ -4898,7 +4900,7 @@ const FORBIDDEN_SERVICE_FIELDS: &[&str] = &[
     "blueprint",
     // canvas 已收敛为 AppState 窄 facade 方法，不再是旁路字段
     // outline 已收敛为 AppState 窄 facade 方法，不再是旁路字段
-    "portrait",
+    // portrait 已收敛为 AppState 窄 facade 方法，不再是旁路字段
     // manga 已收敛为 AppState 窄 facade 方法，不再是旁路字段
     "image",
     // video 已收敛为 AppState 窄 facade 方法，不再是旁路字段

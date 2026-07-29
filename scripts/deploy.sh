@@ -316,7 +316,8 @@ set "SCRIPT_DIR=%~dp0"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%start.ps1"
 exit /b %ERRORLEVEL%
 BATEOF
-        cat > "$PACKAGE_DIR/start.ps1" << 'PSEOF'
+        printf '\xEF\xBB\xBF' > "$PACKAGE_DIR/start.ps1"
+        cat >> "$PACKAGE_DIR/start.ps1" << 'PSEOF'
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path

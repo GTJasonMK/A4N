@@ -91,6 +91,10 @@ done
     printf 'Tauri bundle is missing libonnxruntime.dylib\n' >&2
     exit 1
 }
+[[ -f "$resources_dir/prompts/_registry.yaml" ]] || {
+    printf 'Tauri bundle is missing prompts/_registry.yaml\n' >&2
+    exit 1
+}
 
 modules=(prompt llm embedding rag image video import export)
 addr_envs=(

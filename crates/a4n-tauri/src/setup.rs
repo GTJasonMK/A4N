@@ -17,7 +17,7 @@ use tauri::Manager;
 /// 按顺序执行：加载配置 → 创建目录 → 构建 AppState → 启动事件日志订阅。
 pub async fn initialize(app: &AppHandle) -> Result<AppState, AppError> {
     #[cfg(target_os = "macos")]
-    configure_bundled_onnxruntime(app)?;
+    configure_bundled_sidecar_resources(app)?;
 
     let config = config::load_config(app)?;
     let app_paths = AppPaths::from_config(&config);
@@ -31,13 +31,27 @@ pub async fn initialize(app: &AppHandle) -> Result<AppState, AppError> {
 }
 
 #[cfg(target_os = "macos")]
-fn configure_bundled_onnxruntime(app: &AppHandle) -> Result<(), AppError> {
+fn configure_bundled_sidecar_resources(app: &AppHandle) -> Result<(), AppError> {
     let resource_dir = app
         .path()
         .resource_dir()
         .map_err(|error| AppError::ConfigError(format!("无法解析 Tauri 资源目录: {error}")))?;
     if !resource_dir.join("libonnxruntime.dylib").is_file() {
         return Ok(());
+    }
+
+    if std::env::var_os("A4N_PROMPT_SERVICE_PROMPTS_DIR").is_none() {
+        let prompts_dir = resource_dir.join("prompts");
+        if !prompts_dir.join("_registry.yaml").is_file() {
+            return Err(AppError::ConfigError(format!(
+                "Tauri bundle 缺少提示词注册表：{}",
+                prompts_dir.join("_registry.yaml").display()
+            )));
+        }
+        // SAFETY: Tauri setup runs before AppState starts managed sidecar processes.
+        unsafe {
+            std::env::set_var("A4N_PROMPT_SERVICE_PROMPTS_DIR", prompts_dir);
+        }
     }
 
     let mut paths = vec![resource_dir];
