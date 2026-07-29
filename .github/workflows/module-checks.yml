@@ -445,6 +445,14 @@ jobs:
           cargo run -p a4n-migration -- "$env:A4N_DATABASE_URL"
           if ($LASTEXITCODE -ne 0) { throw "database migration failed" }
 
+      - name: Build real Windows portable archive
+        shell: bash
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          source scripts/lib/common.sh
+          require_onnxruntime
+          ./scripts/deploy.sh --target windows-x86_64
+
       - name: Start verified Qdrant 1.18.3
         shell: pwsh
         run: |
@@ -463,6 +471,8 @@ jobs:
           for ($attempt = 0; $attempt -lt 300; $attempt++) {
             try {
               Invoke-RestMethod -Uri "http://127.0.0.1:6333/readyz" -TimeoutSec 1 | Out-Null
+              $grpc = [System.Net.Sockets.TcpClient]::new()
+              try { $grpc.Connect("127.0.0.1", 6334) } finally { $grpc.Dispose() }
               exit 0
             } catch {
               if ($qdrant.HasExited) { throw "Qdrant exited before becoming ready" }
@@ -470,14 +480,6 @@ jobs:
             }
           }
           throw "Qdrant did not become ready"
-
-      - name: Build real Windows portable archive
-        shell: bash
-        run: |
-          ./scripts/dev/setup-onnxruntime.sh
-          source scripts/lib/common.sh
-          require_onnxruntime
-          ./scripts/deploy.sh --target windows-x86_64
 
       - name: Run start.ps1 host and sidecar lifecycle
         shell: pwsh
@@ -545,6 +547,14 @@ jobs:
           psql -h 127.0.0.1 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='a4n_test'" | grep -q 1 || createdb -h 127.0.0.1 -O a4n a4n_test
           cargo run -p a4n-migration -- "$A4N_DATABASE_URL"
 
+      - name: Build unsigned macOS arm64 Tauri app
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          cargo install tauri-cli --version 2.11.0 --locked
+          ./scripts/dev/build-tauri-bundle.sh \
+            --target aarch64-apple-darwin \
+            --bundles app
+
       - name: Start verified Qdrant 1.18.3
         run: |
           mkdir -p artifacts/qdrant "$RUNNER_TEMP/qdrant"
@@ -560,18 +570,12 @@ jobs:
           echo $! >"$GITHUB_WORKSPACE/artifacts/qdrant/pid"
           popd
           for _ in {1..300}; do
-            curl -fsS --max-time 1 http://127.0.0.1:6333/readyz && break
+            if curl -fsS --max-time 1 http://127.0.0.1:6333/readyz && nc -z 127.0.0.1 6334; then
+              exit 0
+            fi
             sleep 0.1
           done
-          curl -fsS --max-time 2 http://127.0.0.1:6333/readyz
-
-      - name: Build unsigned macOS arm64 Tauri app
-        run: |
-          ./scripts/dev/setup-onnxruntime.sh
-          cargo install tauri-cli --version 2.11.0 --locked
-          ./scripts/dev/build-tauri-bundle.sh \
-            --target aarch64-apple-darwin \
-            --bundles app
+          exit 1
 
       - name: Start bundled Host and eight sidecars
         run: |
