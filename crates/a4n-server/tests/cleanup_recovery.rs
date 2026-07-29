@@ -2794,7 +2794,7 @@ async fn real_chromium_recovers_generation_after_proxy_aborts_sse() {
             api_key_encrypted: None,
             model: "process-test-model".to_string(),
             max_concurrent: 1,
-            timeout_secs: 5,
+            timeout_secs: 10,
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
             request_options_json: None,

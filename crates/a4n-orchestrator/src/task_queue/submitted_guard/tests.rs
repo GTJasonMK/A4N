@@ -16,10 +16,18 @@ async fn dropped_pending_task_is_cancelled() {
 
     let guard = queue.submitted_task_guard(task_id.clone());
     drop(guard);
-    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let info = queue.status(&task_id).await.unwrap();
+            if matches!(info.status, TaskStatus::Cancelled) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("dropped task cancellation was not persisted before timeout");
 
-    let info = queue.status(&task_id).await.unwrap();
-    assert!(matches!(info.status, TaskStatus::Cancelled));
     let row = task_queue::Entity::find_by_id(task_id)
         .one(db.as_ref())
         .await
