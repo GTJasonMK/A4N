@@ -142,7 +142,9 @@ impl TeraPromptEngine {
                 path.display()
             ))
         })?;
-        let rel_path = rel_path.to_string_lossy().into_owned();
+        let rel_path = rel_path
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/");
         if rel_path != meta.path {
             return Err(AppError::ConfigError(format!(
                 "提示词 {name} 路径与 registry 不一致：文件为 {rel_path}，registry 为 {}",

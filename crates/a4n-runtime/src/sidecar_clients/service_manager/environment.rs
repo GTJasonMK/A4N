@@ -47,6 +47,8 @@ pub(super) fn apply_common_sidecar_env(
         "DYLD_LIBRARY_PATH",
         "A4N_ONNXRUNTIME_ROOT",
         "ORT_DYLIB_PATH",
+        "A4N_QDRANT_URL",
+        "A4N_QDRANT_COLLECTION",
         "SSL_CERT_FILE",
         "SSL_CERT_DIR",
         "HTTP_PROXY",
