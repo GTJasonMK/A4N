@@ -162,7 +162,13 @@ try {
     }
     $serviceLogs = @()
     for ($attempt = 0; $attempt -lt 300 -and $serviceLogs.Count -eq 0; $attempt++) {
-        $serviceLogs = @(Get-ChildItem -LiteralPath (Join-Path $PackageRoot "data\logs\services") -File -Recurse -ErrorAction SilentlyContinue | Where-Object Length -gt 0)
+        $serviceLogs = @(Get-ChildItem -LiteralPath (Join-Path $PackageRoot "data\logs\services") -File -Filter "*.log.*" -ErrorAction SilentlyContinue | Where-Object {
+            try {
+                -not [string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $_.FullName -TotalCount 1 -ErrorAction Stop))
+            } catch {
+                $false
+            }
+        })
         if ($serviceLogs.Count -eq 0) {
             Start-Sleep -Milliseconds 100
         }

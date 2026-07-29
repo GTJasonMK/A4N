@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 建立 Windows/macOS/Linux 发布实跑、sidecar metrics/restart、SBOM/advisory/license/binary manifest 闭环 |
 | V2 来源 | 3.17、3.25、3.26；阶段 H、阶段 M 的发布/运维/供应链部分 |
-| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；普通 CI 的九包 SBOM、Linux installed release 与 macOS Tauri lifecycle 已通过，Windows 同 step Qdrant 和八 sidecar 已健康，活跃日志改为每批显式 flush；仍待新 Windows run 和正式签名/公证/GitHub Release 证据 |
+| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；普通 CI 的九包 SBOM、Linux installed release 与 macOS Tauri lifecycle 已通过，Windows 原生进程已证明活跃 rolling 日志可直接读取，portable smoke 改为读取日志内容；仍待新 Windows portable run 和正式签名/公证/GitHub Release 证据 |
 | 可并行性 | 平台、可观测性、供应链可分 agent；`.github/workflows` 和 release manifest 由集成者串行合并 |
 
 ## 子包 A：跨平台发布（3.17）
@@ -413,3 +413,13 @@ run `30450022988` 的 macOS job 后续成功，最终证据见批次 344。正�
 - 唯一 `a4n-sidecar-bootstrap::logging` 复用现有 `tracing-appender 0.2.5` 非丢失 worker，每批消息后 flush 底层文件，`WorkerGuard` 保持到进程结束；没有新增依赖、平台特例或第二日志合同。单一回归测试证明进程存活时文件已可见，结果 1/1，目标 fmt/diff 通过。
 
 Context7 月度额度已耗尽，库行为由当前锁定 crate 源码核对。修复仍待下一 Windows runner；正式 Apple/Azure identity、受保护 `release` environment、`v0.1.0` tag、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和 GitHub Release 下载复验仍缺；工作包 10、3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `38/44`。
+
+## 批次 345 · Windows 活跃日志内容观测与 Generation 首次重连（2026-07-30）
+
+状态：`未完成`
+
+- run `30462394301` 对提交 `11fdb8b` 最终完成 36 个 job：34 成功、2 失败。macOS arm64 job `90611527922` 已完成 unsigned `.app` lifecycle，artifact `8731213620` 为 66,143,566 bytes；Windows job `90611528087` 的 archive、migration、manifest、prompt registry、Qdrant 双端口和八个 sidecar health/PID 均通过，仍在 `FileInfo.Length` 日志断言失败。artifact `8730424257` 为 69,671,571 bytes，SHA-256 `fd6cf1378954f9fe10f5af434ee9c9a78858db519d1b88c6c918aa56f4458dd3`。
+- 同一 run 的 Generation job `90611527856` 只有真实取消预算失败：样本 `[25,26,26,26,26,27,27,27,28,29,31,33,56,65,69,70,143,220,550,560]` 的 p95 为 550ms。生产 Web transport 的首次 SSE 重连原为 `500ms + 20% jitter`，与 550/560ms 离群完全吻合；提交 `a59f72e` 只把初始退避改为 100ms，保留指数退避、15 秒上限和 500ms 测试预算，前端定向测试 13/13 通过。
+- 同一提交把既有 demo sidecar 真实进程测试从“停止后读日志”收紧为“进程存活时读取 request/trace 持久日志”，并加入三平台原生 process matrix。新 run `30470664612` 的 Windows job `90639731767` 已在 4 秒内通过该步骤，证明当前 `a4n-sidecar-bootstrap` rolling 日志内容在原生 Windows 活跃进程中可读；批次 344 把 portable 失败继续归因于日志 owner 的判断由此纠正。
+- 唯一 Windows portable smoke 继续保留 100ms/300 次上限和非空日志要求，只把 `Get-ChildItem | Where-Object Length -gt 0` 改为读取 `*.log.*` daily rolling 文件首行。该变更检查实际日志内容，不接受空文件、不增加等待、依赖、第二日志 owner 或平台 fallback，仍待当前提交的完整 portable runner 复验。
+- 2026-07-30 复核远端仍为 0 个 environment、0 个 Actions secret、0 个 variable、0 个 tag、0 个 GitHub Release。正式 Apple/Azure identity、受保护 `release` environment、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和公开 Release 下载复验仍缺；3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成`，V2 仍为 `38/44`、还差 6 条。
