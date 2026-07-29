@@ -31,6 +31,7 @@ base_port="${A4N_RELEASE_SMOKE_BASE_PORT:-48661}"
 }
 
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/a4n-macos-smoke.XXXXXX")"
+tmp_root="$(cd "$tmp_root" && pwd -P)"
 install_root="$tmp_root/安装 前缀"
 installed_app="$install_root/A4N.app"
 launcher_log="$tmp_root/launcher.log"
