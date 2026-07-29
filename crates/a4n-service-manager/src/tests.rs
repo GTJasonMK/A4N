@@ -816,15 +816,24 @@ async fn start_sidecar_launches_demo_and_health_reports_exit() {
     assert!(metrics.requests_total >= 2);
     assert_eq!(metrics.operations["/trace"].requests_total, 1);
 
-    process.stop().await.unwrap();
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    let persisted_log = std::fs::read_dir(log_dir.join("services"))
-        .unwrap()
-        .map(|entry| std::fs::read_to_string(entry.unwrap().path()).unwrap())
-        .collect::<String>();
+    let persisted_log = tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            let log = std::fs::read_dir(log_dir.join("services"))
+                .unwrap()
+                .map(|entry| std::fs::read_to_string(entry.unwrap().path()).unwrap())
+                .collect::<String>();
+            if log.contains("host-request-1") && log.contains("host-trace-1") {
+                break log;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("sidecar log should be readable while the process is alive");
     assert!(persisted_log.contains("host-request-1"));
     assert!(persisted_log.contains("host-trace-1"));
+
+    process.stop().await.unwrap();
 
     let err = manager
         .health("demo")

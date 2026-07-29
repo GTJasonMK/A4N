@@ -600,7 +600,7 @@ function isSnapshotRequired(error: unknown): boolean {
 }
 
 async function backoff(attempt: number, signal: AbortSignal): Promise<void> {
-  const base = Math.min(15_000, 500 * 2 ** Math.min(attempt - 1, 5));
+  const base = Math.min(15_000, 100 * 2 ** Math.min(attempt - 1, 8));
   const jitter = Math.floor(base * 0.2 * Math.random());
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, base + jitter);

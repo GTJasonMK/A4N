@@ -772,6 +772,11 @@ jobs:
           A4N_DEMO_SIDECAR_BIN: ${{ github.workspace }}/${{ matrix.binary }}
         run: cargo test -p a4n-service-manager --lib supervisor_restarts_once_and_does_not_replay_in_flight_request -- --nocapture
 
+      - name: Verify live sidecar log visibility
+        env:
+          A4N_DEMO_SIDECAR_BIN: ${{ github.workspace }}/${{ matrix.binary }}
+        run: cargo test -p a4n-service-manager --lib start_sidecar_launches_demo_and_health_reports_exit -- --nocapture
+
   cross-platform-remote-mtls:
     name: Remote mTLS process ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
