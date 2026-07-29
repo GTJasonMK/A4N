@@ -1,9 +1,12 @@
 use std::env::VarError;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, anyhow};
+use tracing_appender::non_blocking::{NonBlocking, NonBlockingBuilder, WorkerGuard};
+use tracing_appender::rolling::RollingFileAppender;
 use tracing_subscriber::{EnvFilter, fmt::writer::MakeWriterExt};
 
 const LOG_RETENTION_DAYS_ENV: &str = "A4N_SIDECAR_LOG_RETENTION_DAYS";
@@ -11,6 +14,7 @@ const LOG_MAX_BYTES_ENV: &str = "A4N_SIDECAR_LOG_MAX_BYTES";
 const DEFAULT_LOG_RETENTION_DAYS: u64 = 14;
 const DEFAULT_LOG_MAX_BYTES: u64 = 256 * 1024 * 1024;
 const LOG_PRUNE_INTERVAL: Duration = Duration::from_secs(15 * 60);
+static FILE_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 
 pub(super) fn init(log_env: &str, filter_text: &str) -> anyhow::Result<()> {
     let filter = EnvFilter::try_new(filter_text)
@@ -29,13 +33,21 @@ pub(super) fn init(log_env: &str, filter_text: &str) -> anyhow::Result<()> {
     let max_bytes = env_u64(LOG_MAX_BYTES_ENV, DEFAULT_LOG_MAX_BYTES)?;
     prune_logs(&service_log_dir, retention_days, max_bytes)?;
     let file = tracing_appender::rolling::daily(&service_log_dir, log_file_prefix(log_env));
+    let (file, guard) = live_file_writer(file);
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stdout.and(file))
         .try_init()
         .map_err(|error| anyhow!("初始化 sidecar 日志系统失败: {error}"))?;
+    FILE_GUARD
+        .set(guard)
+        .map_err(|_| anyhow!("sidecar 日志文件 guard 已初始化"))?;
     spawn_log_pruner(service_log_dir, retention_days, max_bytes);
     Ok(())
+}
+
+fn live_file_writer(file: RollingFileAppender) -> (NonBlocking, WorkerGuard) {
+    NonBlockingBuilder::default().lossy(false).finish(file)
 }
 
 fn spawn_log_pruner(dir: PathBuf, retention_days: u64, max_bytes: u64) {
@@ -127,12 +139,44 @@ fn prune_logs(dir: &Path, retention_days: u64, max_bytes: u64) -> anyhow::Result
 
 #[cfg(test)]
 mod tests {
-    use super::{log_file_prefix, prune_logs};
+    use super::{live_file_writer, log_file_prefix, prune_logs};
+    use std::io::Write;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     #[test]
     fn log_file_name_is_derived_from_existing_filter_env() {
         assert_eq!(log_file_prefix("A4N_LLM_GATEWAY_LOG"), "llm-gateway.log");
+    }
+
+    #[test]
+    fn file_log_is_visible_before_process_exit() {
+        let dir = std::env::temp_dir().join(format!(
+            "a4n-sidecar-live-log-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("live.log");
+        let file = tracing_appender::rolling::never(&dir, "live.log");
+        let (mut writer, guard) = live_file_writer(file);
+
+        writer.write_all(b"visible\n").unwrap();
+        let visible = (0..100).any(|_| {
+            if std::fs::metadata(&path).is_ok_and(|metadata| metadata.len() > 0) {
+                true
+            } else {
+                std::thread::sleep(Duration::from_millis(10));
+                false
+            }
+        });
+
+        drop(writer);
+        drop(guard);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(visible, "file log should flush while the process is alive");
     }
 
     #[test]

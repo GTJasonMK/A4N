@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 建立 Windows/macOS/Linux 发布实跑、sidecar metrics/restart、SBOM/advisory/license/binary manifest 闭环 |
 | V2 来源 | 3.17、3.25、3.26；阶段 H、阶段 M 的发布/运维/供应链部分 |
-| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；普通 CI 的九包 SBOM、Linux installed release 与 macOS Tauri lifecycle 已通过，Windows 同 step Qdrant 和八 sidecar 已健康，受控日志改为有界等待；仍待新 Windows run 和正式签名/公证/GitHub Release 证据 |
+| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；普通 CI 的九包 SBOM、Linux installed release 与 macOS Tauri lifecycle 已通过，Windows 同 step Qdrant 和八 sidecar 已健康，活跃日志改为每批显式 flush；仍待新 Windows run 和正式签名/公证/GitHub Release 证据 |
 | 可并行性 | 平台、可观测性、供应链可分 agent；`.github/workflows` 和 release manifest 由集成者串行合并 |
 
 ## 子包 A：跨平台发布（3.17）
@@ -400,7 +400,16 @@ Windows 同 step 修复仍待下一真实 runner。正式 Apple/Azure identity�
 状态：`未完成`
 
 - run `30450022988` 的 Windows job `90569594589` 已证明批次 342 的同 step Qdrant 修复有效：官方预编译 v1.18.3 的 HTTP `6333`、gRPC `6334` 均就绪，Prompt、LLM、Embedding、RAG、Image、Video、Import、Export 八个 package sidecar 全部健康并生成有效 PID，RAG 不再返回 Winsock `10061`。
-- 唯一失败是 sidecar health 后约 0.6 秒立即断言非空受控日志。失败 artifact `8724923326` 在 `finally` 清理阶段已包含 prompt、LLM、embedding、RAG、image、video 等非空 service log，排除 tracing 缺失，确认只是日志异步落盘竞态。
-- 唯一 `smoke-windows-release-package.ps1` 现复用已有 100ms/300 次有界等待，直到出现至少一份非空受控日志；日志合同、失败信息和清理逻辑不变，没有固定 sleep、第二套 smoke、依赖或 fallback。
+- 唯一失败是 sidecar health 后没有非空受控日志；artifact `8724923326` 在 `finally` 清理阶段包含同一批日志。本批先在唯一 `smoke-windows-release-package.ps1` 中复用 100ms/300 次有界等待，后续 run `30455406608` 证明该等待仍会完整耗尽，初步时序判断由批次 344 的显式 flush 修复取代。
 
-当前 Linux 没有 `pwsh`，Windows 行为必须由下一真实 runner 复验；run `30450022988` 的 macOS job 在本批记录时仍处于 unsigned Tauri build，不提前判定结果。正式 Apple/Azure identity、受保护 `release` environment、`v0.1.0` tag、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和 GitHub Release 下载复验仍缺；工作包 10、3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `38/44`。
+run `30450022988` 的 macOS job 后续成功，最终证据见批次 344。正式 Apple/Azure identity、受保护 `release` environment、`v0.1.0` tag、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和 GitHub Release 下载复验仍缺；工作包 10、3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `38/44`。
+
+## 批次 344 · Windows 活跃日志显式 flush（2026-07-29）
+
+状态：`未完成`
+
+- run `30450022988` 最终为 35/36；macOS job `90569594566` 成功，artifact `8725461727` 为 65,882,744 bytes，SHA-256 `5042a29da3f24abf08d5e66d4e2f71afd9da3ae091673e60247389da09c60a4f`。unsigned macOS lifecycle 再次取得真实 runner 证据。
+- run `30455406608` 的 Windows job `90587590559` 已完成真实 archive 并保持 Qdrant、八个 sidecar health/PID 正常，但 30 秒日志轮询完整耗尽。artifact `8727595947` 为 69,438,948 bytes，SHA-256 `c2e6afe7866e75dc639711ab5ee5579fae546fa2a2dc2fdeb3e61d3824ca0ba9`；进程清理后同一目录立即出现非空日志，定位为 Windows 活跃 rolling file 未显式 flush。
+- 唯一 `a4n-sidecar-bootstrap::logging` 复用现有 `tracing-appender 0.2.5` 非丢失 worker，每批消息后 flush 底层文件，`WorkerGuard` 保持到进程结束；没有新增依赖、平台特例或第二日志合同。单一回归测试证明进程存活时文件已可见，结果 1/1，目标 fmt/diff 通过。
+
+Context7 月度额度已耗尽，库行为由当前锁定 crate 源码核对。修复仍待下一 Windows runner；正式 Apple/Azure identity、受保护 `release` environment、`v0.1.0` tag、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和 GitHub Release 下载复验仍缺；工作包 10、3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成` / `38/44`。
