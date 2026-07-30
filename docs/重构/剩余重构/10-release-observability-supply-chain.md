@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 建立 Windows/macOS/Linux 发布实跑、sidecar metrics/restart、SBOM/advisory/license/binary manifest 闭环 |
 | V2 来源 | 3.17、3.25、3.26；阶段 H、阶段 M 的发布/运维/供应链部分 |
-| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；普通 CI 的九包 SBOM、Windows/Linux/macOS 发布 smoke 与 Generation 均已通过；编译反馈按新 hosted runner 硬件刷新基线，仍待正式签名/公证/GitHub Release 证据 |
+| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；普通 CI 的九包 SBOM、Windows/Linux/macOS 发布 smoke、Generation 和刷新后的单一编译反馈基线均已通过；仍待正式签名/公证/GitHub Release 证据 |
 | 可并行性 | 平台、可观测性、供应链可分 agent；`.github/workflows` 和 release manifest 由集成者串行合并 |
 
 ## 子包 A：跨平台发布（3.17）
@@ -431,5 +431,5 @@ Context7 月度额度已耗尽，库行为由当前锁定 crate 源码核对。�
 - Module Checks run `30471463443` 对提交 `9506698` 的普通平台证据已全部通过。Linux job `90642476425` 输出 `host + 8 sidecars, logs, stale PID, cleanup, non-ASCII path`，artifact `8732929908` 为 67,105,080 bytes、SHA-256 `acd378ff616e658f2e7ab20dc55a7f289886508e9f07563eea2bdd8ea5c55946`；Windows job `90642476386` 输出同一生命周期断言，artifact `8733932063` 为 69,668,220 bytes、SHA-256 `901b1bcd5239382fcbaeaca584ba2845161391da23c690f13280a7229477611c`；macOS job `90642476466` 完成 unsigned `.app` Host + 八 sidecar、包内 ONNX Runtime、日志、清理和非 ASCII 路径，artifact `8734696884` 为 66,143,234 bytes、SHA-256 `852846c1102296e85d20d274df8b9fe60173bd3e06b9c2d2a0074dd7df23bc5e`。Windows portable 的日志首行内容读取已在真实 runner 通过。
 - Generation job `90642476555` 通过真实 Chromium、Tauri process、1 MiB 十次 SSE 重连和 Tauri Channel；Web 取消样本为 `[25,26,26,26,26,27,27,27,27,27,27,27,27,27,27,28,28,29,29,29]`，p95 从上一轮 550ms 降到 29ms，500ms 预算未放宽。
 - run attempt 1 的唯一失败是 build-feedback：artifact `8732250538` 在 AMD EPYC 9V74 / 4 CPU 上记录八包中位数 `755 / 614 / 707 / 805 / 631 / 638 / 5570 / 34837 ms`，Tauri 仅比旧 EPYC 7763 基线的 `25%` budget 高 84ms。只重跑该 job 后，attempt 2 artifact `8747368956` 在同一 CPU 型号、同一提交、同一 `package-rebuild-v1` 方法和完全一致的依赖图上记录 `789 / 642 / 768 / 888 / 681 / 700 / 5728 / 36311 ms`，证明 hosted runner 硬件/负载整体迁移而非 A4N 代码回退。
-- `build-feedback-baseline.tsv` 因此按第一次完整 EPYC 9V74 artifact 整体刷新八包数值，继续使用单一 baseline、三次中位数和统一 `25%` ceiling，不增加硬件分支或放宽百分比。现有预算 checker 已用更慢的 attempt 2 measurements 复验通过；仍需该 baseline 进入 Git 后由同一 job 再次验证。
+- `build-feedback-baseline.tsv` 因此按第一次完整 EPYC 9V74 artifact 整体刷新八包数值，继续使用单一 baseline、三次中位数和统一 `25%` ceiling，不增加硬件分支或放宽百分比。提交 `688ac0908ff6796b3347b5098b85be64741e2161` 的后续 run `30512222556` 中，job `90774535660` 已在 Intel Xeon Platinum 8573C / 4 CPU、Rust/Cargo 1.95.0 和同一 `package-rebuild-v1` 方法下通过：workspace cold 为 `209216ms`，八包中位数为 `704 / 556 / 658 / 777 / 585 / 606 / 5404 / 30218 ms`，全部低于 `944 / 768 / 884 / 1007 / 789 / 798 / 6963 / 43547 ms` budget。artifact `8747756421` 为 1,890,529 bytes，SHA-256 `1402a61adf3b11a64b4e7db90919a52277846b32d84abafa7f222a2817c37990`；跨 CPU 仍通过，证明无需建立硬件专用 baseline。
 - 远端再次核对仍为 0 个 environment、0 个 Actions secret、0 个 variable、0 个 tag、0 个 GitHub Release。普通三平台 CI 已收口，但正式 Apple/Azure identity、受保护 `release` environment、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和公开 Release 下载复验仍不存在；3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成`，V2 仍为 `38/44`、还差 6 条。
