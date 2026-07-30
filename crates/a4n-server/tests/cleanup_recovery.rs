@@ -4568,6 +4568,12 @@ async fn spawn_abort_once_sse_proxy(
                         while !prefix.windows(2).any(|window| window == b"\n\n") {
                             prefix.extend_from_slice(&upstream.next().await.unwrap().unwrap());
                         }
+                        let frame_end = prefix
+                            .windows(2)
+                            .position(|window| window == b"\n\n")
+                            .unwrap()
+                            + 2;
+                        prefix.truncate(frame_end);
                         Body::from_stream(
                             stream::once(async move {
                                 Ok::<Bytes, std::io::Error>(Bytes::from(prefix))
