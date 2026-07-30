@@ -308,12 +308,10 @@ jobs:
             scripts/dev/prepare-tauri-external-bin.sh \
             scripts/dev/build-tauri-bundle.sh \
             scripts/checks/smoke-macos-tauri-bundle.sh \
-            scripts/checks/generate-release-sbom.sh \
-            scripts/checks/check-release-signing-workflow.sh
+            scripts/checks/generate-release-sbom.sh
           ruby -e 'require "json"; JSON.parse(File.read("crates/a4n-tauri/tauri.sidecars.conf.json"))'
           ./scripts/checks/check-sidecar-package-inventory.sh
           ./scripts/checks/check-release-manifest.sh
-          ./scripts/checks/check-release-signing-workflow.sh
           ./scripts/checks/check-sidecar-security-boundary.sh
           ./scripts/checks/check-core-boundary.sh
           ./scripts/checks/check-generation-cutover-boundary.sh
@@ -581,13 +579,41 @@ jobs:
             ./scripts/checks/smoke-macos-tauri-bundle.sh \
             target/aarch64-apple-darwin/release/bundle/macos/A4N.app
 
+      - name: Package unsigned macOS executable bundle
+        run: |
+          app="target/aarch64-apple-darwin/release/bundle/macos/A4N.app"
+          output="artifacts/macos-package"
+          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/a4n-tauri/tauri.conf.json")).fetch("version")')"
+          archive="$output/A4N-${version}-macos-arm64-unsigned.zip"
+          manifest="$output/A4N-${version}-macos-arm64-unsigned.manifest.json"
+          check="$RUNNER_TEMP/a4n-macos-package-check"
+          mkdir -p "$output" "$check"
+          ruby scripts/release_manifest.rb generate \
+            --package-root "$(dirname "$app")" \
+            --target aarch64-apple-darwin \
+            --package a4n-tauri \
+            --host a4n-tauri \
+            --catalog crates/a4n-service-protocol/service-catalog.json \
+            --tauri-app "$app" \
+            --output "$manifest"
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
+          ditto -x -k "$archive" "$check"
+          ruby scripts/release_manifest.rb verify \
+            --package-root "$check" \
+            --manifest "$manifest" \
+            --catalog crates/a4n-service-protocol/service-catalog.json
+          (
+            cd "$output"
+            shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256"
+          )
+
       - name: Upload unsigned macOS bundle and smoke evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-arm64-tauri-smoke
           path: |
-            target/aarch64-apple-darwin/release/bundle/macos/A4N.app
+            artifacts/macos-package
             artifacts/macos-tauri-smoke
             artifacts/qdrant
           retention-days: 30

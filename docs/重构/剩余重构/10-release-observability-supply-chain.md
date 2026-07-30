@@ -6,13 +6,13 @@
 |---|---|
 | 主目标 | 建立 Windows/macOS/Linux 发布实跑、sidecar metrics/restart、SBOM/advisory/license/binary manifest 闭环 |
 | V2 来源 | 3.17、3.25、3.26；阶段 H、阶段 M 的发布/运维/供应链部分 |
-| 当前状态 | metrics、日志、supervisor、portable/Tauri 最终 binary manifest/hash 校验，以及 fail-closed 正式 tag release 流水线已落地；普通 CI 的九包 SBOM、Windows/Linux/macOS 发布 smoke、Generation 和刷新后的单一编译反馈基线均已通过；仍待正式签名/公证/GitHub Release 证据 |
+| 当前状态 | metrics、日志、supervisor、九包 SBOM、portable manifest/hash 和 Windows/Linux/macOS 可执行包 smoke 已通过；3.17/阶段 H 已关闭，待普通 macOS unsigned ZIP/manifest/SHA-256 新步骤取得 runner 证据 |
 | 可并行性 | 平台、可观测性、供应链可分 agent；`.github/workflows` 和 release manifest 由集成者串行合并 |
 
 ## 子包 A：跨平台发布（3.17）
 
 1. Windows runner 构建 portable package，执行 `start.ps1`，启动八个 sidecar 并检查 health、PID、日志和 host 退出清理。
-2. macOS runner 构建 Tauri externalBin bundle，验证权限、签名、公证配置和包内 sidecar 启停。
+2. macOS runner 构建 Tauri externalBin bundle，验证包内 sidecar 启停并生成明确标记 unsigned 的可下载归档。
 3. Linux runner 从真实安装前缀启动 host/sidecar，验证安装后路径、权限和退出清理。
 4. 三个平台覆盖 stale PID、非 ASCII 路径、带空格路径、端口释放和 host 退出后本次实例 sidecar 全部停止。
 
@@ -29,7 +29,7 @@
 1. CI 执行 `cargo audit` 或等价 advisory 检查、`cargo deny` 或等价 license/source policy。
 2. release 生成 SPDX 或 CycloneDX SBOM。
 3. release manifest 逐项记录 host + 八个 sidecar 的名称、版本、target、SHA-256、protocol/capability version。
-4. portable/Tauri 包通过平台签名保护 manifest/binary；manager 启动前校验实际 hash、签名和 package manifest，不匹配即拒绝启动。
+4. portable/Tauri 产物生成逐 binary manifest 和 archive checksum；manager-owned portable 启动前校验实际 hash 和 package manifest，不匹配即拒绝启动。
 5. 把 manifest 与 service catalog、package inventory 接入同一 CI 一致性门禁。
 
 ## 不在范围
@@ -42,7 +42,7 @@
 
 - 三个平台都有 runner 实跑和安装/打包后 smoke artifact。
 - metrics、日志生命周期、restart/backoff/circuit breaker 有统一 owner 和 process evidence。
-- advisory/license/SBOM、逐 binary manifest、签名和启动前 hash 校验均进入 CI/release。
+- advisory/license/SBOM、逐 binary manifest、archive checksum 和启动前 hash 校验均进入普通 CI。
 - sidecar 崩溃后的在途任务显式失败或按幂等键恢复，不静默重复非幂等请求。
 
 ## 最小验证
@@ -54,7 +54,7 @@ cargo deny check
 ./scripts/build.sh --release
 ```
 
-平台命令必须在对应 runner 实跑；Linux 本机成功不能代替 Windows/macOS 证据。签名/公证未配置时明确标阻塞，不加假成功 fallback。
+平台命令必须在对应 runner 实跑；Linux 本机成功不能代替 Windows/macOS 证据。未签名产物必须显式标记 unsigned，不得表述为受平台信任的公开分发包。
 
 ## 交接要求
 
@@ -452,3 +452,13 @@ Context7 月度额度已耗尽，库行为由当前锁定 crate 源码核对。�
 - run `30516382423` 检查时为 `in_progress`：36 个 job 中 32 个成功，LLM process 已 11/11；Windows、Linux、macOS 和 Generation 四个长任务仍运行，当前没有已结束失败 job。
 
 受保护 environment 缺口已经关闭，但正式 Apple/Azure identity、environment secrets/variables、`v0.1.0` tag、签名、公证、最终 manifest/CMS、正式九包 SBOM 和公开 Release 下载复验仍缺；3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成`，V2 仍为 `38/44`、还差 6 条。
+
+## 批次 349 · 未签名三平台可执行包范围收口（2026-07-30）
+
+状态：`未完成`
+
+- 用户明确最终交付只要求可构建、可启动的三平台可执行包，不需要 Apple/Azure 签名、macOS 公证或公开 GitHub Release。run `30471463443` 与 `30512222556` 已在 Windows、Linux、macOS 真实 runner 通过完整 package/bundle lifecycle，因此 3.17 与阶段 H 改为 `完成`。
+- 删除未配置凭证且不再属于交付范围的 `.github/workflows/release.yml` 与 `scripts/checks/check-release-signing-workflow.sh`，并从普通 CI 移除相应静态调用。保留唯一 `module-checks.yml`、`deploy.sh`、Tauri bundle、SBOM 和 manifest owner，不增加替代 release workflow。
+- 普通 macOS job 在 `.app` 真实 smoke 后生成 `A4N-<version>-macos-arm64-unsigned.zip`、Host + 八 sidecar + ONNX Runtime manifest 和 SHA-256，并解包复验；GitHub artifact 不再直接上传松散 `.app`。
+
+当前只待本批唯一远端 run 证明新增 macOS 归档步骤；通过后即可关闭 3.26、阶段 M、3.29、整体状态和工作包 10。V2 暂为 `40/44`、还差 4 条。
