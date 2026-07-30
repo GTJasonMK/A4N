@@ -22,7 +22,7 @@
 | [07-sidecar-process-and-postgres.md](07-sidecar-process-and-postgres.md) | 已收口（批次 305 回写 V2） | 八项真实 sidecar process 能力矩阵和 PostgreSQL 门禁/失败恢复证据满足原始条件；3.13、阶段 D/E 已关闭，远端 run 继续作为发布审计证据而非源码关闭条件 | 2026-07-25 |
 | [08-sidecar-security-resource-protocol.md](08-sidecar-security-resource-protocol.md) | 已收口（批次 306） | 唯一安全/资源/兼容 owner、八项 capability process、Export 历史/current/rollback 四组合和 Linux mTLS/watcher 满足原始关闭条件；3.19–3.21 与阶段 J/K 已关闭 | 2026-07-25 |
 | [09-media-lifecycle-and-host-events.md](09-media-lifecycle-and-host-events.md) | 已收口（批次 303） | 33 个生命周期入口、created-media/scanner/cleanup outbox、PostgreSQL 双故障/强杀恢复、唯一 generation event、Server SSE/Tauri Channel、真实 Chromium/Wry 重挂载与 Destroyed 均满足原始关闭条件；远端与跨平台发布证据转交 10 | 2026-07-27 |
-| [10-release-observability-supply-chain.md](10-release-observability-supply-chain.md) | 进行中（批次 345 Windows 内容观测） | Windows 原生进程已证明活跃 rolling 日志可直接读取；portable smoke 改读日志首行；待新 runner 与正式签名 Release | 2026-07-25 |
+| [10-release-observability-supply-chain.md](10-release-observability-supply-chain.md) | 进行中（批次 346 普通三平台收口） | Windows/Linux/macOS 普通发布 smoke 与 Generation 已通过；编译反馈按新 hosted runner 硬件刷新基线；待正式签名 Release | 2026-07-25 |
 | [11-compile-feedback-and-doc-governance.md](11-compile-feedback-and-doc-governance.md) | 已收口（批次 336） | 3.27 已有真实 Git 证据；两次 fixed-runner artifact 已建立并复验 `25%` cold/warm 编译反馈门禁，3.23 与阶段 L 已关闭 | 2026-07-28 |
 
 本会话当前工作包：`10-release-observability-supply-chain.md`。工作包 11 已于批次 336 收口：3.27、3.23 与阶段 L 全部关闭。总体为 `38/44`，剩余工作转入正式发布、签名与供应链证据。
@@ -39,7 +39,7 @@
 | A2 本地纯 rules | 0 文件 / 0 行 |
 | Orchestrator 透传壳 | 0 文件 / 0 行 |
 
-当前协调记录（2026-07-30）：run `30462394301` 最终为 34/36；Linux installed release、macOS unsigned Tauri lifecycle、PostgreSQL、供应链和其余普通门禁通过，Generation 取消 p95 与 Windows portable 日志断言失败。提交 `a59f72e` 将首次 SSE 重连退避从 500ms 收敛到 100ms，并把现有 demo sidecar 真实进程测试改为进程存活时读取持久日志；新 run `30470664612` 的 Windows 原生 job `90639731767` 已通过该门禁，证明日志 owner 正常。portable smoke 不再依赖活跃 append 文件可能滞后的 `FileInfo.Length`，改为读取 daily rolling 日志首行，仍保留 30 秒上限和非空内容要求。正式签名/公证、受保护 environment、tag、最终 manifest/CMS 和 GitHub Release 下载证据仍缺。整体 V2 为 38/44；剩余 6 条继续由工作包 10 承接。
+当前协调记录（2026-07-30）：run `30471463443` 对提交 `9506698` 的 Windows portable、Linux installed release、macOS unsigned Tauri lifecycle 和 Generation 全部通过；Windows 日志内容读取与首次 SSE 重连修复均已取得真实 runner 证据。唯一失败是 build-feedback 在 GitHub hosted runner 从 EPYC 7763 切换到 EPYC 9V74 后越过旧硬件基线；两次 artifact 的代码、方法和依赖图一致，现按第一次 9V74 artifact 整体刷新八包 baseline，统一 `25%` ceiling 不变。正式签名/公证、受保护 environment、tag、最终 manifest/CMS 和 GitHub Release 下载证据仍缺。整体 V2 为 38/44；剩余 6 条继续由工作包 10 承接。
 
 `AppState` 数字是边界观察量，不是待迁业务 owner 数量。权限、队列、provider、文件系统、FFmpeg、缓存、事件桥和 DTO 适配可以合法留在 Host；不要为了降低数字而增加第二套 facade 或搬动基础设施。
 

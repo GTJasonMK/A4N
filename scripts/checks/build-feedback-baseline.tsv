@@ -1,13 +1,14 @@
-# Fixed-runner baseline from GitHub Actions run 30368914502, commit 4fc1b0c,
-# Ubuntu 24.04 / AMD EPYC 7763 / 4 logical CPUs / Rust and Cargo 1.95.0.
+# Fixed-label runner baseline from GitHub Actions run 30471463443 attempt 1, commit 9506698,
+# Ubuntu 24.04 / AMD EPYC 9V74 / 4 logical CPUs / Rust and Cargo 1.95.0.
+# Refreshed from artifact 8732250538 after the hosted runner hardware changed from EPYC 7763.
 # A uniform 25% ceiling covers hosted-runner noise; refresh only from the same job and method.
 # method	package-rebuild-v1
 # package	baseline_ms	max_regression_percent
-a4n-prompt-service	739	25
-a4n-llm-gateway	597	25
-a4n-embedding-service	654	25
-a4n-rag-service	777	25
-a4n-image-service	615	25
-a4n-video-service	619	25
-a4n-server	4792	25
-a4n-tauri	27802	25
+a4n-prompt-service	755	25
+a4n-llm-gateway	614	25
+a4n-embedding-service	707	25
+a4n-rag-service	805	25
+a4n-image-service	631	25
+a4n-video-service	638	25
+a4n-server	5570	25
+a4n-tauri	34837	25
