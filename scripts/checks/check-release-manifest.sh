@@ -48,7 +48,7 @@ ruby scripts/release_manifest.rb verify \
 
 tauri_app="$tmp_dir/A4N.app"
 mkdir -p "$tauri_app/Contents/MacOS" "$tauri_app/Contents/Resources"
-printf 'signed-host\n' > "$tauri_app/Contents/MacOS/A4N"
+printf 'signed-host\n' > "$tauri_app/Contents/MacOS/a4n-tauri"
 printf 'signed-runtime\n' > "$tauri_app/Contents/Resources/libonnxruntime.dylib"
 ruby -rjson -e 'JSON.parse(File.read("crates/a4n-service-protocol/service-catalog.json")).each { |entry| File.write(ARGV.fetch(0) + "/Contents/MacOS/" + entry.fetch("binary"), entry.fetch("name") + "-signed\n") }' "$tauri_app"
 ruby scripts/release_manifest.rb generate \

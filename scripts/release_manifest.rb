@@ -108,7 +108,7 @@ def tauri_app_layout(options, package_root, target)
   fail_with("Tauri app must have an .app suffix") unless relative.end_with?(".app")
   fail_with("missing Tauri app: #{relative}") unless app.directory?
 
-  { root: relative, host: File.basename(relative, ".app") }
+  { root: relative }
 rescue ArgumentError
   fail_with("Tauri app must be inside package root")
 end
@@ -121,8 +121,8 @@ def manifest_layout(binaries, target)
 
   fail_with("Tauri app layout requires a macOS target") unless target.include?("darwin") || target.include?("macos")
   app_root = match[1]
-  host_name = File.basename(app_root, ".app")
-  fail_with("Tauri Host name does not match app bundle") unless match[2] == host_name && host.fetch("name") == host_name
+  host_name = match[2]
+  fail_with("Tauri Host name does not match manifest path") unless host.fetch("name") == host_name
   { type: :tauri_macos, root: app_root, host: host_name }
 end
 
@@ -140,7 +140,7 @@ def generate(options)
   binaries = []
   tauri_app = tauri_app_layout(options, package_root, target)
 
-  host_name = tauri_app ? tauri_app.fetch(:host) : "#{host}#{extension}"
+  host_name = "#{host}#{extension}"
   host_relative = if tauri_app
                     "#{tauri_app.fetch(:root)}/Contents/MacOS/#{host_name}"
                   else
