@@ -9,7 +9,9 @@ use a4n_capabilities::{
     CapabilityClient, EVENT_QUEUE_CAPACITY, HttpLlmClient, JsonRequest, LlmClient,
 };
 use a4n_llm::provider::ChatRequest;
-use a4n_service_manager::{ManagedServiceConfig, ServiceManager, ServiceManagerError};
+use a4n_service_manager::{
+    ManagedServiceConfig, ManagedSidecarState, ServiceManager, ServiceManagerError,
+};
 use a4n_service_protocol::{
     CapabilityTaskEvent, HealthStatus, LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME,
     PROTOCOL_VERSION, SIDECAR_AUTH_TOKEN_ENV, SecretForwardingPolicy, ServiceRequestContext,
@@ -364,14 +366,21 @@ pub(crate) async fn collect_stream_events(
 pub(crate) async fn wait_until_unavailable(manager: &ServiceManager) -> ServiceManagerError {
     timeout(Duration::from_secs(5), async {
         loop {
-            match manager.health(LLM_SERVICE_NAME).await {
-                Ok(_) => tokio::task::yield_now().await,
-                Err(error) => return error,
+            if let Err(error) = manager.health(LLM_SERVICE_NAME).await
+                && manager
+                    .process_status(LLM_SERVICE_NAME)
+                    .await
+                    .expect("gateway process status should remain readable")
+                    .is_some_and(|status| status.state == ManagedSidecarState::Stopped)
+            {
+                // Health can fail before force-stop has finished reaping the child.
+                return error;
             }
+            tokio::task::yield_now().await;
         }
     })
     .await
-    .expect("stopped gateway should become unavailable before timeout")
+    .expect("stopped gateway should become unavailable and finish stopping before timeout")
 }
 
 pub(crate) fn assert_port_released(addr: SocketAddr) {
