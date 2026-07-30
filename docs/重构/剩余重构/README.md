@@ -22,7 +22,7 @@
 | [07-sidecar-process-and-postgres.md](07-sidecar-process-and-postgres.md) | 已收口（批次 305 回写 V2） | 八项真实 sidecar process 能力矩阵和 PostgreSQL 门禁/失败恢复证据满足原始条件；3.13、阶段 D/E 已关闭，远端 run 继续作为发布审计证据而非源码关闭条件 | 2026-07-25 |
 | [08-sidecar-security-resource-protocol.md](08-sidecar-security-resource-protocol.md) | 已收口（批次 306） | 唯一安全/资源/兼容 owner、八项 capability process、Export 历史/current/rollback 四组合和 Linux mTLS/watcher 满足原始关闭条件；3.19–3.21 与阶段 J/K 已关闭 | 2026-07-25 |
 | [09-media-lifecycle-and-host-events.md](09-media-lifecycle-and-host-events.md) | 已收口（批次 303） | 33 个生命周期入口、created-media/scanner/cleanup outbox、PostgreSQL 双故障/强杀恢复、唯一 generation event、Server SSE/Tauri Channel、真实 Chromium/Wry 重挂载与 Destroyed 均满足原始关闭条件；远端与跨平台发布证据转交 10 | 2026-07-27 |
-| [10-release-observability-supply-chain.md](10-release-observability-supply-chain.md) | 进行中（批次 347 process 停止竞态收口） | 普通三平台、Generation、编译反馈和 LLM drop 11/11 均已有远端证据；待正式签名 Release | 2026-07-25 |
+| [10-release-observability-supply-chain.md](10-release-observability-supply-chain.md) | 进行中（批次 348 release environment 落地） | 普通三平台、Generation、编译反馈和 LLM drop 11/11 均已有远端证据；受保护 environment 已配置，待签名身份和正式 Release | 2026-07-25 |
 | [11-compile-feedback-and-doc-governance.md](11-compile-feedback-and-doc-governance.md) | 已收口（批次 336） | 3.27 已有真实 Git 证据；两次 fixed-runner artifact 已建立并复验 `25%` cold/warm 编译反馈门禁，3.23 与阶段 L 已关闭 | 2026-07-28 |
 
 本会话当前工作包：`10-release-observability-supply-chain.md`。工作包 11 已于批次 336 收口：3.27、3.23 与阶段 L 全部关闭。总体为 `38/44`，剩余工作转入正式发布、签名与供应链证据。
@@ -39,7 +39,7 @@
 | A2 本地纯 rules | 0 文件 / 0 行 |
 | Orchestrator 透传壳 | 0 文件 / 0 行 |
 
-当前协调记录（2026-07-30）：run `30512222556` 已通过刷新后的单一 build-feedback baseline、Generation 及 Windows/Linux/macOS 三平台 smoke，唯一失败是 LLM process handle drop 后立即 bind 端口的测试竞态。共享 helper 现同时等待 health unavailable 与 supervisor `Stopped`，不改生产生命周期或增加固定 sleep；定向用例 1/1、重复 20/20，后续 run `30516382423` 的 job `90787088605` 远端 11/11 通过。正式签名/公证、受保护 environment、tag、最终 manifest/CMS 和 GitHub Release 下载证据仍缺。整体 V2 为 38/44；剩余 6 条继续由工作包 10 承接。
+当前协调记录（2026-07-30）：run `30512222556` 已通过刷新后的单一 build-feedback baseline、Generation 及 Windows/Linux/macOS 三平台 smoke，唯一失败是 LLM process handle drop 后立即 bind 端口的测试竞态。共享 helper 现同时等待 health unavailable 与 supervisor `Stopped`，不改生产生命周期或增加固定 sleep；定向用例 1/1、重复 20/20，后续 run `30516382423` 的 job `90787088605` 远端 11/11 通过。GitHub `release` environment 已按单人维护配置：required reviewer 为 `GTJasonMK`、`prevent_self_review=false`、deployment tag policy 为 `v*`；environment secrets/variables 仍为空。正式 Apple/Azure 身份、tag、签名/公证、最终 manifest/CMS 和 GitHub Release 下载证据仍缺。整体 V2 为 38/44；剩余 6 条继续由工作包 10 承接。
 
 `AppState` 数字是边界观察量，不是待迁业务 owner 数量。权限、队列、provider、文件系统、FFmpeg、缓存、事件桥和 DTO 适配可以合法留在 Host；不要为了降低数字而增加第二套 facade 或搬动基础设施。
 

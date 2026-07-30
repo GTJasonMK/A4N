@@ -442,3 +442,13 @@ Context7 月度额度已耗尽，库行为由当前锁定 crate 源码核对。�
 - LLM process job `90774535663` 的 11 项中 10 项通过，唯一失败是 `dropping_manager_owned_handle_kills_gateway_and_releases_port`：handle `Drop` 发送 force-stop 后，测试只等 health 请求失败就立即绑定同一端口，撞上 supervisor 尚在执行 `child.kill().await` 的短窗口。Tokio 1.52.1 当前锁定源码确认 `Child::kill()` 会发送 kill 后等待 child exit；生产 `Drop` 和 AppState 显式 shutdown owner 无需改变。
 - 既有共享 `wait_until_unavailable` 现在要求 health unavailable 且 manager status 已为 `Stopped` 才返回，使用真实 supervisor 状态作为完成屏障，不增加固定 sleep、重试 fallback、生产平台分支或第二停止 owner。目标 rustfmt/diff 通过；该失败用例单次 1/1、连续 20/20 通过。提交 `90bae35` 后，run `30516382423` 的 job `90787088605` 明确记录原失败用例 `ok`，完整 process target 为 11/11。
 - 正式 Apple/Azure identity、受保护 `release` environment、`v*` tag、签名、公证、最终 manifest/CMS、正式 tag 九包 SBOM 和公开 Release 下载复验仍缺；3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成`，V2 仍为 `38/44`、还差 6 条。
+
+## 批次 348 · 单人维护 release environment 落地（2026-07-30）
+
+状态：`未完成`
+
+- 用户确认采用单人维护审批。GitHub `release` environment 已创建，required reviewer 为 `GTJasonMK`（user id `149306821`），`prevent_self_review=false`；deployment branch policy 使用 custom policy，唯一规则为 tag `v*`。正式 workflow 现有两个签名 job 的 `environment: release` 引用与远端设置一致。
+- 只读复核确认 environment secrets 与 variables 均为 0，tag 与 GitHub Release 仍未创建。本批不创建无凭证 tag、不触发签名 workflow，也不把 environment 配置冒充 Apple Developer ID、notarization 或 Azure Artifact Signing 证据。
+- run `30516382423` 检查时为 `in_progress`：36 个 job 中 32 个成功，LLM process 已 11/11；Windows、Linux、macOS 和 Generation 四个长任务仍运行，当前没有已结束失败 job。
+
+受保护 environment 缺口已经关闭，但正式 Apple/Azure identity、environment secrets/variables、`v0.1.0` tag、签名、公证、最终 manifest/CMS、正式九包 SBOM 和公开 Release 下载复验仍缺；3.17、3.26、阶段 H/M、3.29 与总体保持 `未完成`，V2 仍为 `38/44`、还差 6 条。
