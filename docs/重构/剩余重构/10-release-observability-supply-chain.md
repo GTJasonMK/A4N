@@ -6,7 +6,7 @@
 |---|---|
 | 主目标 | 建立 Windows/macOS/Linux 发布实跑、sidecar metrics/restart、SBOM/advisory/license/binary manifest 闭环 |
 | V2 来源 | 3.17、3.25、3.26；阶段 H、阶段 M 的发布/运维/供应链部分 |
-| 当前状态 | metrics、日志、supervisor、九包 SBOM、portable manifest/hash 和 Windows/Linux/macOS 可执行包 smoke 已通过；3.17/阶段 H 已关闭，待普通 macOS unsigned ZIP/manifest/SHA-256 新步骤取得 runner 证据 |
+| 当前状态 | 完成；最终 run `30522623690` 已通过三平台可执行包、Host + 八 sidecar 启动、manifest/hash 与普通 CI 全部 36 个 job |
 | 可并行性 | 平台、可观测性、供应链可分 agent；`.github/workflows` 和 release manifest 由集成者串行合并 |
 
 ## 子包 A：跨平台发布（3.17）
@@ -462,3 +462,13 @@ Context7 月度额度已耗尽，库行为由当前锁定 crate 源码核对。�
 - 普通 macOS job 在 `.app` 真实 smoke 后生成 `A4N-<version>-macos-arm64-unsigned.zip`、Host + 八 sidecar + ONNX Runtime manifest 和 SHA-256，并解包复验；GitHub artifact 不再直接上传松散 `.app`。
 
 当前只待本批唯一远端 run 证明新增 macOS 归档步骤；通过后即可关闭 3.26、阶段 M、3.29、整体状态和工作包 10。V2 暂为 `40/44`、还差 4 条。
+
+## 批次 351 · 三平台可执行包最终收口（2026-07-30）
+
+状态：`完成`
+
+最终 Module Checks run `30522623690` 对提交 `f5dcfe6` 的 36 个 job 全部成功。Linux artifact `8752230805` 为 67,105,325 bytes，Windows artifact `8752693959` 为 69,666,559 bytes；两者均已通过 migration、manifest/hash、Host + 八 sidecar、日志、stale PID、清理和非 ASCII 路径 smoke。
+
+macOS arm64 job `90806231469` 成功构建并启动 unsigned `A4N.app`，artifact `8753955808` 为 63,566,561 bytes，上传 ZIP digest 为 `b397d5a2e7b7c9ee1c2a26363db46a1c1a02f947432dbd1cd1b56f0aea7b9c4f`。下载复核确认 `A4N-0.1.0-macos-arm64-unsigned.zip` 的 SHA-256 为 `f45db0e506eee9f4e606f9f0544e9c222e5e566ee5acac29f99da08ac3b6de45`，manifest 记录 `A4N.app/Contents/MacOS/a4n-tauri`、八个 sidecar 和 `Contents/Resources/libonnxruntime.dylib`；校验与解包复验均通过。
+
+用户要求的三平台可构建、可启动可执行文件已经满足；签名、公证和公开 GitHub Release 不在范围。3.26、阶段 M、3.29、最终整体状态和工作包 10 全部关闭，V2 为 `44/44`。

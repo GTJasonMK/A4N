@@ -22,24 +22,24 @@
 | [07-sidecar-process-and-postgres.md](07-sidecar-process-and-postgres.md) | 已收口（批次 305 回写 V2） | 八项真实 sidecar process 能力矩阵和 PostgreSQL 门禁/失败恢复证据满足原始条件；3.13、阶段 D/E 已关闭，远端 run 继续作为发布审计证据而非源码关闭条件 | 2026-07-25 |
 | [08-sidecar-security-resource-protocol.md](08-sidecar-security-resource-protocol.md) | 已收口（批次 306） | 唯一安全/资源/兼容 owner、八项 capability process、Export 历史/current/rollback 四组合和 Linux mTLS/watcher 满足原始关闭条件；3.19–3.21 与阶段 J/K 已关闭 | 2026-07-25 |
 | [09-media-lifecycle-and-host-events.md](09-media-lifecycle-and-host-events.md) | 已收口（批次 303） | 33 个生命周期入口、created-media/scanner/cleanup outbox、PostgreSQL 双故障/强杀恢复、唯一 generation event、Server SSE/Tauri Channel、真实 Chromium/Wry 重挂载与 Destroyed 均满足原始关闭条件；远端与跨平台发布证据转交 10 | 2026-07-27 |
-| [10-release-observability-supply-chain.md](10-release-observability-supply-chain.md) | 进行中（批次 349 未签名可执行包收口） | 3.17/阶段 H 已关闭；待普通 macOS ZIP/manifest/SHA-256 新步骤取得最终 runner 证据 | 2026-07-25 |
+| [10-release-observability-supply-chain.md](10-release-observability-supply-chain.md) | 已收口（批次 351） | 三平台可执行包、Host + 八 sidecar 启动、manifest/hash 和普通 CI 已有最终 runner 证据 | 2026-07-25 |
 | [11-compile-feedback-and-doc-governance.md](11-compile-feedback-and-doc-governance.md) | 已收口（批次 336） | 3.27 已有真实 Git 证据；两次 fixed-runner artifact 已建立并复验 `25%` cold/warm 编译反馈门禁，3.23 与阶段 L 已关闭 | 2026-07-28 |
 
-本会话当前工作包：`10-release-observability-supply-chain.md`。用户已明确最终交付只要求可构建、可启动的三平台未签名可执行包；3.17 与阶段 H 已关闭。总体为 `40/44`，剩余只待本批普通 macOS artifact 证据后关闭 3.26、阶段 M、3.29 与整体状态。
+本会话当前工作包：无；全部工作包已收口。用户明确最终交付只要求可构建、可启动的三平台可执行包，最终 run `30522623690` 已完成全部 36 个 job。
 
 ## 当前快照
 
 | 指标 | 当前值 |
 |---|---|
-| V2 完成定义 | 40 / 44，未完成 4 条 |
-| 主战场 | 3.26 与阶段 M；待普通 macOS unsigned ZIP/manifest/SHA-256 runner 证据 |
+| V2 完成定义 | 44 / 44，未完成 0 条 |
+| 主战场 | 无；V2 与全部工作包已收口 |
 | Runtime actions | 526 个生产文件 / 27,801 行；含测试共 33,893 行（`refactor-metrics.sh`，2026-07-28） |
 | `AppState` 引用 | 253 个 actions 文件 / 829 次命中 |
 | 实际待迁主队列 | 0 个本地纯 rules 文件 / 0 行；0 个 Orchestrator 透传壳文件 / 0 行 |
 | A2 本地纯 rules | 0 文件 / 0 行 |
 | Orchestrator 透传壳 | 0 文件 / 0 行 |
 
-当前协调记录（2026-07-30）：run `30471463443` 与 `30512222556` 已真实通过 Windows/Linux/macOS 三平台可执行包 smoke；LLM drop 竞态的共享 helper 现等待 supervisor `Stopped`，本地 20/20，run `30516382423` 的 job `90787088605` 远端 11/11。用户不要求签名、公证或公开 Release，因此签名专用 workflow/checker 已删除；普通 macOS job新增 unsigned ZIP、逐 binary manifest、SHA-256 与解包复验，待唯一远端 run 后完成最后 4 项。
+当前协调记录（2026-07-30）：最终 run `30522623690` 为 36/36 成功。Linux artifact `8752230805`、Windows artifact `8752693959` 与 macOS artifact `8753955808` 均已生成；macOS 包内 ZIP、逐 binary manifest、SHA-256、解包复验及 Host + 八 sidecar 启动全部通过。用户不要求签名、公证或公开 Release，因此交付范围已完成。
 
 `AppState` 数字是边界观察量，不是待迁业务 owner 数量。权限、队列、provider、文件系统、FFmpeg、缓存、事件桥和 DTO 适配可以合法留在 Host；不要为了降低数字而增加第二套 facade 或搬动基础设施。
 
