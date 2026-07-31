@@ -6,16 +6,27 @@ use crate::generation::{
     RecordStartedGenerationRunInput,
 };
 use a4n_core::models::generation::generation_run;
-use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait};
 
-pub async fn record_completed_generation_run<C>(
-    db: &C,
+pub async fn record_completed_generation_run(
+    db: &DatabaseConnection,
     input: RecordCompletedGenerationRunInput,
-) -> Result<generation_run::Model, GenerationDbError>
-where
-    C: ConnectionTrait,
-{
-    record_completed_generation_run_with_checkpoint(
+) -> Result<generation_run::Model, GenerationDbError> {
+    record_completed_run_with_checkpoint_transaction(
+        db,
+        RecordCompletedGenerationRunWithCheckpointInput {
+            run: input,
+            checkpoint: GenerationRunCheckpointContext::default(),
+        },
+    )
+    .await
+}
+
+pub async fn record_completed_generation_run_in_transaction(
+    db: &DatabaseTransaction,
+    input: RecordCompletedGenerationRunInput,
+) -> Result<generation_run::Model, GenerationDbError> {
+    record_completed_generation_run_with_checkpoint_in(
         db,
         input,
         GenerationRunCheckpointContext::default(),
@@ -23,7 +34,7 @@ where
     .await
 }
 
-pub async fn record_completed_generation_run_with_checkpoint<C>(
+pub(crate) async fn record_completed_generation_run_with_checkpoint_in<C>(
     db: &C,
     input: RecordCompletedGenerationRunInput,
     checkpoint: GenerationRunCheckpointContext,
@@ -53,8 +64,8 @@ pub async fn record_completed_run_with_checkpoint_transaction(
     input: RecordCompletedGenerationRunWithCheckpointInput,
 ) -> Result<generation_run::Model, GenerationDbError> {
     let tx = db.begin().await?;
-    let run =
-        record_completed_generation_run_with_checkpoint(&tx, input.run, input.checkpoint).await?;
+    let run = record_completed_generation_run_with_checkpoint_in(&tx, input.run, input.checkpoint)
+        .await?;
     tx.commit().await?;
     Ok(run)
 }

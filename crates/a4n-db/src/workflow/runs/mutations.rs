@@ -1,8 +1,9 @@
 use super::*;
 
-use super::queries::{latest_workflow_run_by_business_key_model, workflow_run_by_id};
+use super::queries::{locked_latest_workflow_run_by_business_key_model, locked_workflow_run_by_id};
 use super::validation::{
-    completed_at_for_status_value, should_update_existing_run, validate_workflow_run_input,
+    completed_at_for_status_value, ensure_workflow_status_transition, ensure_workflow_write_open,
+    requires_explicit_interrupted_resume, should_update_existing_run, validate_workflow_run_input,
     workflow_fingerprint_matches,
 };
 
@@ -10,9 +11,46 @@ pub async fn upsert_workflow_run(
     db: &DatabaseConnection,
     input: UpsertWorkflowRunInput,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = upsert_workflow_run_in_transaction(&tx, input).await?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(run)
+}
+
+pub(super) async fn upsert_workflow_run_in_transaction(
+    tx: &sea_orm::DatabaseTransaction,
+    input: UpsertWorkflowRunInput,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
     validate_workflow_run_input(&input)?;
     let now = Utc::now().naive_utc();
-    let existing = latest_workflow_run_by_business_key_model(db, &input.business_key).await?;
+    let existing =
+        locked_latest_workflow_run_by_business_key_model(tx, &input.business_key).await?;
+    if let Some(existing) = existing.as_ref()
+        && workflow_fingerprint_matches(
+            existing.input_fingerprint_json.as_ref(),
+            input.input_fingerprint_json.as_ref(),
+        )
+        && requires_explicit_interrupted_resume(existing, &input.status)
+    {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: existing.status.clone(),
+            operation: format!("将工作流状态更新为 {}", input.status),
+        });
+    }
+    if let Some(existing) = existing.as_ref()
+        && workflow_fingerprint_matches(
+            existing.input_fingerprint_json.as_ref(),
+            input.input_fingerprint_json.as_ref(),
+        )
+        && is_terminal_workflow_status(&existing.status)
+        && input.status != WORKFLOW_STATUS_RUNNING
+        && existing.status != input.status
+    {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: existing.status.clone(),
+            operation: format!("将工作流状态更新为 {}", input.status),
+        });
+    }
     if let Some(existing) = existing.as_ref()
         && workflow_fingerprint_matches(
             existing.input_fingerprint_json.as_ref(),
@@ -38,16 +76,13 @@ pub async fn upsert_workflow_run(
         active.updated_at = Set(now);
         active.completed_at = Set(completed_at_for_status_value(&input.status, now));
         return active
-            .update(db)
+            .update(tx)
             .await
             .map_err(WorkflowWriteError::Database);
     }
 
     if let Some(existing) = existing
-        && !matches!(
-            existing.status.as_str(),
-            WORKFLOW_STATUS_COMPLETED | WORKFLOW_STATUS_SUPERSEDED
-        )
+        && !is_terminal_workflow_status(&existing.status)
     {
         let mut active: workflow_run::ActiveModel = existing.into();
         active.status = Set(WORKFLOW_STATUS_SUPERSEDED.to_string());
@@ -57,7 +92,7 @@ pub async fn upsert_workflow_run(
         active.updated_at = Set(now);
         active.completed_at = Set(Some(now));
         active
-            .update(db)
+            .update(tx)
             .await
             .map_err(WorkflowWriteError::Database)?;
     }
@@ -85,7 +120,7 @@ pub async fn upsert_workflow_run(
         updated_at: Set(now),
         completed_at: Set(completed_at_for_status_value(&input.status, now)),
     }
-    .insert(db)
+    .insert(tx)
     .await
     .map_err(WorkflowWriteError::Database)
 }
@@ -99,7 +134,13 @@ pub async fn mark_workflow_status(
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     validate_workflow_status(status)?;
-    let run = workflow_run_by_id(db, workflow_run_id).await?;
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    ensure_workflow_status_transition(&run.status, status, false)?;
+    if is_terminal_workflow_status(&run.status) && run.status == status {
+        tx.commit().await.map_err(WorkflowWriteError::Database)?;
+        return Ok(run);
+    }
     let now = Utc::now().naive_utc();
     let mut active: workflow_run::ActiveModel = run.into();
     active.status = Set(status.to_string());
@@ -111,10 +152,40 @@ pub async fn mark_workflow_status(
     active.active_task_id = Set(None);
     active.updated_at = Set(now);
     active.completed_at = Set(completed_at_for_status_value(status, now));
-    active
-        .update(db)
+    let updated = active
+        .update(&tx)
         .await
-        .map_err(WorkflowWriteError::Database)
+        .map_err(WorkflowWriteError::Database)?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(updated)
+}
+
+pub async fn resume_workflow_run(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    ensure_workflow_status_transition(&run.status, WORKFLOW_STATUS_RUNNING, true)?;
+    if run.status == WORKFLOW_STATUS_RUNNING {
+        tx.commit().await.map_err(WorkflowWriteError::Database)?;
+        return Ok(run);
+    }
+    let mut active: workflow_run::ActiveModel = run.into();
+    active.status = Set(WORKFLOW_STATUS_RUNNING.to_string());
+    active.can_resume = Set(true);
+    active.resume_block_reason = Set(None);
+    active.error_message = Set(None);
+    active.active_task_id = Set(None);
+    active.updated_at = Set(Utc::now().naive_utc());
+    active.completed_at = Set(None);
+    let updated = active
+        .update(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(updated)
 }
 
 pub async fn mark_workflow_current_step(
@@ -124,13 +195,17 @@ pub async fn mark_workflow_current_step(
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     let current_step_key = required_text(current_step_key.to_string(), "current_step_key")?;
-    let run = workflow_run_by_id(db, workflow_run_id).await?;
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    ensure_workflow_write_open(&run.status, "更新工作流当前步骤")?;
     let now = Utc::now().naive_utc();
     let mut active: workflow_run::ActiveModel = run.into();
     active.current_step_key = Set(Some(current_step_key));
     active.updated_at = Set(now);
-    active
-        .update(db)
+    let updated = active
+        .update(&tx)
         .await
-        .map_err(WorkflowWriteError::Database)
+        .map_err(WorkflowWriteError::Database)?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(updated)
 }

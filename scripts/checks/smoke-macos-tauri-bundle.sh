@@ -17,7 +17,7 @@ for name in A4N_QDRANT_URL A4N_DATABASE_URL A4N_JWT_SECRET; do
         exit 2
     }
 done
-for command_name in curl ditto grep pgrep; do
+for command_name in curl ditto grep pgrep ruby; do
     command -v "$command_name" >/dev/null 2>&1 || {
         printf 'missing command: %s\n' "$command_name" >&2
         exit 2
@@ -36,6 +36,9 @@ install_root="$tmp_root/安装 前缀"
 installed_app="$install_root/A4N.app"
 launcher_log="$tmp_root/launcher.log"
 host_pid=""
+local_cli=""
+local_config=""
+local_server=""
 
 finish() {
     local status=$?
@@ -43,6 +46,9 @@ finish() {
     if [[ -n "$host_pid" ]] && kill -0 "$host_pid" 2>/dev/null; then
         kill -TERM "$host_pid" 2>/dev/null || true
         wait "$host_pid" 2>/dev/null || true
+    fi
+    if [[ -n "$local_cli" && -x "$local_cli" && -n "$local_config" && -n "$local_server" ]]; then
+        "$local_cli" --config "$local_config" --server "$local_server" local stop --force >/dev/null 2>&1 || true
     fi
     if [[ -n "${A4N_RELEASE_SMOKE_ARTIFACT_DIR:-}" ]]; then
         mkdir -p "$A4N_RELEASE_SMOKE_ARTIFACT_DIR"
@@ -67,6 +73,9 @@ ditto "$source_app" "$installed_app"
 macos_dir="$installed_app/Contents/MacOS"
 resources_dir="$installed_app/Contents/Resources"
 host="$macos_dir/a4n-tauri"
+local_cli="$macos_dir/a4n"
+local_config="$tmp_root/cli.json"
+local_server="http://127.0.0.1:$((base_port + 8))"
 packages=(
     a4n-prompt-service
     a4n-llm-gateway
@@ -87,6 +96,18 @@ done
     printf 'Tauri bundle is missing executable Host: %s\n' "$host" >&2
     exit 1
 }
+for tool in a4n a4n-server a4n-migration; do
+    [[ -x "$macos_dir/$tool" ]] || {
+        printf 'Tauri bundle is missing executable tool: %s\n' "$tool" >&2
+        exit 1
+    }
+done
+capabilities="$(cd "$tmp_root" && "$local_cli" --config "$local_config" --agent capabilities export)"
+ruby -rjson -e '
+  data = JSON.parse(STDIN.read).fetch("data")
+  commands = data.fetch("commands")
+  abort "capability manifest is inconsistent" unless data.fetch("total_commands") == data.fetch("matched_commands") && data.fetch("total_commands") == commands.length
+' <<<"$capabilities"
 [[ -f "$resources_dir/libonnxruntime.dylib" ]] || {
     printf 'Tauri bundle is missing libonnxruntime.dylib\n' >&2
     exit 1
@@ -215,4 +236,22 @@ for url in "${urls[@]}"; do
     fi
 done
 
-printf 'macOS Tauri smoke passed: .app Host + 8 sidecars, bundled ONNX Runtime, logs, cleanup, non-ASCII path\n'
+(
+    cd "$tmp_root"
+    "$local_cli" --config "$local_config" --server "$local_server" --agent local start --no-qdrant
+    "$local_cli" --config "$local_config" --server "$local_server" --agent health
+    "$local_cli" --config "$local_config" --server "$local_server" --agent capabilities check
+    "$local_cli" --config "$local_config" --server "$local_server" --agent local stop
+) >>"$launcher_log" 2>&1
+for url in "${urls[@]}"; do
+    if curl -fsS --max-time 1 "$url/healthz" >/dev/null 2>&1; then
+        printf 'local managed sidecar survived local stop: %s\n' "$url" >&2
+        exit 1
+    fi
+done
+if curl -sS --max-time 1 "$local_server/api/health" >/dev/null 2>&1; then
+    printf 'local Server port survived local stop: %s\n' "$local_server" >&2
+    exit 1
+fi
+
+printf 'macOS Tauri smoke passed: .app Host + CLI tools + local Server + 8 sidecars, bundled ONNX Runtime, logs, cleanup, non-ASCII path\n'

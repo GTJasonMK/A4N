@@ -87,7 +87,12 @@ where
         &write_summary,
         stored_snapshots.state_indexes.len(),
     )?;
-    crate::generation::record_completed_generation_run(&tx, input.generation_run).await?;
+    crate::generation::record_completed_generation_run_with_checkpoint_in(
+        &tx,
+        input.generation_run,
+        crate::generation::GenerationRunCheckpointContext::default(),
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(AppliedCharacterSyncPersistenceRecord {

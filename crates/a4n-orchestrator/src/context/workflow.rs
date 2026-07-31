@@ -10,7 +10,7 @@ use a4n_db::DbHandle;
 use super::OrchestratorContext;
 use crate::workflow::{
     CancelWorkflowRunPersistenceResult, ClaimExclusiveWorkflowRunInput,
-    CompletedLlmCallCheckpointInput, ListWorkflowRunsInput, PersistedTaskInfo,
+    CompletedLlmCallCheckpointInput, GetWorkflowRunInput, ListWorkflowRunsInput, PersistedTaskInfo,
     TaskProgressEventSummary, UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput,
     WorkflowProgressEventInput, WorkflowRunDetailSummary, WorkflowRunSummary,
     is_video_status_final_for_cancel_interrupt, workflow_read_app_error, workflow_write_app_error,
@@ -47,9 +47,9 @@ impl WorkflowApplication {
 
     async fn workflow_run_detail(
         &self,
-        workflow_run_id: i64,
+        input: GetWorkflowRunInput,
     ) -> Result<WorkflowRunDetailSummary, AppError> {
-        a4n_db::workflow::workflow_run_detail(self.database.connection(), workflow_run_id)
+        a4n_db::workflow::workflow_run_detail(self.database.connection(), input)
             .await
             .map_err(workflow_read_app_error)
     }
@@ -89,6 +89,15 @@ impl WorkflowApplication {
         task_id: &str,
     ) -> Result<Option<PersistedTaskInfo>, AppError> {
         a4n_db::workflow::persisted_task_by_id(self.database.connection(), task_id)
+            .await
+            .map_err(workflow_read_app_error)
+    }
+
+    async fn workflow_run_model_by_active_task_id(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<workflow_run::Model>, AppError> {
+        a4n_db::workflow::workflow_run_model_by_active_task_id(self.database.connection(), task_id)
             .await
             .map_err(workflow_read_app_error)
     }
@@ -255,6 +264,15 @@ impl WorkflowApplication {
         .map_err(workflow_write_app_error)
     }
 
+    async fn resume_workflow_run(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<workflow_run::Model, AppError> {
+        a4n_db::workflow::resume_workflow_run(self.database.connection(), workflow_run_id)
+            .await
+            .map_err(workflow_write_app_error)
+    }
+
     async fn mark_workflow_current_step(
         &self,
         workflow_run_id: i64,
@@ -276,6 +294,22 @@ impl WorkflowApplication {
         a4n_db::workflow::upsert_workflow_checkpoint(self.database.connection(), input)
             .await
             .map_err(workflow_write_app_error)
+    }
+
+    async fn update_workflow_checkpoint_artifacts(
+        &self,
+        workflow_run_id: i64,
+        step_key: &str,
+        artifacts_json: serde_json::Value,
+    ) -> Result<workflow_checkpoint::Model, AppError> {
+        a4n_db::workflow::update_workflow_checkpoint_artifacts(
+            self.database.connection(),
+            workflow_run_id,
+            step_key,
+            artifacts_json,
+        )
+        .await
+        .map_err(workflow_write_app_error)
     }
 
     async fn record_workflow_progress_event(
@@ -329,9 +363,9 @@ impl OrchestratorContext {
 
     pub async fn workflow_run_detail(
         &self,
-        workflow_run_id: i64,
+        input: GetWorkflowRunInput,
     ) -> Result<WorkflowRunDetailSummary, AppError> {
-        self.workflow.workflow_run_detail(workflow_run_id).await
+        self.workflow.workflow_run_detail(input).await
     }
 
     pub async fn workflow_progress_events(
@@ -360,6 +394,15 @@ impl OrchestratorContext {
         task_id: &str,
     ) -> Result<Option<PersistedTaskInfo>, AppError> {
         self.workflow.persisted_task_by_id(task_id).await
+    }
+
+    pub async fn workflow_run_model_by_active_task_id(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<workflow_run::Model>, AppError> {
+        self.workflow
+            .workflow_run_model_by_active_task_id(task_id)
+            .await
     }
 
     pub async fn workflow_run_models(
@@ -456,16 +499,30 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
         reason: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<CancelWorkflowRunPersistenceResult, AppError> {
         let cancellation = self
             .workflow
             .cancel_workflow_run_persistence(workflow_run_id, reason)
             .await?;
-        self.interrupt_generated_videos_for_cancelled_workflow(
-            &cancellation.interrupted_generated_video_ids,
-            reason,
-        )
-        .await
+        if !cancellation.already_terminal {
+            if let Some(task_id) = cancellation.active_task_id.as_deref() {
+                self.cancel_task_handle(task_id);
+                if let Err(error) = self.queue_cancel(task_id).await {
+                    tracing::warn!(
+                        workflow_run_id,
+                        task_id,
+                        error = %error,
+                        "workflow 已持久化取消，但活动队列任务未能同步取消"
+                    );
+                }
+            }
+            self.interrupt_generated_videos_for_cancelled_workflow(
+                &cancellation.interrupted_generated_video_ids,
+                reason,
+            )
+            .await?;
+        }
+        Ok(cancellation)
     }
 
     async fn interrupt_generated_videos_for_cancelled_workflow(
@@ -488,14 +545,24 @@ impl OrchestratorContext {
             if is_video_status_final_for_cancel_interrupt(&video.status) {
                 continue;
             }
-            self.video
-                .mark_generated_video_error_status_and_prompt_record(
+            if crate::video::normalized_provider_job_id(video.provider_job_id.as_deref()).is_some()
+            {
+                self.video
+                    .mark_generated_video_error_status_and_prompt_record(
+                        video.id,
+                        crate::video::prompt_id_from_generated_video(&video),
+                        "interrupted",
+                        reason,
+                    )
+                    .await?;
+            } else {
+                self.mark_generated_video_cancelled_validated(
                     video.id,
-                    None,
-                    "interrupted",
+                    crate::video::prompt_id_from_generated_video(&video),
                     reason,
                 )
                 .await?;
+            }
         }
         Ok(())
     }
@@ -505,6 +572,17 @@ impl OrchestratorContext {
         input: UpsertWorkflowRunInput,
     ) -> Result<workflow_run::Model, AppError> {
         self.workflow.upsert_workflow_run(input).await
+    }
+
+    pub async fn update_workflow_checkpoint_artifacts(
+        &self,
+        workflow_run_id: i64,
+        step_key: &str,
+        artifacts_json: serde_json::Value,
+    ) -> Result<workflow_checkpoint::Model, AppError> {
+        self.workflow
+            .update_workflow_checkpoint_artifacts(workflow_run_id, step_key, artifacts_json)
+            .await
     }
 
     pub async fn claim_exclusive_workflow_run(
@@ -558,6 +636,78 @@ impl OrchestratorContext {
         };
         self.mark_workflow_status(workflow_run_id, status, can_resume, message)
             .await
+    }
+
+    pub(crate) async fn finalize_workflow_result<T>(
+        &self,
+        workflow_run_id: i64,
+        result: Result<T, AppError>,
+        completed_context: Option<&str>,
+    ) -> Result<T, AppError> {
+        let outcome = match &result {
+            Ok(_) => crate::workflow::WorkflowRunFinalizeOutcome::Completed,
+            Err(AppError::Cancelled) => crate::workflow::WorkflowRunFinalizeOutcome::Cancelled,
+            Err(_) => crate::workflow::WorkflowRunFinalizeOutcome::Failed,
+        };
+        let error_message = result.as_ref().err().map(ToString::to_string);
+        let finalized = self
+            .finalize_workflow_run_outcome_validated(
+                workflow_run_id,
+                outcome,
+                error_message.as_deref(),
+            )
+            .await;
+        if matches!(&finalized, Err(AppError::Cancelled)) {
+            return Err(AppError::Cancelled);
+        }
+        match (result, finalized) {
+            (Ok(value), Ok(_)) => Ok(value),
+            (Err(error), Ok(_)) => Err(error),
+            (Ok(_), Err(status_error)) => match completed_context {
+                Some(context) => Err(AppError::Internal(anyhow::anyhow!(
+                    "{context}，但工作流状态写入失败: {status_error}"
+                ))),
+                None => Err(status_error),
+            },
+            (Err(primary), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
+                "{primary}；工作流失败状态写入失败: {status_error}"
+            ))),
+        }
+    }
+
+    pub(crate) async fn finalize_workflow_outcome_result<T>(
+        &self,
+        workflow_run_id: i64,
+        result: Result<T, AppError>,
+        failure_context: &str,
+    ) -> Result<T, AppError> {
+        let outcome = match &result {
+            Ok(_) => crate::workflow::WorkflowRunFinalizeOutcome::Completed,
+            Err(AppError::Cancelled) => crate::workflow::WorkflowRunFinalizeOutcome::Cancelled,
+            Err(_) => crate::workflow::WorkflowRunFinalizeOutcome::Failed,
+        };
+        let error_message = result.as_ref().err().map(ToString::to_string);
+        let finalized = self
+            .finalize_workflow_run_outcome_validated(
+                workflow_run_id,
+                outcome,
+                error_message.as_deref(),
+            )
+            .await;
+        if matches!(&finalized, Err(AppError::Cancelled)) {
+            return Err(AppError::Cancelled);
+        }
+        match (result, finalized) {
+            (Ok(value), Ok(_)) => Ok(value),
+            (Ok(_), Err(status_error)) => Err(status_error),
+            (Err(error), Ok(_)) => Err(error),
+            (Err(error), Err(status_error)) => Err(AppError::InvalidState {
+                current: error.to_string(),
+                operation: format!(
+                    "{failure_context}失败，且 workflow 终态写入失败: {status_error}"
+                ),
+            }),
+        }
     }
 
     /// 按终态枚举（含 cancelled）推进 workflow。
@@ -630,13 +780,7 @@ impl OrchestratorContext {
     ) -> Result<workflow_run::Model, AppError> {
         crate::workflow::require_positive_workflow_run_id(workflow_run_id)
             .map_err(AppError::InvalidArgument)?;
-        self.mark_workflow_status(
-            workflow_run_id,
-            crate::workflow::WORKFLOW_STATUS_RUNNING,
-            true,
-            None,
-        )
-        .await
+        self.workflow.resume_workflow_run(workflow_run_id).await
     }
 
     pub async fn mark_workflow_current_step(

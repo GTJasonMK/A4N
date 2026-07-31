@@ -12,7 +12,7 @@ use super::super::super::requests::{
     build_first_frame_prompt_preview_user, build_frame_prompt_preview_request,
     build_storyboard_prompt_preview_user,
 };
-use super::super::super::spec::LocalVideoPromptPreviewMode;
+use super::super::super::spec::LocalFramePromptPreviewMode;
 use super::contracts::FrameWorkflowContext;
 use super::projection::preview_from_frame_steps;
 
@@ -37,9 +37,8 @@ pub(super) async fn build_placeholder_frame_preview(
         .await?;
     let placeholder_segment = placeholder_segment_plan();
     let placeholder_segment_plan = placeholder_segments();
-    let frame_user = match context.spec.mode {
-        LocalVideoPromptPreviewMode::BoundaryFrames
-        | LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => {
+    let frame_user = match context.mode {
+        LocalFramePromptPreviewMode::BoundaryFrames => {
             let next = OrchestratorContext::placeholder_boundary_frame_prompt_preview_state(
                 context.input,
                 &placeholder_segment_plan,
@@ -56,7 +55,7 @@ pub(super) async fn build_placeholder_frame_preview(
             )
             .await?
         }
-        LocalVideoPromptPreviewMode::FirstFrameChain => {
+        LocalFramePromptPreviewMode::FirstFrameChain => {
             build_first_frame_prompt_preview_user(
                 context.prompt_renderer,
                 context.project_id,
@@ -66,7 +65,7 @@ pub(super) async fn build_placeholder_frame_preview(
             )
             .await?
         }
-        LocalVideoPromptPreviewMode::Storyboard => {
+        LocalFramePromptPreviewMode::Storyboard => {
             let next = OrchestratorContext::placeholder_storyboard_prompt_preview_state(
                 context.input,
                 &placeholder_segment_plan,
@@ -102,5 +101,5 @@ pub(super) async fn build_placeholder_frame_preview(
         frame_request,
         "结构预览：真实生成时 draft 会替换为上一步视频片段规划模型输出；这里用占位片段展示将发送给模型的请求格式。",
     )?);
-    Ok(preview_from_frame_steps(context.spec.mode, steps))
+    Ok(preview_from_frame_steps(context.mode, steps))
 }

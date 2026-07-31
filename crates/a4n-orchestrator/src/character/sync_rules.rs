@@ -173,15 +173,6 @@ pub fn character_profile_sync_mode_label(start_chapter: i32, target_chapter: i32
     format!("{start_chapter}-{target_chapter}")
 }
 
-/// 根据同步结果解析 workflow 终态（纯规则）。
-pub fn character_profile_sync_finalize_status(success: bool) -> (&'static str, bool) {
-    if success {
-        ("completed", false)
-    } else {
-        ("failed", true)
-    }
-}
-
 /// 带显式 reason 的跳过摘要。
 pub fn sync_skip_summary_with_reason(
     profile: &protagonist_profile::Model,
@@ -303,20 +294,12 @@ mod tests {
     }
 
     #[test]
-    fn character_profile_sync_business_key_and_finalize_status() {
+    fn character_profile_sync_business_key_and_fingerprint() {
         assert_eq!(
             character_profile_sync_business_key(9, 3),
             "character_profile_sync:9:3"
         );
         assert_eq!(character_profile_sync_mode_label(1, 4), "1-4");
-        assert_eq!(
-            character_profile_sync_finalize_status(true),
-            ("completed", false)
-        );
-        assert_eq!(
-            character_profile_sync_finalize_status(false),
-            ("failed", true)
-        );
         let fp = character_profile_sync_workflow_fingerprint(
             1,
             2,

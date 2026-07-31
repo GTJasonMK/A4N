@@ -10,6 +10,7 @@ pub fn create_access_token_with_role(
     user_id: &str,
     name: Option<&str>,
     role: &str,
+    session_id: Option<&str>,
     secret: &str,
     exp_minutes: u64,
 ) -> Result<String, AppError> {
@@ -26,6 +27,7 @@ pub fn create_access_token_with_role(
         exp: now + (exp_minutes as usize * 60),
         token_type: "access".to_string(),
         jti: Some(Uuid::new_v4().to_string()),
+        session_id: session_id.map(str::to_string),
         media_path: None,
     };
     let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);

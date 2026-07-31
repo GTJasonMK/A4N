@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::video::prompt_json::sanitize_prompt_asset_text;
+use crate::video::prompt_context::reference_asset_summary;
 
 fn reference_slot_label(slot_index: usize) -> String {
     format!("参考图 {slot_index}")
@@ -40,33 +40,8 @@ pub(in crate::video) fn frame_prompt_available_assets_context(
         AppError::InvalidArgument("视频帧提示词 available_assets 必须是数组".to_string())
     })?;
     Ok(Value::Array(
-        items
-            .iter()
-            .map(frame_prompt_available_asset_context)
-            .collect(),
+        items.iter().map(reference_asset_summary).collect(),
     ))
-}
-
-fn frame_prompt_available_asset_context(asset: &Value) -> Value {
-    let mut object = serde_json::Map::new();
-    for key in [
-        "role",
-        "label",
-        "description",
-        "prompt_excerpt",
-        "selection_reason",
-        "profile_kind",
-    ] {
-        if let Some(value) = sanitize_prompt_asset_text(asset.get(key)) {
-            object.insert(key.to_string(), Value::String(value));
-        }
-    }
-    for key in ["is_primary", "is_favorite"] {
-        if let Some(value) = asset.get(key).and_then(Value::as_bool) {
-            object.insert(key.to_string(), Value::Bool(value));
-        }
-    }
-    Value::Object(object)
 }
 pub(in crate::video) fn previous_boundary_frame_asset_context(
     available_assets: &Value,

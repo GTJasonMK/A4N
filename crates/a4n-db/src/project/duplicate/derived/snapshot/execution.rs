@@ -6,13 +6,12 @@ use crate::project::{
     PROJECT_KIND_TEXT,
     duplicate::{
         ProjectDuplicateError,
-        shared::{ProjectCopyInsert, insert_project_copy_record},
+        shared::{ProjectCopyInsert, ProjectMediaFileCopier, insert_project_copy_record},
     },
 };
 
 use super::{
-    super::{types::DerivedProjectMediaFileCopier, workflow::copy_derived_workflow_records},
-    source::duplicate_derived_source_snapshot,
+    super::workflow::copy_derived_workflow_records, source::duplicate_derived_source_snapshot,
 };
 
 pub(in crate::project::duplicate::derived) async fn copy_derived_project_graph_record<C, Copier>(
@@ -25,7 +24,7 @@ pub(in crate::project::duplicate::derived) async fn copy_derived_project_graph_r
 ) -> Result<novel_project::Model, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: DerivedProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier,
 {
     if original.project_kind == PROJECT_KIND_TEXT {
         return Err(ProjectDuplicateError::InvalidArgument(

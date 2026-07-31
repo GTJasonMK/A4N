@@ -60,6 +60,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_number: Option<i32>,
         chapters: &[chapter::Model],
+        active_task_id: Option<&str>,
     ) -> Result<workflow_run::Model, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
@@ -84,7 +85,7 @@ impl OrchestratorContext {
             )),
             status: WORKFLOW_STATUS_RUNNING.to_string(),
             current_step_key: Some("scene_profile_sync.prepare".to_string()),
-            active_task_id: None,
+            active_task_id: active_task_id.map(str::to_string),
             can_resume: false,
             resume_block_reason: None,
             error_message: None,

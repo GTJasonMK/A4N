@@ -121,6 +121,9 @@ pub(in crate::video::prompt_generation::frame_prompts) fn video_prompt_reference
 ) -> Vec<i64> {
     let mut refs = Vec::new();
     match workflow_mode {
+        PromptWorkflowMode::SharedSegmentPlan => {
+            unreachable!("共享片段规划不参与卡片媒体引用计算")
+        }
         PromptWorkflowMode::BoundaryFrames | PromptWorkflowMode::ChatVideo => {
             for frame_number in [unit.start_frame_number, unit.end_frame_number]
                 .into_iter()
@@ -170,6 +173,9 @@ pub(in crate::video::prompt_generation::frame_prompts) fn video_prompt_reference
 ) -> Vec<i64> {
     let mut refs = Vec::new();
     match workflow_mode {
+        PromptWorkflowMode::SharedSegmentPlan => {
+            unreachable!("共享片段规划不参与卡片媒体引用计算")
+        }
         PromptWorkflowMode::BoundaryFrames | PromptWorkflowMode::ChatVideo => {
             if let Some(image_id) = frame_image_ids_by_number.get(&segment_number) {
                 extend_unique_reference_ids(&mut refs, &[*image_id]);

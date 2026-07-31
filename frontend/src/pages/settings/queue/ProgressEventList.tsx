@@ -25,7 +25,7 @@ export const ProgressEventList: React.FC<ProgressEventListProps> = ({
         return (
           <li
             key={event.id}
-            className="grid grid-cols-[auto_1fr_auto] gap-2 text-[11px] leading-4"
+            className="grid grid-cols-[auto_1fr_auto] gap-2 text-small leading-4"
           >
             <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-book-primary/70" />
             <span className="min-w-0">

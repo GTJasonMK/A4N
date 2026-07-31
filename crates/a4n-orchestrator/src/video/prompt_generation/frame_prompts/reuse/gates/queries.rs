@@ -56,7 +56,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn segment_plan_row
         service.database.connection(),
         project_id,
         chapter_id,
-        workflow_mode.storage_str(prompt_type),
+        workflow_mode.as_str(),
         prompt_type,
         only_plan_row,
     )

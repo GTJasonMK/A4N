@@ -17,17 +17,6 @@ pub(in crate::routes::commands) fn web_progress_reporter(
     }
 }
 
-pub(in crate::routes::commands) fn web_chunk_reporter(
-    task: Option<Arc<TaskHandle>>,
-) -> impl FnMut(&str, u32) -> Result<(), AppError> + Send + 'static {
-    move |_delta, _index| {
-        if task.as_ref().is_some_and(|handle| handle.is_cancelled()) {
-            return Err(AppError::Cancelled);
-        }
-        Ok(())
-    }
-}
-
 pub(in crate::routes::commands) fn web_fire_and_forget_progress_reporter(
     task: Option<Arc<TaskHandle>>,
 ) -> impl Fn(u32, u32, &str) + Send + Sync + 'static {

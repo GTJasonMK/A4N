@@ -1,6 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useToast } from "../../components/feedback/Toast";
-import { extractErrorMessage } from "../../api";
+import React, { useCallback } from "react";
 import {
   activateVideoConfig,
   activateServerVideoConfig,
@@ -17,6 +15,7 @@ import {
   updateServerVideoConfig,
 } from "../../api/video";
 import { ConfigListPanel, type ConfigItem } from "./ConfigListPanel";
+import { useConfigItems } from "./config-list/useConfigItems";
 import { VideoConfigEditor } from "./video/VideoConfigEditor";
 import {
   DEFAULT_VIDEO_FORM,
@@ -33,51 +32,16 @@ interface VideoTabProps {
 }
 
 export const VideoTab: React.FC<VideoTabProps> = ({ scope = "user" }) => {
-  const addToast = useToast((state) => state.addToast);
-  const [items, setItems] = useState<ConfigItem<VideoForm>[]>([]);
-  const [loading, setLoading] = useState(false);
-  const mountedRef = useRef(true);
-  const refreshSeqRef = useRef(0);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      refreshSeqRef.current += 1;
-    };
-  }, []);
-
-  const isCurrentRefresh = useCallback((seq: number) => {
-    return mountedRef.current && refreshSeqRef.current === seq;
-  }, []);
-
   const serverScope = scope === "server";
-
-  const refresh = useCallback(async () => {
-    const requestSeq = refreshSeqRef.current + 1;
-    refreshSeqRef.current = requestSeq;
-    setLoading(true);
-    try {
-      const list = await (serverScope ? listServerVideoConfigs() : listVideoConfigs());
-      if (!isCurrentRefresh(requestSeq)) return;
-      setItems(
-        list.map((config) => ({
-          ...toVideoItem(config),
-          deleteDisabled: !serverScope && config.id === SYSTEM_VIDEO_CONFIG_ID,
-          deleteDisabledReason: "系统默认视频模板由管理员维护，不能在用户配置页删除。",
-        })),
-      );
-    } catch (err) {
-      if (!isCurrentRefresh(requestSeq)) return;
-      addToast(extractErrorMessage(err, "加载视频配置失败"), "error");
-    } finally {
-      if (isCurrentRefresh(requestSeq)) setLoading(false);
-    }
-  }, [addToast, isCurrentRefresh, serverScope]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const loadItems = useCallback(async (): Promise<ConfigItem<VideoForm>[]> => {
+    const list = await (serverScope ? listServerVideoConfigs() : listVideoConfigs());
+    return list.map((config) => ({
+      ...toVideoItem(config),
+      deleteDisabled: !serverScope && config.id === SYSTEM_VIDEO_CONFIG_ID,
+      deleteDisabledReason: "系统默认视频模板由管理员维护，不能在用户配置页删除。",
+    }));
+  }, [serverScope]);
+  const { items, loading, refresh } = useConfigItems(loadItems, "加载视频配置失败");
 
   return (
     <ConfigListPanel<VideoForm>

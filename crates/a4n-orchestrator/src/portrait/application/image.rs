@@ -594,12 +594,11 @@ async fn rollback_portrait_creation(
         .await;
     match rollback {
         Ok(rollback) => {
-            if rollback.delete_file {
-                if let Err(cleanup_error) =
+            if rollback.delete_file
+                && let Err(cleanup_error) =
                     host_port.remove_portrait_file(image_path, "立绘图片").await
-                {
-                    return combined_error(original_error, cleanup_error);
-                }
+            {
+                return combined_error(original_error, cleanup_error);
             }
             original_error
         }

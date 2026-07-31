@@ -18,6 +18,20 @@ const tauriCommandRegistry = path.join(
   "src",
   "command_registry.rs",
 );
+const cliCommandRouting = path.join(
+  repoRoot,
+  "crates",
+  "a4n-cli",
+  "src",
+  "routing.rs",
+);
+const cliCommandCatalog = path.join(
+  repoRoot,
+  "crates",
+  "a4n-api-contract",
+  "src",
+  "command_manifest.rs",
+);
 const serverRoutes = path.join(
   repoRoot,
   "crates",
@@ -98,6 +112,12 @@ const runtimeModeSymbols = new Set([
   "usesLocalRuntimeSettings",
   "workspaceContext",
 ]);
+const allowedTauriInfrastructureCommands = [
+  "get_all_frontend_state",
+  "log_from_frontend",
+  "remove_frontend_state_many",
+  "set_frontend_state_many",
+];
 
 const frontendApiCommandRefs = collectFrontendCommandRefs(frontendSrc, "apiInvoke");
 const frontendRuntimeCommandRefs = collectFrontendCommandRefs(
@@ -112,6 +132,13 @@ const frontendApiCommands = sortCommands(frontendApiCommandRefs.keys());
 const frontendRuntimeCommands = sortCommands(frontendRuntimeCommandRefs.keys());
 const frontendCommands = sortCommands(frontendCommandRefs.keys());
 const webInvokeCommands = collectWebCommands(webApiIndex);
+const cliSpecialCommands = collectCliSpecialCommands(cliCommandRouting);
+const cliHasGenericCommandEndpoint = hasCliGenericCommandEndpoint(cliCommandRouting);
+const cliCatalogCommands = collectRustStringArray(cliCommandCatalog, "API_COMMANDS");
+const cliRuntimeEquivalentCommands = collectRustTupleKeys(
+  cliCommandCatalog,
+  "RUNTIME_EQUIVALENTS",
+);
 const serverCommandDispatchCommands = sortCommands(
   new Set([
     ...collectServerCommandDispatchCommands(serverCommandRoutes),
@@ -147,6 +174,27 @@ const serverRequestSet = collectServerRequestSet(serverRoutes);
 
 const missingInWeb = difference(frontendApiCommands, webCommands);
 const missingInTauri = difference(frontendCommands, tauriCommands);
+const tauriInfrastructureCommands = difference(tauriCommands, frontendCommands);
+const unexpectedTauriInfrastructureCommands = difference(
+  tauriInfrastructureCommands,
+  allowedTauriInfrastructureCommands,
+);
+const missingTauriInfrastructureCommands = difference(
+  allowedTauriInfrastructureCommands,
+  tauriInfrastructureCommands,
+);
+const missingCliSpecialCommands = difference(webInvokeCommands, cliSpecialCommands);
+const staleCliSpecialCommands = difference(cliSpecialCommands, webInvokeCommands);
+const missingCliCatalogCommands = difference(frontendApiCommands, cliCatalogCommands);
+const staleCliCatalogCommands = difference(cliCatalogCommands, frontendApiCommands);
+const missingCliRuntimeEquivalents = difference(
+  frontendRuntimeCommands,
+  cliRuntimeEquivalentCommands,
+);
+const staleCliRuntimeEquivalents = difference(
+  cliRuntimeEquivalentCommands,
+  frontendRuntimeCommands,
+);
 const webOnly = difference(webCommands, frontendCommands);
 const unwrappedTauriImports = directTauriImports.filter(
   (item) => !allowedTauriAdapterFiles.has(item.absoluteFile),
@@ -176,7 +224,12 @@ const missingServerRoutes = webRequests.filter(
 printSummary("前端 apiInvoke 命令", frontendApiCommands);
 printSummary("前端 Tauri-only runtimeInvoke 命令", frontendRuntimeCommands);
 printSummary("桌面 Tauri 注册命令", tauriCommands);
+printSummary("桌面壳层基础设施命令", tauriInfrastructureCommands);
 printSummary("Web webInvoke 专用映射命令", webInvokeCommands);
+printSummary("CLI Web 专用映射命令", cliSpecialCommands);
+printSummary("共享 Host API manifest 命令", cliCatalogCommands);
+printSummary("CLI Tauri-only 等价入口", cliRuntimeEquivalentCommands);
+console.log(`CLI 通用 /commands endpoint: ${cliHasGenericCommandEndpoint ? 1 : 0}`);
 printSummary("Web server command 分发命令", serverCommandDispatchCommands);
 printSummary("Web server 专用分发命令", serverSpecialDispatchCommands);
 printSummary("Web 总映射命令", webCommands);
@@ -210,6 +263,14 @@ console.log(
 console.log(`Web REST 调用: ${webRequests.length}`);
 printIssue("前端已调用但 Web 未映射", withFrontendRefs(missingInWeb));
 printIssue("前端已调用但桌面未注册", withFrontendRefs(missingInTauri));
+printIssue("未分类的桌面壳层命令", unexpectedTauriInfrastructureCommands);
+printIssue("约定的桌面壳层命令已不存在", missingTauriInfrastructureCommands);
+printIssue("Web 专用命令缺少 CLI 映射", missingCliSpecialCommands);
+printIssue("CLI 存在过期的 Web 专用映射", staleCliSpecialCommands);
+printIssue("共享 Host API manifest 缺少前端业务命令", missingCliCatalogCommands);
+printIssue("共享 Host API manifest 存在过期业务命令", staleCliCatalogCommands);
+printIssue("CLI 缺少 Tauri-only 等价入口", missingCliRuntimeEquivalents);
+printIssue("CLI 存在过期 Tauri-only 等价入口", staleCliRuntimeEquivalents);
 printIssue("Web 已映射但前端未调用", webOnly);
 printIssue(
   "Web 已映射但 server 未注册对应 REST 路由",
@@ -263,6 +324,15 @@ printIssue(
 if (
   missingInWeb.length > 0 ||
   missingInTauri.length > 0 ||
+  unexpectedTauriInfrastructureCommands.length > 0 ||
+  missingTauriInfrastructureCommands.length > 0 ||
+  missingCliSpecialCommands.length > 0 ||
+  staleCliSpecialCommands.length > 0 ||
+  missingCliCatalogCommands.length > 0 ||
+  staleCliCatalogCommands.length > 0 ||
+  missingCliRuntimeEquivalents.length > 0 ||
+  staleCliRuntimeEquivalents.length > 0 ||
+  !cliHasGenericCommandEndpoint ||
   missingServerRoutes.length > 0 ||
   unwrappedTauriImports.length > 0 ||
   unapprovedRuntimeModeImports.length > 0 ||
@@ -303,6 +373,60 @@ function collectWebCommands(file) {
     commands.add(match[1]);
   }
   return sortCommands(commands);
+}
+
+function collectCliSpecialCommands(file) {
+  if (!fs.existsSync(file)) return [];
+  const text = fs.readFileSync(file, "utf8");
+  const body = extractMatchBody(text, "match command");
+  if (!body) return [];
+  const commands = new Set();
+  const regex = /^\s*["']([a-zA-Z0-9_]+)["']\s*=>/gm;
+  for (const match of body.matchAll(regex)) {
+    commands.add(match[1]);
+  }
+  return sortCommands(commands);
+}
+
+function hasCliGenericCommandEndpoint(file) {
+  if (!fs.existsSync(file)) return false;
+  const text = fs.readFileSync(file, "utf8");
+  return (
+    text.includes('path: format!("/commands/{command}")') &&
+    text.includes("if let Some(request) = special_request(command, &args)?")
+  );
+}
+
+function collectRustStringArray(file, constName) {
+  const body = rustConstArrayBody(file, constName);
+  if (!body) return [];
+  return sortCommands(
+    new Set(Array.from(body.matchAll(/"([a-zA-Z0-9_]+)"/g), (match) => match[1])),
+  );
+}
+
+function collectRustTupleKeys(file, constName) {
+  const body = rustConstArrayBody(file, constName);
+  if (!body) return [];
+  return sortCommands(
+    new Set(
+      Array.from(
+        body.matchAll(/\(\s*"([a-zA-Z0-9_]+)"\s*,/g),
+        (match) => match[1],
+      ),
+    ),
+  );
+}
+
+function rustConstArrayBody(file, constName) {
+  if (!fs.existsSync(file)) return null;
+  const text = fs.readFileSync(file, "utf8");
+  const start = text.indexOf(`const ${constName}:`);
+  if (start < 0) return null;
+  const open = text.indexOf("&[", start);
+  const close = text.indexOf("];", open);
+  if (open < 0 || close < 0) return null;
+  return text.slice(open + 2, close);
 }
 
 function collectTauriCommands(file) {

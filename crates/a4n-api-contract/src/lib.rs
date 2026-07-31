@@ -8,6 +8,7 @@ pub mod auth;
 pub mod blueprint;
 pub mod canvas;
 pub mod chapter;
+pub mod command_manifest;
 pub mod config;
 pub mod embedding;
 pub mod galgame;

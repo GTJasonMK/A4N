@@ -25,7 +25,7 @@ pub async fn initialize(app: &AppHandle) -> Result<AppState, AppError> {
 
     let runtime_profile = runtime_profile_for_tauri_host()?;
     let state = AppState::new_with_profile(config, runtime_profile).await?;
-    event_logger::spawn_event_logger(&state).await;
+    event_logger::spawn_event_logger(&state);
 
     Ok(state)
 }

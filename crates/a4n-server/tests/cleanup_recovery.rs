@@ -3,12 +3,14 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
 
 #[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
-use std::{sync::Mutex, time::UNIX_EPOCH};
+use std::{
+    sync::{Arc, Mutex},
+    time::UNIX_EPOCH,
+};
 
 #[cfg(any(
     feature = "embedded-capabilities",
@@ -32,6 +34,7 @@ use a4n_db::generation::{
 };
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use a4n_service_protocol::GenerationDeliveryMode;
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 use axum::body::Body;
 #[cfg(any(
     feature = "embedded-capabilities",
@@ -46,10 +49,13 @@ use axum::{
 };
 use base64::Engine as _;
 use chrono::{Duration as ChronoDuration, Utc};
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 use futures::{StreamExt as _, stream};
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
+use sea_orm::QueryOrder;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection,
-    EntityTrait, QueryFilter, QueryOrder, Set, Statement, TransactionTrait,
+    EntityTrait, QueryFilter, Set, Statement, TransactionTrait,
 };
 use serde_json::json;
 use sha2::Digest as _;
@@ -57,11 +63,17 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 const PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 const PROXY_FAULT_NONE: usize = 0;
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 const PROXY_FAULT_CONSISTENCY: usize = 1;
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 const PROXY_FAULT_EXPIRED_WITH_REF: usize = 2;
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 const PROXY_FAULT_EXPIRED_WITHOUT_REF: usize = 3;
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 const PROXY_FAULT_CORRUPT_WITH_REF: usize = 4;
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 const PROXY_FAULT_CORRUPT_WITHOUT_REF: usize = 5;
 #[cfg(any(
     feature = "embedded-capabilities",
@@ -255,6 +267,107 @@ impl FakeOpenAiImageProvider {
             .expect("fake OpenAI image provider task should join")
             .expect("fake OpenAI image provider should stop cleanly");
     }
+}
+
+#[tokio::test]
+async fn server_startup_restores_rejected_project_delete_gate() {
+    let (db, database_url) = isolated_test_database().await;
+    let suffix = Uuid::new_v4().simple().to_string();
+    let owner = a4n_db::auth::create_user(
+        &db,
+        &format!("delete_recovery_{suffix}"),
+        &format!("delete_recovery_{suffix}@example.invalid"),
+        "generation-process-password",
+        ROLE_USER,
+    )
+    .await
+    .unwrap();
+    let root = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: owner.id,
+            title: format!("delete recovery root {suffix}"),
+            description: String::new(),
+            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    chapter::ActiveModel {
+        project_id: Set(root.id),
+        outline_id: Set(None),
+        chapter_number: Set(1),
+        title: Set(Some("第一章".to_string())),
+        content: Set("用于创建派生项目的正文。".to_string()),
+        word_count: Set(12),
+        status: Set(chapter::STATUS_IMPORTED.to_string()),
+        summary: Set(None),
+        style_tags: Set(None),
+        analysis_data: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let derived = a4n_db::project::create_derived_project_record(
+        &db,
+        owner.id,
+        a4n_db::project::CreateDerivedProjectParams {
+            root_project_id: root.id,
+            derived_kind: a4n_db::project::PROJECT_KIND_VIDEO.to_string(),
+            title: format!("delete recovery derived {suffix}"),
+            description: String::new(),
+            chapter_scope: a4n_db::project::DerivedChapterScope {
+                start_chapter: 1,
+                end_chapter: 1,
+            },
+            creation_options_json: json!({}),
+        },
+    )
+    .await
+    .unwrap();
+    db.execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "UPDATE novel_project SET lifecycle_gate = 'deleting', updated_at = NOW() WHERE id = $1",
+        [root.id.into()],
+    ))
+    .await
+    .unwrap();
+
+    let temp = tempfile::tempdir().unwrap();
+    let data_dir = temp.path().join("data");
+    let frontend_dir = temp.path().join("frontend");
+    std::fs::create_dir_all(&frontend_dir).unwrap();
+    std::fs::write(frontend_dir.join("index.html"), "test").unwrap();
+    let addr = unused_local_addr();
+    let mut server = spawn_server(&database_url, &data_dir, &frontend_dir, addr);
+    wait_for_listener(&mut server, addr).await;
+
+    let gate = db
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT lifecycle_gate FROM novel_project WHERE id = $1",
+            [root.id.into()],
+        ))
+        .await
+        .unwrap()
+        .unwrap()
+        .try_get::<String>("", "lifecycle_gate")
+        .unwrap();
+    assert_eq!(gate, "active");
+    for project_id in [root.id, derived.id] {
+        assert!(
+            a4n_core::models::project::novel_project::Entity::find_by_id(project_id)
+                .one(&db)
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+    stop_server(server);
 }
 
 #[tokio::test]
@@ -2378,6 +2491,7 @@ async fn real_chromium_recovers_generation_after_proxy_aborts_sse() {
     const CAPACITY_REACT_COMMIT_BUDGET: u64 = 300;
     const WEB_UI_MEDIAN_BUDGET_MS: u64 = 250;
     const TAURI_UI_MEDIAN_BUDGET_MS: u64 = 175;
+    #[cfg(feature = "embedded-media-providers")]
     const CANCEL_P95_BUDGET_MS: u64 = 500;
 
     let reply = "y".repeat(REPLY_BYTES);
@@ -2855,12 +2969,12 @@ async fn real_chromium_recovers_generation_after_proxy_aborts_sse() {
         .unwrap();
     wait_for_listener(&mut vite, vite_addr).await;
 
-    let mut browser_url = format!(
+    let browser_url = format!(
         "http://{vite_addr}/process-tests/generation.html#backend=http://{addr}&username={username}&password=generation-process-password&project={}",
         project.id
     );
     #[cfg(feature = "embedded-media-providers")]
-    browser_url.push_str(&format!("&image_config={}", image_config.id));
+    let browser_url = format!("{browser_url}&image_config={}", image_config.id);
     let webdriver_addr = unused_local_addr();
     let mut webdriver = Command::new(chromedriver_binary())
         .arg(format!("--port={}", webdriver_addr.port()))
@@ -4479,6 +4593,7 @@ async fn read_generation_sse_until_terminal(
     events
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn read_generation_sse_events(
     response: &mut reqwest::Response,
     max_events: usize,
@@ -4487,6 +4602,7 @@ async fn read_generation_sse_events(
     read_generation_sse(response, Some(max_events)).await
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn spawn_abort_once_sse_proxy(
     backend: SocketAddr,
 ) -> (
@@ -4667,6 +4783,7 @@ async fn spawn_abort_once_sse_proxy(
     (addr, request_rx, fault, fault_hits, shutdown, task)
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 fn proxy_recovery_fault(mode: usize) -> Option<(&'static str, bool)> {
     match mode {
         PROXY_FAULT_EXPIRED_WITH_REF => Some(("expired", true)),
@@ -4677,6 +4794,7 @@ fn proxy_recovery_fault(mode: usize) -> Option<(&'static str, bool)> {
     }
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 fn corrupt_completed_hash(value: &mut serde_json::Value) -> bool {
     let terminal = if value["event"]["kind"] == "completed" {
         value
@@ -4695,6 +4813,7 @@ fn corrupt_completed_hash(value: &mut serde_json::Value) -> bool {
     true
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 fn corrupt_completed_hash_in_sse(body: &str) -> String {
     let mut corrupted = false;
     let mut output = String::with_capacity(body.len());
@@ -4716,6 +4835,7 @@ fn corrupt_completed_hash_in_sse(body: &str) -> String {
     output
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 fn chromedriver_binary() -> String {
     if let Ok(binary) = std::env::var("A4N_CHROMEDRIVER_BIN")
         && !binary.trim().is_empty()
@@ -4736,6 +4856,7 @@ fn chromedriver_binary() -> String {
     panic!("real Chromium process test requires A4N_CHROMEDRIVER_BIN or chromedriver on PATH")
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 fn browser_process_value(dom: &str, name: &str) -> serde_json::Value {
     let marker = format!("data-a4n-{name}=\"");
     let encoded = dom
@@ -4748,6 +4869,7 @@ fn browser_process_value(dom: &str, name: &str) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn webdriver_send_inspiration_message(
     browser: &reqwest::Client,
     webdriver_url: &str,
@@ -4804,6 +4926,7 @@ async fn webdriver_send_inspiration_message(
         .unwrap();
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn webdriver_submit_textarea(
     browser: &reqwest::Client,
     webdriver_url: &str,
@@ -4928,6 +5051,7 @@ async fn webdriver_submit_textarea(
     }
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn webdriver_click_button(
     browser: &reqwest::Client,
     webdriver_url: &str,
@@ -4943,6 +5067,7 @@ async fn webdriver_click_button(
     .await;
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn webdriver_click_dialog_button(
     browser: &reqwest::Client,
     webdriver_url: &str,
@@ -4958,6 +5083,7 @@ async fn webdriver_click_dialog_button(
     .await;
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn webdriver_click_button_by_xpath(
     browser: &reqwest::Client,
     webdriver_url: &str,
@@ -5042,6 +5168,7 @@ async fn webdriver_click_button_by_xpath(
     }
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn assert_completed_inspiration_exchange(
     db: &DatabaseConnection,
     project_id: i64,
@@ -5083,6 +5210,7 @@ async fn assert_completed_inspiration_exchange(
     (task, assistant.id)
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn assert_completed_blueprint(
     db: &DatabaseConnection,
     project_id: i64,
@@ -5114,6 +5242,7 @@ async fn assert_completed_blueprint(
     (task, blueprint)
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn assert_completed_chapter(
     db: &DatabaseConnection,
     project_id: i64,
@@ -5150,6 +5279,7 @@ async fn assert_completed_chapter(
     (task, chapter)
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn assert_completed_optimize_turn(
     db: &DatabaseConnection,
     project_id: i64,
@@ -5495,16 +5625,16 @@ async fn wait_for_listener(child: &mut Child, addr: SocketAddr) {
 async fn wait_for_file_with_prefix(child: &mut Child, dir: &Path, prefix: &str) -> PathBuf {
     let started = Instant::now();
     loop {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            if let Some(path) = entries.flatten().map(|entry| entry.path()).find(|path| {
+        if let Ok(entries) = std::fs::read_dir(dir)
+            && let Some(path) = entries.flatten().map(|entry| entry.path()).find(|path| {
                 path.is_file()
                     && path
                         .file_name()
                         .and_then(|name| name.to_str())
                         .is_some_and(|name| name.starts_with(prefix))
-            }) {
-                return path;
-            }
+            })
+        {
+            return path;
         }
         if let Some(status) = child.try_wait().unwrap() {
             let stderr = child_stderr(child);

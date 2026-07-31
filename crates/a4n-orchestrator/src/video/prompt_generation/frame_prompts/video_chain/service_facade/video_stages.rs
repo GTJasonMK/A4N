@@ -1,7 +1,7 @@
 use a4n_core::models::chapter::chapter_video_prompt;
 
 use super::super::super::{
-    AppError, BOUNDARY_FRAME_PROMPT_GENERATION, CHAT_VIDEO_FRAME_PROMPT_GENERATION,
+    AppError, BOUNDARY_FRAME_PROMPT_GENERATION, CHAT_VIDEO_PROMPT_GENERATION,
     ChapterVideoPromptStageInput, FIRST_FRAME_PROMPT_GENERATION, OrchestratorContext,
     STORYBOARD_PROMPT_GENERATION, VideoPromptChunk, VideoPromptProgress,
 };
@@ -15,7 +15,7 @@ impl OrchestratorContext {
         progress: Option<VideoPromptProgress<'_>>,
     ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
         generate_chapter_video_prompt_chain(
-            video_prompt_chain_input(self, &CHAT_VIDEO_FRAME_PROMPT_GENERATION, input),
+            video_prompt_chain_input(self, &CHAT_VIDEO_PROMPT_GENERATION, input),
             chunks,
             progress,
         )

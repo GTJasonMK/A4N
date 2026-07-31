@@ -83,24 +83,6 @@ pub(in crate::routes::commands) async fn delete_video(
     Ok(Value::Null)
 }
 
-pub(in crate::routes::commands) async fn delete_chapter_video_assets(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_id = i64_arg(args, "chapterId")?;
-    let result = video_records_actions::delete_chapter_video_assets(
-        state.runtime(),
-        user_id,
-        project_id,
-        chapter_id,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
-    to_value(result)
-}
-
 pub(in crate::routes::commands) async fn load_video_playback_data(
     state: &ServerState,
     user_id: i64,

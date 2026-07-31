@@ -51,6 +51,7 @@ impl std::error::Error for PreviousChapterAnalysisIncomplete {}
 pub fn chapter_analysis_workflow_run_input(
     chapter: &chapter::Model,
     current_step_key: &str,
+    active_task_id: Option<&str>,
 ) -> UpsertWorkflowRunInput {
     UpsertWorkflowRunInput {
         business_key: chapter_analysis_workflow_business_key(chapter.project_id, chapter.id),
@@ -65,7 +66,7 @@ pub fn chapter_analysis_workflow_run_input(
         input_fingerprint_json: Some(chapter_analysis_workflow_fingerprint(chapter)),
         status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some(current_step_key.to_string()),
-        active_task_id: None,
+        active_task_id: active_task_id.map(str::to_string),
         can_resume: false,
         resume_block_reason: None,
         error_message: None,

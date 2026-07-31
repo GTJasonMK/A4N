@@ -15,7 +15,7 @@ export const MissingOutlineBanner: React.FC<MissingOutlineBannerProps> = ({
   >
     <div className="min-w-0 flex-1">
       <div className="text-xs font-semibold text-warning">还没有章节大纲</div>
-      <div className="mt-0.5 text-[11px] leading-relaxed text-warning/90">
+      <div className="mt-0.5 text-small leading-relaxed text-warning/90">
         请先生成章节大纲，再进入写作流程。
       </div>
     </div>

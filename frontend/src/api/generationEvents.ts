@@ -12,16 +12,12 @@ import type {
 import { utf8ByteLength } from "../utils/text";
 
 export type {
-  GenerationEvent,
   GenerationTaskEvent,
   GenerationTaskHandle,
   GenerationTaskHistoryPage,
   GenerationTaskSnapshot,
   GenerationTaskSummary,
-  GenerationTaskStatus,
   HostErrorResponse,
-  ProgressEvent,
-  TextDeltaEvent,
 } from "./generated/generationContracts";
 
 const EVENT_MAX_BYTES = 64 * 1024;

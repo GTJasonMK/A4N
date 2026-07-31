@@ -193,17 +193,15 @@ where
 }
 
 pub(super) fn typed_request_error(error: serde_json::Error) -> ServiceError {
-    ServiceError {
-        code: ServiceErrorCode::ConfigurationError,
-        message: format!("typed sidecar request payload serialization failed: {error}"),
-        retryable: Some(false),
-    }
+    ServiceError::non_retryable(
+        ServiceErrorCode::ConfigurationError,
+        format!("typed sidecar request payload serialization failed: {error}"),
+    )
 }
 
 pub(super) fn typed_response_error(error: serde_json::Error) -> ServiceError {
-    ServiceError {
-        code: ServiceErrorCode::Internal,
-        message: format!("typed sidecar response payload deserialization failed: {error}"),
-        retryable: Some(false),
-    }
+    ServiceError::non_retryable(
+        ServiceErrorCode::Internal,
+        format!("typed sidecar response payload deserialization failed: {error}"),
+    )
 }

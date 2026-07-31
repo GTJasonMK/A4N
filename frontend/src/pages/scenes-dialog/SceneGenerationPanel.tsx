@@ -1,5 +1,6 @@
 import React from "react";
-import { Eye, Loader2, Sparkles } from "lucide-react";
+import { Eye, Sparkles } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 
@@ -26,7 +27,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
     <label className="mb-1 block text-xs font-medium text-book-text-main" htmlFor="scene-generation-prompt">
       生成下一场景
     </label>
-    <div className="mb-2 text-[11px] text-book-text-muted">
+    <div className="mb-2 text-small text-book-text-muted">
       将创建场景 {nextSceneNumber}，可补充本场景需要遵循的方向。
     </div>
     <textarea
@@ -41,7 +42,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
     <div className="mt-2 flex items-center justify-end gap-2">
       {previewing ? (
         <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
-          <Loader2 size={13} className="animate-spin" />
+          <LoadingSpinner size="sm" />
         </span>
       ) : (
         <Dropdown
@@ -64,7 +65,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
       >
         {generating ? (
           <span className="inline-flex items-center gap-1.5">
-            <Loader2 size={14} className="animate-spin" /> 生成中…
+            <LoadingSpinner size="sm" /> 生成中…
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5">

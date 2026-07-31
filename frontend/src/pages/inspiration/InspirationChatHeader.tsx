@@ -1,5 +1,6 @@
 import React from "react";
-import { Eye, ListChecks, Loader2, Sparkles } from "lucide-react";
+import { Eye, ListChecks, Sparkles } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BackButton } from "../../components/ui/BackButton";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
@@ -74,7 +75,7 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
         >
           {generating ? (
             <span className="inline-flex items-center gap-1">
-              <Loader2 size={12} className="animate-spin" />
+              <LoadingSpinner size="sm" />
               <span>生成中…</span>
             </span>
           ) : (

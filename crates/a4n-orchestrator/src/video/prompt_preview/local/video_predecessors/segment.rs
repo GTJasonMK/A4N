@@ -13,7 +13,9 @@ use super::super::requests::{
     build_first_frame_prompt_preview_user, build_frame_prompt_preview_request,
     build_storyboard_prompt_preview_user,
 };
-use super::super::spec::{LocalVideoPromptPreviewMode, LocalVideoPromptPreviewSpec};
+use super::super::spec::{
+    LocalFramePromptPreviewMode, LocalVideoPromptPreviewMode, LocalVideoPromptPreviewSpec,
+};
 use super::super::{
     VideoPromptRequestPreviewStep, placeholder_boundary_frame_context_for_video_prompt,
     placeholder_first_frame_prompts, placeholder_segment_plan, placeholder_segments,
@@ -102,105 +104,113 @@ impl OrchestratorContext {
             &prepared.reference_image_ids,
         )?;
 
-        let (frame_json, frame_is_placeholder) = match &segment_source {
-            SegmentPreviewSource::Placeholder => {
-                let frame_user = match spec.mode {
-                    LocalVideoPromptPreviewMode::BoundaryFrames
-                    | LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => {
-                        let next = Self::placeholder_boundary_frame_prompt_preview_state(
-                            prepared,
-                            &segment_plan,
-                        )?;
-                        build_boundary_frame_prompt_preview_user(
+        let (frame_json, frame_is_placeholder) = if spec.mode
+            == LocalVideoPromptPreviewMode::ChatVideo
+        {
+            (serde_json::json!({ "frames": [] }), false)
+        } else {
+            let frame_mode = spec.frame_mode().ok_or_else(|| {
+                AppError::InvalidArgument("当前视频提示词预览缺少帧工作流模式".to_string())
+            })?;
+            match &segment_source {
+                SegmentPreviewSource::Placeholder => {
+                    let frame_user = match frame_mode {
+                        LocalFramePromptPreviewMode::BoundaryFrames => {
+                            let next = Self::placeholder_boundary_frame_prompt_preview_state(
+                                prepared,
+                                &segment_plan,
+                            )?;
+                            build_boundary_frame_prompt_preview_user(
+                                prompt_renderer,
+                                project_id,
+                                source,
+                                prepared,
+                                &segment_json,
+                                &next.current_frame,
+                                &next.available_assets,
+                                &next.reference_ids,
+                            )
+                            .await?
+                        }
+                        LocalFramePromptPreviewMode::FirstFrameChain => {
+                            build_first_frame_prompt_preview_user(
+                                prompt_renderer,
+                                project_id,
+                                source,
+                                prepared,
+                                &segment_json,
+                            )
+                            .await?
+                        }
+                        LocalFramePromptPreviewMode::Storyboard => {
+                            let next = Self::placeholder_storyboard_prompt_preview_state(
+                                prepared,
+                                &segment_plan,
+                            )?;
+                            build_storyboard_prompt_preview_user(
+                                prompt_renderer,
+                                project_id,
+                                source,
+                                prepared,
+                                &segment_json,
+                                &next.current_frame,
+                                &next.available_assets,
+                            )
+                            .await?
+                        }
+                    };
+                    let frame_request =
+                        build_frame_prompt_preview_request(FramePromptPreviewRequestInput {
                             prompt_renderer,
                             project_id,
                             source,
-                            prepared,
-                            &segment_json,
-                            &next.current_frame,
-                            &next.available_assets,
-                            &next.reference_ids,
-                        )
-                        .await?
-                    }
-                    LocalVideoPromptPreviewMode::FirstFrameChain => {
-                        build_first_frame_prompt_preview_user(
-                            prompt_renderer,
-                            project_id,
-                            source,
-                            prepared,
-                            &segment_json,
-                        )
-                        .await?
-                    }
-                    LocalVideoPromptPreviewMode::Storyboard => {
-                        let next = Self::placeholder_storyboard_prompt_preview_state(
-                            prepared,
-                            &segment_plan,
-                        )?;
-                        build_storyboard_prompt_preview_user(
-                            prompt_renderer,
-                            project_id,
-                            source,
-                            prepared,
-                            &segment_json,
-                            &next.current_frame,
-                            &next.available_assets,
-                        )
-                        .await?
-                    }
-                };
-                let frame_request =
-                    build_frame_prompt_preview_request(FramePromptPreviewRequestInput {
-                        prompt_renderer,
-                        project_id,
-                        source,
-                        input: prepared,
-                        prompt_name: spec.frame_prompt_name,
-                        user: frame_user,
-                        segment_json: &segment_json,
-                        asset_context: &prepared.available_assets,
-                        segment_placeholder: true,
-                    })
-                    .await?;
-                steps.push(placeholder_step_from_request(
+                            input: prepared,
+                            prompt_name: spec.frame_prompt_name,
+                            user: frame_user,
+                            segment_json: &segment_json,
+                            asset_context: &prepared.available_assets,
+                            segment_placeholder: true,
+                        })
+                        .await?;
+                    steps.push(placeholder_step_from_request(
                     spec.frame_key,
                     spec.frame_title,
                     spec.frame_prompt_name,
                     frame_request,
                     "结构预览：真实生成时 previous_steps.chapter_video_segment_plan 会替换为上一步片段规划模型输出。",
                 )?);
-                let frame_json = match spec.mode {
-                    LocalVideoPromptPreviewMode::BoundaryFrames
-                    | LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => {
-                        placeholder_boundary_frame_context_for_video_prompt(&segment_plan)?
-                    }
-                    LocalVideoPromptPreviewMode::FirstFrameChain => {
-                        placeholder_first_frame_prompts(&segment_plan)
-                    }
-                    LocalVideoPromptPreviewMode::Storyboard => {
-                        placeholder_storyboard_prompts(&segment_plan)?
-                    }
-                };
-                (frame_json, true)
-            }
-            SegmentPreviewSource::Reusable { execution_identity } => {
-                self.resolve_available_video_frame_predecessor(
-                    steps,
-                    ResolveAvailableVideoFramePredecessorInput {
-                        prompt_renderer,
-                        project_id,
-                        chapter_id,
-                        source,
-                        prepared,
-                        spec,
-                        segment_json: &segment_json,
-                        segment_plan: &segment_plan,
-                        allowed_reference_ids: &allowed_reference_ids,
-                        execution_identity,
-                    },
-                )
-                .await?
+                    let frame_json = match frame_mode {
+                        LocalFramePromptPreviewMode::BoundaryFrames => {
+                            placeholder_boundary_frame_context_for_video_prompt(&segment_plan)?
+                        }
+                        LocalFramePromptPreviewMode::FirstFrameChain => {
+                            placeholder_first_frame_prompts(&segment_plan)
+                        }
+                        LocalFramePromptPreviewMode::Storyboard => {
+                            placeholder_storyboard_prompts(&segment_plan)?
+                        }
+                    };
+                    (frame_json, true)
+                }
+                SegmentPreviewSource::Reusable { execution_identity } => {
+                    self.resolve_available_video_frame_predecessor(
+                        steps,
+                        ResolveAvailableVideoFramePredecessorInput {
+                            prompt_renderer,
+                            project_id,
+                            chapter_id,
+                            source,
+                            prepared,
+                            spec,
+                            mode: frame_mode,
+                            segment_json: &segment_json,
+                            segment_plan: &segment_plan,
+                            allowed_reference_ids: &allowed_reference_ids,
+                            execution_identity,
+                        },
+                    )
+                    .await?
+                }
             }
         };
         Ok(ResolvedVideoPromptPredecessors {

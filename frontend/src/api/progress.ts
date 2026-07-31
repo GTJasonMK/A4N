@@ -14,7 +14,7 @@ export type ProgressPhaseKind =
   | "cleanup"
   | "complete";
 
-export type ProgressSeverity = "info" | "success" | "warning" | "error";
+type ProgressSeverity = "info" | "success" | "warning" | "error";
 
 export interface ProgressMeta {
   taskKind: string;

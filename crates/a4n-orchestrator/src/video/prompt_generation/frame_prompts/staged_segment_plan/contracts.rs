@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_core::source_spans::SourceSpan;
+use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
@@ -38,6 +39,11 @@ pub(in crate::video::prompt_generation::frame_prompts) struct StagedSegmentPlanI
         &'a VideoShootingScriptProjection,
     pub(in crate::video::prompt_generation::frame_prompts) default_aspect_ratio: &'a str,
     pub(in crate::video::prompt_generation::frame_prompts) style: &'a str,
+    pub(in crate::video::prompt_generation::frame_prompts) prompt_output_language: &'a str,
+    pub(in crate::video::prompt_generation::frame_prompts) previous_segment_plan:
+        Option<&'a [VideoSegmentPlan]>,
+    pub(in crate::video::prompt_generation::frame_prompts) previous_segment_recipes:
+        Option<&'a [VideoSegmentExecutionRecipeV1]>,
     pub(in crate::video::prompt_generation::frame_prompts) duration_secs: i32,
     pub(in crate::video::prompt_generation::frame_prompts) context: &'a str,
     pub(in crate::video::prompt_generation::frame_prompts) progress_message: &'a str,
@@ -74,5 +80,6 @@ pub(super) struct FinalizeStagedSegmentPlanInput<'a> {
     pub(super) shooting_script_projection: &'a VideoShootingScriptProjection,
     pub(super) duration_secs: i32,
     pub(super) default_aspect_ratio: &'a str,
+    pub(super) cancel_token: Option<&'a CancellationToken>,
     pub(super) rendered_shots: RenderedSegmentPlanShots,
 }

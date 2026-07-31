@@ -10,7 +10,6 @@ import type {
   AssemblyPushResult,
   ApplyAssemblyPostprocessEditInput,
   AssembledChapterVideoPreview,
-  DeleteChapterVideoAssetsResult,
   GeneratedVideo,
   PushAssembledChapterVideoInput,
   PreviewChapterVideoPromptOverrideInput,
@@ -67,6 +66,7 @@ export async function selectSegmentVideo(
   projectId: Id,
   chapterId: Id,
   videoId: Id,
+  segmentPlanPromptId: Id,
   shotNumber: number,
 ): Promise<GeneratedVideo> {
   return apiInvoke<GeneratedVideo>("select_segment_video", {
@@ -74,7 +74,10 @@ export async function selectSegmentVideo(
     projectId: idNum(projectId),
     chapterId: idNum(chapterId),
     videoId: idNum(videoId),
-    input: { shot_number: shotNumber },
+    input: {
+      segment_plan_prompt_id: idNum(segmentPlanPromptId, "片段规划提示词 ID"),
+      shot_number: shotNumber,
+    },
   });
 }
 
@@ -169,17 +172,6 @@ export async function deleteVideo(videoId: Id): Promise<void> {
   });
 }
 
-export async function deleteChapterVideoAssets(
-  projectId: Id,
-  chapterId: Id,
-): Promise<DeleteChapterVideoAssetsResult> {
-  return apiInvoke<DeleteChapterVideoAssetsResult>("delete_chapter_video_assets", {
-    userId: currentUserId(),
-    projectId: idNum(projectId),
-    chapterId: idNum(chapterId),
-  });
-}
-
 export async function uploadChapterVideo(
   projectId: Id,
   chapterId: Id,
@@ -211,11 +203,8 @@ export async function uploadReferenceMediaVideo(
       file_name: input.file_name,
       mime_type: input.mime_type,
       data_base64: input.data_base64,
-      prompt: input.prompt,
-      duration_secs: input.duration_secs,
-      aspect_ratio: input.aspect_ratio,
-      segment_prompt_id: input.segment_prompt_id == null ? null : idNum(input.segment_prompt_id),
-      shot_number: input.shot_number ?? null,
+      segment_plan_prompt_id: idNum(input.segment_plan_prompt_id),
+      shot_number: input.shot_number,
     },
   });
 }

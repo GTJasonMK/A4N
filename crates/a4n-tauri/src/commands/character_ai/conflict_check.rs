@@ -27,6 +27,7 @@ pub(super) async fn check_character_conflict_impl(
     .map_err(|err| err.to_string())?;
     let progress = WorkflowProgressTask::new(
         state.inner(),
+        Some(user_id),
         task_id,
         TaskKind::LlmCall,
         Some(scope.project_id),
@@ -37,7 +38,7 @@ pub(super) async fn check_character_conflict_impl(
         progress.progress(current, total, message);
         progress
             .check_cancelled("角色一致性检查已停止")
-            .map_err(a4n_core::error::AppError::InvalidArgument)
+            .map_err(|_| a4n_core::error::AppError::Cancelled)
     };
     let result = character_conflict_actions::check_character_conflict(
         &state,
@@ -47,6 +48,7 @@ pub(super) async fn check_character_conflict_impl(
         start_chapter,
         end_chapter,
         &reporter,
+        progress.task_id(),
     )
     .await
     .map_err(|err| err.to_string());

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { LoadingSpinner } from "../ui/LoadingSpinner";
 import { Modal } from "../ui/Modal";
 import { BookButton } from "../ui/BookButton";
 import type {
@@ -11,6 +12,7 @@ import {
   compactProgressEvents,
   progressDisplayModel,
 } from "../../utils/progressPresentation";
+import { streamLineFromBuffer } from "../../utils/progressDisplay";
 
 export type ProgressDialogStatus = ProgressStatus;
 export type { ProgressTimelineItem };
@@ -25,10 +27,8 @@ interface ProgressDialogProps {
   message: string;
   meta?: ProgressMeta | null;
   streamText?: string | null;
-  streamVersion?: number;
   events?: ProgressTimelineItem[];
   error?: string | null;
-  connectionWarning?: string | null;
   onClose: () => void;
   closeLabel?: string;
   onCancel?: () => void;
@@ -48,10 +48,8 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   message,
   meta,
   streamText,
-  streamVersion = 0,
   events = [],
   error,
-  connectionWarning,
   onClose,
   closeLabel = "关闭",
   onCancel,
@@ -60,11 +58,6 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   runningHint = "生成过程中请保持当前窗口打开",
   formatProgress,
 }) => {
-  const [streamFrame, setStreamFrame] = useState<{
-    current: string;
-    previous: string;
-    version: number;
-  }>({ current: "", previous: "", version: 0 });
   const [timing, setTiming] = useState<{ startedAt: number | null; now: number }>({
     startedAt: null,
     now: Date.now(),
@@ -91,7 +84,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     ) : status === "cancelled" ? (
       <XCircle size={15} />
     ) : (
-      <Loader2 size={15} className="animate-spin" />
+      <LoadingSpinner size="sm" />
     );
   const progressLabel = formatProgress
     ? formatProgress(boundedCurrent, boundedTotal, percent)
@@ -101,7 +94,6 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     total: boundedTotal,
     message,
     meta,
-    streamText,
     status,
     fallbackStage: statusStageLabel(status),
   });
@@ -113,8 +105,8 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     display.etaMode,
   );
   const barDetail = display.detail ?? statusDetailLabel(status);
-  const incomingStreamText = streamText?.trim() ?? "";
-  const hasStreamText = incomingStreamText.length > 0 && streamFrame.current.trim().length > 0;
+  const incomingStreamText = streamLineFromBuffer(streamText ?? "");
+  const hasStreamText = incomingStreamText.length > 0;
   const timeline = compactProgressEvents(events, 12);
 
   useEffect(() => {
@@ -138,20 +130,6 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     return () => window.clearInterval(timer);
   }, [open, status]);
 
-  useEffect(() => {
-    setStreamFrame((prev) => {
-      if (prev.current === incomingStreamText) return prev;
-      if (!incomingStreamText) {
-        return { current: "", previous: "", version: prev.version + 1 };
-      }
-      return {
-        current: incomingStreamText,
-        previous: prev.current,
-        version: Math.max(prev.version + 1, streamVersion),
-      };
-    });
-  }, [incomingStreamText, streamVersion]);
-
   return (
     <Modal
       isOpen={open}
@@ -171,7 +149,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
           </BookButton>
         ) : onCancel ? (
           <>
-            <span className="mr-auto text-[11px] leading-relaxed text-book-text-sub">
+            <span className="mr-auto text-small leading-relaxed text-book-text-sub">
               {runningHint}
             </span>
             <BookButton
@@ -182,16 +160,14 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
               className="!min-h-8 !text-xs"
             >
               {cancelling ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 size={13} className="animate-spin" /> 正在停止…
-                </span>
+                <LoadingSpinner size="sm" text="正在停止…" />
               ) : (
                 cancelLabel
               )}
             </BookButton>
           </>
         ) : (
-          <span className="text-[11px] text-book-text-sub">
+          <span className="text-small text-book-text-sub">
             {runningHint}
           </span>
         )
@@ -233,19 +209,19 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
               <div className="flex min-w-0 items-baseline gap-2">
                 <span className="min-w-0 truncate" title={barDetail}>{barDetail}</span>
                 {display.countLabel ? (
-                  <span className="shrink-0 font-mono text-[11px] text-book-text-muted">
+                  <span className="shrink-0 font-mono text-small text-book-text-muted">
                     {display.countLabel}
                   </span>
                 ) : null}
               </div>
               {hasStreamText ? (
-                <div className="mt-1 break-words text-[11px] text-book-text-muted">
-                  {streamFrame.current}
+                <div className="mt-1 truncate font-mono text-small text-book-text-muted" title={incomingStreamText}>
+                  {incomingStreamText}
                 </div>
               ) : null}
             </div>
             {timingLabel ? (
-              <span className="shrink-0 text-right text-[11px] leading-relaxed text-book-text-muted">
+              <span className="shrink-0 text-right text-small leading-relaxed text-book-text-muted">
                 {timingLabel}
               </span>
             ) : null}
@@ -255,12 +231,6 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
         {error ? (
           <div role="alert" className="rounded-[var(--pyqt-radius-lg)] border border-error/45 bg-error-bg px-3.5 py-3 text-xs leading-relaxed text-book-text-main">
             {error}
-          </div>
-        ) : null}
-
-        {connectionWarning ? (
-          <div role="status" className="rounded-[var(--pyqt-radius-lg)] border border-warning/45 bg-warning-bg px-3.5 py-3 text-xs leading-relaxed text-book-text-main">
-            {connectionWarning}
           </div>
         ) : null}
 
@@ -302,7 +272,7 @@ const ProgressTimelineRow: React.FC<{ item: ProgressTimelineItem }> = ({ item })
           : "bg-book-primary";
 
   return (
-    <li className="grid grid-cols-[auto_1fr_auto] gap-2 py-2 text-[11px]">
+    <li className="grid grid-cols-[auto_1fr_auto] gap-2 py-2 text-small">
       <span className={`mt-1 h-1.5 w-1.5 rounded-full ${dotClass}`} />
       <span className="min-w-0">
         <span className="block truncate font-semibold text-book-text-main" title={display.stage}>

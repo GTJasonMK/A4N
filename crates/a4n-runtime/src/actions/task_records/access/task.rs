@@ -2,6 +2,7 @@ use crate::{
     AppState,
     actions::{access, app_error_message},
 };
+use a4n_core::event::channel::TaskHandle;
 
 use super::project::{require_admin_for_unscoped_task, verify_task_project_access};
 
@@ -35,16 +36,28 @@ pub(in crate::actions::task_records) async fn verify_task_access(
         )
         .await;
     }
-    let snapshot = state
-        .active_task_snapshots()
-        .into_iter()
-        .find(|snapshot| snapshot.task_id == task_id)
+    let handle = state
+        .task_handle(task_id)
         .ok_or_else(|| format!("任务不存在: {task_id}"))?;
+    verify_task_handle_access(state, user_id, &handle).await
+}
+
+pub(in crate::actions::task_records) async fn verify_task_handle_access(
+    state: &AppState,
+    user_id: i64,
+    handle: &TaskHandle,
+) -> Result<(), String> {
+    if handle.project_id.is_none()
+        && handle.root_project_id.is_none()
+        && handle.owner_user_id == Some(user_id)
+    {
+        return Ok(());
+    }
     verify_task_project_access(
         state,
         user_id,
-        snapshot.project_id,
-        snapshot.root_project_id,
+        handle.project_id,
+        handle.root_project_id,
     )
     .await
 }

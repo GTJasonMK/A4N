@@ -35,14 +35,18 @@ impl OrchestratorContext {
             variables,
             options,
         } = request;
-        let input = self
-            .prepare_video_prompt_preview_inputs(
-                project_id, chapter_id, &source, variables, options, true,
+        let mode = spec.frame_mode().ok_or_else(|| {
+            AppError::InvalidArgument(
+                "Chat 方案不提供帧提示词预览，请直接预览最终提示词".to_string(),
             )
+        })?;
+        let input = self
+            .prepare_video_prompt_inputs(project_id, chapter_id, &source, variables, options, true)
             .await?;
         let context = FrameWorkflowContext {
             service: self,
             spec,
+            mode,
             project_id,
             chapter_id,
             source: &source,

@@ -253,6 +253,18 @@ pub async fn begin_project_lifecycle_gate(
         )));
     }
     if metadata.root_project_id.is_none() {
+        if operation == ProjectLifecycleOperation::Delete {
+            let derived_count = crate::project::derived_project_count(&tx, project_id).await?;
+            if derived_count > 0 {
+                return Err(GenerationLifecycleGateError::InvalidArgument(
+                    crate::project_delete::ProjectDeleteDbError::DerivedProjectsExist {
+                        project_id,
+                        derived_count,
+                    }
+                    .to_string(),
+                ));
+            }
+        }
         reject_derived_gate_conflict(&tx, project_id).await?;
     }
 
@@ -467,6 +479,28 @@ where
         require_active_generation_gate(project.lifecycle_gate, "项目", project_id)?;
     }
     Ok(())
+}
+
+pub(super) async fn resolve_generation_root_project_id<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<i64, GenerationTaskPersistenceError>
+where
+    C: ConnectionTrait,
+{
+    validate_safe_id(project_id, "project_id")?;
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            PROJECT_METADATA_SQL,
+            [project_id.into()],
+        ))
+        .await?
+        .ok_or_else(|| {
+            GenerationTaskPersistenceError::NotFound(format!("项目不存在: {project_id}"))
+        })?;
+    let root_project_id: Option<i64> = row.try_get("", "root_project_id")?;
+    Ok(root_project_id.unwrap_or(project_id))
 }
 
 pub async fn require_project_lifecycle_gate<C>(

@@ -46,7 +46,6 @@ pub(super) async fn preview_synthesis(
             chapter_content: &context.chapter_content,
             source_spans: &context.source_spans,
             prompt_names: &[
-                "shooting_script_projection",
                 "manga_speech_selection",
                 "manga_visual_anchor_extraction",
                 "manga_item_extraction",

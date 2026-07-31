@@ -6,6 +6,7 @@ use serde_json::Value;
 #[serde(deny_unknown_fields)]
 pub struct ListWorkflowRunsInput {
     pub project_id: Option<i64>,
+    pub chapter_id: Option<i64>,
     pub workflow_kind: Option<String>,
     pub status: Option<String>,
     pub resumable_only: Option<bool>,
@@ -16,6 +17,7 @@ pub struct ListWorkflowRunsInput {
 #[serde(deny_unknown_fields)]
 pub struct GetWorkflowRunInput {
     pub workflow_run_id: i64,
+    pub include_generation_runs: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

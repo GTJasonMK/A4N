@@ -1,67 +1,37 @@
 use a4n_core::error::AppError;
 use a4n_service_protocol::{
-    EgressDataType, PROMPT_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest,
-    ServiceResponse, ServiceStatus, redact_sensitive_message, validate_egress_scope,
-    validate_known_service_request_envelope,
+    PROMPT_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
+    redact_sensitive_message, validate_known_service_request,
 };
 
 pub(crate) fn ok_response<T>(
     request: &ServiceRequest<impl Sized>,
     payload: T,
 ) -> ServiceResponse<T> {
-    ServiceResponse {
-        status: ServiceStatus::Ok,
-        trace_id: Some(request.trace_context.trace_id.clone()),
-        usage: None,
-        artifact_refs: Vec::new(),
-        payload: Some(payload),
-        error: None,
-    }
+    ServiceResponse::ok(request.trace_context.trace_id.clone(), payload)
 }
 
 pub(crate) fn result_response<T>(
     request: &ServiceRequest<impl Sized>,
     result: Result<T, AppError>,
 ) -> ServiceResponse<T> {
-    match result {
-        Ok(payload) => ok_response(request, payload),
-        Err(err) => ServiceResponse {
-            status: ServiceStatus::Error,
-            trace_id: Some(request.trace_context.trace_id.clone()),
-            usage: None,
-            artifact_refs: Vec::new(),
-            payload: None,
-            error: Some(ServiceError {
-                code: service_error_code(&err),
-                message: redact_sensitive_message(err.to_string()),
-                retryable: Some(false),
-            }),
-        },
-    }
+    ServiceResponse::from_result(request.trace_context.trace_id.clone(), result, |err| {
+        ServiceError::non_retryable(
+            service_error_code(&err),
+            redact_sensitive_message(err.to_string()),
+        )
+    })
 }
 
 pub(crate) fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    validate_known_service_request_envelope(request, PROMPT_SERVICE_NAME)?;
-    validate_egress_scope(
-        PROMPT_SERVICE_NAME,
-        EgressDataType::Prompt,
-        &request.secret_policy.scope,
-    )
-    .map(|_| ())
+    validate_known_service_request(request, PROMPT_SERVICE_NAME)
 }
 
 pub(crate) fn error_response<T, P>(
     request: &ServiceRequest<P>,
     error: ServiceError,
 ) -> ServiceResponse<T> {
-    ServiceResponse {
-        status: ServiceStatus::Error,
-        trace_id: Some(request.trace_context.trace_id.clone()),
-        usage: None,
-        artifact_refs: Vec::new(),
-        payload: None,
-        error: Some(error),
-    }
+    ServiceResponse::error(request.trace_context.trace_id.clone(), error)
 }
 
 fn service_error_code(err: &AppError) -> ServiceErrorCode {

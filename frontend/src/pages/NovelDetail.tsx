@@ -6,13 +6,13 @@ import {
   Edit2,
   FileText,
   GitBranch,
-  Loader2,
   MoreHorizontal,
   Network,
   Sparkles,
   Users,
   Wand2,
 } from "lucide-react";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { useToast } from "../components/feedback/Toast";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
@@ -226,7 +226,7 @@ export const NovelDetail: React.FC = () => {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center text-book-text-muted">
-        <Loader2 size={20} className="animate-spin mr-2" /> 加载项目…
+        <LoadingSpinner size="lg" text="加载项目…" />
       </div>
     );
   }
@@ -511,7 +511,7 @@ export const NovelDetail: React.FC = () => {
         ))}
       </nav>
 
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 sm:p-4 lg:p-5">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar a4n-page-container">
         {tab === "overview" && <OverviewTab project={project} onRefresh={refresh} />}
         {tab === "world" && <WorldTab projectId={projectId} canEditWorld={canEditProject} />}
         {tab === "characters" && canEditProject && <CharactersTab projectId={projectId} />}
@@ -556,7 +556,7 @@ export const NovelDetail: React.FC = () => {
           <ProjectActionGroup title="项目管理">
             {canEditProject ? (
               <ProjectActionButton
-                icon={saving ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
+                icon={saving ? <LoadingSpinner size="sm" /> : <Edit2 size={14} />}
                 title="修改标题"
                 description="调整项目在列表、写作台和导出文件中显示的名称。"
                 disabled={saving}
@@ -601,7 +601,7 @@ export const NovelDetail: React.FC = () => {
               ) : null}
               <ProjectActionButton
                 icon={
-                  ragSyncing ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />
+                  ragSyncing ? <LoadingSpinner size="sm" /> : <Database size={14} />
                 }
                 title="同步资料索引"
                 description="更新资料检索所使用的章节、大纲、蓝图和角色档案。"
@@ -610,7 +610,7 @@ export const NovelDetail: React.FC = () => {
               />
               <ProjectActionButton
                 icon={
-                  refining ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />
+                  refining ? <LoadingSpinner size="sm" /> : <Wand2 size={14} />
                 }
                 title="优化蓝图"
                 description="通过 LLM 重新打磨故事蓝图。"
@@ -689,7 +689,7 @@ const ProjectActionGroup: React.FC<{
   children: React.ReactNode;
 }> = ({ title, children }) => (
   <section>
-    <h3 className="mb-1.5 px-1 text-[11px] font-semibold text-book-text-muted">{title}</h3>
+    <h3 className="mb-1.5 px-1 text-small font-semibold text-book-text-muted">{title}</h3>
     <div className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
       {children}
     </div>
@@ -714,11 +714,9 @@ const ProjectActionButton: React.FC<{
     </span>
     <span className="min-w-0">
       <span className="block text-sm font-semibold text-book-text-main">{title}</span>
-      <span className="mt-1 block text-[11px] leading-relaxed text-book-text-muted">
+      <span className="mt-1 block text-small leading-relaxed text-book-text-muted">
         {description}
       </span>
     </span>
   </button>
 );
-
-export default NovelDetail;

@@ -54,6 +54,7 @@ pub(super) fn chapter_scene_workflow_run_input(
     scene_prompt: &str,
     call_key: &str,
     request: &ChatRequest,
+    active_task_id: Option<&str>,
 ) -> Result<(UpsertWorkflowRunInput, Value), AppError> {
     if project_id <= 0 {
         return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
@@ -78,7 +79,7 @@ pub(super) fn chapter_scene_workflow_run_input(
         input_fingerprint_json: Some(fingerprint.clone()),
         status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some(call_key.to_string()),
-        active_task_id: None,
+        active_task_id: active_task_id.map(str::to_string),
         can_resume: true,
         resume_block_reason: None,
         error_message: None,
@@ -103,9 +104,18 @@ mod tests {
     #[test]
     fn builds_running_input() {
         let (input, _) =
-            chapter_scene_workflow_run_input(2, 3, 1, "prompt", "call", &sample_request())
+            chapter_scene_workflow_run_input(
+                2,
+                3,
+                1,
+                "prompt",
+                "call",
+                &sample_request(),
+                Some("chapter-scene-task"),
+            )
                 .expect("valid workflow input");
         assert_eq!(input.workflow_kind, "chapter_scene_generation");
         assert_eq!(input.status, WORKFLOW_STATUS_RUNNING);
+        assert_eq!(input.active_task_id.as_deref(), Some("chapter-scene-task"));
     }
 }

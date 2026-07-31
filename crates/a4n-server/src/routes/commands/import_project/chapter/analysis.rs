@@ -47,6 +47,7 @@ macro_rules! chapter_analysis_web_task_command {
             let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
             let task = register_web_task(
                 state,
+                user_id,
                 task_id.clone(),
                 TaskKind::LlmCall,
                 ch.project_id,
@@ -59,6 +60,7 @@ macro_rules! chapter_analysis_web_task_command {
             let progress = a4n_runtime::workflow::ChapterAnalysisProgress::new(
                 Some(&reporter),
                 cancel_token.as_ref(),
+                task_id.as_deref(),
             );
             let result = $run(state.runtime(), user_id, input.chapter_id, Some(&progress)).await;
             let chapter = finish_web_task(

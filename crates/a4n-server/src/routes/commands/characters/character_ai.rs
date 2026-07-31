@@ -30,6 +30,7 @@ macro_rules! character_ai_web_task_command {
             let task_id = sanitize_optional_task_id(optional_string_field($args, "taskId")?)?;
             let task = register_web_task(
                 $state,
+                $user_id,
                 task_id.clone(),
                 TaskKind::LlmCall,
                 scope.project_id,
@@ -42,6 +43,7 @@ macro_rules! character_ai_web_task_command {
             let runtime_progress = character_ai_actions::CharacterAiProgress::new(
                 Some(&reporter),
                 cancel_token.as_ref(),
+                task_id.as_deref(),
             );
             let $progress = &runtime_progress;
             let result = $run.await;
@@ -96,6 +98,7 @@ pub(in crate::routes::commands) async fn discover_character_profiles(
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
         state,
+        user_id,
         task_id.clone(),
         TaskKind::LlmCall,
         scope.project_id,
@@ -105,8 +108,11 @@ pub(in crate::routes::commands) async fn discover_character_profiles(
     .await;
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
     let reporter = web_fire_and_forget_progress_reporter(task.clone());
-    let runtime_progress =
-        character_ai_actions::CharacterAiProgress::new(Some(&reporter), cancel_token.as_ref());
+    let runtime_progress = character_ai_actions::CharacterAiProgress::new(
+        Some(&reporter),
+        cancel_token.as_ref(),
+        task_id.as_deref(),
+    );
     let result = character_ai_actions::discover_character_profiles_for_chapters(
         state.runtime(),
         user_id,
@@ -234,6 +240,7 @@ pub(in crate::routes::commands) async fn check_character_conflict(
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
         state,
+        user_id,
         task_id.clone(),
         TaskKind::LlmCall,
         scope.project_id,
@@ -250,6 +257,7 @@ pub(in crate::routes::commands) async fn check_character_conflict(
         start_chapter,
         end_chapter,
         &progress,
+        task_id.as_deref(),
     )
     .await;
     let rows = finish_web_task(state, task_id, result).await?;

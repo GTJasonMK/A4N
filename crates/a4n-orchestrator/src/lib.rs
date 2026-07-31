@@ -46,6 +46,7 @@ pub mod video;
 pub mod workflow;
 
 mod context;
+mod discovery_workflow;
 mod errors;
 mod service_health;
 

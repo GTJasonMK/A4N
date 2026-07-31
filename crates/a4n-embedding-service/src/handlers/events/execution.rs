@@ -94,13 +94,12 @@ pub(super) fn embedding_download_event_stream(
                         Err(error) => failed_download_event(
                             task_id.clone(),
                             sequence,
-                            ServiceError {
-                                code: ServiceErrorCode::Internal,
-                                message: redact_sensitive_message(format!(
+                            ServiceError::non_retryable(
+                                ServiceErrorCode::Internal,
+                                redact_sensitive_message(format!(
                                     "embedding download task failed: {error}"
                                 )),
-                                retryable: Some(false),
-                            },
+                            ),
                         ),
                     };
                     if event_tx.send(event).await.is_err() {

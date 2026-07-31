@@ -21,22 +21,6 @@ import {
 
 export type ProjectActionItems = React.ComponentProps<typeof Dropdown>["items"];
 
-export const TabButton: React.FC<{
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}> = ({ active, onClick, children }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    aria-pressed={active}
-    data-active={active ? "1" : undefined}
-    className="pyqt-tab"
-  >
-    {children}
-  </button>
-);
-
 interface ProjectListProps {
   families: ProjectFamily[];
   groups: [string, ProjectFamily[]][];
@@ -129,7 +113,7 @@ const ProjectFamilyCard: React.FC<{
           />
         </ul>
       ) : (
-        <div className="border-b border-book-border/35 px-3 py-2 text-[11px] text-book-text-muted sm:px-4">
+        <div className="border-b border-book-border/35 px-3 py-2 text-small text-book-text-muted sm:px-4">
           源自 <span className="font-medium text-book-text-sub">{family.title}</span>
         </div>
       )}
@@ -139,7 +123,7 @@ const ProjectFamilyCard: React.FC<{
           aria-label={`${family.title}的派生项目`}
           className={`${family.root ? "border-t " : ""}border-book-border/35 bg-book-bg-tertiary/20`}
         >
-          <div className="px-3 pb-1 pt-2 text-[10px] font-medium text-book-text-muted sm:px-4">
+          <div className="px-3 pb-1 pt-2 text-caption font-medium text-book-text-muted sm:px-4">
             派生项目 · {derivedProjects.length}
           </div>
           <ul className="divide-y divide-book-border/35">
@@ -221,15 +205,15 @@ const ProjectRow: React.FC<{
       >
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[15px] font-semibold text-book-text-main sm:text-base">
+            <h3 className="truncate text-body-lg font-semibold text-book-text-main sm:text-base">
               {project.title}
             </h3>
-            <p className="mt-1 truncate text-[11px] text-book-text-muted">
+            <p className="mt-1 truncate text-small text-book-text-muted">
               {project.owner_username ? `${project.owner_username} · ` : ""}
               {formatUiDate(project.updated_at)}
             </p>
             <p
-              className="mt-1 truncate text-[11px] text-book-text-sub"
+              className="mt-1 truncate text-small text-book-text-sub"
               title={progressDetail ?? progressText}
             >
               {projectMeta}
@@ -243,12 +227,12 @@ const ProjectRow: React.FC<{
                   e.stopPropagation();
                   onWrite(project);
                 }}
-                className="hidden min-h-8 cursor-pointer items-center bg-transparent px-1 text-[12px] font-semibold text-book-primary hover:opacity-80 sm:inline-flex"
+                className="hidden min-h-8 cursor-pointer items-center bg-transparent px-1 text-body-sm font-semibold text-book-primary hover:opacity-80 sm:inline-flex"
               >
                 {workspaceLabel}
               </button>
             ) : (
-              <span className="hidden text-[12px] font-semibold text-book-primary sm:inline">
+              <span className="hidden text-body-sm font-semibold text-book-primary sm:inline">
                 {entryLabel}
               </span>
             )}

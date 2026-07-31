@@ -8,6 +8,7 @@ pub type CharacterProfileSyncProgressReporter<'a> =
 #[derive(Clone, Copy)]
 pub struct CharacterProfileSyncProgress<'a> {
     pub reporter: Option<CharacterProfileSyncProgressReporter<'a>>,
+    pub active_task_id: Option<&'a str>,
 }
 
 impl CharacterProfileSyncProgress<'_> {

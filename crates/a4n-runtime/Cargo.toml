@@ -56,7 +56,6 @@ async-trait = { workspace = true }
 base64 = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
-image = { workspace = true }
 jsonwebtoken = { workspace = true }
 reqwest = { workspace = true }
 sea-orm = { workspace = true }
@@ -70,10 +69,10 @@ tokio-util = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true }
-zip = { workspace = true, features = ["deflate"] }
 
 [dev-dependencies]
 a4n-migration = { path = "../a4n-migration" }
 a4n-prompt = { path = "../a4n-prompt", features = ["test-support"] }
 a4n-test-support = { path = "../a4n-test-support" }
 tempfile = { workspace = true }
+zip = { workspace = true, features = ["deflate"] }

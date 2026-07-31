@@ -11,12 +11,18 @@ use a4n_core::{
     error::AppError,
     models::{
         ai::{generated_video, video_gen_config},
+        generation::generation_run,
         user::user,
+    },
+    video_execution::{
+        VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoReferenceMediaBindingV1,
+        VideoReferenceMediaRecipeV1, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
+        VideoSegmentWorkflowModeV1,
     },
 };
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};
 use async_trait::async_trait;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
@@ -37,6 +43,8 @@ struct TestVideoProviderHost {
     persist_calls: AtomicUsize,
     remove_calls: AtomicUsize,
     fail_persist: bool,
+    cancel_on_persist: Option<CancellationToken>,
+    interrupt_on_persist: Option<Arc<a4n_db::DatabaseConnection>>,
 }
 
 #[async_trait]
@@ -70,7 +78,7 @@ impl VideoProviderHostPort for TestVideoProviderHost {
     async fn persist_video_result(
         &self,
         video: &generated_video::Model,
-        _prompt_id: Option<i64>,
+        prompt_id: Option<i64>,
         result: VideoGenerationResult,
     ) -> Result<PersistedVideoResult, AppError> {
         self.persist_calls.fetch_add(1, Ordering::SeqCst);
@@ -79,6 +87,20 @@ impl VideoProviderHostPort for TestVideoProviderHost {
                 current: "file".to_string(),
                 operation: "测试视频落盘失败".to_string(),
             });
+        }
+        if let Some(cancel_token) = &self.cancel_on_persist {
+            cancel_token.cancel();
+        }
+        if let Some(database) = &self.interrupt_on_persist {
+            a4n_db::video::mark_generated_video_error_status_and_prompt_record(
+                database.as_ref(),
+                video.id,
+                prompt_id,
+                crate::video::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED,
+                "测试模拟外部取消",
+            )
+            .await
+            .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))?;
         }
         Ok(PersistedVideoResult {
             video_id: video.id,
@@ -106,6 +128,7 @@ struct TestReferenceMediaHost {
     submit_calls: AtomicUsize,
     body_calls: AtomicUsize,
     fail_submit: bool,
+    cancel_during_submit: bool,
     return_empty_bytes: bool,
     last_request: Mutex<Option<VideoGenerationRequest>>,
 }
@@ -137,7 +160,7 @@ impl ReferenceMediaVideoGenerationHostPort for TestReferenceMediaHost {
     async fn submit_reference_media_video(
         &self,
         input: VideoProviderRequestInput,
-        _progress: &mut VideoGenerationProgress<'_>,
+        progress: &mut VideoGenerationProgress<'_>,
     ) -> Result<VideoGenerationResult, AppError> {
         self.submit_calls.fetch_add(1, Ordering::SeqCst);
         *self.last_request.lock().expect("last_request lock") = Some(input.request.clone());
@@ -146,6 +169,9 @@ impl ReferenceMediaVideoGenerationHostPort for TestReferenceMediaHost {
                 current: "provider".to_string(),
                 operation: "测试参考媒体 provider 失败".to_string(),
             });
+        }
+        if self.cancel_during_submit {
+            progress.cancel_token().cancel();
         }
         let bytes = if self.return_empty_bytes {
             Vec::new()
@@ -258,19 +284,79 @@ fn long_reference_prompt() -> String {
     )
 }
 
-fn reference_media_input(segment_prompt_id: i64) -> ReferenceMediaVideoInput {
-    ReferenceMediaVideoInput {
-        segment_prompt_id,
-        shot_number: 1,
-        prompt: long_reference_prompt(),
-        image_files: vec!["https://example.test/ref.png".to_string()],
-        image_uploads: Vec::new(),
-        video_files: Vec::new(),
-        video_uploads: Vec::new(),
-        audio_files: Vec::new(),
-        audio_uploads: Vec::new(),
+async fn insert_reference_media_segment_plan(
+    db: &a4n_db::DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+) -> chapter_video_prompt::Model {
+    let now = fixed_time(3);
+    let recipe = VideoSegmentExecutionRecipeV1 {
+        schema_version: VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
+        segment_number: 1,
+        workflow_mode: VideoSegmentWorkflowModeV1::ReferenceMedia,
+        style: "电影感写实".to_string(),
+        prompt_output_language: "zh_cn".to_string(),
         duration_secs: 8,
+        duration_secs_options: vec![8],
         aspect_ratio: "16:9".to_string(),
+        reference_image_ids: Vec::new(),
+        video_library_image_ids: Vec::new(),
+        guidance_mode: VideoSegmentGuidanceModeV1::None,
+        guidance_reference_image_ids: Vec::new(),
+        continuity_source_video_id: None,
+        reference_media: Some(VideoReferenceMediaRecipeV1 {
+            prompt: long_reference_prompt(),
+            image_rows: vec![VideoReferenceMediaBindingV1 {
+                url: "https://example.test/ref.png".to_string(),
+                usage: "人物外观与服装一致性参考".to_string(),
+                upload_sha256: None,
+                upload_file_name: None,
+                upload_mime_type: None,
+            }],
+            video_rows: Vec::new(),
+            audio_rows: Vec::new(),
+        }),
+        adopted_video_id: None,
+    };
+    chapter_video_prompt::ActiveModel {
+        project_id: Set(project_id),
+        chapter_id: Set(chapter_id),
+        style: Set(Some("电影感写实".to_string())),
+        prompt_type: Set("frame_segment_plan".to_string()),
+        workflow_mode: Set("shared_segment_plan".to_string()),
+        shot_number: Set(0),
+        title: Set(Some("共享片段规划".to_string())),
+        scene_summary: Set(None),
+        visual_prompt: Set("{}".to_string()),
+        motion_prompt: Set(None),
+        negative_prompt: Set(None),
+        duration_secs: Set(8),
+        aspect_ratio: Set(Some("16:9".to_string())),
+        reference_image_ids_json: Set(None),
+        status: Set("completed".to_string()),
+        generated_video_id: Set(None),
+        metadata_json: Set(Some(json!({
+            "video_execution_identity": {
+                "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH
+            },
+            "segment_recipes": [recipe]
+        }))),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("测试共享片段规划应创建成功")
+}
+
+fn reference_media_input(segment_plan_prompt_id: i64) -> ReferenceMediaVideoInput {
+    ReferenceMediaVideoInput {
+        segment_plan_prompt_id,
+        shot_number: 1,
+        image_uploads: Vec::new(),
+        video_uploads: Vec::new(),
+        audio_uploads: Vec::new(),
         config_id: Some(42),
     }
 }
@@ -370,8 +456,7 @@ fn empty_progress() -> VideoGenerationProgress<'static> {
 #[tokio::test]
 async fn reference_media_preview_returns_request_body_without_submit() {
     let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
-    let prompt =
-        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let plan = insert_reference_media_segment_plan(database.as_ref(), project_id, chapter_id).await;
     let host = TestReferenceMediaHost::default();
     let preview = context
         .preview_reference_media_video_request_validated(
@@ -380,7 +465,7 @@ async fn reference_media_preview_returns_request_body_without_submit() {
                 user_id: owner_id,
                 project_id,
                 chapter_id,
-                input: reference_media_input(prompt.id),
+                input: reference_media_input(plan.id),
             },
         )
         .await
@@ -394,8 +479,7 @@ async fn reference_media_preview_returns_request_body_without_submit() {
 #[tokio::test]
 async fn reference_media_generate_persists_completed_video() {
     let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
-    let prompt =
-        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let plan = insert_reference_media_segment_plan(database.as_ref(), project_id, chapter_id).await;
     let host = TestReferenceMediaHost::default();
     let mut progress = empty_progress();
     let video = context
@@ -405,7 +489,7 @@ async fn reference_media_generate_persists_completed_video() {
                 user_id: owner_id,
                 project_id,
                 chapter_id,
-                input: reference_media_input(prompt.id),
+                input: reference_media_input(plan.id),
             },
             &mut progress,
         )
@@ -436,10 +520,76 @@ async fn reference_media_generate_persists_completed_video() {
 }
 
 #[tokio::test]
+async fn video_provider_terminal_status_updates_existing_workflow() {
+    let (database, context, _owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let video = context
+        .create_video_generation_record_validated(VideoGenerationRecordInput {
+            project_id,
+            chapter_id: Some(chapter_id),
+            video_type: "reference_media_video".to_string(),
+            workflow_mode: Some("reference_media".to_string()),
+            prompt: long_reference_prompt(),
+            negative_prompt: None,
+            model: "seedance-2-0-pro".to_string(),
+            width: 1280,
+            height: 720,
+            duration_secs: 8.0,
+            fps: 24,
+            source_video_id: None,
+            source_image_id: None,
+            metadata_json: Some(json!({"config_id": 42})),
+            provider_request_snapshot: json!({"provider": "seedance2-video"}),
+            provider_backend: SEEDANCE2_VIDEO_BACKEND.to_string(),
+            step_key: "generate_reference_media_video".to_string(),
+            title: "参考媒体视频 provider 生成".to_string(),
+            prompt_template_name: Some("reference_media_video".to_string()),
+            prompt_id: None,
+        })
+        .await
+        .expect("创建 provider 视频记录");
+    let video = context
+        .mark_generated_video_job_and_prompt_validated(
+            video.id,
+            "job-async-1",
+            Some(json!({"status": "submitted"})),
+            None,
+        )
+        .await
+        .expect("绑定 provider job");
+    context
+        .mark_video_provider_workflow_validated(
+            &video,
+            crate::workflow::WORKFLOW_STATUS_RUNNING,
+            true,
+            None,
+        )
+        .await
+        .expect("开始 provider workflow");
+    context
+        .mark_video_provider_workflow_validated(
+            &video,
+            crate::workflow::WORKFLOW_STATUS_COMPLETED,
+            false,
+            None,
+        )
+        .await
+        .expect("完成 provider workflow");
+
+    let workflow = a4n_db::workflow::latest_workflow_run_by_business_key(
+        database.as_ref(),
+        &format!("video_provider_job:{}", video.id),
+    )
+    .await
+    .expect("查询 provider workflow")
+    .expect("provider workflow 应存在");
+    assert_eq!(workflow.status, crate::workflow::WORKFLOW_STATUS_COMPLETED);
+    assert!(!workflow.can_resume);
+}
+
+#[tokio::test]
 async fn reference_media_generate_provider_failure_marks_failed() {
     let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
-    let prompt =
-        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let plan = insert_reference_media_segment_plan(database.as_ref(), project_id, chapter_id).await;
     let host = TestReferenceMediaHost {
         fail_submit: true,
         ..Default::default()
@@ -452,7 +602,7 @@ async fn reference_media_generate_provider_failure_marks_failed() {
                 user_id: owner_id,
                 project_id,
                 chapter_id,
-                input: reference_media_input(prompt.id),
+                input: reference_media_input(plan.id),
             },
             &mut progress,
         )
@@ -479,6 +629,171 @@ async fn reference_media_generate_provider_failure_marks_failed() {
     assert_eq!(
         stored.status,
         crate::video::GENERATED_VIDEO_ERROR_STATUS_FAILED
+    );
+}
+
+#[tokio::test]
+async fn reference_media_cancel_before_provider_marks_records_cancelled() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let plan = insert_reference_media_segment_plan(database.as_ref(), project_id, chapter_id).await;
+    let host = TestReferenceMediaHost::default();
+    let cancel_token = CancellationToken::new();
+    let reporter_token = cancel_token.clone();
+    let mut reporter = move |current, _total, _message: &str| {
+        if current == 3 {
+            reporter_token.cancel();
+        }
+        Ok(())
+    };
+    let mut progress =
+        VideoGenerationProgress::without_checkpoint(Some(&mut reporter), cancel_token);
+
+    let error = context
+        .run_reference_media_video_generation_validated(
+            &host,
+            GenerateReferenceMediaVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                input: reference_media_input(plan.id),
+            },
+            &mut progress,
+        )
+        .await
+        .expect_err("provider 调用前取消必须返回 cancelled");
+
+    assert!(matches!(error, AppError::Cancelled));
+    assert_eq!(host.submit_calls.load(Ordering::SeqCst), 0);
+    let video = generated_video::Entity::find()
+        .filter(generated_video::Column::ProjectId.eq(project_id))
+        .one(database.as_ref())
+        .await
+        .expect("查询取消视频")
+        .expect("取消视频记录应保留");
+    assert_eq!(video.status, crate::video::GENERATED_VIDEO_STATUS_CANCELLED);
+    let run = generation_run::Entity::find()
+        .filter(generation_run::Column::ProjectId.eq(project_id))
+        .one(database.as_ref())
+        .await
+        .expect("查询 generation run")
+        .expect("取消视频应有 generation run");
+    assert_eq!(run.status, crate::workflow::WORKFLOW_STATUS_CANCELLED);
+}
+
+#[tokio::test]
+async fn reference_media_cancel_during_provider_discards_late_result() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let plan = insert_reference_media_segment_plan(database.as_ref(), project_id, chapter_id).await;
+    let host = TestReferenceMediaHost {
+        cancel_during_submit: true,
+        ..Default::default()
+    };
+    let mut progress = empty_progress();
+
+    let error = context
+        .run_reference_media_video_generation_validated(
+            &host,
+            GenerateReferenceMediaVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                input: reference_media_input(plan.id),
+            },
+            &mut progress,
+        )
+        .await
+        .expect_err("取消后的迟到 provider 结果不能写成完成");
+
+    assert!(matches!(error, AppError::Cancelled));
+    assert_eq!(host.submit_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(host.provider.persist_calls.load(Ordering::SeqCst), 0);
+    let video = generated_video::Entity::find()
+        .filter(generated_video::Column::ProjectId.eq(project_id))
+        .one(database.as_ref())
+        .await
+        .expect("查询取消视频")
+        .expect("取消视频记录应保留");
+    assert_eq!(video.status, crate::video::GENERATED_VIDEO_STATUS_CANCELLED);
+}
+
+#[tokio::test]
+async fn reference_media_cancel_during_persist_cleans_file_and_stays_cancelled() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let plan = insert_reference_media_segment_plan(database.as_ref(), project_id, chapter_id).await;
+    let cancel_token = CancellationToken::new();
+    let host = TestReferenceMediaHost {
+        provider: TestVideoProviderHost {
+            cancel_on_persist: Some(cancel_token.clone()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut progress = VideoGenerationProgress::without_checkpoint(None, cancel_token);
+
+    let error = context
+        .run_reference_media_video_generation_validated(
+            &host,
+            GenerateReferenceMediaVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                input: reference_media_input(plan.id),
+            },
+            &mut progress,
+        )
+        .await
+        .expect_err("文件落盘期间取消不能完成视频");
+
+    assert!(matches!(error, AppError::Cancelled));
+    assert_eq!(host.provider.persist_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(host.provider.remove_calls.load(Ordering::SeqCst), 1);
+    let video = generated_video::Entity::find()
+        .filter(generated_video::Column::ProjectId.eq(project_id))
+        .one(database.as_ref())
+        .await
+        .expect("查询取消视频")
+        .expect("取消视频记录应保留");
+    assert_eq!(video.status, crate::video::GENERATED_VIDEO_STATUS_CANCELLED);
+}
+
+#[tokio::test]
+async fn reference_media_external_interrupt_during_persist_is_not_downgraded_to_failed() {
+    let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let plan = insert_reference_media_segment_plan(database.as_ref(), project_id, chapter_id).await;
+    let host = TestReferenceMediaHost {
+        provider: TestVideoProviderHost {
+            interrupt_on_persist: Some(Arc::clone(&database)),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut progress = empty_progress();
+
+    let error = context
+        .run_reference_media_video_generation_validated(
+            &host,
+            GenerateReferenceMediaVideoInput {
+                user_id: owner_id,
+                project_id,
+                chapter_id,
+                input: reference_media_input(plan.id),
+            },
+            &mut progress,
+        )
+        .await
+        .expect_err("外部中断后的迟到文件不能覆盖权威状态");
+
+    assert!(matches!(error, AppError::Cancelled));
+    assert_eq!(host.provider.remove_calls.load(Ordering::SeqCst), 1);
+    let video = generated_video::Entity::find()
+        .filter(generated_video::Column::ProjectId.eq(project_id))
+        .one(database.as_ref())
+        .await
+        .expect("查询中断视频")
+        .expect("中断视频记录应保留");
+    assert_eq!(
+        video.status,
+        crate::video::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED
     );
 }
 

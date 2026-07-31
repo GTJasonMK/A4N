@@ -15,7 +15,7 @@ pub async fn project_progress_summary(
     db: &DatabaseConnection,
     query: ProjectProgressQuery,
 ) -> Result<ProjectProgressSummary, ProjectProgressReadError> {
-    let mut summaries = project_progress_summaries(db, &[query.clone()]).await?;
+    let mut summaries = project_progress_summaries(db, std::slice::from_ref(&query)).await?;
     summaries
         .remove(&query.project_id)
         .ok_or(ProjectProgressReadError::SummaryMissing {

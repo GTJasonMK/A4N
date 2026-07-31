@@ -17,14 +17,14 @@ const EVENT_SCHEMA_VERSION = 1;
 const MAX_PENDING_EVENTS = 512;
 const MAX_PENDING_BYTES = 1024 * 1024;
 
-export type GenerationClientState =
+type GenerationClientState =
   | "attached"
   | "recovering"
   | "detached"
   | "protocol_error"
   | "consistency_error";
 
-export type GenerationRecoveryState =
+type GenerationRecoveryState =
   | "idle"
   | "required"
   | "recovering"
@@ -37,7 +37,7 @@ export type GenerationTaskRecoveryIssue =
   | "expired"
   | "corrupt";
 
-export interface GenerationTextStreamState {
+interface GenerationTextStreamState {
   text: string;
   nextOffset: number;
   version: number;
@@ -81,13 +81,13 @@ export function generationTaskRecoveryIssueMessage(
 }
 
 /** 正式结果恢复的产品域；四个文本 generation 共用同一裁决。 */
-export type FormalResultRecoveryDomain =
+type FormalResultRecoveryDomain =
   | "chapter"
   | "blueprint"
   | "optimize_turn"
   | "inspiration_message";
 
-export type FormalResultRecoveryKind = "ok" | "readonly" | "unrecoverable";
+type FormalResultRecoveryKind = "ok" | "readonly" | "unrecoverable";
 
 export interface FormalResultRecoveryInput {
   recoveryIssue: GenerationTaskRecoveryIssue | null;

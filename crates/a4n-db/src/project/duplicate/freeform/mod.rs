@@ -6,7 +6,6 @@ mod remap;
 mod rules;
 mod workflow;
 
-pub use contracts::FreeformProjectMediaFileCopier;
 pub use workflow::duplicate_freeform_project_record;
 
 pub(in crate::project::duplicate::freeform) use contracts::{

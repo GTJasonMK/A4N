@@ -14,6 +14,7 @@ pub fn refresh_access_token_with_role(
     refresh_token: &str,
     name: Option<&str>,
     role: &str,
+    session_id: &str,
     secret: &str,
 ) -> Result<TokenPair, AppError> {
     let claims = verify_token(refresh_token, secret)?;
@@ -24,6 +25,7 @@ pub fn refresh_access_token_with_role(
         &claims.sub,
         name.or(claims.name.as_deref()),
         role,
+        Some(session_id),
         secret,
         ACCESS_TOKEN_EXP_MINUTES,
     )?;

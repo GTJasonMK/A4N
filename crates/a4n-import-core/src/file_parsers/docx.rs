@@ -15,10 +15,6 @@ use archive::read_docx_archive;
 pub struct DocxParser;
 
 impl DocxParser {
-    pub fn new() -> Self {
-        Self
-    }
-
     /// 从 DOCX 字节数据解析文本内容
     pub fn parse(&self, data: &[u8]) -> Result<ParseResult, ImportTransformError> {
         let archive = read_docx_archive(data)?;

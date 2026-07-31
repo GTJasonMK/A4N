@@ -2,10 +2,11 @@ use a4n_core::error::AppError;
 use a4n_db::galgame::GalgamePipelinePromptContextRecord;
 
 use crate::galgame::{
-    GalgamePipelinePromptContext, OrchestratorContext,
+    GalgameChapterShootingScript, GalgamePipelinePromptContext, OrchestratorContext,
     galgame_pipeline_source_spans_from_prompt_chapters, galgame_prompt_chapter_from_snapshot,
     galgame_speaker_profiles_from_models, validate_positive_id,
 };
+use crate::shooting_script::ChapterShootingScriptSourceInput;
 
 impl OrchestratorContext {
     pub async fn galgame_pipeline_prompt_context(
@@ -21,12 +22,43 @@ impl OrchestratorContext {
         )
         .await
         .map_err(AppError::Database)?;
-        galgame_pipeline_prompt_context_from_record(
+        let mut context = galgame_pipeline_prompt_context_from_record(
             context.project.id,
             context.root_project.id,
             context.source_snapshot.id,
             record,
-        )
+        )?;
+        let mut shooting_scripts = Vec::with_capacity(context.chapters.len());
+        for chapter in &context.chapters {
+            let resolved = self
+                .require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
+                    project_id,
+                    source_chapter_id: chapter.source_chapter_id,
+                })
+                .await?;
+            if resolved.source.source_snapshot_chapter_id
+                != Some(chapter.source_snapshot_chapter_id)
+                || resolved.source.chapter_number != chapter.chapter_number
+            {
+                return Err(AppError::InvalidState {
+                    current: format!(
+                        "galgame_shooting_script_source_mismatch:source_chapter_id={}",
+                        chapter.source_chapter_id
+                    ),
+                    operation: "装配 Galgame 结构化拍摄剧本".to_string(),
+                });
+            }
+            shooting_scripts.push(GalgameChapterShootingScript {
+                source_chapter_id: chapter.source_chapter_id,
+                source_snapshot_chapter_id: chapter.source_snapshot_chapter_id,
+                chapter_number: chapter.chapter_number,
+                shooting_script_id: resolved.shooting_script.record.id,
+                shooting_script_revision: resolved.shooting_script.record.revision,
+                script: resolved.shooting_script.script,
+            });
+        }
+        context.shooting_scripts = shooting_scripts;
+        Ok(context)
     }
 }
 

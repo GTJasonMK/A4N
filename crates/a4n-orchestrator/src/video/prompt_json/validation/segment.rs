@@ -16,79 +16,37 @@ use content::{
 use performance::validate_segment_performance_plan;
 
 pub(in crate::video::prompt_json) fn validate_segment_plan(
-    segment: VideoSegmentPlan,
+    mut segment: VideoSegmentPlan,
 ) -> Result<VideoSegmentPlan, AppError> {
-    let VideoSegmentPlan {
-        schema_version,
-        segment_number,
-        source_shot_id,
-        segment_index_in_shot,
-        shot_segment_count,
-        covered_beat_ids,
-        title,
-        scene_summary,
-        blocking_summary,
-        spatial_anchors,
-        emotion_action_goals,
-        video_intent,
-        emotional_arc,
-        performance_plan,
-        material_coverage,
-        transition_to_next,
-        source_span_ids,
-        duration_secs,
-        aspect_ratio,
-        reference_image_ids,
-    } = segment;
-    if schema_version != VIDEO_SEGMENT_PLAN_V2 {
+    if segment.schema_version != VIDEO_SEGMENT_PLAN_V2 {
         return Err(AppError::InvalidArgument(format!(
             "视频分段规划 schema_version 必须是 {VIDEO_SEGMENT_PLAN_V2}"
         )));
     }
-    if segment_number < 1 {
+    if segment.segment_number < 1 {
         return Err(AppError::InvalidArgument(
             "视频分段规划 segment_number 必须大于 0".to_string(),
         ));
     }
-    let title = required_text(title, "视频分段规划 title")?;
-    let scene_summary = required_text(scene_summary, "视频分段规划 scene_summary")?;
-    let blocking_summary = required_text(blocking_summary, "视频分段规划 blocking_summary")?;
-    validate_segment_spatial_anchors(&spatial_anchors)?;
-    validate_segment_emotion_action_goals(&emotion_action_goals)?;
-    validate_segment_video_intent(&video_intent)?;
-    validate_segment_emotional_arc(&emotional_arc)?;
-    validate_duration(duration_secs, "视频分段规划 duration_secs")?;
-    validate_segment_performance_plan(&performance_plan, duration_secs)?;
-    validate_segment_material_coverage(&material_coverage)?;
-    if source_span_ids.is_empty() {
+    segment.title = required_text(segment.title, "视频分段规划 title")?;
+    segment.scene_summary = required_text(segment.scene_summary, "视频分段规划 scene_summary")?;
+    segment.blocking_summary =
+        required_text(segment.blocking_summary, "视频分段规划 blocking_summary")?;
+    validate_segment_spatial_anchors(&segment.spatial_anchors)?;
+    validate_segment_emotion_action_goals(&segment.emotion_action_goals)?;
+    validate_segment_video_intent(&segment.video_intent)?;
+    validate_segment_emotional_arc(&segment.emotional_arc)?;
+    validate_duration(segment.duration_secs, "视频分段规划 duration_secs")?;
+    validate_segment_performance_plan(&segment.performance_plan, segment.duration_secs)?;
+    validate_segment_material_coverage(&segment.material_coverage)?;
+    if segment.source_span_ids.is_empty() {
         return Err(AppError::InvalidArgument(
             "视频分段规划 source_span_ids 不能为空".to_string(),
         ));
     }
-    let aspect_ratio = required_text(aspect_ratio, "视频分段规划 aspect_ratio")?;
-    validate_covered_beat_ids(&covered_beat_ids)?;
-    Ok(VideoSegmentPlan {
-        schema_version,
-        segment_number,
-        source_shot_id,
-        segment_index_in_shot,
-        shot_segment_count,
-        covered_beat_ids,
-        title,
-        scene_summary,
-        blocking_summary,
-        spatial_anchors,
-        emotion_action_goals,
-        video_intent,
-        emotional_arc,
-        performance_plan,
-        material_coverage,
-        transition_to_next,
-        source_span_ids,
-        duration_secs,
-        aspect_ratio,
-        reference_image_ids,
-    })
+    segment.aspect_ratio = required_text(segment.aspect_ratio, "视频分段规划 aspect_ratio")?;
+    validate_covered_beat_ids(&segment.covered_beat_ids)?;
+    Ok(segment)
 }
 
 fn validate_covered_beat_ids(ids: &[String]) -> Result<(), AppError> {

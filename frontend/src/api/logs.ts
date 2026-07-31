@@ -5,7 +5,7 @@ import type {
   SetLogLevelInput,
 } from "./generated/host";
 
-export type { LogReadResult, ReadLogsInput, SetLogLevelInput } from "./generated/host";
+export type { LogReadResult, SetLogLevelInput } from "./generated/host";
 
 export type ReadRecentLogsInput = ReadLogsInput;
 

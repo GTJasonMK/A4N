@@ -22,7 +22,7 @@ fn decodes_text_node_entities() {
         zip_writer.finish().unwrap();
     }
 
-    let result = DocxParser::new().parse(&buffer.into_inner()).unwrap();
+    let result = DocxParser.parse(&buffer.into_inner()).unwrap();
 
     assert_eq!(result.chapters[0].content, "A4N & Co");
 }
@@ -54,7 +54,7 @@ fn reads_pretty_printed_paragraph_xml() {
         zip_writer.finish().unwrap();
     }
 
-    let result = DocxParser::new().parse(&buffer.into_inner()).unwrap();
+    let result = DocxParser.parse(&buffer.into_inner()).unwrap();
 
     assert_eq!(result.chapters[0].content, "A4N body");
 }

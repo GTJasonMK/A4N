@@ -48,6 +48,7 @@ pub type ChapterAnalysisApplicationProgressReporter<'a> =
 pub struct ChapterAnalysisApplicationProgress<'a> {
     pub reporter: Option<ChapterAnalysisApplicationProgressReporter<'a>>,
     pub cancel_token: Option<&'a CancellationToken>,
+    pub active_task_id: Option<&'a str>,
 }
 
 #[derive(Debug, Clone)]
@@ -348,10 +349,22 @@ impl OrchestratorContext {
         let chapter = self
             .preflight_chapter_analysis_validated(chapter_id, true)
             .await?;
+        if let Some(run) = self
+            .latest_workflow_run_by_business_key(&chapter_analysis_workflow_business_key(
+                chapter.project_id,
+                chapter.id,
+            ))
+            .await?
+            && chapter_analysis_run_input_matches(&run.input_fingerprint_json, &chapter)
+            && run.can_resume
+        {
+            self.mark_workflow_running_validated(run.id).await?;
+        }
         let workflow_run = self
             .begin_workflow_run_validated(chapter_analysis_workflow_run_input(
                 &chapter,
                 STEP_DERIVED_SYNC,
+                progress.active_task_id,
             ))
             .await?;
         progress.report(45, "已找到结构化分析，正在继续同步派生数据")?;
@@ -456,7 +469,11 @@ impl OrchestratorContext {
 
         progress.report(10, "正在读取章节并校验角色同步前置条件")?;
         let workflow_run = self
-            .begin_workflow_run_validated(chapter_analysis_workflow_run_input(&chapter, STEP_FACTS))
+            .begin_workflow_run_validated(chapter_analysis_workflow_run_input(
+                &chapter,
+                STEP_FACTS,
+                progress.active_task_id,
+            ))
             .await?;
         progress.report(20, "正在调用模型生成结构化分析")?;
         let analysis_reporter = |current: u32, total: u32, message: &str| {
@@ -609,6 +626,7 @@ impl OrchestratorContext {
                 Some(ObjectDiscoveryProgress {
                     reporter: Some(&reporter),
                     cancel_token: progress.cancel_token,
+                    active_task_id: progress.active_task_id,
                 }),
             )
             .await?;
@@ -653,6 +671,7 @@ impl OrchestratorContext {
                 Some(CharacterDiscoveryProgress {
                     reporter: Some(&reporter),
                     cancel_token: progress.cancel_token,
+                    active_task_id: progress.active_task_id,
                 }),
             )
             .await?;
@@ -689,7 +708,11 @@ impl OrchestratorContext {
         let reporter = |current: u32, total: u32, message: &str| {
             let _ = progress.subprogress(current, total, 78, 88, message);
         };
-        let scene_progress = SceneProfileSyncProgress::new(Some(&reporter), progress.cancel_token);
+        let scene_progress = SceneProfileSyncProgress::new(
+            Some(&reporter),
+            progress.cancel_token,
+            progress.active_task_id,
+        );
         self.sync_scene_profiles_for_chapters_validated(
             chapter.project_id,
             Some(chapter.chapter_number),
@@ -698,9 +721,12 @@ impl OrchestratorContext {
             Some(&scene_progress),
         )
         .await
-        .map_err(|error| AppError::InvalidState {
-            current: "chapter_analysis_scene_sync".to_string(),
-            operation: error.to_string(),
+        .map_err(|error| match error {
+            AppError::Cancelled => AppError::Cancelled,
+            error => AppError::InvalidState {
+                current: "chapter_analysis_scene_sync".to_string(),
+                operation: error.to_string(),
+            },
         })?;
         self.save_chapter_analysis_phase(
             workflow_run_id,
@@ -745,16 +771,13 @@ impl OrchestratorContext {
                 prompt_renderer,
                 CharacterProfileBatchProgress {
                     reporter: Some(&reporter),
+                    active_task_id: progress.active_task_id,
                 },
                 trace_port,
             )
             .await?;
-        ensure_chapter_analysis_character_sync_completed(&sync_result).map_err(|error| {
-            AppError::InvalidState {
-                current: "chapter_analysis_character_sync".to_string(),
-                operation: error.to_string(),
-            }
-        })?;
+        ensure_chapter_analysis_character_sync_completed(&sync_result)
+            .map_err(|error| AppError::LlmError(error.to_string()))?;
         self.save_chapter_analysis_phase(
             workflow_run_id,
             chapter,
@@ -891,6 +914,9 @@ impl OrchestratorContext {
                 error_message.as_deref(),
             )
             .await;
+        if matches!(&finalized, Err(AppError::Cancelled)) {
+            return Err(AppError::Cancelled);
+        }
         match (result, finalized) {
             (Ok(value), Ok(_)) => Ok(value),
             (Err(error), Ok(_)) => Err(error),

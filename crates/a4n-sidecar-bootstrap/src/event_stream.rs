@@ -1,8 +1,7 @@
 use std::convert::Infallible;
 
 use a4n_service_protocol::{
-    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError, ServiceErrorCode,
-    redact_sensitive_message,
+    CapabilityTaskEvent, ServiceError, ServiceErrorCode, redact_sensitive_message,
 };
 use axum::{
     body::{Body, Bytes},
@@ -54,27 +53,14 @@ pub fn service_event_ndjson_response(
 }
 
 fn serialization_failed_event(error: serde_json::Error) -> CapabilityTaskEvent {
-    CapabilityTaskEvent {
-        task_id: "service-event-serialization".to_string(),
-        event_kind: CapabilityTaskEventKind::Failed,
-        sequence: 0,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: Some(ServiceError {
-            code: ServiceErrorCode::Internal,
-            message: redact_sensitive_message(format!(
-                "service task event serialization failed: {error}"
-            )),
-            retryable: Some(false),
-        }),
-        payload: None,
-    }
+    CapabilityTaskEvent::failed(
+        "service-event-serialization".to_string(),
+        0,
+        ServiceError::non_retryable(
+            ServiceErrorCode::Internal,
+            redact_sensitive_message(format!("service task event serialization failed: {error}")),
+        ),
+    )
 }
 
 #[cfg(test)]

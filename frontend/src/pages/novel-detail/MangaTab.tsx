@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import {
@@ -977,7 +977,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   if (loading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <Loader2 size={12} className="animate-spin" /> 加载章节…
+        <LoadingSpinner size="sm" /> 加载章节…
       </div>
     );
   }

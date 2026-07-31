@@ -6,8 +6,8 @@ export const QueueInfoCard: React.FC = () => (
     <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 font-semibold text-book-text-main">
       <ListChecks size={14} className="text-book-primary" />
       队列说明
-      <span className="ml-auto text-[11px] font-normal text-book-text-muted group-open:hidden">展开</span>
-      <span className="ml-auto hidden text-[11px] font-normal text-book-text-muted group-open:inline">收起</span>
+      <span className="ml-auto text-small font-normal text-book-text-muted group-open:hidden">展开</span>
+      <span className="ml-auto hidden text-small font-normal text-book-text-muted group-open:inline">收起</span>
     </summary>
     <div className="space-y-2 border-t border-book-border/30 px-3 py-3 leading-relaxed">
       <p>任务会根据优先级自动排队，并在可用的处理槽位中依次执行。</p>

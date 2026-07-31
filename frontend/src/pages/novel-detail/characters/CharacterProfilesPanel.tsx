@@ -58,7 +58,7 @@ export const CharacterProfilesPanel: React.FC<{
       <section>
         <header className="mb-3 px-1">
           <h2 className="text-sm font-semibold text-book-text-main">角色档案</h2>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+          <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
             共 {profiles.length} 位角色
             {latestSyncedChapter > 0 ? `，最新同步至第 ${latestSyncedChapter} 章` : ""}
           </p>
@@ -86,16 +86,16 @@ export const CharacterProfilesPanel: React.FC<{
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
-                  <div className="mt-0.5 text-[10px] text-book-text-muted">
+                  <div className="mt-0.5 text-caption text-book-text-muted">
                     {[profile.gender, profile.age, syncedChapterText(profile.last_synced_chapter)]
                       .filter(Boolean)
                       .join(" · ")}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-sub">
+                  <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
                     {profileDescription(profile)}
                   </p>
                   {attributes.length > 0 ? (
-                    <p className="mt-1 truncate text-[10px] text-book-text-muted">
+                    <p className="mt-1 truncate text-caption text-book-text-muted">
                       {attributes.map(([key, value]) => `${key}：${value}`).join(" · ")}
                     </p>
                   ) : null}

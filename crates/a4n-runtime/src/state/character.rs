@@ -305,9 +305,16 @@ impl<'a> CharacterRuntimeFacade<'a> {
         input: CharacterConflictCheckInput,
         prompt_renderer: &dyn PromptRenderer,
         progress: CharacterConflictProgressReporter<'_>,
+        active_task_id: Option<&str>,
     ) -> Result<Vec<Value>, AppError> {
         self.orchestrator
-            .check_character_conflict_validated(user_id, input, prompt_renderer, progress)
+            .check_character_conflict_validated(
+                user_id,
+                input,
+                prompt_renderer,
+                progress,
+                active_task_id,
+            )
             .await
     }
 
@@ -363,19 +370,6 @@ impl<'a> CharacterRuntimeFacade<'a> {
     ) -> Result<String, AppError> {
         self.orchestrator
             .generate_portrait_prompt_validated(input, prompt_renderer, variables)
-            .await
-    }
-
-    pub(crate) async fn generate_portrait_validated(
-        &self,
-        input: a4n_orchestrator::portrait::GeneratePortraitInput,
-        prompt_renderer: &dyn PromptRenderer,
-        host_port: &dyn a4n_orchestrator::portrait::PortraitGenerationHostPort,
-        progress: Option<a4n_orchestrator::portrait::PortraitProgress<'_>>,
-        cancel_token: tokio_util::sync::CancellationToken,
-    ) -> Result<a4n_orchestrator::portrait::PortraitSummary, AppError> {
-        self.orchestrator
-            .generate_portrait_validated(input, prompt_renderer, host_port, progress, cancel_token)
             .await
     }
 

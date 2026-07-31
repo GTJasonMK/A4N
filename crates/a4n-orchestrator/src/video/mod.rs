@@ -23,6 +23,7 @@ mod prompt_application;
 mod prompt_chain_rules;
 mod prompt_context;
 mod prompt_generation;
+mod prompt_generation_task;
 mod prompt_json;
 mod prompt_optimization;
 mod prompt_optimization_checkpoint;
@@ -104,13 +105,11 @@ pub use contracts::{
     FIRST_FRAME_CHAIN_CONTRACT_VERSION, FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT,
     FRAME_SEGMENT_PLAN_CONTRACT_VERSION, FRAME_SEGMENT_PLAN_PROMPT_TYPE, IMPORT_VIDEO_PROMPT_TYPE,
     ProjectChapterVideoSource, STORYBOARD_PROMPT_CONTRACT_VERSION,
-    STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION, VideoPromptChunk, VideoPromptProgress,
+    STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION, VIDEO_PROMPT_CHECKPOINT_STAGE_CODE, VideoPromptChunk,
+    VideoPromptProgress, VideoPromptProgressUpdate,
 };
 pub use duration::VideoDurationCapability;
-pub use first_frame_chain_rules::{
-    first_frame_prompt_matches_video_prompt, previous_video_prompt_matches_current,
-    tail_frame_image_matches_prompt,
-};
+pub use first_frame_chain_rules::first_frame_prompt_matches_video_prompt;
 pub use generation_run_rules::started_video_generation_run_input;
 pub use image_generation_meta_rules::{
     VideoFrameImageGenerationContext, image_generation_prompt_id, image_generation_shot_number,
@@ -126,7 +125,8 @@ pub use job_status_rules::{
     CanvasVideoWorkflowContext, GENERATED_VIDEO_ERROR_STATUS_FAILED,
     GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED, GENERATED_VIDEO_STATUS_CANCELLED,
     GENERATED_VIDEO_STATUS_COMPLETED, GENERATED_VIDEO_WAITING_STATUS_PENDING,
-    GENERATED_VIDEO_WAITING_STATUS_RUNNING, active_provider_job_id, canvas_video_workflow_context,
+    GENERATED_VIDEO_WAITING_STATUS_RUNNING, active_provider_job_id,
+    can_adopt_authoritative_video_completion, canvas_video_workflow_context,
     ensure_positive_generated_video_id, ensure_positive_project_id_for_video,
     ensure_positive_video_prompt_id, ensure_provider_generation_run_updated,
     has_active_provider_job, is_canvas_video_record, is_terminal_generated_video_status,
@@ -141,12 +141,21 @@ pub use library::{
 pub use materials::is_project_reusable_video_material_image;
 pub(crate) use materials::is_video_frame_input_metadata;
 pub use prompt_application::{
-    ChapterVideoPromptSummary, DeleteChapterVideoPromptGroupResult,
-    GenerateChapterVideoPromptInput, GeneratePromptOptionsInput, OptimizeChapterVideoPromptInput,
+    ChapterVideoPromptSummary, GenerateChapterVideoPromptInput, GeneratePromptOptionsInput,
+    LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateChapterVideoPromptInput as VideoPromptUpdateApplicationInput,
-    VideoPromptApplicationContext, VideoPromptDownstreamCleanupPort, VideoPromptTaskScope,
+    UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
+    VideoPromptDownstreamCleanupPort,
+};
+pub(crate) use prompt_application::{
+    validate_video_final_prompt_generation_options, validate_video_frame_prompt_generation_options,
+    validate_video_segment_plan_generation_options,
 };
 pub use prompt_chain_rules::{prompt_chain_matches, prompt_source_type_matches};
+pub(in crate::video) use prompt_generation::{
+    load_previous_shared_segment_recipe_state, materialize_video_segment_plan_draft_recipes,
+    update_video_segment_plan_draft_recipe_checkpoint,
+};
 pub use prompt_optimization::VideoPromptOptimizationInput;
 pub use prompt_optimization_checkpoint::{
     OptimizedVideoPromptFields, video_prompt_optimization_checkpoint_output,
@@ -178,18 +187,16 @@ pub use provider_prompt_text_rules::{
 };
 pub use provider_request_rules::{
     CliproxyGrokReferenceMode, CliproxyMediaContractViolation, MAX_CLIPROXY_VIDEO_PROMPT_CHARS,
-    MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES, MIN_VIDEO_KEYFRAME_IMAGES, ProviderGenerationWorkflow,
-    boundary_frame_missing_image_message, cliproxy_grok_model_base,
-    cliproxy_grok_model_is_image_to_video_only, cliproxy_grok_model_supports_reference_images,
-    cliproxy_grok_reference_mode_label, cliproxy_media_contract_violations,
-    cliproxy_prompt_length_violation_message, data_url_mime,
+    MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES, ProviderGenerationWorkflow,
+    boundary_frame_missing_image_message, cliproxy_grok_reference_mode_label,
+    cliproxy_media_contract_violations, cliproxy_prompt_length_violation_message, data_url_mime,
     ensure_newapi_first_frame_image_supported, ensure_provider_generation_workflow,
     first_frame_chain_missing_start_image_message, linked_video_preview_config_id,
     parse_cliproxy_grok_reference_mode, prompt_is_first_frame_chain, prompt_provider_workflow,
     provider_image_binding_violation_messages, provider_request_snapshot_value,
     reference_ids_with_prompt_frame_images, reference_ids_with_storyboard_image,
     required_prompt_source_prompt_type, required_video_execution_identity,
-    storyboard_missing_image_message, video_generation_capabilities,
+    storyboard_missing_image_message,
 };
 pub use provider_workflow_rules::{
     is_video_provider_terminal_or_interrupted_status, prompt_id_from_generated_video,

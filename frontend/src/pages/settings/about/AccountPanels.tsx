@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { KeyRound, Loader2, RefreshCw, UserRound } from "lucide-react";
+import { KeyRound, RefreshCw, UserRound } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { useToast } from "../../../components/feedback/Toast";
@@ -136,12 +137,12 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
         <UserRound size={13} className="text-book-text-muted" />
         <span className="font-medium text-book-text-main">个人资料</span>
-        <span className="text-[10px] text-book-text-muted">邮箱与头像</span>
+        <span className="text-caption text-book-text-muted">邮箱与头像</span>
       </summary>
       <div className="space-y-2 border-t border-book-border/35 p-3">
         {loading ? (
           <div className="inline-flex items-center gap-1.5 text-book-text-muted">
-            <Loader2 size={11} className="animate-spin" /> 加载中…
+            <LoadingSpinner size="sm" /> 加载中…
           </div>
         ) : loadError ? (
           <div className="text-error">{loadError}</div>
@@ -168,7 +169,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
               >
                 {busy ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <Loader2 size={11} className="animate-spin" /> 保存中…
+                    <LoadingSpinner size="sm" /> 保存中…
                   </span>
                 ) : (
                   "保存资料"
@@ -275,7 +276,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
           >
             {busy ? (
               <span className="inline-flex items-center gap-1.5">
-                <Loader2 size={11} className="animate-spin" /> 更新中…
+                <LoadingSpinner size="sm" /> 更新中…
               </span>
             ) : (
               "更新密码"
@@ -352,14 +353,14 @@ export const SessionManager: React.FC = () => {
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1">
           <h3 className="font-medium text-book-text-main">登录设备</h3>
-          <p className="mt-0.5 text-[10px] text-book-text-muted">
+          <p className="mt-0.5 text-caption text-book-text-muted">
             {loading ? "正在检查会话…" : `${sessions.length} 个会话`}
           </p>
         </div>
       </div>
       {loading ? (
         <div className="a4n-flat-surface flex items-center gap-1.5 p-3 text-book-text-muted">
-          <Loader2 size={11} className="animate-spin" /> 加载…
+          <LoadingSpinner size="sm" /> 加载…
         </div>
       ) : sessions.length === 0 ? (
         <div className="a4n-flat-surface p-3 text-book-text-muted">没有其他活动会话。</div>
@@ -370,11 +371,11 @@ export const SessionManager: React.FC = () => {
           ))}
         </ul>
       )}
-      <details className="a4n-flat-surface overflow-hidden text-[11px] text-book-text-muted">
+      <details className="a4n-flat-surface overflow-hidden text-small text-book-text-muted">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
           <RefreshCw size={11} className="shrink-0" />
           <span className="font-medium text-book-text-main">登录修复</span>
-          <span className="text-[10px]">凭证异常时使用</span>
+          <span className="text-caption">凭证异常时使用</span>
         </summary>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-book-border/35 p-3">
           <p className="min-w-0 flex-1 leading-relaxed">
@@ -382,7 +383,7 @@ export const SessionManager: React.FC = () => {
           </p>
           <BookButton variant="secondary" size="sm" onClick={handleRefresh} disabled={refreshBusy}>
             {refreshBusy ? (
-              <Loader2 size={11} className="animate-spin" />
+              <LoadingSpinner size="sm" />
             ) : (
               <RefreshCw size={11} />
             )}
@@ -399,7 +400,7 @@ const SessionRow: React.FC<{ session: SessionSummary }> = ({ session }) => {
   const expired = Boolean(expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt <= new Date());
   const status = session.is_revoked ? "已撤销" : expired ? "已过期" : "活跃";
   return (
-    <li className="a4n-flat-surface p-3 text-[11px]">
+    <li className="a4n-flat-surface p-3 text-small">
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium text-book-text-main" title={session.user_agent ?? ""}>
@@ -411,7 +412,7 @@ const SessionRow: React.FC<{ session: SessionSummary }> = ({ session }) => {
           </div>
         </div>
       </div>
-      <details className="mt-1 text-[10px] text-book-text-muted">
+      <details className="mt-1 text-caption text-book-text-muted">
         <summary className="w-fit cursor-pointer hover:text-book-text-main">诊断信息</summary>
         <div className="mt-1 grid gap-0.5 break-all font-mono">
           <span>会话 {session.id}</span>

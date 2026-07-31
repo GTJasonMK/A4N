@@ -174,22 +174,9 @@ pub struct VideoConfigSummary {
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
     pub provider_options_json: Option<Value>,
-    pub capabilities: VideoGenerationCapabilities,
     pub is_default: bool,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct VideoGenerationCapabilities {
-    pub supports_text_only: bool,
-    pub supports_keyframes: bool,
-    pub keyframe_min: i32,
-    pub keyframe_max: i32,
-    pub supports_first_frame: bool,
-    pub supports_last_frame: bool,
-    pub supports_storyboard_reference: bool,
-    pub supports_reference_media: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

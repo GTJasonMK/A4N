@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
-import {
-  Boxes,
+import { Boxes,
   Camera,
   ChevronRight,
   Clipboard,
-  Eye,
-  Loader2,
-} from "lucide-react";
+  Eye } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ObjectProfile } from "../../../api/objectProfiles";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -89,7 +87,7 @@ export function ImageGenerationDialog({
       <div className="space-y-4">
         <section className="space-y-3 text-xs">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-book-text-muted">提示词</span>
+            <span className="text-small text-book-text-muted">提示词</span>
             <textarea
               value={genPrompt}
               onChange={(event) => onGenPromptChange(event.target.value)}
@@ -100,11 +98,11 @@ export function ImageGenerationDialog({
             />
           </label>
           {chapterGenerateLocked ? (
-            <p className="text-[11px] leading-relaxed text-warning">
+            <p className="text-small leading-relaxed text-warning">
               当前章节正在生成，暂时不能再次生成章节场景图。
             </p>
           ) : chapter ? (
-            <p className="text-[11px] text-book-text-muted">
+            <p className="text-small text-book-text-muted">
               新生成的场景图会绑定到当前章节，并记录当前正文指纹，可作为视频参考图或后续素材使用。
             </p>
           ) : null}
@@ -129,7 +127,7 @@ export function ImageGenerationDialog({
             >
               {genBusy ? (
                 <span className="inline-flex items-center gap-1">
-                  <Loader2 size={11} className="animate-spin" /> 生成中
+                  <LoadingSpinner size="sm" /> 生成中
                 </span>
               ) : (
                 "开始生成"
@@ -151,7 +149,7 @@ export function ImageGenerationDialog({
                   <span className="block text-xs font-medium text-book-text-main">
                     从物体档案生成素材
                   </span>
-                  <span className="mt-0.5 block text-[11px] leading-relaxed text-book-text-muted">
+                  <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
                     辅助工作流 · 创建可复用的关联素材图
                   </span>
                 </span>
@@ -165,11 +163,11 @@ export function ImageGenerationDialog({
               <div className="flex items-baseline justify-between gap-3">
                 <label
                   htmlFor="object-image-profile"
-                  className="text-[11px] text-book-text-muted"
+                  className="text-small text-book-text-muted"
                 >
                   物体档案
                 </label>
-                <span className="text-[10px] text-book-text-muted">
+                <span className="text-caption text-book-text-muted">
                   {objectProfiles.length} 个可用档案
                 </span>
               </div>
@@ -204,8 +202,8 @@ export function ImageGenerationDialog({
               </div>
               <div className="flex items-center justify-end gap-2 border-t border-book-border/45 pt-3">
                 {objectPromptCopying ? (
-                  <span className="inline-flex items-center gap-1.5 text-[11px] text-book-text-muted">
-                    <Loader2 size={11} className="animate-spin" /> 正在准备提示词…
+                  <span className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
+                    <LoadingSpinner size="sm" /> 正在准备提示词…
                   </span>
                 ) : !busy && selectedObjectProfileId != null ? (
                   <Dropdown
@@ -232,7 +230,7 @@ export function ImageGenerationDialog({
                 >
                   {objectImageBusy ? (
                     <span className="inline-flex items-center gap-1">
-                      <Loader2 size={11} className="animate-spin" /> 生成中
+                      <LoadingSpinner size="sm" /> 生成中
                     </span>
                   ) : (
                     "生成素材图"

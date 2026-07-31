@@ -13,6 +13,7 @@ pub async fn generate_chapter_scene(
     user_id: i64,
     input: GenerateChapterSceneInput,
     progress: ChapterSceneProgressReporter<'_>,
+    active_task_id: Option<&str>,
 ) -> Result<ChapterSceneSummary, AppError> {
     let prompt_renderer = RuntimePromptRenderer::new(state);
     let scene = state
@@ -26,6 +27,7 @@ pub async fn generate_chapter_scene(
             },
             &prompt_renderer,
             progress,
+            active_task_id,
         )
         .await?;
     Ok(chapter_scene_summary(&scene))

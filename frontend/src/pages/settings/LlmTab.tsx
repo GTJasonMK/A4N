@@ -1,6 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useToast } from "../../components/feedback/Toast";
-import { extractErrorMessage } from "../../api";
+import React, { useCallback } from "react";
 import {
   createLlmConfig,
   createServerLlmConfig,
@@ -21,6 +19,7 @@ import {
   SYSTEM_LLM_CONFIG_ID,
 } from "../../api/config";
 import { ConfigListPanel, type ConfigItem } from "./ConfigListPanel";
+import { useConfigItems } from "./config-list/useConfigItems";
 import { LlmConfigEditor } from "./llm/LlmConfigEditor";
 import { LlmMaxTokensPanel } from "./llm/LlmMaxTokensPanel";
 import {
@@ -45,51 +44,16 @@ interface LlmTabProps {
 }
 
 export const LlmTab: React.FC<LlmTabProps> = ({ scope = "user" }) => {
-  const addToast = useToast((state) => state.addToast);
-  const [items, setItems] = useState<ConfigItem<LlmForm>[]>([]);
-  const [loading, setLoading] = useState(false);
-  const mountedRef = useRef(true);
-  const refreshSeqRef = useRef(0);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      refreshSeqRef.current += 1;
-    };
-  }, []);
-
-  const isCurrentRefresh = useCallback((seq: number) => {
-    return mountedRef.current && refreshSeqRef.current === seq;
-  }, []);
-
   const serverScope = scope === "server";
-
-  const refresh = useCallback(async () => {
-    const requestSeq = refreshSeqRef.current + 1;
-    refreshSeqRef.current = requestSeq;
-    setLoading(true);
-    try {
-      const list = await (serverScope ? listServerLlmConfig() : listLlmConfig());
-      if (!isCurrentRefresh(requestSeq)) return;
-      setItems(
-        list.map((config) => ({
-          ...toLlmItem(config),
-          deleteDisabled: !serverScope && config.id === SYSTEM_LLM_CONFIG_ID,
-          deleteDisabledReason: "系统默认 LLM 模板由管理员维护，不能在用户配置页删除。",
-        })),
-      );
-    } catch (err) {
-      if (!isCurrentRefresh(requestSeq)) return;
-      addToast(extractErrorMessage(err, "加载 LLM 配置失败"), "error");
-    } finally {
-      if (isCurrentRefresh(requestSeq)) setLoading(false);
-    }
-  }, [addToast, isCurrentRefresh, serverScope]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const loadItems = useCallback(async (): Promise<ConfigItem<LlmForm>[]> => {
+    const list = await (serverScope ? listServerLlmConfig() : listLlmConfig());
+    return list.map((config) => ({
+      ...toLlmItem(config),
+      deleteDisabled: !serverScope && config.id === SYSTEM_LLM_CONFIG_ID,
+      deleteDisabledReason: "系统默认 LLM 模板由管理员维护，不能在用户配置页删除。",
+    }));
+  }, [serverScope]);
+  const { items, loading, refresh } = useConfigItems(loadItems, "加载 LLM 配置失败");
 
   const defaultModelOutputCap =
     items.find((item) => item.isActive)?.config.max_output_tokens ?? null;

@@ -44,6 +44,37 @@ fn workflow_write_error_preserves_argument_and_database_source() {
             if message == "checkpoint delete failed"
     ));
     assert!(std::error::Error::source(&database).is_some());
+
+    let conflict = WorkflowWriteError::StatusConflict {
+        current: WORKFLOW_STATUS_CANCELLED.to_string(),
+        operation: "完成工作流".to_string(),
+    };
+    assert!(conflict.to_string().contains("cancelled"));
+}
+
+#[test]
+fn workflow_query_inputs_support_chapter_filter_and_lightweight_detail() {
+    let list: ListWorkflowRunsInput = serde_json::from_value(serde_json::json!({
+        "project_id": 19,
+        "chapter_id": 3,
+        "workflow_kind": "video_segment_plan",
+        "limit": 1
+    }))
+    .expect("chapter-filtered workflow query should deserialize");
+    assert_eq!(list.chapter_id, Some(3));
+
+    let detail: GetWorkflowRunInput = serde_json::from_value(serde_json::json!({
+        "workflow_run_id": 7,
+        "include_generation_runs": false
+    }))
+    .expect("lightweight workflow detail query should deserialize");
+    assert_eq!(detail.include_generation_runs, Some(false));
+
+    let legacy_detail: GetWorkflowRunInput = serde_json::from_value(serde_json::json!({
+        "workflow_run_id": 7
+    }))
+    .expect("existing detail query should remain compatible");
+    assert_eq!(legacy_detail.include_generation_runs, None);
 }
 
 #[test]
@@ -202,6 +233,27 @@ fn workflow_run_progress_summary_rejects_missing_or_out_of_range_fields() {
 }
 
 #[test]
+fn workflow_run_summary_keeps_input_fingerprint() {
+    let fingerprint = json!({
+        "workflow_mode": "shared_segment_plan",
+        "options": { "style": "电影感写实" }
+    });
+    let run = WorkflowRunModelBuilder::new(
+        1,
+        "business",
+        "video_segment_plan",
+        WORKFLOW_STATUS_RUNNING,
+        test_timestamp(),
+    )
+    .with_input_fingerprint(fingerprint.clone())
+    .build();
+
+    let summary = workflow_run_summary(run).expect("workflow run should project");
+
+    assert_eq!(summary.input_fingerprint_json, Some(fingerprint));
+}
+
+#[test]
 fn workflow_progress_write_range_rejects_zero_total_and_overrun() {
     assert!(validate_workflow_progress_range(0, 0).is_err());
     assert!(validate_workflow_progress_range(5, 4).is_err());
@@ -261,8 +313,8 @@ fn task_info_from_row_keeps_failed_task_error_requirement() {
 }
 
 #[test]
-fn generated_video_ids_for_running_checkpoints_deduplicates_and_ignores_completed() {
-    let ids = generated_video_ids_for_running_checkpoints(&[
+fn generated_video_ids_for_active_checkpoints_deduplicates_and_ignores_terminal() {
+    let ids = generated_video_ids_for_active_checkpoints(&[
         checkpoint_row(
             1,
             WORKFLOW_STATUS_RUNNING,
@@ -271,7 +323,7 @@ fn generated_video_ids_for_running_checkpoints_deduplicates_and_ignores_complete
         ),
         checkpoint_row(
             2,
-            WORKFLOW_STATUS_RUNNING,
+            WORKFLOW_STATUS_INTERRUPTED,
             Some(json!({ "generated_video_id": 3 })),
             None,
         ),
@@ -287,6 +339,54 @@ fn generated_video_ids_for_running_checkpoints_deduplicates_and_ignores_complete
 }
 
 #[test]
+fn workflow_terminal_transition_requires_explicit_resume() {
+    assert!(
+        ensure_workflow_status_transition(
+            WORKFLOW_STATUS_CANCELLED,
+            WORKFLOW_STATUS_COMPLETED,
+            false,
+        )
+        .is_err()
+    );
+    assert!(
+        ensure_workflow_status_transition(
+            WORKFLOW_STATUS_CANCELLED,
+            WORKFLOW_STATUS_RUNNING,
+            false,
+        )
+        .is_err()
+    );
+    ensure_workflow_status_transition(
+        WORKFLOW_STATUS_CANCELLED,
+        WORKFLOW_STATUS_RUNNING,
+        true,
+    )
+    .expect("显式恢复应允许 cancelled -> running");
+    assert!(
+        ensure_workflow_status_transition(
+            WORKFLOW_STATUS_INTERRUPTED,
+            WORKFLOW_STATUS_COMPLETED,
+            false,
+        )
+        .is_err()
+    );
+    ensure_workflow_status_transition(
+        WORKFLOW_STATUS_INTERRUPTED,
+        WORKFLOW_STATUS_RUNNING,
+        true,
+    )
+    .expect("显式恢复应允许 interrupted -> running");
+    assert!(
+        ensure_workflow_status_transition(
+            WORKFLOW_STATUS_COMPLETED,
+            WORKFLOW_STATUS_RUNNING,
+            true,
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn cancel_helpers_classify_terminal_status_and_default_reason() {
     assert!(is_terminal_workflow_status(WORKFLOW_STATUS_COMPLETED));
     assert!(is_terminal_workflow_status(WORKFLOW_STATUS_FAILED));
@@ -299,6 +399,9 @@ fn cancel_helpers_classify_terminal_status_and_default_reason() {
 fn workflow_write_helpers_keep_existing_status_semantics() {
     let running = workflow_run_row(WORKFLOW_STATUS_RUNNING);
     let completed = workflow_run_row(WORKFLOW_STATUS_COMPLETED);
+    let interrupted = workflow_run_row(WORKFLOW_STATUS_INTERRUPTED);
+    let mut resumable_interrupted = interrupted.clone();
+    resumable_interrupted.can_resume = true;
     let timestamp = test_timestamp();
 
     assert!(workflow_fingerprint_matches(
@@ -317,7 +420,24 @@ fn workflow_write_helpers_keep_existing_status_semantics() {
         &completed,
         WORKFLOW_STATUS_RUNNING
     ));
+    assert!(!should_update_existing_run(
+        &workflow_run_row(WORKFLOW_STATUS_CANCELLED),
+        WORKFLOW_STATUS_RUNNING
+    ));
+    assert!(!should_update_existing_run(
+        &interrupted,
+        WORKFLOW_STATUS_RUNNING,
+    ));
+    assert!(!requires_explicit_interrupted_resume(
+        &interrupted,
+        WORKFLOW_STATUS_RUNNING,
+    ));
+    assert!(requires_explicit_interrupted_resume(
+        &resumable_interrupted,
+        WORKFLOW_STATUS_RUNNING,
+    ));
     assert!(completed_at_for_status_value(WORKFLOW_STATUS_COMPLETED, timestamp).is_some());
+    assert!(completed_at_for_status_value(WORKFLOW_STATUS_INTERRUPTED, timestamp).is_some());
     assert!(completed_at_for_status_value(WORKFLOW_STATUS_RUNNING, timestamp).is_none());
 }
 

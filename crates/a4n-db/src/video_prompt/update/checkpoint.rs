@@ -69,7 +69,7 @@ where
         )
         .map_err(VideoDbError::from)?,
     );
-    crate::generation::record_completed_generation_run_with_checkpoint(
+    crate::generation::record_completed_generation_run_with_checkpoint_in(
         &txn,
         generation_run.run,
         generation_run.checkpoint,

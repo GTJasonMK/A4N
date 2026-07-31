@@ -135,18 +135,18 @@ export function ImageGalleryPanel({
               "无图"
             )}
             {stale ? (
-              <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-md bg-warning/90 px-1.5 py-0.5 text-[10px] text-white backdrop-blur-sm">
+              <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-md bg-warning/90 px-1.5 py-0.5 text-caption text-white backdrop-blur-sm">
                 <AlertTriangle size={9} />
                 需更新
               </span>
             ) : null}
           </div>
           <div className="p-2.5">
-            <div className="flex min-w-0 items-center gap-2 text-[10px] text-book-text-muted">
+            <div className="flex min-w-0 items-center gap-2 text-caption text-book-text-muted">
               <span className="min-w-0 flex-1 truncate">{typeLabel}</span>
               {img.ai_score != null ? <span>评分 {img.ai_score.toFixed(2)}</span> : null}
             </div>
-            <div className="mt-1 line-clamp-2 min-h-[2.5rem] text-[11px] leading-relaxed text-book-text-sub">
+            <div className="mt-1 line-clamp-2 min-h-[2.5rem] text-small leading-relaxed text-book-text-sub">
               {img.prompt.trim() || "没有提示词说明"}
             </div>
           </div>
@@ -207,7 +207,7 @@ export function ImageGalleryPanel({
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           {gallerySummary ? (
-            <p className="min-w-0 text-[11px] leading-relaxed text-book-text-muted">
+            <p className="min-w-0 text-small leading-relaxed text-book-text-muted">
               {gallerySummary}
             </p>
           ) : (

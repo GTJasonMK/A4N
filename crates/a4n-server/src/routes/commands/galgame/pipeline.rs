@@ -46,6 +46,7 @@ pub(in crate::routes::commands) async fn start_galgame_pipeline(
     let task_id = input.task_id.clone();
     let task = register_web_task(
         state,
+        user_id,
         task_id.clone(),
         TaskKind::GalgameGeneration,
         Some(input.project_id),

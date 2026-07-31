@@ -1,5 +1,6 @@
 import React from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3 } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { PipelineStatus } from "../../../api/manga";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint, type ChapterRow } from "../shared";
@@ -23,7 +24,7 @@ const chapterPipelineTone = (status: PipelineStatus | null | undefined): string 
 const chapterPipelineIcon = (status: PipelineStatus | null | undefined) => {
   if (status?.pipeline_status === "failed") return <AlertTriangle size={11} />;
   if (status?.pipeline_status === "completed") return <CheckCircle2 size={11} />;
-  if (status?.pipeline_status === "running") return <Loader2 size={11} className="animate-spin" />;
+  if (status?.pipeline_status === "running") return <LoadingSpinner size="sm" />;
   return <Clock3 size={11} />;
 };
 
@@ -45,7 +46,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
     <nav aria-label="漫画章节" className="flex min-h-0 flex-col">
       <div className="mb-2 flex shrink-0 items-baseline gap-2 px-1">
         <h2 className="text-xs font-semibold text-book-text-main">章节</h2>
-        <span className="text-[11px] text-book-text-muted">{chapters.length} 章</span>
+        <span className="text-small text-book-text-muted">{chapters.length} 章</span>
       </div>
       <ul className="flex w-full min-w-0 gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-1 lg:flex-col lg:gap-0 lg:overflow-x-hidden lg:overflow-y-auto lg:rounded-xl lg:border lg:border-book-border/50 lg:bg-book-bg-paper/30">
         {chapters.map((chapter) => {
@@ -75,7 +76,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                   {nonEmptyText(chapter.title) ? ` · ${nonEmptyText(chapter.title)}` : ""}
                 </div>
                 <div
-                  className={`mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-[11px] ${
+                  className={`mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-small ${
                     isSelected ? "text-book-primary" : chapterPipelineTone(status)
                   }`}
                 >
@@ -114,7 +115,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                   </div>
                 ) : status?.message ? (
                   <div
-                    className={`truncate text-[11px] ${
+                    className={`truncate text-small ${
                       isSelected ? "text-book-primary" : "text-book-text-muted"
                     }`}
                   >

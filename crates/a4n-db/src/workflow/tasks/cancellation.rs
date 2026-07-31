@@ -1,11 +1,11 @@
 use super::projections::{
-    generated_video_ids_for_running_checkpoints, is_terminal_workflow_status,
-    normalize_cancel_reason,
+    generated_video_ids_for_active_checkpoints, normalize_cancel_reason,
 };
 use crate::workflow::{
-    CancelWorkflowRunPersistenceResult, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_RUNNING,
-    WorkflowWriteError, trim_workflow_progress_events, validate_positive_i64, workflow_checkpoints,
-    workflow_run_by_id,
+    CancelWorkflowRunPersistenceResult, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
+    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_SUPERSEDED, WorkflowWriteError,
+    is_terminal_workflow_status, locked_workflow_run_by_id, trim_workflow_progress_events,
+    validate_positive_i64, workflow_checkpoints,
 };
 use a4n_core::models::generation::{workflow_checkpoint, workflow_progress_event, workflow_run};
 use chrono::Utc;
@@ -22,21 +22,27 @@ pub async fn cancel_workflow_run_persistence(
 ) -> Result<CancelWorkflowRunPersistenceResult, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     let reason = normalize_cancel_reason(reason);
-    let run = workflow_run_by_id(db, workflow_run_id).await?;
-    let checkpoints = workflow_checkpoints(db, workflow_run_id).await?;
-    let interrupted_generated_video_ids = generated_video_ids_for_running_checkpoints(&checkpoints);
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    if is_terminal_workflow_status(&run.status) {
+        let result = CancelWorkflowRunPersistenceResult {
+            workflow_run_id,
+            active_task_id: run.active_task_id,
+            interrupted_generated_video_ids: Vec::new(),
+            already_terminal: true,
+        };
+        tx.commit().await.map_err(WorkflowWriteError::Database)?;
+        return Ok(result);
+    }
+    let checkpoints = workflow_checkpoints(&tx, workflow_run_id).await?;
     let result = CancelWorkflowRunPersistenceResult {
         workflow_run_id,
         active_task_id: run.active_task_id.clone(),
-        interrupted_generated_video_ids,
-        already_terminal: is_terminal_workflow_status(&run.status),
+        interrupted_generated_video_ids: generated_video_ids_for_active_checkpoints(&checkpoints),
+        already_terminal: false,
     };
-    if result.already_terminal {
-        return Ok(result);
-    }
 
     let now = Utc::now().naive_utc();
-    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     workflow_checkpoint::Entity::update_many()
         .col_expr(
             workflow_checkpoint::Column::Status,
@@ -55,7 +61,12 @@ pub async fn cancel_workflow_run_persistence(
             sea_orm::sea_query::Expr::value(Some(now)),
         )
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
-        .filter(workflow_checkpoint::Column::Status.eq(WORKFLOW_STATUS_RUNNING))
+        .filter(workflow_checkpoint::Column::Status.is_not_in([
+            WORKFLOW_STATUS_COMPLETED,
+            WORKFLOW_STATUS_FAILED,
+            WORKFLOW_STATUS_CANCELLED,
+            WORKFLOW_STATUS_SUPERSEDED,
+        ]))
         .exec(&tx)
         .await
         .map_err(WorkflowWriteError::Database)?;

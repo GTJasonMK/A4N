@@ -114,7 +114,7 @@ async fn image_generation_maps_workflow_run_to_service_trace() {
         request.trace_context.parent_span_id.as_deref(),
         Some("image.generate")
     );
-    assert_eq!(request.payload["project_id"], 42);
+    assert!(request.payload.get("project_id").is_none());
 }
 
 #[test]
@@ -219,7 +219,7 @@ async fn image_provider_preview_uses_typed_capability_request() {
     assert_eq!(request.project_id, Some(42));
     assert_eq!(request.root_project_id, Some(3));
     assert_eq!(request.payload["backend"], "openai-compatible-image");
-    assert_eq!(request.payload["project_id"], 42);
+    assert!(request.payload.get("project_id").is_none());
     assert_eq!(request.payload["request"]["prompt"], "test image");
 }
 

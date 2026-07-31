@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 
 use crate::video::prompt_generation::frame_prompts::{
-    NewChapterVideoPrompt, report_video_prompt_progress,
+    NewChapterVideoPrompt, report_video_prompt_item_committed,
 };
 
 use super::super::boundary_frames::{
@@ -95,6 +95,7 @@ pub(in crate::video::prompt_generation::frame_prompts::frame_chain) async fn gen
             generated_this_run,
             regenerate_existing,
             current_frame_count: frame_prompts.len(),
+            next_frame_number: None,
             kept_prompt_ids: &kept_prompt_ids,
             progress,
         })
@@ -160,10 +161,14 @@ pub(in crate::video::prompt_generation::frame_prompts::frame_chain) async fn gen
         })
         .await?;
         generated_this_run += 1;
-        report_video_prompt_progress(
+        report_video_prompt_item_committed(
             progress,
             frame_progress_span.end(),
             100,
+            spec.frame_prompt_type,
+            frame_number,
+            frame_prompts.len(),
+            expected_frame_count,
             &format!(
                 "边界帧提示词第 {}/{} 张已保存，本批已生成 {} 条",
                 frame_prompts.len(),

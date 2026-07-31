@@ -8,15 +8,14 @@ use std::collections::{BTreeSet, HashMap};
 use super::super::super::galgame::{
     is_valid_galgame_expression, is_valid_galgame_position, normalized_galgame_position,
 };
-use super::super::{
-    params::{
-        generation_spec_params_object, optional_params_string, required_generation_spec_target_id,
-        required_params_i64, required_params_i64_array, required_params_string,
-        required_params_string_array, validate_generation_spec_canonical_key,
-        validate_snapshot_character_profile_id,
-    },
-    targets::validate_generation_spec_galgame_scene_context,
+use crate::project::{
+    generation_spec_params_object, optional_params_string, required_generation_spec_target_id,
+    required_params_i64, required_params_i64_array, required_params_string,
+    required_params_string_array, validate_generation_spec_canonical_key,
+    validate_snapshot_character_profile_id,
 };
+
+use super::super::targets::validate_generation_spec_galgame_scene_context;
 
 pub(super) fn validate_galgame_portrait_spec_params(
     spec: &generation_spec::Model,

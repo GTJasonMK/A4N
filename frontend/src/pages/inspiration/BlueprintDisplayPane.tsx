@@ -1,5 +1,6 @@
 import React from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import type { Blueprint } from "../../api/blueprint";
 
 /** 蓝图展示过渡页（对齐预览 display） */
@@ -13,14 +14,14 @@ export const BlueprintDisplayPane: React.FC<{ blueprint: Blueprint }> = ({ bluep
           </span>
           <div className="min-w-0">
             <h2 className="font-serif text-base font-semibold text-book-text-main">蓝图已确认</h2>
-            <p className="mt-0.5 text-[11px] text-book-text-muted">正在打开项目详情</p>
+            <p className="mt-0.5 text-small text-book-text-muted">正在打开项目详情</p>
           </div>
         </header>
         <p className="mt-4 line-clamp-3 border-t border-book-border/45 pt-4 text-sm leading-relaxed text-book-text-main">
           {blueprint.one_sentence_summary || blueprint.full_synopsis || "项目蓝图已保存。"}
         </p>
         <div className="mt-3 inline-flex items-center gap-1.5 text-xs text-book-text-muted">
-          <Loader2 size={11} className="animate-spin" /> 跳转中…
+          <LoadingSpinner size="sm" /> 跳转中…
         </div>
       </section>
     </div>

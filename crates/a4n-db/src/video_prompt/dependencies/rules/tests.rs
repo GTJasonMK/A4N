@@ -42,13 +42,41 @@ fn prompt(
     }
 }
 
-fn source_metadata(source_hash: &str) -> Value {
+fn source_metadata(
+    source_hash: &str,
+    segment_plan_prompt_id: Option<i64>,
+    segment_number: Option<i64>,
+    recipe_fingerprint: Option<&str>,
+) -> Value {
+    let mut identity = json!({
+        "contract_epoch": 5,
+        "shooting_script_identity": "script-1",
+        "projection_sha256": "projection-1",
+        "segment_plan_sha256": "plan-1",
+        "unit_plan_sha256": "unit-1",
+        "source_content_sha256": source_hash,
+        "style_sha256": "style-1",
+        "duration_secs": 6,
+        "aspect_ratio": "16:9"
+    });
+    if let Some(object) = identity.as_object_mut() {
+        if let Some(value) = segment_plan_prompt_id {
+            object.insert("segment_plan_prompt_id".to_string(), Value::from(value));
+        }
+        if let Some(value) = segment_number {
+            object.insert("segment_number".to_string(), Value::from(value));
+        }
+        if let Some(value) = recipe_fingerprint {
+            object.insert("segment_recipe_fingerprint".to_string(), Value::from(value));
+        }
+    }
     json!({
         "contract_version": "video_prompt_v2",
         "source_prompt_type": "frame_segment_plan",
         "generation_asset_fingerprint": "asset-fingerprint",
         "prompt_output_language": "zh-CN",
-        "source": {"content_sha256": source_hash}
+        "source": {"content_sha256": source_hash},
+        "video_execution_identity": identity
     })
 }
 
@@ -58,13 +86,18 @@ fn generation_chain_requires_scope_style_and_source_identity() {
         1,
         "frame_segment_plan",
         "shared_segment_plan",
-        Some(source_metadata("same-source")),
+        Some(source_metadata("same-source", None, None, None)),
     );
     let video_prompt = prompt(
         2,
         "video_prompt",
         "first_frame_chain",
-        Some(source_metadata("same-source")),
+        Some(source_metadata(
+            "same-source",
+            Some(1),
+            Some(1),
+            Some("recipe-1"),
+        )),
     );
 
     assert_eq!(prompt_stage(&segment_plan), Some(PromptStage::SegmentPlan));
@@ -72,10 +105,47 @@ fn generation_chain_requires_scope_style_and_source_identity() {
     assert!(prompt_same_generation_chain(&segment_plan, &video_prompt));
 
     let mut different_source = video_prompt.clone();
-    different_source.metadata_json = Some(source_metadata("other-source"));
+    different_source.metadata_json = Some(source_metadata(
+        "other-source",
+        Some(1),
+        Some(1),
+        Some("recipe-1"),
+    ));
     assert!(!prompt_same_generation_chain(
         &segment_plan,
         &different_source
+    ));
+
+    let different_segment = prompt(
+        3,
+        "video_prompt",
+        "first_frame_chain",
+        Some(source_metadata(
+            "same-source",
+            Some(1),
+            Some(2),
+            Some("recipe-1"),
+        )),
+    );
+    assert!(!prompt_same_generation_chain(
+        &video_prompt,
+        &different_segment
+    ));
+
+    let different_recipe = prompt(
+        4,
+        "video_prompt",
+        "first_frame_chain",
+        Some(source_metadata(
+            "same-source",
+            Some(1),
+            Some(1),
+            Some("recipe-2"),
+        )),
+    );
+    assert!(!prompt_same_generation_chain(
+        &video_prompt,
+        &different_recipe
     ));
 
     let mut different_project = video_prompt;
@@ -92,13 +162,23 @@ fn frame_reference_chain_requires_generation_asset_fingerprint() {
         2,
         "frame_prompt",
         "boundary_frames",
-        Some(source_metadata("same-source")),
+        Some(source_metadata(
+            "same-source",
+            Some(1),
+            Some(1),
+            Some("recipe-1"),
+        )),
     );
     let previous = prompt(
         1,
         "frame_prompt",
         "boundary_frames",
-        Some(source_metadata("same-source")),
+        Some(source_metadata(
+            "same-source",
+            Some(1),
+            Some(1),
+            Some("recipe-1"),
+        )),
     );
     assert!(prompt_same_frame_reference_chain(&current, &previous));
 

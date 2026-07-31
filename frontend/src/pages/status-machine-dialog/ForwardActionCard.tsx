@@ -1,5 +1,6 @@
 import React from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { statusLabel } from "./statusMachineUtils";
 import type { ProjectStatus } from "../../utils/projectStatus";
@@ -20,7 +21,7 @@ export const ForwardActionCard: React.FC<ForwardActionCardProps> = ({
   return (
     <section className="a4n-context-bar min-w-0 justify-between">
       <div className="min-w-0">
-        <div className="text-[10px] text-book-text-muted">下一阶段</div>
+        <div className="text-caption text-book-text-muted">下一阶段</div>
         <div className="truncate text-xs font-medium text-book-text-main">
           {statusLabel(target)}
         </div>
@@ -34,7 +35,7 @@ export const ForwardActionCard: React.FC<ForwardActionCardProps> = ({
       >
         {acting === actionKey ? (
           <span className="inline-flex items-center gap-1.5">
-            <Loader2 size={13} className="animate-spin" /> 推进中…
+            <LoadingSpinner size="sm" /> 推进中…
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5">

@@ -25,6 +25,7 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
         state,
+        user_id,
         task_id.clone(),
         TaskKind::LlmCall,
         scope.project_id,
@@ -37,6 +38,7 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
     let progress = scene_profile_sync_actions::SceneProfileSyncProgress::new(
         Some(&reporter),
         cancel_token.as_ref(),
+        task_id.as_deref(),
     );
     let result = scene_profile_sync_actions::sync_scene_profiles_for_chapters(
         state.runtime(),

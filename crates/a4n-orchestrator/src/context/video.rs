@@ -290,16 +290,6 @@ impl VideoApplication {
         .map_err(video_db_error)
     }
 
-    pub(super) async fn generated_video_ids_for_chapter(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<i64>, AppError> {
-        a4n_db::video::generated_video_ids_for_chapter(self.connection(), project_id, chapter_id)
-            .await
-            .map_err(video_db_error)
-    }
-
     pub(super) async fn generated_videos_for_chapter(
         &self,
         project_id: i64,
@@ -460,20 +450,6 @@ impl VideoApplication {
         a4n_db::video::chapter_video_prompt_by_id(self.connection(), prompt_id)
             .await
             .map_err(video_db_error)
-    }
-
-    pub(super) async fn chapter_video_prompts_for_chapter_by_id(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
-        a4n_db::video::chapter_video_prompts_for_chapter_by_id(
-            self.connection(),
-            project_id,
-            chapter_id,
-        )
-        .await
-        .map_err(video_db_error)
     }
 
     pub(super) async fn chapter_video_prompts_for_chapter(
@@ -992,16 +968,6 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn generated_video_ids_for_chapter(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<i64>, AppError> {
-        self.video
-            .generated_video_ids_for_chapter(project_id, chapter_id)
-            .await
-    }
-
     pub async fn generated_videos_for_chapter(
         &self,
         project_id: i64,
@@ -1056,7 +1022,7 @@ impl OrchestratorContext {
             }
         };
         let config_id = crate::video::provider_poll_config_id(video)
-            .map_err(|message| AppError::ConfigError(message))
+            .map_err(AppError::ConfigError)
             .and_then(|id| {
                 id.ok_or_else(|| AppError::InvalidState {
                     current: "missing_video_config_identity".to_string(),
@@ -1102,24 +1068,6 @@ impl OrchestratorContext {
         self.video
             .update_generated_video_record(video_id, input)
             .await
-    }
-
-    pub async fn select_segment_video_record(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        shot_number: i32,
-        video_id: i64,
-    ) -> Result<generated_video::Model, AppError> {
-        a4n_db::video::select_segment_video_record(
-            self.database.connection(),
-            project_id,
-            chapter_id,
-            shot_number,
-            video_id,
-        )
-        .await
-        .map_err(crate::video::video_db_error)
     }
 
     pub async fn delete_generated_image_record_with_cleanup(
@@ -1189,7 +1137,11 @@ impl OrchestratorContext {
             )
             .await?;
         if status == "failed" {
-            self.sync_project_asset_lineage(updated.project_id).await?;
+            self.sync_project_asset_lineage_after_commit(
+                updated.project_id,
+                "同步失败视频资产谱系",
+            )
+            .await;
         }
         Ok(updated)
     }
@@ -1254,7 +1206,11 @@ impl OrchestratorContext {
                 prompt_id,
             )
             .await?;
-        self.sync_project_asset_lineage(updated.project_id).await?;
+        self.sync_project_asset_lineage_after_commit(
+            updated.project_id,
+            "同步完成视频资产谱系",
+        )
+        .await;
         Ok(updated)
     }
 
@@ -1286,6 +1242,38 @@ impl OrchestratorContext {
             video_id,
             runs.len(),
             "标记 provider 视频生成失败",
+        )
+        .map_err(AppError::InvalidArgument)?;
+        Ok(updated)
+    }
+
+    /// provider 提交前由用户取消：视频、提示词和关联 generation_run 统一标 cancelled。
+    pub async fn mark_generated_video_cancelled_validated(
+        &self,
+        video_id: i64,
+        prompt_id: Option<i64>,
+        message: &str,
+    ) -> Result<generated_video::Model, AppError> {
+        crate::video::ensure_positive_generated_video_id(video_id)
+            .map_err(AppError::InvalidArgument)?;
+        let message = crate::video::required_generated_video_failure_message(message)
+            .map_err(AppError::InvalidArgument)?;
+        let updated = self
+            .mark_generated_video_error_status_and_prompt(
+                video_id,
+                prompt_id,
+                crate::video::GENERATED_VIDEO_STATUS_CANCELLED,
+                message,
+            )
+            .await?;
+        let runs = self
+            .generation
+            .cancel_generation_runs_for_target("generated_video", video_id, message.to_string())
+            .await?;
+        crate::video::ensure_provider_generation_run_updated(
+            video_id,
+            runs.len(),
+            "取消 provider 视频生成",
         )
         .map_err(AppError::InvalidArgument)?;
         Ok(updated)
@@ -1367,16 +1355,6 @@ impl OrchestratorContext {
             .chapter_video_prompt_by_id(prompt_id)
             .await?
             .ok_or_else(|| AppError::NotFound("视频提示词不存在".to_string()))
-    }
-
-    pub async fn chapter_video_prompts_for_chapter_by_id(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
-        self.video
-            .chapter_video_prompts_for_chapter_by_id(project_id, chapter_id)
-            .await
     }
 
     pub async fn chapter_video_prompts_for_chapter(
@@ -1525,6 +1503,8 @@ impl OrchestratorContext {
         workflow_step_key: &str,
         source: &crate::video::ChapterVideoSource,
         options: &crate::video::ChapterVideoPromptOptions,
+        active_task_id: &str,
+        root_project_id: i64,
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
         let (input, _fingerprint) = crate::video::video_prompt_workflow_run_input(
             workflow_kind,
@@ -1534,9 +1514,14 @@ impl OrchestratorContext {
             workflow_step_key,
             source,
             options,
+            active_task_id,
+            root_project_id,
         )
         .map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(input).await
+        self.claim_exclusive_workflow_run(crate::workflow::ClaimExclusiveWorkflowRunInput {
+            run: input,
+        })
+        .await
     }
 
     /// 视频提示词优化：校验后创建 workflow_run。
@@ -1578,7 +1563,7 @@ impl OrchestratorContext {
             error_message,
         )
         .map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(input).await
+        self.upsert_workflow_run(input).await
     }
 
     /// 视频 provider 进度：校验后创建/恢复 RUNNING workflow_run。
@@ -1587,6 +1572,21 @@ impl OrchestratorContext {
         video: &a4n_core::models::ai::generated_video::Model,
         job_id: &str,
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+        let business_key = crate::video::video_provider_workflow_business_key(video.id)
+            .map_err(AppError::InvalidArgument)?;
+        if let Some(run) = self
+            .latest_workflow_run_by_business_key(&business_key)
+            .await?
+        {
+            return self
+                .mark_workflow_status(
+                    run.id,
+                    crate::workflow::WORKFLOW_STATUS_RUNNING,
+                    true,
+                    None,
+                )
+                .await;
+        }
         let input = crate::video::video_provider_progress_workflow_run_input(video, job_id)
             .map_err(AppError::InvalidArgument)?;
         self.begin_workflow_run_validated(input).await
@@ -1708,15 +1708,36 @@ impl OrchestratorContext {
                 "provider_job_id": job_id,
             }],
         });
-        let run = self
-            .begin_video_provider_workflow_validated(
-                video,
-                job_id,
-                status,
-                can_resume,
-                error_message,
-            )
-            .await?;
+        let business_key = crate::video::video_provider_workflow_business_key(video.id)
+            .map_err(AppError::InvalidArgument)?;
+        let run = match self
+            .latest_workflow_run_by_business_key(&business_key)
+            .await?
+        {
+            Some(run)
+                if run.status == status
+                    && matches!(
+                        status,
+                        crate::workflow::WORKFLOW_STATUS_COMPLETED
+                            | crate::workflow::WORKFLOW_STATUS_FAILED
+                            | crate::workflow::WORKFLOW_STATUS_CANCELLED
+                            | crate::workflow::WORKFLOW_STATUS_SUPERSEDED
+                    ) =>
+            {
+                return Ok(());
+            }
+            Some(run) => run,
+            None => {
+                self.begin_video_provider_workflow_validated(
+                    video,
+                    job_id,
+                    crate::workflow::WORKFLOW_STATUS_RUNNING,
+                    true,
+                    None,
+                )
+                .await?
+            }
+        };
         self.upsert_workflow_checkpoint(a4n_db::workflow::UpsertWorkflowCheckpointInput {
             workflow_run_id: run.id,
             step_key: "provider_job".to_string(),
@@ -1751,6 +1772,8 @@ impl OrchestratorContext {
             },
         )
         .await?;
+        self.mark_workflow_status(run.id, status, can_resume, error_message)
+            .await?;
         Ok(())
     }
 }

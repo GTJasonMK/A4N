@@ -24,7 +24,7 @@ const blueprintField = (label: string, value: string | number | null | undefined
   if (!text) return null;
   return (
     <section className="border-b border-book-border/30 pb-3 last:border-b-0 last:pb-0">
-      <div className="mb-1 text-[11px] font-semibold text-book-text-muted">{label}</div>
+      <div className="mb-1 text-small font-semibold text-book-text-muted">{label}</div>
       <div className="whitespace-pre-wrap text-xs leading-relaxed text-book-text-main">{text}</div>
     </section>
   );
@@ -101,7 +101,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
         <button
           type="button"
           onClick={() => setBlueprintDetailOpen(true)}
-          className="a4n-flat-surface block w-full px-3 py-2.5 text-left text-[11px] transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
+          className="a4n-flat-surface block w-full px-3 py-2.5 text-left text-small transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
           disabled={!blueprint || !!blueprintError}
           title="查看故事蓝图"
         >
@@ -109,7 +109,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
             <Sparkles size={12} className="shrink-0 text-book-primary" />
             <span className="font-semibold text-book-text-main">故事蓝图</span>
             {progress != null ? (
-              <span className="ml-auto text-[10px] text-book-text-muted">
+              <span className="ml-auto text-caption text-book-text-muted">
                 {chapterCount} / {totalChapters} 章
               </span>
             ) : null}
@@ -144,7 +144,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
         <button
           type="button"
           onClick={onOpenProfiles}
-          className="a4n-flat-surface flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[11px] text-book-text-sub transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
+          className="a4n-flat-surface flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-small text-book-text-sub transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
           disabled={!onOpenProfiles}
           title="打开角色档案工作台"
         >
@@ -167,7 +167,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
             <div className="flex items-center gap-2">
               <Users size={12} className="shrink-0 text-book-primary" />
               <span className="font-semibold text-book-text-main">角色档案</span>
-              <span className="ml-auto text-[10px] text-book-text-muted">
+              <span className="ml-auto text-caption text-book-text-muted">
                 {profileCount > 0 ? `${profileCount} 位` : "尚无角色"}
               </span>
             </div>

@@ -1,9 +1,10 @@
 use crate::registry::{
-    PROTOCOL_VERSION, expected_capability_label_for_service,
+    PROTOCOL_VERSION, egress_data_type_for_service, expected_capability_label_for_service,
     expected_capability_version_for_service, required_secret_policy_for_service,
 };
 use crate::request::ServiceRequest;
 use crate::response::ServiceError;
+use crate::validate_egress_scope;
 
 use super::context::validate_service_request_context;
 use super::errors::{unauthorized_error, version_mismatch_error};
@@ -86,4 +87,17 @@ pub fn validate_known_service_request_envelope<T>(
         capability_label,
         required_secret_policy,
     )
+}
+
+pub fn validate_known_service_request<T>(
+    request: &ServiceRequest<T>,
+    service: &str,
+) -> Result<(), ServiceError> {
+    validate_known_service_request_envelope(request, service)?;
+    let data_type = egress_data_type_for_service(service).ok_or_else(|| {
+        version_mismatch_error(format!(
+            "unknown sidecar service for egress policy: {service}"
+        ))
+    })?;
+    validate_egress_scope(service, data_type, &request.secret_policy.scope).map(|_| ())
 }

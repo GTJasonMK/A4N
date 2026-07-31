@@ -1,8 +1,9 @@
 use super::super::GalgameMediaBindingResult;
 use super::ImportGalgameAudioInput;
 use crate::{
-    AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
-    file_utils::persist_created_media_file,
+    AppState,
+    cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
+    file_utils::{persist_created_media_file, probe_created_audio_duration},
 };
 use a4n_core::files::paths::ProjectPaths;
 use a4n_orchestrator::galgame::{GalgameAudioHostPort, PersistedGalgameAudioFile};
@@ -38,11 +39,13 @@ impl GalgameAudioHostPort for RuntimeGalgameAudioHostPort<'_> {
         extension: &str,
         bytes: &[u8],
     ) -> Result<PersistedGalgameAudioFile, String> {
-        let (_, relative_path, file_size) =
+        let (path, relative_path, file_size) =
             persist_imported_galgame_audio(self.state.data_dir(), project_id, extension, bytes)?;
+        let duration_secs = probe_created_audio_duration(&path, "Galgame 音频文件")?;
         Ok(PersistedGalgameAudioFile {
             relative_path,
             file_size,
+            duration_secs,
         })
     }
 

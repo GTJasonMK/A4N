@@ -51,10 +51,6 @@ impl ConfigApplication {
         Self { database }
     }
 
-    async fn list_themes(&self) -> Result<Vec<theme_config::Model>, AppError> {
-        a4n_db::config::list_themes(self.database.connection()).await
-    }
-
     async fn list_user_themes(&self, user_id: i64) -> Result<Vec<theme_config::Model>, AppError> {
         a4n_db::config::list_user_themes(self.database.connection(), user_id).await
     }
@@ -64,10 +60,6 @@ impl ConfigApplication {
         user_id: i64,
     ) -> Result<Vec<theme_config::Model>, AppError> {
         a4n_db::config::list_themes_visible_to_user(self.database.connection(), user_id).await
-    }
-
-    async fn system_default_theme(&self) -> Result<Option<theme_config::Model>, AppError> {
-        a4n_db::config::system_default_theme(self.database.connection()).await
     }
 
     async fn theme_by_id(&self, theme_id: i64) -> Result<Option<theme_config::Model>, AppError> {
@@ -817,10 +809,6 @@ fn settings_all_config_import_error(
 }
 
 impl OrchestratorContext {
-    pub async fn list_themes(&self) -> Result<Vec<theme_config::Model>, AppError> {
-        self.settings.list_themes().await
-    }
-
     pub async fn list_user_themes(
         &self,
         user_id: i64,
@@ -833,10 +821,6 @@ impl OrchestratorContext {
         user_id: i64,
     ) -> Result<Vec<theme_config::Model>, AppError> {
         self.settings.list_themes_visible_to_user(user_id).await
-    }
-
-    pub async fn system_default_theme(&self) -> Result<Option<theme_config::Model>, AppError> {
-        self.settings.system_default_theme().await
     }
 
     pub async fn theme_by_id(

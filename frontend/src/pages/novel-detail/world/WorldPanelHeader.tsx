@@ -1,5 +1,6 @@
 import React from "react";
-import { Edit3, Loader2, ScrollText } from "lucide-react";
+import { Edit3, ScrollText } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import type { WorldObject } from "./worldTabUtils";
@@ -48,7 +49,7 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
         <h2 className="text-sm font-semibold text-book-text-main">
           {editing ? "编辑世界观" : "世界观设定"}
         </h2>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+        <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
           {description}
         </p>
       </div>
@@ -97,7 +98,7 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
             >
               {saving ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={13} className="animate-spin" /> 保存中…
+                  <LoadingSpinner size="sm" /> 保存中…
                 </span>
               ) : (
                 "保存世界观"

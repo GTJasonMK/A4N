@@ -55,7 +55,9 @@ pub use registry::{
     expected_capability_version_for_service, known_service_health, known_service_health_for_host,
     required_secret_policy_for_service, service_for_capability_version,
 };
-pub use release::{ReleaseBinaryManifest, ReleaseManifest, ReleaseRuntimeFileManifest};
+pub use release::{
+    ReleaseBinaryManifest, ReleaseManifest, ReleaseRuntimeFileManifest, ReleaseToolManifest,
+};
 pub use request::{
     SchemaVersion, SecretForwardingPolicy, SecretMaterialScope, ServiceRequest,
     ServiceRequestContext, TraceContext,
@@ -72,7 +74,7 @@ pub use sanitization::{
     sanitize_capability_task_event, sanitize_service_response,
 };
 pub use validation::{
-    RequiredSecretPolicy, validate_known_service_request_envelope,
+    RequiredSecretPolicy, validate_known_service_request, validate_known_service_request_envelope,
     validate_provider_api_key_secret_policy, validate_service_request_context,
     validate_service_request_envelope,
 };

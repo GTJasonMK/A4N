@@ -112,7 +112,7 @@ impl OrchestratorContext {
                 LocalVideoPromptPreviewMode::FirstFrameChain => prompt_values_by_shot(
                     reusable_first_frame_video_prompts_from_rows(&matching_video_prompts)?,
                 )?,
-                LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => prompt_values_by_shot(
+                LocalVideoPromptPreviewMode::ChatVideo => prompt_values_by_shot(
                     reusable_chat_video_prompts_from_rows(&matching_video_prompts)?,
                 )?,
                 LocalVideoPromptPreviewMode::Storyboard => prompt_values_by_shot(
@@ -175,7 +175,7 @@ impl OrchestratorContext {
             LocalVideoPromptPreviewMode::FirstFrameChain => {
                 build_first_frame_video_prompt_user(final_prompt_context).await
             }
-            LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => {
+            LocalVideoPromptPreviewMode::ChatVideo => {
                 build_chat_video_prompt_user(final_prompt_context).await
             }
             LocalVideoPromptPreviewMode::Storyboard => {
@@ -201,9 +201,7 @@ impl OrchestratorContext {
             None,
         )?;
         Ok(match spec.mode {
-            LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => {
-                preview_chat_video_prompt_from_steps(steps)
-            }
+            LocalVideoPromptPreviewMode::ChatVideo => preview_chat_video_prompt_from_steps(steps),
             LocalVideoPromptPreviewMode::Storyboard => {
                 preview_storyboard_video_prompt_from_steps(steps)
             }

@@ -4,17 +4,17 @@ use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use crate::video::prompt_generation::ProgressSpan;
-use crate::video::prompt_generation::frame_prompts::FramePromptGenerationSpec;
+use crate::video::prompt_generation::frame_prompts::{FramePromptGenerationSpec, VideoSegmentPlan};
 use crate::video::{
     ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSourceContext,
     OrchestratorContext,
 };
 use a4n_core::source_spans::SourceSpan;
+use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 use a4n_prompt::rendering::PromptRenderer;
 
-pub(in crate::video::prompt_generation::frame_prompts) struct SegmentPlanForSpecInput<'a, 'source> {
+pub(in crate::video::prompt_generation::frame_prompts) struct SharedSegmentPlanInput<'a, 'source> {
     pub service: &'a OrchestratorContext,
-    pub spec: &'a FramePromptGenerationSpec,
     pub stage: ChapterVideoPromptStageInput<'a, 'source>,
 }
 
@@ -41,6 +41,9 @@ pub(in crate::video::prompt_generation::frame_prompts) struct ShootingScriptProj
     pub source_spans: &'a [SourceSpan],
     pub project_context: Option<&'a Value>,
     pub style: &'a str,
+    pub prompt_output_language: &'a str,
+    pub previous_segment_plan: Option<&'a [VideoSegmentPlan]>,
+    pub previous_segment_recipes: Option<&'a [VideoSegmentExecutionRecipeV1]>,
     pub duration_secs: i32,
     pub aspect_ratio: &'a str,
     pub prompt_renderer: &'a dyn PromptRenderer,

@@ -68,7 +68,9 @@ fn preview_options() -> ChapterVideoPromptOptions {
         style: "电影感写实".to_string(),
         prompt_output_language: PromptOutputLanguage::ZhCn,
         prompt_batch_size: 1,
+        segment_plan_prompt_id: None,
         target_shot_number: None,
+        segment_recipe: None,
         duration_secs: 4,
         duration_secs_options: vec![4],
         aspect_ratio: "16:9".to_string(),
@@ -329,6 +331,9 @@ async fn store_matching_video_prompt(
     status: &str,
 ) {
     let contract_version = match workflow_mode {
+        PromptWorkflowMode::SharedSegmentPlan => {
+            panic!("shared segment plan 不是最终视频提示词模式")
+        }
         PromptWorkflowMode::BoundaryFrames => FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
         PromptWorkflowMode::FirstFrameChain => FIRST_FRAME_CHAIN_CONTRACT_VERSION,
         PromptWorkflowMode::Storyboard => STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION,

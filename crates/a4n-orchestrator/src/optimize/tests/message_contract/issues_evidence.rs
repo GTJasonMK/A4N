@@ -7,16 +7,6 @@ fn parse_content_optimization_issues_rejects_markdown_fence() {
 }
 
 #[test]
-fn optimize_streaming_rejects_max_tokens_finish_reason() {
-    let err = super::super::streaming::ensure_optimize_response_not_truncated(Some("max_tokens"))
-        .expect_err("max_tokens finish reason must fail before JSON parsing");
-
-    assert!(matches!(err, AppError::InvalidArgument(_)));
-    assert!(err.to_string().contains("max_tokens"));
-    assert!(err.to_string().contains("JSON"));
-}
-
-#[test]
 fn parse_content_optimization_issues_rejects_empty_response_clearly() {
     let err =
         parse_content_optimization_issues(" \n\t ").expect_err("empty response must fail clearly");

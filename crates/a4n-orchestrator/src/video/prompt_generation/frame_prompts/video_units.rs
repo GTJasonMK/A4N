@@ -54,6 +54,36 @@ pub(in crate::video) fn video_units_for_segment_plan(
     Ok(units)
 }
 
+pub(in crate::video) fn video_unit_for_target_segment(
+    segment_plan: &[VideoSegmentPlan],
+    duration_secs: i32,
+    target_segment_number: i32,
+) -> Result<VideoUnitPlan, AppError> {
+    let segment = segment_plan
+        .iter()
+        .find(|segment| segment.segment_number == target_segment_number)
+        .ok_or_else(|| {
+            AppError::InvalidArgument(format!("片段规划中不存在目标片段 {target_segment_number}"))
+        })?;
+    if segment.duration_secs != duration_secs {
+        return Err(AppError::InvalidArgument(format!(
+            "目标片段 {target_segment_number} 时长与当前视频单元时长不一致"
+        )));
+    }
+    let mut units = Vec::with_capacity(1);
+    push_content_unit(&mut units, segment, duration_secs)?;
+    let mut unit = units.pop().expect("target content unit was just pushed");
+    let end_frame_number = target_segment_number
+        .checked_add(1)
+        .ok_or_else(|| AppError::InvalidArgument("目标片段编号超过边界帧可表示范围".to_string()))?;
+    unit.unit_number = target_segment_number;
+    unit.start_frame_number = Some(target_segment_number);
+    unit.end_frame_number = Some(end_frame_number);
+    unit.storyboard_number = Some(target_segment_number);
+    unit.prompt_segment.segment_number = target_segment_number;
+    Ok(unit)
+}
+
 fn push_content_unit(
     units: &mut Vec<VideoUnitPlan>,
     segment: &VideoSegmentPlan,

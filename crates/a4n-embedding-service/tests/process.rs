@@ -393,7 +393,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
                 .await
         });
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            while event_rx.len() == 0 {
+            while event_rx.is_empty() {
                 tokio::task::yield_now().await;
             }
         })

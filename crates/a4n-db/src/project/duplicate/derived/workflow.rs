@@ -24,7 +24,7 @@ pub(super) async fn copy_derived_workflow_records<C, Copier>(
 ) -> Result<(), ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: DerivedProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier,
 {
     let copied_specs = copy_derived_generation_specs(
         db,

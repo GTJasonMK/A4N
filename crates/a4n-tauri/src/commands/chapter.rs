@@ -23,6 +23,7 @@ macro_rules! tauri_chapter_progress_command {
             $($prepare;)*
             let progress_task = crate::progress_task::WorkflowProgressTask::new(
                 $state.inner(),
+                Some($user_id),
                 task_id,
                 a4n_core::event::channel::TaskKind::LlmCall,
                 Some($project_id),

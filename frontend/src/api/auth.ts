@@ -23,11 +23,6 @@ import type {
 } from "./generated/auth";
 
 export type {
-  ChangePasswordInput,
-  LoginInput,
-  RefreshTokenInput,
-  RegisterInput,
-  TokenPairSummary,
   UpdateProfileInput,
 } from "./generated/auth";
 
@@ -170,16 +165,6 @@ export async function listSessions(): Promise<SessionSummary[]> {
   const userId = readCurrentUserId();
   if (userId == null) return [];
   return apiInvoke<SessionSummary[]>("list_sessions", { userId });
-}
-
-/** 后端 revoke_session(user_id, session_id) */
-export async function revokeSession(sessionId = readCurrentSessionId()): Promise<void> {
-  const userId = readCurrentUserId();
-  if (userId == null || !sessionId) throw new Error("当前会话不存在");
-  await apiInvoke<void>("revoke_session", { userId, sessionId });
-  if (sessionId === readCurrentSessionId()) {
-    clearCurrentAuth();
-  }
 }
 
 export async function oauth2AuthorizeUrl(provider: string): Promise<string> {

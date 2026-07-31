@@ -1,14 +1,6 @@
 use super::RagDataType;
 
 impl RagDataType {
-    pub const CHAPTER_DERIVED: [RagDataType; 5] = [
-        RagDataType::Chapter,
-        RagDataType::ChapterSummary,
-        RagDataType::ChapterMetadata,
-        RagDataType::KeyEvent,
-        RagDataType::Foreshadowing,
-    ];
-
     pub const INGESTABLE: [RagDataType; 15] = [
         RagDataType::Chapter,
         RagDataType::Foreshadowing,

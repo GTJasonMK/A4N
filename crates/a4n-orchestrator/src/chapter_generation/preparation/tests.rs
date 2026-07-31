@@ -126,7 +126,8 @@ fn merge_generation_outline_text_formats_required_title() {
     )
     .expect("valid outline should format");
 
-    assert!(text.contains("章节: 第2章《星门余烬》"));
+    assert!(text.contains("章节编号: 第2章"));
+    assert!(text.contains("章节标题: 星门余烬"));
     assert!(text.contains("大纲摘要: 旧城暗线浮出水面"));
     assert!(text.contains("## 写作指令\n强调悬疑节奏"));
 }

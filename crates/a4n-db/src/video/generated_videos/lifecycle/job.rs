@@ -3,7 +3,10 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set, TransactionTrait};
 use serde_json::Value;
 
-use super::context::{generated_video_with_prompt_record, update_prompt_status_record};
+use super::context::{
+    ensure_generated_video_status_mutable, generated_video_with_prompt_record,
+    update_prompt_status_record,
+};
 use crate::video::{VideoDbError, merge_video_provider_response_metadata};
 
 async fn mark_generated_video_job_and_prompt_record_in<C>(
@@ -23,6 +26,7 @@ where
         ));
     }
     let (video, prompt) = generated_video_with_prompt_record(db, video_id, prompt_id).await?;
+    ensure_generated_video_status_mutable(&video.status, "绑定视频 provider job")?;
     let existing_metadata = video.metadata_json.clone();
     let mut active: generated_video::ActiveModel = video.into();
     active.status = Set("running".to_string());

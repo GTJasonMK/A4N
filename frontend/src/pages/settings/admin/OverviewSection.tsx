@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import {
   getAdminOverview,
   healthCheck,
@@ -13,45 +14,23 @@ import { useAdminSectionLoader } from "./useAdminSectionLoader";
 export const OverviewSection: React.FC<{ callerUserId: number }> = ({ callerUserId }) => {
   const [overview, setOverview] = useState<AdminOverviewSummary | null>(null);
   const [health, setHealth] = useState<AdminHealthCheck | null>(null);
-  const activeCallerUserIdRef = useRef(callerUserId);
-  const mountedRef = useRef(true);
-  const loadSeqRef = useRef(0);
-
-  activeCallerUserIdRef.current = callerUserId;
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const isCurrentLoad = useCallback((requestCallerUserId: number, seq: number) => {
-    return (
-      mountedRef.current &&
-      activeCallerUserIdRef.current === requestCallerUserId &&
-      loadSeqRef.current === seq
-    );
-  }, []);
-
-  const loadOverview = useCallback(async () => {
-    const requestCallerUserId = callerUserId;
-    const requestSeq = loadSeqRef.current + 1;
-    loadSeqRef.current = requestSeq;
-    try {
-      const [o, h] = await Promise.all([
-        getAdminOverview(requestCallerUserId),
-        healthCheck(requestCallerUserId),
-      ]);
-      if (!isCurrentLoad(requestCallerUserId, requestSeq)) return;
-      setOverview(o);
-      setHealth(h);
-    } catch (err) {
-      if (!isCurrentLoad(requestCallerUserId, requestSeq)) return;
-      throw err;
-    }
-  }, [callerUserId, isCurrentLoad]);
-  const { loading, load } = useAdminSectionLoader(loadOverview, "加载失败");
+  const loadOverview = useCallback(
+    () => Promise.all([getAdminOverview(callerUserId), healthCheck(callerUserId)]),
+    [callerUserId],
+  );
+  const applyOverview = useCallback(
+    ([nextOverview, nextHealth]: [AdminOverviewSummary, AdminHealthCheck]) => {
+      setOverview(nextOverview);
+      setHealth(nextHealth);
+    },
+    [],
+  );
+  const { loading, load } = useAdminSectionLoader(
+    callerUserId,
+    loadOverview,
+    applyOverview,
+    "加载失败",
+  );
 
   useEffect(() => {
     setOverview(null);
@@ -141,15 +120,15 @@ const ServiceHealthPanel: React.FC<{ health: AdminHealthCheck | null; loading: b
     <section>
       <div className="mb-2 flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 px-1">
         <h3 className="text-xs font-medium text-book-text-main">系统健康</h3>
-        <span className="min-w-0 flex-1 text-right text-[11px] text-book-text-muted">
+        <span className="min-w-0 flex-1 text-right text-small text-book-text-muted">
           {health?.runtime_profile ? `${serviceModeLabel(health.runtime_profile)} · ` : ""}
           {services.length > 0 ? `${healthyCount}/${services.length} 项正常` : "暂无数据"}
         </span>
       </div>
 
       {loading && services.length === 0 ? (
-        <div className="a4n-flat-surface inline-flex w-full items-center justify-center gap-1.5 py-4 text-[11px] text-book-text-muted">
-          <Loader2 size={12} className="animate-spin" />
+        <div className="a4n-flat-surface inline-flex w-full items-center justify-center gap-1.5 py-4 text-small text-book-text-muted">
+          <LoadingSpinner size="sm" />
           正在加载数据…
         </div>
       ) : services.length === 0 ? (
@@ -178,12 +157,12 @@ const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }
     >
       <div className="flex min-w-0 items-center gap-3">
         <div className="min-w-0 flex-1 font-medium text-book-text-main">{service.name}</div>
-        <span className={`inline-flex shrink-0 items-center gap-1 text-[11px] ${service.healthy ? "text-success" : "text-error"}`}>
+        <span className={`inline-flex shrink-0 items-center gap-1 text-small ${service.healthy ? "text-success" : "text-error"}`}>
           {service.healthy ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
           {service.healthy ? "正常" : "异常"}
         </span>
       </div>
-      <details className="group mt-1.5 text-[11px] text-book-text-muted">
+      <details className="group mt-1.5 text-small text-book-text-muted">
         <summary className="w-fit cursor-pointer select-none rounded px-1 py-0.5 transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main">
           诊断详情
         </summary>
@@ -263,7 +242,7 @@ const PidCell: React.FC<{ service: AdminServiceHealth }> = ({ service }) => {
 };
 
 const VersionLines: React.FC<{ service: AdminServiceHealth }> = ({ service }) => (
-  <div className="space-y-0.5 font-mono text-[11px] leading-snug text-book-text-sub">
+  <div className="space-y-0.5 font-mono text-small leading-snug text-book-text-sub">
     <div className="truncate" title={service.service_version ?? ""}>
       服务 {service.service_version ?? "—"}
     </div>

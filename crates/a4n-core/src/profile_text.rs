@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 pub fn required_text(value: &str, field_name: &str) -> Result<String, AppError> {
@@ -36,6 +37,22 @@ pub fn normalize_aliases(aliases: Vec<String>) -> Vec<String> {
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
+}
+
+pub fn merge_profile_evidence_json(existing: &Value, incoming: &Value) -> Value {
+    let values = existing
+        .as_array()
+        .into_iter()
+        .flatten()
+        .chain(incoming.as_array().into_iter().flatten())
+        .filter_map(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    json!(values)
 }
 
 pub fn normalize_required_text_set(
@@ -90,6 +107,17 @@ mod tests {
             .expect_err("unknown importance should remain visible");
         assert!(
             matches!(err, AppError::InvalidArgument(message) if message.contains("重要性无效"))
+        );
+    }
+
+    #[test]
+    fn profile_evidence_merge_normalizes_and_deduplicates_text() {
+        assert_eq!(
+            merge_profile_evidence_json(
+                &json!([" 旧证据 ", "重复", null]),
+                &json!(["重复", "", "新证据"]),
+            ),
+            json!(["新证据", "旧证据", "重复"])
         );
     }
 }

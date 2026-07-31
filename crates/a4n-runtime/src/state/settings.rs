@@ -29,16 +29,6 @@ impl<'a> SettingsRuntimeFacade<'a> {
         Self { orchestrator }
     }
 
-    pub(crate) async fn list_themes(&self) -> Result<Vec<theme_config::Model>, AppError> {
-        self.orchestrator.list_themes().await
-    }
-
-    pub(crate) async fn system_default_theme(
-        &self,
-    ) -> Result<Option<theme_config::Model>, AppError> {
-        self.orchestrator.system_default_theme().await
-    }
-
     pub(crate) async fn create_theme_for_user_validated(
         &self,
         user_id: i64,

@@ -1,6 +1,6 @@
 //! 视频生成 job 状态推进纯规则（poll / 失败 / submit 落库门禁）。
 
-use a4n_core::models::ai::generated_video;
+use a4n_core::{error::AppError, models::ai::generated_video};
 
 /// provider 轮询等待中。
 pub const GENERATED_VIDEO_WAITING_STATUS_PENDING: &str = "pending";
@@ -14,6 +14,21 @@ pub const GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED: &str = "interrupted";
 pub const GENERATED_VIDEO_STATUS_COMPLETED: &str = "completed";
 /// 用户取消终态。
 pub const GENERATED_VIDEO_STATUS_CANCELLED: &str = "cancelled";
+
+pub fn can_adopt_authoritative_video_completion(error: &AppError) -> bool {
+    matches!(error, AppError::Database(_))
+        || matches!(
+            error,
+            AppError::InvalidState { current, .. }
+                if matches!(
+                    current.as_str(),
+                    GENERATED_VIDEO_STATUS_COMPLETED
+                        | GENERATED_VIDEO_ERROR_STATUS_FAILED
+                        | GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED
+                        | GENERATED_VIDEO_STATUS_CANCELLED
+                )
+        )
+}
 
 /// 校验「等待中」状态仅允许 pending / running。
 pub fn validate_generated_video_waiting_status(status: &str) -> Result<(), String> {
@@ -50,7 +65,7 @@ pub fn normalized_provider_job_id(provider_job_id: Option<&str>) -> Option<&str>
 }
 
 /// 提交 job 时要求非空 job id（trim 后）。
-pub fn required_provider_job_id<'a>(provider_job_id: &'a str) -> Result<&'a str, String> {
+pub fn required_provider_job_id(provider_job_id: &str) -> Result<&str, String> {
     normalized_provider_job_id(Some(provider_job_id))
         .ok_or_else(|| "provider job id 不能为空".to_string())
 }
@@ -304,6 +319,19 @@ mod tests {
         assert_eq!(active_provider_job_id(Some("job-1"), "completed"), None);
         assert!(has_active_provider_job(Some("job-1"), "pending"));
         assert!(!has_active_provider_job(Some("job-1"), "failed"));
+    }
+
+    #[test]
+    fn authoritative_completion_only_recovers_ambiguous_or_terminal_conflicts() {
+        assert!(can_adopt_authoritative_video_completion(
+            &AppError::InvalidState {
+                current: "completed".to_string(),
+                operation: "重复完成".to_string(),
+            }
+        ));
+        assert!(!can_adopt_authoritative_video_completion(
+            &AppError::InvalidArgument("提示词不匹配".to_string())
+        ));
     }
 
     #[test]

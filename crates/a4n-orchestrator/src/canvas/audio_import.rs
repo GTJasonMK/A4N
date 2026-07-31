@@ -27,6 +27,7 @@ pub struct PersistedCanvasAudioFile {
     pub relative_path: String,
     pub source_file_name: String,
     pub mime_type: Option<String>,
+    pub duration_secs: f32,
 }
 
 #[async_trait]
@@ -82,7 +83,7 @@ impl OrchestratorContext {
                 thumbnail_path: None,
                 width: None,
                 height: None,
-                duration_secs: None,
+                duration_secs: Some(persisted.duration_secs),
                 fps: None,
                 status: MEDIA_STATUS_COMPLETED.to_string(),
                 error_message: None,
@@ -99,6 +100,7 @@ impl OrchestratorContext {
                         "media_kind": "audio",
                         "file_name": persisted.source_file_name,
                         "mime_type": persisted.mime_type,
+                        "duration_secs": persisted.duration_secs,
                         "imported_at": Utc::now().to_rfc3339(),
                     })),
                 },

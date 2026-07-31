@@ -145,6 +145,7 @@ impl OrchestratorContext {
         auto_context: bool,
         context_limit: Option<i64>,
         variables: &std::collections::HashMap<String, serde_json::Value>,
+        active_task_id: Option<&str>,
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
         let input = crate::import_reverse::import_reverse_workflow_run_input(
             project_id,
@@ -154,6 +155,7 @@ impl OrchestratorContext {
             auto_context,
             context_limit,
             variables,
+            active_task_id,
         )
         .map_err(AppError::InvalidArgument)?;
         self.begin_workflow_run_validated(input).await

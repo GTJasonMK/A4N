@@ -4,7 +4,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/../.." && pwd)"
-manifest_path="${repo_root}/docs/重构/全量增量生成迁移清单.md"
+manifest_path="${repo_root}/scripts/checks/generation-path-inventory.txt"
 mode="report"
 
 usage() {
@@ -164,11 +164,7 @@ missing_keys="${tmp_dir}/missing.keys"
 stale_keys="${tmp_dir}/stale.keys"
 
 awk -F '\t' 'NR > 1 { print $1 "|" $2 }' "${inventory}" | sort -u >"${actual_keys}"
-awk '
-  /<!-- generation-inventory-keys:start -->/ { in_block = 1; next }
-  /<!-- generation-inventory-keys:end -->/ { in_block = 0; next }
-  in_block && /^[a-z_]+\|[^|]+$/ { print }
-' "${manifest_path}" | sort -u >"${declared_keys}"
+awk '/^[a-z_]+\|[^|]+$/ { print }' "${manifest_path}" | sort -u >"${declared_keys}"
 
 comm -23 "${actual_keys}" "${declared_keys}" >"${missing_keys}"
 comm -13 "${actual_keys}" "${declared_keys}" >"${stale_keys}"

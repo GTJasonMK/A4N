@@ -82,11 +82,17 @@ async fn generate_chapter_scene_with_progress(
             progress.progress(current, total, message);
             progress
                 .check_cancelled("场景生成已停止")
-                .map_err(a4n_core::error::AppError::InvalidArgument)?;
+                .map_err(|_| a4n_core::error::AppError::Cancelled)?;
         }
         Ok(())
     };
-    chapter_scene_actions::generate_chapter_scene(state, user_id, input, &reporter)
+    chapter_scene_actions::generate_chapter_scene(
+        state,
+        user_id,
+        input,
+        &reporter,
+        progress.and_then(WorkflowProgressTask::task_id),
+    )
         .await
         .map_err(|err| err.to_string())
 }

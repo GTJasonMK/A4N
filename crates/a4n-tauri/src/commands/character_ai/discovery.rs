@@ -22,6 +22,7 @@ pub async fn discover_character_profiles(
     .await?;
     let progress_task = crate::progress_task::WorkflowProgressTask::new(
         state.inner(),
+        Some(user_id),
         task_id,
         a4n_core::event::channel::TaskKind::LlmCall,
         Some(scope.project_id),
@@ -30,8 +31,11 @@ pub async fn discover_character_profiles(
     );
     let cancel_token = progress_task.cancel_token();
     let reporter = |current, total, message: &str| progress_task.progress(current, total, message);
-    let runtime_progress =
-        character_ai_actions::CharacterAiProgress::new(Some(&reporter), Some(&cancel_token));
+    let runtime_progress = character_ai_actions::CharacterAiProgress::new(
+        Some(&reporter),
+        Some(&cancel_token),
+        progress_task.task_id(),
+    );
     let result = character_ai_actions::discover_character_profiles_for_chapters(
         state.inner(),
         user_id,

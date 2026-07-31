@@ -5,8 +5,8 @@ use sea_orm::{
 };
 
 use crate::project::duplicate::{
-    ProjectDuplicateError,
-    freeform::{FreeformGeneratedImageCopyRecords, FreeformProjectMediaFileCopier},
+    ProjectDuplicateError, freeform::FreeformGeneratedImageCopyRecords,
+    shared::ProjectMediaFileCopier,
 };
 
 pub(super) async fn copy_freeform_generated_images_record<C, Copier>(
@@ -18,7 +18,7 @@ pub(super) async fn copy_freeform_generated_images_record<C, Copier>(
 ) -> Result<FreeformGeneratedImageCopyRecords, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: FreeformProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier,
 {
     let images = generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.eq(source_project_id))

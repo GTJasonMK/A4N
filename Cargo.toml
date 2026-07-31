@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/a4n-cli",
     "crates/a4n-api-contract",
     "crates/a4n-core",
     "crates/a4n-test-support",
@@ -48,6 +49,9 @@ members = [
 license = "Apache-2.0"
 
 [workspace.dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
 # 异步运行时
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"

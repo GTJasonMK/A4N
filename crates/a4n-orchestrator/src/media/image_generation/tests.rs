@@ -21,6 +21,7 @@ use a4n_db::{
 };
 use a4n_image::{ImageGenerationRequest, ImageReference};
 use async_trait::async_trait;
+use base64::Engine as _;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
@@ -35,8 +36,29 @@ use super::{
     ImageGenerationExecutionInput, ImageGenerationHostPort, ImageGenerationPostCommitAction,
     ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
     ImageGenerationWorkflowBinding, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
-    image_generation_request_trace_json, trace::test_image_request_aspect_ratio,
+    application::check_progress_cancelled, image_generation_request_trace_json,
+    trace::test_image_request_aspect_ratio,
 };
+
+const PNG_1X1_B64: &str =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+fn png_1x1_bytes() -> Vec<u8> {
+    base64::engine::general_purpose::STANDARD
+        .decode(PNG_1X1_B64)
+        .expect("测试 PNG 应有效")
+}
+
+#[test]
+fn cancelled_image_progress_preserves_cancelled_error() {
+    let token = CancellationToken::new();
+    token.cancel();
+
+    let error = check_progress_cancelled(&ImageGenerationProgress::new(None, Some(&token)))
+        .expect_err("已取消的图片任务必须返回 cancelled");
+
+    assert!(matches!(error, AppError::Cancelled));
+}
 
 #[test]
 fn profile_image_inputs_enforce_documented_contract() {
@@ -144,7 +166,7 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
             });
         }
         Ok(ImageGenerationProviderOutput {
-            bytes: vec![1, 2, 3, 4, 5],
+            bytes: png_1x1_bytes(),
             format: "png".to_string(),
             model: "test-provider-model".to_string(),
         })
@@ -197,7 +219,7 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
         Ok(super::GeneratedImageArtifactFile {
             content_type: "image/png".to_string(),
             sha256: "test-sha256".to_string(),
-            byte_size: 5,
+            byte_size: png_1x1_bytes().len() as u64,
         })
     }
 
@@ -391,6 +413,7 @@ async fn image_generation_application_persists_complete_trace() {
     assert!(!outcome.restored);
     assert_eq!(outcome.summary.project_id, project_id);
     assert_eq!(outcome.summary.model, "test-provider-model");
+    assert_eq!((outcome.summary.width, outcome.summary.height), (1, 1));
     assert_eq!(host.generate_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.persist_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.remove_calls.load(Ordering::SeqCst), 0);
@@ -419,9 +442,12 @@ async fn image_generation_application_persists_complete_trace() {
         .expect("应可读取 workflow checkpoint");
     let metadata = image.metadata_json.expect("生成 metadata 应存在");
 
+    assert_eq!((image.width, image.height), (1, 1));
     assert_eq!(metadata["metadata_schema_version"], 1);
     assert_eq!(metadata["reference_image_ids"], json!([11, 12]));
     assert_eq!(metadata["generation"]["command"], "image_scene");
+    assert_eq!(metadata["generation"]["width"], 1);
+    assert_eq!(metadata["generation"]["height"], 1);
     assert_eq!(
         metadata["generation"]["runtime_config_snapshot"]["backend"],
         "sidecar"
@@ -701,7 +727,7 @@ async fn provider_failure_marks_owned_workflow_failed() {
 }
 
 #[tokio::test]
-async fn cancellation_before_provider_marks_owned_workflow_failed() {
+async fn cancellation_before_provider_marks_owned_workflow_cancelled() {
     let (database, context) = setup_context().await;
     let project_id = insert_project(database.as_ref()).await;
     let host = TestImageGenerationHost::default();
@@ -724,7 +750,7 @@ async fn cancellation_before_provider_marks_owned_workflow_failed() {
         .await
         .expect("应可读取 workflow")
         .expect("取消 workflow 应存在");
-    assert_eq!(workflow.status, "failed");
+    assert_eq!(workflow.status, "cancelled");
 }
 
 #[tokio::test]
@@ -991,7 +1017,7 @@ async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
 }
 
 #[tokio::test]
-async fn manga_page_post_commit_failure_marks_owned_workflow_failed() {
+async fn manga_page_lineage_failure_keeps_committed_workflow_completed() {
     let (database, context) = setup_context().await;
     let (project_id, chapter, page_prompt, _old_image) =
         insert_manga_page_fixture(database.as_ref()).await;
@@ -1000,24 +1026,24 @@ async fn manga_page_post_commit_failure_marks_owned_workflow_failed() {
         ..Default::default()
     };
 
-    let error = context
+    let outcome = context
         .run_image_generation_validated(
             &host,
             manga_page_execution_input(project_id, chapter.id, page_prompt.id),
             &ImageGenerationProgress::none(),
         )
         .await
-        .expect_err("post-commit 失败必须显式返回");
+        .expect("资产谱系是可回填投影，不得覆盖已提交结果");
 
-    assert!(error.to_string().contains("测试 lineage 同步失败"));
+    assert!(outcome.summary.id > 0);
     let workflow = workflow_run::Entity::find()
         .filter(workflow_run::Column::ProjectId.eq(project_id))
         .filter(workflow_run::Column::WorkflowKind.eq("image_generation"))
         .one(database.as_ref())
         .await
         .expect("应可读取 workflow")
-        .expect("失败 workflow 应存在");
-    assert_eq!(workflow.status, "failed");
+        .expect("完成 workflow 应存在");
+    assert_eq!(workflow.status, "completed");
     assert_eq!(host.lineage_calls.load(Ordering::SeqCst), 1);
 }
 

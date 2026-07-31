@@ -111,6 +111,14 @@ fn portrait_file_persistence_keeps_output_and_reports_actual_size() {
 }
 
 #[test]
+fn portrait_generation_uses_shared_image_provider_routing() {
+    let source = include_str!("host_port.rs");
+
+    assert!(source.contains("crate::sidecar_clients::generate_image("));
+    assert!(!source.contains("configured_image_provider"));
+}
+
+#[test]
 fn profile_portrait_seed_prompt_uses_available_context_without_required_descriptors() {
     let mut profile = profile_for_test();
     profile.gender = Some(" ".to_string());

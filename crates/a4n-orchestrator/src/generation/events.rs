@@ -338,15 +338,12 @@ impl GenerationSessionRegistry {
         Ok(sessions.remove(task_id))
     }
 
-    pub fn len(&self) -> usize {
+    #[cfg(test)]
+    fn len(&self) -> usize {
         self.sessions
             .lock()
             .expect("generation session registry mutex poisoned")
             .len()
-    }
-
-    pub fn cleanup_terminal_sessions(&self) -> Result<usize, GenerationSessionError> {
-        Ok(self.cleanup_terminal_sessions_at(now_ms()?))
     }
 
     fn cleanup_terminal_sessions_at(&self, now_ms: i64) -> usize {
@@ -1058,6 +1055,43 @@ impl GenerationTaskSession {
         }
     }
 
+    pub(crate) fn next_committed_text_delta_events(
+        &self,
+        stream_id: &str,
+        deltas: &[String],
+    ) -> Vec<GenerationEvent> {
+        let state = self
+            .state
+            .lock()
+            .expect("generation session mutex poisoned");
+        let mut offset = state
+            .snapshot
+            .streams
+            .iter()
+            .find(|stream| stream.stream_id == stream_id)
+            .map(|stream| stream.next_offset)
+            .unwrap_or(0);
+        let mut chunk_index = state
+            .next_chunk_indexes
+            .get(stream_id)
+            .copied()
+            .unwrap_or(0);
+        deltas
+            .iter()
+            .map(|delta| {
+                let event = GenerationEvent::TextDelta(TextDeltaEvent {
+                    stream_id: stream_id.to_string(),
+                    offset,
+                    delta: delta.clone(),
+                    chunk_index,
+                });
+                offset += delta.len() as u64;
+                chunk_index += 1;
+                event
+            })
+            .collect()
+    }
+
     pub(crate) fn checkpoint_due(
         &self,
         candidate: &SessionCheckpointCandidate,
@@ -1681,6 +1715,7 @@ fn apply_event(
                     GenerationTaskStatus::Reserved
                         | GenerationTaskStatus::Running
                         | GenerationTaskStatus::Finalizing
+                        | GenerationTaskStatus::Cancelling
                 )
             {
                 return Err(GenerationSessionError::InvalidState {
@@ -1846,8 +1881,8 @@ fn apply_usage(
     snapshot: &mut GenerationTaskSnapshot,
     usage: &GenerationUsage,
 ) -> Result<(), GenerationSessionError> {
-    if let Some(previous) = &snapshot.usage {
-        if usage.prompt_tokens < previous.prompt_tokens
+    if let Some(previous) = &snapshot.usage
+        && (usage.prompt_tokens < previous.prompt_tokens
             || usage.completion_tokens < previous.completion_tokens
             || usage.total_tokens < previous.total_tokens
             || optional_value_decreased(
@@ -1857,10 +1892,9 @@ fn apply_usage(
             || optional_value_decreased(
                 previous.prompt_cache_miss_tokens,
                 usage.prompt_cache_miss_tokens,
-            )
-        {
-            return Err(GenerationSessionError::UsageRegression);
-        }
+            ))
+    {
+        return Err(GenerationSessionError::UsageRegression);
     }
     snapshot.usage = Some(usage.clone());
     Ok(())
@@ -2421,6 +2455,37 @@ mod tests {
         assert_eq!(snapshot.covers_through_sequence, 5);
     }
 
+    #[test]
+    fn cancelling_accepts_durable_text_delta_checkpoint() {
+        let session = session();
+        session
+            .prepare_committed_events(vec![
+                GenerationEvent::StatusChanged(a4n_service_protocol::StatusChangedEvent {
+                    status: GenerationTaskStatus::Running,
+                }),
+                GenerationEvent::CancelRequested(CancelRequestedEvent {
+                    reason: a4n_service_protocol::CancellationReason::UserRequested,
+                }),
+            ])
+            .unwrap()
+            .commit(durable_commit(2, 3))
+            .unwrap();
+
+        let mut events = session
+            .next_committed_text_delta_events("draft", &["saved".to_string(), "\n".to_string()]);
+        events.push(GenerationEvent::Checkpoint(
+            a4n_service_protocol::CheckpointEvent {
+                checkpoint_key: "saved-item".to_string(),
+                resumable: true,
+                summary: None,
+            },
+        ));
+        let permit = session.prepare_committed_events(events).unwrap();
+        assert_eq!(permit.snapshot().streams[0].text, "saved\n");
+        permit.commit(durable_commit(3, 6)).unwrap();
+        assert_eq!(session.snapshot().status, GenerationTaskStatus::Cancelling);
+    }
+
     #[tokio::test]
     async fn terminal_batch_releases_active_slot_and_closes_publisher() {
         let controller = controller();
@@ -2598,9 +2663,11 @@ mod tests {
 
     #[test]
     fn registry_evicts_oldest_persisted_terminal_and_expires_by_ttl() {
-        let mut config = GenerationSessionConfig::default();
-        config.session_admission_base_bytes = 64 * 1024 * 1024;
-        config.global_session_memory_bytes = 128 * 1024 * 1024;
+        let config = GenerationSessionConfig {
+            session_admission_base_bytes: 64 * 1024 * 1024,
+            global_session_memory_bytes: 128 * 1024 * 1024,
+            ..Default::default()
+        };
         let ttl = config.terminal_memory_ttl;
         let registry = GenerationSessionRegistry::new(config).unwrap();
         let now = now_ms().unwrap();
@@ -2738,8 +2805,10 @@ mod tests {
 
     #[tokio::test]
     async fn replay_floor_requires_snapshot_after_persisted_events_are_evicted() {
-        let mut config = GenerationSessionConfig::default();
-        config.replay_max_events = 256;
+        let config = GenerationSessionConfig {
+            replay_max_events: 256,
+            ..Default::default()
+        };
         let controller = GenerationAdmissionController::new(config).unwrap();
         let permit = controller.try_admit().unwrap();
         let session = GenerationTaskSession::from_started_event(started(1), 257, permit).unwrap();

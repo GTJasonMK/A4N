@@ -1,8 +1,9 @@
 import React from "react";
-import { Check, Loader2, UserPlus, X } from "lucide-react";
+import { Check, UserPlus, X } from "lucide-react";
 import type { NovelProject, ProjectAccessScope, ProjectInvite } from "../../api/project";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import {
   AllProjectList,
@@ -71,7 +72,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
           ]}
         />
         <div className="grid min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:justify-end">
-            <label className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-book-text-muted max-md:flex-1">
+            <label className="inline-flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1">
               <span className="hidden xl:inline">项目类型</span>
               <select
                 aria-label="项目类型"
@@ -88,7 +89,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
                 ))}
               </select>
             </label>
-            <label className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-book-text-muted max-md:flex-1">
+            <label className="inline-flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1">
               <span className="hidden xl:inline">访问权限</span>
               <select
                 aria-label="访问权限"
@@ -106,8 +107,8 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
               </select>
             </label>
             {loading && (
-              <span className="col-span-2 inline-flex items-center justify-end gap-1 text-xs text-book-text-muted sm:col-span-1">
-                <Loader2 size={12} className="animate-spin" /> 加载中
+              <span className="col-span-2 inline-flex items-center justify-end sm:col-span-1">
+                <LoadingSpinner size="sm" text="加载中" />
               </span>
             )}
         </div>
@@ -190,7 +191,7 @@ const ProjectInviteRow: React.FC<{
       <div className="truncate text-xs font-semibold text-book-text-main">
         {invite.project_title || "未命名项目"}
       </div>
-      <div className="mt-1 truncate text-[11px] text-book-text-muted">
+      <div className="mt-1 truncate text-small text-book-text-muted">
         {invite.inviter_username || "项目成员"} 邀请 · {PROJECT_ROLE_LABELS[invite.role]}
       </div>
     </div>
@@ -211,7 +212,7 @@ const ProjectInviteRow: React.FC<{
       onClick={() => onAccept(invite)}
       disabled={busy}
     >
-      {busy ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+      {busy ? <LoadingSpinner size="sm" /> : <Check size={12} />}
       接受
     </BookButton>
   </div>

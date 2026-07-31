@@ -1,10 +1,10 @@
 use crate::galgame::{
     GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE, GalgameMediaRecordError, GalgameTargetContext,
-    PROJECT_KIND_GALGAME, require_galgame_media_text, validate_galgame_media_target_ids,
+    require_galgame_media_text, validate_galgame_media_target_ids,
 };
 use a4n_core::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
-    project::{novel_project, source_snapshot_chapter},
+    project::source_snapshot_chapter,
 };
 use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, QuerySelect};
 
@@ -33,27 +33,8 @@ where
     validate_galgame_media_target_ids(project_id, target_id)?;
     let target_kind = require_galgame_media_text(target_kind, "target_kind")?;
     let use_row_lock = lock_for_update && db.get_database_backend() != DbBackend::Sqlite;
-    let mut project_query = novel_project::Entity::find_by_id(project_id);
-    if use_row_lock {
-        project_query = project_query.lock_exclusive();
-    }
-    let project = project_query
-        .one(db)
-        .await
-        .map_err(GalgameMediaRecordError::Database)?
-        .ok_or_else(|| GalgameMediaRecordError::NotFound(format!("项目不存在: {project_id}")))?;
-    if project.project_kind != PROJECT_KIND_GALGAME {
-        return Err(GalgameMediaRecordError::InvalidArgument(format!(
-            "项目不是 Galgame 派生项目: {}",
-            project.id
-        )));
-    }
-    let root_project_id = project.root_project_id.ok_or_else(|| {
-        GalgameMediaRecordError::InvalidArgument(format!(
-            "Galgame 项目缺少根文本项目: {}",
-            project.id
-        ))
-    })?;
+    let (project, root_project_id) =
+        super::galgame_media_project_context(db, project_id, use_row_lock).await?;
     let source_snapshot_id = project.source_snapshot_id.ok_or_else(|| {
         GalgameMediaRecordError::InvalidArgument(format!(
             "Galgame 项目缺少源文本快照: {}",

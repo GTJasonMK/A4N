@@ -6,7 +6,7 @@ use a4n_db::generation::{
 };
 use a4n_orchestrator::{
     GenerationTaskAccessError, GenerationTaskHistorySummaries, OrchestratorContext,
-    generation::events::{GenerationReplay, GenerationSubscription},
+    generation::events::GenerationSubscription,
     generation::terminal::{GenerationTerminalError, GenerationTerminalWriteOutcome},
 };
 use a4n_service_protocol::InterruptionReason;
@@ -71,16 +71,6 @@ impl<'a> GenerationTasksRuntimeFacade<'a> {
     ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
         self.orchestrator
             .subscribe_generation_task(task, after_sequence)
-    }
-
-    pub(crate) fn replay_task(
-        &self,
-        task_id: &str,
-        attempt: u32,
-        after_sequence: Option<u64>,
-    ) -> Result<GenerationReplay, GenerationTaskAccessError> {
-        self.orchestrator
-            .generation_task_replay(task_id, attempt, after_sequence)
     }
 
     pub(crate) async fn begin_project_gate(

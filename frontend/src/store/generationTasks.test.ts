@@ -102,6 +102,33 @@ describe("generation task store", () => {
     store.clear(key);
   });
 
+  it("flushes a committed prompt item immediately", () => {
+    vi.useFakeTimers();
+    const task = handle("423e4567-e89b-42d3-a456-426614174000");
+    const key = generationTaskKey(task.task_id, task.attempt);
+    const store = useGenerationTasksStore.getState();
+    store.retain(task);
+
+    const action = progress(task.task_id, 1);
+    if (action.type !== "event" || action.event.event.kind !== "progress") {
+      throw new Error("test progress action is invalid");
+    }
+    action.event.event.data = {
+      ...action.event.event.data,
+      stage_code: "video_prompt_item_committed",
+      phase_kind: "persist",
+      item_key: "video_prompt:1",
+      item_index: 1,
+      item_total: 2,
+    };
+    store.dispatch(key, action);
+
+    expect(useGenerationTasksStore.getState().tasks[key].progress?.item_key).toBe(
+      "video_prompt:1",
+    );
+    store.clear(key);
+  });
+
   it("clears both the view and authoritative state", () => {
     const task = handle("323e4567-e89b-42d3-a456-426614174000");
     const key = generationTaskKey(task.task_id, task.attempt);

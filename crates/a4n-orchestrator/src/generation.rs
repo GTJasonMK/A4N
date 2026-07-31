@@ -18,8 +18,100 @@ pub mod events;
 pub mod stream;
 pub mod terminal;
 
+use std::sync::Arc;
+
 use a4n_core::error::AppError;
-use a4n_service_protocol::{GenerationError, GenerationErrorCode, GenerationFinishReason};
+use a4n_service_protocol::{
+    GenerationError, GenerationErrorCode, GenerationFinishReason, ProgressEvent, ProgressPhaseKind,
+    ProgressSeverity,
+};
+use tokio::sync::mpsc;
+
+use self::{
+    checkpoint::{GenerationCheckpointMetadata, GenerationCheckpointWriter},
+    events::{GenerationEventPublisher, GenerationTaskSession, SessionGenerationEventPublisher},
+};
+
+pub(crate) struct GenerationProgressUpdate {
+    pub(crate) current: u32,
+    pub(crate) total: u32,
+    pub(crate) message: String,
+}
+
+pub(crate) async fn publish_step_progress(
+    mut receiver: mpsc::UnboundedReceiver<GenerationProgressUpdate>,
+    publisher: SessionGenerationEventPublisher,
+    checkpoint_writer: GenerationCheckpointWriter,
+    session: Arc<GenerationTaskSession>,
+    operation_key: &'static str,
+    checkpoint_stage_code: &'static str,
+    minimum_reported_total: u32,
+) -> Result<(), GenerationError> {
+    while let Some(update) = receiver.recv().await {
+        publisher
+            .progress(step_progress_event(
+                update,
+                operation_key,
+                minimum_reported_total,
+            ))
+            .await
+            .map_err(|error| generation_public_error(error.code(), operation_key, error))?;
+        checkpoint_writer
+            .persist_if_due(
+                &session,
+                GenerationCheckpointMetadata {
+                    step_key: Some(operation_key.to_string()),
+                    ..Default::default()
+                },
+                false,
+            )
+            .await
+            .map_err(|error| generation_public_error(error.code(), checkpoint_stage_code, error))?;
+    }
+    checkpoint_writer
+        .persist_if_due(
+            &session,
+            GenerationCheckpointMetadata {
+                step_key: Some(operation_key.to_string()),
+                ..Default::default()
+            },
+            true,
+        )
+        .await
+        .map_err(|error| generation_public_error(error.code(), checkpoint_stage_code, error))?;
+    Ok(())
+}
+
+fn step_progress_event(
+    update: GenerationProgressUpdate,
+    operation_key: &str,
+    minimum_reported_total: u32,
+) -> ProgressEvent {
+    let complete = update.current >= update.total;
+    ProgressEvent {
+        stage_code: operation_key.to_string(),
+        phase_kind: if update.current == 0 {
+            ProgressPhaseKind::Prepare
+        } else if complete {
+            ProgressPhaseKind::Complete
+        } else {
+            ProgressPhaseKind::Provider
+        },
+        message: update.message,
+        current: Some(update.current.into()),
+        total: Some(update.total.max(minimum_reported_total).into()),
+        unit_label: Some("步骤".to_string()),
+        item_key: None,
+        item_index: None,
+        item_total: None,
+        severity: if complete {
+            ProgressSeverity::Success
+        } else {
+            ProgressSeverity::Info
+        },
+        estimated: false,
+    }
+}
 
 pub(crate) fn generation_error(error: a4n_db::generation::GenerationDbError) -> AppError {
     match error {
@@ -52,10 +144,52 @@ pub(crate) fn generation_public_error(
     }
 }
 
+pub(crate) fn generation_progress(
+    stage_code: &str,
+    phase_kind: ProgressPhaseKind,
+    message: &str,
+) -> ProgressEvent {
+    ProgressEvent {
+        stage_code: stage_code.to_string(),
+        phase_kind,
+        message: message.to_string(),
+        current: None,
+        total: None,
+        unit_label: None,
+        item_key: None,
+        item_index: None,
+        item_total: None,
+        severity: ProgressSeverity::Info,
+        estimated: false,
+    }
+}
+
 pub(crate) fn generation_finish_reason_text(reason: GenerationFinishReason) -> String {
     match reason {
         GenerationFinishReason::Stop => "stop",
         GenerationFinishReason::ToolCallsComplete => "tool_calls",
     }
     .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn step_progress_preserves_phase_and_minimum_reported_total() {
+        let event = step_progress_event(
+            GenerationProgressUpdate {
+                current: 0,
+                total: 0,
+                message: "准备".to_string(),
+            },
+            "video_generate",
+            1,
+        );
+
+        assert_eq!(event.phase_kind, ProgressPhaseKind::Prepare);
+        assert_eq!(event.severity, ProgressSeverity::Success);
+        assert_eq!(event.total, Some(1));
+    }
 }

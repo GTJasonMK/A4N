@@ -143,10 +143,12 @@ impl HttpSidecarTransport {
         self.client_factory
             .as_ref()
             .map(|factory| {
-                factory().map_err(|error| ServiceError {
-                    code: ServiceErrorCode::ServiceUnavailable,
-                    message: redact_sensitive_message(error),
-                    retryable: Some(true),
+                factory().map_err(|error| {
+                    ServiceError::new(
+                        ServiceErrorCode::ServiceUnavailable,
+                        redact_sensitive_message(error),
+                        true,
+                    )
                 })
             })
             .unwrap_or_else(|| Ok(self.client.clone()))

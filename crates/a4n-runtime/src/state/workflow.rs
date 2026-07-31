@@ -5,8 +5,8 @@ use a4n_core::models::generation::workflow_run;
 use a4n_orchestrator::{
     OrchestratorContext,
     workflow::{
-        ListWorkflowRunsInput, PersistedTaskInfo, TaskProgressEventSummary,
-        WorkflowRunDetailSummary, WorkflowRunSummary,
+        CancelWorkflowRunPersistenceResult, GetWorkflowRunInput, ListWorkflowRunsInput,
+        PersistedTaskInfo, TaskProgressEventSummary, WorkflowRunDetailSummary, WorkflowRunSummary,
     },
 };
 
@@ -37,9 +37,9 @@ impl<'a> WorkflowRuntimeFacade<'a> {
 
     pub(crate) async fn workflow_run_detail(
         &self,
-        workflow_run_id: i64,
+        input: GetWorkflowRunInput,
     ) -> Result<WorkflowRunDetailSummary, AppError> {
-        self.orchestrator.workflow_run_detail(workflow_run_id).await
+        self.orchestrator.workflow_run_detail(input).await
     }
 
     pub(crate) async fn workflow_progress_events(
@@ -70,6 +70,15 @@ impl<'a> WorkflowRuntimeFacade<'a> {
         self.orchestrator.persisted_task_by_id(task_id).await
     }
 
+    pub(crate) async fn workflow_run_model_by_active_task_id(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<workflow_run::Model>, AppError> {
+        self.orchestrator
+            .workflow_run_model_by_active_task_id(task_id)
+            .await
+    }
+
     pub(crate) async fn workflow_runs_by_project_kind(
         &self,
         project_id: i64,
@@ -89,12 +98,21 @@ impl<'a> WorkflowRuntimeFacade<'a> {
             .await
     }
 
+    pub(crate) async fn mark_workflow_running(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<workflow_run::Model, AppError> {
+        self.orchestrator
+            .mark_workflow_running_validated(workflow_run_id)
+            .await
+    }
+
     /// 取消 workflow 持久化并中断关联生成视频（访问校验与进程内取消由调用方完成）。
     pub(crate) async fn cancel_workflow_run_and_interrupt_videos(
         &self,
         workflow_run_id: i64,
         reason: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<CancelWorkflowRunPersistenceResult, AppError> {
         self.orchestrator
             .cancel_workflow_run_and_interrupt_videos(workflow_run_id, reason)
             .await

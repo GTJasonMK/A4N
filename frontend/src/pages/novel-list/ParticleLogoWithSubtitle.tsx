@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import afnLogoUrl from "../../assets/afn-logo.svg";
 
 interface Particle {
   x: number;
@@ -86,8 +87,11 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
     // 监听鼠标事件
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      mouse.x = e.clientX - rect.left;
-      mouse.y = e.clientY - rect.top;
+      // 计算鼠标在 canvas 坐标系中的位置（考虑 canvas 缩放）
+      const scaleX = width / rect.width;
+      const scaleY = height / rect.height;
+      mouse.x = (e.clientX - rect.left) * scaleX;
+      mouse.y = (e.clientY - rect.top) * scaleY;
       mouse.active = true;
     };
 
@@ -100,14 +104,13 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
 
     // 提取 Logo 像素
     const extractLogoPixels = () => {
-      const svgPath = "/resources/afn_svg_019c9984-b5e8-761f-9e57-62816676d110.svg";
       const img = new Image();
 
       img.onload = () => {
         // 创建临时 Canvas 渲染 SVG
         const tempCanvas = document.createElement("canvas");
         const tempCtx = tempCanvas.getContext("2d")!;
-        const logoWidth = 300; // 再次增大到 200
+        const logoWidth = 300;
         const logoHeight = 200;
         tempCanvas.width = logoWidth;
         tempCanvas.height = logoHeight;
@@ -115,8 +118,8 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
         tempCtx.drawImage(img, 0, 0, logoWidth, logoHeight);
         const imageData = tempCtx.getImageData(0, 0, logoWidth, logoHeight);
 
-        // Logo 位置：保留绘制缓冲，放在上半区偏中的位置
-        const logoOffsetX = 32;
+        // Logo 位置：水平居中，垂直偏上
+        const logoOffsetX = (width - logoWidth) / 2;
         const logoOffsetY = 20;
 
         // 采样 Logo 像素
@@ -149,7 +152,7 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
         animate();
       };
 
-      img.src = svgPath;
+      img.src = afnLogoUrl;
     };
 
     let animationId: number;
@@ -157,29 +160,31 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
       ctx.clearRect(0, 0, width, height);
 
       particles.forEach((p) => {
-        // 鼠标排斥力
+        // 鼠标排斥力（增强效果）
         if (mouse.active) {
           const dx = p.x - mouse.x;
           const dy = p.y - mouse.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
+          const maxDist = 120; // 扩大交互范围
 
-          if (dist < 80 && dist > 0) {
-            const force = (80 - dist) / 80;
-            p.vx += (dx / dist) * force * 0.5;
-            p.vy += (dy / dist) * force * 0.5;
+          if (dist < maxDist && dist > 0) {
+            const force = (maxDist - dist) / maxDist;
+            const strength = 1.2; // 增强排斥力度
+            p.vx += (dx / dist) * force * strength;
+            p.vy += (dy / dist) * force * strength;
           }
         }
 
-        // 回到目标位置
+        // 回到目标位置（降低吸引力，让鼠标交互更明显）
         const dx = p.targetX - p.x;
         const dy = p.targetY - p.y;
-        p.vx += dx * 0.02;
-        p.vy += dy * 0.02;
+        p.vx += dx * 0.015;
+        p.vy += dy * 0.015;
 
-        // 阻尼
+        // 阻尼（降低阻尼，让粒子运动更流畅）
         applyEdgePressure(p);
-        p.vx *= 0.9;
-        p.vy *= 0.9;
+        p.vx *= 0.92;
+        p.vy *= 0.92;
 
         p.x += p.vx;
         p.y += p.vy;

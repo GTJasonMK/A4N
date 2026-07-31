@@ -20,6 +20,7 @@ use a4n_db::{
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
 use async_trait::async_trait;
+use base64::Engine as _;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{Value, json};
 
@@ -32,6 +33,15 @@ use crate::media::{
     ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationProviderInput,
     ImageGenerationProviderOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
 };
+
+const PNG_1X1_B64: &str =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+fn png_1x1_bytes() -> Vec<u8> {
+    base64::engine::general_purpose::STANDARD
+        .decode(PNG_1X1_B64)
+        .expect("测试 PNG 应有效")
+}
 
 struct TestImageHost {
     calls: AtomicUsize,
@@ -91,7 +101,7 @@ impl ImageGenerationHostPort for TestImageHost {
             });
         }
         Ok(ImageGenerationProviderOutput {
-            bytes: vec![1, 2, 3, 4],
+            bytes: png_1x1_bytes(),
             format: "png".to_string(),
             model: "canvas-image-test-model".to_string(),
         })
@@ -123,7 +133,7 @@ impl ImageGenerationHostPort for TestImageHost {
         Ok(crate::media::GeneratedImageArtifactFile {
             content_type: "image/png".to_string(),
             sha256: "test-sha256".to_string(),
-            byte_size: 4,
+            byte_size: png_1x1_bytes().len() as u64,
         })
     }
 

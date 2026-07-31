@@ -7,7 +7,7 @@ cd "$ROOT"
 CONTRACT_DIR="crates/a4n-api-contract"
 RUNTIME_ACTIONS="crates/a4n-runtime/src/actions"
 FRONTEND_API="frontend/src/api"
-DTO_INVENTORY="docs/重构/剩余重构/06-host-api-dto-inventory.tsv"
+DTO_INVENTORY="scripts/checks/host-api-dto-inventory.tsv"
 
 [[ -f "$CONTRACT_DIR/Cargo.toml" && -f "$CONTRACT_DIR/src/lib.rs" ]] || {
     printf 'a4n-api-contract is missing\n' >&2

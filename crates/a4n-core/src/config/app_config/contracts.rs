@@ -84,10 +84,6 @@ pub struct LlmConfig {
     #[serde(default)]
     pub request_options_json: Option<Value>,
 
-    /// 重试次数
-    #[serde(default = "default_retry_times")]
-    pub retry_times: u32,
-
     /// LLM 各场景请求输出预算配置
     #[serde(default)]
     pub max_tokens: LlmMaxTokensConfig,
@@ -161,10 +157,6 @@ pub struct SecurityConfig {
 /// 系统级配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemConfig {
-    /// 任务队列容量
-    #[serde(default = "default_queue_capacity")]
-    pub queue_capacity: usize,
-
     /// 事件总线缓冲区大小
     #[serde(default = "default_event_bus_capacity")]
     pub event_bus_capacity: usize,

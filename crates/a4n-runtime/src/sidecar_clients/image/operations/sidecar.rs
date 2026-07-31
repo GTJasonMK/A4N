@@ -25,7 +25,7 @@ pub(crate) async fn probe_image_config(
         .image
         .clone()
         .ok_or_else(|| missing_sidecar_capability_message("image"))?;
-    let payload = image_provider_payload(config, request, None)?;
+    let payload = image_provider_payload(config, request)?;
     let response = client
         .probe(service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global(),
@@ -56,7 +56,7 @@ pub(crate) async fn preview_image_provider_request(
         .image
         .clone()
         .ok_or_else(|| missing_sidecar_capability_message("image"))?;
-    let payload = image_provider_payload(config, request, project_id)?;
+    let payload = image_provider_payload(config, request)?;
     let response = client
         .preview_request(service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
@@ -82,7 +82,7 @@ pub(super) async fn generate_image_via_sidecar(
     workflow_run_id: Option<i64>,
     progress: Option<&(dyn Fn(&str) + Send + Sync)>,
 ) -> Result<ImageGenerationResult, String> {
-    let payload = image_provider_payload(config, request, project_id)?;
+    let payload = image_provider_payload(config, request)?;
     let request = service_request_with_context_provider_secret_policy(
         sidecar_context_for_workflow_operation_with_root(
             project_id,

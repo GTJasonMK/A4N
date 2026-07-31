@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { GitBranch, Loader2, Trash2 } from "lucide-react";
+import { GitBranch, Trash2 } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   promptListProjectOverrides,
@@ -155,30 +156,30 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
           className="w-full"
         />
         {projectId == null ? (
-          <div className="text-[11px] text-book-text-muted">选择项目后可查看或设置独立内容。</div>
+          <div className="text-small text-book-text-muted">选择项目后可查看或设置独立内容。</div>
         ) : loading ? (
-          <div className="inline-flex items-center gap-1.5 text-[11px] text-book-text-muted">
-            <Loader2 size={11} className="animate-spin" /> 正在读取项目设置…
+          <div className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
+            <LoadingSpinner size="sm" /> 正在读取项目设置…
           </div>
         ) : dirty ? (
-          <div className="border-l border-warning/45 pl-2.5 text-[11px] text-warning">
+          <div className="border-l border-warning/45 pl-2.5 text-small text-warning">
             请先保存当前提示词，再更新项目独立版本。
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2 border-l border-book-border/45 pl-2.5">
-            <div className="min-w-0 flex-1 text-[11px] text-book-text-muted">
+            <div className="min-w-0 flex-1 text-small text-book-text-muted">
               {currentOverride
                 ? `正在使用独立内容 · 更新于 ${formatUiDateTime(currentOverride.updated_at)}`
                 : "当前使用全局内容"}
             </div>
             <BookButton size="sm" onClick={() => void handleSetOverride()} disabled={setting || removing}>
-              {setting ? <Loader2 size={11} className="animate-spin" /> : null}
+              {setting ? <LoadingSpinner size="sm" /> : null}
               {setting ? "保存中…" : currentOverride ? "更新为当前内容" : "使用当前内容"}
             </BookButton>
             {currentOverride && !setting ? (
               removing ? (
                 <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
-                  <Loader2 size={11} className="animate-spin" />
+                  <LoadingSpinner size="sm" />
                 </span>
               ) : (
                 <Dropdown

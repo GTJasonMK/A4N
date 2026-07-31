@@ -23,9 +23,7 @@ impl OrchestratorContext {
             options,
         } = request;
         let prepared = self
-            .prepare_video_prompt_preview_inputs(
-                project_id, chapter_id, &source, variables, options, false,
-            )
+            .prepare_video_prompt_inputs(project_id, chapter_id, &source, variables, options, false)
             .await?;
         let mut steps = Vec::new();
         let predecessors = self

@@ -2,18 +2,6 @@ use std::collections::HashMap;
 
 use a4n_core::models::project::novel_project;
 
-use crate::project::duplicate::ProjectMediaCopyError;
-
-pub trait FreeformProjectMediaFileCopier {
-    fn copy_media_file(
-        &mut self,
-        new_project_id: i64,
-        source_media_asset_id: i64,
-        field: &str,
-        relative_path: Option<&str>,
-    ) -> Result<Option<String>, ProjectMediaCopyError>;
-}
-
 #[derive(Debug, Clone, Default)]
 pub(in crate::project::duplicate::freeform) struct FreeformGeneratedImageCopyRecords {
     pub(super) ids: HashMap<i64, i64>,

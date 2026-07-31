@@ -3,7 +3,7 @@ use chrono::{NaiveDateTime, Utc};
 use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 use std::collections::HashMap;
 
-use super::ProjectDuplicateError;
+use super::{ProjectDuplicateError, shared::ProjectMediaFileCopier};
 
 mod assembly;
 mod generation;
@@ -16,7 +16,6 @@ pub(super) use assembly::{copy_derived_assembly_clips, copy_derived_media_bindin
 pub(super) use generation::{
     copy_derived_generation_spec_media_refs, copy_derived_prompt_artifacts,
 };
-pub use types::DerivedProjectMediaFileCopier;
 use types::DuplicatedDerivedSourceSnapshot;
 
 use snapshot::copy_derived_project_graph_record;
@@ -29,7 +28,7 @@ pub async fn duplicate_derived_project_record<Copier>(
     media_file_copier: &mut Copier,
 ) -> Result<novel_project::Model, ProjectDuplicateError>
 where
-    Copier: DerivedProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier,
 {
     let txn = db.begin().await?;
     let now = Utc::now().naive_utc();

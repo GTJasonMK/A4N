@@ -30,6 +30,9 @@ pub fn webgal_transition_args(value: &Value, line_id: i64) -> Result<&'static st
     let Some(value) = object.get("transition") else {
         return Ok("");
     };
+    if value.is_null() {
+        return Ok("");
+    }
     let transition = value
         .as_str()
         .ok_or_else(|| format!("Galgame 行 {line_id} transition 必须是字符串"))?
@@ -136,6 +139,10 @@ mod tests {
         );
         assert!(webgal_figure_position(Some("top"), 1).is_err());
         assert_eq!(webgal_transition_args(&json!({}), 1).unwrap(), "");
+        assert_eq!(
+            webgal_transition_args(&json!({"transition": null}), 1).unwrap(),
+            ""
+        );
         assert!(
             webgal_transition_args(&json!({"transition": "cut"}), 1)
                 .unwrap()

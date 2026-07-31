@@ -44,10 +44,8 @@ pub(super) async fn send_configured_events(
     let configured = configured.ok_or_else(|| unexpected_call(client, operation))?;
     for mut event in configured.iter().cloned() {
         event.task_id = request_id.to_string();
-        events.send(event).await.map_err(|_| ServiceError {
-            code: ServiceErrorCode::Cancelled,
-            message: "event receiver closed".to_string(),
-            retryable: Some(false),
+        events.send(event).await.map_err(|_| {
+            ServiceError::non_retryable(ServiceErrorCode::Cancelled, "event receiver closed")
         })?;
     }
     Ok(())

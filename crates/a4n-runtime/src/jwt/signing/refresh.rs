@@ -23,6 +23,7 @@ pub fn create_refresh_token(
         exp: now + (exp_days as usize * 86400),
         token_type: "refresh".to_string(),
         jti: Some(Uuid::new_v4().to_string()),
+        session_id: None,
         media_path: None,
     };
     let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);

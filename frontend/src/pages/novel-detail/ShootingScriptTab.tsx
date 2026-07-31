@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Loader2, RefreshCw, Save, Wand2 } from "lucide-react";
+import { RefreshCw, Save, Wand2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 
 import { extractErrorMessage } from "../../api";
 import type { ChapterData } from "../../api/chapter";
@@ -18,6 +19,7 @@ import {
   allocateHostTaskId,
   useProgressTask,
 } from "../../hooks/useProgressTask";
+import { isCancelledOperation } from "../../utils/cancellation";
 import { ScriptContent } from "./shooting-script/ScriptContent";
 import { StructuredScriptEditor } from "./shooting-script/StructuredScriptEditor";
 import { EmptyHint } from "./shared";
@@ -117,7 +119,11 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       setInvalidatedProjectIds([]);
       addToast("拍摄剧本生成完成", "success");
     } catch (error) {
-      addToast(extractErrorMessage(error, "生成拍摄剧本失败"), "error");
+      const message = extractErrorMessage(error, "生成拍摄剧本失败");
+      addToast(
+        isCancelledOperation(message) ? "拍摄剧本生成已停止" : message,
+        isCancelledOperation(message) ? "info" : "error",
+      );
     } finally {
       setGenerating(false);
     }
@@ -158,7 +164,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   return (
     <section className="min-w-0 space-y-3">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
-        <div className="text-[11px] text-book-text-muted">
+        <div className="text-small text-book-text-muted">
           {scriptLoading
             ? "正在加载拍摄剧本…"
             : generating
@@ -182,7 +188,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                       onClick: () => void generate(),
                       disabled: actionsDisabled,
                       icon: generating ? (
-                        <Loader2 size={12} className="animate-spin" />
+                        <LoadingSpinner size="sm" />
                       ) : (
                         <RefreshCw size={12} />
                       ),
@@ -195,7 +201,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                   disabled={actionsDisabled || !isDirty}
                 >
                   {saving ? (
-                    <Loader2 size={13} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   ) : (
                     <Save size={13} />
                   )}
@@ -209,7 +215,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                 disabled={actionsDisabled}
               >
                 {generating ? (
-                  <Loader2 size={13} className="animate-spin" />
+                  <LoadingSpinner size="sm" />
                 ) : (
                   <Wand2 size={13} />
                 )}
@@ -220,9 +226,8 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         ) : null}
       </div>
       {scriptLoading ? (
-        <div className="a4n-flat-surface py-12 text-center text-xs text-book-text-muted">
-          <Loader2 className="mx-auto mb-2 animate-spin" size={16} />
-          加载拍摄剧本…
+        <div className="a4n-flat-surface py-12 text-center">
+          <LoadingSpinner size="md" text="加载拍摄剧本…" inline={false} />
         </div>
       ) : !view ? (
         <div className="a4n-flat-surface p-3 sm:p-4">
@@ -240,7 +245,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
             <ScriptContent view={view} />
           )}
           {invalidatedProjectIds.length > 0 ? (
-            <div className="px-1 text-[11px] leading-relaxed text-book-text-muted">
+            <div className="px-1 text-small leading-relaxed text-book-text-muted">
               <p>
                 保存后有 {invalidatedProjectIds.length} 个下游项目需要重新生成。
               </p>
@@ -248,7 +253,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                 <summary className="w-fit cursor-pointer hover:text-book-text-main">
                   诊断信息
                 </summary>
-                <p className="mt-1 break-all font-mono text-[10px]">
+                <p className="mt-1 break-all font-mono text-caption">
                   下游项目 ID：{invalidatedProjectIds.join("、")}
                 </p>
               </details>

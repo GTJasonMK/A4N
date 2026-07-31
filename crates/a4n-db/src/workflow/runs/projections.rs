@@ -11,7 +11,7 @@ struct PersistedWorkflowProgress {
     updated_at: Option<String>,
 }
 
-pub(super) fn workflow_run_summary(
+pub(in crate::workflow) fn workflow_run_summary(
     run: workflow_run::Model,
 ) -> Result<WorkflowRunSummary, WorkflowReadError> {
     let progress = run
@@ -30,6 +30,7 @@ pub(super) fn workflow_run_summary(
         scope_id: run.scope_id,
         chapter_id: run.chapter_id,
         mode: run.mode,
+        input_fingerprint_json: run.input_fingerprint_json,
         status: run.status,
         current_step_key: run.current_step_key,
         progress,

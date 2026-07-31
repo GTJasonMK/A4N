@@ -1,18 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Download,
+import { Download,
   FileText,
   FileSearch,
   Images,
-  Loader2,
   Music,
   PenLine,
   Plus,
   RefreshCw,
   Trash2,
-  X,
-} from "lucide-react";
-import { formatUiDateTime } from "../../utils/dateTime";
+  X, } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { MediaAssetIdBinder } from "./galgame/MediaAssetIdBinder";
+import { PipelineStatusPanel } from "./galgame/PipelineStatusPanel";
 import {
   bindGalgameMedia,
   cancelGalgamePipeline,
@@ -61,7 +60,7 @@ import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import type { SourceSnapshotChapter } from "../../api/project";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
-import { useProgressTask } from "../../hooks/useProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
 
 interface GalgameTabProps {
@@ -322,6 +321,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 
   const handleGenerate = async (resumeFromCheckpoint = false) => {
     if (!canEditGalgame || generating) return;
+    const taskId = allocateHostTaskId("galgame-pipeline", projectId);
     setGenerating(true);
     try {
       const next = await runProgressTask(
@@ -333,8 +333,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           total: 7,
           cancelLabel: "取消管线",
           runningHint: "取消后已写入的检查点会保留，可从检查点续跑。",
-          // Galgame 管线按项目取消，不依赖 host progress task id / workflow 事件。
-          cancelTaskId: `galgame-pipeline-${projectId}`,
+          cancelTaskId: taskId,
+          pollTaskProgress: true,
           cancelTask: async () => {
             const nextStatus = await cancelGalgamePipeline(projectId);
             setPipelineStatus(nextStatus);
@@ -343,6 +343,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         async ({ setProgress }) => {
           setProgress("正在提交 Galgame 管线...", 0, 7);
           const result = await startGalgamePipeline(projectId, {
+            taskId,
             startFromStage: currentPipelineStartStage(),
             resumeFromCheckpoint,
           });
@@ -722,7 +723,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
               <h2 className="text-xs font-semibold text-book-text-main">
                 场次
               </h2>
-              <p className="mt-0.5 text-[10px] text-book-text-muted">
+              <p className="mt-0.5 text-caption text-book-text-muted">
                 {detail
                   ? `${detail.scenes.length} 场 · ${totalLines} 行`
                   : "尚未生成"}
@@ -737,7 +738,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
               title="刷新"
             >
               {loading ? (
-                <Loader2 size={13} className="animate-spin" />
+                <LoadingSpinner size="sm" />
               ) : (
                 <RefreshCw size={13} />
               )}
@@ -750,7 +751,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                       ? "正在导出 WebGAL 工程"
                       : "导出 WebGAL 工程",
                     icon: exportingWebgal ? (
-                      <Loader2 size={13} className="animate-spin" />
+                      <LoadingSpinner size="sm" />
                     ) : (
                       <Download size={13} />
                     ),
@@ -772,7 +773,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
             <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-xs font-medium text-book-text-main hover:bg-book-bg-tertiary/55 [&::-webkit-details-marker]:hidden">
               <span>剧本生成</span>
               <span className="flex-1" />
-              <span className="text-[11px] font-normal text-book-text-muted">
+              <span className="text-small font-normal text-book-text-muted">
                 {pipelineRunning
                   ? "生成中"
                   : pipelineCanResume
@@ -792,7 +793,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                   disabled={!canEditGalgame || pipelineCancelling}
                 >
                   {pipelineCancelling ? (
-                    <Loader2 size={13} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   ) : (
                     <X size={13} />
                   )}
@@ -807,7 +808,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                   disabled={!canEditGalgame || generating || pipelineCancelling}
                 >
                   {generating ? (
-                    <Loader2 size={14} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   ) : (
                     <FileText size={14} />
                   )}
@@ -817,7 +818,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
               {!pipelineRunning ? (
                 <div className="mt-2 flex items-start justify-between gap-2">
                   <details className="min-w-0 flex-1">
-                    <summary className="cursor-pointer rounded-lg px-1 py-1 text-[10px] text-book-text-muted hover:bg-book-bg-tertiary/55 hover:text-book-text-main">
+                    <summary className="cursor-pointer rounded-lg px-1 py-1 text-caption text-book-text-muted hover:bg-book-bg-tertiary/55 hover:text-book-text-main">
                       生成选项 · {pipelineStartStageLabel(pipelineStartStage)}
                     </summary>
                     <select
@@ -846,7 +847,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                           ? "正在准备模型请求"
                           : "查看模型请求",
                         icon: requestPreviewLoading ? (
-                          <Loader2 size={13} className="animate-spin" />
+                          <LoadingSpinner size="sm" />
                         ) : (
                           <FileSearch size={13} />
                         ),
@@ -910,14 +911,14 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                     <div className="truncate font-semibold">
                       {item.scene.scene_index}. {item.scene.title}
                     </div>
-                    <div className="mt-1 truncate text-[11px]">
+                    <div className="mt-1 truncate text-small">
                       {chapter
                         ? `第 ${chapter.chapter_number} 章`
                         : "来源章节"}
                       {" · "}
                       {item.lines.length} 行
                     </div>
-                    <div className="mt-1 text-[10px] leading-relaxed text-book-text-subtle">
+                    <div className="mt-1 text-caption leading-relaxed text-book-text-subtle">
                       {sceneEntryKindLabel(item.scene.entry_kind)}
                       {item.scene.next_scene_id != null ? (
                         <span
@@ -978,7 +979,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
               <h2 className="truncate text-sm font-semibold text-book-text-main">
                 {selectedScene?.scene.title ?? "Galgame 剧本"}
               </h2>
-              <p className="mt-0.5 truncate text-[10px] text-book-text-muted">
+              <p className="mt-0.5 truncate text-caption text-book-text-muted">
                 {selectedScene
                   ? [
                       selectedScene.scene.background_note,
@@ -1044,7 +1045,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           >
             {loading ? (
               <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
-                <Loader2 size={14} className="animate-spin" />
+                <LoadingSpinner size="sm" />
                 加载 Galgame 剧本
               </div>
             ) : !selectedScene ? (
@@ -1140,84 +1141,6 @@ interface LineEditorProps {
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
 }
 
-const PipelineStatusPanel: React.FC<{
-  status: GalgamePipelineStatus | null;
-  loading: boolean;
-}> = ({ status, loading }) => {
-  const run = status?.run ?? null;
-  const [open, setOpen] = useState(
-    run?.status === "running" || run?.status === "failed",
-  );
-
-  useEffect(() => {
-    if (run?.status === "running" || run?.status === "failed") setOpen(true);
-  }, [run?.status]);
-
-  if (!run && !loading) return null;
-
-  return (
-    <details
-      aria-label="生成状态"
-      className="a4n-flat-surface overflow-hidden text-xs"
-      open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 font-medium text-book-text-main hover:bg-book-bg-tertiary/55 [&::-webkit-details-marker]:hidden">
-        <span>生成状态</span>
-        <span className="flex-1" />
-        {loading ? <Loader2 size={13} className="animate-spin" /> : null}
-        {run ? (
-          <span className="text-[11px] font-normal text-book-text-muted">
-            {pipelineStatusLabel(run.status)}
-          </span>
-        ) : null}
-      </summary>
-      <div className="border-t border-book-border/40 px-3 py-3">
-        {!run ? (
-          <div className="text-[11px] text-book-text-muted">正在读取状态…</div>
-        ) : (
-          <div className="space-y-1 text-[11px] text-book-text-muted">
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
-              <span>{pipelineStatusLabel(run.status)}</span>
-              <span className="min-w-0 truncate text-right">
-                {formatPipelineTime(run.updated_at)}
-              </span>
-            </div>
-            {run.current_step_key ? (
-              <div className="truncate">
-                步骤：{pipelineStepLabel(run.current_step_key)}
-              </div>
-            ) : null}
-            {run.error_message ? (
-              <div
-                role="alert"
-                className="rounded-xl border border-error/35 bg-error-bg/65 p-2.5 text-error"
-              >
-                {run.error_message}
-              </div>
-            ) : null}
-            {status?.checkpoints.length ? (
-              <div className="mt-2 space-y-1 border-t border-book-border pt-2">
-                {status.checkpoints.map((checkpoint) => (
-                  <div
-                    key={checkpoint.id}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
-                  >
-                    <span className="min-w-0 truncate">
-                      {pipelineStepLabel(checkpoint.step_key)}
-                    </span>
-                    <span>{pipelineStatusLabel(checkpoint.status)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
-    </details>
-  );
-};
-
 const AssetPlanPanel: React.FC<{
   plan: GalgameAssetPlan | null;
   speakerProfiles: GalgameSpeakerProfile[];
@@ -1278,9 +1201,9 @@ const AssetPlanPanel: React.FC<{
         <span>视觉资产</span>
         <span className="flex-1" />
         {loading || generating ? (
-          <Loader2 size={13} className="animate-spin" />
+          <LoadingSpinner size="sm" />
         ) : null}
-        <span className="text-[11px] font-normal text-book-text-muted">
+        <span className="text-small font-normal text-book-text-muted">
           {plan ? "已规划" : "未规划"}
         </span>
       </summary>
@@ -1293,7 +1216,7 @@ const AssetPlanPanel: React.FC<{
           disabled={disabled}
         >
           {loading || generating ? (
-            <Loader2 size={13} className="animate-spin" />
+            <LoadingSpinner size="sm" />
           ) : (
             <Images size={13} />
           )}
@@ -1314,14 +1237,14 @@ const AssetPlanPanel: React.FC<{
           </div>
         ) : null}
         {!plan ? (
-          <div className="mt-2 text-[11px] text-book-text-muted">
+          <div className="mt-2 text-small text-book-text-muted">
             规划后可统一生成背景、角色差分与事件 CG。
           </div>
         ) : (
-          <div className="mt-2 space-y-2 text-[11px] text-book-text-muted">
+          <div className="mt-2 space-y-2 text-small text-book-text-muted">
             {planSummary ? <p>{planSummary}</p> : null}
             {outcomeSummary ? (
-              <p className="text-[10px] text-book-text-subtle">
+              <p className="text-caption text-book-text-subtle">
                 {outcomeSummary}
               </p>
             ) : null}
@@ -1408,12 +1331,12 @@ const PortraitExpressionMatrix: React.FC<{
     <div className="border-t border-book-border pt-2">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="font-semibold text-book-text-main">角色差分</span>
-        <span className="text-[10px] tabular-nums text-book-text-subtle">
+        <span className="text-caption tabular-nums text-book-text-subtle">
           {cells.length} 项
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[360px] border-collapse text-[11px]">
+        <table className="w-full min-w-[360px] border-collapse text-small">
           <thead>
             <tr className="text-left text-book-text-muted">
               <th className="border border-book-border bg-book-bg-paper px-2 py-1 font-medium">
@@ -1475,7 +1398,7 @@ const PortraitExpressionMatrix: React.FC<{
                               }
                             >
                               {generating ? (
-                                <Loader2 size={12} className="animate-spin" />
+                                <LoadingSpinner size="sm" />
                               ) : (
                                 <RefreshCw size={12} />
                               )}
@@ -1651,7 +1574,7 @@ const SceneMetaEditor: React.FC<{
         </select>
       </div>
       <details className="rounded-xl border border-book-border/40 bg-book-bg-paper/45 p-2.5">
-        <summary className="cursor-pointer text-[11px] font-medium text-book-text-main">
+        <summary className="cursor-pointer text-small font-medium text-book-text-main">
           背景素材 ·{" "}
           {backgroundBindings.length
             ? `${backgroundBindings.length} 项`
@@ -1727,7 +1650,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
   return (
     <article className="py-4 first:pt-0 last:pb-0">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="min-w-8 text-[11px] font-semibold text-book-text-muted">
+        <span className="min-w-8 text-small font-semibold text-book-text-muted">
           第 {line.line_index} 行
         </span>
         <select
@@ -1804,7 +1727,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
         ) : null}
         {isSpeakingLine ? (
           <span
-            className={`max-w-[180px] truncate text-[11px] ${
+            className={`max-w-[180px] truncate text-small ${
               speaker && !missingSpeakingExpression
                 ? "text-book-text-muted"
                 : "text-error"
@@ -1826,7 +1749,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
         ) : null}
         {line.text_anchor_id ? (
           <span
-            className={`max-w-[220px] truncate text-[11px] ${
+            className={`max-w-[220px] truncate text-small ${
               sourceAnchor ? "text-book-text-muted" : "text-error"
             }`}
             title={
@@ -1846,7 +1769,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
         ) : null}
         <div className="ml-auto flex items-center gap-1">
           {saving ? (
-            <Loader2 size={13} className="animate-spin text-book-text-muted" />
+            <LoadingSpinner size="sm" className="text-book-text-muted" />
           ) : null}
           <Dropdown
             items={[
@@ -2015,7 +1938,7 @@ const PresentationEditor: React.FC<{
               update({ cgNote, cgImportance: nextImportance });
             }
           }}
-          className="inline-flex items-center gap-1.5 text-[11px] text-book-text-main disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 text-small text-book-text-main disabled:opacity-50"
         >
           <span
             className={`relative inline-flex h-[18px] w-8 shrink-0 rounded-full transition-colors ${
@@ -2236,13 +2159,13 @@ const ChoiceEditor: React.FC<{
         })}
       </div>
       {targetInspections.some((item) => item.kind === "error") ? (
-        <div className="mt-2 border border-error/50 bg-book-bg px-2 py-1 text-[11px] text-error">
+        <div className="mt-2 border border-error/50 bg-book-bg px-2 py-1 text-small text-error">
           存在缺失目标或未回收敛支线，导出前需要修正。
         </div>
       ) : null}
       <div className="mt-2 flex flex-col gap-2 border-t border-book-border/35 pt-2 sm:flex-row sm:items-center">
         <span
-          className={`min-w-0 flex-1 text-[11px] ${
+          className={`min-w-0 flex-1 text-small ${
             canSave && targetIssueCount === 0
               ? "text-book-text-muted"
               : "text-error"
@@ -2286,7 +2209,7 @@ const ChoiceTargetSummary: React.FC<{ inspection: ChoiceTargetInspection }> = ({
   const className =
     inspection.kind === "error" ? "text-error" : "text-book-text-muted";
   return (
-    <div className={`px-1 text-[11px] ${className}`}>{inspection.message}</div>
+    <div className={`px-1 text-small ${className}`}>{inspection.message}</div>
   );
 };
 
@@ -2390,7 +2313,7 @@ const LineMediaBindings: React.FC<{
   const bindingCount = audioBindings.length + cgBindings.length;
   return (
     <details className="mt-3 border-t border-book-border/40 pt-2.5">
-      <summary className="cursor-pointer rounded-lg px-1 py-1 text-[11px] font-medium text-book-text-main hover:bg-book-bg-tertiary/55">
+      <summary className="cursor-pointer rounded-lg px-1 py-1 text-small font-medium text-book-text-main hover:bg-book-bg-tertiary/55">
         媒体与音效 · {bindingCount > 0 ? `${bindingCount} 项` : "未绑定"}
       </summary>
       <div className="mt-2.5">
@@ -2431,7 +2354,7 @@ const LineMediaBindings: React.FC<{
               return (
                 <div
                   key={item.binding.id}
-                  className="grid gap-2 py-2.5 text-[11px] text-book-text-muted md:grid-cols-[64px_minmax(0,1fr)_auto]"
+                  className="grid gap-2 py-2.5 text-small text-book-text-muted md:grid-cols-[64px_minmax(0,1fr)_auto]"
                 >
                   <span className="font-semibold text-book-text-main">
                     {item.binding.role === "bgm" ? "BGM" : "SFX"}
@@ -2478,7 +2401,7 @@ const ImageBindingStrip: React.FC<{
     return (
       <div className="mb-2 space-y-2">
         {emptyLabel ? (
-          <div className="border border-dashed border-book-border bg-book-bg-paper px-3 py-4 text-center text-[11px] text-book-text-muted">
+          <div className="border border-dashed border-book-border bg-book-bg-paper px-3 py-4 text-center text-small text-book-text-muted">
             {emptyLabel}
           </div>
         ) : null}
@@ -2498,7 +2421,7 @@ const ImageBindingStrip: React.FC<{
               className="overflow-hidden rounded-xl border border-book-border/45 bg-book-bg-paper"
             >
               <div className="flex items-center gap-2 px-2.5 py-2">
-                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-book-text-main">
+                <span className="min-w-0 flex-1 truncate text-small font-semibold text-book-text-main">
                   {title}
                 </span>
                 <button
@@ -2519,7 +2442,7 @@ const ImageBindingStrip: React.FC<{
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-[11px] text-book-text-muted">
+                  <div className="flex h-full items-center justify-center text-small text-book-text-muted">
                     图片文件缺失
                   </div>
                 )}
@@ -2541,7 +2464,7 @@ const AudioBindingControl: React.FC<{
 }> = ({ label, disabled, onImport, onBind }) => {
   return (
     <section className="p-2.5">
-      <div className="mb-2 text-[11px] font-semibold text-book-text-main">
+      <div className="mb-2 text-small font-semibold text-book-text-main">
         {label}
       </div>
       <BookButton
@@ -2563,81 +2486,6 @@ const AudioBindingControl: React.FC<{
   );
 };
 
-const MediaAssetIdBinder: React.FC<{
-  label: string;
-  disabled: boolean;
-  onBind: (mediaAssetId: number) => void;
-}> = ({ label, disabled, onBind }) => {
-  const [draft, setDraft] = useState("");
-  const [error, setError] = useState("");
-  const mediaAssetId = parsePositiveInteger(draft);
-
-  const submit = () => {
-    if (mediaAssetId == null) {
-      setError("请输入有效的素材编号");
-      return;
-    }
-    setError("");
-    onBind(mediaAssetId);
-  };
-
-  return (
-    <details className="border-t border-book-border/55 pt-2">
-      <summary className="cursor-pointer list-none text-[11px] text-book-text-muted hover:text-book-text-main [&::-webkit-details-marker]:hidden">
-        从已有素材绑定
-      </summary>
-      <div className="mt-2 space-y-1">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-          <input
-            className="min-w-0 border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
-            value={draft}
-            disabled={disabled}
-            inputMode="numeric"
-            aria-label="素材编号"
-            placeholder="素材编号"
-            onChange={(event) => {
-              setDraft(event.target.value);
-              if (error) setError("");
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") submit();
-            }}
-          />
-          <BookButton
-            variant="secondary"
-            size="sm"
-            onClick={submit}
-            disabled={disabled || mediaAssetId == null}
-          >
-            <Images size={13} />
-            {label}
-          </BookButton>
-        </div>
-        {error ? <div className="text-[11px] text-error">{error}</div> : null}
-      </div>
-    </details>
-  );
-};
-
-function pipelineStatusLabel(status: string): string {
-  switch (status) {
-    case "running":
-      return "运行中";
-    case "completed":
-      return "已完成";
-    case "failed":
-      return "失败";
-    case "cancelled":
-      return "已取消";
-    case "interrupted":
-      return "已中断";
-    case "superseded":
-      return "已取代";
-    default:
-      return "状态未知";
-  }
-}
-
 function pipelineStartStageLabel(
   stage: GalgamePipelineStartStage | "",
 ): string {
@@ -2645,27 +2493,6 @@ function pipelineStartStageLabel(
     PIPELINE_START_STAGES.find((item) => item.value === stage)?.label ??
     "从头开始"
   );
-}
-
-function pipelineStepLabel(stepKey: string): string {
-  switch (stepKey) {
-    case "shooting_script_projection":
-      return "拍摄剧本投影";
-    case "script_adaptation":
-      return "剧本改编";
-    case "character_staging":
-      return "角色演出";
-    case "visual_planning":
-      return "视觉规划";
-    case "branch_design":
-      return "分支设计";
-    case "persist_script":
-      return "写入剧本";
-    case "asset_generation":
-      return "资产意图";
-    default:
-      return "其他步骤";
-  }
 }
 
 function sceneEntryKindLabel(entryKind: string): string {
@@ -2927,13 +2754,6 @@ function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function parsePositiveInteger(value: string): number | null {
-  const trimmed = value.trim();
-  if (!/^[1-9]\d*$/.test(trimmed)) return null;
-  const parsed = Number(trimmed);
-  return Number.isSafeInteger(parsed) ? parsed : null;
-}
-
 interface PresentationPatch {
   cgEnabled?: boolean;
   cgNote?: string;
@@ -3030,8 +2850,4 @@ function fallbackAudioMime(fileName: string): string {
   if (lower.endsWith(".wav")) return "audio/wav";
   if (lower.endsWith(".ogg")) return "audio/ogg";
   return "application/octet-stream";
-}
-
-function formatPipelineTime(value: string): string {
-  return formatUiDateTime(value);
 }

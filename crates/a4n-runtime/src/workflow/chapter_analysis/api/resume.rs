@@ -63,6 +63,7 @@ pub async fn resume_chapter_analysis_sync_with_progress(
             ChapterAnalysisApplicationProgress {
                 reporter: Some(&reporter),
                 cancel_token: progress.and_then(|progress| progress.cancel_token),
+                active_task_id: progress.and_then(|progress| progress.task_id),
             },
             Some(&trace_port),
         )

@@ -117,14 +117,3 @@ pub fn subscribe_generation_task(
         .generation_tasks()
         .subscribe_task(task, after_sequence)
 }
-
-pub fn replay_generation_task(
-    state: &AppState,
-    task_id: &str,
-    attempt: u32,
-    after_sequence: Option<u64>,
-) -> Result<GenerationReplay, GenerationTaskAccessError> {
-    state
-        .generation_tasks()
-        .replay_task(task_id, attempt, after_sequence)
-}

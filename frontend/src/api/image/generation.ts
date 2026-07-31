@@ -31,7 +31,6 @@ function normalizeImageConfigId(configId?: Id | null): number | null {
 }
 
 export type ImageGenerationInput = Omit<StartImageGenerationInput, "meta">;
-export type { ImageGenerationOperation };
 
 export async function startImageGeneration(
   input: ImageGenerationInput,

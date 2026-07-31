@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    structured_llm::ChatJsonStreamInput,
+    structured_llm::{ChatJsonStreamInput, stream_error_or_cancelled},
     workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
 };
 
@@ -18,7 +18,7 @@ use super::{
         ChapterAnchorMode, OBJECT_DISCOVERY_FIELDS, OBJECT_DISCOVERY_LLM_SPAN,
         OBJECT_DISCOVERY_PROGRESS_TOTAL, ObjectDiscoveryCallCheckpoint, ObjectDiscoveryCallResult,
         ObjectDiscoveryInput, ObjectDiscoveryProgress, ObjectDiscoveryRequestContext,
-        ObjectDiscoveryRequestPreview, ObjectDiscoveryResult, PrepareObjectDiscoveryRequestInput,
+        ObjectDiscoveryRequestPreview, PrepareObjectDiscoveryRequestInput,
         RequiredObjectDiscoveryInput,
     },
     output::parse_and_validate_object_discovery_output,
@@ -69,6 +69,7 @@ impl OrchestratorContext {
             &request_context.chapters,
             &request_context.text_anchors,
             &request_context.request,
+            progress.and_then(|progress| progress.active_task_id),
         )
         .map_err(AppError::InvalidArgument)?;
         let workflow_run = self.begin_workflow_run_validated(workflow_input).await?;
@@ -101,7 +102,7 @@ impl OrchestratorContext {
             Ok(result)
         }
         .await;
-        self.finalize_object_discovery(workflow_run.id, result)
+        self.finalize_workflow_result(workflow_run.id, result, Some("物体档案发现完成"))
             .await
     }
 
@@ -126,8 +127,11 @@ impl OrchestratorContext {
                         .await?
                 }
                 ChapterAnchorMode::RequireExistingCurrent => {
-                    self.read_current_object_discovery_anchors(required.project_id, chapter.id)
-                        .await?
+                    self.require_current_chapter_content_anchors_for_preview(
+                        required.project_id,
+                        chapter.id,
+                    )
+                    .await?
                 }
             };
             text_anchors.extend(anchors);
@@ -146,33 +150,6 @@ impl OrchestratorContext {
             text_anchors,
             request,
         })
-    }
-
-    async fn read_current_object_discovery_anchors(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<a4n_core::models::project::text_anchor::Model>, AppError> {
-        let rows = self
-            .read_current_chapter_content_anchor_records(project_id, chapter_id)
-            .await?;
-        if rows.anchors.is_empty() {
-            return Err(AppError::InvalidState {
-                current: format!("第 {} 章缺少当前正文文本锚点", rows.chapter.chapter_number),
-                operation: "预览模型请求".to_string(),
-            });
-        }
-        if rows
-            .anchors
-            .iter()
-            .any(|anchor| anchor.source_version_hash != rows.source_version_hash)
-        {
-            return Err(AppError::InvalidState {
-                current: format!("第 {} 章正文文本锚点已过期", rows.chapter.chapter_number),
-                operation: "预览模型请求".to_string(),
-            });
-        }
-        Ok(rows.anchors)
     }
 
     async fn run_object_discovery_call(
@@ -253,7 +230,12 @@ impl OrchestratorContext {
                     },
                 )
                 .await
-                .map_err(AppError::LlmError)?;
+                .map_err(|error| {
+                    stream_error_or_cancelled(
+                        error,
+                        progress.and_then(|progress| progress.cancel_token),
+                    )
+                })?;
             report_object_discovery_progress(progress, 80, "模型已返回，正在校验物体发现结果")?;
             let (parsed_drafts, parsed_output) = parse_and_validate_object_discovery_output(
                 &response_content,
@@ -325,29 +307,6 @@ impl OrchestratorContext {
             response_content,
             parsed_output,
         }))
-    }
-
-    async fn finalize_object_discovery(
-        &self,
-        workflow_run_id: i64,
-        result: ObjectDiscoveryResult,
-    ) -> ObjectDiscoveryResult {
-        let (success, error_message) = match &result {
-            Ok(_) => (true, None),
-            Err(error) => (false, Some(error.to_string())),
-        };
-        let status_result = self
-            .finalize_workflow_run_validated(workflow_run_id, success, error_message.as_deref())
-            .await;
-        match (result, status_result) {
-            (result, Ok(_)) => result,
-            (Ok(_), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
-                "物体档案发现完成，但工作流状态写入失败: {status_error}"
-            ))),
-            (Err(primary), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
-                "{primary}；工作流失败状态写入失败: {status_error}"
-            ))),
-        }
     }
 }
 

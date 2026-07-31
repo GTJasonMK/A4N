@@ -16,7 +16,6 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let addr = a4n_sidecar_bootstrap::socket_addr("A4N_IMAGE_SERVICE_ADDR", "127.0.0.1:47645")?;
     let policy = a4n_service_protocol::sidecar_resource_policy("image")
         .expect("image sidecar must have a resource policy");
-    let (shutdown_signal, shutdown) = a4n_sidecar_bootstrap::sidecar_shutdown();
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route(
@@ -40,15 +39,8 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .layer(a4n_sidecar_bootstrap::concurrency_limit(
             policy.max_concurrent_requests,
         ))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth))
-        .merge(a4n_sidecar_bootstrap::shutdown_router(shutdown_signal));
-    let app =
-        a4n_sidecar_bootstrap::with_runtime_metrics(app, a4n_service_protocol::IMAGE_SERVICE_NAME)?;
+        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth));
 
     tracing::info!(%addr, "starting image sidecar");
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await?;
-    Ok(())
+    a4n_sidecar_bootstrap::serve_sidecar(app, addr, a4n_service_protocol::IMAGE_SERVICE_NAME).await
 }

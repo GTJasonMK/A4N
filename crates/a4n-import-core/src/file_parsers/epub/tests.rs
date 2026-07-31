@@ -22,7 +22,7 @@ fn splits_chapters_from_headings_in_one_html_file() {
         zip_writer.finish().unwrap();
     }
 
-    let result = EpubParser::new().parse(&buffer.into_inner()).unwrap();
+    let result = EpubParser.parse(&buffer.into_inner()).unwrap();
 
     assert_eq!(result.chapters.len(), 2);
     assert_eq!(result.chapters[0].title, "Chapter 1 Start");
@@ -41,13 +41,20 @@ fn uses_opf_spine_order_instead_of_zip_entry_order() {
             .start_file("OEBPS/chapter2.xhtml", options)
             .unwrap();
         zip_writer
-            .write_all(br#"<html><body><h1>Chapter 2</h1><p>Second.</p></body></html>"#)
+            .write_all(br#"<html><head><title>Chapter 2</title></head><body><h1>Chapter 2</h1><p>Second.</p></body></html>"#)
+            .unwrap();
+        zip_writer.start_file("OEBPS/nav.xhtml", options).unwrap();
+        zip_writer
+            .write_all(
+                br#"<html><head><title>Contents</title></head><body><nav><a href="chapter1.xhtml">Chapter 1</a><a href="chapter2.xhtml">Chapter 2</a></nav></body></html>"#,
+            )
             .unwrap();
         zip_writer.start_file("OEBPS/content.opf", options).unwrap();
         zip_writer
             .write_all(
                 br#"<package>
   <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="c1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
     <item id="c2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
   </manifest>
@@ -62,12 +69,12 @@ fn uses_opf_spine_order_instead_of_zip_entry_order() {
             .start_file("OEBPS/chapter1.xhtml", options)
             .unwrap();
         zip_writer
-            .write_all(br#"<html><body><h1>Chapter 1</h1><p>First.</p></body></html>"#)
+            .write_all(br#"<html><head><title>Chapter 1</title></head><body><h1>Chapter 1</h1><p>First.</p></body></html>"#)
             .unwrap();
         zip_writer.finish().unwrap();
     }
 
-    let result = EpubParser::new().parse(&buffer.into_inner()).unwrap();
+    let result = EpubParser.parse(&buffer.into_inner()).unwrap();
 
     assert_eq!(result.chapters.len(), 2);
     assert_eq!(result.chapters[0].title, "Chapter 1");
@@ -110,7 +117,7 @@ fn resolves_parent_relative_manifest_href() {
         zip_writer.finish().unwrap();
     }
 
-    let result = EpubParser::new().parse(&buffer.into_inner()).unwrap();
+    let result = EpubParser.parse(&buffer.into_inner()).unwrap();
 
     assert_eq!(result.chapters.len(), 2);
     assert_eq!(result.chapters[0].title, "Chapter 1");

@@ -2,7 +2,9 @@
 
 A4N 是一个面向小说创作与多模态派生内容生产的本地应用。项目以文本项目为根，围绕灵感对话、故事蓝图、大纲、章节写作、结构化分析、人物/物体/场景档案、图片生成、漫画派生、视频派生和成片编辑等工作流组织功能。
 
-当前代码库采用前后端分层结构：前端是 Vite/React，后端是 Rust workspace，运行时由 Tauri 将两者打包为同一个桌面应用。它不是传统 Web 项目中“前端站点 + 独立后端服务”的分开部署形态，前端主要通过 Tauri command 调用后端能力。
+当前代码库采用双 Host 架构：Tauri 桌面端和 axum Web Server 都通过
+`a4n-runtime` 调用同一套 orchestrator 业务逻辑。内置 `a4n` CLI 连接
+`a4n-server`，因此无前端运行、桌面端和网页端不会各自复制权限、事务、校验或状态机。
 
 ## 技术栈
 
@@ -27,6 +29,7 @@ crates/
   a4n-orchestrator            业务规则、事务、工作流和能力编排唯一 owner
   a4n-runtime                 provider、文件、进程和 Host API 适配
   a4n-tauri / a4n-server      桌面与 Web host 入口
+  a4n-cli                     无前端 CLI、Agent 合同、Shell、Flow 和 local 生命周期
   a4n-migration               数据库迁移
 frontend/
   src/           React 前端源码
@@ -125,6 +128,38 @@ npm run build
 ./scripts/test.sh --crate a4n-core --nocapture
 ```
 
+## 无前端 CLI
+
+`a4n` 通过 Server 调用共享 Host API manifest 中与桌面/Web 相同的全部业务命令，并提供稳定的
+JSON/JSONL Agent 输出、危险操作授权、task/workflow 观察、可恢复 Flow 和本地
+Server 生命周期管理。完整说明见 [A4N CLI 手册](docs/CLI.md)。
+
+最小启动：
+
+```bash
+export A4N_DATABASE_URL='postgres://USER:PASSWORD@127.0.0.1:5432/a4n'
+export A4N_JWT_SECRET='replace-with-a-long-random-secret'
+
+cargo run -p a4n-cli -- local start --no-sidecars --no-qdrant
+cargo run -p a4n-cli -- --agent capabilities check
+```
+
+发布包中可直接使用：
+
+```bash
+a4n local start
+a4n health
+a4n --agent capabilities export
+a4n local stop
+```
+
+发布包默认 sidecar profile 已包含完整 AI 能力。`a4n local start --full` 专用于源码
+workspace，会重新构建带 `embedded-capabilities` feature 的 Server。
+
+`a4n local` 会先运行独立 migration，再启动 Server；它不会自动启动 PostgreSQL
+或 Docker。默认 profile 使用 8 个 managed sidecar；源码 workspace 可用 `--full`
+运行 embedded capabilities。
+
 ## 配置与本地数据
 
 运行时日志、缓存、临时文件和生成媒体属于本地数据，不提交到 Git。默认本地目录为 `data/`，已在 `.gitignore` 中忽略。数据库不再是 `data/` 下的本地 SQLite 文件，桌面和 Web 运行时都通过 `A4N_DATABASE_URL` 连接 PostgreSQL。
@@ -160,41 +195,23 @@ Web 运行常用变量：
 
 大部分 AI 服务配置也可以通过应用内设置页面管理。
 
-## Web 部署状态
+## Desktop / Web / CLI 一致性
 
-Web 服务端是独立 crate `a4n-server`，使用显式 HTTP 路由，不暴露 `/api/commands/:cmd`。当前已实现：
+前端在 Tauri 内调用 Tauri command，在浏览器中调用 `a4n-server` 的显式 REST
+路由或 `/api/commands/:cmd`。CLI 对 Web 专用 REST 路由使用相同映射，其余命令走
+统一 command endpoint。共享 Host API manifest 位于 `a4n-api-contract`，是 CLI
+能力发现和三端 parity 的单一命令目录。
 
-- `GET /api/health`
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-- `POST /api/auth/logout`
-- `POST /api/auth/refresh`
-- `GET /api/admin/users`
-- `POST /api/admin/users`
-- `POST /api/admin/users/{user_id}/role`
-- `POST /api/admin/users/{user_id}/disable`
-- `GET /api/projects`
-- `POST /api/projects`
-- `POST /api/projects/derived`
-- `GET /api/projects/{root_project_id}/derived`
-- `GET /api/projects/{project_id}/source-snapshot-chapters`
-- `GET /api/projects/{project_id}`
-- `POST /api/source-sync/preview`
-- `GET /api/source-sync/runs/{sync_run_id}/conflicts`
-- `POST /api/source-sync/apply`
-- `POST /api/source-sync/detach`
-
-前端在 Tauri 内仍调用 Tauri command；在普通浏览器中会调用上述 REST 接口。尚未映射到 REST 的前端 API 会明确报错，避免隐式兼容层。
-
-Web 运行时的管理员页面当前只开放用户管理；桌面运行时仍保留概览、项目、任务和用量趋势等完整管理员功能。
-
-桌面端与 Web 端功能一致性必须通过显式命令映射校验：
+一致性检查：
 
 ```bash
 cd frontend && npm run check:web-api-parity
 ```
 
-该检查会对齐前端 `apiInvoke` 命令、桌面 Tauri 注册命令、Web `webInvoke` 映射命令，并标出页面/功能组件中直接导入的 Tauri API。只要仍有前端命令缺少 Web 映射，或仍有事件监听、系统文件选择器、媒体协议等桌面专属能力没有 Web 等价适配，就不能认为 Web 端功能已经与桌面端一致。
+该检查会对齐前端 `apiInvoke` 命令、桌面 Tauri 注册命令、Web 路由、CLI
+专用映射、manifest 已知命令的通用 command endpoint 和 Tauri-only runtime 等价入口。页面
+导航、系统文件选择器、原生窗口和媒体协议等壳层行为仍由各 Host 适配，不进入共享
+业务命令目录。
 
 ## 发布前检查
 

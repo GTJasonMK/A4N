@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_core::models::scene::scene_profile;
-use serde_json::{Value, json};
+use a4n_core::profile_text::merge_profile_evidence_json;
 
 use crate::scene_profile::{
     SceneProfileDbError, SceneProfileDbResult, SceneProfileRecordDraft, SceneProfileRecordInput,
@@ -48,29 +48,7 @@ pub(super) fn merge_scene_profile_record_input(
 ) -> SceneProfileRecordInput {
     input.first_seen_chapter = existing.first_seen_chapter.min(input.first_seen_chapter);
     input.last_seen_chapter = existing.last_seen_chapter.max(input.last_seen_chapter);
-    input.evidence_json = merge_text_set_json_values(&existing.evidence_json, &input.evidence_json);
+    input.evidence_json =
+        merge_profile_evidence_json(&existing.evidence_json, &input.evidence_json);
     input
-}
-
-fn merge_text_set_json_values(existing: &Value, incoming: &Value) -> Value {
-    let mut values = existing
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .collect::<BTreeSet<_>>();
-    values.extend(
-        incoming
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned),
-    );
-    json!(values.into_iter().collect::<Vec<_>>())
 }

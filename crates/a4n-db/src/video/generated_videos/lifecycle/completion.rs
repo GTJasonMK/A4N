@@ -3,8 +3,27 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set, TransactionTrait};
 use serde_json::Value;
 
-use super::context::generated_video_with_prompt_record;
+use super::context::{
+    ensure_generated_video_status_allows_completion, generated_video_with_prompt_record,
+};
 use crate::video::{VideoDbError, merge_video_provider_response_metadata};
+
+pub(super) fn completed_video_write_is_idempotent(
+    status: &str,
+    existing_file_path: Option<&str>,
+    requested_file_path: &str,
+) -> Result<bool, VideoDbError> {
+    if status != "completed" {
+        return Ok(false);
+    }
+    if existing_file_path == Some(requested_file_path) {
+        return Ok(true);
+    }
+    Err(VideoDbError::InvalidState {
+        current: status.to_string(),
+        operation: "用不同文件重复完成视频生成".to_string(),
+    })
+}
 
 async fn mark_generated_video_completed_and_link_prompt_record_in<C>(
     db: &C,
@@ -19,6 +38,18 @@ where
     C: ConnectionTrait,
 {
     let (video, prompt) = generated_video_with_prompt_record(db, video_id, prompt_id).await?;
+    if completed_video_write_is_idempotent(&video.status, video.file_path.as_deref(), file_path)? {
+        if let Some(prompt) = prompt.as_ref()
+            && (prompt.status != "completed" || prompt.generated_video_id != Some(video.id))
+        {
+            return Err(VideoDbError::InvalidArgument(format!(
+                "视频 #{} 已完成，但提示词 #{} 未关联该视频",
+                video.id, prompt.id
+            )));
+        }
+        return Ok(video);
+    }
+    ensure_generated_video_status_allows_completion(&video.status)?;
     let existing_metadata = video.metadata_json.clone();
     let mut active: generated_video::ActiveModel = video.into();
     active.file_path = Set(Some(file_path.to_string()));

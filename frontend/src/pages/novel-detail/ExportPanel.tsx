@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Download, Loader2 } from "lucide-react";
+import { CheckCircle2, Download } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
   exportBatchData,
@@ -230,12 +231,12 @@ export const ExportPanel: React.FC<{
   };
 
   const spin = (key: string) =>
-    acting === key ? <Loader2 size={12} className="animate-spin" /> : null;
+    acting === key ? <LoadingSpinner size="sm" /> : null;
 
   return (
     <div className="space-y-4">
       <label className="flex min-w-0 flex-col gap-1">
-        <span className="text-[11px] text-book-text-muted">导出格式</span>
+        <span className="text-small text-book-text-muted">导出格式</span>
         <select
           value={selectedFormat}
           onChange={(event) =>
@@ -252,7 +253,7 @@ export const ExportPanel: React.FC<{
         </select>
       </label>
 
-      <p className="text-[11px] leading-relaxed text-book-text-muted">
+      <p className="text-small leading-relaxed text-book-text-muted">
         {selectedFormatOption.description}
       </p>
 
@@ -261,12 +262,12 @@ export const ExportPanel: React.FC<{
           <div className="mb-2 text-xs font-semibold text-book-text-main">
             作品信息
           </div>
-          <p className="mb-2 text-[11px] leading-relaxed text-book-text-muted">
+          <p className="mb-2 text-small leading-relaxed text-book-text-muted">
             书名和作者会写入导出文件，均为必填。
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-book-text-muted">书名</span>
+              <span className="text-small text-book-text-muted">书名</span>
               <input
                 type="text"
                 value={meta.title}
@@ -278,7 +279,7 @@ export const ExportPanel: React.FC<{
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-book-text-muted">作者</span>
+              <span className="text-small text-book-text-muted">作者</span>
               <input
                 type="text"
                 value={meta.author}
@@ -303,7 +304,7 @@ export const ExportPanel: React.FC<{
           onClick={runSelectedExport}
         >
           {exportBusy ? (
-            <Loader2 size={13} className="animate-spin" />
+            <LoadingSpinner size="sm" />
           ) : (
             <Download size={13} />
           )}
@@ -314,7 +315,7 @@ export const ExportPanel: React.FC<{
       </div>
 
       {lastResult ? (
-        <div className="flex items-start gap-2 rounded-xl bg-success-bg/55 px-3 py-2.5 text-[11px] text-book-text-sub">
+        <div className="flex items-start gap-2 rounded-xl bg-success-bg/55 px-3 py-2.5 text-small text-book-text-sub">
           <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success" />
           <div className="min-w-0">
             <div className="font-medium text-book-text-main">
@@ -332,7 +333,7 @@ export const ExportPanel: React.FC<{
       <details className="a4n-flat-surface overflow-hidden">
         <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-xs font-semibold text-book-text-main">
           <span>结构数据</span>
-          <span className="text-[10px] font-normal text-book-text-muted">大纲与角色 JSON</span>
+          <span className="text-caption font-normal text-book-text-muted">大纲与角色 JSON</span>
         </summary>
         <div className="grid grid-cols-2 gap-2 border-t border-book-border/45 p-3">
           <BookButton

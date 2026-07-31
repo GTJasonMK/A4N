@@ -4,9 +4,9 @@ use a4n_core::error::AppError;
 #[cfg(test)]
 use a4n_core::models::chapter::chapter_outline;
 use a4n_core::models::chapter::part_outline;
-use a4n_db::DatabaseConnectionTrait as ConnectionTrait;
 use a4n_db::DbHandle;
 use a4n_db::outline::{self as outline_db, OutlineDbError, PartOutlineSyncDraft};
+use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 #[cfg(test)]

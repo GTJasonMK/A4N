@@ -12,21 +12,14 @@ async fn main() -> anyhow::Result<()> {
         "a4n_demo_sidecar=info,tower_http=warn",
     )?;
     let addr = a4n_sidecar_bootstrap::socket_addr("A4N_DEMO_SIDECAR_ADDR", "127.0.0.1:47631")?;
-    let (shutdown_signal, shutdown) = a4n_sidecar_bootstrap::sidecar_shutdown();
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route("/slow", post(slow))
         .route("/counted-slow", post(counted_slow))
         .route("/crash", post(crash))
         .route("/trace", get(trace_headers))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth))
-        .merge(a4n_sidecar_bootstrap::shutdown_router(shutdown_signal));
-    let app = a4n_sidecar_bootstrap::with_runtime_metrics(app, "demo")?;
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await?;
-    Ok(())
+        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth));
+    a4n_sidecar_bootstrap::serve_sidecar(app, addr, "demo").await
 }
 
 async fn slow() -> StatusCode {

@@ -1,13 +1,11 @@
 import React from "react";
-import {
-  ChevronDown,
+import { ChevronDown,
   ChevronRight,
   ChevronsDown,
   ChevronsUp,
-  Loader2,
   Pencil,
-  Trash2,
-} from "lucide-react";
+  Trash2, } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import type { ChapterScene } from "../../api/chapter";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { nonEmptyText } from "../../utils/text";
@@ -52,7 +50,7 @@ export const SceneList: React.FC<SceneListProps> = ({
   if (loading && scenes.length === 0) {
     return (
       <div className="py-6 text-center text-xs text-book-text-muted inline-flex items-center justify-center gap-2">
-        <Loader2 size={12} className="animate-spin" /> 加载场景…
+        <LoadingSpinner size="sm" /> 加载场景…
       </div>
     );
   }
@@ -178,7 +176,7 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
           <div className="truncate text-sm font-semibold text-book-text-main">
             {nonEmptyText(scene.title) ?? "未命名场景"}
           </div>
-          <div className="mt-0.5 truncate text-[10px] text-book-text-muted">
+          <div className="mt-0.5 truncate text-caption text-book-text-muted">
             {[
               `场景 ${scene.scene_number}`,
               scene.scene_type ? sceneTypeLabel(scene.scene_type) : null,
@@ -197,7 +195,7 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
         <div className="shrink-0">
           {actionBusy ? (
             <span className="inline-flex h-9 w-9 items-center justify-center text-book-text-muted sm:h-8 sm:w-8">
-              <Loader2 size={12} className="animate-spin" />
+              <LoadingSpinner size="sm" />
             </span>
           ) : isEditing ? null : (
             <Dropdown items={actionItems} />

@@ -25,10 +25,11 @@ impl HttpSidecarTransport {
         })
         .await
         .map_err(|_| timeout_error("request"))??;
-        sanitize_service_response(&mut response).map_err(|error| ServiceError {
-            code: ServiceErrorCode::Internal,
-            message: format!("sidecar response artifact ref 非法: {error}"),
-            retryable: Some(false),
+        sanitize_service_response(&mut response).map_err(|error| {
+            ServiceError::non_retryable(
+                ServiceErrorCode::Internal,
+                format!("sidecar response artifact ref 非法: {error}"),
+            )
         })?;
         Ok(response)
     }

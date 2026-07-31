@@ -21,7 +21,7 @@ export const ClearSavedApiKeySwitch: React.FC<
       <span className="block text-xs font-medium text-book-text-sub">
         保存时清除密钥
       </span>
-      <span className="mt-0.5 block text-[11px] leading-relaxed text-book-text-muted">
+      <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
         {checked ? "保存配置后移除当前密钥" : "保留当前已保存的密钥"}
       </span>
     </span>

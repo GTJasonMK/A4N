@@ -210,11 +210,6 @@ jobs:
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
-      - name: Check refactor plan status
-        env:
-          A4N_REFACTOR_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: ./scripts/checks/check-refactor-plan-status.sh
-
       - name: Check build feedback tooling contracts
         run: ./scripts/checks/check-build-feedback-tools.sh
 
@@ -297,8 +292,6 @@ jobs:
           sudo apt-get install -y ripgrep
 
       - name: Validate deploy script syntax
-        env:
-          A4N_REFACTOR_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           bash -n \
             scripts/deploy.sh \
@@ -315,7 +308,6 @@ jobs:
           ./scripts/checks/check-sidecar-security-boundary.sh
           ./scripts/checks/check-core-boundary.sh
           ./scripts/checks/check-generation-cutover-boundary.sh
-          ./scripts/checks/check-refactor-docs.sh
           ./scripts/dev/build-tauri-bundle.sh --help >/dev/null
 
       - name: Check release package layout

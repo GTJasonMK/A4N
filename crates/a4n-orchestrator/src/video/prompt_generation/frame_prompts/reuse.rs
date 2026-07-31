@@ -8,12 +8,10 @@ mod segment;
 
 #[cfg(test)]
 pub(super) use self::contracts::ReusableSegmentPlanFromRowInput;
-pub(super) use self::contracts::{
-    DownstreamSegmentPlanningGuardInput, ReusableFrameRowsQuery, ReusableSegmentPlanForSpecQuery,
-};
 pub(in crate::video) use self::contracts::{
     FrameImageLookupContext, FrameImageLookupRowsQuery, ReusableSegmentPlanForPreviewQuery,
 };
+pub(super) use self::contracts::{ReusableFrameRowsQuery, ReusableSharedSegmentPlanQuery};
 pub(in crate::video) use self::frame::boundary_frame_rows_for_image_lookup;
 #[cfg(test)]
 pub(super) use self::frame::frame_row_matches_image_lookup_context;
@@ -33,6 +31,6 @@ pub(crate) use self::segment::reusable_segment_plan_for_preview;
 #[cfg(test)]
 pub(super) use self::segment::reusable_segment_plan_from_row;
 pub(super) use self::segment::{
-    ensure_no_existing_segment_plan_before_new_planning, prompt_resume_context_matches,
-    reusable_segment_plan_for_spec,
+    ensure_no_existing_segment_plan_before_new_planning, load_shared_segment_plan_for_execution,
+    prompt_resume_context_matches, reusable_shared_segment_plan,
 };

@@ -39,8 +39,8 @@ async fn first_frame_chain_frame_prompt_generation_does_not_silently_reuse_exist
         serde_json::from_str(&frame_prompt_json(1)).unwrap();
     regenerated_frame["frames"][0]["title"] = json!("重新生成的初始首帧");
     let mut progress_events = Vec::new();
-    let mut progress = |current: u32, total: u32, message: &str| -> Result<(), AppError> {
-        progress_events.push((current, total, message.to_string()));
+    let mut progress = |update: VideoPromptProgressUpdate| -> Result<(), AppError> {
+        progress_events.push((update.current, update.total, update.message));
         Ok(())
     };
 

@@ -155,7 +155,6 @@ pub(crate) fn enforce_provider_image_binding_contract(
 
 pub(crate) fn enforce_cliproxy_video_media_contract(
     backend: &str,
-    model: &str,
     grok_mode: CliproxyGrokReferenceMode,
     bound_reference_image_count: usize,
     has_first_frame_image: bool,
@@ -165,7 +164,6 @@ pub(crate) fn enforce_cliproxy_video_media_contract(
 ) -> Result<(), String> {
     for violation in cliproxy_media_contract_violations(
         backend,
-        model,
         grok_mode,
         bound_reference_image_count,
         has_first_frame_image,

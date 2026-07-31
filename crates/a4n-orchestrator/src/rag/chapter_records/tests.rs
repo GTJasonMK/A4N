@@ -4,9 +4,8 @@ use a4n_test_support::embedding::UnavailableEmbeddingProvider;
 use async_trait::async_trait;
 
 use super::{
-    chunks::chapter_rag_chunks_with_provider,
-    contracts::ChapterRagChunkingMode,
-    records::{chapter_rag_records_with_provider, expected_chapter_rag_record_ids_with_provider},
+    chunks::chapter_rag_chunks_with_provider, contracts::ChapterRagChunkingMode,
+    records::chapter_rag_records_with_provider,
 };
 
 struct TopicEmbeddingProvider;
@@ -129,7 +128,7 @@ async fn client_desktop_chunks_do_not_call_server_embedding_provider() {
 }
 
 #[tokio::test]
-async fn expected_chapter_rag_record_ids_match_strategy_chunk_count() {
+async fn chapter_rag_record_ids_match_strategy_chunk_count() {
     let mut chapter = chapter_for_sync(
         "completed",
         "星门亮起。星门震动。星门关闭。厨房起火。厨房冒烟。厨房沉寂。",
@@ -143,13 +142,16 @@ async fn expected_chapter_rag_record_ids_match_strategy_chunk_count() {
     )
     .await
     .expect("chapter chunks");
-    let ids = expected_chapter_rag_record_ids_with_provider(
+    let ids = chapter_rag_records_with_provider(
         &chapter,
         &TopicEmbeddingProvider,
         ChapterRagChunkingMode::Semantic,
     )
     .await
-    .expect("expected ids");
+    .expect("chapter records")
+    .into_iter()
+    .map(|record| record.chunk_id)
+    .collect::<Vec<_>>();
 
     assert_eq!(chunks.len(), 2);
     assert_eq!(
@@ -184,13 +186,16 @@ async fn chapter_rag_records_include_analysis_outputs() {
         }
     }));
 
-    let ids = expected_chapter_rag_record_ids_with_provider(
+    let ids = chapter_rag_records_with_provider(
         &chapter,
         &TopicEmbeddingProvider,
         ChapterRagChunkingMode::Semantic,
     )
     .await
-    .expect("expected ids");
+    .expect("chapter records")
+    .into_iter()
+    .map(|record| record.chunk_id)
+    .collect::<Vec<_>>();
 
     assert!(ids.contains(&"chapter:1:1:p1".to_string()));
     assert!(ids.contains(&"chapter:1:1:metadata".to_string()));

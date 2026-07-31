@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, future::Future, sync::Arc, time::Duration};
 
+use a4n_core::error::AppError;
 use a4n_db::generation::{
     GenerationLifecycleTask, LifecycleGateClaimState, PendingLifecycleOperation,
     ProjectLifecycleOperation,
@@ -15,6 +16,11 @@ use crate::AppState;
 const DESTRUCTIVE_DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 const DRAIN_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const CONTINUATION_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
+enum DeleteProjectForwardError {
+    Rejected(String),
+    Retryable(String),
+}
 
 #[derive(Default)]
 pub(crate) struct DestructiveLifecycleCoordinator {
@@ -51,19 +57,18 @@ impl DestructiveLifecycleCoordinator {
             }
             return Err(error.to_string());
         }
-        if let Err(error) = state
-            .project_family()
-            .delete_project_cascade_validated(project_id)
-            .await
-        {
-            self.schedule_project_continuation(
-                state,
-                project_id,
-                ProjectLifecycleOperation::Delete,
-            );
-            return Err(error.to_string());
+        match delete_project_forward(state, project_id).await {
+            Ok(()) => Ok(()),
+            Err(DeleteProjectForwardError::Rejected(error)) => Err(error),
+            Err(DeleteProjectForwardError::Retryable(error)) => {
+                self.schedule_project_continuation(
+                    state,
+                    project_id,
+                    ProjectLifecycleOperation::Delete,
+                );
+                Err(error)
+            }
         }
-        Ok(())
     }
 
     pub(crate) async fn reset_project(
@@ -182,11 +187,10 @@ impl DestructiveLifecycleCoordinator {
                             .map_err(|error| error.to_string())?,
                     )
                     .await?;
-                    state
-                        .project_family()
-                        .delete_project_cascade_validated(project_id)
-                        .await
-                        .map_err(|error| error.to_string())?;
+                    match delete_project_forward(state, project_id).await {
+                        Ok(()) | Err(DeleteProjectForwardError::Rejected(_)) => {}
+                        Err(DeleteProjectForwardError::Retryable(error)) => return Err(error),
+                    }
                 }
                 PendingLifecycleOperation::ResetProject {
                     project_id,
@@ -256,6 +260,7 @@ impl DestructiveLifecycleCoordinator {
     }
 
     fn spawn_once(&self, key: String, future: impl Future<Output = ()> + Send + 'static) {
+        let future = Box::pin(future);
         let mut continuations = self
             .continuations
             .lock()
@@ -284,12 +289,13 @@ impl DestructiveLifecycleCoordinator {
                 continue;
             }
             let result = match operation {
-                ProjectLifecycleOperation::Delete => state
-                    .project_family()
-                    .delete_project_cascade_validated(project_id)
-                    .await
-                    .map_err(|error| error.to_string())
-                    .map(|_| ()),
+                ProjectLifecycleOperation::Delete => {
+                    match delete_project_forward(&state, project_id).await {
+                        Ok(()) => Ok(()),
+                        Err(DeleteProjectForwardError::Rejected(_)) => return,
+                        Err(DeleteProjectForwardError::Retryable(error)) => Err(error),
+                    }
+                }
                 ProjectLifecycleOperation::Reset => {
                     reset_project_forward(&state, project_id).await.map(|_| ())
                 }
@@ -339,6 +345,36 @@ impl DestructiveLifecycleCoordinator {
             }
             tokio::time::sleep(CONTINUATION_RETRY_INTERVAL).await;
         }
+    }
+}
+
+async fn delete_project_forward(
+    state: &AppState,
+    project_id: i64,
+) -> Result<(), DeleteProjectForwardError> {
+    match state
+        .project_family()
+        .delete_project_cascade_validated(project_id)
+        .await
+    {
+        Ok(()) => Ok(()),
+        Err(error @ AppError::InvalidArgument(_)) => {
+            let error = error.to_string();
+            match state
+                .generation_tasks()
+                .restore_project_gate(project_id, ProjectLifecycleOperation::Delete)
+                .await
+            {
+                Ok(()) => {
+                    tracing::warn!(project_id, error = %error, "项目删除不可执行，已恢复 lifecycle gate");
+                    Err(DeleteProjectForwardError::Rejected(error))
+                }
+                Err(restore_error) => Err(DeleteProjectForwardError::Retryable(format!(
+                    "{error}；恢复 project lifecycle gate 失败：{restore_error}"
+                ))),
+            }
+        }
+        Err(error) => Err(DeleteProjectForwardError::Retryable(error.to_string())),
     }
 }
 

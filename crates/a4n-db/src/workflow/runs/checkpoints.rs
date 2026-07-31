@@ -1,6 +1,7 @@
 use super::*;
 
-use super::queries::workflow_checkpoints;
+use super::queries::{locked_workflow_run_by_id, workflow_checkpoints};
+use super::validation::ensure_workflow_write_open;
 
 pub async fn upsert_workflow_checkpoint(
     db: &DatabaseConnection,
@@ -9,11 +10,14 @@ pub async fn upsert_workflow_checkpoint(
     validate_positive_i64(input.workflow_run_id, "workflow_run_id")?;
     let step_key = required_text(input.step_key, "step_key")?;
     let status = required_text(input.status, "status")?;
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = locked_workflow_run_by_id(&tx, input.workflow_run_id).await?;
+    ensure_workflow_write_open(&run.status, "写入工作流 checkpoint")?;
     let now = Utc::now().naive_utc();
     let existing = workflow_checkpoint::Entity::find()
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(input.workflow_run_id))
         .filter(workflow_checkpoint::Column::StepKey.eq(step_key.as_str()))
-        .one(db)
+        .one(&tx)
         .await
         .map_err(WorkflowWriteError::Database)?;
 
@@ -30,13 +34,15 @@ pub async fn upsert_workflow_checkpoint(
         active.error_message = Set(normalize_optional_text(input.error_message));
         active.updated_at = Set(now);
         active.completed_at = Set(input.completed.then_some(now));
-        return active
-            .update(db)
+        let updated = active
+            .update(&tx)
             .await
-            .map_err(WorkflowWriteError::Database);
+            .map_err(WorkflowWriteError::Database)?;
+        tx.commit().await.map_err(WorkflowWriteError::Database)?;
+        return Ok(updated);
     }
 
-    workflow_checkpoint::ActiveModel {
+    let inserted = workflow_checkpoint::ActiveModel {
         id: NotSet,
         workflow_run_id: Set(input.workflow_run_id),
         step_key: Set(step_key),
@@ -52,9 +58,44 @@ pub async fn upsert_workflow_checkpoint(
         updated_at: Set(now),
         completed_at: Set(input.completed.then_some(now)),
     }
-    .insert(db)
+    .insert(&tx)
     .await
-    .map_err(WorkflowWriteError::Database)
+    .map_err(WorkflowWriteError::Database)?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(inserted)
+}
+
+pub async fn update_workflow_checkpoint_artifacts(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    step_key: &str,
+    artifacts_json: Value,
+) -> Result<workflow_checkpoint::Model, WorkflowWriteError> {
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    let step_key = required_text(step_key.to_string(), "step_key")?;
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    ensure_workflow_write_open(&run.status, "更新工作流 checkpoint 产物")?;
+    let checkpoint = workflow_checkpoint::Entity::find()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .filter(workflow_checkpoint::Column::StepKey.eq(step_key.as_str()))
+        .one(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?
+        .ok_or_else(|| {
+            WorkflowWriteError::NotFound(format!(
+                "工作流 {workflow_run_id} 不存在 checkpoint {step_key}"
+            ))
+        })?;
+    let mut active: workflow_checkpoint::ActiveModel = checkpoint.into();
+    active.artifacts_json = Set(Some(artifacts_json));
+    active.updated_at = Set(Utc::now().naive_utc());
+    let updated = active
+        .update(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(updated)
 }
 
 pub async fn workflow_checkpoint_models(
@@ -77,13 +118,18 @@ pub async fn delete_workflow_checkpoints_by_keys(
     if step_keys.is_empty() {
         return Ok(0);
     }
-    workflow_checkpoint::Entity::delete_many()
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    ensure_workflow_write_open(&run.status, "删除工作流 checkpoint")?;
+    let deleted = workflow_checkpoint::Entity::delete_many()
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
         .filter(workflow_checkpoint::Column::StepKey.is_in(step_keys))
-        .exec(db)
+        .exec(&tx)
         .await
-        .map(|result| result.rows_affected)
-        .map_err(WorkflowWriteError::Database)
+        .map_err(WorkflowWriteError::Database)?
+        .rows_affected;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(deleted)
 }
 
 pub async fn completed_workflow_checkpoint_by_fingerprint(

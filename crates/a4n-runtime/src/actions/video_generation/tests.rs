@@ -1,6 +1,7 @@
 use super::*;
+use a4n_video::VideoGenerationResult;
 use chrono::Utc;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 fn reference_media_video_with_metadata(metadata_json: Option<Value>) -> generated_video::Model {
     let now = Utc::now().naive_utc();
@@ -30,6 +31,30 @@ fn reference_media_video_with_metadata(metadata_json: Option<Value>) -> generate
         created_at: now,
         updated_at: now,
     }
+}
+
+#[test]
+fn completed_video_metadata_discards_provider_media_payload() {
+    let result = VideoGenerationResult {
+        bytes: b"video-bytes".to_vec(),
+        format: "mp4".to_string(),
+        provider_job_id: Some("provider-job".to_string()),
+        metadata: json!({
+            "data": [{"b64_json": "large-media-base64", "format": "mp4"}],
+        }),
+    };
+
+    let metadata = super::provider_host::completed_video_artifact_metadata(&result);
+
+    assert_eq!(metadata["provider_job_id"], json!("provider-job"));
+    assert_eq!(metadata["artifact"]["format"], json!("mp4"));
+    assert_eq!(metadata["artifact"]["byte_size"], json!(11));
+    assert_eq!(
+        metadata["artifact"]["sha256"],
+        json!("79fd615a866fe7f9eb4da8d9c41ab57e3bd48056df42fd2c13e4d461a87afbe3")
+    );
+    assert!(!metadata.to_string().contains("b64_json"));
+    assert!(!metadata.to_string().contains("large-media-base64"));
 }
 
 mod reference_media;

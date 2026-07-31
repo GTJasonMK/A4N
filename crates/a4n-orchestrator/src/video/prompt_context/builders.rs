@@ -22,6 +22,7 @@ pub(in crate::video) use self::frame_prompts::{
     build_first_frame_prompt_user, build_single_frame_prompt_user, build_storyboard_prompt_user,
 };
 pub(in crate::video) use self::planning::build_segment_plan_for_shot_user;
+pub(in crate::video) use self::references::reference_asset_summary;
 pub(in crate::video) use self::storyboard_video::build_storyboard_video_prompt_user;
 
 use self::contracts::{VideoPromptCommonConstraintInput, VideoPromptContractMode};

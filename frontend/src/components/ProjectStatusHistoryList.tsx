@@ -24,12 +24,12 @@ export const ProjectStatusHistoryList: React.FC<ProjectStatusHistoryListProps> =
           <span className="font-semibold text-book-text-main">
             {getProjectStatusText(item.to_status)}
           </span>
-          <time className="ml-auto shrink-0 text-[10px] tabular-nums text-book-text-muted">
+          <time className="ml-auto shrink-0 text-caption tabular-nums text-book-text-muted">
             {formatUiDateTime(item.created_at)}
           </time>
         </div>
         {item.reason ? (
-          <div className="mt-1 break-words text-[11px] leading-relaxed text-book-text-muted">
+          <div className="mt-1 break-words text-small leading-relaxed text-book-text-muted">
             {item.reason}
           </div>
         ) : null}

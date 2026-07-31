@@ -19,6 +19,7 @@ pub(in crate::video::prompt_generation::frame_prompts::frame_chain) async fn per
     } = input;
     allowed_reference_ids.extend(frame_prompt.reference_image_ids.iter().copied());
     frame_prompts.push(frame_prompt);
+    frame_prompts.sort_by_key(|frame| frame.frame_number);
 
     let frame_drafts = frame_prompt_drafts(FramePromptDraftsInput {
         common: frame_draft_common,

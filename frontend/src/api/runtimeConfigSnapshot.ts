@@ -83,6 +83,8 @@ function commandUsesRuntimeConfigSnapshot(cmd: string): boolean {
     cmd.startsWith("converse_") ||
     cmd.startsWith("refine_") ||
     cmd.startsWith("sync_") ||
+    (cmd.startsWith("start_") &&
+      (cmd.endsWith("_generation") || cmd === "start_blueprint_refinement")) ||
     cmd.startsWith("start_manga_pipeline") ||
     cmd.startsWith("resume_manga_pipeline") ||
     cmd.startsWith("optimize_") ||

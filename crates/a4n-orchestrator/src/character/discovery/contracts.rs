@@ -29,6 +29,7 @@ pub type CharacterDiscoveryProgressReporter<'a> =
 pub struct CharacterDiscoveryProgress<'a> {
     pub reporter: Option<CharacterDiscoveryProgressReporter<'a>>,
     pub cancel_token: Option<&'a CancellationToken>,
+    pub active_task_id: Option<&'a str>,
 }
 
 impl CharacterDiscoveryProgress<'_> {
@@ -95,5 +96,3 @@ pub(super) struct CharacterDiscoveryCallCheckpoint {
     pub(super) response_content: String,
     pub(super) parsed_output: Value,
 }
-
-pub(super) type CharacterDiscoveryResult = Result<Value, AppError>;

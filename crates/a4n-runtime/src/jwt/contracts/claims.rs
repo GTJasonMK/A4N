@@ -11,5 +11,7 @@ pub struct Claims {
     pub token_type: String,
     pub jti: Option<String>,
     #[serde(default)]
+    pub session_id: Option<String>,
+    #[serde(default)]
     pub media_path: Option<String>,
 }

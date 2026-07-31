@@ -104,7 +104,11 @@ fn previous_analysis_preflight_accepts_analyzed_prior_chapters() {
 #[test]
 fn workflow_input_uses_stable_business_key_and_content_fingerprint() {
     let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
-    let input = chapter_analysis_workflow_run_input(&chapter, "chapter_analysis.derived_sync");
+    let input = chapter_analysis_workflow_run_input(
+        &chapter,
+        "chapter_analysis.derived_sync",
+        Some("chapter-analysis-task-3"),
+    );
 
     assert_eq!(input.business_key, "chapter_analysis:1:3");
     assert_eq!(input.workflow_kind, "chapter_analysis");
@@ -114,6 +118,10 @@ fn workflow_input_uses_stable_business_key_and_content_fingerprint() {
         Some("chapter_analysis.derived_sync")
     );
     assert_eq!(input.status, WORKFLOW_STATUS_RUNNING);
+    assert_eq!(
+        input.active_task_id.as_deref(),
+        Some("chapter-analysis-task-3")
+    );
     assert!(!input.can_resume);
     let fingerprint = input
         .input_fingerprint_json

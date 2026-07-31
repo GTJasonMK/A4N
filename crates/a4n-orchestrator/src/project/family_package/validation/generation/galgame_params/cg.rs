@@ -5,15 +5,14 @@ use a4n_core::models::{
 };
 use std::collections::HashMap;
 
-use super::super::{
-    params::{
-        generation_spec_params_object, optional_params_i64, required_generation_spec_target_id,
-        required_params_i64, required_params_object, required_params_string,
-        validate_generation_spec_canonical_key, validate_optional_galgame_cg_importance,
-        validate_params_id_equals, validate_snapshot_character_profile_id,
-    },
-    targets::validate_generation_spec_galgame_scene_context,
+use crate::project::{
+    generation_spec_params_object, optional_params_i64, required_generation_spec_target_id,
+    required_params_i64, required_params_object, required_params_string,
+    validate_generation_spec_canonical_key, validate_optional_galgame_cg_importance,
+    validate_params_id_equals, validate_snapshot_character_profile_id,
 };
+
+use super::super::targets::validate_generation_spec_galgame_scene_context;
 
 pub(super) fn validate_galgame_cg_spec_params(
     spec: &generation_spec::Model,

@@ -2,7 +2,9 @@
 async fn chat_video_prompt_regeneration_uses_chat_frames_with_chat_segment_plan() {
     let db = Arc::new(setup_db().await);
     let llm_switch = SwitchableLlmProvider::new();
-    let service = crate::video::test_video_orchestrator_with_llm(db.clone(), Arc::new(llm_switch.clone())).await;
+    let service =
+        crate::video::test_video_orchestrator_with_llm(db.clone(), Arc::new(llm_switch.clone()))
+            .await;
     let engine = TeraPromptEngine::from_directory(&prompts_dir()).unwrap();
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
@@ -34,10 +36,8 @@ async fn chat_video_prompt_regeneration_uses_chat_frames_with_chat_segment_plan(
     let mut boundary_segment_plan: chapter_video_prompt::ActiveModel = boundary_segment_plan.into();
     boundary_segment_plan.status = Set("stale".to_string());
     boundary_segment_plan.update(db.as_ref()).await.unwrap();
-    generate_chat_video_frame_prompt_stage_from_existing_plan(
-        &service, &llm_switch, project.id, chapter.id, &engine,
-    )
-    .await;
+    generate_chat_video_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine)
+        .await;
 
     service
         .generate_chapter_chat_video_prompts(
@@ -118,11 +118,14 @@ async fn chat_video_prompt_regeneration_uses_chat_frames_with_chat_segment_plan(
 async fn chat_video_prompt_regeneration_respects_batch_size_and_preserves_other_prompts() {
     let db = Arc::new(setup_db().await);
     let llm_switch = SwitchableLlmProvider::new();
-    let service = crate::video::test_video_orchestrator_with_llm(db.clone(), Arc::new(llm_switch.clone())).await;
+    let service =
+        crate::video::test_video_orchestrator_with_llm(db.clone(), Arc::new(llm_switch.clone()))
+            .await;
     let engine = TeraPromptEngine::from_directory(&prompts_dir()).unwrap();
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
-    generate_chat_video_frame_prompt_stage(&service, &llm_switch, project.id, chapter.id, &engine).await;
+    generate_chat_video_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine)
+        .await;
 
     let initial_rows = service
         .generate_chapter_chat_video_prompts(

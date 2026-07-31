@@ -53,20 +53,20 @@ pub fn validate_begin_workflow_run_input(input: &UpsertWorkflowRunInput) -> Resu
     if input.workflow_kind.trim().is_empty() {
         return Err("workflow_kind 不能为空".to_string());
     }
-    if let Some(project_id) = input.project_id {
-        if project_id <= 0 {
-            return Err("project_id 必须大于 0".to_string());
-        }
+    if let Some(project_id) = input.project_id
+        && project_id <= 0
+    {
+        return Err("project_id 必须大于 0".to_string());
     }
-    if let Some(scope_id) = input.scope_id {
-        if scope_id <= 0 {
-            return Err("scope_id 必须大于 0".to_string());
-        }
+    if let Some(scope_id) = input.scope_id
+        && scope_id <= 0
+    {
+        return Err("scope_id 必须大于 0".to_string());
     }
-    if let Some(chapter_id) = input.chapter_id {
-        if chapter_id <= 0 {
-            return Err("chapter_id 必须大于 0".to_string());
-        }
+    if let Some(chapter_id) = input.chapter_id
+        && chapter_id <= 0
+    {
+        return Err("chapter_id 必须大于 0".to_string());
     }
     let status = input.status.trim();
     if status != WORKFLOW_STATUS_RUNNING {

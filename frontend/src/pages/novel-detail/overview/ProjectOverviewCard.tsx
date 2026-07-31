@@ -42,7 +42,7 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
     <>
       {projectDescription ? (
         <div className={embedded ? "mb-3" : "a4n-flat-surface mb-3 p-3"}>
-          <div className="mb-1 text-[11px] font-semibold text-book-text-muted">核心摘要</div>
+          <div className="mb-1 text-small font-semibold text-book-text-muted">核心摘要</div>
           <p className="line-clamp-4 whitespace-pre-wrap text-xs leading-relaxed text-book-text-sub">
             {projectDescription}
           </p>
@@ -50,7 +50,7 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
       ) : null}
 
       {chapterTotal > 0 ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2 border-y border-book-border/35 py-2 text-[11px]">
+        <div className="mb-3 flex flex-wrap items-center gap-2 border-y border-book-border/35 py-2 text-small">
           <span className="font-medium text-book-text-sub">章节进度</span>
           <span className="font-mono text-book-text-main">
             {chapterCurrent} / {chapterTotal}
@@ -85,7 +85,7 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
         </dl>
       ) : null}
       {!embedded ? (
-        <div className="mt-3 border-t border-book-border/40 pt-2 text-right text-[11px] text-book-text-muted">
+        <div className="mt-3 border-t border-book-border/40 pt-2 text-right text-small text-book-text-muted">
           更新于 {formatUiDateTime(project.updated_at)}
         </div>
       ) : null}

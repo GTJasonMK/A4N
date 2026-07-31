@@ -188,7 +188,7 @@ function OutlineActionButton({
       </span>
       <span className="min-w-0">
         <span className="block text-sm font-semibold">{title}</span>
-        <span className="mt-1 block text-[11px] leading-relaxed text-book-text-muted">
+        <span className="mt-1 block text-small leading-relaxed text-book-text-muted">
           {description}
         </span>
       </span>

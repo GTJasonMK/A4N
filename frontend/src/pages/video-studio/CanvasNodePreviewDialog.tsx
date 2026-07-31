@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Copy, Eye, Loader2 } from "lucide-react";
+import { Copy, Eye } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import type { CanvasNodeRequestPreview } from "../../api/canvas";
 import { BookButton } from "../../components/ui/BookButton";
@@ -52,7 +53,7 @@ export const CanvasNodePreviewDialog: React.FC<CanvasNodePreviewDialogProps> = (
           ? `${stateLabel(preview.status)} · 仅预览，不会执行节点`
           : "构造将用于运行节点的请求，不执行节点、不调用外部模型"
       }
-      icon={loading ? <Loader2 size={15} className="animate-spin" /> : <Eye size={15} />}
+      icon={loading ? <LoadingSpinner size="sm" /> : <Eye size={15} />}
       maxWidthClassName="max-w-[min(96vw,72rem)]"
       bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4"
       footer={
@@ -72,7 +73,7 @@ export const CanvasNodePreviewDialog: React.FC<CanvasNodePreviewDialogProps> = (
     >
       {loading ? (
         <div className="flex min-h-[18rem] flex-col items-center justify-center gap-3 text-book-text-muted">
-          <Loader2 size={24} className="animate-spin text-book-primary" />
+          <LoadingSpinner size="lg" />
           <span className="text-sm">正在构造节点请求预览</span>
         </div>
       ) : preview ? (
@@ -81,11 +82,11 @@ export const CanvasNodePreviewDialog: React.FC<CanvasNodePreviewDialogProps> = (
             {preview.note}
           </div>
           <details className="overflow-hidden rounded-xl border border-book-border bg-book-bg-paper">
-            <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-[11px] text-book-text-sub">
+            <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-small text-book-text-sub">
               <span>完整请求</span>
               <span className="text-book-text-muted">{requestJson.length.toLocaleString()} 字符</span>
             </summary>
-            <pre className="whitespace-pre-wrap break-words border-t border-book-border px-3 py-2 font-mono text-[11px] leading-relaxed text-book-text-main">
+            <pre className="whitespace-pre-wrap break-words border-t border-book-border px-3 py-2 font-mono text-small leading-relaxed text-book-text-main">
               {requestJson}
             </pre>
           </details>

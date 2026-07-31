@@ -7,7 +7,6 @@ use serde_json::Value;
 pub(super) fn image_provider_payload(
     config: &image_gen_config::Model,
     request: ImageGenerationRequest,
-    project_id: Option<i64>,
 ) -> Result<ImageProviderPayload, String> {
     let params = validate_image_config_model(config).map_err(|err| err.to_string())?;
     let api_key =
@@ -17,7 +16,6 @@ pub(super) fn image_provider_payload(
         base_url: params.base_url.clone(),
         api_key,
         provider_options_json: params.provider_options_json.clone(),
-        project_id,
         request,
     })
 }
@@ -61,8 +59,6 @@ pub(super) struct ImageProviderPayload {
     base_url: String,
     api_key: String,
     provider_options_json: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    project_id: Option<i64>,
     request: ImageGenerationRequest,
 }
 

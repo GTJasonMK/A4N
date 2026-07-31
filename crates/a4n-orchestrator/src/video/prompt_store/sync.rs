@@ -73,7 +73,8 @@ impl OrchestratorContext {
         )
         .await
         .map_err(video_db_error)?;
-        self.sync_project_asset_lineage(project_id).await?;
+        self.sync_project_asset_lineage_after_commit(project_id, "同步视频提示词资产谱系")
+            .await;
         Ok(rows)
     }
 }
@@ -85,10 +86,7 @@ fn prepare_prompt_sync_draft(
         .generation_trace
         .map(prepare_generation_trace)
         .transpose()?;
-    let workflow_mode = draft
-        .workflow_mode
-        .storage_str(&draft.prompt_type)
-        .to_string();
+    let workflow_mode = draft.workflow_mode.as_str().to_string();
     Ok(a4n_db::video_prompt::ChapterVideoPromptSyncDraft {
         fields: a4n_db::video::ChapterVideoPromptRecordFields {
             project_id: draft.project_id,

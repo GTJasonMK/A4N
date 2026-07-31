@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
-import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import {
+  allocateHostTaskId,
+  runTaskWithPolling,
+  useProgressTask,
+} from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import {
   canUseLocalDesktopEmbedding,
@@ -284,7 +288,19 @@ export const EmbeddingTab: React.FC = () => {
               Math.max(1, cachedInfo.total_size_bytes),
             );
           }
-          await downloadEmbeddingModel(model, taskId);
+          await runTaskWithPolling(
+            downloadEmbeddingModel(model, taskId),
+            () => getEmbeddingModelDownloadInfo(model),
+            (info) => {
+              if (!mountedRef.current || modelActionRef.current !== actionKey) return;
+              rememberDownloadInfo(info);
+              control.setProgress(
+                `正在下载${modelHostLabel}嵌入模型…`,
+                info.downloaded_size_bytes,
+                Math.max(1, info.total_size_bytes),
+              );
+            },
+          );
           const latestInfo = await fetchDownloadInfo(model);
           control.setProgress(
             `正在刷新${modelHostLabel}模型状态…`,
@@ -298,7 +314,7 @@ export const EmbeddingTab: React.FC = () => {
     } catch (err) {
       const message = extractErrorMessage(err, "模型下载失败");
       if (isCancelledOperation(message)) {
-        addToast("模型下载已停止", "success");
+        addToast("模型下载已停止", "info");
       } else {
         addToast(message, "error");
       }

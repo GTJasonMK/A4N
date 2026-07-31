@@ -24,32 +24,6 @@ struct ThemeImportPayload {
     css_variables: Value,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::ThemeImportPayload;
-
-    #[test]
-    fn imports_exported_theme_summary_fields() {
-        let payload: ThemeImportPayload = serde_json::from_str(
-            r#"{
-                "id": 1,
-                "user_id": 7,
-                "name": "Dark",
-                "mode": "dark",
-                "css_variables": {},
-                "is_system_default": false,
-                "is_active": false,
-                "created_at": "2026-07-24T00:00:00Z",
-                "updated_at": "2026-07-24T00:00:00Z"
-            }"#,
-        )
-        .expect("exported theme summary remains importable");
-
-        assert_eq!(payload.name, "Dark");
-        assert_eq!(payload.mode, "dark");
-    }
-}
-
 impl OrchestratorContext {
     pub async fn list_themes_for_user_validated(
         &self,
@@ -188,5 +162,31 @@ impl OrchestratorContext {
             return Err(AppError::Forbidden(message.to_string()));
         }
         Ok(theme)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ThemeImportPayload;
+
+    #[test]
+    fn imports_exported_theme_summary_fields() {
+        let payload: ThemeImportPayload = serde_json::from_str(
+            r#"{
+                "id": 1,
+                "user_id": 7,
+                "name": "Dark",
+                "mode": "dark",
+                "css_variables": {},
+                "is_system_default": false,
+                "is_active": false,
+                "created_at": "2026-07-24T00:00:00Z",
+                "updated_at": "2026-07-24T00:00:00Z"
+            }"#,
+        )
+        .expect("exported theme summary remains importable");
+
+        assert_eq!(payload.name, "Dark");
+        assert_eq!(payload.mode, "dark");
     }
 }

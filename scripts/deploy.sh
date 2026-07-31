@@ -36,6 +36,11 @@ SIDECAR_PACKAGES=(
     "a4n-import-service"
     "a4n-export-service"
 )
+TOOL_PACKAGES=(
+    "a4n-cli"
+    "a4n-server"
+    "a4n-migration"
+)
 SKIP_BUILD=false
 DRY_RUN=false
 DO_INSTALL=false
@@ -98,7 +103,7 @@ if [[ -z "$TARGET_PLATFORM" ]]; then
 fi
 
 BINARY_EXT=""
-if [[ "$TARGET_PLATFORM" == windows-* ]]; then
+if [[ "$TARGET_PLATFORM" == *windows* ]]; then
     BINARY_EXT=".exe"
 fi
 
@@ -114,6 +119,13 @@ release_binary_path() {
     printf '%s/target/release/%s%s\n' "$PROJECT_ROOT" "$package" "$BINARY_EXT"
 }
 
+tool_binary_name() {
+    case "$1" in
+        a4n-cli) printf '%s\n' "a4n" ;;
+        *) printf '%s\n' "$1" ;;
+    esac
+}
+
 sidecar_module_name() {
     case "$1" in
         a4n-prompt-service) printf '%s\n' "prompt" ;;
@@ -126,6 +138,18 @@ sidecar_module_name() {
         a4n-export-service) printf '%s\n' "export" ;;
         *) printf '%s\n' "$1" ;;
     esac
+}
+
+onnxruntime_release_name() {
+    case "$TARGET_PLATFORM" in
+        *windows*) printf '%s\n' "onnxruntime.dll" ;;
+        *darwin*|macos-*) printf '%s\n' "libonnxruntime.dylib" ;;
+        *) printf '%s\n' "libonnxruntime.so.1" ;;
+    esac
+}
+
+onnxruntime_release_source() {
+    printf '%s/lib/%s\n' "$A4N_ONNXRUNTIME_ROOT" "$(onnxruntime_release_name)"
 }
 
 echo -e "${BOLD}${CYAN}╔══════════════════════════════════╗${NC}"
@@ -187,6 +211,15 @@ do_build() {
                 exit 1
             fi
         done
+        for package in "${TOOL_PACKAGES[@]}"; do
+            local tool_binary
+            tool_binary="$(release_binary_path "$(tool_binary_name "$package")")"
+            if [[ ! -f "$tool_binary" ]]; then
+                echo -e "${RED}✗ 未找到工具 Release 二进制: ${tool_binary}${NC}"
+                echo "  请先运行 cargo build --release -p ${package}"
+                exit 1
+            fi
+        done
         if [[ ! -d "$FRONTEND_DIST" ]]; then
             echo -e "${RED}✗ 未找到前端产物: ${FRONTEND_DIST}${NC}"
             echo "  请先运行 ./scripts/build.sh --frontend"
@@ -211,6 +244,10 @@ do_build() {
     echo -e "${CYAN}━━━ 构建 Release ━━━${NC}"
     cd "$PROJECT_ROOT"
     cargo build --release -p "$PACKAGE_NAME" 2>&1
+    for package in "${TOOL_PACKAGES[@]}"; do
+        echo -e "${CYAN}→ 构建工具: ${package}${NC}"
+        cargo build --release -p "$package" 2>&1
+    done
     for package in "${SIDECAR_PACKAGES[@]}"; do
         echo -e "${CYAN}→ 构建 sidecar: ${package}${NC}"
         cargo build --release -p "$package" 2>&1
@@ -244,6 +281,15 @@ prepare_package() {
     cp "$RELEASE_BINARY" "$PACKAGE_DIR/bin/"
     echo -e "  ${GREEN}✓${NC} 二进制: bin/${PACKAGE_NAME}"
 
+    for package in "${TOOL_PACKAGES[@]}"; do
+        local tool_name tool_binary
+        tool_name="$(tool_binary_name "$package")"
+        tool_binary="$(release_binary_path "$tool_name")"
+        [[ -f "$tool_binary" ]] || die "缺少工具二进制: $tool_binary"
+        cp "$tool_binary" "$PACKAGE_DIR/bin/"
+        echo -e "  ${GREEN}✓${NC} 工具: bin/$(basename "$tool_binary")"
+    done
+
     for package in "${SIDECAR_PACKAGES[@]}"; do
         local sidecar_binary module
         sidecar_binary="$(release_binary_path "$package")"
@@ -258,11 +304,8 @@ prepare_package() {
 
     require_onnxruntime
     local runtime_source runtime_name
-    case "$TARGET_PLATFORM" in
-        windows-*) runtime_source="$A4N_ONNXRUNTIME_ROOT/lib/onnxruntime.dll"; runtime_name="onnxruntime.dll" ;;
-        macos-*) runtime_source="$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.dylib"; runtime_name="libonnxruntime.dylib" ;;
-        *) runtime_source="$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.so.1"; runtime_name="libonnxruntime.so.1" ;;
-    esac
+    runtime_name="$(onnxruntime_release_name)"
+    runtime_source="$(onnxruntime_release_source)"
     [[ -r "$runtime_source" ]] || die "缺少 ONNX Runtime 发布文件: $runtime_source"
     cp -L "$runtime_source" "$PACKAGE_DIR/bin/services/$runtime_name"
     echo -e "  ${GREEN}✓${NC} runtime: bin/services/${runtime_name}"
@@ -275,7 +318,7 @@ prepare_package() {
         --host "$PACKAGE_NAME" \
         --catalog "$SERVICE_CATALOG" \
         --output "$PACKAGE_DIR/release-manifest.json"
-    echo -e "  ${GREEN}✓${NC} release-manifest.json（host + ${#SIDECAR_PACKAGES[@]} 个 sidecar）"
+    echo -e "  ${GREEN}✓${NC} release-manifest.json（host + ${#SIDECAR_PACKAGES[@]} 个 sidecar + ${#TOOL_PACKAGES[@]} 个工具）"
 
     # 复制前端产物
     if [[ -d "$FRONTEND_DIST" ]]; then
@@ -289,7 +332,7 @@ prepare_package() {
 
     # 复制提示词模板
     if [[ -d "$PROJECT_ROOT/prompts" ]]; then
-        cp -r "$PROJECT_ROOT/prompts/"* "$PACKAGE_DIR/prompts/" 2>/dev/null || true
+        cp -R "$PROJECT_ROOT/prompts/." "$PACKAGE_DIR/prompts/"
         local prompt_count
         prompt_count=$(find "$PACKAGE_DIR/prompts" -type f | wc -l)
         echo -e "  ${GREEN}✓${NC} 提示词模板: ${prompt_count} 个文件"
@@ -309,7 +352,7 @@ CONFIGEOF
     echo -e "  ${CYAN}→${NC} 已生成便携式配置模板: data/config.toml"
 
     # 生成启动脚本
-    if [[ "$TARGET_PLATFORM" == windows-* ]]; then
+    if [[ "$TARGET_PLATFORM" == *windows* ]]; then
         cat > "$PACKAGE_DIR/start.bat" << 'BATEOF'
 @echo off
 set "SCRIPT_DIR=%~dp0"
@@ -329,11 +372,11 @@ function Assert-ReleaseManifest {
         throw "缺少 release-manifest.json"
     }
     $manifest = Get-Content -Raw -Path $manifestPath | ConvertFrom-Json
-    if ($manifest.schema_version -ne 2 -or $manifest.binaries.Count -ne 9 -or $manifest.runtime_files.Count -ne 1) {
-        throw "release manifest 必须包含 schema v2 的 host + 8 个 sidecar + runtime"
+    if ($manifest.schema_version -ne 2 -or $manifest.binaries.Count -ne 9 -or $manifest.tools.Count -ne 3 -or $manifest.runtime_files.Count -ne 1) {
+        throw "release manifest 必须包含 schema v2 的 host + 8 个 sidecar + 3 个工具 + runtime"
     }
     $seen = @{}
-    foreach ($entry in @($manifest.binaries) + @($manifest.runtime_files)) {
+    foreach ($entry in @($manifest.binaries) + @($manifest.tools) + @($manifest.runtime_files)) {
         if ($seen.ContainsKey($entry.path)) {
             throw "release manifest 存在重复路径: $($entry.path)"
         }
@@ -849,7 +892,7 @@ A4N - AI 辅助小说创作工具
   jwt_secret = "replace-with-a-long-random-secret"
 
 目录结构:
-  bin/         可执行文件
+  bin/         桌面 Host、a4n CLI、a4n-server、a4n-migration
   bin/services/ prompt/LLM/embedding/RAG/image/video/import/export sidecar
   static/      前端页面（React SPA）
   prompts/     提示词模板
@@ -900,38 +943,54 @@ create_archive() {
 # —— 安装到系统 ——
 install_to_system() {
     local install_dir="/usr/local"
+    local runtime_name runtime_source
     if [[ "$(uname -s)" == "Darwin" ]]; then
         install_dir="/usr/local"
     fi
 
     echo -e "${CYAN}━━━ 安装到系统 ━━━${NC}"
     echo -e "  目标: ${install_dir}/bin/${PACKAGE_NAME}"
+    require_onnxruntime
+    runtime_name="$(onnxruntime_release_name)"
+    runtime_source="$(onnxruntime_release_source)"
+    [[ -r "$runtime_source" ]] || die "缺少 ONNX Runtime 发布文件: $runtime_source"
 
     if [[ "$(id -u)" -ne 0 ]]; then
         echo -e "${YELLOW}⚠ 需要 sudo 权限${NC}"
+        sudo mkdir -p "${install_dir}/bin"
         sudo cp "$RELEASE_BINARY" "${install_dir}/bin/"
+        for package in "${TOOL_PACKAGES[@]}"; do
+            sudo cp "$(release_binary_path "$(tool_binary_name "$package")")" "${install_dir}/bin/"
+        done
         sudo mkdir -p "${install_dir}/lib/a4n/services"
         for package in "${SIDECAR_PACKAGES[@]}"; do
             sudo cp "$(release_binary_path "$package")" "${install_dir}/lib/a4n/services/"
         done
+        sudo cp -L "$runtime_source" "${install_dir}/lib/a4n/services/$runtime_name"
         sudo mkdir -p "${install_dir}/share/a4n/static"
         sudo mkdir -p "${install_dir}/share/a4n/prompts"
-        sudo cp -r "$FRONTEND_DIST"/* "${install_dir}/share/a4n/static/" 2>/dev/null || true
-        sudo cp -r "$PROJECT_ROOT/prompts/"* "${install_dir}/share/a4n/prompts/" 2>/dev/null || true
+        sudo cp -R "$FRONTEND_DIST/." "${install_dir}/share/a4n/static/"
+        sudo cp -R "$PROJECT_ROOT/prompts/." "${install_dir}/share/a4n/prompts/"
     else
+        mkdir -p "${install_dir}/bin"
         cp "$RELEASE_BINARY" "${install_dir}/bin/"
+        for package in "${TOOL_PACKAGES[@]}"; do
+            cp "$(release_binary_path "$(tool_binary_name "$package")")" "${install_dir}/bin/"
+        done
         mkdir -p "${install_dir}/lib/a4n/services"
         for package in "${SIDECAR_PACKAGES[@]}"; do
             cp "$(release_binary_path "$package")" "${install_dir}/lib/a4n/services/"
         done
+        cp -L "$runtime_source" "${install_dir}/lib/a4n/services/$runtime_name"
         mkdir -p "${install_dir}/share/a4n/static"
         mkdir -p "${install_dir}/share/a4n/prompts"
-        cp -r "$FRONTEND_DIST"/* "${install_dir}/share/a4n/static/" 2>/dev/null || true
-        cp -r "$PROJECT_ROOT/prompts/"* "${install_dir}/share/a4n/prompts/" 2>/dev/null || true
+        cp -R "$FRONTEND_DIST/." "${install_dir}/share/a4n/static/"
+        cp -R "$PROJECT_ROOT/prompts/." "${install_dir}/share/a4n/prompts/"
     fi
 
     echo -e "${GREEN}✓ 安装完成${NC}"
-    echo -e "  运行: ${CYAN}${PACKAGE_NAME}${NC}"
+    echo -e "  运行桌面端: ${CYAN}${PACKAGE_NAME}${NC}"
+    echo -e "  运行 CLI:    ${CYAN}a4n --help${NC}"
     echo ""
 }
 
@@ -943,6 +1002,7 @@ if $DRY_RUN; then
     echo ""
     echo "将打包以下内容:"
     echo "  - bin/${PACKAGE_NAME}"
+    echo "  - bin/a4n, bin/a4n-server, bin/a4n-migration"
     echo "  - bin/services/ (${#SIDECAR_PACKAGES[@]} 个 sidecar 二进制)"
     echo "  - start.sh / start.bat / Windows start.ps1 (默认 sidecar profile，启动包内 sidecar)"
     if [[ -d "$FRONTEND_DIST" ]]; then

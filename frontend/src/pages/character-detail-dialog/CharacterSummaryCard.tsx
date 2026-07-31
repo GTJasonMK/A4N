@@ -15,7 +15,7 @@ export const CharacterSummaryCard: React.FC<CharacterSummaryCardProps> = ({ char
 
   return (
     <div className="shrink-0 border-b border-book-border/45 pb-3">
-      <div className="mb-2 text-[11px] text-book-text-muted">{metadata.join(" · ")}</div>
+      <div className="mb-2 text-small text-book-text-muted">{metadata.join(" · ")}</div>
       {character.personality && (
         <div className="mb-1 text-xs leading-relaxed text-book-text-sub">
           <span className="text-book-text-muted">性格：</span>

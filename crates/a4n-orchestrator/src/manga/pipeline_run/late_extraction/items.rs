@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::{Map, Value, json};
 
-use super::super::super::PIPELINE_TOTAL_STEPS;
+use super::super::super::MangaPipelineStartStage;
 use super::super::super::checkpoint::{checkpoint_insert, checkpoint_insert_trace};
 use super::super::super::pipeline_prompt::{
     MANGA_PREVIOUS_OUTPUT_SPEECH_SELECTION, MANGA_PREVIOUS_OUTPUT_VISUAL_ANCHOR_EXTRACTION,
@@ -9,8 +9,7 @@ use super::super::super::pipeline_prompt::{
     MangaRenderTraceInput, build_manga_context_manifest, manga_item_available_source_span_ids,
     manga_item_extraction_user_message, validate_manga_item_extraction_source_span_ids,
 };
-use super::super::super::pipeline_status::MangaPipelineStatusInput;
-use super::super::contracts::{MangaRunContext, MangaRunningPipelineCheckpointInput};
+use super::super::contracts::MangaRunContext;
 
 pub(super) async fn run_item_extraction_stage(
     context: &MangaRunContext<'_>,
@@ -101,37 +100,12 @@ pub(super) async fn run_item_extraction_stage(
         .await?;
     checkpoint_insert(checkpoint, "items_out", json!(items_out.clone()));
     context
-        .service
-        .save_running_pipeline_checkpoint(MangaRunningPipelineCheckpointInput {
-            chapter_id: context.chapter_id,
-            project_id: context.project_id,
-            stage: "item_extraction",
-            current: 4,
-            message: "已完成关键物品抽取",
-            task_id: context.task_id,
-            source_metadata: &context.source_metadata,
-            reference_assets_metadata: &context.reference_assets_metadata,
-            prompt_fingerprint: &context.prompt_fingerprint,
+        .checkpoint_and_advance_stage(
             checkpoint,
-        })
-        .await?;
-    context
-        .service
-        .ensure_pipeline_not_cancelled(context.project_id, context.chapter_id)
-        .await?;
-    context
-        .service
-        .set_pipeline_status(MangaPipelineStatusInput {
-            chapter_id: context.chapter_id,
-            project_id: context.project_id,
-            pipeline_status: "running",
-            stage: "comic_synthesis",
-            current: 5,
-            total: PIPELINE_TOTAL_STEPS,
-            message: "正在综合漫画章节节奏",
-            task_id: context.task_id,
-            allow_cancel_override: false,
-        })
+            MangaPipelineStartStage::ItemExtraction,
+            "已完成关键物品抽取",
+            MangaPipelineStartStage::ComicSynthesis,
+        )
         .await?;
 
     Ok((items_trace, items_out, items_json))

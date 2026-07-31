@@ -28,7 +28,7 @@ export type GalgamePipelineStartStage =
   | "persist_script"
   | "asset_generation";
 
-export interface GalgameScript {
+interface GalgameScript {
   id: number;
   project_id: number;
   root_project_id: number;
@@ -87,8 +87,8 @@ export interface GalgameLine {
 }
 
 export type GalgameStagePositionV2 = "left" | "center" | "right";
-export type GalgameFacingV2 = "left" | "right" | "front";
-export type GalgameStageLayerV2 = "back" | "middle" | "front";
+type GalgameFacingV2 = "left" | "right" | "front";
+type GalgameStageLayerV2 = "back" | "middle" | "front";
 
 export interface GalgameVisibleCastMemberV2 {
   character_profile_id: number;
@@ -99,7 +99,7 @@ export interface GalgameVisibleCastMemberV2 {
   layer: GalgameStageLayerV2;
 }
 
-export interface GalgameBeatRefV2 {
+interface GalgameBeatRefV2 {
   scene_index: number;
   beat_index: number;
 }
@@ -137,7 +137,7 @@ export interface GalgameSceneDetail {
   choices: GalgameChoice[];
 }
 
-export interface GalgameMediaBinding {
+interface GalgameMediaBinding {
   id: number;
   media_asset_id: number;
   target_kind: string;
@@ -161,7 +161,7 @@ export interface GalgameScriptDetail {
 
 export type GalgamePipelineStatus = GalgamePipelineStatusSummary;
 
-export interface GalgameAssetPlanSummary {
+interface GalgameAssetPlanSummary {
   background_specs: number;
   portrait_expression_specs: number;
   event_cg_specs: number;
@@ -170,7 +170,7 @@ export interface GalgameAssetPlanSummary {
   reused_specs: number;
 }
 
-export type GalgameAssetPlanOutcome = "created" | "updated" | "reused";
+type GalgameAssetPlanOutcome = "created" | "updated" | "reused";
 
 export interface GalgameAssetPlanItem {
   canonical_key: string;
@@ -198,7 +198,7 @@ export interface RunGalgameAssetGenerationInput {
   limit?: number | null;
 }
 
-export interface GalgameAssetGenerationItem {
+interface GalgameAssetGenerationItem {
   generation_spec_id: number;
   target_kind: string;
   target_entity_kind: string;

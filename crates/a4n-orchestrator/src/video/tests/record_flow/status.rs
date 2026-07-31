@@ -57,6 +57,73 @@ async fn failed_video_records_remain_listed_and_deletable_assets() {
 }
 
 #[tokio::test]
+async fn cancelled_video_rejects_late_job_waiting_and_completion_updates() {
+    let db = Arc::new(setup_db().await);
+    let project = insert_video_project(db.as_ref(), "视频项目").await;
+    let service = crate::video::test_video_orchestrator(db.clone()).await;
+    let video = service
+        .create_video_record(video_record_input(project.id))
+        .await
+        .unwrap();
+    let cancelled = a4n_db::video::mark_generated_video_error_status_and_prompt_record(
+        db.as_ref(),
+        video.id,
+        None,
+        "cancelled",
+        "用户取消",
+    )
+    .await
+    .unwrap();
+    assert_eq!(cancelled.status, "cancelled");
+
+    for error in [
+        a4n_db::video::mark_generated_video_job_and_prompt_record(
+            db.as_ref(),
+            video.id,
+            "late-job",
+            None,
+            None,
+        )
+        .await
+        .expect_err("迟到 job 不能覆盖 cancelled"),
+        a4n_db::video::update_generated_video_waiting_status_and_prompt_record(
+            db.as_ref(),
+            video.id,
+            None,
+            "running",
+        )
+        .await
+        .expect_err("迟到进度不能覆盖 cancelled"),
+        a4n_db::video::mark_generated_video_completed_and_link_prompt_record(
+            db.as_ref(),
+            video.id,
+            "generated/late.mp4",
+            None,
+            8,
+            None,
+            None,
+        )
+        .await
+        .expect_err("迟到结果不能覆盖 cancelled"),
+    ] {
+        assert!(matches!(
+            error,
+            a4n_db::video::VideoDbError::InvalidState { current, .. }
+                if current == "cancelled"
+        ));
+    }
+
+    let stored = generated_video::Entity::find_by_id(video.id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.status, "cancelled");
+    assert_eq!(stored.provider_job_id, None);
+    assert_eq!(stored.file_path, None);
+}
+
+#[tokio::test]
 async fn mark_job_rejects_blank_provider_job_id_without_update() {
     let db = Arc::new(setup_db().await);
     let project = insert_video_project(db.as_ref(), "视频项目").await;

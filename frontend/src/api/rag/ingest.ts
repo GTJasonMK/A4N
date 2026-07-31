@@ -38,9 +38,6 @@ export async function ragIngestAll(
   });
 }
 
-export const ragRebuildAll = (projectId: Id, taskId?: string | null) =>
-  ragIngestAll(projectId, taskId, true);
-
 async function ragIngestAllWithLocalDesktopEmbedding(
   projectId: Id,
   rebuild: boolean,

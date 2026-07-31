@@ -215,7 +215,7 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
             .await
     });
     timeout(Duration::from_secs(5), async {
-        while backpressure_rx.len() == 0 {
+        while backpressure_rx.is_empty() {
             tokio::task::yield_now().await;
         }
     })

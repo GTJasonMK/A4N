@@ -94,10 +94,9 @@ pub fn restore_prompt_repository(backup: &Path, target: &Path) -> Result<(), App
     }
 
     let had_target = target.exists();
-    if had_target {
-        if let Err(error) = rename_path(&target, &previous, "暂存现有 Prompt Git 仓库") {
-            return Err(cleanup_staging(error, &staging));
-        }
+    if had_target && let Err(error) = rename_path(&target, &previous, "暂存现有 Prompt Git 仓库")
+    {
+        return Err(cleanup_staging(error, &staging));
     }
     if let Err(replace_error) = rename_path(&staging, &target, "恢复 Prompt Git 仓库") {
         let rollback = had_target

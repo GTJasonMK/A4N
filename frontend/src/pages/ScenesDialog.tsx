@@ -284,6 +284,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
               scene_number: nextNumber,
               scene_prompt: genPrompt,
             },
+            taskId,
           ),
       );
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;

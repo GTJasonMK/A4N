@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../api";
+import {
+  canListenAppEvents,
+  listenAppEvent,
+  type UnlistenFn,
+} from "../../api/runtime";
 import { useToast } from "../../components/feedback/Toast";
 
 interface NovelDetailLoadOptions {
   silent?: boolean;
   force?: boolean;
+}
+
+interface ChapterAnalysisUpdatedPayload {
+  project_id?: number;
 }
 
 export function useNovelDetailLoader(
@@ -74,4 +83,48 @@ export function useNovelDetailLoader(
   }, [load]);
 
   return { loading, load };
+}
+
+export function useChapterAnalysisLoader(
+  projectId: number,
+  loadData: (isCurrent: () => boolean) => Promise<void>,
+  errorMessage: string,
+) {
+  const loader = useNovelDetailLoader(loadData, errorMessage);
+  const { load } = loader;
+
+  useEffect(() => {
+    if (!canListenAppEvents()) return;
+
+    let disposed = false;
+    let unlisten: UnlistenFn | null = null;
+
+    void listenAppEvent<ChapterAnalysisUpdatedPayload>("chapter-analysis-updated", (event) => {
+      if (Number(event.payload?.project_id) === projectId) {
+        void load({ silent: true, force: true });
+      }
+    }).then((detach) => {
+      if (disposed) detach();
+      else unlisten = detach;
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [load, projectId]);
+
+  useEffect(() => {
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+    };
+  }, [load]);
+
+  return loader;
 }

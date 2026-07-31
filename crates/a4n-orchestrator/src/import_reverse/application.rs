@@ -7,7 +7,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::OrchestratorContext;
-use crate::workflow::WorkflowRunFinalizeOutcome;
 
 use super::request::{ReverseEngineerRequestInput, build_reverse_engineer_request};
 use super::{ReverseEngineeringTarget, resolve_reverse_content_sample};
@@ -30,6 +29,7 @@ pub struct ReverseEngineerApplicationInput<'a> {
     pub apply: bool,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub progress: &'a ReverseProgressCallback<'a>,
+    pub active_task_id: Option<&'a str>,
 }
 
 pub struct ReverseEngineerPreviewInput<'a> {
@@ -150,29 +150,14 @@ impl OrchestratorContext {
                 input.auto_context,
                 context_limit,
                 input.variables,
+                input.active_task_id,
             )
             .await?;
         let result = self
             .run_reverse_engineering_workflow(input, total, workflow.id, &content_sample)
             .await;
-        let outcome = match &result {
-            Ok(_) => WorkflowRunFinalizeOutcome::Completed,
-            Err(AppError::Cancelled) => WorkflowRunFinalizeOutcome::Cancelled,
-            Err(_) => WorkflowRunFinalizeOutcome::Failed,
-        };
-        let error_message = result.as_ref().err().map(ToString::to_string);
-        let finalized = self
-            .finalize_workflow_run_outcome_validated(workflow.id, outcome, error_message.as_deref())
-            .await;
-        match (result, finalized) {
-            (Ok(value), Ok(_)) => Ok(value),
-            (Ok(_), Err(status_error)) => Err(status_error),
-            (Err(error), Ok(_)) => Err(error),
-            (Err(error), Err(status_error)) => Err(AppError::InvalidState {
-                current: error.to_string(),
-                operation: format!("导入反推失败，且 workflow 终态写入失败: {status_error}"),
-            }),
-        }
+        self.finalize_workflow_outcome_result(workflow.id, result, "导入反推")
+            .await
     }
 
     async fn run_reverse_engineering_workflow(

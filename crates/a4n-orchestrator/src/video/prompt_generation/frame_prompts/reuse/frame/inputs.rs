@@ -97,8 +97,7 @@ fn frame_prompt_contract_version(
     prompt_type: &str,
 ) -> Option<&'static str> {
     match (workflow_mode, prompt_type) {
-        (PromptWorkflowMode::BoundaryFrames, "frame_prompt")
-        | (PromptWorkflowMode::ChatVideo, "chat_video_frame_prompt") => {
+        (PromptWorkflowMode::BoundaryFrames, "frame_prompt") => {
             Some(BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION)
         }
         (PromptWorkflowMode::FirstFrameChain, "first_frame_prompt") => {

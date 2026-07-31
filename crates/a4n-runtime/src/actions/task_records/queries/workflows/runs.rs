@@ -39,7 +39,7 @@ pub async fn get_workflow_run_detail_for_user(
 ) -> Result<WorkflowRunDetailSummary, String> {
     let detail = state
         .workflow()
-        .workflow_run_detail(input.workflow_run_id)
+        .workflow_run_detail(input)
         .await
         .map_err(app_error_message)?;
     verify_workflow_run_summary_access(state, user_id, &detail.run).await?;

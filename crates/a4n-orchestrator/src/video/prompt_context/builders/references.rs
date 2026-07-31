@@ -119,7 +119,7 @@ pub(super) fn reference_asset_summaries(available_assets: &Value) -> Result<Valu
     ))
 }
 
-pub(super) fn reference_asset_summary(asset: &Value) -> Value {
+pub(in crate::video) fn reference_asset_summary(asset: &Value) -> Value {
     let mut object = Map::new();
     for key in [
         "role",

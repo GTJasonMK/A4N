@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, inspiration::StartInspirationGenerationInput,
@@ -8,7 +8,7 @@ use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, GenerationResultRef, GenerationTaskStatus,
-    ProgressEvent, ProgressPhaseKind, ProgressSeverity, StreamTextHash,
+    ProgressPhaseKind, StreamTextHash,
 };
 use futures::future::BoxFuture;
 use serde_json::Value;
@@ -18,14 +18,10 @@ use crate::{
     OrchestratorContext,
     context::GenerationTaskExecution,
     generation::{
-        checkpoint::{
-            DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointMetadata,
-            GenerationCheckpointWriter,
-        },
-        events::{
-            GenerationEventPublisher, GenerationSessionError, SessionGenerationEventPublisher,
-        },
-        generation_finish_reason_text, generation_public_error,
+        checkpoint::GenerationCheckpointMetadata,
+        events::{GenerationEventPublisher, GenerationSessionError},
+        generation_finish_reason_text, generation_progress as inspiration_progress,
+        generation_public_error,
         stream::{
             LlmGenerationCheckpoint, LlmGenerationOutput, LlmGenerationRequest,
             execute_llm_generation,
@@ -85,10 +81,7 @@ impl OrchestratorContext {
         };
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
-        let replenisher = Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-            self.database.shared_connection(),
-        ));
-        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
+        let publisher = execution.publisher.clone();
         let project_id = input.project_id;
         let user_input = input.message;
         let workflow_variables = input.variables.as_ref().map(|variables| {
@@ -190,7 +183,7 @@ impl OrchestratorContext {
                 .await;
             }
         };
-        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let checkpoint_writer = execution.checkpoint_writer.clone();
         let checkpoint_metadata = GenerationCheckpointMetadata {
             step_key: Some("inspiration_conversation".to_string()),
             call_key: Some(checkpoint_request.call_key.clone()),
@@ -389,16 +382,7 @@ impl OrchestratorContext {
             .await;
         }
 
-        let task_id = execution.permit.task_id().to_string();
-        if let Err(error) = execution
-            .queue
-            .complete_generation_task(execution.permit)
-            .await
-        {
-            return Err(format!(
-                "generation queue 完成投影失败 ({task_id}): {error}"
-            ));
-        }
+        execution.complete_queue_task().await?;
         self.finalize_workflow_run_outcome_validated(
             workflow.id,
             WorkflowRunFinalizeOutcome::Completed,
@@ -436,26 +420,6 @@ async fn fail_inspiration_generation_execution(
         ));
     }
     Err(message)
-}
-
-fn inspiration_progress(
-    stage_code: &str,
-    phase_kind: ProgressPhaseKind,
-    message: &str,
-) -> ProgressEvent {
-    ProgressEvent {
-        stage_code: stage_code.to_string(),
-        phase_kind,
-        message: message.to_string(),
-        current: None,
-        total: None,
-        unit_label: None,
-        item_key: None,
-        item_index: None,
-        item_total: None,
-        severity: ProgressSeverity::Info,
-        estimated: false,
-    }
 }
 
 fn generation_error_from_session(error: GenerationSessionError) -> GenerationError {

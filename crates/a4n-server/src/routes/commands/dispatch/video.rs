@@ -20,7 +20,6 @@ pub(super) async fn try_dispatch(
         "update_video" => update_video(state, user_id, args).await?,
         "select_segment_video" => select_segment_video(state, user_id, args).await?,
         "delete_video" => delete_video(state, user_id, args).await?,
-        "delete_chapter_video_assets" => delete_chapter_video_assets(state, user_id, args).await?,
         "load_video_playback_data" => load_video_playback_data(state, user_id, args).await?,
         "assemble_chapter_videos" => assemble_chapter_videos(state, user_id, args).await?,
         "load_cached_assembled_chapter_video_preview" => {
@@ -38,29 +37,17 @@ pub(super) async fn try_dispatch(
         }
         "trim_video" => trim_video(state, user_id, args).await?,
         "list_chapter_video_prompts" => list_chapter_video_prompts(state, user_id, args).await?,
-        "generate_chapter_video_segment_plan" => {
-            generate_chapter_video_segment_plan(state, user_id, args).await?
+        "load_video_segment_plan_draft" => {
+            load_video_segment_plan_draft(state, user_id, args).await?
         }
-        "generate_chapter_video_frame_prompts" => {
-            generate_chapter_video_frame_prompts(state, user_id, args).await?
-        }
-        "generate_chapter_video_prompts" => {
-            generate_chapter_video_prompts(state, user_id, args).await?
-        }
-        "preview_chapter_video_frame_prompt_requests" => {
-            preview_chapter_video_frame_prompt_requests(state, user_id, args).await?
-        }
-        "preview_chapter_video_prompt_requests" => {
-            preview_chapter_video_prompt_requests(state, user_id, args).await?
+        "update_video_segment_plan_draft_recipe" => {
+            update_video_segment_plan_draft_recipe(state, user_id, args).await?
         }
         "update_chapter_video_prompt" => update_chapter_video_prompt(state, user_id, args).await?,
         "optimize_chapter_video_prompt" => {
             optimize_chapter_video_prompt(state, user_id, args).await?
         }
         "delete_chapter_video_prompt" => delete_chapter_video_prompt(state, user_id, args).await?,
-        "delete_chapter_video_prompt_group" => {
-            delete_chapter_video_prompt_group(state, user_id, args).await?
-        }
         "poll_video_job" => poll_video_job(state, user_id, args).await?,
         "preview_chapter_video_request" => {
             preview_chapter_video_request(state, user_id, args).await?

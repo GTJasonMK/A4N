@@ -60,7 +60,7 @@ fn video_execution_identity_matches(
     {
         return false;
     }
-    [
+    let base_matches = [
         "shooting_script_identity",
         "projection_sha256",
         "segment_plan_sha256",
@@ -71,7 +71,50 @@ fn video_execution_identity_matches(
         "aspect_ratio",
     ]
     .into_iter()
-    .all(|key| left_identity.get(key) == right_identity.get(key))
+    .all(|key| left_identity.get(key) == right_identity.get(key));
+    base_matches && segment_execution_scope_matches(left, right, left_identity, right_identity)
+}
+
+fn segment_execution_scope_matches(
+    left: &chapter_video_prompt::Model,
+    right: &chapter_video_prompt::Model,
+    left_identity: &serde_json::Map<String, Value>,
+    right_identity: &serde_json::Map<String, Value>,
+) -> bool {
+    let left_plan = left_identity
+        .get("segment_plan_prompt_id")
+        .and_then(Value::as_i64);
+    let right_plan = right_identity
+        .get("segment_plan_prompt_id")
+        .and_then(Value::as_i64);
+    if left.prompt_type == "frame_segment_plan" {
+        return right_plan == Some(left.id);
+    }
+    if right.prompt_type == "frame_segment_plan" {
+        return left_plan == Some(right.id);
+    }
+    let same_segment = left_plan.is_some()
+        && left_plan == right_plan
+        && left_identity.get("segment_number") == right_identity.get("segment_number");
+    same_segment
+        && (video_and_frame_prompt_pair(left, right)
+            || left_identity.get("segment_recipe_fingerprint")
+                == right_identity.get("segment_recipe_fingerprint"))
+}
+
+fn video_and_frame_prompt_pair(
+    left: &chapter_video_prompt::Model,
+    right: &chapter_video_prompt::Model,
+) -> bool {
+    (left.prompt_type == "video_prompt" && is_frame_prompt(&right.prompt_type))
+        || (right.prompt_type == "video_prompt" && is_frame_prompt(&left.prompt_type))
+}
+
+fn is_frame_prompt(prompt_type: &str) -> bool {
+    matches!(
+        prompt_type,
+        "frame_prompt" | "first_frame_prompt" | "storyboard_prompt" | "chat_video_frame_prompt"
+    )
 }
 
 fn metadata_text<'a>(metadata: Option<&'a Value>, key: &str) -> Option<&'a str> {

@@ -1,0 +1,698 @@
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { ProgressTaskProvider } from "../../src/hooks/useProgressTask";
+import { VideoTab } from "../../src/pages/novel-detail/VideoTab";
+import { videoSegmentRecipeGenerationFingerprintJson } from "../../src/pages/novel-detail/video/videoTabUtils";
+import { sha256Hex } from "../../src/utils/contentHash";
+import { initializePortableStorage } from "../../src/utils/portableStorage";
+import "../../src/index.css";
+
+const projectId = 1;
+const chapterId = 2;
+const planId = 41;
+const scenario = new URLSearchParams(window.location.search).get("scenario") ?? "mode-switch";
+const cancelResumeScenario = scenario === "cancel-resume";
+const crossModeContinuityScenario = scenario === "cross-mode-continuity";
+const stalePlanAdoptionScenario = scenario === "stale-plan-adoption";
+const mixedAssemblyGapScenario = scenario === "mixed-assembly-gap";
+const mixedAssemblyReadyScenario = scenario === "mixed-assembly-ready";
+const mixedAssemblyScenario = mixedAssemblyGapScenario || mixedAssemblyReadyScenario;
+const content = "真实浏览器模式切换测试正文";
+const contentHash = [...new Uint8Array(
+  await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content)),
+)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+
+const recipe = (segmentNumber, workflowMode, overrides = {}) => ({
+  schema_version: "video_segment_execution_recipe_v1",
+  segment_number: segmentNumber,
+  workflow_mode: workflowMode,
+  style: "cinematic",
+  prompt_output_language: "zh_cn",
+  duration_secs: 6,
+  duration_secs_options: [6],
+  aspect_ratio: "16:9",
+  reference_image_ids: [],
+  video_library_image_ids: [],
+  guidance_mode: workflowMode === "chat_video" || workflowMode === "reference_media"
+    ? "none"
+    : "system_frames",
+  guidance_reference_image_ids: [],
+  continuity_source_video_id: null,
+  reference_media: null,
+  adopted_video_id: null,
+  ...overrides,
+});
+
+const sourceVideoId = 501;
+const currentVideoId = 502;
+const staleVideoId = 503;
+const assemblySegment1VideoId = 601;
+const assemblySegment2VideoId = 602;
+const assemblyStaleSegment2VideoId = 603;
+const stalePlanId = 29;
+const finalPromptId = 61;
+const usesChatSegment1 =
+  stalePlanAdoptionScenario || mixedAssemblyScenario;
+const firstRecipe = recipe(
+  1,
+  usesChatSegment1 ? "chat_video" : "boundary_frames",
+  {
+    adopted_video_id: crossModeContinuityScenario
+      ? sourceVideoId
+      : mixedAssemblyScenario
+        ? assemblySegment1VideoId
+        : null,
+  },
+);
+const secondRecipe = recipe(
+  2,
+  mixedAssemblyScenario ? "chat_video" : "storyboard",
+  {
+    adopted_video_id: mixedAssemblyReadyScenario
+      ? assemblySegment2VideoId
+      : mixedAssemblyGapScenario
+        ? assemblyStaleSegment2VideoId
+        : null,
+  },
+);
+
+const planIdentity = {
+  contract_epoch: 5,
+  shooting_script_identity: "script-1",
+  projection_sha256: "projection-1",
+  segment_plan_sha256: "plan-1",
+  unit_plan_sha256: "unit-1",
+  source_content_sha256: contentHash,
+  style_sha256: "style-1",
+  duration_secs: 6,
+  aspect_ratio: "16:9",
+};
+
+let plan = cancelResumeScenario ? null : {
+  id: planId,
+  project_id: projectId,
+  chapter_id: chapterId,
+  style: "cinematic",
+  prompt_type: "frame_segment_plan",
+  workflow_mode: "shared_segment_plan",
+  shot_number: 0,
+  title: null,
+  scene_summary: null,
+  visual_prompt: "plan",
+  motion_prompt: null,
+  negative_prompt: null,
+  duration_secs: 6,
+  aspect_ratio: "16:9",
+  reference_image_ids_json: null,
+  status: "completed",
+  generated_video_id: null,
+  metadata_json: {
+    contract_version: "video_execution_contract_v5",
+    source: { content_sha256: contentHash },
+    video_execution_identity: planIdentity,
+    segments: [
+      { segment_number: 1, title: "片段一", duration_secs: 6, aspect_ratio: "16:9" },
+      { segment_number: 2, title: "片段二", duration_secs: 6, aspect_ratio: "16:9" },
+    ],
+    segment_recipes: [
+      firstRecipe,
+      secondRecipe,
+    ],
+  },
+  created_at: null,
+  updated_at: null,
+};
+
+const firstRecipeFingerprint =
+  crossModeContinuityScenario || stalePlanAdoptionScenario || mixedAssemblyScenario
+    ? await sha256Hex(videoSegmentRecipeGenerationFingerprintJson(firstRecipe))
+    : null;
+const secondRecipeFingerprint = mixedAssemblyScenario
+  ? await sha256Hex(videoSegmentRecipeGenerationFingerprintJson(secondRecipe))
+  : null;
+
+const makeVideo = ({
+  id,
+  workflowMode,
+  prompt,
+  segmentPlanPromptId,
+  segmentNumber,
+  recipeFingerprint,
+}) => ({
+  id,
+  project_id: projectId,
+  chapter_id: chapterId,
+  video_type: "chapter_video",
+  workflow_mode: workflowMode,
+  file_path: `/tmp/segment-${id}.mp4`,
+  thumbnail_path: null,
+  prompt,
+  negative_prompt: null,
+  model: "browser-test",
+  width: 1280,
+  height: 720,
+  duration_secs: 6,
+  fps: 24,
+  file_size: 1024,
+  source_video_id: null,
+  source_image_id: null,
+  status: "completed",
+  provider_job_id: null,
+  error_message: null,
+  metadata_json: {
+    shot_number: segmentNumber,
+    video_execution_identity: {
+      ...planIdentity,
+      segment_plan_prompt_id: segmentPlanPromptId,
+      segment_number: segmentNumber,
+      segment_recipe_fingerprint: recipeFingerprint,
+    },
+  },
+  is_favorite: false,
+  created_at: null,
+  updated_at: null,
+});
+
+const sourceVideo = crossModeContinuityScenario ? makeVideo({
+  id: sourceVideoId,
+  workflowMode: "boundary_frames",
+  prompt: "片段 1 首尾帧视频",
+  segmentPlanPromptId: planId,
+  segmentNumber: 1,
+  recipeFingerprint: firstRecipeFingerprint,
+}) : null;
+
+const currentAdoptionVideo = stalePlanAdoptionScenario ? makeVideo({
+  id: currentVideoId,
+  workflowMode: "chat_video",
+  prompt: "当前规划候选视频",
+  segmentPlanPromptId: planId,
+  segmentNumber: 1,
+  recipeFingerprint: firstRecipeFingerprint,
+}) : null;
+
+const stalePlanVideo = stalePlanAdoptionScenario ? makeVideo({
+  id: staleVideoId,
+  workflowMode: "chat_video",
+  prompt: "旧规划遗留视频",
+  segmentPlanPromptId: stalePlanId,
+  segmentNumber: 1,
+  recipeFingerprint: firstRecipeFingerprint,
+}) : null;
+
+const assemblySegment1Video = mixedAssemblyScenario ? makeVideo({
+  id: assemblySegment1VideoId,
+  workflowMode: "chat_video",
+  prompt: "成片片段 1 有效视频",
+  segmentPlanPromptId: planId,
+  segmentNumber: 1,
+  recipeFingerprint: firstRecipeFingerprint,
+}) : null;
+
+const assemblySegment2Video = mixedAssemblyScenario ? makeVideo({
+  id: assemblySegment2VideoId,
+  workflowMode: "chat_video",
+  prompt: "成片片段 2 有效视频",
+  segmentPlanPromptId: planId,
+  segmentNumber: 2,
+  recipeFingerprint: secondRecipeFingerprint,
+}) : null;
+
+const assemblyStaleSegment2Video = mixedAssemblyGapScenario ? makeVideo({
+  id: assemblyStaleSegment2VideoId,
+  workflowMode: "chat_video",
+  prompt: "成片片段 2 旧规划视频",
+  segmentPlanPromptId: stalePlanId,
+  segmentNumber: 2,
+  recipeFingerprint: secondRecipeFingerprint,
+}) : null;
+
+const finalPrompt = stalePlanAdoptionScenario ? {
+  id: finalPromptId,
+  project_id: projectId,
+  chapter_id: chapterId,
+  style: "cinematic",
+  prompt_type: "video_prompt",
+  workflow_mode: "chat_video",
+  shot_number: 1,
+  title: null,
+  scene_summary: null,
+  visual_prompt: "最终提示词",
+  motion_prompt: null,
+  negative_prompt: null,
+  duration_secs: 6,
+  aspect_ratio: "16:9",
+  reference_image_ids_json: null,
+  status: "completed",
+  generated_video_id: null,
+  metadata_json: {
+    contract_version: "chat_video_execution_v4",
+    source_prompt_type: "frame_segment_plan",
+    prompt_output_language: "zh_cn",
+    source: { content_sha256: contentHash },
+    video_execution_identity: {
+      ...planIdentity,
+      segment_plan_prompt_id: planId,
+      segment_number: 1,
+      segment_recipe_fingerprint: firstRecipeFingerprint,
+      frame_set_sha256: "frames-1",
+      prompt_output_language: "zh_cn",
+      generation_asset_fingerprint: {},
+    },
+  },
+  created_at: null,
+  updated_at: null,
+} : null;
+
+const chapterVideos = () => {
+  const rows = [];
+  if (sourceVideo) rows.push(structuredClone(sourceVideo));
+  if (currentAdoptionVideo) rows.push(structuredClone(currentAdoptionVideo));
+  if (stalePlanVideo) rows.push(structuredClone(stalePlanVideo));
+  if (assemblySegment1Video) rows.push(structuredClone(assemblySegment1Video));
+  if (assemblySegment2Video) rows.push(structuredClone(assemblySegment2Video));
+  if (assemblyStaleSegment2Video) rows.push(structuredClone(assemblyStaleSegment2Video));
+  return rows;
+};
+
+const chapterPrompts = () => {
+  const rows = [];
+  if (plan) rows.push(structuredClone(plan));
+  if (finalPrompt) rows.push(structuredClone(finalPrompt));
+  return rows;
+};
+
+const updatePlanRecipe = (nextRecipe) => {
+  if (!plan) throw new Error("plan missing");
+  plan = {
+    ...plan,
+    metadata_json: {
+      ...plan.metadata_json,
+      segment_recipes: plan.metadata_json.segment_recipes.map((current) =>
+        current.segment_number === nextRecipe.segment_number
+          ? structuredClone(nextRecipe)
+          : current
+      ),
+    },
+  };
+};
+
+const videoById = (videoId) =>
+  chapterVideos().find((video) => video.id === videoId) ?? null;
+
+const workflowRunId = 71;
+const workflowOptions = (options) => ({
+  style: options.style,
+  prompt_output_language: options.prompt_output_language,
+  prompt_batch_size: 1,
+  segment_plan_prompt_id: null,
+  target_shot_number: null,
+  segment_recipe_fingerprint: null,
+  duration_secs: options.duration_secs,
+  duration_secs_options: [...options.duration_secs_options],
+  aspect_ratio: options.aspect_ratio,
+  reference_image_ids: [],
+  video_library_image_ids: [],
+  regenerate_existing: options.regenerate_existing,
+});
+
+const checkpointSegment = (shotIndex) => ({
+  segment_number: 1,
+  title: `片段 ${shotIndex}`,
+  scene_summary: `镜头 ${shotIndex} 的已保存片段`,
+  duration_secs: 6,
+  aspect_ratio: "16:9",
+  source_shot_id: `unit_${shotIndex}_shot_1`,
+});
+
+const checkpoint = (shotIndex) => ({
+  id: 100 + shotIndex,
+  workflow_run_id: workflowRunId,
+  step_key: `video_segment_plan.shot.unit_${shotIndex}_shot_1`,
+  step_order: shotIndex,
+  status: "completed",
+  input_fingerprint_json: { extra: { shot_index: shotIndex, total_shots: 2 } },
+  checkpoint_json: { parsed_output: [checkpointSegment(shotIndex)] },
+  artifacts_json: { segment_recipes: [recipe(1, "chat_video")] },
+  generation_run_ids_json: [],
+  error_message: null,
+  created_at: "2026-07-30T00:00:00Z",
+  updated_at: "2026-07-30T00:00:00Z",
+  completed_at: "2026-07-30T00:00:00Z",
+});
+
+let run = null;
+let checkpoints = [];
+let generationNumber = 0;
+const generationTasks = new Map();
+let nextCallbackId = 1;
+
+const handleFor = (number) => ({
+  event_schema_version: 1,
+  task_id: `00000000-0000-4000-8000-${String(number).padStart(12, "0")}`,
+  attempt: 1,
+  status: "running",
+});
+
+const emit = (task, kind, data) => {
+  task.sequence += 1;
+  task.channel.onmessage({
+    schema_version: 1,
+    task_id: task.handle.task_id,
+    attempt: task.handle.attempt,
+    sequence: task.sequence,
+    emitted_at_ms: Date.now(),
+    event: { kind, data },
+  });
+};
+
+const startedData = (task) => ({
+  task_kind: "video_prompt_segment_plan",
+  delivery_mode: "stream",
+  root_task_id: task.handle.task_id,
+  project_id: projectId,
+  root_project_id: projectId,
+  workflow_run_id: workflowRunId,
+  target: {
+    kind: "video_prompt_segment_plan",
+    id: `${projectId}:chapter:${chapterId}:prompt_segment_plan:shared`,
+    revision: null,
+  },
+});
+
+const progressData = (shotIndex) => ({
+  stage_code: "chapter_video_segment_plan",
+  phase_kind: "persist",
+  message: `正在生成镜头 ${shotIndex}`,
+  severity: "success",
+  estimated: false,
+  current: shotIndex,
+  total: 2,
+  item_key: `unit_${shotIndex}_shot_1`,
+  item_index: shotIndex,
+  item_total: 2,
+  unit_label: "镜头",
+});
+
+const cancelTask = (task) => {
+  run = {
+    ...run,
+    status: "cancelled",
+    can_resume: true,
+    active_task_id: null,
+    current_step_key: checkpoints.at(-1)?.step_key ?? null,
+    progress: {
+      current: checkpoints.length,
+      total: 2,
+      percent: checkpoints.length * 50,
+      message: `已保存镜头 ${checkpoints.length}`,
+      meta: null,
+      updated_at: "2026-07-30T00:00:00Z",
+    },
+  };
+  setTimeout(() => {
+    emit(task, "cancel_requested", { reason: "user_requested" });
+    emit(task, "cancelled", {
+      reason: "user_requested",
+      draft_disposition: "retained_until_expiry",
+      batch_summary: null,
+      summary: `已停止，已保存镜头 ${checkpoints.length}`,
+    });
+  }, 0);
+};
+
+const calls = [];
+const callSnapshot = (value) => JSON.parse(JSON.stringify(value));
+const invoke = async (command, args = {}) => {
+  calls.push({ command, args: callSnapshot(args) });
+  switch (command) {
+    case "get_all_frontend_state":
+      return {
+        "a4n:current_user_id": "1",
+        [`a4n:video:${projectId}:${chapterId}:prompt:${planId}:selected-segment`]: "1",
+        ...(cancelResumeScenario
+          ? { [`a4n:video:${projectId}:${chapterId}:workspace-tab`]: "frames" }
+          : {}),
+        ...(mixedAssemblyScenario
+          ? { [`a4n:video:${projectId}:${chapterId}:workspace-tab`]: "assembly" }
+          : {}),
+      };
+    case "set_frontend_state_many":
+    case "remove_frontend_state_many":
+      return null;
+    case "list_video_reference_images":
+    case "list_video_configs":
+    case "list_active_generation_tasks":
+      return [];
+    case "list_videos_by_chapter":
+      return chapterVideos();
+    case "list_workflow_runs":
+      return run ? [structuredClone(run)] : [];
+    case "list_chapter_video_prompts":
+      return chapterPrompts();
+    case "load_video_playback_data":
+      return {
+        mime_type: "video/mp4",
+        data_base64: "AAAA",
+      };
+    case "load_cached_assembled_chapter_video_preview":
+      return null;
+    case "assemble_chapter_videos": {
+      if (!mixedAssemblyReadyScenario) {
+        throw new Error("incomplete mixed assembly must not call assemble_chapter_videos");
+      }
+      if (args.workflowMode !== "mixed") {
+        throw new Error(`unexpected assemble workflowMode: ${args.workflowMode}`);
+      }
+      return {
+        cached: false,
+        clips: [
+          {
+            video_id: assemblySegment1VideoId,
+            duration_secs: 6,
+            file_path: "/tmp/segment-601.mp4",
+            insert_after_video_id: null,
+            shot_number: 1,
+            sort_order: 1000,
+            video_type: "chapter_video",
+          },
+          {
+            video_id: assemblySegment2VideoId,
+            duration_secs: 6,
+            file_path: "/tmp/segment-602.mp4",
+            insert_after_video_id: null,
+            shot_number: 2,
+            sort_order: 2000,
+            video_type: "chapter_video",
+          },
+        ],
+        data_base64: "AAAA",
+        duration_secs: 12,
+        file_path: "/tmp/mixed-assembly.mp4",
+        file_size: 2048,
+        mime_type: "video/mp4",
+        updated_at: "2026-07-31T00:00:00Z",
+        video_ids: [assemblySegment1VideoId, assemblySegment2VideoId],
+      };
+    }
+    case "select_segment_video": {
+      if (!stalePlanAdoptionScenario || !plan) {
+        throw new Error("unexpected select_segment_video input");
+      }
+      const videoId = args.videoId;
+      const shotNumber = args.input?.shot_number;
+      const segmentPlanPromptId = args.input?.segment_plan_prompt_id;
+      const video = videoById(videoId);
+      const identity = video?.metadata_json?.video_execution_identity;
+      if (
+        segmentPlanPromptId !== planId ||
+        shotNumber !== 1 ||
+        !video ||
+        identity?.segment_plan_prompt_id !== planId ||
+        identity?.segment_number !== 1 ||
+        identity?.segment_recipe_fingerprint !== firstRecipeFingerprint
+      ) {
+        throw new Error("旧规划或失效身份视频不能被当前规划采用");
+      }
+      const currentRecipe = plan.metadata_json.segment_recipes.find(
+        (row) => row.segment_number === 1,
+      );
+      updatePlanRecipe({
+        ...currentRecipe,
+        adopted_video_id: videoId,
+      });
+      calls.push({
+        command: "persisted_adoption_snapshot",
+        videoId,
+        adopted: Object.fromEntries(
+          plan.metadata_json.segment_recipes.map((row) => [
+            row.segment_number,
+            row.adopted_video_id,
+          ]),
+        ),
+      });
+      return structuredClone(video);
+    }
+    case "load_video_segment_plan_draft":
+      if (!run || args.input?.workflow_run_id !== workflowRunId) {
+        throw new Error("unexpected load_video_segment_plan_draft input");
+      }
+      return {
+        run: structuredClone(run),
+        checkpoints: structuredClone(checkpoints),
+        generation_runs: [],
+      };
+    case "start_video_generation": {
+      if (!cancelResumeScenario || args.input?.operation?.kind !== "prompt_segment_plan") {
+        throw new Error("unexpected start_video_generation input");
+      }
+      generationNumber += 1;
+      const handle = handleFor(generationNumber);
+      const options = args.input.operation.options;
+      if (generationNumber === 1) {
+        run = {
+          id: workflowRunId,
+          business_key: "video-segment-plan-e2e",
+          workflow_kind: "video_segment_plan",
+          project_id: projectId,
+          root_project_id: projectId,
+          source_snapshot_id: null,
+          scope_table: "chapters",
+          scope_id: chapterId,
+          chapter_id: chapterId,
+          mode: "shared_segment_plan",
+          input_fingerprint_json: {
+            schema_version: 1,
+            workflow_kind: "video_segment_plan",
+            project_id: projectId,
+            chapter_id: chapterId,
+            workflow_mode: "shared_segment_plan",
+            options: workflowOptions(options),
+          },
+          status: "running",
+          current_step_key: null,
+          progress: null,
+          active_task_id: handle.task_id,
+          can_resume: false,
+          resume_block_reason: null,
+          error_message: null,
+          created_at: "2026-07-30T00:00:00Z",
+          updated_at: "2026-07-30T00:00:00Z",
+          completed_at: null,
+        };
+      } else {
+        run = {
+          ...run,
+          status: "running",
+          active_task_id: handle.task_id,
+          can_resume: false,
+          resume_block_reason: null,
+          error_message: null,
+        };
+      }
+      generationTasks.set(handle.task_id, {
+        handle,
+        sequence: 0,
+        channel: null,
+        generationNumber,
+      });
+      return handle;
+    }
+    case "subscribe_generation_task": {
+      const task = generationTasks.get(args.taskId);
+      if (!task || task.handle.attempt !== args.attempt) {
+        throw new Error("unexpected subscribe_generation_task input");
+      }
+      task.channel = args.onEvent;
+      setTimeout(() => {
+        emit(task, "started", startedData(task));
+        const shotIndex = task.generationNumber;
+        if (shotIndex === 1) {
+          checkpoints = [checkpoint(1)];
+          run = {
+            ...run,
+            current_step_key: checkpoints[0].step_key,
+            progress: {
+              current: 1,
+              total: 2,
+              percent: 50,
+              message: "已保存镜头 1",
+              meta: null,
+              updated_at: "2026-07-30T00:00:00Z",
+            },
+          };
+        }
+        emit(task, "progress", progressData(shotIndex));
+        if (shotIndex === 1) {
+          emit(task, "checkpoint", {
+            checkpoint_key: checkpoints[0].step_key,
+            resumable: true,
+            summary: "已保存镜头 1",
+          });
+        }
+      }, 0);
+      return {
+        subscription_id: `subscription-${task.generationNumber}`,
+        task_id: task.handle.task_id,
+        attempt: task.handle.attempt,
+        subscribed_after_sequence: null,
+      };
+    }
+    case "cancel_generation_task": {
+      const task = generationTasks.get(args.input?.task_id);
+      if (!task || task.handle.attempt !== args.input?.attempt) {
+        throw new Error("unexpected cancel_generation_task input");
+      }
+      cancelTask(task);
+      return { ...task.handle, status: "cancelling" };
+    }
+    case "unsubscribe_generation_task":
+      return null;
+    case "update_chapter_video_prompt": {
+      const nextRecipe = args.input?.segment_recipe;
+      if (args.promptId !== planId || !nextRecipe) {
+        throw new Error("unexpected update_chapter_video_prompt input");
+      }
+      updatePlanRecipe(nextRecipe);
+      calls.push({
+        command: "persisted_recipe_snapshot",
+        target: nextRecipe.segment_number,
+        modes: Object.fromEntries(
+          plan.metadata_json.segment_recipes.map((current) => [
+            current.segment_number,
+            current.workflow_mode,
+          ]),
+        ),
+      });
+      return structuredClone(plan);
+    }
+    default:
+      throw new Error(`unexpected command: ${command}`);
+  }
+};
+
+window.__TAURI_INTERNALS__ = {
+  invoke,
+  convertFileSrc: (path) => path,
+  transformCallback: () => nextCallbackId++,
+  unregisterCallback: () => undefined,
+};
+window.__A4N_VIDEO_MODE_E2E__ = { calls };
+await initializePortableStorage();
+
+createRoot(document.getElementById("root")).render(
+  <ProgressTaskProvider>
+    <div style={{ height: "100vh", padding: 16 }}>
+      <VideoTab
+        projectId={projectId}
+        fixedChapter={{
+          id: chapterId,
+          chapter_number: 1,
+          title: "第一章",
+          content,
+          status: "completed",
+        }}
+      />
+    </div>
+  </ProgressTaskProvider>,
+);

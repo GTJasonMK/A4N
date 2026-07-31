@@ -4,19 +4,24 @@ import {
   Film,
   ImagePlus,
   PanelTop,
+  RotateCcw,
   Scissors,
 } from "lucide-react";
+import { BookButton } from "../../components/ui/BookButton";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { extractErrorMessage } from "../../api";
+import { generationClient } from "../../api/generationTasks";
 import { previewBatchImagesRequest, type GeneratedImage } from "../../api/image";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import {
-  previewChapterVideoPromptRequests,
+  listChapterVideoPrompts,
   previewReferenceMediaVideoRequest,
   selectSegmentVideo,
   startVideoGeneration,
   updateChapterVideoPrompt,
+  updateVideoSegmentPlanDraftRecipe,
   uploadReferenceMediaVideo,
   verifyVideoGenerationResult,
   type ChapterVideoPrompt,
@@ -24,6 +29,7 @@ import {
   type ReferenceMediaVideoInput,
   type VideoGenConfig,
   type SegmentGuidanceMode,
+  type VideoSegmentExecutionRecipe,
 } from "../../api/video";
 import { usePersistedState } from "../../hooks/usePersistedState";
 import {
@@ -36,11 +42,12 @@ import { useProgressTask } from "../../hooks/useProgressTask";
 import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
 import { textInputValue } from "../../utils/text";
 import { copyTextToClipboard } from "../../utils/clipboard";
-import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
+import { sha256Hex } from "../../utils/contentHash";
+import { readFileAsBase64 } from "../../utils/fileUpload";
+import { isCancelledOperation } from "../../utils/cancellation";
 import {
-  MAX_UPLOAD_VIDEO_BYTES,
-  supportedVideoAccept,
-  videoMimeForUploadFile,
+  pickVideoUploadFile,
+  type VideoUploadFile,
 } from "../../utils/videoUpload";
 import { ImageActionDialog } from "./images/ImageActionDialog";
 import { VideoAssemblyWorkspace } from "./video/VideoAssemblyWorkspace";
@@ -49,80 +56,90 @@ import { VideoGenerationWorkspace } from "./video/VideoGenerationWorkspace";
 import { VideoMaterialWorkspace } from "./video/VideoMaterialWorkspace";
 import { VideoPostProcessWorkspace } from "./video/VideoPostProcessWorkspace";
 import {
-  buildReferenceMediaPrompt,
   clearReferenceMediaDraftStorageError,
   createReferenceMediaDraft,
   normalizeReferenceMediaRows,
-  normalizeReferenceMediaRowsByKind,
-  parseReferenceMediaDraft,
   REFERENCE_MEDIA_KIND_META,
   REFERENCE_MEDIA_LIMITS,
-  REFERENCE_MEDIA_PROMPT_MIN_CHARS,
   ReferenceMediaWorkspace,
+  referenceMediaDraftScopeKey,
   referenceMediaGenerateDraftError,
+  referenceMediaDraftFromRecipe,
+  referenceMediaRecipeFromDraft,
   referenceMediaRowsByKindFromDraft,
-  serializeReferenceMediaDraft,
   validReferenceMediaUrl,
   VideoPromptReferenceInputDialog,
   type ReferenceMediaBindingRow,
   type ReferenceMediaDraft,
   type ReferenceMediaInputPurpose,
   type ReferenceMediaKind,
-  type ReferenceMediaRowsByKind,
 } from "./video/referenceMediaWorkspace";
 import {
   buildVideoFrameImageTraceMetadata,
   buildVideoFrameImageRequest,
   boundaryFramePromptChainTo,
   CHAT_VIDEO_DURATION_LIMITS,
+  completedSegmentPlanPreviewItems,
   DEFAULT_DRAFT,
   DEFAULT_VIDEO_OPTIONS,
-  DEFAULT_VIDEO_WORKFLOW_MODE,
-  EMPTY_VIDEO_IMAGE_ID_SELECTION,
   frameImageReferencesForPrompt,
+  guidanceModeForWorkflowChange,
   hasPendingProviderJob,
   isBoundaryFramePrompt,
+  isSegmentPlanDraftCheckpointKey,
   isDurationAllowed,
-  isFinalVideoPrompt,
   latestVideoFrameImageForPrompt,
   MAX_CHAT_REFERENCE_IMAGES,
   MAX_REFERENCE_IMAGES,
-  normalizeDurationOptions,
-  parseGenerationReferenceImageSelection,
   parseNullableNumber,
-  parseVideoLibraryImageSelection,
   parseVideoOptions,
-  parseVideoWorkflowMode,
   promptLengthError,
-  promptSourcePromptType,
-  readSavedReferenceImageIds,
   referenceLabelOrderError,
   referenceImageScopeLabel,
-  serializeGenerationReferenceImageSelection,
-  serializeVideoLibraryImageSelection,
   serializeNullableNumber,
   serializeVideoOptions,
-  serializeVideoWorkflowMode,
   shiftReferenceLabels,
-  VIDEO_CHAT_FRAME_PROMPT_TYPE,
   VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
-  VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE,
+  VIDEO_FRAME_PROMPT_TYPE,
+  VIDEO_FIRST_FRAME_PROMPT_TYPE,
   VIDEO_WORKFLOW_MODE_LABELS,
   VIDEO_STORYBOARD_PROMPT_TYPE,
-  expectedVideoPromptCountFromSegmentPlanPrompt,
+  latestVideoSegmentPlanPrompt,
+  readVideoSegmentRecipes,
+  videoOptionsFromSegmentRecipe,
+  videoSegmentCardsFromPlanPrompt,
+  videoSegmentCardsFromSegments,
+  videoSegmentRecipeFrameFingerprintJson,
+  videoSegmentRecipeGenerationFingerprintJson,
+  videoExecutionSegmentIdentityMatchesPrompt,
+  videoExecutionSegmentIdentityMatchesVideo,
+  videoExecutionIdentityOfPrompt,
+  videoExecutionIdentityOfVideo,
+  videoGuidanceConfigurationError,
+  videoTailFrameSourceVideoId,
+  finalVideoExecutionIdentityIsComplete,
   videoOptionsValidationError,
-  videoWorkflowModeOfPrompt,
-  videoWorkflowModeOfVideo,
   type ChapterVideoWorkflowMode,
   type PromptDraft,
+  type VideoSegmentCardPlan,
   type VideoGenOptions,
 } from "./video/videoTabUtils";
-import { loadVideoTabData } from "./video/loadVideoTabData";
+import {
+  activeVideoSegmentPlanTask,
+  loadedVideoSegmentPlanDraftFromDetail,
+  loadVideoSegmentPlanDraft,
+  loadVideoTabData,
+  type LoadedSegmentPlanDraft,
+} from "./video/loadVideoTabData";
 import { useChapterContentHash } from "./video/useChapterContentHash";
 import { useVideoImageActions } from "./video/useVideoImageActions";
-import { useVideoPromptGenerationActions } from "./video/useVideoPromptGenerationActions";
+import {
+  runVideoPromptGenerationTask,
+  useVideoPromptGenerationActions,
+} from "./video/useVideoPromptGenerationActions";
 import { useVideoRecordActions } from "./video/useVideoRecordActions";
 import { useVideoTabDerivedState } from "./video/useVideoTabDerivedState";
+import { VideoWorkspaceHeader, type VideoWorkspaceTab } from "./video/VideoWorkspaceHeader";
 
 interface VideoTabProps {
   projectId: number;
@@ -130,13 +147,6 @@ interface VideoTabProps {
   imageProjectIds?: number[];
   materialProjectId?: number;
 }
-
-type VideoWorkspaceTab =
-  | "materials"
-  | "frames"
-  | "video"
-  | "assembly"
-  | "postprocess";
 
 const VIDEO_WORKSPACE_TABS: Array<{
   id: VideoWorkspaceTab;
@@ -150,11 +160,6 @@ const VIDEO_WORKSPACE_TABS: Array<{
   { id: "postprocess", label: "成片后处理", icon: <Scissors size={13} /> },
 ];
 
-interface PersistedWorkflowModeState {
-  mode: ChapterVideoWorkflowMode;
-  storageError: string | null;
-}
-
 interface PersistedWorkspaceTabState {
   tab: VideoWorkspaceTab;
   storageError: string | null;
@@ -166,35 +171,9 @@ interface PersistedNullableIdState {
 }
 
 interface ReferenceMediaSegmentState {
-  promptId: number;
+  segmentPlanPromptId: number;
   shotNumber: number;
 }
-
-const parseReferenceMediaSegmentState = (raw: string): ReferenceMediaSegmentState | null => {
-  const value = JSON.parse(raw) as Partial<ReferenceMediaSegmentState> | null;
-  return value && Number.isInteger(value.promptId) && Number.isInteger(value.shotNumber)
-    ? { promptId: value.promptId as number, shotNumber: value.shotNumber as number }
-    : null;
-};
-
-const createPersistedWorkflowModeState = (
-  mode: ChapterVideoWorkflowMode,
-  storageError: string | null = null,
-): PersistedWorkflowModeState => ({ mode, storageError });
-
-const parsePersistedWorkflowModeState = (raw: string): PersistedWorkflowModeState => {
-  try {
-    return createPersistedWorkflowModeState(parseVideoWorkflowMode(raw));
-  } catch (err) {
-    return createPersistedWorkflowModeState(
-      DEFAULT_VIDEO_WORKFLOW_MODE,
-      `视频生成模式本地存储损坏：${extractErrorMessage(err, "")}`,
-    );
-  }
-};
-
-const serializePersistedWorkflowModeState = (state: PersistedWorkflowModeState): string =>
-  serializeVideoWorkflowMode(state.mode);
 
 const createPersistedWorkspaceTabState = (
   tab: VideoWorkspaceTab,
@@ -240,58 +219,6 @@ const parsePersistedNullableIdState = (
 const serializePersistedNullableIdState = (state: PersistedNullableIdState): string =>
   serializeNullableNumber(state.id);
 
-const VideoWorkspaceHeader: React.FC<{
-  tabs: Array<{ id: VideoWorkspaceTab; label: string; icon: React.ReactNode }>;
-  activeTab: VideoWorkspaceTab;
-  onTabChange: (tab: VideoWorkspaceTab) => void;
-  children: React.ReactNode;
-}> = ({ tabs, activeTab, onTabChange, children }) => {
-  const activeTabRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      activeTabRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center",
-      });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeTab, tabs]);
-
-  return (
-    <div className="grid min-w-0 shrink-0 gap-2 border-b border-book-border/60 pb-2 sm:flex sm:items-center">
-      <div
-        role="tablist"
-        aria-label="视频工作区阶段"
-        className="tab-bar a4n-mobile-scroll-rail min-w-0 w-full flex-1 scroll-px-3"
-      >
-        {tabs.map((tab) => {
-          const active = activeTab === tab.id;
-          return (
-            <button
-              ref={active ? activeTabRef : undefined}
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onTabChange(tab.id)}
-              data-active={active ? "1" : undefined}
-              className="pyqt-tab inline-flex shrink-0 items-center gap-1.5 !px-2"
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex min-w-0 items-center justify-end gap-2 text-[11px] text-book-text-muted sm:shrink-0">
-        {children}
-      </div>
-    </div>
-  );
-};
-
 export const VideoTab: React.FC<VideoTabProps> = ({
   projectId,
   fixedChapter,
@@ -301,6 +228,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   const { addToast } = useToast();
   const { runProgressTask } = useProgressTask();
   const chapter = fixedChapter ?? null;
+  const chapterId = chapter?.id ?? null;
   const profileMaterialProjectId = materialProjectId ?? projectId;
   const chapterDataKey =
     chapter && Number.isFinite(chapter.id) ? `${projectId}:${chapter.id}` : null;
@@ -310,41 +238,48 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   const videoDataKey = chapterDataKey ? `${chapterDataKey}:${imageProjectIdsKey}` : null;
   const chapterStorageKey =
     chapter && Number.isFinite(chapter.id) ? `a4n:video:${projectId}:${chapter.id}` : null;
-  const workflowModeInitialValue = useMemo(
-    () => createPersistedWorkflowModeState(DEFAULT_VIDEO_WORKFLOW_MODE),
+  const { currentContentHash, chapterContentReady, chapterContentHashError } =
+    useChapterContentHash(chapter);
+  const planningOptionsInitialValue = useMemo<VideoGenOptions>(
+    () => ({ ...DEFAULT_VIDEO_OPTIONS, durationOptions: [...DEFAULT_VIDEO_OPTIONS.durationOptions] }),
     [chapterStorageKey],
   );
-  const [workflowModeState, setWorkflowModeState] = usePersistedState<PersistedWorkflowModeState>(
-    chapterStorageKey ? `${chapterStorageKey}:workflow-mode` : null,
-    workflowModeInitialValue,
-    {
-      parse: parsePersistedWorkflowModeState,
-      serialize: serializePersistedWorkflowModeState,
-    },
+  const [planningOptions, setPlanningOptions] = usePersistedState<VideoGenOptions>(
+    chapterStorageKey ? `${chapterStorageKey}:segment-plan-options` : null,
+    planningOptionsInitialValue,
+    { parse: parseVideoOptions, serialize: serializeVideoOptions },
   );
-  const workflowMode = workflowModeState.mode;
-  const setWorkflowMode = useCallback(
-    (mode: ChapterVideoWorkflowMode) =>
-      setWorkflowModeState(createPersistedWorkflowModeState(mode)),
-    [setWorkflowModeState],
+  const videoActionScopeKey = videoDataKey;
+  const [acting, setActing] = useState<string | null>(null);
+  const actionScopeRef = useRef(videoActionScopeKey);
+  const actionBusyRef = useRef<string | null>(null);
+  useEffect(() => {
+    actionScopeRef.current = videoActionScopeKey;
+  }, [videoActionScopeKey]);
+  const beginVideoAction = useCallback((key: string): boolean => {
+    if (actionBusyRef.current) return false;
+    actionBusyRef.current = key;
+    setActing(key);
+    return true;
+  }, []);
+  const isCurrentVideoActionScope = useCallback(
+    (scope: string | null): boolean => actionScopeRef.current === scope,
+    [],
   );
-  const modeStorageKey = chapterStorageKey ? `${chapterStorageKey}:${workflowMode}` : null;
-  const projectModeStorageKey =
-    Number.isFinite(projectId) && projectId > 0
-      ? `a4n:video:${projectId}:${workflowMode}`
-      : null;
-  const videoActionScopeKey = videoDataKey
-    ? `${videoDataKey}:${workflowMode}`
-    : null;
+  const finishVideoAction = useCallback((key: string, _scope: string | null): void => {
+    if (actionBusyRef.current !== key) return;
+    actionBusyRef.current = null;
+    setActing((current) => (current === key ? null : current));
+  }, []);
   const workspaceTabIds = VIDEO_WORKSPACE_TABS.map((tab) => tab.id);
   const defaultWorkspaceTab: VideoWorkspaceTab = "video";
   const workspaceTabInitialValue = useMemo(
     () => createPersistedWorkspaceTabState(defaultWorkspaceTab),
-    [defaultWorkspaceTab, modeStorageKey],
+    [defaultWorkspaceTab, chapterStorageKey],
   );
   const [workspaceTabState, setWorkspaceTabState] =
     usePersistedState<PersistedWorkspaceTabState>(
-      modeStorageKey ? `${modeStorageKey}:workspace-tab` : null,
+      chapterStorageKey ? `${chapterStorageKey}:workspace-tab` : null,
       workspaceTabInitialValue,
       {
         parse: (raw) =>
@@ -358,21 +293,181 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     [setWorkspaceTabState],
   );
   const [prompts, setPrompts] = useState<ChapterVideoPrompt[]>([]);
-  const workflowTargetShotRef = useRef<number | null>(null);
-  const [referenceMediaSegment, setReferenceMediaSegment] = usePersistedState<ReferenceMediaSegmentState | null>(
-    chapterStorageKey ? `${chapterStorageKey}:reference-media-segment` : null,
-    null,
-    { parse: parseReferenceMediaSegmentState, serialize: JSON.stringify },
-  );
+  const [segmentPlanPreview, setSegmentPlanPreview] = useState<Record<string, unknown>[]>([]);
+  const [segmentPlanDraft, setSegmentPlanDraft] = useState<LoadedSegmentPlanDraft | null>(null);
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
   const [images, setImages] = useState<GeneratedImage[]>([]);
+  const frameSegmentPlanPromptForCards = useMemo(
+    () => latestVideoSegmentPlanPrompt(prompts, currentContentHash),
+    [currentContentHash, prompts],
+  );
+  const segmentPlanDraftVisible =
+    segmentPlanPreview.length > 0 &&
+    (acting === "generate-segment-plan" ||
+      !frameSegmentPlanPromptForCards ||
+      segmentPlanDraft?.workflowStatus !== "completed");
+  const segmentPlanIdentity = segmentPlanDraftVisible
+    ? segmentPlanDraft?.workflowRunId == null
+      ? null
+      : `workflow-run:${segmentPlanDraft.workflowRunId}`
+    : frameSegmentPlanPromptForCards == null
+      ? null
+      : `prompt:${frameSegmentPlanPromptForCards.id}`;
+  const segmentCardState = useMemo(() => {
+    try {
+      return {
+        cards: segmentPlanDraftVisible
+          ? videoSegmentCardsFromSegments(segmentPlanPreview)
+          : videoSegmentCardsFromPlanPrompt(frameSegmentPlanPromptForCards),
+        error: null as string | null,
+      };
+    } catch (error) {
+      return {
+        cards: [] as VideoSegmentCardPlan[],
+        error: extractErrorMessage(error, "读取片段规划失败"),
+      };
+    }
+  }, [frameSegmentPlanPromptForCards, segmentPlanDraftVisible, segmentPlanPreview]);
+  const segmentRecipeState = useMemo(
+    () => segmentPlanDraftVisible
+      ? {
+          recipes: segmentPlanDraft?.recipes ?? new Map<number, VideoSegmentExecutionRecipe>(),
+          error: null,
+        }
+      : readVideoSegmentRecipes(frameSegmentPlanPromptForCards),
+    [frameSegmentPlanPromptForCards, segmentPlanDraft?.recipes, segmentPlanDraftVisible],
+  );
   const persistedNullIdInitialValue = useMemo(
     () => createPersistedNullableIdState(null),
-    [modeStorageKey],
+    [chapterStorageKey],
   );
+  const [selectedSegmentState, setSelectedSegmentState] =
+    usePersistedState<PersistedNullableIdState>(
+      chapterStorageKey && segmentPlanIdentity
+        ? `${chapterStorageKey}:${segmentPlanIdentity}:selected-segment`
+        : null,
+      persistedNullIdInitialValue,
+      {
+        parse: (raw) => parsePersistedNullableIdState(raw, "选中片段"),
+        serialize: serializePersistedNullableIdState,
+      },
+    );
+  const selectedSegmentNumber = selectedSegmentState.id;
+  const setSelectedSegmentNumber = useCallback((segmentNumber: number | null) => {
+    setSelectedSegmentState(createPersistedNullableIdState(segmentNumber));
+  }, [setSelectedSegmentState]);
+  const [recipeOverrides, setRecipeOverrides] = useState<
+    Map<number, VideoSegmentExecutionRecipe>
+  >(new Map());
+  const recipeSaveQueueRef = useRef(Promise.resolve());
+  const recipeSaveBySegmentRef = useRef(
+    new Map<number, Promise<void>>(),
+  );
+  const recipeSaveErrorRef = useRef(new Map<number, string>());
+  const [savingRecipeSegments, setSavingRecipeSegments] = useState<Set<number>>(
+    new Set(),
+  );
+  const [recipeSaveErrors, setRecipeSaveErrors] = useState<Map<number, string>>(
+    new Map(),
+  );
+  useEffect(() => {
+    setRecipeOverrides(new Map());
+    recipeSaveBySegmentRef.current.clear();
+    recipeSaveErrorRef.current.clear();
+    setSavingRecipeSegments(new Set());
+    setRecipeSaveErrors(new Map());
+  }, [frameSegmentPlanPromptForCards?.id, segmentPlanDraft?.workflowRunId]);
+  const effectiveRecipeBySegment = useMemo(() => {
+    const recipes = new Map(segmentRecipeState.recipes);
+    for (const [segmentNumber, recipe] of recipeOverrides) {
+      recipes.set(segmentNumber, recipe);
+    }
+    return recipes;
+  }, [recipeOverrides, segmentRecipeState.recipes]);
+  const effectiveRecipeBySegmentRef = useRef(effectiveRecipeBySegment);
+  useEffect(() => {
+    effectiveRecipeBySegmentRef.current = effectiveRecipeBySegment;
+  }, [effectiveRecipeBySegment]);
+  const [recipeFingerprintBySegment, setRecipeFingerprintBySegment] = useState<
+    Map<number, string>
+  >(new Map());
+  const [frameRecipeFingerprintBySegment, setFrameRecipeFingerprintBySegment] = useState<
+    Map<number, string | null>
+  >(new Map());
+  const recipeFingerprintInputBySegmentRef = useRef(new Map<number, string>());
+  useEffect(() => {
+    let cancelled = false;
+    const fingerprintInputs = new Map(
+      [...effectiveRecipeBySegment.entries()].map(([segmentNumber, recipe]) => [
+        segmentNumber,
+        {
+          generation: videoSegmentRecipeGenerationFingerprintJson(recipe),
+          frame: videoSegmentRecipeFrameFingerprintJson(recipe),
+        },
+      ]),
+    );
+    const previousInputs = recipeFingerprintInputBySegmentRef.current;
+    setRecipeFingerprintBySegment((previous) => new Map(
+      [...previous].filter(
+        ([segmentNumber]) =>
+          previousInputs.get(segmentNumber) ===
+            JSON.stringify(fingerprintInputs.get(segmentNumber)),
+      ),
+    ));
+    setFrameRecipeFingerprintBySegment((previous) => new Map(
+      [...previous].filter(
+        ([segmentNumber]) =>
+          previousInputs.get(segmentNumber) ===
+            JSON.stringify(fingerprintInputs.get(segmentNumber)),
+      ),
+    ));
+    recipeFingerprintInputBySegmentRef.current = new Map(
+      [...fingerprintInputs].map(([segmentNumber, input]) => [
+        segmentNumber,
+        JSON.stringify(input),
+      ]),
+    );
+    void Promise.all(
+      [...fingerprintInputs.entries()].map(async ([segmentNumber, input]) => {
+        const [generation, frame] = await Promise.all([
+          sha256Hex(input.generation),
+          sha256Hex(input.frame),
+        ]);
+        return [segmentNumber, generation, frame] as const;
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setRecipeFingerprintBySegment(
+        new Map(
+          entries.filter(
+            (entry): entry is readonly [number, string, string | null] => entry[1] != null,
+          ).map(([segmentNumber, generation]) => [segmentNumber, generation]),
+        ),
+      );
+      setFrameRecipeFingerprintBySegment(
+        new Map(
+          entries.filter(
+            (entry): entry is readonly [number, string | null, string] => entry[2] != null,
+          ).map(([segmentNumber, frame]) => [segmentNumber, frame]),
+        ),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveRecipeBySegment]);
+  const selectedSegmentRecipe =
+    selectedSegmentNumber == null
+      ? null
+      : (effectiveRecipeBySegment.get(selectedSegmentNumber) ?? null);
+  const workflowMode = selectedSegmentRecipe?.workflow_mode ?? null;
+  const segmentStorageKey =
+    chapterStorageKey && segmentPlanIdentity && selectedSegmentNumber != null
+      ? `${chapterStorageKey}:${segmentPlanIdentity}:segment:${selectedSegmentNumber}`
+      : null;
   const [selectedPromptState, setSelectedPromptState] =
     usePersistedState<PersistedNullableIdState>(
-      modeStorageKey ? `${modeStorageKey}:selected-prompt` : null,
+      segmentStorageKey ? `${segmentStorageKey}:selected-prompt` : null,
       persistedNullIdInitialValue,
       {
         parse: (raw) => parsePersistedNullableIdState(raw, "选中视频提示词"),
@@ -381,7 +476,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     );
   const [selectedVideoState, setSelectedVideoState] =
     usePersistedState<PersistedNullableIdState>(
-      modeStorageKey ? `${modeStorageKey}:selected-video` : null,
+      segmentStorageKey ? `${segmentStorageKey}:selected-video` : null,
       persistedNullIdInitialValue,
       {
         parse: (raw) => parsePersistedNullableIdState(raw, "选中视频"),
@@ -390,7 +485,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     );
   const [pendingVideoState, setPendingVideoState] =
     usePersistedState<PersistedNullableIdState>(
-      modeStorageKey ? `${modeStorageKey}:pending-video` : null,
+      segmentStorageKey ? `${segmentStorageKey}:pending-video` : null,
       persistedNullIdInitialValue,
       {
         parse: (raw) => parsePersistedNullableIdState(raw, "待恢复视频任务"),
@@ -430,84 +525,236 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     },
     [setPendingVideoState],
   );
-  const [videoLibraryImageSelection, setVideoLibraryImageSelection] = usePersistedState(
-    modeStorageKey ? `${modeStorageKey}:video-library-image-ids` : null,
-    EMPTY_VIDEO_IMAGE_ID_SELECTION,
-    { parse: parseVideoLibraryImageSelection, serialize: serializeVideoLibraryImageSelection },
-  );
-  const [generationReferenceSelection, setGenerationReferenceSelection] = usePersistedState(
-    modeStorageKey ? `${modeStorageKey}:generation-reference-image-ids` : null,
-    EMPTY_VIDEO_IMAGE_ID_SELECTION,
-    {
-      parse: parseGenerationReferenceImageSelection,
-      serialize: serializeGenerationReferenceImageSelection,
-    },
-  );
-  const [options, setOptions] = usePersistedState<VideoGenOptions>(
-    projectModeStorageKey ? `${projectModeStorageKey}:options` : null,
-    DEFAULT_VIDEO_OPTIONS,
-    { parse: parseVideoOptions, serialize: serializeVideoOptions },
-  );
-  const videoLibraryImageIds = videoLibraryImageSelection.ids;
-  const generationReferenceIds = generationReferenceSelection.ids;
-  const setVideoLibraryImageIds = useCallback<React.Dispatch<React.SetStateAction<number[]>>>(
-    (action) => {
-      setVideoLibraryImageSelection((prev) => ({
-        ids: typeof action === "function" ? action(prev.ids) : action,
-        storageError: null,
-      }));
-    },
-    [setVideoLibraryImageSelection],
-  );
-  const setGenerationReferenceIds = useCallback<React.Dispatch<React.SetStateAction<number[]>>>(
-    (action) => {
-      setGenerationReferenceSelection((prev) => ({
-        ids: typeof action === "function" ? action(prev.ids) : action,
-        storageError: null,
-      }));
-    },
-    [setGenerationReferenceSelection],
-  );
-  const setVideoOptions = useCallback<React.Dispatch<React.SetStateAction<VideoGenOptions>>>(
-    (action) => {
-      setOptions((prev) => {
-        const next = typeof action === "function" ? action(prev) : action;
-        return { ...next, storageError: null };
-      });
-    },
-    [setOptions],
-  );
+  const options = videoOptionsFromSegmentRecipe(selectedSegmentRecipe);
+  const videoLibraryImageIds = selectedSegmentRecipe?.video_library_image_ids ?? [];
+  const generationReferenceIds = selectedSegmentRecipe?.reference_image_ids ?? [];
+  const persistSegmentRecipe = useCallback((recipe: VideoSegmentExecutionRecipe): Promise<void> => {
+    const planPromptId = segmentPlanDraftVisible ? null : frameSegmentPlanPromptForCards?.id;
+    const draftWorkflowRunId = segmentPlanDraftVisible
+      ? segmentPlanDraft?.workflowRunId ?? null
+      : null;
+    if (!draftWorkflowRunId && !planPromptId) {
+      const message = segmentPlanDraftVisible
+        ? "当前片段规划草稿缺少 workflow 身份，不能保存执行方案"
+        : "当前没有可保存执行方案的片段规划";
+      addToast(message, "error");
+      return Promise.reject(new Error(message));
+    }
+    effectiveRecipeBySegmentRef.current = new Map(effectiveRecipeBySegmentRef.current).set(
+      recipe.segment_number,
+      recipe,
+    );
+    setRecipeOverrides((previous) => new Map(previous).set(recipe.segment_number, recipe));
+    recipeSaveErrorRef.current.delete(recipe.segment_number);
+    setRecipeSaveErrors((previous) => {
+      if (!previous.has(recipe.segment_number)) return previous;
+      const next = new Map(previous);
+      next.delete(recipe.segment_number);
+      return next;
+    });
+    setSavingRecipeSegments((previous) => new Set(previous).add(recipe.segment_number));
+    const save = recipeSaveQueueRef.current.then(async () => {
+      try {
+        if (draftWorkflowRunId) {
+          if (chapterId == null) throw new Error("当前章节无效，无法保存片段执行方案");
+          const card = segmentCardState.cards.find(
+            (item) => item.segmentNumber === recipe.segment_number,
+          );
+          const sourceShotId = card?.raw.source_shot_id;
+          const segmentIndexInShot = card?.raw.segment_index_in_shot;
+          if (
+            typeof sourceShotId !== "string"
+            || !sourceShotId.trim()
+            || typeof segmentIndexInShot !== "number"
+            || !Number.isInteger(segmentIndexInShot)
+            || segmentIndexInShot <= 0
+          ) {
+            throw new Error(`片段 ${recipe.segment_number} 缺少稳定草稿身份`);
+          }
+          const detail = await updateVideoSegmentPlanDraftRecipe({
+            project_id: projectId,
+            chapter_id: chapterId,
+            workflow_run_id: draftWorkflowRunId,
+            source_shot_id: sourceShotId.trim(),
+            segment_index_in_shot: segmentIndexInShot,
+            recipe,
+          });
+          const nextDraft = loadedVideoSegmentPlanDraftFromDetail(detail, projectId, chapterId);
+          if (!nextDraft) throw new Error("保存成功后未能读取片段规划草稿");
+          setSegmentPlanDraft(nextDraft);
+          setSegmentPlanPreview(nextDraft.segments);
+        } else {
+          const updated = await updateChapterVideoPrompt(planPromptId!, {
+            segment_recipe: recipe,
+          });
+          setPrompts((previous) =>
+            previous.map((prompt) => (prompt.id === updated.id ? updated : prompt)),
+          );
+        }
+        setRecipeOverrides((previous) => {
+          if (previous.get(recipe.segment_number) !== recipe) return previous;
+          const next = new Map(previous);
+          next.delete(recipe.segment_number);
+          return next;
+        });
+      } catch (error) {
+        const message = extractErrorMessage(error, "保存片段执行方案失败");
+        if (effectiveRecipeBySegmentRef.current.get(recipe.segment_number) !== recipe) {
+          throw error;
+        }
+        setRecipeOverrides((previous) => {
+          if (previous.get(recipe.segment_number) !== recipe) return previous;
+          const next = new Map(previous);
+          next.delete(recipe.segment_number);
+          const persisted = segmentRecipeState.recipes.get(recipe.segment_number);
+          const effective = new Map(effectiveRecipeBySegmentRef.current);
+          if (persisted) effective.set(recipe.segment_number, persisted);
+          else effective.delete(recipe.segment_number);
+          effectiveRecipeBySegmentRef.current = effective;
+          return next;
+        });
+        recipeSaveErrorRef.current.set(recipe.segment_number, message);
+        setRecipeSaveErrors((previous) =>
+          new Map(previous).set(recipe.segment_number, message),
+        );
+        addToast(message, "error");
+        throw error;
+      }
+    });
+    recipeSaveQueueRef.current = save.then(() => undefined, () => undefined);
+    recipeSaveBySegmentRef.current.set(recipe.segment_number, save);
+    void save.then(
+      () => {
+        if (recipeSaveBySegmentRef.current.get(recipe.segment_number) === save) {
+          recipeSaveBySegmentRef.current.delete(recipe.segment_number);
+          setSavingRecipeSegments((previous) => {
+            const next = new Set(previous);
+            next.delete(recipe.segment_number);
+            return next;
+          });
+        }
+      },
+      () => {
+        if (recipeSaveBySegmentRef.current.get(recipe.segment_number) === save) {
+          recipeSaveBySegmentRef.current.delete(recipe.segment_number);
+          setSavingRecipeSegments((previous) => {
+            const next = new Set(previous);
+            next.delete(recipe.segment_number);
+            return next;
+          });
+        }
+      },
+    );
+    return save;
+  }, [
+    addToast,
+    chapterId,
+    frameSegmentPlanPromptForCards?.id,
+    projectId,
+    segmentCardState.cards,
+    segmentPlanDraft?.workflowRunId,
+    segmentPlanDraftVisible,
+    segmentRecipeState.recipes,
+  ]);
+  const updateSegmentRecipe = useCallback((
+    segmentNumber: number,
+    updater: (recipe: VideoSegmentExecutionRecipe) => VideoSegmentExecutionRecipe,
+  ): Promise<void> => {
+    const current = effectiveRecipeBySegmentRef.current.get(segmentNumber);
+    if (!current) {
+      const message = `片段 ${segmentNumber} 缺少可编辑的执行方案`;
+      addToast(message, "error");
+      return Promise.reject(new Error(message));
+    }
+    return persistSegmentRecipe(updater(current));
+  }, [addToast, persistSegmentRecipe]);
+  const awaitSegmentRecipeSaved = useCallback(async (segmentNumber: number) => {
+    const pending = recipeSaveBySegmentRef.current.get(segmentNumber);
+    if (pending) await pending;
+    const error = recipeSaveErrorRef.current.get(segmentNumber);
+    if (error) throw new Error(error);
+  }, []);
   const [draft, setDraft] = useState<PromptDraft>(DEFAULT_DRAFT);
-  const referenceMediaDraftInitialValue = useMemo(
-    () => createReferenceMediaDraft(),
-    [modeStorageKey],
+  const referenceMediaDraftScopeForSegment = useCallback((segmentNumber: number) => {
+    const card = segmentCardState.cards.find((item) => item.segmentNumber === segmentNumber);
+    return referenceMediaDraftScopeKey(
+      segmentPlanIdentity,
+      segmentNumber,
+      card?.raw.source_shot_id,
+      card?.raw.segment_index_in_shot,
+    );
+  }, [segmentCardState.cards, segmentPlanIdentity]);
+  const selectedReferenceMediaDraftScope = selectedSegmentNumber == null
+    ? null
+    : referenceMediaDraftScopeForSegment(selectedSegmentNumber);
+  const [referenceMediaDraft, setReferenceMediaDraft] = useState<ReferenceMediaDraft>(() =>
+    createReferenceMediaDraft(),
   );
-  const [referenceMediaDraft, setReferenceMediaDraft] = usePersistedState<ReferenceMediaDraft>(
-    modeStorageKey && workflowMode === "reference_media" ? `${modeStorageKey}:draft` : null,
-    referenceMediaDraftInitialValue,
-    { parse: parseReferenceMediaDraft, serialize: serializeReferenceMediaDraft },
-  );
-  const [promptReferenceIds, setPromptReferenceIds] = useState<number[]>([]);
+  const referenceMediaDraftRef = useRef(referenceMediaDraft);
+  const [referenceMediaDraftDirty, setReferenceMediaDraftDirty] = useState(false);
+  const referenceMediaDraftScopeRef = useRef<string | null>(null);
+  useEffect(() => {
+    const sameScope = referenceMediaDraftScopeRef.current === selectedReferenceMediaDraftScope;
+    if (sameScope) {
+      if (referenceMediaDraftDirty) return;
+      const persistedRecipe = selectedSegmentRecipe?.reference_media ?? {
+        prompt: "",
+        image_rows: [],
+        video_rows: [],
+        audio_rows: [],
+      };
+      if (
+        JSON.stringify(referenceMediaRecipeFromDraft(referenceMediaDraftRef.current)) ===
+        JSON.stringify(persistedRecipe)
+      ) {
+        return;
+      }
+    }
+    referenceMediaDraftScopeRef.current = selectedReferenceMediaDraftScope;
+    const next = referenceMediaDraftFromRecipe(selectedSegmentRecipe?.reference_media);
+    referenceMediaDraftRef.current = next;
+    setReferenceMediaDraft(next);
+    setReferenceMediaDraftDirty(false);
+  }, [
+    referenceMediaDraftDirty,
+    selectedReferenceMediaDraftScope,
+    selectedSegmentRecipe?.reference_media,
+  ]);
   const [loading, setLoading] = useState(false);
+  const [videoDataError, setVideoDataError] = useState<string | null>(null);
+  const [segmentPlanDraftLoading, setSegmentPlanDraftLoading] = useState(false);
+  const [segmentPlanDraftError, setSegmentPlanDraftError] = useState<string | null>(null);
   const [loadedDataKey, setLoadedDataKey] = useState<string | null>(null);
   const [activeVideoConfig, setActiveVideoConfig] = useState<VideoGenConfig | null>(null);
+  useEffect(() => {
+    if (loadedDataKey !== videoDataKey) return;
+    const selectedExists = segmentCardState.cards.some(
+      (card) => card.segmentNumber === selectedSegmentNumber,
+    );
+    if (selectedExists) return;
+    setSelectedSegmentNumber(segmentCardState.cards[0]?.segmentNumber ?? null);
+  }, [
+    loadedDataKey,
+    segmentCardState.cards,
+    selectedSegmentNumber,
+    setSelectedSegmentNumber,
+    videoDataKey,
+  ]);
   const [promptRequestPreviewOpen, setPromptRequestPreviewOpen] = useState(false);
   const [promptRequestPreviewLoading, setPromptRequestPreviewLoading] = useState(false);
   const [promptRequestPreviewData, setPromptRequestPreviewData] =
     useState<ModelRequestPreview | null>(null);
   const promptRequestPreviewScopeRef = useRef(0);
   const loadAllSeqRef = useRef(0);
+  const promptLoadSeqRef = useRef(0);
+  const segmentPlanDraftLoadSeqRef = useRef(0);
+  const attachedSegmentPlanTaskRef = useRef<string | null>(null);
   const activeVideoDataKeyRef = useRef(videoDataKey);
   const [imageRequestPreviewOpen, setImageRequestPreviewOpen] = useState(false);
   const [imageRequestPreviewLoading, setImageRequestPreviewLoading] = useState(false);
   const [imageRequestPreviewData, setImageRequestPreviewData] =
     useState<ModelRequestPreview | null>(null);
   const imageRequestPreviewScopeRef = useRef(0);
-  const setAllReferenceIds: React.Dispatch<React.SetStateAction<number[]>> = (updater) => {
-    setGenerationReferenceIds(updater);
-    setPromptReferenceIds(updater);
-  };
-  const { currentContentHash, chapterContentReady } = useChapterContentHash(chapter);
   const {
     imageBusyId,
     imageDetails,
@@ -524,20 +771,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     images,
     actionScopeKey: videoActionScopeKey,
     setImages,
-    setReferenceIds: setAllReferenceIds,
-    setVideoLibraryImageIds,
+    loadAll,
   });
 
   const {
     finalVideoPrompts,
-    currentLanguageFinalVideoPrompts,
     selectedPrompt,
     frameSegmentPlanPrompt,
-    framePrompts,
     currentLanguageFramePrompts,
-    expectedBoundaryFrameCount,
     selectedVideo,
-    pendingVideo,
     selectedVideoPath,
     selectedPromptSceneSummary,
     selectedPromptStale,
@@ -559,67 +801,146 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     chapter,
     selectedPromptId,
     selectedVideoId,
-    pendingVideoId,
-    promptReferenceIds,
-    videoLibraryImageIds,
     workflowMode,
     promptOutputLanguage: options.promptOutputLanguage,
     currentContentHash,
     activeVideoConfig,
+    selectedSegmentNumber,
+    guidanceMode: selectedSegmentRecipe?.guidance_mode ?? "none",
+    recipeFingerprint:
+      selectedSegmentNumber == null
+        ? null
+        : (recipeFingerprintBySegment.get(selectedSegmentNumber) ?? null),
+    frameRecipeFingerprint:
+      selectedSegmentNumber == null
+        ? null
+        : (frameRecipeFingerprintBySegment.get(selectedSegmentNumber) ?? null),
+    continuitySourceVideoId: selectedSegmentRecipe?.continuity_source_video_id ?? null,
   });
+  const selectedPromptDirty = Boolean(
+    selectedPrompt &&
+      (draft.visual_prompt.trim() !== selectedPrompt.visual_prompt.trim() ||
+        draft.motion_prompt.trim() !== (selectedPrompt.motion_prompt ?? "").trim() ||
+        draft.negative_prompt.trim() !== (selectedPrompt.negative_prompt ?? "").trim()),
+  );
 
   const referenceMediaSegmentVideos = useMemo(() => {
-    if (!referenceMediaSegment) return workflowVideos;
+    if (selectedSegmentNumber == null) return [];
     return workflowVideos.filter((video) => {
       const metadata =
         video.metadata_json && typeof video.metadata_json === "object" && !Array.isArray(video.metadata_json)
           ? (video.metadata_json as Record<string, unknown>)
           : null;
-      return metadata?.shot_number === referenceMediaSegment.shotNumber;
+      return metadata?.shot_number === selectedSegmentNumber;
     });
-  }, [referenceMediaSegment, workflowVideos]);
+  }, [selectedSegmentNumber, workflowVideos]);
+  const previousAdoptedVideos = useMemo(() => {
+    if (selectedSegmentNumber == null) return [];
+    const rows: GeneratedVideo[] = [];
+    for (const [segmentNumber, recipe] of effectiveRecipeBySegment) {
+      if (segmentNumber >= selectedSegmentNumber || recipe.adopted_video_id == null) continue;
+      const video = videos.find((row) => row.id === recipe.adopted_video_id);
+      if (
+        video &&
+        video.status === "completed" &&
+        Boolean(video.file_path?.trim()) &&
+        videoExecutionSegmentIdentityMatchesVideo(
+          video,
+          frameSegmentPlanPromptForCards,
+          segmentNumber,
+          recipeFingerprintBySegment.get(segmentNumber),
+        )
+      ) {
+        rows.push(video);
+      }
+    }
+    return rows.sort((left, right) => {
+      const leftShot = (left.metadata_json as Record<string, unknown> | null)?.shot_number;
+      const rightShot = (right.metadata_json as Record<string, unknown> | null)?.shot_number;
+      return Number(leftShot ?? 0) - Number(rightShot ?? 0);
+    });
+  }, [
+    effectiveRecipeBySegment,
+    frameSegmentPlanPromptForCards,
+    recipeFingerprintBySegment,
+    selectedSegmentNumber,
+    videos,
+  ]);
+  const { mixedAdoptedVideoIds, missingMixedSegmentNumbers } = useMemo(() => {
+    const adoptedVideoIds = new Set<number>();
+    const missingSegmentNumbers: number[] = [];
+    for (const card of segmentCardState.cards) {
+      const recipe = effectiveRecipeBySegment.get(card.segmentNumber);
+      const fingerprint = recipeFingerprintBySegment.get(card.segmentNumber);
+      const video = recipe?.adopted_video_id == null
+        ? null
+        : videos.find((row) => row.id === recipe.adopted_video_id);
+      const valid = video &&
+        video.status === "completed" &&
+        Boolean(video.file_path?.trim()) &&
+        videoExecutionSegmentIdentityMatchesVideo(
+          video,
+          frameSegmentPlanPromptForCards,
+          card.segmentNumber,
+          fingerprint,
+        );
+      if (valid) adoptedVideoIds.add(video.id);
+      else missingSegmentNumbers.push(card.segmentNumber);
+    }
+    return {
+      mixedAdoptedVideoIds: adoptedVideoIds,
+      missingMixedSegmentNumbers: missingSegmentNumbers,
+    };
+  }, [
+      effectiveRecipeBySegment,
+      frameSegmentPlanPromptForCards,
+      recipeFingerprintBySegment,
+      segmentCardState.cards,
+      videos,
+    ]);
+  const allCurrentFramePrompts = useMemo(
+    () => prompts.filter((prompt) => {
+      if (
+        prompt.prompt_type !== VIDEO_FRAME_PROMPT_TYPE &&
+        prompt.prompt_type !== VIDEO_FIRST_FRAME_PROMPT_TYPE &&
+        prompt.prompt_type !== VIDEO_STORYBOARD_PROMPT_TYPE
+      ) {
+        return false;
+      }
+      const segmentNumber = videoExecutionIdentityOfPrompt(prompt)?.segment_number;
+      return typeof segmentNumber === "number" &&
+        Number.isInteger(segmentNumber) &&
+        videoExecutionSegmentIdentityMatchesPrompt(
+          prompt,
+          frameSegmentPlanPromptForCards,
+          segmentNumber,
+          frameRecipeFingerprintBySegment.get(segmentNumber),
+        );
+    }),
+    [frameRecipeFingerprintBySegment, frameSegmentPlanPromptForCards, prompts],
+  );
   const allSegmentPrompts = useMemo(
     () => prompts
-      .filter((prompt) => prompt.prompt_type === "video_prompt")
+      .filter(
+        (prompt) =>
+          prompt.prompt_type === "video_prompt" &&
+          videoExecutionSegmentIdentityMatchesPrompt(
+            prompt,
+            frameSegmentPlanPromptForCards,
+            prompt.shot_number,
+            recipeFingerprintBySegment.get(prompt.shot_number),
+          ) &&
+          finalVideoExecutionIdentityIsComplete(prompt),
+      )
       .sort((a, b) => a.shot_number - b.shot_number || a.id - b.id),
-    [prompts],
-  );
-  const expectedVideoPromptCount = useMemo(
-    () => expectedVideoPromptCountFromSegmentPlanPrompt(frameSegmentPlanPrompt),
-    [frameSegmentPlanPrompt],
+    [frameSegmentPlanPromptForCards, prompts, recipeFingerprintBySegment],
   );
   const chapterGenerating = isChapterGenerating(chapter);
   const visibleWorkspaceTabs = VIDEO_WORKSPACE_TABS;
   const activeWorkspaceTab =
     visibleWorkspaceTabs.some((tab) => tab.id === workspaceTab) ? workspaceTab : defaultWorkspaceTab;
-  const {
-    chapterVideoAssetCount,
-    chapterVideoChainPromptCount,
-  } = useMemo(() => {
-    if (!chapter) {
-      return {
-        chapterVideoAssetCount: 0,
-        chapterVideoChainPromptCount: 0,
-      };
-    }
-
-    let chapterVideoAssetCount = 0;
-    for (const video of videos) {
-      if (video.chapter_id === chapter.id) chapterVideoAssetCount += 1;
-    }
-
-    let chapterVideoChainPromptCount = 0;
-    for (const prompt of prompts) {
-      if (prompt.chapter_id !== chapter.id) continue;
-      chapterVideoChainPromptCount += 1;
-    }
-
-    return {
-      chapterVideoAssetCount,
-      chapterVideoChainPromptCount,
-    };
-  }, [chapter, prompts, videos]);
   const selectionValidationReady = loadedDataKey === videoDataKey;
+  const videoDataLoading = videoDataKey != null && loading;
   const invalidGenerationReferenceIds = useMemo(
     () =>
       selectionValidationReady
@@ -634,16 +955,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         : [],
     [selectableReferenceIds, selectionValidationReady, videoLibraryImageIds],
   );
-  const invalidPromptReferenceIds = useMemo(
-    () =>
-      selectionValidationReady
-        ? promptReferenceIds.filter((id) => !validPromptReferenceIds.has(id))
-        : [],
-    [promptReferenceIds, selectionValidationReady, validPromptReferenceIds],
-  );
   const promptInputSelectionError =
-    generationReferenceSelection.storageError ??
-    videoLibraryImageSelection.storageError ??
     (invalidGenerationReferenceIds.length > 0
       ? `生成参考图中有 ${invalidGenerationReferenceIds.length} 张已不可用，请清除后重选`
       : null) ??
@@ -654,8 +966,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     options.storageError ??
     videoOptionsValidationError(options);
   const videoPersistedStateError =
-    workflowModeState.storageError ??
+    chapterContentHashError ??
+    segmentCardState.error ??
+    segmentRecipeState.error ??
+    (selectedSegmentNumber == null ? null : recipeSaveErrors.get(selectedSegmentNumber)) ??
     workspaceTabState.storageError ??
+    selectedSegmentState.storageError ??
     selectedPromptState.storageError ??
     selectedVideoState.storageError ??
     pendingVideoState.storageError ??
@@ -673,21 +989,362 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     [durationLimits, videoOptionsStateError, workflowMode],
   );
 
+  const updateReferenceMediaDraft = (
+    updater: (previous: ReferenceMediaDraft) => ReferenceMediaDraft,
+  ) => {
+    const next = updater(clearReferenceMediaDraftStorageError(referenceMediaDraftRef.current));
+    referenceMediaDraftRef.current = next;
+    setReferenceMediaDraft(next);
+    setReferenceMediaDraftDirty(true);
+  };
   const setReferenceMediaPrompt = (prompt: string) =>
-    setReferenceMediaDraft((prev) => ({ ...clearReferenceMediaDraftStorageError(prev), prompt }));
+    updateReferenceMediaDraft((previous) => ({ ...previous, prompt }));
   const setReferenceMediaImageRows = (imageRows: ReferenceMediaBindingRow[]) =>
-    setReferenceMediaDraft((prev) => ({ ...clearReferenceMediaDraftStorageError(prev), imageRows }));
+    updateReferenceMediaDraft((previous) => ({ ...previous, imageRows }));
   const setReferenceMediaVideoRows = (videoRows: ReferenceMediaBindingRow[]) =>
-    setReferenceMediaDraft((prev) => ({ ...clearReferenceMediaDraftStorageError(prev), videoRows }));
+    updateReferenceMediaDraft((previous) => ({ ...previous, videoRows }));
   const setReferenceMediaAudioRows = (audioRows: ReferenceMediaBindingRow[]) =>
-    setReferenceMediaDraft((prev) => ({ ...clearReferenceMediaDraftStorageError(prev), audioRows }));
-  const loadAll = async () => {
+    updateReferenceMediaDraft((previous) => ({ ...previous, audioRows }));
+  const confirmSegmentRecipeChange = useCallback(async (
+    segmentNumber: number,
+    operation: string,
+  ): Promise<boolean> => {
+    const recipe = effectiveRecipeBySegmentRef.current.get(segmentNumber);
+    const fingerprint = recipe
+      ? await sha256Hex(videoSegmentRecipeGenerationFingerprintJson(recipe))
+      : null;
+    if (recipe && !fingerprint) {
+      addToast("当前环境无法校验片段执行身份，已阻止修改以避免误用下游资产", "error");
+      return false;
+    }
+    const hasCurrentPrompt = prompts.some((prompt) =>
+      prompt.prompt_type === "video_prompt" &&
+      videoExecutionSegmentIdentityMatchesPrompt(
+        prompt,
+        frameSegmentPlanPromptForCards,
+        segmentNumber,
+        fingerprint,
+      ),
+    );
+    const hasCurrentVideo = videos.some((video) =>
+      videoExecutionSegmentIdentityMatchesVideo(
+        video,
+        frameSegmentPlanPromptForCards,
+        segmentNumber,
+        fingerprint,
+      ),
+    );
+    const discardsPromptDraft = segmentNumber === selectedSegmentNumber && selectedPromptDirty;
+    if (
+      !hasCurrentPrompt &&
+      !hasCurrentVideo &&
+      recipe?.adopted_video_id == null &&
+      !discardsPromptDraft
+    ) {
+      return true;
+    }
+    return confirmDialog({
+      title: operation,
+      message:
+        `修改片段 ${segmentNumber} 的执行方案会使当前最终提示词、候选视频和采用状态失效；历史记录仍会保留，但不再参与当前生成和成片。${discardsPromptDraft ? "当前未保存的提示词编辑也会被放弃。" : ""}是否继续？`,
+      confirmText: "继续修改",
+      dialogType: "warning",
+    });
+  }, [
+    addToast,
+    frameSegmentPlanPromptForCards,
+    prompts,
+    selectedPromptDirty,
+    selectedSegmentNumber,
+    videos,
+  ]);
+  const setGenerationReferenceIds = useCallback(async (ids: number[]): Promise<boolean> => {
+    const segmentNumber = selectedSegmentNumber;
+    if (segmentNumber == null) return false;
+    const current = effectiveRecipeBySegmentRef.current.get(segmentNumber);
+    if (!current || JSON.stringify(current.reference_image_ids) === JSON.stringify(ids)) return true;
+    if (!(await confirmSegmentRecipeChange(segmentNumber, "修改片段生成参考图"))) return false;
+    try {
+      await updateSegmentRecipe(segmentNumber, (recipe) => ({
+        ...recipe,
+        reference_image_ids: ids,
+      }));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [confirmSegmentRecipeChange, selectedSegmentNumber, updateSegmentRecipe]);
+  const setVideoLibraryImageIds = useCallback(async (ids: number[]): Promise<boolean> => {
+    const segmentNumber = selectedSegmentNumber;
+    if (segmentNumber == null) return false;
+    const current = effectiveRecipeBySegmentRef.current.get(segmentNumber);
+    if (!current || JSON.stringify(current.video_library_image_ids) === JSON.stringify(ids)) return true;
+    if (!(await confirmSegmentRecipeChange(segmentNumber, "修改片段素材库输入"))) return false;
+    try {
+      await updateSegmentRecipe(segmentNumber, (recipe) => ({
+        ...recipe,
+        video_library_image_ids: ids,
+      }));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [confirmSegmentRecipeChange, selectedSegmentNumber, updateSegmentRecipe]);
+  const finalPromptBlockedReasonForSegment = useCallback((segmentNumber: number): string | null => {
+    const recipe = effectiveRecipeBySegmentRef.current.get(segmentNumber);
+    if (!recipe) return `片段 ${segmentNumber} 缺少执行方案`;
+    if (recipe.workflow_mode === "reference_media") return "参考媒体方案不生成最终提示词";
+    const unavailableReferenceIds = [
+      ...recipe.reference_image_ids,
+      ...recipe.video_library_image_ids,
+    ].filter((id) => !selectableReferenceIds.has(id));
+    if (unavailableReferenceIds.length > 0) {
+      return `片段参考素材已失效：${[...new Set(unavailableReferenceIds)].join(", ")}`;
+    }
+    if (recipe.workflow_mode === "chat_video") return null;
+    const configurationError = videoGuidanceConfigurationError(
+      recipe.workflow_mode,
+      segmentNumber,
+      recipe.guidance_mode,
+    );
+    if (configurationError) return configurationError;
+    const fingerprint = frameRecipeFingerprintBySegment.get(segmentNumber);
+    const framePrompt = (promptType: string, shotNumber: number) =>
+      prompts
+        .filter(
+          (prompt) =>
+            prompt.prompt_type === promptType &&
+            prompt.shot_number === shotNumber &&
+            videoExecutionSegmentIdentityMatchesPrompt(
+              prompt,
+              frameSegmentPlanPromptForCards,
+              segmentNumber,
+              fingerprint,
+            ),
+        )
+        .sort((left, right) => right.id - left.id)[0] ?? null;
+    const frameReady = (prompt: ChapterVideoPrompt | null): boolean =>
+      prompt != null && latestVideoFrameImageForPrompt(prompt, images) != null;
+    if (recipe.workflow_mode === "boundary_frames") {
+      const first = framePrompt(VIDEO_FRAME_PROMPT_TYPE, 1);
+      const last = framePrompt(VIDEO_FRAME_PROMPT_TYPE, 2);
+      if (!first || !last) return "请先准备当前片段的首尾帧提示词";
+      if (recipe.guidance_mode === "system_frames" && (!frameReady(first) || !frameReady(last))) {
+        return "请先生成当前片段的首尾帧图片";
+      }
+    } else if (recipe.workflow_mode === "storyboard") {
+      const storyboard = framePrompt(VIDEO_STORYBOARD_PROMPT_TYPE, segmentNumber);
+      if (!storyboard) return "请先准备当前片段的分镜提示词";
+      if (recipe.guidance_mode === "system_frames" && !frameReady(storyboard)) {
+        return "请先生成当前片段的分镜板";
+      }
+    } else if (recipe.workflow_mode === "first_frame_chain" && segmentNumber === 1) {
+      const first = framePrompt(VIDEO_FIRST_FRAME_PROMPT_TYPE, segmentNumber);
+      if (!first) return "请先准备首段首帧提示词";
+      if (recipe.guidance_mode === "system_frames" && !frameReady(first)) {
+        return "请先生成首段首帧图片";
+      }
+    } else if (recipe.workflow_mode !== "first_frame_chain") {
+      return "当前片段执行方案不支持帧提示词规划";
+    }
+    if (recipe.guidance_mode === "keyframes") {
+      if (recipe.guidance_reference_image_ids.length === 0) return "请至少选择 1 张关键帧参考图";
+      const missingIds = recipe.guidance_reference_image_ids.filter(
+        (id) => !selectableReferenceIds.has(id),
+      );
+      return missingIds.length > 0
+        ? `关键帧参考图已失效：${missingIds.join(", ")}`
+        : null;
+    }
+    if (recipe.guidance_mode === "continuity") {
+      const sourceVideoId = recipe.continuity_source_video_id;
+      if (sourceVideoId == null) return "请选择更早片段已采用的视频作为续接来源";
+      const sourceRecipeEntry = [...effectiveRecipeBySegmentRef.current.entries()].find(
+        ([sourceSegment, candidate]) =>
+          sourceSegment < segmentNumber && candidate.adopted_video_id === sourceVideoId,
+      );
+      const sourceVideo = videos.find((video) => video.id === sourceVideoId);
+      if (
+        !sourceRecipeEntry ||
+        !sourceVideo ||
+        sourceVideo.status !== "completed" ||
+        !sourceVideo.file_path?.trim() ||
+        !videoExecutionSegmentIdentityMatchesVideo(
+          sourceVideo,
+          frameSegmentPlanPromptForCards,
+          sourceRecipeEntry[0],
+          recipeFingerprintBySegment.get(sourceRecipeEntry[0]),
+        )
+      ) {
+        return `续接来源视频 #${sourceVideoId} 已失效，请重新选择`;
+      }
+      const hasTailFrame = images.some(
+        (image) =>
+          videoTailFrameSourceVideoId(image) === sourceVideoId &&
+          Boolean(image.file_path?.trim()),
+      );
+      return hasTailFrame ? null : `续接来源视频 #${sourceVideoId} 尚无可用尾帧`;
+    }
+    return recipe.guidance_mode === "system_frames" || recipe.guidance_mode === "none"
+      ? null
+      : "当前片段媒体输入配置无效";
+  }, [
+    frameRecipeFingerprintBySegment,
+    frameSegmentPlanPromptForCards,
+    images,
+    prompts,
+    recipeFingerprintBySegment,
+    selectableReferenceIds,
+    videos,
+  ]);
+  const finalPromptBlockedReasons = useMemo(
+    () => new Map(
+      segmentCardState.cards.flatMap((card) => {
+        const reason = finalPromptBlockedReasonForSegment(card.segmentNumber);
+        return reason == null ? [] : [[card.segmentNumber, reason] as const];
+      }),
+    ),
+    [finalPromptBlockedReasonForSegment, segmentCardState.cards],
+  );
+  const saveReferenceMediaDraft = useCallback(async (segmentNumber: number) => {
+    const expectedScope = referenceMediaDraftScopeForSegment(segmentNumber);
+    if (
+      expectedScope == null ||
+      referenceMediaDraftScopeRef.current !== expectedScope
+    ) {
+      addToast(`参考媒体草稿不属于当前片段规划的片段 ${segmentNumber}，请重新编辑`, "error");
+      return false;
+    }
+    const draftToSave = referenceMediaDraftRef.current;
+    if (referenceMediaDraftDirty) {
+      if (!(await confirmSegmentRecipeChange(segmentNumber, "保存参考媒体方案"))) return false;
+      await updateSegmentRecipe(segmentNumber, (recipe) => ({
+        ...recipe,
+        reference_media: referenceMediaRecipeFromDraft(draftToSave),
+      }));
+      if (referenceMediaDraftRef.current === draftToSave) {
+        setReferenceMediaDraftDirty(false);
+      }
+    } else {
+      await awaitSegmentRecipeSaved(segmentNumber);
+    }
+    return true;
+  }, [
+    addToast,
+    awaitSegmentRecipeSaved,
+    confirmSegmentRecipeChange,
+    referenceMediaDraftDirty,
+    referenceMediaDraftScopeForSegment,
+    updateSegmentRecipe,
+  ]);
+
+  const handleSelectSegment = useCallback(async (segmentNumber: number) => {
+    if (segmentNumber === selectedSegmentNumber) return true;
+    if (selectedPromptDirty) {
+      const discard = await confirmDialog({
+        title: "放弃未保存的提示词编辑",
+        message: "当前最终提示词有未保存编辑。切换片段会放弃这些修改，是否继续？",
+        confirmText: "放弃并切换",
+        dialogType: "warning",
+      });
+      if (!discard) return false;
+    }
+    if (
+      selectedSegmentNumber != null &&
+      selectedSegmentNumber !== segmentNumber &&
+      referenceMediaDraftDirty
+    ) {
+      try {
+        if (!(await saveReferenceMediaDraft(selectedSegmentNumber))) return false;
+      } catch (error) {
+        addToast(extractErrorMessage(error, "保存当前片段参考媒体草稿失败"), "error");
+        return false;
+      }
+    }
+    setSelectedSegmentNumber(segmentNumber);
+    return true;
+  }, [
+    addToast,
+    referenceMediaDraftDirty,
+    saveReferenceMediaDraft,
+    selectedPromptDirty,
+    selectedSegmentNumber,
+    setSelectedSegmentNumber,
+  ]);
+  const handleSelectPrompt = useCallback(async (promptId: number): Promise<boolean> => {
+    if (promptId === selectedPromptId) return true;
+    const targetPrompt = allSegmentPrompts.find((prompt) => prompt.id === promptId);
+    if (
+      selectedPromptDirty &&
+      targetPrompt?.shot_number === selectedSegmentNumber
+    ) {
+      const discard = await confirmDialog({
+        title: "放弃未保存的提示词编辑",
+        message: "当前最终提示词有未保存编辑。切换提示词会放弃这些修改，是否继续？",
+        confirmText: "放弃并切换",
+        dialogType: "warning",
+      });
+      if (!discard) return false;
+    }
+    setSelectedPromptId(promptId);
+    return true;
+  }, [
+    allSegmentPrompts,
+    selectedPromptDirty,
+    selectedPromptId,
+    selectedSegmentNumber,
+    setSelectedPromptId,
+  ]);
+
+  const refreshSegmentPlanDraft = useCallback(async () => {
+    if (chapterId == null || !videoDataKey) return null;
+    const requestSeq = segmentPlanDraftLoadSeqRef.current + 1;
+    const requestDataKey = videoDataKey;
+    segmentPlanDraftLoadSeqRef.current = requestSeq;
+    setSegmentPlanDraftLoading(true);
+    setSegmentPlanDraftError(null);
+    try {
+      const nextDraft = await loadVideoSegmentPlanDraft(projectId, chapterId);
+      if (
+        segmentPlanDraftLoadSeqRef.current !== requestSeq ||
+        activeVideoDataKeyRef.current !== requestDataKey
+      ) {
+        return null;
+      }
+      setSegmentPlanDraft(nextDraft);
+      setSegmentPlanPreview(nextDraft?.segments ?? []);
+      return nextDraft;
+    } catch (err) {
+      if (
+        segmentPlanDraftLoadSeqRef.current === requestSeq &&
+        activeVideoDataKeyRef.current === requestDataKey
+      ) {
+        setSegmentPlanDraftError(
+          extractErrorMessage(err, "加载已保存的片段规划失败"),
+        );
+      }
+      throw err;
+    } finally {
+      if (
+        segmentPlanDraftLoadSeqRef.current === requestSeq &&
+        activeVideoDataKeyRef.current === requestDataKey
+      ) {
+        setSegmentPlanDraftLoading(false);
+      }
+    }
+  }, [chapterId, projectId, videoDataKey]);
+
+  async function loadAll() {
     if (!chapter || !videoDataKey) return;
+    void refreshSegmentPlanDraft().catch(() => undefined);
     const requestSeq = loadAllSeqRef.current + 1;
     const requestDataKey = videoDataKey;
     const requestImageProjectIds = imageProjectIds ?? [projectId];
+    const promptRequestSeq = promptLoadSeqRef.current + 1;
     loadAllSeqRef.current = requestSeq;
+    promptLoadSeqRef.current = promptRequestSeq;
     setLoading(true);
+    setVideoDataError(null);
     try {
       const {
         prompts: promptRows,
@@ -702,45 +1359,11 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         return;
       }
       setActiveVideoConfig(nextActiveVideoConfig);
-      setPrompts(promptRows);
       setVideos(videoRows);
       setImages(imageRows);
       setLoadedDataKey(requestDataKey);
-      if (!selectedPromptState.storageError) {
-        setSelectedPromptId((current) => {
-          const isSelectableVideoPrompt = (id: number) =>
-            promptRows.some(
-              (p) =>
-                p.id === id &&
-                isFinalVideoPrompt(p.prompt_type) &&
-                videoWorkflowModeOfPrompt(p) === workflowMode &&
-                promptSourcePromptType(p) === VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE,
-            );
-          return current && isSelectableVideoPrompt(current) ? current : null;
-        });
-      }
-      if (!selectedVideoState.storageError) {
-        setSelectedVideoId((current) => {
-          return current && videoRows.some(
-              (v) =>
-                v.id === current &&
-                videoWorkflowModeOfVideo(v) === workflowMode,
-            )
-            ? current
-            : null;
-        });
-      }
-      if (!pendingVideoState.storageError) {
-        setPendingVideoId((current) => {
-          const pending = current
-              ? videoRows.find(
-                  (v) =>
-                    v.id === current &&
-                    videoWorkflowModeOfVideo(v) === workflowMode,
-                )
-              : null;
-          return pending && hasPendingProviderJob(pending) ? pending.id : null;
-        });
+      if (promptLoadSeqRef.current === promptRequestSeq) {
+        setPrompts(promptRows);
       }
     } catch (err) {
       if (
@@ -749,7 +1372,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, "加载视频数据失败"), "error");
+      const message = extractErrorMessage(err, "加载视频数据失败");
+      setVideoDataError(message);
+      addToast(message, "error");
     } finally {
       if (
         loadAllSeqRef.current === requestSeq &&
@@ -758,80 +1383,200 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         setLoading(false);
       }
     }
-  };
+  }
+
+  const refreshPrompts = useCallback(async () => {
+    if (chapterId == null || !videoDataKey) return;
+    const requestDataKey = videoDataKey;
+    const requestSeq = promptLoadSeqRef.current + 1;
+    promptLoadSeqRef.current = requestSeq;
+    const rows = await listChapterVideoPrompts(projectId, chapterId);
+    if (
+      promptLoadSeqRef.current !== requestSeq
+      || activeVideoDataKeyRef.current !== requestDataKey
+    ) {
+      return;
+    }
+    setPrompts(rows);
+  }, [chapterId, projectId, videoDataKey]);
 
   useLayoutEffect(() => {
     activeVideoDataKeyRef.current = videoDataKey;
     loadAllSeqRef.current += 1;
+    promptLoadSeqRef.current += 1;
+    segmentPlanDraftLoadSeqRef.current += 1;
     setPrompts([]);
+    setSegmentPlanPreview([]);
+    setSegmentPlanDraft(null);
+    setSegmentPlanDraftLoading(false);
+    setSegmentPlanDraftError(null);
     setVideos([]);
     setImages([]);
     setActiveVideoConfig(null);
     setLoadedDataKey(null);
+    setVideoDataError(null);
     setDraft(DEFAULT_DRAFT);
-    setPromptReferenceIds([]);
     setLoading(false);
+    attachedSegmentPlanTaskRef.current = null;
   }, [videoDataKey]);
 
   useEffect(() => {
+    if (
+      !videoDataKey ||
+      loadedDataKey === videoDataKey ||
+      videoDataError
+    ) {
+      return;
+    }
     void loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoDataKey]);
+  }, [loadedDataKey, videoDataError, videoDataKey]);
 
   useEffect(() => {
-    if (selectedPromptState.storageError) return;
+    if (chapterId == null || !videoDataKey || loadedDataKey !== videoDataKey) return;
+    const requestDataKey = videoDataKey;
+    let disposed = false;
+    void generationClient.listActive(projectId).then(async (tasks) => {
+      if (disposed || activeVideoDataKeyRef.current !== requestDataKey) return;
+      const active = activeVideoSegmentPlanTask(tasks, projectId, chapterId);
+      if (!active) return;
+      const taskKey = `${active.handle.task_id}:${active.handle.attempt}`;
+      if (attachedSegmentPlanTaskRef.current === taskKey) return;
+      const actionKey = "generate-segment-plan";
+      if (!beginVideoAction(actionKey)) return;
+      attachedSegmentPlanTaskRef.current = taskKey;
+      let previewFingerprint = "";
+      try {
+        await runVideoPromptGenerationTask(
+          runProgressTask,
+          active.handle,
+          {
+            title: "继续生成片段规划",
+            startMessage: "正在恢复当前片段规划任务",
+            successMessage: "片段规划已完成",
+            errorMessage: "片段规划失败",
+            total: 100,
+          },
+          refreshPrompts,
+          (streamText, checkpointKey) => {
+            if (
+              disposed ||
+              activeVideoDataKeyRef.current !== requestDataKey ||
+              !isSegmentPlanDraftCheckpointKey(checkpointKey)
+            ) {
+              return;
+            }
+            const preview = completedSegmentPlanPreviewItems(streamText);
+            const fingerprint = JSON.stringify(preview);
+            if (fingerprint === previewFingerprint) return;
+            previewFingerprint = fingerprint;
+            setSegmentPlanPreview(preview);
+            void refreshSegmentPlanDraft().catch(() => undefined);
+          },
+        );
+      } catch (error) {
+        if (
+          !disposed &&
+          activeVideoDataKeyRef.current === requestDataKey &&
+          !isCancelledOperation(extractErrorMessage(error, "片段规划失败"))
+        ) {
+          addToast(extractErrorMessage(error, "片段规划失败"), "error");
+        }
+      } finally {
+        if (attachedSegmentPlanTaskRef.current === taskKey) {
+          attachedSegmentPlanTaskRef.current = null;
+        }
+        if (!disposed && activeVideoDataKeyRef.current === requestDataKey) {
+          await refreshSegmentPlanDraft().catch(() => undefined);
+        }
+        finishVideoAction(actionKey, requestDataKey);
+      }
+    }).catch((error) => {
+      if (!disposed && activeVideoDataKeyRef.current === requestDataKey) {
+        setSegmentPlanDraftError(extractErrorMessage(error, "恢复片段规划任务失败"));
+      }
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [
+    addToast,
+    beginVideoAction,
+    chapterId,
+    finishVideoAction,
+    loadedDataKey,
+    projectId,
+    refreshSegmentPlanDraft,
+    refreshPrompts,
+    runProgressTask,
+    videoDataKey,
+  ]);
+
+  useEffect(() => {
+    if (selectedPromptState.storageError || loadedDataKey !== videoDataKey) return;
+    const eligible = finalVideoPrompts.filter(
+      (prompt) => prompt.shot_number === selectedSegmentNumber,
+    );
     setSelectedPromptId((current) => {
-      if (current && finalVideoPrompts.some((prompt) => prompt.id === current)) {
+      if (current && eligible.some((prompt) => prompt.id === current)) {
         return current;
       }
-      return finalVideoPrompts[0]?.id ?? null;
+      return eligible[eligible.length - 1]?.id ?? null;
     });
-  }, [finalVideoPrompts, selectedPromptState.storageError, setSelectedPromptId, workflowMode]);
+  }, [
+    finalVideoPrompts,
+    loadedDataKey,
+    selectedPromptState.storageError,
+    selectedSegmentNumber,
+    setSelectedPromptId,
+    videoDataKey,
+  ]);
 
   useEffect(() => {
-    const pending = workflowVideos.find(hasPendingProviderJob) ?? null;
+    if (loadedDataKey !== videoDataKey) return;
+    const pending = referenceMediaSegmentVideos.find(hasPendingProviderJob) ?? null;
     if (!pendingVideoState.storageError) {
       setPendingVideoId((current) => {
         const currentPending = current
-          ? workflowVideos.find((video) => video.id === current && hasPendingProviderJob(video))
+          ? referenceMediaSegmentVideos.find(
+              (video) => video.id === current && hasPendingProviderJob(video),
+            )
           : null;
         return currentPending?.id ?? pending?.id ?? null;
       });
     }
     if (!selectedVideoState.storageError) {
       setSelectedVideoId((current) => {
-        if (current && workflowVideos.some((video) => video.id === current)) {
+        if (current && referenceMediaSegmentVideos.some((video) => video.id === current)) {
           return current;
         }
-        return pending?.id ?? workflowVideos[0]?.id ?? null;
+        return pending?.id ?? referenceMediaSegmentVideos[0]?.id ?? null;
       });
     }
   }, [
+    loadedDataKey,
     pendingVideoState.storageError,
     selectedVideoState.storageError,
     setPendingVideoId,
     setSelectedVideoId,
-    workflowMode,
-    workflowVideos,
+    referenceMediaSegmentVideos,
+    videoDataKey,
   ]);
 
   useEffect(() => {
     promptRequestPreviewScopeRef.current += 1;
     imageRequestPreviewScopeRef.current += 1;
-    setDraft(DEFAULT_DRAFT);
-    setPromptReferenceIds([]);
     setPromptRequestPreviewOpen(false);
     setPromptRequestPreviewLoading(false);
     setPromptRequestPreviewData(null);
     setImageRequestPreviewOpen(false);
     setImageRequestPreviewLoading(false);
     setImageRequestPreviewData(null);
-  }, [workflowMode]);
+  }, [selectedSegmentNumber, workflowMode]);
 
   useEffect(() => {
     if (!selectedPrompt) {
       setDraft(DEFAULT_DRAFT);
-      setPromptReferenceIds([]);
       return;
     }
     setDraft({
@@ -840,31 +1585,25 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       negative_prompt: textInputValue(selectedPrompt.negative_prompt),
       duration_secs: selectedPrompt.duration_secs,
     });
-    setPromptReferenceIds(readSavedReferenceImageIds(selectedPrompt.reference_image_ids_json).ids);
-    // 只在切换提示词时重置草稿和素材绑定，避免刷新素材/视频状态时覆盖未保存编辑。
+    // 只在切换提示词时重置文字草稿，避免刷新素材/视频状态时覆盖未保存编辑。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPrompt?.id]);
 
-  const clearInvalidGenerationReferences = () => {
+  const clearInvalidGenerationReferences = async () => {
     if (invalidGenerationReferenceIds.length === 0) return;
-    setGenerationReferenceIds((prev) => prev.filter((id) => selectableReferenceIds.has(id)));
-    addToast("已清除不可用生成参考图片选择", "success");
+    const next = generationReferenceIds.filter((id) => selectableReferenceIds.has(id));
+    if (await setGenerationReferenceIds(next)) {
+      addToast("已清除不可用生成参考图片选择", "success");
+    }
   };
-  const clearInvalidVideoLibraryImages = () => {
+  const clearInvalidVideoLibraryImages = async () => {
     if (invalidVideoLibraryImageIds.length === 0) return;
-    setVideoLibraryImageIds((prev) => prev.filter((id) => selectableReferenceIds.has(id)));
-    addToast("已清除不可用素材库图片选择", "success");
+    const next = videoLibraryImageIds.filter((id) => selectableReferenceIds.has(id));
+    if (await setVideoLibraryImageIds(next)) {
+      addToast("已清除不可用素材库图片选择", "success");
+    }
   };
-  const clearInvalidPromptReferences = () => {
-    if (invalidPromptReferenceIds.length === 0) return;
-    setPromptReferenceIds((prev) => prev.filter((id) => validPromptReferenceIds.has(id)));
-    addToast("已从当前草稿清除不可用参考图，请保存提示词后生效", "success");
-  };
-
   const {
-    acting,
-    setActing,
-    setVideoTaskId,
     trimStart,
     trimEnd,
     setTrimStart,
@@ -873,17 +1612,13 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     handleDeletePromptRow,
     handleSavePrompt,
     handleGenerateVideo,
-    handleGenerateAllVideos,
     handleImportVideo,
     handlePreviewGenerateVideoRequest,
     handlePreviewVideoRequestForVideo,
-    selectedPromptDirty,
     handlePollVideo,
     handleToggleVideoFavorite,
     handleUpdateVideo,
     handleDeleteVideo,
-    handleDeleteAllVideoAssets,
-    handleDeleteAllVideoPrompts,
     handleTrim,
     requestPreviewOpen: videoRequestPreviewOpen,
     requestPreviewLoading: videoRequestPreviewLoading,
@@ -896,7 +1631,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     selectedPrompt,
     selectedPromptId,
     frameStageLabel:
-      workflowMode === "chat_video"
+      workflowMode == null
+        ? "视频生成"
+        : workflowMode === "chat_video"
         ? "Chat 生视频"
         : workflowMode === "storyboard"
           ? "分镜生成"
@@ -907,18 +1644,14 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     currentContentHash,
     selectedVideo,
     pendingVideoId,
-    previewScopeKey: modeStorageKey,
+    previewScopeKey: segmentStorageKey,
     actionScopeKey: videoActionScopeKey,
     prompts,
     frameImages: videoFrameImages,
     draft,
-    referenceIds: promptReferenceIds,
-    invalidReferenceIds: invalidPromptReferenceIds,
-    systemReferenceIds: systemPromptReferenceIds,
+    selectedPromptDirty,
     validPromptReferenceIds,
     durationLimits: effectiveDurationLimits,
-    providerBackend: activeVideoConfig?.backend ?? null,
-    providerOptionsJson: activeVideoConfig?.provider_options_json ?? null,
     addToast,
     runProgressTask,
     loadAll,
@@ -927,201 +1660,271 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setSelectedPromptId,
     setSelectedVideoId,
     setPendingVideoId,
+    beginAction: beginVideoAction,
+    isCurrentActionScope: isCurrentVideoActionScope,
+    finishAction: finishVideoAction,
   });
 
   const {
     handleGenerateSegmentPlan,
-    handleGenerateFramePrompts,
-    handleGenerateVideoPrompts,
+    handleGenerateFramePrompts: runGenerateFramePrompts,
+    handleGenerateVideoPrompts: runGenerateVideoPrompts,
     handleGenerateFrameImages,
     handleImportFrameImage,
   } = useVideoPromptGenerationActions({
     projectId,
     chapter,
     chapterGenerating,
-    workflowMode,
     options,
-    durationLimits: effectiveDurationLimits,
+    segmentPlanOptions: planningOptions,
+    durationLimits,
     promptInputSelectionError,
     referenceIds: generationReferenceIds,
     videoLibraryImageIds,
     frameImages: videoFrameImages,
     segmentPlanPrompt: frameSegmentPlanPrompt,
+    segmentPlanDraft,
     framePrompts: currentLanguageFramePrompts,
-    finalVideoPrompts: currentLanguageFinalVideoPrompts,
-    allFramePrompts: framePrompts,
-    allFinalVideoPrompts: finalVideoPrompts,
+    allFramePrompts: allCurrentFramePrompts,
+    allFinalVideoPrompts: allSegmentPrompts,
     currentContentHash,
     actionScopeKey: videoActionScopeKey,
     addToast,
     runProgressTask,
     loadAll,
-    setActing,
-    setVideoTaskId,
+    refreshPrompts,
+    refreshSegmentPlanDraft,
+    setSegmentPlanPreview,
+    beginAction: beginVideoAction,
+    isCurrentActionScope: isCurrentVideoActionScope,
+    finishAction: finishVideoAction,
   });
 
-  const handleAdoptSegmentVideo = async (video: GeneratedVideo) => {
-    const videoMetadata =
-      video.metadata_json && typeof video.metadata_json === "object" && !Array.isArray(video.metadata_json)
-        ? (video.metadata_json as Record<string, unknown>)
-        : null;
-    const shotNumber =
-      selectedPrompt?.shot_number ??
-      (typeof videoMetadata?.shot_number === "number" ? videoMetadata.shot_number : null);
-    if (!chapter || shotNumber == null) {
-      addToast("请先选择片段提示词", "error");
+  const recipeForSegmentAction = (segmentNumber: number): VideoSegmentExecutionRecipe | null => {
+    const recipe = effectiveRecipeBySegmentRef.current.get(segmentNumber) ?? null;
+    if (!recipe) addToast(`片段 ${segmentNumber} 缺少执行方案`, "error");
+    return recipe;
+  };
+
+  const handleGenerateFramePrompts = async (requestOptions: {
+    regenerateExisting?: boolean;
+    targetShotNumber?: number;
+  } = {}) => {
+    const segmentNumber = requestOptions.targetShotNumber ?? selectedSegmentNumber;
+    if (segmentNumber == null) {
+      addToast("请先选择片段", "error");
       return;
     }
-    setActing(`adopt-video-${video.id}`);
+    try {
+      await awaitSegmentRecipeSaved(segmentNumber);
+    } catch {
+      return;
+    }
+    const recipe = recipeForSegmentAction(segmentNumber);
+    if (!recipe) return;
+    await runGenerateFramePrompts(recipe, {
+      ...requestOptions,
+      targetShotNumber: segmentNumber,
+    });
+  };
+
+  const handleGenerateVideoPrompts = async (requestOptions: {
+    regenerateExisting?: boolean;
+    targetShotNumber?: number;
+  } = {}) => {
+    const segmentNumber = requestOptions.targetShotNumber ?? selectedSegmentNumber;
+    if (segmentNumber == null) {
+      addToast("请先选择片段", "error");
+      return;
+    }
+    try {
+      await awaitSegmentRecipeSaved(segmentNumber);
+    } catch {
+      return;
+    }
+    const recipe = recipeForSegmentAction(segmentNumber);
+    if (!recipe) return;
+    const blockedReason = finalPromptBlockedReasonForSegment(segmentNumber);
+    if (blockedReason) {
+      addToast(blockedReason, "error");
+      return;
+    }
+    await runGenerateVideoPrompts(recipe, {
+      ...requestOptions,
+      targetShotNumber: segmentNumber,
+    });
+  };
+
+  const handleAdoptSegmentVideo = async (video: GeneratedVideo) => {
+    const identity = videoExecutionIdentityOfVideo(video);
+    const shotNumber =
+      typeof identity?.segment_number === "number" &&
+      Number.isInteger(identity.segment_number) &&
+      identity.segment_number > 0
+        ? identity.segment_number
+        : null;
+    if (!chapter || !frameSegmentPlanPromptForCards || shotNumber == null) {
+      addToast("该视频缺少完整片段执行身份，不能采用", "error");
+      return;
+    }
+    if (selectedSegmentNumber !== shotNumber) {
+      addToast(`视频 #${video.id} 属于片段 ${shotNumber}，不能作为当前片段采用`, "error");
+      return;
+    }
+    const fingerprint = recipeFingerprintBySegment.get(shotNumber);
+    if (!videoExecutionSegmentIdentityMatchesVideo(
+      video,
+      frameSegmentPlanPromptForCards,
+      shotNumber,
+      fingerprint,
+    )) {
+      addToast("该视频不属于当前片段的最新执行方案，不能采用", "error");
+      return;
+    }
+    const actionKey = `adopt-video-${video.id}`;
+    const requestScope = videoActionScopeKey;
+    if (!beginVideoAction(actionKey)) return;
     try {
       await selectSegmentVideo(
         projectId,
         chapter.id,
         video.id,
+        frameSegmentPlanPromptForCards.id,
         shotNumber,
       );
+      if (!isCurrentVideoActionScope(requestScope)) return;
       addToast(`已采用片段 ${shotNumber} 的当前视频`, "success");
       await loadAll();
     } catch (err) {
+      if (!isCurrentVideoActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, "采用片段视频失败"), "error");
     } finally {
-      setActing(null);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
-  const handleSegmentWorkflowModeChange = (
+  const handleSegmentWorkflowModeChange = async (
     mode: ChapterVideoWorkflowMode,
-    shotNumber?: number,
-  ) => {
-    const targetShotNumber = shotNumber ?? selectedPrompt?.shot_number ?? null;
-    workflowTargetShotRef.current = targetShotNumber;
-    if (mode === "reference_media") {
-      const targetPrompt =
-        (selectedPrompt?.shot_number === targetShotNumber ? selectedPrompt : null) ??
-        allSegmentPrompts.find(
-          (prompt) =>
-            prompt.shot_number === targetShotNumber &&
-            videoWorkflowModeOfPrompt(prompt) === workflowMode,
-        ) ??
-        allSegmentPrompts.find((prompt) => prompt.shot_number === targetShotNumber);
-      if (!targetPrompt) {
-        addToast("当前片段还没有可关联的视频提示词", "error");
+    shotNumber: number,
+  ): Promise<void> => {
+    const targetShotNumber = shotNumber;
+    const currentRecipe = effectiveRecipeBySegmentRef.current.get(targetShotNumber);
+    if (!currentRecipe) {
+      addToast(`片段 ${targetShotNumber} 缺少执行方案`, "error");
+      return;
+    }
+    if (currentRecipe.workflow_mode === mode) {
+      await handleSelectSegment(targetShotNumber);
+      return;
+    }
+    const previousAdoptedVideoId = [...effectiveRecipeBySegmentRef.current.entries()]
+      .filter(([segmentNumber]) => segmentNumber < targetShotNumber)
+      .sort(([left], [right]) => right - left)
+      .find(([segmentNumber, candidate]) => {
+        const video = candidate.adopted_video_id == null
+          ? null
+          : videos.find((row) => row.id === candidate.adopted_video_id);
+        return video != null &&
+          video.status === "completed" &&
+          Boolean(video.file_path?.trim()) &&
+          videoExecutionSegmentIdentityMatchesVideo(
+            video,
+            frameSegmentPlanPromptForCards,
+            segmentNumber,
+            recipeFingerprintBySegment.get(segmentNumber),
+          );
+      })?.[1].adopted_video_id ?? null;
+    const guidanceMode = guidanceModeForWorkflowChange(
+      mode,
+      targetShotNumber,
+      currentRecipe.guidance_mode,
+      previousAdoptedVideoId != null,
+    );
+    if (guidanceMode !== currentRecipe.guidance_mode) {
+      addToast(
+        mode === "first_frame_chain"
+          ? "首帧续接的后续片段将明确使用已采用视频作为续接来源"
+          : `“${VIDEO_WORKFLOW_MODE_LABELS[mode]}”固定使用纯文本/媒体槽输入`,
+        "info",
+      );
+    }
+    const savesReferenceMediaDraft =
+      currentRecipe.workflow_mode === "reference_media" &&
+      mode !== "reference_media" &&
+      targetShotNumber === selectedSegmentNumber &&
+      referenceMediaDraftScopeRef.current ===
+        referenceMediaDraftScopeForSegment(targetShotNumber) &&
+      referenceMediaDraftDirty;
+    if (savesReferenceMediaDraft) {
+      try {
+        if (!(await saveReferenceMediaDraft(targetShotNumber))) return;
+      } catch {
         return;
       }
-      setReferenceMediaSegment({
-        promptId: targetPrompt.id,
-        shotNumber: targetPrompt.shot_number,
-      });
     }
-    setWorkflowMode(mode);
-    setWorkspaceTab("video");
+    if (
+      !(await confirmSegmentRecipeChange(targetShotNumber, "切换片段生成方案"))
+    ) {
+      return;
+    }
+    if (!(await handleSelectSegment(targetShotNumber))) return;
+    try {
+      await updateSegmentRecipe(targetShotNumber, (recipe) => {
+        return {
+          ...recipe,
+          workflow_mode: mode,
+          guidance_mode: guidanceMode,
+          continuity_source_video_id: guidanceMode === "continuity"
+            ? (recipe.continuity_source_video_id ?? previousAdoptedVideoId)
+            : recipe.continuity_source_video_id,
+        };
+      });
+      setWorkspaceTab("video");
+    } catch {
+      // persistSegmentRecipe 已保留可见错误并恢复服务端状态。
+    }
   };
 
   const handleUpdateSegmentGuidance = async (
-    prompt: ChapterVideoPrompt,
+    segmentNumber: number,
     guidanceMode: SegmentGuidanceMode,
     referenceImageIds: number[],
     continuitySourceVideoId: number | null,
   ) => {
-    setActing(`guidance-${prompt.id}`);
-    try {
-      await updateChapterVideoPrompt(prompt.id, {
-        reference_image_ids_json: referenceImageIds,
-        guidance_mode: guidanceMode,
-        continuity_source_video_id: continuitySourceVideoId,
-      });
-      addToast("片段生成方式已保存", "success");
-      await loadAll();
-    } catch (err) {
-      addToast(extractErrorMessage(err, "保存片段生成方式失败"), "error");
-    } finally {
-      setActing(null);
-    }
-  };
-
-  useEffect(() => {
-    const shotNumber = workflowTargetShotRef.current;
-    if (shotNumber == null || finalVideoPrompts.length === 0) return;
-    const target = finalVideoPrompts.find((prompt) => prompt.shot_number === shotNumber);
-    if (!target) return;
-    workflowTargetShotRef.current = null;
-    setSelectedPromptId(target.id);
-  }, [finalVideoPrompts, setSelectedPromptId]);
-
-  const videoPromptRequestOptions = (
-    workflowModeOverride: ChapterVideoWorkflowMode = workflowMode,
-  ) => {
-    if (videoOptionsStateError) throw new Error(videoOptionsStateError);
-    if (promptInputSelectionError) throw new Error(promptInputSelectionError);
-    return {
-      workflow_mode: workflowModeOverride,
-      style: options.style.trim(),
-      prompt_batch_size: options.promptBatchSize,
-      duration_secs: options.durationSecs,
-      duration_secs_options: normalizeDurationOptions(options.durationSecs, options.durationOptions),
-      aspect_ratio: options.aspectRatio,
-      reference_image_ids: generationReferenceIds,
-      video_library_image_ids: videoLibraryImageIds,
-    };
-  };
-
-  const validatePromptRequestPreview = (): boolean => {
-    if (!chapter) return false;
-    if (videoOptionsStateError) {
-      addToast(videoOptionsStateError, "error");
-      return false;
-    }
-    if (promptInputSelectionError) {
-      addToast(promptInputSelectionError, "error");
-      return false;
-    }
-    return true;
-  };
-
-  const openPromptRequestPreview = async (
-    loadPreview: () => Promise<ModelRequestPreview>,
-    errorMessage: string,
-  ) => {
-    if (!chapter) return;
-    const previewScope = promptRequestPreviewScopeRef.current;
-    setPromptRequestPreviewOpen(true);
-    setPromptRequestPreviewLoading(true);
-    setPromptRequestPreviewData(null);
-    try {
-      const preview = await loadPreview();
-      if (promptRequestPreviewScopeRef.current !== previewScope) return;
-      setPromptRequestPreviewData(preview);
-    } catch (err) {
-      if (promptRequestPreviewScopeRef.current !== previewScope) return;
-      addToast(extractErrorMessage(err, errorMessage), "error");
-      setPromptRequestPreviewOpen(false);
-    } finally {
-      if (promptRequestPreviewScopeRef.current === previewScope) {
-        setPromptRequestPreviewLoading(false);
-      }
-    }
-  };
-
-  const handlePreviewVideoPromptRequests = async () => {
-    if (!chapter || !validatePromptRequestPreview()) return;
+    const currentRecipe = effectiveRecipeBySegmentRef.current.get(segmentNumber);
+    const guidanceChanged =
+      currentRecipe?.guidance_mode !== guidanceMode ||
+      (guidanceMode === "keyframes" &&
+        JSON.stringify(currentRecipe?.guidance_reference_image_ids ?? []) !==
+          JSON.stringify(referenceImageIds)) ||
+      (guidanceMode === "continuity" &&
+        (currentRecipe?.continuity_source_video_id ?? null) !== continuitySourceVideoId);
     if (
-      workflowMode !== "boundary_frames" &&
-      workflowMode !== "first_frame_chain" &&
-      workflowMode !== "storyboard" &&
-      workflowMode !== "chat_video"
+      guidanceChanged &&
+      !(await confirmSegmentRecipeChange(segmentNumber, "修改片段媒体引导"))
     ) {
-      addToast("当前模式的视频提示词链路尚未接入", "error");
       return;
     }
-    await openPromptRequestPreview(
-      () =>
-        previewChapterVideoPromptRequests(
-          projectId,
-          chapter.id,
-          videoPromptRequestOptions(),
-        ),
-      "预览视频提示词请求失败",
-    );
+    const actionKey = `guidance-${segmentNumber}`;
+    const requestScope = videoActionScopeKey;
+    if (!beginVideoAction(actionKey)) return;
+    try {
+      await updateSegmentRecipe(segmentNumber, (recipe) => ({
+        ...recipe,
+        guidance_mode: guidanceMode,
+        guidance_reference_image_ids:
+          guidanceMode === "keyframes" ? referenceImageIds : recipe.guidance_reference_image_ids,
+        continuity_source_video_id:
+          guidanceMode === "continuity" ? continuitySourceVideoId : recipe.continuity_source_video_id,
+      }));
+      if (isCurrentVideoActionScope(requestScope)) {
+        addToast("片段生成方式已保存", "success");
+      }
+    } catch {
+      // persistSegmentRecipe 已显示错误。
+    } finally {
+      finishVideoAction(actionKey, requestScope);
+    }
   };
 
   const handleCopyChatVideoPrompt = async (prompt: ChapterVideoPrompt) => {
@@ -1143,15 +1946,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     extraPreviewNote: string | null = null,
   ): Record<string, unknown> => {
     const firstFramePrompt = prompt.prompt_type === "first_frame_prompt";
-    const chatFramePrompt = prompt.prompt_type === VIDEO_CHAT_FRAME_PROMPT_TYPE;
     const storyboardPrompt = prompt.prompt_type === VIDEO_STORYBOARD_PROMPT_TYPE;
     const label = firstFramePrompt
       ? "首帧提示词"
       : storyboardPrompt
         ? "分镜提示词"
-      : chatFramePrompt
-        ? "Chat 首尾帧提示词"
-        : "边界帧提示词";
+      : "边界帧提示词";
     const trimmedPrompt = prompt.visual_prompt.trim();
     const previewValidationError = promptLengthError(
       label,
@@ -1333,33 +2133,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         return null;
       }
     }
-    const rowsByKind: ReferenceMediaRowsByKind = {
-      image: imageRows,
-      video: videoRows,
-      audio: audioRows,
-    };
-    const prompt = buildReferenceMediaPrompt(referenceMediaDraft.prompt, rowsByKind);
-    if ([...prompt].length < REFERENCE_MEDIA_PROMPT_MIN_CHARS) {
-      if (purpose !== "preview") {
-        addToast(
-          `参考媒体 prompt 至少需要 ${REFERENCE_MEDIA_PROMPT_MIN_CHARS} 个字符，请补全画面、动作、风格和媒体用途`,
-          "error",
-        );
-        return null;
-      }
-    }
     const input: ReferenceMediaVideoInput = {
-      segment_prompt_id: segment.promptId,
+      segment_plan_prompt_id: segment.segmentPlanPromptId,
       shot_number: segment.shotNumber,
-      prompt,
-      image_files: imageRows.flatMap((row) => row.url ? [row.url] : []),
       image_uploads: imageRows.flatMap((row) => row.upload ? [row.upload] : []),
-      video_files: videoRows.flatMap((row) => row.url ? [row.url] : []),
       video_uploads: videoRows.flatMap((row) => row.upload ? [row.upload] : []),
-      audio_files: audioRows.flatMap((row) => row.url ? [row.url] : []),
       audio_uploads: audioRows.flatMap((row) => row.upload ? [row.upload] : []),
-      duration_secs: options.durationSecs,
-      aspect_ratio: options.aspectRatio,
       config_id: null,
     };
     return input;
@@ -1367,14 +2146,18 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 
   const referenceMediaSegmentFor = (
     operation: string,
-    requireWritable = true,
+    requireProvider = true,
   ): ReferenceMediaSegmentState | null => {
     if (!chapter) return null;
-    if (!referenceMediaSegment) {
+    if (
+      !frameSegmentPlanPromptForCards ||
+      selectedSegmentNumber == null ||
+      workflowMode !== "reference_media"
+    ) {
       addToast("请从片段提示词卡片选择参考媒体方案", "error");
       return null;
     }
-    if (requireWritable && chapterGenerating) {
+    if (chapterGenerating) {
       addToast(chapterGeneratingMessage(chapter, operation), "error");
       return null;
     }
@@ -1382,11 +2165,11 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       addToast(videoOptionsStateError, "error");
       return null;
     }
-    if (!requireWritable) return referenceMediaSegment;
-    if (activeVideoConfig?.capabilities?.supports_reference_media !== true) {
-      addToast("当前视频服务不支持参考媒体生成", "error");
-      return null;
-    }
+    const segment = {
+      segmentPlanPromptId: frameSegmentPlanPromptForCards.id,
+      shotNumber: selectedSegmentNumber,
+    };
+    if (!requireProvider) return segment;
     if (effectiveDurationLimits.configError) {
       addToast(effectiveDurationLimits.configError, "error");
       return null;
@@ -1395,13 +2178,18 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       addToast("视频时长不在默认视频模型支持范围内", "error");
       return null;
     }
-    return referenceMediaSegment;
+    return segment;
   };
 
   const handlePreviewReferenceMediaVideoRequest = async () => {
     if (!chapter) return;
     const segment = referenceMediaSegmentFor("预览参考媒体视频请求", false);
     if (!segment) return;
+    try {
+      if (!(await saveReferenceMediaDraft(segment.shotNumber))) return;
+    } catch {
+      return;
+    }
     const input = buildReferenceMediaVideoInput(segment, "preview");
     if (!input) return;
     const previewScope = promptRequestPreviewScopeRef.current;
@@ -1423,6 +2211,19 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     }
   };
 
+  const handleSaveReferenceMediaDraft = async () => {
+    if (selectedSegmentNumber == null) {
+      addToast("请先选择参考媒体片段", "error");
+      return;
+    }
+    try {
+      if (!(await saveReferenceMediaDraft(selectedSegmentNumber))) return;
+      addToast("参考媒体草稿已保存", "success");
+    } catch {
+      // persistSegmentRecipe 已显示错误。
+    }
+  };
+
   const handleGenerateReferenceMediaVideo = async () => {
     if (!chapter) return;
     const segment = referenceMediaSegmentFor("生成参考媒体视频");
@@ -1436,9 +2237,16 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       addToast(generateInputError, "error");
       return;
     }
+    try {
+      if (!(await saveReferenceMediaDraft(segment.shotNumber))) return;
+    } catch {
+      return;
+    }
     const input = buildReferenceMediaVideoInput(segment);
     if (!input) return;
-    setActing("reference-media-video");
+    const actionKey = "reference-media-video";
+    const requestScope = videoActionScopeKey;
+    if (!beginVideoAction(actionKey)) return;
     try {
       const handle = await startVideoGeneration({
         project_id: projectId,
@@ -1448,7 +2256,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           input,
         },
       });
-      setVideoTaskId(handle.task_id);
       await runGenerationProgressTaskThen(
         runProgressTask,
         handle,
@@ -1467,81 +2274,81 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             chapter.id,
           );
           if (!row) throw new Error("参考媒体视频生成已结束，但没有正式视频结果");
+          if (!isCurrentVideoActionScope(requestScope)) return;
           setSelectedVideoId(row.id);
           setPendingVideoId(null);
         },
       );
+      if (!isCurrentVideoActionScope(requestScope)) return;
       addToast("参考媒体视频生成完成", "success");
     } catch (err) {
+      if (!isCurrentVideoActionScope(requestScope)) return;
       const message = extractErrorMessage(err, "参考媒体视频生成失败");
-      addToast(message, "error");
+      if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
-      await loadAll();
-      setActing(null);
-      setVideoTaskId(null);
+      if (isCurrentVideoActionScope(requestScope)) await loadAll();
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
   const handleImportReferenceMediaVideo = async () => {
     if (!chapter) return;
-    const segment = referenceMediaSegmentFor("导入参考媒体视频");
+    const segment = referenceMediaSegmentFor("导入参考媒体视频", false);
     if (!segment) return;
     if (referenceMediaDraft.storageError) {
       addToast(`${referenceMediaDraft.storageError}；请重新编辑后再导入`, "error");
       return;
     }
-    const rowsByKind = normalizeReferenceMediaRowsByKind(
-      referenceMediaRowsByKindFromDraft(referenceMediaDraft),
-    );
-    const prompt = buildReferenceMediaPrompt(referenceMediaDraft.prompt, rowsByKind);
-    if (!prompt.trim()) {
+    if (!referenceMediaDraft.prompt.trim()) {
       addToast("参考媒体视频 prompt 不能为空", "error");
       return;
     }
-    if (!Number.isInteger(options.durationSecs) || options.durationSecs <= 0) {
-      addToast("参考媒体视频时长无效", "error");
-      return;
-    }
-
-    let file: File | null = null;
     try {
-      file = await pickLocalFile(supportedVideoAccept());
-    } catch (err) {
-      addToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
-      return;
-    }
-    if (!file) return;
-    if (file.size > MAX_UPLOAD_VIDEO_BYTES) {
-      addToast(`参考媒体视频不能超过 ${MAX_UPLOAD_VIDEO_BYTES / 1024 / 1024}MB`, "error");
-      return;
-    }
-    const mimeType = videoMimeForUploadFile(file);
-    if (!mimeType) {
-      addToast("参考媒体视频必须是 mp4、webm、mov 或 m4v 文件", "error");
+      if (!(await saveReferenceMediaDraft(segment.shotNumber))) return;
+    } catch {
       return;
     }
 
-    setActing("reference-media-import");
+    const actionKey = "reference-media-import";
+    const requestScope = videoActionScopeKey;
+    if (!beginVideoAction(actionKey)) return;
+    let upload: VideoUploadFile | null = null;
+    try {
+      upload = await pickVideoUploadFile("参考媒体视频");
+    } catch (err) {
+      if (isCurrentVideoActionScope(requestScope)) {
+        addToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
+      }
+      finishVideoAction(actionKey, requestScope);
+      return;
+    }
+    if (!upload) {
+      finishVideoAction(actionKey, requestScope);
+      return;
+    }
+    const { file, mimeType } = upload;
+
     try {
       const dataBase64 = await readFileAsBase64(file);
+      if (!isCurrentVideoActionScope(requestScope)) return;
       const row = await uploadReferenceMediaVideo(projectId, chapter.id, {
         file_name: file.name,
         mime_type: mimeType,
         data_base64: dataBase64,
-        prompt,
-        duration_secs: options.durationSecs,
-        aspect_ratio: options.aspectRatio,
-        segment_prompt_id: segment.promptId,
+        segment_plan_prompt_id: segment.segmentPlanPromptId,
         shot_number: segment.shotNumber,
       });
+      if (!isCurrentVideoActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
       addToast("参考媒体视频已导入", "success");
       await loadAll();
     } catch (err) {
-      addToast(extractErrorMessage(err, "导入参考媒体视频失败"), "error");
+      if (isCurrentVideoActionScope(requestScope)) {
+        addToast(extractErrorMessage(err, "导入参考媒体视频失败"), "error");
+      }
     } finally {
-      setActing(null);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
@@ -1561,24 +2368,23 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       durationLimits={effectiveDurationLimits}
       activeVideoConfig={activeVideoConfig}
       videos={referenceMediaSegmentVideos}
-      totalVideoAssetCount={chapterVideoAssetCount}
       selectedVideo={selectedVideo}
       selectedVideoId={selectedVideo?.id ?? selectedVideoId}
+      adoptedVideoId={selectedSegmentRecipe?.adopted_video_id ?? null}
       selectedVideoPath={selectedVideoPath}
       trimStart={trimStart}
       trimEnd={trimEnd}
       acting={acting}
       previewing={promptRequestPreviewLoading}
+      draftDirty={referenceMediaDraftDirty}
+      savingDraft={
+        selectedSegmentNumber != null && savingRecipeSegments.has(selectedSegmentNumber)
+      }
       onPromptChange={setReferenceMediaPrompt}
       onImageRowsChange={setReferenceMediaImageRows}
       onVideoRowsChange={setReferenceMediaVideoRows}
       onAudioRowsChange={setReferenceMediaAudioRows}
-      onDurationSecsChange={(durationSecs) =>
-        setVideoOptions((prev) => ({ ...prev, durationSecs }))
-      }
-      onAspectRatioChange={(aspectRatio) =>
-        setVideoOptions((prev) => ({ ...prev, aspectRatio }))
-      }
+      onSaveDraft={handleSaveReferenceMediaDraft}
       onPreview={handlePreviewReferenceMediaVideoRequest}
       onGenerate={handleGenerateReferenceMediaVideo}
       onImport={handleImportReferenceMediaVideo}
@@ -1589,19 +2395,59 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       onToggleVideoFavorite={(video) => void handleToggleVideoFavorite(video)}
       onUpdateVideo={handleUpdateVideo}
       onDeleteVideo={(video) => void handleDeleteVideo(video)}
-      onDeleteAllVideoAssets={handleDeleteAllVideoAssets}
       onTrimStartChange={setTrimStart}
       onTrimEndChange={setTrimEnd}
       onTrim={handleTrim}
     />
   ) : undefined;
+  const selectedSegmentMaterialsControl = workflowMode == null || workflowMode === "reference_media" ? undefined : (
+    <VideoPromptReferenceInputDialog
+      images={selectableReferenceImages}
+      chapter={chapter}
+      workflowMode={workflowMode}
+      currentContentHash={currentContentHash}
+      generationReferenceIds={generationReferenceIds}
+      videoLibraryImageIds={videoLibraryImageIds}
+      invalidGenerationReferenceIds={invalidGenerationReferenceIds}
+      invalidVideoLibraryImageIds={invalidVideoLibraryImageIds}
+      onGenerationReferenceIdsChange={setGenerationReferenceIds}
+      onVideoLibraryImageIdsChange={setVideoLibraryImageIds}
+      onReferenceLimit={() =>
+        addToast(
+          `${workflowMode === "chat_video" ? "Chat上传" : "生成参考"}最多只能选择 ${
+            workflowMode === "chat_video"
+              ? MAX_CHAT_REFERENCE_IMAGES
+              : MAX_REFERENCE_IMAGES
+          } 张`,
+          "error",
+        )
+      }
+      onSelectionError={(message) => addToast(message, "error")}
+      onClearInvalidGenerationReferences={clearInvalidGenerationReferences}
+      onClearInvalidVideoLibraryImages={clearInvalidVideoLibraryImages}
+    />
+  );
 
   return (
     <>
       <div className="flex h-full min-h-0 flex-col gap-3">
         {videoPersistedStateError && (
           <div role="alert" className="shrink-0 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-xs leading-relaxed text-error">
-            {videoPersistedStateError}；请重新选择当前视频生成模式、工作区或条目后继续。
+            {videoPersistedStateError}；请修正当前片段执行方案、工作区或条目后继续。
+          </div>
+        )}
+        {videoDataError && (
+          <div role="alert" className="flex shrink-0 items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-xs leading-relaxed text-error">
+            <span className="min-w-0 flex-1">加载视频数据失败：{videoDataError}</span>
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={() => void loadAll()}
+              disabled={videoDataLoading}
+            >
+              <RotateCcw size={12} />
+              重试加载
+            </BookButton>
           </div>
         )}
         <VideoWorkspaceHeader
@@ -1609,37 +2455,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           activeTab={activeWorkspaceTab}
           onTabChange={setWorkspaceTab}
         >
-          {workflowMode === "reference_media" ? (
+          {workflowMode == null ? (
+            <span>未选择片段执行方案</span>
+          ) : workflowMode === "reference_media" ? (
             <span>参考媒体 · 当前片段</span>
           ) : (
-            <>
-              <VideoPromptReferenceInputDialog
-                images={selectableReferenceImages}
-                chapter={chapter}
-                workflowMode={workflowMode}
-                currentContentHash={currentContentHash}
-                generationReferenceIds={generationReferenceIds}
-                videoLibraryImageIds={videoLibraryImageIds}
-                invalidGenerationReferenceIds={invalidGenerationReferenceIds}
-                invalidVideoLibraryImageIds={invalidVideoLibraryImageIds}
-                onGenerationReferenceIdsChange={setGenerationReferenceIds}
-                onVideoLibraryImageIdsChange={setVideoLibraryImageIds}
-                onReferenceLimit={() =>
-                  addToast(
-                    `${workflowMode === "chat_video" ? "Chat上传" : "生成参考"}最多只能选择 ${
-                      workflowMode === "chat_video"
-                        ? MAX_CHAT_REFERENCE_IMAGES
-                        : MAX_REFERENCE_IMAGES
-                    } 张`,
-                    "error",
-                  )
-                }
-                onSelectionError={(message) => addToast(message, "error")}
-                onClearInvalidGenerationReferences={clearInvalidGenerationReferences}
-                onClearInvalidVideoLibraryImages={clearInvalidVideoLibraryImages}
-              />
-              <span>{VIDEO_WORKFLOW_MODE_LABELS[workflowMode]} · 当前片段</span>
-            </>
+            <span>{VIDEO_WORKFLOW_MODE_LABELS[workflowMode]} · 当前片段</span>
           )}
         </VideoWorkspaceHeader>
 
@@ -1655,11 +2476,22 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         ) : activeWorkspaceTab === "frames" ? (
           <VideoPlanningWorkspace
             prompt={frameSegmentPlanPrompt}
+            previewSegments={segmentPlanPreview}
+            draft={segmentPlanDraft}
+            options={planningOptions}
+            durationLimits={durationLimits}
+            loading={segmentPlanDraftLoading}
+            loadError={segmentPlanDraftError}
+            dataReady={selectionValidationReady}
             acting={acting}
             chapterGenerating={chapterGenerating}
             onGenerate={(regenerateExisting) =>
               handleGenerateSegmentPlan({ regenerateExisting })
             }
+            onOptionsChange={setPlanningOptions}
+            onRetryLoad={() => {
+              void refreshSegmentPlanDraft().catch(() => undefined);
+            }}
             onDelete={(prompt) => void handleDeletePromptRow(prompt)}
           />
         ) : activeWorkspaceTab === "assembly" ? (
@@ -1669,6 +2501,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             chapter={chapter}
             workflowMode="mixed"
             videos={videos}
+            adoptedVideoIds={mixedAdoptedVideoIds}
+            missingSegmentNumbers={missingMixedSegmentNumbers}
             onToast={addToast}
             onRefresh={loadAll}
           />
@@ -1686,41 +2520,41 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           <VideoGenerationWorkspace
                 chapter={chapter}
                 prompts={allSegmentPrompts}
-                generationPrompts={currentLanguageFinalVideoPrompts}
+                segmentCards={segmentCardState.cards}
+                segmentRecipes={effectiveRecipeBySegment}
+                selectedSegmentNumber={selectedSegmentNumber}
+                planningDraftVisible={segmentPlanDraftVisible}
+                segmentRecipe={selectedSegmentRecipe}
+                finalPromptBlockedReason={
+                  selectedSegmentNumber == null
+                    ? "请先选择片段"
+                    : (finalPromptBlockedReasons.get(selectedSegmentNumber) ?? null)
+                }
+                finalPromptBlockedReasons={finalPromptBlockedReasons}
                 selectedPrompt={selectedPrompt}
                 selectedPromptId={selectedPromptId}
                 workflowMode={workflowMode}
-                pendingVideo={pendingVideo}
                 selectedPromptStale={selectedPromptStale}
-                expectedBoundaryFrameCount={expectedBoundaryFrameCount}
-                expectedVideoPromptCount={expectedVideoPromptCount}
-                options={options}
                 durationLimits={effectiveDurationLimits}
-                providerBackend={activeVideoConfig?.backend ?? null}
-                providerOptionsJson={activeVideoConfig?.provider_options_json ?? null}
-                providerCapabilities={activeVideoConfig?.capabilities}
-                promptInputSelectionError={promptInputSelectionError}
                 loading={loading}
                 acting={acting}
                 chapterGenerating={chapterGenerating}
                 chapterContentReady={chapterContentReady}
-                previewingPromptRequests={promptRequestPreviewLoading}
+                savingRecipeSegments={savingRecipeSegments}
                 draft={draft}
                 selectedPromptSceneSummary={selectedPromptSceneSummary}
                 selectedPromptRunning={selectedPromptRunning}
                 selectedPromptDirty={selectedPromptDirty}
                 staleSavedReferenceCount={staleSavedReferenceCount}
                 savedReferenceIdsError={savedReferenceIdsError}
-                invalidPromptReferenceIds={invalidPromptReferenceIds}
                 systemReferenceIds={systemPromptReferenceIds}
-                validPromptReferenceIds={validPromptReferenceIds}
                 boundReferenceImages={boundReferenceImages}
                 framePrompts={currentLanguageFramePrompts}
                 frameImages={videoFrameImages}
-                videos={videos}
+                videos={workflowVideos}
+                previousAdoptedVideos={previousAdoptedVideos}
+                selectedSegmentMaterialsControl={selectedSegmentMaterialsControl}
                 selectableReferenceImages={selectableReferenceImages}
-                totalVideoAssetCount={chapterVideoAssetCount}
-                totalVideoChainPromptCount={chapterVideoChainPromptCount}
                 selectedVideo={selectedVideo}
                 selectedVideoId={selectedVideo?.id ?? selectedVideoId}
                 selectedVideoPath={selectedVideoPath}
@@ -1730,38 +2564,29 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                   referenceImageScopeLabel(img, chapter, currentContentHash)
                 }
                 onLoad={loadAll}
-                onOptionsChange={setVideoOptions}
                 onGeneratePromptRequests={(requestOptions) =>
                   handleGenerateVideoPrompts({
                     ...requestOptions,
                     targetShotNumber:
-                      requestOptions?.targetShotNumber ?? workflowTargetShotRef.current ?? undefined,
-                    promptBatchSize:
-                      workflowTargetShotRef.current != null
-                        ? 1
-                        : requestOptions?.promptBatchSize,
+                      requestOptions?.targetShotNumber ?? selectedSegmentNumber ?? undefined,
                   })
                 }
-                onPreviewPromptRequests={handlePreviewVideoPromptRequests}
-                onSelectPrompt={setSelectedPromptId}
+                onSelectPrompt={handleSelectPrompt}
+                onSelectSegment={handleSelectSegment}
                 onDeletePrompt={(prompt) => void handleDeletePromptRow(prompt)}
-                onDeleteAllVideoPrompts={handleDeleteAllVideoPrompts}
-                onPollPendingVideo={handlePollVideo}
                 onWorkflowModeChange={handleSegmentWorkflowModeChange}
                 onUpdateGuidance={handleUpdateSegmentGuidance}
-                onGenerateFramePrompts={() => handleGenerateFramePrompts({ runUntilComplete: true })}
+                onGenerateFramePrompts={handleGenerateFramePrompts}
                 onPreviewFrameImage={handlePreviewFrameImageRequest}
                 onGenerateFrameImage={(prompt) => handleGenerateFrameImages(prompt)}
                 onImportFrameImage={(prompt) => handleImportFrameImage(prompt)}
                 onDraftChange={setDraft}
-                onClearInvalidPromptReferences={clearInvalidPromptReferences}
                 onSavePrompt={handleSavePrompt}
                 onOptimizePrompt={(prompt) => void handleOptimizePromptRow(prompt)}
                 onPreviewGenerateVideo={handlePreviewGenerateVideoRequest}
                 onCopyPrompt={handleCopyChatVideoPrompt}
                 onPreviewVideoRequest={handlePreviewVideoRequestForVideo}
                 onGenerateVideo={handleGenerateVideo}
-                onGenerateAllVideos={handleGenerateAllVideos}
                 onImportVideo={handleImportVideo}
                 onSelectVideo={setSelectedVideoId}
                 onAdoptVideo={handleAdoptSegmentVideo}
@@ -1769,11 +2594,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 onToggleVideoFavorite={(video) => void handleToggleVideoFavorite(video)}
                 onUpdateVideo={handleUpdateVideo}
                 onDeleteVideo={(video) => void handleDeleteVideo(video)}
-                onDeleteAllVideoAssets={handleDeleteAllVideoAssets}
                 onTrimStartChange={setTrimStart}
                 onTrimEndChange={setTrimEnd}
                 onTrim={handleTrim}
-                workspaceOverride={referenceMediaWorkspace}
+                selectedSegmentWorkspace={referenceMediaWorkspace}
           />
         )}
       </div>

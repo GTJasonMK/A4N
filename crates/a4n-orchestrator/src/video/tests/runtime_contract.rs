@@ -13,3 +13,11 @@ fn video_llm_step_error_includes_prompt_name_for_timeout() {
     assert!(message.contains("chapter_video_prompt"));
     assert!(message.contains("120 秒"));
 }
+
+#[test]
+fn video_llm_step_error_preserves_cancelled() {
+    assert!(matches!(
+        video_llm_step_error("chapter_video_prompt", AppError::Cancelled),
+        AppError::Cancelled
+    ));
+}

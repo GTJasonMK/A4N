@@ -7,7 +7,7 @@ const TEST_SECRET: &str = "test-secret-key-for-unit-tests";
 fn rotates_refresh_token_identity() {
     let old_refresh = create_refresh_token("user-5", TEST_SECRET, 7).expect("old refresh");
 
-    let pair = refresh_access_token_with_role(&old_refresh, None, "user", TEST_SECRET)
+    let pair = refresh_access_token_with_role(&old_refresh, None, "user", "session-5", TEST_SECRET)
         .expect("refresh should create pair");
 
     assert_ne!(pair.refresh_token, old_refresh);
@@ -22,9 +22,14 @@ fn rotates_refresh_token_identity() {
 fn uses_current_user_claims() {
     let old_refresh = create_refresh_token("user-6", TEST_SECRET, 7).expect("old refresh");
 
-    let pair =
-        refresh_access_token_with_role(&old_refresh, Some("只读用户"), "read_only", TEST_SECRET)
-            .expect("refresh should create pair");
+    let pair = refresh_access_token_with_role(
+        &old_refresh,
+        Some("只读用户"),
+        "read_only",
+        "session-6",
+        TEST_SECRET,
+    )
+    .expect("refresh should create pair");
 
     let claims = verify_token(&pair.access_token, TEST_SECRET).expect("access claims");
 
@@ -32,4 +37,5 @@ fn uses_current_user_claims() {
     assert_eq!(claims.name.as_deref(), Some("只读用户"));
     assert_eq!(claims.role.as_deref(), Some("read_only"));
     assert_eq!(claims.token_type, "access");
+    assert_eq!(claims.session_id.as_deref(), Some("session-6"));
 }

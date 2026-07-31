@@ -328,39 +328,6 @@ ORDER BY task_id
     Ok(targets)
 }
 
-pub async fn active_generation_descendant_count(
-    db: &DatabaseConnection,
-    root_task_id: &str,
-) -> Result<u64, GenerationTaskLifecycleError> {
-    if db.get_database_backend() != DbBackend::Postgres {
-        return Err(GenerationTaskPersistenceError::InvalidArgument(
-            "generation descendant query 仅支持 PostgreSQL".to_string(),
-        )
-        .into());
-    }
-    let root_task_id = canonical_uuid_v4(root_task_id, "root_task_id")?;
-    let row = db
-        .query_one(Statement::from_sql_and_values(
-            DbBackend::Postgres,
-            r#"
-SELECT COUNT(*) AS active_count
-FROM generation_task_checkpoint
-WHERE root_task_id = $1
-  AND task_id <> $1
-  AND status IN ('reserved', 'running', 'finalizing', 'cancelling')
-"#,
-            [root_task_id.into()],
-        ))
-        .await?
-        .expect("COUNT always returns one row");
-    let count: i64 = row.try_get("", "active_count")?;
-    u64::try_from(count).map_err(|_| {
-        GenerationTaskLifecycleError::Corrupt(
-            "generation active descendant count 为负数".to_string(),
-        )
-    })
-}
-
 pub async fn persist_generation_cancel_requested(
     db: &DatabaseConnection,
     input: PersistGenerationLifecycleInput,

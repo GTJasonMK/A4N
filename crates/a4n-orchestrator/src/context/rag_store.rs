@@ -1,58 +1,17 @@
 use std::collections::HashMap;
 
 use a4n_core::error::AppError;
-use a4n_embedding::provider::{EmbeddingModelIdentity, EmbeddingProvider};
-use a4n_rag_core::vector_store::{DeleteFilter, SearchFilter, SearchResult};
+use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_rag_core::vector_store::DeleteFilter;
 use serde_json::Value;
 
 use super::OrchestratorContext;
 use crate::rag::{
     RagEmbeddedInput, RagEmbeddingInput, embed_and_store_rag_record_in_store,
-    embed_and_store_rag_records_in_store, hybrid_rag_search_filtered_in_store,
-    hybrid_rag_search_with_embedding_in_store, store_embedded_rag_records_in_store,
+    embed_and_store_rag_records_in_store, store_embedded_rag_records_in_store,
 };
 
 impl OrchestratorContext {
-    pub(crate) async fn rag_search_filtered_with_provider(
-        &self,
-        project_id: i64,
-        query: &str,
-        provider: &dyn EmbeddingProvider,
-        top_k: usize,
-        filter: Option<SearchFilter>,
-    ) -> Result<Vec<SearchResult>, AppError> {
-        hybrid_rag_search_filtered_in_store(
-            self.rag_store.as_ref(),
-            project_id,
-            query,
-            provider,
-            top_k,
-            filter,
-        )
-        .await
-    }
-
-    pub(crate) async fn rag_search_with_embedding_vector(
-        &self,
-        project_id: i64,
-        query: &str,
-        query_embedding: Vec<f32>,
-        embedding_identity: &EmbeddingModelIdentity,
-        top_k: usize,
-        filter: Option<SearchFilter>,
-    ) -> Result<Vec<SearchResult>, AppError> {
-        hybrid_rag_search_with_embedding_in_store(
-            self.rag_store.as_ref(),
-            project_id,
-            query,
-            query_embedding,
-            embedding_identity,
-            top_k,
-            filter,
-        )
-        .await
-    }
-
     pub(crate) async fn rag_embed_and_store_record(
         &self,
         project_id: i64,

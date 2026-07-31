@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Copy, Eye, Loader2 } from "lucide-react";
+import { Copy, Eye } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import { loadVideoPlaybackData } from "../../api/video";
 import { BookButton } from "../../components/ui/BookButton";
@@ -140,12 +141,12 @@ const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview
           ) : null}
           {videoLoading ? (
             <div className="flex min-h-[18rem] items-center justify-center gap-2 text-book-text-muted">
-              <Loader2 size={18} className="animate-spin text-book-primary" />
+              <LoadingSpinner size="md" />
               正在加载本地视频文件
             </div>
           ) : null}
           {videoLoadError ? (
-            <div className="border-t border-book-border bg-book-bg px-3 py-2 text-[11px] text-warning">
+            <div className="border-t border-book-border bg-book-bg px-3 py-2 text-small text-warning">
               {videoLoadError}
             </div>
           ) : null}
@@ -163,10 +164,10 @@ const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview
       ) : null}
       {preview.metadataRows.length > 0 ? (
         <details className="rounded-xl border border-book-border/70 bg-book-bg-paper/60">
-          <summary className="cursor-pointer px-3 py-2 text-[11px] text-book-text-muted">
+          <summary className="cursor-pointer px-3 py-2 text-small text-book-text-muted">
             诊断信息
           </summary>
-          <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-book-border/60 px-3 py-2 text-[11px]">
+          <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-book-border/60 px-3 py-2 text-small">
             {preview.metadataRows.map(([label, value]) => (
               <React.Fragment key={label}>
                 <span className="text-book-text-muted">{label}</span>

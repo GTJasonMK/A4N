@@ -2,7 +2,10 @@ use a4n_core::models::ai::generated_video;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set, TransactionTrait};
 
-use super::context::{generated_video_with_prompt_record, update_prompt_status_record};
+use super::context::{
+    ensure_generated_video_status_mutable, generated_video_with_prompt_record,
+    update_prompt_status_record,
+};
 use crate::video::VideoDbError;
 
 async fn update_generated_video_waiting_status_and_prompt_record_in<C>(
@@ -15,6 +18,7 @@ where
     C: ConnectionTrait,
 {
     let (video, prompt) = generated_video_with_prompt_record(db, video_id, prompt_id).await?;
+    ensure_generated_video_status_mutable(&video.status, "更新视频等待状态")?;
     let mut active: generated_video::ActiveModel = video.into();
     active.status = Set(status.to_string());
     active.updated_at = Set(Utc::now().naive_utc());

@@ -38,7 +38,6 @@ impl CanvasTextGenerationLlmPort for RuntimeCanvasTextGenerationLlmPort<'_> {
                     provider
                         .chat_with_config_id(input.config_id, input.request)
                         .await
-                        .map_err(|error| AppError::LlmError(error.to_string()))
                 },
             )
             .await

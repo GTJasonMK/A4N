@@ -1,4 +1,4 @@
-use super::request::{aspect_ratio_from_size, is_veo_model, size_from_request, veo_metadata};
+use super::request::{aspect_ratio_from_size, size_from_request};
 use super::response::{
     api_error_suffix, extract_failure_message, extract_status, extract_task_id, find_video_b64,
     find_video_url,
@@ -50,7 +50,6 @@ impl NewApiVideoProvider {
     }
 
     pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        let is_veo = is_veo_model(&req.model);
         if req.last_frame_image_url.is_some() {
             return Err(AppError::InvalidArgument(
                 "New API 视频接口只有一个 image 输入槽，只能作为首帧使用，不支持尾帧输入"
@@ -75,15 +74,6 @@ impl NewApiVideoProvider {
             .as_deref()
             .map(str::trim)
             .filter(|v| !v.is_empty());
-        if is_veo {
-            body.insert("duration_seconds".into(), json!(req.duration_secs));
-            body.insert("number_of_videos".into(), json!(1));
-            body.insert("enhance_prompt".into(), json!(true));
-            body.insert(
-                "metadata".into(),
-                veo_metadata(req, aspect_ratio, negative_prompt),
-            );
-        }
         if let Some(aspect_ratio) = aspect_ratio {
             body.insert("aspect_ratio".into(), json!(aspect_ratio));
         }

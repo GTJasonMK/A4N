@@ -53,14 +53,12 @@ impl OrchestratorContext {
             workflow::required_llm_call_workflow_run_id(workflow_run_id, &call_key)
                 .map_err(workflow_checkpoint_contract_app_error)?;
         let fingerprint_json = beat_mapping_call_fingerprint_json(&call_key, &prepared, &request)?;
-        let input_fingerprint_sha256 =
-            workflow::llm_call_checkpoint_fingerprint_sha256(&fingerprint_json)
-                .map_err(workflow_checkpoint_contract_app_error)?;
-        if let Some(trace_context) = request.trace_context.as_mut() {
-            trace_context.workflow_run_id = Some(workflow_run_id);
-            trace_context.call_key = Some(call_key.clone());
-            trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
-        }
+        crate::workflow::attach_llm_call_checkpoint_trace(
+            &mut request,
+            workflow_run_id,
+            &call_key,
+            &fingerprint_json,
+        )?;
         workflow::mark_workflow_current_step(
             self.database.connection(),
             workflow_run_id,

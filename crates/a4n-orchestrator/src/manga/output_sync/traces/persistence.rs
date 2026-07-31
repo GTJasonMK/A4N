@@ -1,6 +1,6 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_manga_prompt;
-use a4n_db::DatabaseConnectionTrait as ConnectionTrait;
+use sea_orm::ConnectionTrait;
 
 use crate::generation::generation_error;
 
@@ -10,26 +10,29 @@ use super::contracts::MangaGenerationTraceRecord;
 use super::payload::build_manga_generation_trace_record;
 
 impl OrchestratorContext {
-    pub(in crate::manga::output_sync) async fn record_chapter_manga_prompt_generation_run<C>(
+    pub(in crate::manga::output_sync) async fn record_chapter_manga_prompt_generation_run(
         &self,
-        db: &C,
         row: &chapter_manga_prompt::Model,
         trace: MangaPromptGenerationTrace,
-    ) -> Result<(), AppError>
-    where
-        C: ConnectionTrait,
-    {
+    ) -> Result<(), AppError> {
         if self
-            .chapter_manga_prompt_generation_trace_exists(db, row.id, &trace)
+            .chapter_manga_prompt_generation_trace_exists(
+                self.database.connection(),
+                row.id,
+                &trace,
+            )
             .await?
         {
             return Ok(());
         }
         let MangaGenerationTraceRecord { run, checkpoint } =
             build_manga_generation_trace_record(row, trace)?;
-        a4n_db::generation::record_completed_generation_run_with_checkpoint(db, run, checkpoint)
-            .await
-            .map_err(generation_error)?;
+        a4n_db::generation::record_completed_run_with_checkpoint_transaction(
+            self.database.connection(),
+            a4n_db::generation::RecordCompletedGenerationRunWithCheckpointInput { run, checkpoint },
+        )
+        .await
+        .map_err(generation_error)?;
         Ok(())
     }
 

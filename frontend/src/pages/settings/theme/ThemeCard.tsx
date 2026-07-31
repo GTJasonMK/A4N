@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { Check, Code2, Download, Loader2, Trash2 } from "lucide-react";
+import { Check, Code2, Download, Trash2 } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { type Theme } from "../../../api/theme";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
@@ -113,7 +114,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
               >
                 {renameSaving ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <Loader2 size={12} className="animate-spin" /> 保存中…
+                    <LoadingSpinner size="sm" /> 保存中…
                   </span>
                 ) : (
                   "保存"
@@ -141,10 +142,10 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                   {theme.name}
                 </button>
                 {theme.is_active ? (
-                  <span className="text-[10px] font-medium text-book-primary">使用中</span>
+                  <span className="text-caption font-medium text-book-primary">使用中</span>
                 ) : null}
               </div>
-              <div className="mt-0.5 text-[11px] text-book-text-muted">
+              <div className="mt-0.5 text-small text-book-text-muted">
                 {theme.is_system_default ? "系统默认" : "用户自定义"} ·{" "}
                 {theme.mode === "dark" ? "暗色" : "亮色"}
               </div>
@@ -160,13 +161,13 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                 onClick={onActivate}
                 disabled={activateDisabled}
               >
-                {activating ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                {activating ? <LoadingSpinner size="sm" /> : <Check size={12} />}
                 使用
               </BookButton>
             ) : null}
             {exporting || deleting ? (
               <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
-                <Loader2 size={12} className="animate-spin" />
+                <LoadingSpinner size="sm" />
               </span>
             ) : (
               <Dropdown items={moreItems} />

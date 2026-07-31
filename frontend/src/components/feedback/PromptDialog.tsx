@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CompositionEvent,
+  type KeyboardEvent,
+} from "react";
 import { create } from "zustand";
 import { Edit3 } from "lucide-react";
 import { Modal } from "../ui/Modal";
@@ -102,6 +109,40 @@ export function PromptDialogHost() {
     if (disabled) return;
     submit(value);
   };
+  const setInputRef = (node: HTMLInputElement | HTMLTextAreaElement | null) => {
+    inputRef.current = node;
+  };
+  const handleCompositionStart = () => {
+    composingRef.current = true;
+  };
+  const handleCompositionEnd = (
+    event: CompositionEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    lastCompositionEndRef.current = Date.now();
+    setValue(event.currentTarget.value);
+    window.setTimeout(() => {
+      composingRef.current = false;
+    }, 0);
+  };
+  const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setValue(event.currentTarget.value);
+  };
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const submits =
+      event.key === "Enter" &&
+      (!current.multiline || event.ctrlKey || event.metaKey);
+    if (
+      submits &&
+      !isImeCompositionActive(
+        event.nativeEvent,
+        composingRef.current,
+        lastCompositionEndRef.current,
+      )
+    ) {
+      event.preventDefault();
+      handleSubmit();
+    }
+  };
 
   const commonClassName = "pyqt-input w-full text-sm leading-relaxed";
 
@@ -130,73 +171,28 @@ export function PromptDialogHost() {
       <div className="space-y-2">
         {current.multiline ? (
           <textarea
-            ref={(node) => {
-              inputRef.current = node;
-            }}
+            ref={setInputRef}
             value={value}
-            onCompositionStart={() => {
-              composingRef.current = true;
-            }}
-            onCompositionEnd={(e) => {
-              lastCompositionEndRef.current = Date.now();
-              setValue(e.currentTarget.value);
-              window.setTimeout(() => {
-                composingRef.current = false;
-              }, 0);
-            }}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (
-                (e.ctrlKey || e.metaKey) &&
-                e.key === "Enter" &&
-                !isImeCompositionActive(
-                  e.nativeEvent,
-                  composingRef.current,
-                  lastCompositionEndRef.current,
-                )
-              ) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
             placeholder={current.placeholder}
             className={`${commonClassName} min-h-[144px] resize-y`}
           />
         ) : (
           <input
-            ref={(node) => {
-              inputRef.current = node;
-            }}
+            ref={setInputRef}
             value={value}
-            onCompositionStart={() => {
-              composingRef.current = true;
-            }}
-            onCompositionEnd={(e) => {
-              lastCompositionEndRef.current = Date.now();
-              setValue(e.currentTarget.value);
-              window.setTimeout(() => {
-                composingRef.current = false;
-              }, 0);
-            }}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (
-                e.key === "Enter" &&
-                !isImeCompositionActive(
-                  e.nativeEvent,
-                  composingRef.current,
-                  lastCompositionEndRef.current,
-                )
-              ) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
             placeholder={current.placeholder}
             className={commonClassName}
           />
         )}
-        <p className="text-[11px] text-book-text-muted">
+        <p className="text-small text-book-text-muted">
           {current.multiline ? "按 Ctrl/⌘ + Enter 提交" : "按 Enter 提交"}
         </p>
       </div>

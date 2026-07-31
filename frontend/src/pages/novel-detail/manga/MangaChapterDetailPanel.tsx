@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  AlertTriangle,
+import { AlertTriangle,
   CheckCircle2,
   CircleDashed,
   Eye,
   ImagePlus,
-  Loader2,
   PauseCircle,
   Play,
   RefreshCw,
   Trash2,
-  XCircle,
-} from "lucide-react";
+  XCircle, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import type { DownstreamConflictStrategy } from "../../../api/dependencyConflict";
@@ -796,7 +794,7 @@ export function MangaChapterDetailPanel({
                 <h2 className="truncate text-sm font-semibold text-book-text-main">
                   {chapterHeading(selectedChapter)}
                 </h2>
-                <p className={`mt-1 text-[11px] ${noticeClass[statusTone]}`}>
+                <p className={`mt-1 text-small ${noticeClass[statusTone]}`}>
                   {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
                 </p>
               </div>
@@ -811,7 +809,7 @@ export function MangaChapterDetailPanel({
                       disabled={detailBusy || acting === `cancel-${selectedChapter.id}`}
                     >
                       {acting === `cancel-${selectedChapter.id}` ? (
-                        <Loader2 size={13} className="animate-spin" />
+                        <LoadingSpinner size="sm" />
                       ) : (
                         <PauseCircle size={13} />
                       )}
@@ -825,7 +823,7 @@ export function MangaChapterDetailPanel({
                       disabled={pipelineMainDisabled || pipelineResumeBusy || pipelineStartBusy}
                     >
                       {pipelineResumeBusy || pipelineStartBusy ? (
-                        <Loader2 size={13} className="animate-spin" />
+                        <LoadingSpinner size="sm" />
                       ) : pipelineCanResume || pipelineFailed || mangaResultStale ? (
                         <RefreshCw size={13} />
                       ) : (
@@ -839,7 +837,7 @@ export function MangaChapterDetailPanel({
             </div>
 
             {canEditManga && !pipelineRunning ? (
-              <details className="mt-2 text-[11px] text-book-text-muted">
+              <details className="mt-2 text-small text-book-text-muted">
                 <summary className="w-fit cursor-pointer hover:text-book-text-main">
                   生成选项 · {selectedStartStageLabel}
                 </summary>

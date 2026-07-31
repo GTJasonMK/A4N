@@ -2,10 +2,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::shooting_script::{
-    ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
-    ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDialogueCueV1,
-    ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingShotSizeV1, ShootingSoundDesignV1,
-    ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingViewpointV1,
+    ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingCoverageV1,
+    ShootingDialogueCueV1, ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingShotSizeV1,
+    ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingTransitionContractV1,
+    ShootingViewpointV1,
 };
 
 pub const VIDEO_EXECUTION_CONTRACT_EPOCH: u32 = 5;
@@ -371,13 +371,4 @@ impl VideoExecutionUnitV2 {
     pub fn is_action_bridge(&self) -> bool {
         matches!(self.kind, VideoExecutionUnitKindV2::ActionBridge(_))
     }
-}
-
-// 这些类型进入提示词注册表的 JSON Schema，因此即使当前字段由拍摄剧本直接投影，
-// 也保留显式引用，防止未来把视点、空间连续性等重新降级成自由字符串。
-#[allow(dead_code)]
-fn _typed_directing_contract_guards(
-    _continuity: ShootingContinuityIntentV1,
-    _spatial: ShootingSpatialContinuityV1,
-) {
 }

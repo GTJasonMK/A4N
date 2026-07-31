@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Eye, Loader2, Sparkles } from "lucide-react";
+import { Eye, Sparkles } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { listObjectProfiles, type ObjectProfile } from "../../api/objectProfiles";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
@@ -113,7 +114,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
       <div className="flex h-full min-h-0 items-center justify-center overflow-y-auto p-4 text-xs">
         <div className="flex w-full max-w-md flex-col items-center text-center">
           {generating ? (
-            <Loader2 size={20} className="mb-3 animate-spin text-book-primary" />
+            <LoadingSpinner size="lg" className="mb-3" />
           ) : (
             <Sparkles size={20} className="mb-3 text-book-text-muted" />
           )}
@@ -214,7 +215,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
     <div className="h-full overflow-y-auto custom-scrollbar p-2 text-xs text-book-text-sub">
       <div className="mx-auto mb-2 w-full max-w-5xl space-y-2 sm:flex sm:items-center sm:justify-end sm:space-y-0 sm:gap-2">
         {analysisBlockedReason ? (
-          <p className="min-w-0 text-[11px] leading-relaxed text-error sm:mr-auto sm:flex-1">
+          <p className="min-w-0 text-small leading-relaxed text-error sm:mr-auto sm:flex-1">
             {analysisBlockedReason}
           </p>
         ) : null}
@@ -238,7 +239,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
             >
               <span className="inline-flex items-center gap-1.5">
                 {generating ? (
-                  <Loader2 size={13} className="animate-spin" />
+                  <LoadingSpinner size="sm" />
                 ) : (
                   <Sparkles size={13} />
                 )}
@@ -251,10 +252,10 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
       <div className="mx-auto w-full max-w-5xl columns-1 gap-2 sm:columns-2">
         {summary || keywords.length > 0 ? (
           <section className={ANALYSIS_CARD_CLASS}>
-            <h3 className="mb-2 text-[11px] font-semibold text-book-text-main">摘要</h3>
+            <h3 className="mb-2 text-small font-semibold text-book-text-main">摘要</h3>
             {summary ? <p className="whitespace-pre-wrap leading-relaxed">{summary}</p> : null}
             {keywords.length > 0 ? (
-              <p className={`${summary ? "mt-2" : ""} text-[11px] text-book-text-muted`}>
+              <p className={`${summary ? "mt-2" : ""} text-small text-book-text-muted`}>
                 关键词：{keywords.join("、")}
               </p>
             ) : null}
@@ -263,7 +264,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
 
         {metadataRows.length > 0 ? (
           <section className={ANALYSIS_CARD_CLASS}>
-            <h3 className="mb-2 text-[11px] font-semibold text-book-text-main">章节要素</h3>
+            <h3 className="mb-2 text-small font-semibold text-book-text-main">章节要素</h3>
             <dl className="space-y-2">
               {metadataRows.map(({ label, value }) => (
                 <div key={label} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2 leading-relaxed">
@@ -277,7 +278,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
 
         {keyEvents.length > 0 ? (
           <section className={ANALYSIS_CARD_CLASS}>
-            <h3 className="mb-2 text-[11px] font-semibold text-book-text-main">关键事件</h3>
+            <h3 className="mb-2 text-small font-semibold text-book-text-main">关键事件</h3>
             <ul className="divide-y divide-book-border/35">
               {keyEvents.map((event, idx) => {
                 const desc = firstText(event, ["description", "summary", "event"]);
@@ -292,7 +293,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                   <li key={`${desc}-${idx}`} className="py-2 first:pt-0 last:pb-0">
                     <div className="font-medium leading-relaxed text-book-text-main">{desc}</div>
                     {detail ? (
-                      <div className="mt-0.5 text-[11px] text-book-text-muted">{detail}</div>
+                      <div className="mt-0.5 text-small text-book-text-muted">{detail}</div>
                     ) : null}
                   </li>
                 );
@@ -302,16 +303,16 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
         ) : null}
 
         <section className={ANALYSIS_CARD_CLASS}>
-          <h3 className="mb-2 text-[11px] font-semibold text-book-text-main">识别物体</h3>
+          <h3 className="mb-2 text-small font-semibold text-book-text-main">识别物体</h3>
           {objectProfilesLoading ? (
-            <div className="flex items-center gap-2 text-[11px] text-book-text-muted">
-              <Loader2 size={12} className="animate-spin" />
+            <div className="flex items-center gap-2 text-small text-book-text-muted">
+              <LoadingSpinner size="sm" />
               正在同步物体档案…
             </div>
           ) : objectProfilesError ? (
             <div>
-              <p className="text-[11px] text-error">物体档案暂时无法加载。</p>
-              <details className="mt-2 text-[10px] text-book-text-muted">
+              <p className="text-small text-error">物体档案暂时无法加载。</p>
+              <details className="mt-2 text-caption text-book-text-muted">
                 <summary className="w-fit cursor-pointer hover:text-book-text-main">诊断信息</summary>
                 <pre className="mt-1.5 whitespace-pre-wrap break-all rounded-lg bg-book-bg-tertiary/70 p-2 font-mono leading-relaxed">
                   {objectProfilesError}
@@ -323,7 +324,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
               {chapterObjects.slice(0, 8).map((item) => (
                 <li key={item.id} className="py-2 first:pt-0 last:pb-0">
                   <div className="font-medium text-book-text-main">{item.name}</div>
-                  <div className="mt-0.5 text-[11px] text-book-text-muted">
+                  <div className="mt-0.5 text-small text-book-text-muted">
                     {getObjectProfileImportanceLabel(item.importance)} ·{" "}
                     {getObjectProfileTypeLabel(item.object_type)}
                   </div>
@@ -336,13 +337,13 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
               ))}
             </ul>
           ) : (
-            <p className="text-[11px] text-book-text-muted">本章尚未同步出物体档案。</p>
+            <p className="text-small text-book-text-muted">本章尚未同步出物体档案。</p>
           )}
         </section>
 
         {stateRows.length > 0 ? (
           <section className={ANALYSIS_CARD_CLASS}>
-            <h3 className="mb-2 text-[11px] font-semibold text-book-text-main">角色状态</h3>
+            <h3 className="mb-2 text-small font-semibold text-book-text-main">角色状态</h3>
             <ul className="divide-y divide-book-border/35">
               {stateRows.map(({ name, data }) => {
                 const changes = analysisTextList(data.changes, { limit: 6 });
@@ -364,10 +365,10 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                     <div className="min-w-0">
                       {status && <div className="leading-relaxed">{status}</div>}
                       {context ? (
-                        <div className="mt-0.5 text-[11px] text-book-text-muted">{context}</div>
+                        <div className="mt-0.5 text-small text-book-text-muted">{context}</div>
                       ) : null}
                       {changes.length > 0 && (
-                        <div className="mt-1 text-[11px] leading-relaxed text-book-text-sub">
+                        <div className="mt-1 text-small leading-relaxed text-book-text-sub">
                           变化：{changes.join("；")}
                         </div>
                       )}
@@ -381,11 +382,11 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
 
         {hasForeshadowing ? (
           <section className={ANALYSIS_CARD_CLASS}>
-            <h3 className="mb-2 text-[11px] font-semibold text-book-text-main">伏笔</h3>
+            <h3 className="mb-2 text-small font-semibold text-book-text-main">伏笔</h3>
             <div className="space-y-3">
               {planted.length > 0 && (
                 <div>
-                  <div className="mb-1 text-[11px] text-book-text-muted">埋设</div>
+                  <div className="mb-1 text-small text-book-text-muted">埋设</div>
                   <ul className="divide-y divide-book-border/35">
                     {planted.map((item, idx) => {
                       const desc = firstText(item, ["description", "content"]);
@@ -403,7 +404,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                         <li key={`${desc}-${idx}`} className="py-2 first:pt-0 last:pb-0">
                           <div className="leading-relaxed text-book-text-main">{desc}</div>
                           {tags.length > 0 ? (
-                            <div className="mt-0.5 text-[11px] text-book-text-muted">
+                            <div className="mt-0.5 text-small text-book-text-muted">
                               {tags.join(" · ")}
                             </div>
                           ) : null}
@@ -415,7 +416,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
               )}
               {resolved.length > 0 && (
                 <div>
-                  <div className="mb-1 text-[11px] text-book-text-muted">回收</div>
+                  <div className="mb-1 text-small text-book-text-muted">回收</div>
                   <ul className="divide-y divide-book-border/35">
                     {resolved.map((item, idx) => {
                       const desc = firstText(item, ["resolution", "description", "content"]);
@@ -431,7 +432,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
               )}
               {tensions.length > 0 && (
                 <div>
-                  <div className="mb-1 text-[11px] text-book-text-muted">悬念</div>
+                  <div className="mb-1 text-small text-book-text-muted">悬念</div>
                   <ul className="divide-y divide-book-border/35">
                     {tensions.map((item) => (
                       <li key={item} className="py-2 leading-relaxed first:pt-0 last:pb-0">

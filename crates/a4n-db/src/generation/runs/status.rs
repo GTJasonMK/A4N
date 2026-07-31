@@ -35,6 +35,40 @@ pub async fn fail_runs_for_target(
     .await
 }
 
+pub async fn cancel_runs_for_target(
+    db: &DatabaseConnection,
+    target_table: &str,
+    target_id: i64,
+    message: String,
+) -> Result<Vec<generation_run::Model>, GenerationDbError> {
+    update_running_runs_for_target(
+        db,
+        target_table,
+        target_id,
+        RUN_STATUS_CANCELLED,
+        None,
+        Some(message),
+    )
+    .await
+}
+
+pub async fn interrupt_runs_for_target(
+    db: &DatabaseConnection,
+    target_table: &str,
+    target_id: i64,
+    message: String,
+) -> Result<Vec<generation_run::Model>, GenerationDbError> {
+    update_running_runs_for_target(
+        db,
+        target_table,
+        target_id,
+        RUN_STATUS_INTERRUPTED,
+        None,
+        Some(message),
+    )
+    .await
+}
+
 async fn update_running_runs_for_target(
     db: &DatabaseConnection,
     target_table: &str,
@@ -61,25 +95,56 @@ async fn update_running_runs_for_target(
         .collect::<BTreeSet<_>>();
     let runs = generation_run::Entity::find()
         .filter(generation_run::Column::Id.is_in(run_ids))
-        .filter(generation_run::Column::Status.eq(RUN_STATUS_RUNNING))
         .order_by_asc(generation_run::Column::CreatedAt)
+        .lock_exclusive()
         .all(&tx)
         .await?;
     let mut updated = Vec::with_capacity(runs.len());
     for run in runs {
-        updated.push(
-            update_generation_run_status(
-                &tx,
-                run.id,
-                status,
-                response_summary_json.clone(),
-                error_message.clone(),
-            )
-            .await?,
-        );
+        if should_update_target_run(&run.status, status)? {
+            updated.push(
+                update_generation_run_status(
+                    &tx,
+                    run.id,
+                    status,
+                    response_summary_json.clone(),
+                    error_message.clone(),
+                )
+                .await?,
+            );
+        } else {
+            updated.push(run);
+        }
     }
     tx.commit().await?;
     Ok(updated)
+}
+
+fn should_update_target_run(current: &str, target: &str) -> Result<bool, GenerationDbError> {
+    if current == RUN_STATUS_RUNNING {
+        return Ok(true);
+    }
+    if current == target {
+        return Ok(false);
+    }
+    Err(GenerationDbError::InvalidArgument(format!(
+        "生成运行终态冲突: current={current}, target={target}"
+    )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_update_target_run;
+
+    #[test]
+    fn target_run_transition_is_idempotent_but_rejects_other_terminal_status() {
+        assert_eq!(should_update_target_run("running", "cancelled").unwrap(), true);
+        assert_eq!(
+            should_update_target_run("cancelled", "cancelled").unwrap(),
+            false
+        );
+        assert!(should_update_target_run("completed", "cancelled").is_err());
+    }
 }
 
 pub(super) async fn update_generation_run_status<C>(

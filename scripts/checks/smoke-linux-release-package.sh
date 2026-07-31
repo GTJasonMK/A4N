@@ -23,7 +23,7 @@ export A4N_DATABASE_URL="${A4N_DATABASE_URL:-${A4N_TEST_DATABASE_URL:-}}"
     exit 2
 }
 
-for command_name in curl rg tar; do
+for command_name in curl rg ruby tar; do
     command -v "$command_name" >/dev/null 2>&1 || {
         printf 'missing command: %s\n' "$command_name" >&2
         exit 2
@@ -40,6 +40,9 @@ tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/a4n-release-smoke.XXXXXX")"
 install_root="$tmp_root/安装 前缀"
 launcher_log="$tmp_root/launcher.log"
 launcher_pid=""
+local_cli=""
+local_config=""
+local_server=""
 
 finish() {
     local status=$?
@@ -47,6 +50,9 @@ finish() {
     if [[ -n "$launcher_pid" ]] && kill -0 "$launcher_pid" 2>/dev/null; then
         kill -TERM "$launcher_pid" 2>/dev/null || true
         wait "$launcher_pid" 2>/dev/null || true
+    fi
+    if [[ -n "$local_cli" && -x "$local_cli" && -n "$local_config" && -n "$local_server" ]]; then
+        "$local_cli" --config "$local_config" --server "$local_server" local stop --force >/dev/null 2>&1 || true
     fi
     if [[ -n "${A4N_RELEASE_SMOKE_ARTIFACT_DIR:-}" ]]; then
         mkdir -p "$A4N_RELEASE_SMOKE_ARTIFACT_DIR"
@@ -86,6 +92,21 @@ package_root="${package_roots[0]}"
     printf 'release package is missing executable start.sh\n' >&2
     exit 1
 }
+for tool in a4n a4n-server a4n-migration; do
+    [[ -x "$package_root/bin/$tool" ]] || {
+        printf 'release package is missing executable tool: %s\n' "$tool" >&2
+        exit 1
+    }
+done
+local_cli="$package_root/bin/a4n"
+local_config="$tmp_root/cli.json"
+local_server="http://127.0.0.1:$((base_port + 8))"
+capabilities="$(cd "$tmp_root" && "$local_cli" --config "$local_config" --agent capabilities export)"
+ruby -rjson -e '
+  data = JSON.parse(STDIN.read).fetch("data")
+  commands = data.fetch("commands")
+  abort "capability manifest is inconsistent" unless data.fetch("total_commands") == data.fetch("matched_commands") && data.fetch("total_commands") == commands.length
+' <<<"$capabilities"
 
 modules=(prompt llm embedding rag image video import export)
 addr_envs=(
@@ -201,4 +222,22 @@ for url in "${urls[@]}"; do
     fi
 done
 
-printf 'linux release package smoke passed: host + 8 sidecars, logs, stale PID, cleanup, non-ASCII path\n'
+(
+    cd "$tmp_root"
+    "$local_cli" --config "$local_config" --server "$local_server" --agent local start --no-qdrant
+    "$local_cli" --config "$local_config" --server "$local_server" --agent health
+    "$local_cli" --config "$local_config" --server "$local_server" --agent capabilities check
+    "$local_cli" --config "$local_config" --server "$local_server" --agent local stop
+) >>"$launcher_log" 2>&1
+for url in "${urls[@]}"; do
+    if curl -fsS --max-time 1 "$url/healthz" >/dev/null 2>&1; then
+        printf 'local managed sidecar survived local stop: %s\n' "$url" >&2
+        exit 1
+    fi
+done
+if curl -sS --max-time 1 "$local_server/api/health" >/dev/null 2>&1; then
+    printf 'local Server port survived local stop: %s\n' "$local_server" >&2
+    exit 1
+fi
+
+printf 'linux release package smoke passed: host + CLI tools + local Server + 8 sidecars, logs, stale PID, cleanup, non-ASCII path\n'

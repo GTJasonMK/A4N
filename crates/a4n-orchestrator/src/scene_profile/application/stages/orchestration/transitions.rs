@@ -10,7 +10,8 @@ use super::super::super::progress::{
     SCENE_TRANSITION_PROGRESS_FIELDS, SceneProfileSyncProgress, scene_stage_progress_spec,
 };
 use super::super::super::types::{
-    SCENE_TRANSITION_MOVEMENT_TYPE_RULE, SCENE_TRANSITION_PROMPT, SceneProfileSyncRequestContext,
+    SCENE_TRANSITION_MOVEMENT_TYPE_RULE, SCENE_TRANSITION_PROMPT, SCENE_TRANSITION_REFERENCE_RULE,
+    SceneProfileSyncRequestContext,
 };
 use super::super::execution::run_scene_profile_stage_with_checkpoint;
 use super::super::request::{
@@ -41,7 +42,7 @@ pub(super) async fn run(
             "required_root_field": "transitions",
             "strict_rules": [
                 "只返回 transitions 数组，不要输出 scenes、occurrences 或 entity_states",
-                "to_scene_ref/from_scene_ref 必须来自 input.previous_stages.scenes[].scene_ref 或 null",
+                SCENE_TRANSITION_REFERENCE_RULE,
                 "occurrence_ref 必须来自 input.previous_stages.occurrences[].occurrence_ref 或 null",
                 SCENE_TRANSITION_MOVEMENT_TYPE_RULE,
                 "source_anchor_ids 必须来自 input.text_anchors[].id"

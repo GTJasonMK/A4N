@@ -1,7 +1,7 @@
 //! 内部事件日志订阅。
 
-pub(super) async fn spawn_event_logger(state: &a4n_runtime::AppState) {
-    let mut rx = state.subscribe_internal_events().await;
+pub(super) fn spawn_event_logger(state: &a4n_runtime::AppState) {
+    let mut rx = state.subscribe_internal_events();
     tokio::spawn(async move {
         loop {
             match rx.recv().await {

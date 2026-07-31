@@ -107,6 +107,7 @@ impl OrchestratorContext {
         let Some(run) = self
             .workflow_run_models(ListWorkflowRunsInput {
                 project_id: Some(project_id),
+                chapter_id: None,
                 workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
                 status: None,
                 resumable_only: None,

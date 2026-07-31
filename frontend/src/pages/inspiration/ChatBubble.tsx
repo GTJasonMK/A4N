@@ -1,5 +1,6 @@
 import React from "react";
-import { AlertTriangle, ArrowRight, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import type { Message, MessageOption } from "./shared";
 
 interface ChatBubbleProps {
@@ -37,7 +38,7 @@ const OptionCard: React.FC<{
       <div className="flex items-start gap-2">
         <ArrowRight size={12} className="mt-0.5 shrink-0 text-book-accent" />
         <div className="min-w-0">
-          <div className="text-[13px] font-semibold leading-snug tracking-tight">{option.label}</div>
+          <div className="text-body font-semibold leading-snug tracking-tight">{option.label}</div>
           {option.description && (
             <div className="mt-1 text-xs leading-relaxed text-book-text-muted">
               {option.description}
@@ -48,7 +49,7 @@ const OptionCard: React.FC<{
               {option.keyElements.map((item) => (
                 <span
                   key={item}
-                  className="rounded-full bg-book-bg-tertiary px-2 py-0.5 text-[11px] text-book-text-muted"
+                  className="rounded-full bg-book-bg-tertiary px-2 py-0.5 text-small text-book-text-muted"
                 >
                   {item}
                 </span>
@@ -73,7 +74,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
 
   if (isSystem) {
     return (
-      <div className="self-center text-[11px] text-book-text-muted bg-book-bg-tertiary/80 rounded-full px-3 py-1">
+      <div className="self-center text-small text-book-text-muted bg-book-bg-tertiary/80 rounded-full px-3 py-1">
         {message.content}
       </div>
     );
@@ -89,7 +90,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
     <div className={`flex flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
       <div className="max-w-[80%]">
         <div
-          className={`text-[11px] font-semibold mb-1 px-1 ${
+          className={`text-small font-semibold mb-1 px-1 ${
             isUser ? "text-book-primary" : "text-book-text-muted"
           }`}
           style={{ letterSpacing: "0.04em" }}
@@ -97,11 +98,12 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
           {isUser ? "你" : "创作助手"}
         </div>
         <div
-          className={`px-4 py-3 text-[15px] leading-relaxed whitespace-pre-wrap break-words tracking-tight ${
+          className={`px-4 py-3 text-body-lg leading-relaxed whitespace-pre-wrap break-words tracking-tight ${
             isUser
               ? "rounded-[18px] rounded-br-md bg-book-primary text-[rgb(var(--color-button-text))] shadow-sm"
               : "rounded-[18px] rounded-bl-md border border-book-border/45 bg-book-bg-paper/65 text-book-text-main"
           }`}
+          role={message.streaming ? "status" : undefined}
         >
           {message.consistencyWarning ? (
             <div className="mb-2 flex items-start gap-1.5 border-b border-book-border/50 pb-2 text-xs font-medium text-danger">
@@ -118,7 +120,12 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
                   : "inline-flex items-center gap-1 text-book-text-muted ml-1"
               }
             >
-              {!message.content && <Loader2 size={10} className="animate-spin" />}
+              {!message.content && (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span>正在整理你的灵感…</span>
+                </>
+              )}
             </span>
           )}
         </div>

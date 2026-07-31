@@ -32,7 +32,7 @@ export interface DailyCallMetric {
   llm_prompt_cache_miss_tokens: number;
 }
 
-export interface LlmWorkflowMetric {
+interface LlmWorkflowMetric {
   workflow: string;
   step_key: string;
   calls: number;
@@ -45,7 +45,7 @@ export interface LlmWorkflowMetric {
   avg_duration_ms: number | null;
 }
 
-export interface MediaWorkflowMetric {
+interface MediaWorkflowMetric {
   kind: GenerationCallKind;
   workflow: string;
   step_key: string;

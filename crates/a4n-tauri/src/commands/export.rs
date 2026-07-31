@@ -21,6 +21,7 @@ macro_rules! tauri_export_read_command {
             let $scope = $scope_expr;
             let progress = crate::progress_task::WorkflowProgressTask::new(
                 $state.inner(),
+                Some($user_id),
                 task_id,
                 a4n_core::event::channel::TaskKind::ExportGeneration,
                 Some($scope.project_id),
@@ -55,6 +56,7 @@ macro_rules! tauri_export_read_command {
             let $scope = $scope_expr;
             let progress = crate::progress_task::WorkflowProgressTask::new(
                 $state.inner(),
+                Some($user_id),
                 task_id,
                 a4n_core::event::channel::TaskKind::ExportGeneration,
                 Some($scope.project_id),
@@ -93,6 +95,7 @@ macro_rules! tauri_export_progress_command {
             let $scope = $scope_expr;
             let progress_task = crate::progress_task::WorkflowProgressTask::new(
                 $state.inner(),
+                Some($user_id),
                 task_id,
                 a4n_core::event::channel::TaskKind::ExportGeneration,
                 Some($scope.project_id),

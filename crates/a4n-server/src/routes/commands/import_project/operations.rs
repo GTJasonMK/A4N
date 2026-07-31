@@ -7,9 +7,10 @@ use serde_json::{Value, json};
 
 pub(in crate::routes::commands) async fn get_storage_paths(
     state: &ServerState,
-    _user_id: i64,
+    user_id: i64,
     _args: &Value,
 ) -> Result<Value, ApiError> {
+    logging_actions::ensure_log_diagnostics_admin(state.runtime(), user_id).await?;
     to_value(storage_paths_actions::get_storage_paths(state.runtime()))
 }
 

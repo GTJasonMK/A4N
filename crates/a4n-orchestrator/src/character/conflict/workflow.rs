@@ -18,6 +18,7 @@ pub(super) fn character_conflict_workflow_run_input(
     chapter_scope: CharacterConflictChapterScope,
     call_key: &str,
     request: &ChatRequest,
+    active_task_id: Option<&str>,
 ) -> Result<(UpsertWorkflowRunInput, Value), AppError> {
     if project_id <= 0 {
         return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
@@ -49,7 +50,7 @@ pub(super) fn character_conflict_workflow_run_input(
             input_fingerprint_json: Some(fingerprint.clone()),
             status: WORKFLOW_STATUS_RUNNING.to_string(),
             current_step_key: Some(call_key.to_string()),
-            active_task_id: None,
+            active_task_id: active_task_id.map(str::to_string),
             can_resume: true,
             resume_block_reason: None,
             error_message: None,

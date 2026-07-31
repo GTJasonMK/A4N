@@ -25,8 +25,7 @@ interface UseVideoImageActionsParams {
   images: GeneratedImage[];
   actionScopeKey: string | null;
   setImages: Dispatch<SetStateAction<GeneratedImage[]>>;
-  setReferenceIds: Dispatch<SetStateAction<number[]>>;
-  setVideoLibraryImageIds: Dispatch<SetStateAction<number[]>>;
+  loadAll: () => Promise<void>;
 }
 
 export const useVideoImageActions = ({
@@ -34,8 +33,7 @@ export const useVideoImageActions = ({
   images,
   actionScopeKey,
   setImages,
-  setReferenceIds,
-  setVideoLibraryImageIds,
+  loadAll,
 }: UseVideoImageActionsParams) => {
   const [imageDetails, setImageDetails] = useState<GeneratedImage | null>(null);
   const [imageBusyId, setImageBusyId] = useState<number | null>(null);
@@ -153,9 +151,8 @@ export const useVideoImageActions = ({
       try {
         await deleteImage(image.id);
         if (!isCurrentActionScope(requestScope)) return;
-        setImages((prev) => prev.filter((item) => item.id !== image.id));
-        setReferenceIds((prev) => prev.filter((id) => id !== image.id));
-        setVideoLibraryImageIds((prev) => prev.filter((id) => id !== image.id));
+        await loadAll();
+        if (!isCurrentActionScope(requestScope)) return;
         setImageDetails(null);
         addToast("已删除", "success");
       } catch (err) {
@@ -169,9 +166,7 @@ export const useVideoImageActions = ({
       actionScopeKey,
       addToast,
       isCurrentActionScope,
-      setImages,
-      setReferenceIds,
-      setVideoLibraryImageIds,
+      loadAll,
     ],
   );
 

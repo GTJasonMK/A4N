@@ -13,6 +13,8 @@ pub(crate) struct VideoProviderPayload {
     pub(crate) provider_options_json: Option<Value>,
     #[serde(default)]
     pub(crate) provider_idempotency_key_sha256: Option<String>,
+    #[serde(default)]
+    pub(crate) project_id: Option<i64>,
     pub(crate) request: VideoGenerationRequest,
 }
 
@@ -74,6 +76,31 @@ pub(crate) enum VideoDeleteOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn video_provider_payload_accepts_project_scope() {
+        let payload = serde_json::from_value::<VideoProviderPayload>(serde_json::json!({
+            "backend": "openai-compatible-video",
+            "base_url": "http://127.0.0.1:1",
+            "project_id": 42,
+            "request": {
+                "prompt": "test prompt",
+                "negative_prompt": null,
+                "width": 640,
+                "height": 360,
+                "duration_secs": 6,
+                "fps": 24,
+                "model": "test-model",
+                "first_frame_image_url": null,
+                "last_frame_image_url": null,
+                "reference_image_urls": [],
+                "reference_media": null
+            }
+        }))
+        .expect("runtime video payload project scope must deserialize");
+
+        assert_eq!(payload.project_id, Some(42));
+    }
 
     #[test]
     fn video_payload_rejects_unknown_fields() {

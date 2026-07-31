@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { AlertCircle, Check, CheckCircle2, Edit3, Eye, Loader2, Trash2, X, Zap } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, Edit3, Eye, Trash2, X, Zap } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { formatConfigTestTime } from "./testResultUtils";
@@ -103,7 +104,7 @@ export function ConfigEditorPanel<C>({
                 {creating ? `新建 ${title}` : `编辑 ${title}`}
               </h3>
               {selectedItem ? (
-                <div className={`mt-0.5 text-[11px] ${selectedItem.isActive ? "text-success" : "text-book-text-muted"}`}>
+                <div className={`mt-0.5 text-small ${selectedItem.isActive ? "text-success" : "text-book-text-muted"}`}>
                   {selectedItem.isActive ? "当前已启用" : "当前未启用"}
                 </div>
               ) : null}
@@ -168,7 +169,7 @@ export function ConfigEditorPanel<C>({
           {!selectedItem?.readonly ? (
             <div className="mt-3 flex shrink-0 flex-col gap-2 border-t border-book-border/60 pt-3 sm:flex-row sm:items-center">
               {dirty && validationError ? (
-                <div role="status" className="min-w-0 flex-1 text-[11px] leading-relaxed text-warning">
+                <div role="status" className="min-w-0 flex-1 text-small leading-relaxed text-warning">
                   {validationError}
                 </div>
               ) : (
@@ -181,7 +182,7 @@ export function ConfigEditorPanel<C>({
               >
                 {saving ? (
                   <span className="inline-flex items-center gap-2">
-                    <Loader2 size={14} className="animate-spin" /> 保存中…
+                    <LoadingSpinner size="sm" /> 保存中…
                   </span>
                 ) : creating ? (
                   "创建"
@@ -212,7 +213,7 @@ const ConnectionTestStatus = <C,>({
   if (running) {
     return (
       <div className="mb-4 flex items-center gap-2 rounded border border-book-primary/45 bg-book-primary/5 px-3 py-2 text-xs text-book-primary" role="status" aria-live="polite">
-        <Loader2 size={13} className="animate-spin" />
+        <LoadingSpinner size="sm" />
         <span>正在测试当前已保存配置…</span>
       </div>
     );
@@ -319,9 +320,9 @@ function ConfigEditorActions<C>({
   return (
     <div className="flex min-h-8 items-center justify-end">
       {testing === selectedItem.id || previewing || activating === selectedItem.id ? (
-        <Loader2 size={13} className="animate-spin text-book-text-muted" />
+        <LoadingSpinner size="sm" className="text-book-text-muted" />
       ) : deleting === selectedItem.id ? (
-        <Loader2 size={13} className="animate-spin text-error" />
+        <LoadingSpinner size="sm" className="text-error" />
       ) : moreItems.length > 0 ? (
         <Dropdown items={moreItems} />
       ) : null}

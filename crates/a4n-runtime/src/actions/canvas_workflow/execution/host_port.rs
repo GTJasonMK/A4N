@@ -10,15 +10,11 @@ use crate::{
         canvas_workflow::{
             CanvasRunSummary,
             media_nodes::{
-                run_canvas_assemble_node, run_canvas_extract_frame_node,
-                run_canvas_generate_image_node, run_canvas_generate_video_node,
-                run_canvas_trim_video_node,
+                run_canvas_editing_node, run_canvas_generate_image_node,
+                run_canvas_generate_video_node,
             },
             node_lifecycle::CanvasRunHandle,
-            output_nodes::{
-                run_canvas_audio_output_node, run_canvas_export_video_node,
-                run_canvas_image_output_node, run_canvas_text_output_node,
-            },
+            output_nodes::run_canvas_output_node,
             probe_node::run_canvas_probe_node,
             text_nodes::{run_canvas_llm_text_node, run_canvas_render_text_node},
         },
@@ -100,34 +96,10 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                 )
                 .await
             }
-            CanvasGraphNodeExecutionKind::ExtractFrame => {
-                run_canvas_extract_frame_node(
-                    self.state,
-                    input.user_id,
-                    input.project_id,
-                    input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
-                )
-                .await
-            }
-            CanvasGraphNodeExecutionKind::TrimVideo => {
-                run_canvas_trim_video_node(
-                    self.state,
-                    input.user_id,
-                    input.project_id,
-                    input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
-                )
-                .await
-            }
-            CanvasGraphNodeExecutionKind::AssembleVideo => {
-                run_canvas_assemble_node(
+            CanvasGraphNodeExecutionKind::ExtractFrame
+            | CanvasGraphNodeExecutionKind::TrimVideo
+            | CanvasGraphNodeExecutionKind::AssembleVideo => {
+                run_canvas_editing_node(
                     self.state,
                     input.user_id,
                     input.project_id,
@@ -151,44 +123,11 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                 )
                 .await
             }
-            CanvasGraphNodeExecutionKind::TextOutput => {
-                run_canvas_text_output_node(
-                    &self.state.canvas(),
-                    input.project_id,
-                    input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
-                )
-                .await
-            }
-            CanvasGraphNodeExecutionKind::ImageOutput => {
-                run_canvas_image_output_node(
-                    &self.state.canvas(),
-                    input.project_id,
-                    input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
-                )
-                .await
-            }
-            CanvasGraphNodeExecutionKind::VideoOutput => {
-                run_canvas_export_video_node(
-                    &self.state.canvas(),
-                    input.project_id,
-                    input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
-                )
-                .await
-            }
-            CanvasGraphNodeExecutionKind::AudioOutput => {
-                run_canvas_audio_output_node(
+            CanvasGraphNodeExecutionKind::TextOutput
+            | CanvasGraphNodeExecutionKind::ImageOutput
+            | CanvasGraphNodeExecutionKind::VideoOutput
+            | CanvasGraphNodeExecutionKind::AudioOutput => {
+                run_canvas_output_node(
                     &self.state.canvas(),
                     input.project_id,
                     input.graph_id,

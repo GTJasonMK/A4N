@@ -7,8 +7,10 @@ use a4n_core::{
 use a4n_prompt::rendering::PromptRenderer;
 use serde::{Deserialize, Serialize};
 
-use crate::workflow::WorkflowRunFinalizeOutcome;
-use crate::{OrchestratorContext, collaboration::ProjectAccessRole, project::required_text};
+use crate::{
+    OrchestratorContext, collaboration::ProjectAccessRole, project::required_text,
+    shooting_script::ChapterShootingScriptSourceInput,
+};
 
 use super::{
     MANGA_PAGE_PROMPT_TYPE, MangaGeneratePanelsInput, MangaPipelineRequestPreviewInput,
@@ -94,7 +96,14 @@ impl OrchestratorContext {
         let source = self
             .chapter_manga_source_by_number(project_id, chapter_number, true)
             .await?;
-        ensure_manga_source_can_write(&source, "启动漫画流水线")
+        ensure_manga_source_can_write(&source, "启动漫画流水线")?;
+        self.ensure_media_workflow_v2_ready(project_id).await?;
+        self.require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
+            project_id,
+            source_chapter_id: source.chapter_id,
+        })
+        .await?;
+        Ok(())
     }
 
     pub async fn run_manga_pipeline_validated(
@@ -130,24 +139,8 @@ impl OrchestratorContext {
                 start_from_stage: input.start_from_stage,
             })
             .await;
-        let outcome = match &result {
-            Ok(_) => WorkflowRunFinalizeOutcome::Completed,
-            Err(AppError::Cancelled) => WorkflowRunFinalizeOutcome::Cancelled,
-            Err(_) => WorkflowRunFinalizeOutcome::Failed,
-        };
-        let error_message = result.as_ref().err().map(ToString::to_string);
-        let finalized = self
-            .finalize_workflow_run_outcome_validated(workflow.id, outcome, error_message.as_deref())
-            .await;
-        match (result, finalized) {
-            (Ok(panels), Ok(_)) => Ok(panels),
-            (Ok(_), Err(status_error)) => Err(status_error),
-            (Err(error), Ok(_)) => Err(error),
-            (Err(error), Err(status_error)) => Err(AppError::InvalidState {
-                current: error.to_string(),
-                operation: format!("漫画流水线失败，且 workflow 终态写入失败: {status_error}"),
-            }),
-        }
+        self.finalize_workflow_outcome_result(workflow.id, result, "漫画流水线")
+            .await
     }
 
     pub async fn prepare_manga_pipeline_preview_validated(

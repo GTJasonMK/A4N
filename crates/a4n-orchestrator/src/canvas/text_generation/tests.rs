@@ -25,7 +25,7 @@ use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 use super::{
     CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort, CanvasTextNodeExecutionInput,
     build_canvas_llm_text_input_for_preview, build_canvas_rendered_prompt_for_preview,
-    execution::validate_restored_checkpoint_for_test,
+    execution::{map_canvas_llm_error, validate_restored_checkpoint_for_test},
 };
 
 struct TestLlmPort {
@@ -66,9 +66,7 @@ impl CanvasTextGenerationLlmPort for TestLlmPort {
         _input: CanvasTextGenerationLlmCall,
     ) -> Result<ChatResponse, AppError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        self.result
-            .clone()
-            .map_err(|message| AppError::LlmError(message))
+        self.result.clone().map_err(AppError::LlmError)
     }
 }
 
@@ -234,6 +232,18 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
     assert!(llm_input.user_prompt.contains("雨夜追逐"));
     assert_eq!(rendered.prompt_kind, "video_prompt");
     assert_eq!(rendered.prompt_text, "模板 雨夜追逐");
+}
+
+#[test]
+fn canvas_llm_error_mapping_preserves_cancellation() {
+    assert!(matches!(
+        map_canvas_llm_error(AppError::Cancelled),
+        AppError::Cancelled
+    ));
+    assert!(matches!(
+        map_canvas_llm_error(AppError::LlmError("provider unavailable".to_string())),
+        AppError::LlmError(message) if message.contains("provider unavailable")
+    ));
 }
 
 #[test]

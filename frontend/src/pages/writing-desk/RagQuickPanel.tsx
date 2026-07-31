@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
   ragEnhancedSearch,
@@ -133,7 +133,7 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
 
   return (
     <div className="space-y-2">
-      <label className="block text-[11px] text-book-text-muted">
+      <label className="block text-small text-book-text-muted">
         查询
         <textarea
           value={query}
@@ -158,7 +158,7 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
         >
           {busy ? (
             <span className="inline-flex items-center gap-1">
-              <Loader2 size={11} className="animate-spin" /> 查询中…
+              <LoadingSpinner size="sm" /> 查询中…
             </span>
           ) : (
             "检索"
@@ -167,18 +167,18 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
       </div>
       {results != null && (
         <div className="mt-2 space-y-2 border-t border-book-border/40 pt-2">
-          <div className="text-[10px] text-book-text-muted">{results.length} 条结果</div>
+          <div className="text-caption text-book-text-muted">{results.length} 条结果</div>
           {results.length === 0 ? (
-            <div className="py-4 text-center text-[11px] text-book-text-muted">没有找到相关资料。</div>
+            <div className="py-4 text-center text-small text-book-text-muted">没有找到相关资料。</div>
           ) : (
             <ul className="grid grid-cols-1 gap-2">
               {results.map((result, index) => (
-                <li key={result.id} className="a4n-flat-surface p-2.5 text-[11px]">
+                <li key={result.id} className="a4n-flat-surface p-2.5 text-small">
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate font-medium text-book-text-main">
                       {searchResultTitle(result, index)}
                     </span>
-                    <span className="shrink-0 text-[10px] text-book-text-muted">
+                    <span className="shrink-0 text-caption text-book-text-muted">
                       相关度 {result.score.toFixed(2)}
                     </span>
                   </div>
@@ -188,7 +188,7 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
             </ul>
           )}
           {queries.length > 0 || candidateCount > 0 ? (
-            <details className="text-[10px] text-book-text-muted">
+            <details className="text-caption text-book-text-muted">
               <summary className="w-fit cursor-pointer hover:text-book-text-main">检索范围</summary>
               <div className="mt-1.5 space-y-1 border-l-2 border-book-border/60 pl-2">
                 {candidateCount > 0 ? <div>候选资料 {candidateCount} 条</div> : null}

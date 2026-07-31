@@ -1,3 +1,4 @@
+use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 use a4n_core::{error::AppError, source_spans::source_text_hash as source_content_sha256};
 use serde_json::{Value, json};
 
@@ -73,4 +74,55 @@ pub(crate) fn video_execution_chain_identity(
         "duration_secs": duration_secs,
         "aspect_ratio": aspect_ratio,
     }))
+}
+
+pub(in crate::video) fn video_segment_execution_identity(
+    mut identity: Value,
+    segment_plan_prompt_id: Option<i64>,
+    recipe: Option<&VideoSegmentExecutionRecipeV1>,
+) -> Result<Value, AppError> {
+    video_segment_execution_identity_with(
+        &mut identity,
+        segment_plan_prompt_id,
+        recipe,
+        VideoSegmentExecutionRecipeV1::generation_fingerprint,
+    )?;
+    Ok(identity)
+}
+
+pub(in crate::video) fn video_segment_frame_execution_identity(
+    mut identity: Value,
+    segment_plan_prompt_id: Option<i64>,
+    recipe: Option<&VideoSegmentExecutionRecipeV1>,
+) -> Result<Value, AppError> {
+    video_segment_execution_identity_with(
+        &mut identity,
+        segment_plan_prompt_id,
+        recipe,
+        VideoSegmentExecutionRecipeV1::frame_generation_fingerprint,
+    )?;
+    Ok(identity)
+}
+
+fn video_segment_execution_identity_with(
+    identity: &mut Value,
+    segment_plan_prompt_id: Option<i64>,
+    recipe: Option<&VideoSegmentExecutionRecipeV1>,
+    fingerprint: fn(&VideoSegmentExecutionRecipeV1) -> Result<String, String>,
+) -> Result<(), AppError> {
+    let plan_id = segment_plan_prompt_id.ok_or_else(|| {
+        AppError::InvalidArgument("片段执行缺少 segment_plan_prompt_id".to_string())
+    })?;
+    let recipe = recipe
+        .ok_or_else(|| AppError::InvalidArgument("片段执行缺少 segment_recipe".to_string()))?;
+    let object = identity
+        .as_object_mut()
+        .ok_or_else(|| AppError::InvalidArgument("视频执行身份必须是 JSON 对象".to_string()))?;
+    object.insert("segment_plan_prompt_id".to_string(), json!(plan_id));
+    object.insert("segment_number".to_string(), json!(recipe.segment_number));
+    object.insert(
+        "segment_recipe_fingerprint".to_string(),
+        json!(fingerprint(recipe).map_err(AppError::InvalidArgument)?),
+    );
+    Ok(())
 }

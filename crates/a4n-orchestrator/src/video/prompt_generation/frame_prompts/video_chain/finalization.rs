@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 use serde_json::Value;
 
 use a4n_core::prompt_language::metadata_matches_prompt_output_language;
@@ -22,6 +23,8 @@ pub(super) struct VideoPromptFinalizationInput<'a> {
     pub chapter_id: i64,
     pub style: &'a str,
     pub prompt_output_language: PromptOutputLanguage,
+    pub segment_plan_prompt_id: i64,
+    pub segment_recipe: &'a VideoSegmentExecutionRecipeV1,
     pub source_metadata: &'a Value,
     pub segment_by_number: &'a HashMap<i32, &'a VideoSegmentPlan>,
     pub video_unit_by_number: &'a HashMap<i32, VideoUnitPlan>,
@@ -51,6 +54,8 @@ pub(super) async fn finalize_video_prompt_chain(
         chapter_id,
         style,
         prompt_output_language,
+        segment_plan_prompt_id,
+        segment_recipe,
         source_metadata,
         segment_by_number,
         video_unit_by_number,
@@ -99,7 +104,10 @@ pub(super) async fn finalize_video_prompt_chain(
         execution_identity,
         video_prompts,
         preserved_generated_reused_shots,
-    })?;
+    })?
+    .into_iter()
+    .map(|draft| draft.with_segment_recipe_metadata(segment_plan_prompt_id, segment_recipe))
+    .collect::<Result<Vec<_>, _>>()?;
     let video_drafts =
         generated_video_prompt_traces
             .iter()
@@ -120,6 +128,7 @@ pub(super) async fn finalize_video_prompt_chain(
             spec.workflow_mode,
             video_segment_plan,
             prompt_output_language,
+            execution_identity,
         )
         .await?
     } else {
@@ -131,6 +140,7 @@ pub(super) async fn finalize_video_prompt_chain(
             spec.workflow_mode,
             video_segment_plan,
             prompt_output_language,
+            execution_identity,
         )
         .await?
     };
@@ -182,7 +192,10 @@ fn no_new_video_prompt_progress_error(
     let total_count = all_video_units.len();
     let unit_number = next_unit.unit_number;
     match spec.workflow_mode {
-        PromptWorkflowMode::BoundaryFrames | PromptWorkflowMode::ChatVideo => {
+        PromptWorkflowMode::SharedSegmentPlan => {
+            AppError::InvalidArgument("共享片段规划没有卡片最终提示词输入".to_string())
+        }
+        PromptWorkflowMode::BoundaryFrames => {
             let start_frame = next_unit.start_frame_number;
             let end_frame = next_unit.end_frame_number;
             let mut missing = Vec::new();
@@ -213,6 +226,10 @@ fn no_new_video_prompt_progress_error(
                 spec.incomplete_frame_label
             ))
         }
+        PromptWorkflowMode::ChatVideo => AppError::InvalidArgument(format!(
+            "{}未生成新内容：已完成/可复用 {completed_count}/{total_count} 个视频单元；下一条视频提示词 #{} 不依赖系统帧，请刷新后重试或重新生成当前片段。",
+            spec.video_prompt_label, unit_number
+        )),
         PromptWorkflowMode::FirstFrameChain => AppError::InvalidArgument(format!(
             "当前章节{}不足，无法继续生成{}：已完成/可复用 {completed_count}/{total_count} 个视频单元；下一条视频提示词 #{} 缺少可承接的首帧输入。请先生成或补齐{}。",
             spec.incomplete_frame_label,
@@ -252,6 +269,7 @@ async fn video_prompt_result_rows(
     workflow_mode: PromptWorkflowMode,
     segment_plan: &[VideoSegmentPlan],
     prompt_output_language: PromptOutputLanguage,
+    execution_identity: &Value,
 ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
     let segment_shots = segment_plan
         .iter()
@@ -267,6 +285,12 @@ async fn video_prompt_result_rows(
                     row.metadata_json.as_ref(),
                     prompt_output_language,
                 )
+            })
+            .filter(|row| {
+                row.metadata_json
+                    .as_ref()
+                    .and_then(|metadata| metadata.get("video_execution_identity"))
+                    == Some(execution_identity)
             })
             .collect::<Vec<_>>(),
     )

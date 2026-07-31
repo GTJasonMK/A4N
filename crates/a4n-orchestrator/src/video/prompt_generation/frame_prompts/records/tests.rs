@@ -201,13 +201,35 @@ fn storyboard_prompts_require_frame_prompt_panel_markers() {
     frame.storyboard_panels = vec![storyboard_panel(1), storyboard_panel(2)];
     frame.frame_prompt = "第 1 格：建立起始状态。第二格表现核心动作。".to_string();
 
-    let err = validate_storyboard_prompts(&[frame], &[segment], &HashSet::new())
+    let err = validate_storyboard_prompt(&frame, &[segment], &HashSet::new())
         .expect_err("missing panel marker should fail");
 
     assert!(
         matches!(&err, AppError::InvalidArgument(message) if message.contains("缺少第 2 格标记")),
         "unexpected error: {err}"
     );
+}
+
+#[test]
+fn targeted_storyboard_prompt_uses_target_content_segment_after_action_bridge() {
+    let mut first = segment(1);
+    first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
+        transition_type: "match_cut".to_string(),
+        editing_mode: a4n_core::shooting_script::ShootingEditingModeV1::Continuity,
+        preserved_action: Some("角色推门动作连续完成".to_string()),
+        preserved_sound: None,
+        required_cut_point: None,
+    });
+    let plan = vec![first, segment(2)];
+    let unit =
+        super::super::video_unit_for_target_segment(&plan, 6, 2).expect("target storyboard unit");
+    let mut frame = frame(2);
+    frame.segment_numbers = vec![2];
+    frame.storyboard_panels = vec![storyboard_panel(1), storyboard_panel(2)];
+    frame.frame_prompt = "第 1 格：建立起始状态。\n第 2 格：表现核心动作。".to_string();
+
+    validate_storyboard_prompt_for_unit(&frame, &plan, &unit, &HashSet::new())
+        .expect("target segment 2 must not be mistaken for the preceding action bridge");
 }
 
 #[test]
@@ -266,4 +288,45 @@ fn first_frame_video_prompt_drafts_reject_missing_initial_first_frame() {
     ));
 
     assert!(message.contains("缺少初始首帧 #1"));
+}
+
+#[test]
+fn first_frame_video_prompt_drafts_allow_later_target_without_initial_first_frame() {
+    let segment = segment(2);
+    let mut segments = HashMap::new();
+    segments.insert(2, &segment);
+    let mut video_units = HashMap::new();
+    video_units.insert(
+        2,
+        super::super::video_unit_for_target_segment(
+            std::slice::from_ref(&segment),
+            segment.duration_secs,
+            2,
+        )
+        .expect("target unit"),
+    );
+
+    let source_metadata = test_metadata();
+    let available_assets = json!({});
+    let generation_asset_fingerprint = json!({"schema_version": 1});
+    let drafts = first_frame_video_prompt_drafts(FirstFrameVideoPromptDraftsInput {
+        common: test_common_input(
+            &source_metadata,
+            &available_assets,
+            &generation_asset_fingerprint,
+        ),
+        source_prompt_type: "frame_segment_plan",
+        segment_by_number: &segments,
+        video_unit_by_number: &video_units,
+        first_frame_by_number: &HashMap::new(),
+        video_prompts: &[shot(2)],
+    })
+    .expect("later continuity target must not require the chapter's initial system frame");
+
+    assert_eq!(drafts.len(), 1);
+    assert!(drafts[0].matches_identity(
+        crate::video::prompt_store::PromptWorkflowMode::FirstFrameChain,
+        "video_prompt",
+        2,
+    ));
 }

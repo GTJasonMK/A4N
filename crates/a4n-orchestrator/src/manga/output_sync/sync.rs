@@ -48,20 +48,17 @@ impl OrchestratorContext {
         .await
         .map_err(manga_pipeline_db_error)?;
 
-        for (row, (_, traces)) in rows.iter().zip(sync_drafts.into_iter()) {
+        for (row, (_, traces)) in rows.iter().zip(sync_drafts) {
             for trace in traces {
                 trace_bindings.push((row.clone(), trace));
             }
         }
         for (row, trace) in trace_bindings {
-            self.record_chapter_manga_prompt_generation_run(
-                self.database.connection(),
-                &row,
-                trace,
-            )
-            .await?;
+            self.record_chapter_manga_prompt_generation_run(&row, trace)
+                .await?;
         }
-        self.sync_project_asset_lineage(project_id).await?;
+        self.sync_project_asset_lineage_after_commit(project_id, "同步漫画输出资产谱系")
+            .await;
         Ok(rows)
     }
 }

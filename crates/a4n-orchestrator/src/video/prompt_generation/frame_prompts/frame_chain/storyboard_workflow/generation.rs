@@ -13,7 +13,8 @@ use crate::video::prompt_generation::ProgressSpan;
 use crate::video::prompt_generation::frame_prompts::{
     FramePromptGenerationSpec, NewChapterVideoPrompt, StoryboardPromptDraftsInput,
     VideoPromptDraftCommonInput, VideoUnitPlan, attach_generation_trace_to_draft,
-    report_video_prompt_progress, storyboard_prompt_drafts, validate_storyboard_prompts,
+    report_video_prompt_item_committed, report_video_prompt_progress, storyboard_prompt_drafts,
+    validate_storyboard_prompt, validate_storyboard_prompt_for_unit, validate_storyboard_prompts,
     video_prompt_generation_trace,
 };
 use crate::video::prompt_json::{VideoFramePrompt, VideoSegmentPlan};
@@ -45,6 +46,7 @@ pub(super) struct StoryboardFrameGenerationInput<'a, 'source, 'progress, 'chunk>
     pub frame_source_prompt_type: &'a str,
     pub workflow_run_id: Option<i64>,
     pub expected_frame_count: usize,
+    pub target_shot_number: Option<i32>,
     pub prompt_batch_size: usize,
     pub regenerate_existing: bool,
     pub storyboard_prompts: Vec<VideoFramePrompt>,
@@ -81,6 +83,7 @@ pub(super) async fn generate_storyboard_frames(
         frame_source_prompt_type,
         workflow_run_id,
         expected_frame_count,
+        target_shot_number,
         prompt_batch_size,
         regenerate_existing,
         mut storyboard_prompts,
@@ -88,8 +91,8 @@ pub(super) async fn generate_storyboard_frames(
         segment_draft,
         prompt_renderer,
         cancel_token,
-        mut progress,
-        mut chunks,
+        progress,
+        chunks,
     } = input;
     let message = if regenerate_existing {
         spec.frame_regenerate_progress
@@ -100,20 +103,36 @@ pub(super) async fn generate_storyboard_frames(
     while storyboard_prompts.len() < expected_frame_count && generated_this_run < prompt_batch_size
     {
         let index = storyboard_prompts.len();
-        let unit = video_units.get(index).ok_or_else(|| {
-            AppError::InvalidArgument(format!("分镜提示词缺少第 {} 个视频单元规划", index + 1))
-        })?;
+        let unit = video_units
+            .iter()
+            .filter(|unit| target_shot_number.is_none_or(|target| unit.unit_number == target))
+            .find(|unit| {
+                !storyboard_prompts
+                    .iter()
+                    .any(|prompt| prompt.frame_number == unit.unit_number)
+            })
+            .ok_or_else(|| {
+                AppError::InvalidArgument("分镜提示词缺少目标视频单元规划".to_string())
+            })?;
         let frame_number = unit.unit_number;
-        let generation_message = format!(
-            "{message}：正在生成第 {}/{} 个视频单元分镜，本批第 {}/{} 条",
-            frame_number,
-            expected_frame_count,
-            generated_this_run + 1,
-            prompt_batch_size
-        );
+        let generation_message = if target_shot_number.is_some() {
+            format!(
+                "{message}：正在生成目标片段 #{frame_number} 的分镜，本批第 {}/{} 条",
+                generated_this_run + 1,
+                prompt_batch_size
+            )
+        } else {
+            format!(
+                "{message}：正在生成第 {}/{} 个视频单元分镜，本批第 {}/{} 条",
+                frame_number,
+                expected_frame_count,
+                generated_this_run + 1,
+                prompt_batch_size
+            )
+        };
         let frame_progress_span = ProgressSpan::new(60, 90).split(index, expected_frame_count);
         report_video_prompt_progress(
-            &mut progress,
+            progress,
             frame_progress_span.start(),
             100,
             &generation_message,
@@ -144,11 +163,21 @@ pub(super) async fn generate_storyboard_frames(
                 cancel_token,
                 frame_progress_span,
                 generation_message: &generation_message,
-                progress: &mut progress,
-                chunks: &mut chunks,
+                progress,
+                chunks,
             })
             .await?;
         frame_prompt.frame_number = frame_number;
+        if target_shot_number.is_some() {
+            validate_storyboard_prompt_for_unit(
+                &frame_prompt,
+                segment_plan,
+                unit,
+                allowed_reference_ids,
+            )?;
+        } else {
+            validate_storyboard_prompt(&frame_prompt, segment_plan, allowed_reference_ids)?;
+        }
         storyboard_prompts.push(frame_prompt);
         generated_this_run += 1;
 
@@ -173,10 +202,14 @@ pub(super) async fn generate_storyboard_frames(
         service
             .sync_chapter_prompts(chapter_id, checkpoint_drafts)
             .await?;
-        report_video_prompt_progress(
-            &mut progress,
+        report_video_prompt_item_committed(
+            progress,
             frame_progress_span.end(),
             100,
+            spec.frame_prompt_type,
+            frame_number,
+            storyboard_prompts.len(),
+            expected_frame_count,
             &format!(
                 "分镜提示词第 {}/{} 条已保存，本批已生成 {} 条",
                 storyboard_prompts.len(),
@@ -186,7 +219,22 @@ pub(super) async fn generate_storyboard_frames(
         )?;
     }
     if storyboard_prompts.len() == expected_frame_count {
-        validate_storyboard_prompts(&storyboard_prompts, segment_plan, allowed_reference_ids)?;
+        if target_shot_number.is_some() {
+            let unit = video_units
+                .iter()
+                .find(|unit| unit.storyboard_number == Some(storyboard_prompts[0].frame_number))
+                .ok_or_else(|| {
+                    AppError::InvalidArgument("分镜提示词缺少目标视频单元规划".to_string())
+                })?;
+            validate_storyboard_prompt_for_unit(
+                &storyboard_prompts[0],
+                segment_plan,
+                unit,
+                allowed_reference_ids,
+            )?;
+        } else {
+            validate_storyboard_prompts(&storyboard_prompts, segment_plan, allowed_reference_ids)?;
+        }
     }
     let final_message = if storyboard_prompts.len() == expected_frame_count {
         format!(
@@ -202,7 +250,7 @@ pub(super) async fn generate_storyboard_frames(
             expected_frame_count
         )
     };
-    report_video_prompt_progress(&mut progress, 90, 100, &final_message)?;
+    report_video_prompt_progress(progress, 90, 100, &final_message)?;
     Ok(storyboard_prompt_drafts(StoryboardPromptDraftsInput {
         common: frame_draft_common,
         source_prompt_type: frame_source_prompt_type,

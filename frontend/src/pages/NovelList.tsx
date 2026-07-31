@@ -818,5 +818,3 @@ export const NovelList: React.FC<NovelListProps> = () => {
     </div>
   );
 };
-
-export default NovelList;

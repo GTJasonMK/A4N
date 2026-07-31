@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizeChatGenerationInput,
 };
@@ -7,7 +5,7 @@ use a4n_core::error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, GenerationResultRef, GenerationTaskStatus,
-    ProgressEvent, ProgressPhaseKind, ProgressSeverity, StreamTextHash,
+    ProgressPhaseKind, StreamTextHash,
 };
 use futures::future::BoxFuture;
 use sha2::{Digest, Sha256};
@@ -16,14 +14,9 @@ use crate::{
     OrchestratorContext,
     context::GenerationTaskExecution,
     generation::{
-        checkpoint::{
-            DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointMetadata,
-            GenerationCheckpointWriter,
-        },
-        events::{
-            GenerationEventPublisher, GenerationSessionError, SessionGenerationEventPublisher,
-        },
-        generation_public_error,
+        checkpoint::GenerationCheckpointMetadata,
+        events::{GenerationEventPublisher, GenerationSessionError},
+        generation_progress as optimize_progress, generation_public_error,
         terminal::{CompletionDescriptor, GenerationTerminalError},
     },
     optimize::{
@@ -54,11 +47,8 @@ impl OrchestratorContext {
         };
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
-        let replenisher = Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-            self.database.shared_connection(),
-        ));
-        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
-        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let publisher = execution.publisher.clone();
+        let checkpoint_writer = execution.checkpoint_writer.clone();
         let checkpoint_metadata = GenerationCheckpointMetadata {
             step_key: Some("optimization_chat".to_string()),
             provider_model: Some(self.llm_model_name()),
@@ -282,16 +272,7 @@ impl OrchestratorContext {
             .await;
         }
 
-        let task_id = execution.permit.task_id().to_string();
-        if let Err(error) = execution
-            .queue
-            .complete_generation_task(execution.permit)
-            .await
-        {
-            return Err(format!(
-                "generation queue 完成投影失败 ({task_id}): {error}"
-            ));
-        }
+        execution.complete_queue_task().await?;
         self.finalize_workflow_run_outcome_validated(
             workflow.id,
             WorkflowRunFinalizeOutcome::Completed,
@@ -348,26 +329,6 @@ async fn fail_optimize_generation_execution(
         ));
     }
     Err(message)
-}
-
-fn optimize_progress(
-    stage_code: &str,
-    phase_kind: ProgressPhaseKind,
-    message: &str,
-) -> ProgressEvent {
-    ProgressEvent {
-        stage_code: stage_code.to_string(),
-        phase_kind,
-        message: message.to_string(),
-        current: None,
-        total: None,
-        unit_label: None,
-        item_key: None,
-        item_index: None,
-        item_total: None,
-        severity: ProgressSeverity::Info,
-        estimated: false,
-    }
 }
 
 fn generation_error_from_session(error: GenerationSessionError) -> GenerationError {

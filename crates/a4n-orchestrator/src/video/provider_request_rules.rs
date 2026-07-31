@@ -1,92 +1,14 @@
 //! 视频 provider 请求：参考图 ID、CLIProxy 模式/模型、提示词元数据纯规则（无 DB、无 Host）。
 
-use a4n_api_contract::config::VideoGenerationCapabilities;
 use serde_json::{Value, json};
 
 use super::{FRAME_SEGMENT_PLAN_PROMPT_TYPE, boundary_frame_numbers_for_prompt};
 
 /// CLIProxy / Grok 参考图数量上限。
 pub const MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES: usize = 7;
-pub const MIN_VIDEO_KEYFRAME_IMAGES: usize = 2;
 
 /// CLIProxy / Grok 视频 prompt 字符上限。
 pub const MAX_CLIPROXY_VIDEO_PROMPT_CHARS: usize = 4096;
-
-pub fn video_generation_capabilities(
-    backend: &str,
-    model: &str,
-    provider_options_json: Option<&Value>,
-) -> VideoGenerationCapabilities {
-    let backend = backend.trim();
-    if backend == super::NEWAPI_VIDEO_BACKEND {
-        return VideoGenerationCapabilities {
-            supports_text_only: true,
-            supports_keyframes: false,
-            keyframe_min: 0,
-            keyframe_max: 0,
-            supports_first_frame: true,
-            supports_last_frame: false,
-            supports_storyboard_reference: false,
-            supports_reference_media: false,
-        };
-    }
-    if backend == super::CLIPROXY_OPENAI_VIDEO_BACKEND {
-        let Ok(mode) = parse_cliproxy_grok_reference_mode(provider_options_json) else {
-            return VideoGenerationCapabilities::default();
-        };
-        let reference_mode = mode == CliproxyGrokReferenceMode::Reference;
-        let supports_references =
-            reference_mode && cliproxy_grok_model_supports_reference_images(model);
-        return VideoGenerationCapabilities {
-            supports_text_only: !cliproxy_grok_model_is_image_to_video_only(model),
-            supports_keyframes: supports_references,
-            keyframe_min: if supports_references {
-                MIN_VIDEO_KEYFRAME_IMAGES as i32
-            } else {
-                0
-            },
-            keyframe_max: if supports_references {
-                MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES as i32
-            } else {
-                0
-            },
-            supports_first_frame: true,
-            supports_last_frame: supports_references,
-            supports_storyboard_reference: supports_references,
-            supports_reference_media: false,
-        };
-    }
-    if backend == super::SEEDANCE2_VIDEO_BACKEND {
-        return VideoGenerationCapabilities {
-            supports_text_only: false,
-            supports_keyframes: false,
-            keyframe_min: 0,
-            keyframe_max: 0,
-            supports_first_frame: false,
-            supports_last_frame: false,
-            supports_storyboard_reference: false,
-            supports_reference_media: true,
-        };
-    }
-    if matches!(
-        backend,
-        super::OPENAI_COMPATIBLE_VIDEO_BACKEND
-            | super::OPENAI_CHAT_VIDEO_BACKEND
-            | super::GEMINI_VEO_VIDEO_BACKEND
-    ) {
-        return VideoGenerationCapabilities {
-            supports_text_only: true,
-            supports_keyframes: true,
-            keyframe_min: MIN_VIDEO_KEYFRAME_IMAGES as i32,
-            keyframe_max: MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES as i32,
-            supports_first_frame: true,
-            supports_last_frame: true,
-            supports_storyboard_reference: true,
-            supports_reference_media: false,
-        };
-    }
-    VideoGenerationCapabilities::default()
-}
 
 pub fn provider_request_snapshot_value(
     key: &str,
@@ -192,10 +114,10 @@ pub fn cliproxy_grok_reference_mode_label(mode: CliproxyGrokReferenceMode) -> &'
 }
 
 /// 校验提示词 `source_prompt_type` 为当前共享片段规划合同。
-pub fn required_prompt_source_prompt_type<'a>(
+pub fn required_prompt_source_prompt_type(
     prompt_id: i64,
-    metadata_json: Option<&'a Value>,
-) -> Result<&'a str, String> {
+    metadata_json: Option<&Value>,
+) -> Result<&str, String> {
     let source_prompt_type = metadata_json
         .and_then(|metadata| metadata.get("source_prompt_type"))
         .and_then(Value::as_str)
@@ -465,37 +387,6 @@ pub fn reference_ids_with_storyboard_image(
     ids
 }
 
-/// 取 CLIProxy/Grok 模型 base 名（小写、路径末段）。
-pub fn cliproxy_grok_model_base(model: &str) -> Option<String> {
-    let model = model.trim().to_ascii_lowercase();
-    if model.is_empty() {
-        return None;
-    }
-    Some(
-        model
-            .rsplit('/')
-            .next()
-            .unwrap_or(model.as_str())
-            .trim()
-            .to_string(),
-    )
-}
-
-/// 是否为仅支持 image-to-video（无 reference_images）的 Grok 模型。
-pub fn cliproxy_grok_model_is_image_to_video_only(model: &str) -> bool {
-    matches!(
-        cliproxy_grok_model_base(model).as_deref(),
-        Some("grok-imagine-video-1.5")
-            | Some("grok-imagine-video-1.5-preview")
-            | Some("grok-imagine-video-1.5-2026-05-30")
-    )
-}
-
-/// 是否支持 reference_images。
-pub fn cliproxy_grok_model_supports_reference_images(model: &str) -> bool {
-    !cliproxy_grok_model_is_image_to_video_only(model)
-}
-
 /// 解析 data URL 的 MIME；非 data URL 返回 `Ok(None)`。
 pub fn data_url_mime(value: &str) -> Result<Option<String>, String> {
     let value = value.trim();
@@ -614,7 +505,6 @@ const CLIPROXY_PREVIEW_REJECT_SUFFIX: &str = "；真实生成会拒绝该输入�
 /// 首帧模式下直接放行；非 cliproxy backend 直接放行。
 pub fn cliproxy_media_contract_violations(
     backend: &str,
-    model: &str,
     grok_mode: CliproxyGrokReferenceMode,
     bound_reference_image_count: usize,
     has_first_frame_image: bool,
@@ -628,14 +518,6 @@ pub fn cliproxy_media_contract_violations(
         return Vec::new();
     }
     let mut violations = Vec::new();
-    if bound_reference_image_count > 0 && !cliproxy_grok_model_supports_reference_images(model) {
-        violations.push(CliproxyMediaContractViolation {
-            message: format!(
-                "CLIProxy / Grok 视频模型 {model} 不支持 reference_images；当前请求需要发送 {bound_reference_image_count} 张参考图。请改用 grok-imagine-video，或切换为 Grok 首帧模式并使用首帧串联流程。"
-            ),
-            preview_suffix: CLIPROXY_PREVIEW_STRUCTURE_SUFFIX,
-        });
-    }
     if has_first_frame_image && bound_reference_image_count > 0 {
         violations.push(CliproxyMediaContractViolation {
             message: format!(
@@ -676,19 +558,6 @@ mod tests {
             reference_ids_with_storyboard_image(Some(9), &[9, 8]),
             vec![9, 8]
         );
-    }
-
-    #[test]
-    fn cliproxy_model_capabilities() {
-        assert!(cliproxy_grok_model_is_image_to_video_only(
-            "provider/grok-imagine-video-1.5"
-        ));
-        assert!(!cliproxy_grok_model_supports_reference_images(
-            "grok-imagine-video-1.5-preview"
-        ));
-        assert!(cliproxy_grok_model_supports_reference_images(
-            "grok-imagine-video"
-        ));
     }
 
     #[test]
@@ -740,23 +609,16 @@ mod tests {
         );
         let media = cliproxy_media_contract_violations(
             "cliproxy-openai-video",
-            "grok-imagine-video-1.5",
             CliproxyGrokReferenceMode::Reference,
             2,
             false,
             12,
             "cliproxy-openai-video",
         );
-        assert!(
-            media
-                .iter()
-                .any(|v| v.message.contains("不支持 reference_images"))
-        );
         assert!(media.iter().any(|v| v.message.contains("最大时长为 10 秒")));
         assert!(
             cliproxy_media_contract_violations(
                 "cliproxy-openai-video",
-                "grok-imagine-video",
                 CliproxyGrokReferenceMode::FirstFrame,
                 2,
                 true,
@@ -849,37 +711,5 @@ mod tests {
             )
             .is_err()
         );
-    }
-
-    #[test]
-    fn video_capabilities_follow_provider_media_contract() {
-        let newapi = video_generation_capabilities("newapi-video", "video", None);
-        assert!(newapi.supports_text_only);
-        assert!(!newapi.supports_keyframes);
-        assert!(!newapi.supports_last_frame);
-
-        let grok_reference = video_generation_capabilities(
-            "cliproxy-openai-video",
-            "grok-imagine-video",
-            Some(&json!({"grok_reference_mode": "reference"})),
-        );
-        assert!(grok_reference.supports_keyframes);
-        assert_eq!(grok_reference.keyframe_max, 7);
-
-        let invalid_grok = video_generation_capabilities(
-            "cliproxy-openai-video",
-            "grok-imagine-video",
-            Some(&json!({"grok_reference_mode": "invalid"})),
-        );
-        assert_eq!(invalid_grok, VideoGenerationCapabilities::default());
-
-        let seedance = video_generation_capabilities("seedance2-video", "seedance-2", None);
-        assert!(seedance.supports_reference_media);
-        assert!(!seedance.supports_text_only);
-
-        let unknown = video_generation_capabilities("unknown", "video", None);
-        assert!(!unknown.supports_text_only);
-        assert!(!unknown.supports_keyframes);
-        assert!(!unknown.supports_reference_media);
     }
 }

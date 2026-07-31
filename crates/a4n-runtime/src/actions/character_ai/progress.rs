@@ -5,16 +5,19 @@ pub type CharacterAiProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + 
 pub struct CharacterAiProgress<'a> {
     reporter: Option<CharacterAiProgressReporter<'a>>,
     pub(super) cancel_token: Option<&'a CancellationToken>,
+    pub(super) task_id: Option<&'a str>,
 }
 
 impl<'a> CharacterAiProgress<'a> {
     pub fn new(
         reporter: Option<CharacterAiProgressReporter<'a>>,
         cancel_token: Option<&'a CancellationToken>,
+        task_id: Option<&'a str>,
     ) -> Self {
         Self {
             reporter,
             cancel_token,
+            task_id,
         }
     }
 

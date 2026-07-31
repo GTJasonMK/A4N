@@ -12,7 +12,8 @@ use super::super::video_llm_step_error;
 
 pub(super) use contracts::{
     RenderedVideoPromptTrace, VideoPromptLlmCallTraceContext, VideoPromptRenderInput,
-    VideoPromptStepProgress, report_video_prompt_progress,
+    VideoPromptStepProgress, report_video_prompt_checkpoint, report_video_prompt_item_committed,
+    report_video_prompt_progress,
 };
 pub(in crate::video) use request::build_video_prompt_request;
 pub(super) use request::build_video_prompt_request_with_call_trace;

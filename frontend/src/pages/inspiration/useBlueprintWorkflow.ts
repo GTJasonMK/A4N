@@ -101,7 +101,6 @@ export const useBlueprintWorkflow = ({
     ? generationTaskKey(generationHandle.task_id, generationHandle.attempt)
     : null;
   const streamText = generationTask.text("raw_json");
-  const streamVersion = generationTask.streams.raw_json?.version ?? 0;
 
   const isCurrentProject = useCallback((requestProjectId: number) => {
     return mountedRef.current && activeProjectIdRef.current === requestProjectId;
@@ -500,7 +499,6 @@ export const useBlueprintWorkflow = ({
     blueprintProgress,
     blueprintCancelling,
     blueprintStreamText: streamText,
-    blueprintStreamVersion: streamVersion,
     requestPreviewOpen,
     requestPreviewLoading,
     requestPreviewData,

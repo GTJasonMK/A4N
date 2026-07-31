@@ -26,16 +26,13 @@ pub async fn reset_media_workflows_to_v2(
 
     let scope = load_media_workflow_v2_reset_scope(&tx, project_id).await?;
     delete_media_workflow_v2_records(&tx, project_id, &scope).await?;
-    let media_paths =
-        crate::media::filter_unreferenced_media_paths(&tx, &scope.media_paths).await?;
-    if !media_paths.is_empty() {
-        crate::cleanup_outbox::insert_file_artifact_cleanup_intent(
-            &tx,
-            format!("media-workflow-v2-reset-files:{cleanup_intent_id}"),
-            crate::cleanup_outbox::FileArtifactCleanupPayload::new(project_id, media_paths),
-        )
-        .await?;
-    }
+    crate::media::schedule_unreferenced_media_cleanup(
+        &tx,
+        project_id,
+        &scope.media_paths,
+        format!("media-workflow-v2-reset-files:{cleanup_intent_id}"),
+    )
+    .await?;
     tx.commit().await?;
     Ok(())
 }

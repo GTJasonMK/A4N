@@ -1,13 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
-import { extractErrorMessage } from "../../api";
-import {
-  canListenAppEvents,
-  listenAppEvent,
-  type UnlistenFn,
-} from "../../api/runtime";
 import { listChapters, type ChapterData } from "../../api/chapter";
 import { StoryEventsListCard } from "./story-events/StoryEventsListCard";
 import { StoryEventsSummaryCard } from "./story-events/StoryEventsSummaryCard";
@@ -19,7 +13,8 @@ import {
   filterStorySections,
   getStoryEventFilterOptions,
 } from "./story-events/storyEventUtils";
-import type { ChapterAnalysisUpdatedPayload, StoryEventFilters } from "./story-events/types";
+import type { StoryEventFilters } from "./story-events/types";
+import { useChapterAnalysisLoader } from "./useNovelDetailLoader";
 
 interface StoryEventsTabProps {
   projectId: number;
@@ -33,88 +28,35 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [chapters, setChapters] = useState<ChapterData[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<StoryEventFilters>(DEFAULT_STORY_EVENT_FILTERS);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
-  const activeProjectIdRef = useRef(projectId);
-  const loadSeqRef = useRef(0);
-  const loadInFlightProjectRef = useRef<number | null>(null);
 
-  activeProjectIdRef.current = projectId;
-
-  const isCurrentLoad = useCallback((requestProjectId: number, seq: number) => {
-    return activeProjectIdRef.current === requestProjectId && loadSeqRef.current === seq;
-  }, []);
-
-  const load = useCallback(async (silent = false) => {
-    const requestProjectId = projectId;
-    if (loadInFlightProjectRef.current === requestProjectId) return;
-    loadInFlightProjectRef.current = requestProjectId;
-    const requestSeq = loadSeqRef.current + 1;
-    loadSeqRef.current = requestSeq;
-    if (!silent) setLoading(true);
-    try {
-      const nextChapters = await listChapters(requestProjectId);
-      if (!isCurrentLoad(requestProjectId, requestSeq)) return;
-      setChapters(nextChapters);
-    } catch (err) {
-      if (!isCurrentLoad(requestProjectId, requestSeq)) return;
-      setChapters([]);
-      addToast(extractErrorMessage(err, "加载事件脉络失败"), "error");
-    } finally {
-      if (isCurrentLoad(requestProjectId, requestSeq)) {
-        setLoadedProjectId(requestProjectId);
-        if (!silent) setLoading(false);
-        if (loadInFlightProjectRef.current === requestProjectId) {
-          loadInFlightProjectRef.current = null;
+  const loadChapters = useCallback(
+    async (isCurrent: () => boolean) => {
+      try {
+        const nextChapters = await listChapters(projectId);
+        if (!isCurrent()) return;
+        setChapters(nextChapters);
+        setLoadedProjectId(projectId);
+      } catch (err) {
+        if (isCurrent()) {
+          setChapters([]);
+          setLoadedProjectId(projectId);
         }
+        throw err;
       }
-    }
-  }, [addToast, isCurrentLoad, projectId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    },
+    [projectId],
+  );
+  const { loading, load } = useChapterAnalysisLoader(
+    projectId,
+    loadChapters,
+    "加载事件脉络失败",
+  );
 
   useEffect(() => {
     setFilters(DEFAULT_STORY_EVENT_FILTERS);
   }, [projectId]);
-
-  useEffect(() => {
-    if (!canListenAppEvents()) return;
-
-    let disposed = false;
-    let unlisten: UnlistenFn | null = null;
-
-    void listenAppEvent<ChapterAnalysisUpdatedPayload>("chapter-analysis-updated", (event) => {
-      if (Number(event.payload?.project_id) === projectId) {
-        void load(true);
-      }
-    }).then((detach) => {
-      if (disposed) {
-        detach();
-      } else {
-        unlisten = detach;
-      }
-    });
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [load, projectId]);
-
-  useEffect(() => {
-    const refreshOnFocus = () => {
-      if (document.visibilityState === "visible") void load(true);
-    };
-    window.addEventListener("focus", refreshOnFocus);
-    document.addEventListener("visibilitychange", refreshOnFocus);
-    return () => {
-      window.removeEventListener("focus", refreshOnFocus);
-      document.removeEventListener("visibilitychange", refreshOnFocus);
-    };
-  }, [load, projectId]);
 
   const displayChapters = loadedProjectId === projectId ? chapters : [];
   const displayLoading = loading || loadedProjectId !== projectId;
@@ -154,7 +96,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   if (displayLoading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <Loader2 size={12} className="animate-spin" /> 加载事件脉络…
+        <LoadingSpinner size="sm" /> 加载事件脉络…
       </div>
     );
   }

@@ -155,8 +155,11 @@ impl OrchestratorContext {
                         .await?
                 }
                 CharacterProfileSyncAnchorMode::RequireExistingCurrent => {
-                    self.read_current_character_profile_sync_anchors(profile.project_id, chapter.id)
-                        .await?
+                    self.require_current_chapter_content_anchors_for_preview(
+                        profile.project_id,
+                        chapter.id,
+                    )
+                    .await?
                 }
             };
             chapter_data.push(character_profile_sync_chapter_context(chapter, &anchors));
@@ -192,33 +195,6 @@ impl OrchestratorContext {
             })?;
         snapshot_attributes_from_data(&snapshot.data, snapshot_chapter)
             .map_err(super::super::character_db_error)
-    }
-
-    async fn read_current_character_profile_sync_anchors(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<text_anchor::Model>, AppError> {
-        let rows = self
-            .read_current_chapter_content_anchor_records(project_id, chapter_id)
-            .await?;
-        if rows.anchors.is_empty() {
-            return Err(AppError::InvalidState {
-                current: format!("第 {} 章缺少当前正文文本锚点", rows.chapter.chapter_number),
-                operation: "预览模型请求".to_string(),
-            });
-        }
-        if rows
-            .anchors
-            .iter()
-            .any(|anchor| anchor.source_version_hash != rows.source_version_hash)
-        {
-            return Err(AppError::InvalidState {
-                current: format!("第 {} 章正文文本锚点已过期", rows.chapter.chapter_number),
-                operation: "预览模型请求".to_string(),
-            });
-        }
-        Ok(rows.anchors)
     }
 }
 

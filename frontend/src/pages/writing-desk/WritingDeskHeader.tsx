@@ -107,7 +107,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
       <>
         {project.title}
         {activeNumber != null ? (
-          <span className="ml-1.5 font-sans text-[13px] font-medium text-book-text-muted">
+          <span className="ml-1.5 font-sans text-body font-medium text-book-text-muted">
             · 第 {activeNumber} 章
           </span>
         ) : null}

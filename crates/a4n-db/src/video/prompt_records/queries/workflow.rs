@@ -1,28 +1,6 @@
 use a4n_core::models::chapter::chapter_video_prompt;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 
-pub async fn completed_chapter_video_prompt_workflow_records<C>(
-    db: &C,
-    project_id: i64,
-    chapter_id: i64,
-    prompt_type: &str,
-    workflow_mode: &str,
-) -> Result<Vec<chapter_video_prompt::Model>, DbErr>
-where
-    C: ConnectionTrait,
-{
-    chapter_video_prompt::Entity::find()
-        .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
-        .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_video_prompt::Column::PromptType.eq(prompt_type))
-        .filter(chapter_video_prompt::Column::WorkflowMode.eq(workflow_mode))
-        .filter(chapter_video_prompt::Column::Status.eq("completed"))
-        .order_by_desc(chapter_video_prompt::Column::UpdatedAt)
-        .order_by_desc(chapter_video_prompt::Column::Id)
-        .all(db)
-        .await
-}
-
 pub async fn chapter_video_prompt_workflow_records<C>(
     db: &C,
     project_id: i64,

@@ -49,7 +49,7 @@ fn rejects_material_reference_images_instead_of_dropping_them() {
 }
 
 #[test]
-fn non_veo_rejects_tail_frame_instead_of_dropping_it() {
+fn rejects_tail_frame_instead_of_dropping_it() {
     let mut req = request();
     req.first_frame_image_url = Some("data:image/png;base64,start".into());
     req.last_frame_image_url = Some("data:image/png;base64,end".into());
@@ -61,7 +61,7 @@ fn non_veo_rejects_tail_frame_instead_of_dropping_it() {
 }
 
 #[test]
-fn non_veo_uses_first_frame_image() {
+fn uses_first_frame_image() {
     let mut req = request();
     req.first_frame_image_url = Some("data:image/png;base64,start".into());
 
@@ -71,59 +71,19 @@ fn non_veo_uses_first_frame_image() {
 }
 
 #[test]
-fn builds_veo_first_frame_request_body() {
+fn model_names_do_not_change_newapi_request_fields() {
     let mut req = request();
     req.model = "veo-3.1-generate-preview".into();
-    req.width = 1280;
-    req.height = 720;
     req.first_frame_image_url = Some("data:image/png;base64,start".into());
 
     let body = NewApiVideoProvider::request_body(&req).expect("valid body");
 
     assert_eq!(body["model"], "veo-3.1-generate-preview");
-    assert_eq!(body["duration"], 5);
-    assert_eq!(body["duration_seconds"], 5);
-    assert_eq!(body["number_of_videos"], 1);
-    assert_eq!(body["enhance_prompt"], true);
-    assert_eq!(body["size"], "1280x720");
-    assert_eq!(body["aspect_ratio"], "16:9");
-    assert_eq!(body["metadata"]["durationSeconds"], 5);
-    assert_eq!(body["metadata"]["aspectRatio"], "16:9");
-    assert_eq!(body["metadata"]["resolution"], "720p");
-    assert_eq!(body["metadata"]["negativePrompt"], "低清晰度");
     assert_eq!(body["image"], "data:image/png;base64,start");
-    assert!(body.get("last_frame").is_none());
-    assert!(body.get("last_frame_image_url").is_none());
-    assert!(body.get("reference_images").is_none());
-}
-
-#[test]
-fn rejects_veo_boundary_frames_instead_of_dropping_tail_frame() {
-    let mut req = request();
-    req.model = "veo-3.1-generate-preview".into();
-    req.first_frame_image_url = Some("data:image/png;base64,start".into());
-    req.last_frame_image_url = Some("data:image/png;base64,end".into());
-
-    let err = NewApiVideoProvider::request_body(&req)
-        .expect_err("newapi must reject unsupported tail frame");
-
-    assert!(err.to_string().contains("不支持尾帧输入"));
-}
-
-#[test]
-fn rejects_veo_material_references_when_no_first_frame_is_available() {
-    let mut req = request();
-    req.model = "veo-3.1-generate-preview".into();
-    req.reference_image_urls = vec![
-        "data:image/png;base64,asset1".into(),
-        "data:image/png;base64,asset2".into(),
-    ];
-
-    let err = NewApiVideoProvider::request_body(&req)
-        .expect_err("newapi must reject unsupported reference images");
-
-    assert!(err.to_string().contains("不支持素材参考图输入"));
-    assert!(err.to_string().contains("当前收到 2 张参考图"));
+    assert!(body.get("metadata").is_none());
+    assert!(body.get("duration_seconds").is_none());
+    assert!(body.get("number_of_videos").is_none());
+    assert!(body.get("enhance_prompt").is_none());
 }
 
 #[test]

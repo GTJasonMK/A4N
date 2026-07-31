@@ -56,11 +56,6 @@ auth_command!(
     list_sessions(state, user_id: i64) -> Vec<SessionSummary>,
     auth_actions::list_sessions_for_user(state.inner(), user_id, user_id)
 );
-auth_command!(
-    revoke_session(state, user_id: i64, session_id: String) -> (),
-    auth_actions::revoke_session_for_user(state.inner(), user_id, user_id, &session_id)
-);
-
 #[tauri::command]
 pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, String> {
     a4n_runtime::host_api::oauth::oauth2_authorize_url(input).map_err(|e| e.to_string())

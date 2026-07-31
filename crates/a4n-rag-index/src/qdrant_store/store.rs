@@ -25,6 +25,7 @@ use qdrant_client::qdrant::{
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use uuid::Uuid;
 
 const DENSE_NAME: &str = "dense";
 const SPARSE_NAME: &str = "bm25";
@@ -32,8 +33,7 @@ const SPARSE_NAME: &str = "bm25";
 /// Qdrant 向量 + sparse BM25 存储。
 pub struct QdrantVectorStore {
     client: Qdrant,
-    collection: String,
-    dense_dim: parking_lot::RwLock<Option<usize>>,
+    base_collection: String,
 }
 
 impl QdrantVectorStore {
@@ -52,8 +52,7 @@ impl QdrantVectorStore {
             .map_err(|e| AppError::ConfigError(format!("连接 Qdrant 失败: {e}")))?;
         let store = Arc::new(Self {
             client,
-            collection: config.collection,
-            dense_dim: parking_lot::RwLock::new(None),
+            base_collection: config.collection,
         });
         store.client.list_collections().await.map_err(|e| {
             AppError::VectorStoreError(format!("Qdrant list_collections 失败: {e}"))
@@ -63,6 +62,23 @@ impl QdrantVectorStore {
 
     fn map_err(context: &str, err: impl std::fmt::Display) -> AppError {
         AppError::VectorStoreError(format!("{context}: {err}"))
+    }
+
+    fn physical_collection(&self, logical_collection: &str) -> String {
+        let id = Uuid::new_v5(&Uuid::NAMESPACE_OID, logical_collection.as_bytes());
+        format!("{}__{}", self.base_collection, id.simple())
+    }
+
+    async fn existing_collection(
+        &self,
+        logical_collection: &str,
+    ) -> Result<Option<String>, AppError> {
+        let physical = self.physical_collection(logical_collection);
+        self.client
+            .collection_exists(&physical)
+            .await
+            .map(|exists| exists.then_some(physical))
+            .map_err(|e| Self::map_err("collection_exists", e))
     }
 
     fn point_id(chunk_id: &str) -> PointId {
@@ -97,23 +113,19 @@ impl QdrantVectorStore {
         out
     }
 
-    async fn ensure_collection(&self, dense_dim: usize) -> Result<(), AppError> {
+    async fn ensure_collection(
+        &self,
+        logical_collection: &str,
+        dense_dim: usize,
+    ) -> Result<String, AppError> {
+        let physical = self.physical_collection(logical_collection);
         let exists = self
             .client
-            .collection_exists(&self.collection)
+            .collection_exists(&physical)
             .await
             .map_err(|e| Self::map_err("collection_exists", e))?;
         if exists {
-            let mut guard = self.dense_dim.write();
-            if guard.is_none() {
-                *guard = Some(dense_dim);
-            } else if *guard != Some(dense_dim) {
-                return Err(AppError::VectorStoreError(format!(
-                    "Qdrant collection {} 期望维度 {:?}，写入维度 {dense_dim}",
-                    self.collection, *guard
-                )));
-            }
-            return Ok(());
+            return Ok(physical);
         }
 
         let mut vectors = VectorsConfigBuilder::default();
@@ -130,7 +142,7 @@ impl QdrantVectorStore {
         );
         self.client
             .create_collection(
-                CreateCollectionBuilder::new(&self.collection)
+                CreateCollectionBuilder::new(&physical)
                     .vectors_config(vectors)
                     .sparse_vectors_config(sparse),
             )
@@ -147,12 +159,11 @@ impl QdrantVectorStore {
             let _ = self
                 .client
                 .create_field_index(
-                    CreateFieldIndexCollectionBuilder::new(&self.collection, field, ty).wait(true),
+                    CreateFieldIndexCollectionBuilder::new(&physical, field, ty).wait(true),
                 )
                 .await;
         }
-        *self.dense_dim.write() = Some(dense_dim);
-        Ok(())
+        Ok(physical)
     }
 
     fn record_to_point(
@@ -266,30 +277,22 @@ impl QdrantVectorStore {
         (chunk_id, metadata, has_dense, has_sparse)
     }
 
-    async fn count_filter(&self, filter: Filter) -> Result<usize, AppError> {
+    async fn count_filter(&self, physical: &str, filter: Filter) -> Result<usize, AppError> {
         let resp = self
             .client
-            .count(
-                CountPointsBuilder::new(&self.collection)
-                    .filter(filter)
-                    .exact(true),
-            )
+            .count(CountPointsBuilder::new(physical).filter(filter).exact(true))
             .await
             .map_err(|e| Self::map_err("count", e))?;
         Ok(resp.result.map(|r| r.count as usize).unwrap_or(0))
     }
 
-    async fn delete_by_filter(&self, filter: Filter) -> Result<usize, AppError> {
-        let before = self.count_filter(filter.clone()).await?;
+    async fn delete_by_filter(&self, physical: &str, filter: Filter) -> Result<usize, AppError> {
+        let before = self.count_filter(physical, filter.clone()).await?;
         if before == 0 {
             return Ok(0);
         }
         self.client
-            .delete_points(
-                DeletePointsBuilder::new(&self.collection)
-                    .points(filter)
-                    .wait(true),
-            )
+            .delete_points(DeletePointsBuilder::new(physical).points(filter).wait(true))
             .await
             .map_err(|e| Self::map_err("delete_points", e))?;
         Ok(before)
@@ -316,7 +319,7 @@ impl VectorStore for QdrantVectorStore {
                 )));
             }
         }
-        self.ensure_collection(dim).await?;
+        let physical = self.ensure_collection(collection, dim).await?;
         let points: Result<Vec<_>, _> = records
             .iter()
             .map(|r| self.record_to_point(collection, r))
@@ -324,7 +327,7 @@ impl VectorStore for QdrantVectorStore {
         let points = points?;
         let n = points.len();
         self.client
-            .upsert_points(UpsertPointsBuilder::new(&self.collection, points).wait(true))
+            .upsert_points(UpsertPointsBuilder::new(&physical, points).wait(true))
             .await
             .map_err(|e| Self::map_err("upsert_points", e))?;
         Ok(n)
@@ -340,11 +343,14 @@ impl VectorStore for QdrantVectorStore {
         if top_k == 0 {
             return Ok(Vec::new());
         }
+        let Some(physical) = self.existing_collection(collection).await? else {
+            return Ok(Vec::new());
+        };
         let filter = filters::search_filter(collection, search_filters.as_ref());
         let resp = self
             .client
             .query(
-                QueryPointsBuilder::new(&self.collection)
+                QueryPointsBuilder::new(&physical)
                     .query(Query::new_nearest(query_embedding))
                     .using(DENSE_NAME)
                     .filter(filter)
@@ -370,11 +376,14 @@ impl VectorStore for QdrantVectorStore {
         if sparse.is_empty() {
             return Ok(Vec::new());
         }
+        let Some(physical) = self.existing_collection(collection).await? else {
+            return Ok(Vec::new());
+        };
         let filter = filters::search_filter(collection, search_filters.as_ref());
         let resp = self
             .client
             .query(
-                QueryPointsBuilder::new(&self.collection)
+                QueryPointsBuilder::new(&physical)
                     .query(VectorInput::new_sparse(sparse.indices, sparse.values))
                     .using(SPARSE_NAME)
                     .filter(filter)
@@ -406,11 +415,14 @@ impl VectorStore for QdrantVectorStore {
         if top_k == 0 {
             return Ok(Vec::new());
         }
+        let Some(physical) = self.existing_collection(collection).await? else {
+            return Ok(Vec::new());
+        };
         let pull = top_k.saturating_mul(2).max(1) as u64;
         let filter = filters::search_filter(collection, search_filters.as_ref());
         let sparse = bm25_query(query_text);
 
-        let mut builder = QueryPointsBuilder::new(&self.collection)
+        let mut builder = QueryPointsBuilder::new(&physical)
             .limit(top_k as u64)
             .with_payload(true)
             .query(Query::new_fusion(Fusion::Rrf))
@@ -439,14 +451,9 @@ impl VectorStore for QdrantVectorStore {
     }
 
     async fn delete(&self, collection: &str, filter: DeleteFilter) -> Result<usize, AppError> {
-        if !self
-            .client
-            .collection_exists(&self.collection)
-            .await
-            .map_err(|e| Self::map_err("collection_exists", e))?
-        {
+        let Some(physical) = self.existing_collection(collection).await? else {
             return Ok(0);
-        }
+        };
         let base = filters::delete_filter_base(collection, &filter);
         let qfilter = if !filter.ids.is_empty() {
             filters::with_chunk_ids(base, &filter.ids)
@@ -455,97 +462,63 @@ impl VectorStore for QdrantVectorStore {
         } else {
             base
         };
-        self.delete_by_filter(qfilter).await
+        self.delete_by_filter(&physical, qfilter).await
     }
 
     async fn collection_exists(&self, collection: &str) -> Result<bool, AppError> {
-        if !self
-            .client
-            .collection_exists(&self.collection)
-            .await
-            .map_err(|e| Self::map_err("collection_exists", e))?
-        {
-            return Ok(false);
-        }
-        Ok(self
-            .count_filter(filters::collection_filter(collection))
-            .await?
-            > 0)
+        Ok(self.existing_collection(collection).await?.is_some())
     }
 
     async fn count(&self, collection: &str) -> Result<usize, AppError> {
-        if !self
-            .client
-            .collection_exists(&self.collection)
-            .await
-            .map_err(|e| Self::map_err("collection_exists", e))?
-        {
+        let Some(physical) = self.existing_collection(collection).await? else {
             return Ok(0);
-        }
-        self.count_filter(filters::collection_filter(collection))
+        };
+        self.count_filter(&physical, filters::collection_filter(collection))
             .await
     }
 
     async fn drop_collection(&self, collection: &str) -> Result<(), AppError> {
-        if !self
-            .client
-            .collection_exists(&self.collection)
-            .await
-            .map_err(|e| Self::map_err("collection_exists", e))?
-        {
+        let Some(physical) = self.existing_collection(collection).await? else {
             return Ok(());
-        }
-        let _ = self
-            .delete_by_filter(filters::collection_filter(collection))
-            .await?;
+        };
+        self.client
+            .delete_collection(physical)
+            .await
+            .map_err(|e| Self::map_err("delete_collection", e))?;
         Ok(())
     }
 
     async fn list_collections(&self) -> Result<Vec<String>, AppError> {
-        if !self
+        let prefix = format!("{}__", self.base_collection);
+        let collections = self
             .client
-            .collection_exists(&self.collection)
+            .list_collections()
             .await
-            .map_err(|e| Self::map_err("collection_exists", e))?
-        {
-            return Ok(Vec::new());
-        }
+            .map_err(|e| Self::map_err("list_collections", e))?;
         let mut projects = HashSet::new();
-        let mut offset: Option<PointId> = None;
-        loop {
-            let mut builder = ScrollPointsBuilder::new(&self.collection)
-                .limit(256)
-                .with_payload(true)
-                .with_vectors(false);
-            if let Some(off) = offset.clone() {
-                builder = builder.offset(off);
-            }
+        for collection in collections
+            .collections
+            .into_iter()
+            .filter(|collection| collection.name.starts_with(&prefix))
+        {
             let resp = self
                 .client
-                .scroll(builder)
+                .scroll(
+                    ScrollPointsBuilder::new(&collection.name)
+                        .limit(1)
+                        .with_payload(true)
+                        .with_vectors(false),
+                )
                 .await
                 .map_err(|e| Self::map_err("scroll", e))?;
-            if resp.result.is_empty() {
-                break;
-            }
-            for point in &resp.result {
-                if let Some(name) = point
+            if let Some(name) = resp.result.first().and_then(|point| {
+                point
                     .payload
                     .get(KEY_LOGICAL_COLLECTION)
                     .and_then(|v| v.as_str())
-                {
-                    projects.insert(name.clone());
-                } else if let Some(pid) = point
-                    .payload
-                    .get(KEY_PROJECT_ID)
-                    .and_then(|v| v.as_integer())
-                {
-                    projects.insert(pid.to_string());
-                }
-                offset = point.id.clone();
-            }
-            if resp.result.len() < 256 {
-                break;
+                    .cloned()
+            }) {
+                projects.insert(name);
             }
         }
         let mut list: Vec<String> = projects.into_iter().collect();
@@ -555,7 +528,7 @@ impl VectorStore for QdrantVectorStore {
 
     async fn update_metadata(
         &self,
-        _collection: &str,
+        collection: &str,
         id: &str,
         metadata: Value,
     ) -> Result<(), AppError> {
@@ -568,9 +541,10 @@ impl VectorStore for QdrantVectorStore {
         }
         let payload = Payload::try_from(payload_json)
             .map_err(|e| AppError::VectorStoreError(format!("payload: {e}")))?;
+        let physical = self.physical_collection(collection);
         self.client
             .set_payload(
-                SetPayloadPointsBuilder::new(&self.collection, payload)
+                SetPayloadPointsBuilder::new(&physical, payload)
                     .points_selector(vec![Self::point_id(id)])
                     .wait(true),
             )
@@ -581,17 +555,20 @@ impl VectorStore for QdrantVectorStore {
 
     async fn metadata_by_ids(
         &self,
-        _collection: &str,
+        collection: &str,
         ids: &[String],
     ) -> Result<HashMap<String, Value>, AppError> {
         if ids.is_empty() {
             return Ok(HashMap::new());
         }
+        let Some(physical) = self.existing_collection(collection).await? else {
+            return Ok(HashMap::new());
+        };
         let point_ids: Vec<PointId> = ids.iter().map(|id| Self::point_id(id)).collect();
         let resp = self
             .client
             .get_points(
-                GetPointsBuilder::new(&self.collection, point_ids)
+                GetPointsBuilder::new(&physical, point_ids)
                     .with_payload(true)
                     .with_vectors(false),
             )
@@ -612,6 +589,9 @@ impl VectorStore for QdrantVectorStore {
         collection: &str,
         filter: DeleteFilter,
     ) -> Result<HashMap<String, Value>, AppError> {
+        let Some(physical) = self.existing_collection(collection).await? else {
+            return Ok(HashMap::new());
+        };
         let mut base = filters::delete_filter_base(collection, &filter);
         if !filter.ids.is_empty() {
             base = filters::with_chunk_ids(base, &filter.ids);
@@ -621,7 +601,7 @@ impl VectorStore for QdrantVectorStore {
         let mut out = HashMap::new();
         let mut offset: Option<PointId> = None;
         loop {
-            let mut builder = ScrollPointsBuilder::new(&self.collection)
+            let mut builder = ScrollPointsBuilder::new(&physical)
                 .filter(base.clone())
                 .limit(256)
                 .with_payload(true)
@@ -664,16 +644,12 @@ impl VectorStore for QdrantVectorStore {
         collection: &str,
         expected_count: usize,
     ) -> Result<CompletenessReport, AppError> {
-        let actual = if self
-            .client
-            .collection_exists(&self.collection)
-            .await
-            .map_err(|e| Self::map_err("collection_exists", e))?
-        {
-            self.count_filter(filters::collection_filter(collection))
-                .await?
-        } else {
-            0
+        let actual = match self.existing_collection(collection).await? {
+            Some(physical) => {
+                self.count_filter(&physical, filters::collection_filter(collection))
+                    .await?
+            }
+            None => 0,
         };
         Ok(CompletenessReport::count_only(
             collection,
@@ -698,11 +674,19 @@ impl VectorStore for QdrantVectorStore {
                 Some(&HashSet::new()),
             ));
         }
+        let Some(physical) = self.existing_collection(collection).await? else {
+            return Ok(CompletenessReport::by_expected_ids(
+                collection,
+                expected_ids,
+                &HashSet::new(),
+                Some(&HashSet::new()),
+            ));
+        };
         let point_ids: Vec<PointId> = expected_ids.iter().map(|id| Self::point_id(id)).collect();
         let resp = self
             .client
             .get_points(
-                GetPointsBuilder::new(&self.collection, point_ids)
+                GetPointsBuilder::new(&physical, point_ids)
                     .with_payload(true)
                     .with_vectors(false),
             )

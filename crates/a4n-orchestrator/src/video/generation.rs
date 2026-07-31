@@ -10,8 +10,7 @@ use a4n_api_contract::{
 use a4n_core::{error::AppError, models::ai::generated_video};
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GenerationArtifactRef, GenerationError,
-    GenerationFinishReason, GenerationResultRef, ProgressEvent, ProgressPhaseKind,
-    ProgressSeverity,
+    GenerationFinishReason, GenerationResultRef,
 };
 use futures::future::BoxFuture;
 use sha2::{Digest, Sha256};
@@ -20,13 +19,9 @@ use tokio::sync::mpsc;
 use crate::{
     OrchestratorContext,
     generation::{
+        GenerationProgressUpdate,
         artifacts::{GenerationArtifactCoordinator, PreparedArtifactEvent},
-        checkpoint::{
-            DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointMetadata,
-            GenerationCheckpointWriter,
-        },
-        events::{GenerationEventPublisher, SessionGenerationEventPublisher},
-        generation_public_error,
+        generation_public_error, publish_step_progress,
         terminal::CompletionDescriptor,
     },
 };
@@ -37,12 +32,6 @@ use super::{
     VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationCheckpointContext, VideoGenerationProgress,
     VideoProviderHostPort, has_active_provider_job,
 };
-
-struct VideoProgressUpdate {
-    current: u32,
-    total: u32,
-    message: String,
-}
 
 struct VideoTaskResult {
     summary: String,
@@ -89,26 +78,23 @@ impl OrchestratorContext {
             session.clone(),
             self.database.shared_connection(),
         );
-        let publisher = SessionGenerationEventPublisher::new(
-            session.clone(),
-            Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-                self.database.shared_connection(),
-            )),
-        );
-        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let publisher = execution.publisher.clone();
+        let checkpoint_writer = execution.checkpoint_writer.clone();
         let (progress_sender, progress_receiver) = mpsc::unbounded_channel();
         let progress_publish_failed = Arc::new(AtomicBool::new(false));
         let progress_publish_failed_for_reporter = Arc::clone(&progress_publish_failed);
-        let progress_worker = tokio::spawn(publish_video_progress(
+        let progress_worker = tokio::spawn(publish_step_progress(
             progress_receiver,
             publisher,
             checkpoint_writer,
             session.clone(),
             operation_key,
+            operation_key,
+            1,
         ));
         let mut reporter = move |current: u32, total: u32, message: &str| {
             progress_sender
-                .send(VideoProgressUpdate {
+                .send(GenerationProgressUpdate {
                     current,
                     total,
                     message: message.to_string(),
@@ -201,12 +187,7 @@ impl OrchestratorContext {
                 )
                 .await);
         }
-        let task_id = execution.permit.task_id().to_string();
-        execution
-            .queue
-            .complete_generation_task(execution.permit)
-            .await
-            .map_err(|error| format!("generation queue 完成投影失败 ({task_id}): {error}"))
+        execution.complete_queue_task().await
     }
 
     async fn execute_video_generation_operation<H>(
@@ -274,6 +255,12 @@ impl OrchestratorContext {
                 )
                 .await
             }
+            VideoGenerationOperation::PromptSegmentPlan { .. }
+            | VideoGenerationOperation::PromptFrames { .. }
+            | VideoGenerationOperation::PromptVideos { .. } => Err(AppError::InvalidState {
+                current: "video_prompt_generation".to_string(),
+                operation: "视频提示词操作必须由 LLM generation worker 执行".to_string(),
+            }),
         }
     }
 
@@ -343,13 +330,11 @@ impl OrchestratorContext {
                     / u64::from(child_total);
                 let scaled = u32::try_from(scaled)
                     .expect("scaled progress is bounded by VIDEO_GENERATION_PROGRESS_TOTAL");
-                progress
-                    .progress(
-                        (base + scaled).min(progress_total),
-                        progress_total.max(1),
-                        &format!("第 {}/{} 条视频：{message}", index + 1, prompt_ids.len()),
-                    )
-                    .map_err(AppError::InvalidArgument)
+                progress.progress(
+                    (base + scaled).min(progress_total),
+                    progress_total.max(1),
+                    &format!("第 {}/{} 条视频：{message}", index + 1, prompt_ids.len()),
+                )
             };
             let mut child_progress = VideoGenerationProgress::with_checkpoint(
                 Some(&mut mapped_progress),
@@ -370,7 +355,6 @@ impl OrchestratorContext {
                 )
                 .await;
             drop(child_progress);
-            drop(mapped_progress);
             match result {
                 Ok(video) if video.status == super::GENERATED_VIDEO_STATUS_COMPLETED => {
                     let artifact = video_artifact_event(
@@ -473,67 +457,6 @@ impl BatchAccumulator {
     }
 }
 
-async fn publish_video_progress(
-    mut receiver: mpsc::UnboundedReceiver<VideoProgressUpdate>,
-    publisher: SessionGenerationEventPublisher,
-    checkpoint_writer: GenerationCheckpointWriter,
-    session: Arc<crate::generation::events::GenerationTaskSession>,
-    operation_key: &'static str,
-) -> Result<(), GenerationError> {
-    while let Some(update) = receiver.recv().await {
-        let complete = update.current >= update.total;
-        publisher
-            .progress(ProgressEvent {
-                stage_code: operation_key.to_string(),
-                phase_kind: if update.current == 0 {
-                    ProgressPhaseKind::Prepare
-                } else if complete {
-                    ProgressPhaseKind::Complete
-                } else {
-                    ProgressPhaseKind::Provider
-                },
-                message: update.message,
-                current: Some(update.current.into()),
-                total: Some(update.total.max(1).into()),
-                unit_label: Some("步骤".to_string()),
-                item_key: None,
-                item_index: None,
-                item_total: None,
-                severity: if complete {
-                    ProgressSeverity::Success
-                } else {
-                    ProgressSeverity::Info
-                },
-                estimated: false,
-            })
-            .await
-            .map_err(|error| generation_public_error(error.code(), operation_key, error))?;
-        checkpoint_writer
-            .persist_if_due(
-                &session,
-                GenerationCheckpointMetadata {
-                    step_key: Some(operation_key.to_string()),
-                    ..Default::default()
-                },
-                false,
-            )
-            .await
-            .map_err(|error| generation_public_error(error.code(), operation_key, error))?;
-    }
-    checkpoint_writer
-        .persist_if_due(
-            &session,
-            GenerationCheckpointMetadata {
-                step_key: Some(operation_key.to_string()),
-                ..Default::default()
-            },
-            true,
-        )
-        .await
-        .map_err(|error| generation_public_error(error.code(), operation_key, error))?;
-    Ok(())
-}
-
 fn single_video_result(
     host_port: &dyn VideoProviderHostPort,
     video: generated_video::Model,
@@ -628,6 +551,9 @@ fn video_operation_key(operation: &VideoGenerationOperation) -> &'static str {
         VideoGenerationOperation::Chapter { .. } => "video_chapter",
         VideoGenerationOperation::ChapterBatch { .. } => "video_chapter_batch",
         VideoGenerationOperation::ReferenceMedia { .. } => "video_reference_media",
+        VideoGenerationOperation::PromptSegmentPlan { .. } => "video_prompt_segment_plan",
+        VideoGenerationOperation::PromptFrames { .. } => "video_prompt_frames",
+        VideoGenerationOperation::PromptVideos { .. } => "video_prompt_videos",
     }
 }
 
@@ -733,6 +659,23 @@ mod unit_tests {
         }
     }
 
+    fn prompt_options() -> a4n_api_contract::video::VideoPromptGenerationOptions {
+        a4n_api_contract::video::VideoPromptGenerationOptions {
+            workflow_mode: Some("storyboard".to_string()),
+            segment_plan_prompt_id: None,
+            style: "电影感".to_string(),
+            prompt_output_language: Some("zh_cn".to_string()),
+            prompt_batch_size: 2,
+            target_shot_number: None,
+            duration_secs: 6,
+            duration_secs_options: vec![6],
+            aspect_ratio: "16:9".to_string(),
+            reference_image_ids: Vec::new(),
+            video_library_image_ids: Vec::new(),
+            regenerate_existing: false,
+        }
+    }
+
     #[test]
     fn video_operation_key_covers_all_start_kinds() {
         assert_eq!(
@@ -755,21 +698,36 @@ mod unit_tests {
             video_operation_key(&VideoGenerationOperation::ReferenceMedia {
                 chapter_id: 1,
                 input: a4n_api_contract::video::ReferenceMediaVideoInput {
-                    segment_prompt_id: 2,
+                    segment_plan_prompt_id: 2,
                     shot_number: 1,
-                    prompt: "x".into(),
-                    image_files: Vec::new(),
                     image_uploads: Vec::new(),
-                    video_files: Vec::new(),
                     video_uploads: Vec::new(),
-                    audio_files: Vec::new(),
                     audio_uploads: Vec::new(),
-                    duration_secs: 6,
-                    aspect_ratio: "16:9".into(),
                     config_id: None,
                 },
             }),
             "video_reference_media"
+        );
+        assert_eq!(
+            video_operation_key(&VideoGenerationOperation::PromptSegmentPlan {
+                chapter_id: 1,
+                options: prompt_options(),
+            }),
+            "video_prompt_segment_plan"
+        );
+        assert_eq!(
+            video_operation_key(&VideoGenerationOperation::PromptFrames {
+                chapter_id: 1,
+                options: prompt_options(),
+            }),
+            "video_prompt_frames"
+        );
+        assert_eq!(
+            video_operation_key(&VideoGenerationOperation::PromptVideos {
+                chapter_id: 1,
+                options: prompt_options(),
+            }),
+            "video_prompt_videos"
         );
     }
 

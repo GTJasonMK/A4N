@@ -21,8 +21,9 @@ pub use postprocess::{
     build_video_postprocess_filter, postprocess_video,
 };
 pub use probe::{
-    FfprobeCommandError, VideoProbeError, VideoProbeProperties, parse_frame_rate,
-    parse_video_probe_properties, probe_video_has_audio, probe_video_properties,
+    AudioProbeError, FfprobeCommandError, VideoProbeError, VideoProbeProperties,
+    parse_audio_duration_secs, parse_frame_rate, parse_video_probe_properties,
+    probe_audio_duration_secs, probe_video_has_audio, probe_video_properties,
 };
 
 #[cfg(test)]

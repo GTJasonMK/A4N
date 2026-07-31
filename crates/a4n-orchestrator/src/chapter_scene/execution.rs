@@ -71,11 +71,12 @@ impl OrchestratorContext {
         input: ChapterSceneGenerationApplicationInput,
         prompt_renderer: &dyn PromptRenderer,
         progress: ChapterSceneProgressReporter<'_>,
+        active_task_id: Option<&str>,
     ) -> Result<chapter_scene::Model, AppError> {
         let input = self
             .chapter_scene_generation_input_for_user(user_id, input)
             .await?;
-        self.generate_chapter_scene_validated(input, prompt_renderer, progress)
+        self.generate_chapter_scene_validated(input, prompt_renderer, progress, active_task_id)
             .await
     }
 
@@ -109,6 +110,7 @@ impl OrchestratorContext {
         input: ChapterSceneGenerationInput,
         prompt_renderer: &dyn PromptRenderer,
         progress: ChapterSceneProgressReporter<'_>,
+        active_task_id: Option<&str>,
     ) -> Result<chapter_scene::Model, AppError> {
         progress(0, 4, "正在读取章节和场景参数")?;
         let prepared = self
@@ -124,6 +126,7 @@ impl OrchestratorContext {
             &prepared.scene_prompt,
             &prepared.call_key,
             &prepared.request,
+            active_task_id,
         )?;
         let workflow_run = self.begin_workflow_run_validated(workflow_input).await?;
         let result = self
@@ -134,7 +137,7 @@ impl OrchestratorContext {
                 progress,
             )
             .await;
-        self.finalize_chapter_scene_generation(workflow_run.id, result)
+        self.finalize_workflow_result(workflow_run.id, result, None)
             .await
     }
 
@@ -231,14 +234,12 @@ impl OrchestratorContext {
     ) -> Result<String, AppError> {
         let fingerprint_json =
             chapter_scene_call_fingerprint_json(&call_key, &workflow_fingerprint, &request)?;
-        let input_fingerprint_sha256 =
-            workflow::llm_call_checkpoint_fingerprint_sha256(&fingerprint_json)
-                .map_err(workflow_checkpoint_contract_app_error)?;
-        if let Some(trace_context) = request.trace_context.as_mut() {
-            trace_context.workflow_run_id = Some(workflow_run_id);
-            trace_context.call_key = Some(call_key.clone());
-            trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
-        }
+        workflow::attach_llm_call_checkpoint_trace(
+            &mut request,
+            workflow_run_id,
+            &call_key,
+            &fingerprint_json,
+        )?;
         self.mark_workflow_current_step(workflow_run_id, &call_key)
             .await?;
         if let Some(checkpoint) = self
@@ -280,27 +281,6 @@ impl OrchestratorContext {
         })
         .await?;
         Ok(content)
-    }
-
-    async fn finalize_chapter_scene_generation(
-        &self,
-        workflow_run_id: i64,
-        result: ChapterSceneGenerationResult,
-    ) -> ChapterSceneGenerationResult {
-        let (success, error_message) = match &result {
-            Ok(_) => (true, None),
-            Err(error) => (false, Some(error.to_string())),
-        };
-        let status_result = self
-            .finalize_workflow_run_validated(workflow_run_id, success, error_message.as_deref())
-            .await;
-        match (result, status_result) {
-            (result, Ok(_)) => result,
-            (Ok(_), Err(status_error)) => Err(status_error),
-            (Err(primary), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
-                "{primary}；工作流失败状态写入失败: {status_error}"
-            ))),
-        }
     }
 }
 

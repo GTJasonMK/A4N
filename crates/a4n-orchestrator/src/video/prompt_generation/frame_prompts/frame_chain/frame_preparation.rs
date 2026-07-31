@@ -8,7 +8,7 @@ use crate::video::prompt_generation::frame_prompts::{
     FramePromptGenerationSpec, NewChapterVideoPrompt, OrchestratorContext, ReusableFrameRowsQuery,
     VideoPromptDraftCommonInput, VideoPromptProgress, expected_boundary_frame_count,
     expected_video_unit_count, report_video_prompt_progress, reusable_frame_rows_for_resume,
-    video_units_for_segment_plan,
+    video_unit_for_target_segment, video_units_for_segment_plan,
 };
 use crate::video::prompt_json::VideoSegmentPlan;
 use a4n_core::prompt_language::PromptOutputLanguage;
@@ -32,6 +32,7 @@ pub(super) struct FrameWorkflowPreparationInput<'a, 'progress, 'borrow> {
     pub execution_identity: &'a Value,
     pub available_assets: &'a Value,
     pub segment_plan: &'a [VideoSegmentPlan],
+    pub target_shot_number: Option<i32>,
     pub segment_draft: Option<&'a NewChapterVideoPrompt>,
     pub regenerate_existing: bool,
     pub progress: &'borrow mut Option<VideoPromptProgress<'progress>>,
@@ -65,12 +66,32 @@ pub(super) async fn prepare_frame_workflow<'a, 'progress>(
         }
     }
 
-    let expected_frame_count = match input.spec.layout {
-        FramePromptLayout::BoundaryFrames => expected_boundary_frame_count(input.segment_plan),
-        FramePromptLayout::InitialFirstFrame => FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT,
-        FramePromptLayout::PerSegmentStoryboard => expected_video_unit_count(input.segment_plan),
+    let expected_frame_count = match (input.spec.layout, input.target_shot_number) {
+        (FramePromptLayout::BoundaryFrames, Some(_)) => 2,
+        (FramePromptLayout::InitialFirstFrame, Some(1) | None) => {
+            FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT
+        }
+        (FramePromptLayout::InitialFirstFrame, Some(target)) => {
+            return Err(AppError::InvalidArgument(format!(
+                "首帧续接片段 {target} 不生成新的首帧提示词；请先采用上一片段视频作为续接来源"
+            )));
+        }
+        (FramePromptLayout::PerSegmentStoryboard, Some(_)) => 1,
+        (FramePromptLayout::BoundaryFrames, None) => {
+            expected_boundary_frame_count(input.segment_plan)
+        }
+        (FramePromptLayout::PerSegmentStoryboard, None) => {
+            expected_video_unit_count(input.segment_plan)
+        }
     };
-    let video_units = video_units_for_segment_plan(input.segment_plan, input.duration_secs)?;
+    let video_units = match input.target_shot_number {
+        Some(target) => vec![video_unit_for_target_segment(
+            input.segment_plan,
+            input.duration_secs,
+            target,
+        )?],
+        None => video_units_for_segment_plan(input.segment_plan, input.duration_secs)?,
+    };
     let frame_draft_common = VideoPromptDraftCommonInput {
         project_id: input.project_id,
         chapter_id: input.chapter_id,
@@ -87,7 +108,7 @@ pub(super) async fn prepare_frame_workflow<'a, 'progress>(
     {
         Vec::new()
     } else {
-        let rows = reusable_frame_rows_for_resume(ReusableFrameRowsQuery {
+        reusable_frame_rows_for_resume(ReusableFrameRowsQuery {
             service: input.service,
             project_id: input.project_id,
             chapter_id: input.chapter_id,
@@ -103,8 +124,7 @@ pub(super) async fn prepare_frame_workflow<'a, 'progress>(
             video_execution_identity: input.execution_identity,
             prompt_output_language: input.prompt_output_language,
         })
-        .await?;
-        rows
+        .await?
     };
 
     Ok(PreparedFrameWorkflow {

@@ -35,6 +35,7 @@ pub type ObjectDiscoveryProgressReporter<'a> =
 pub struct ObjectDiscoveryProgress<'a> {
     pub reporter: Option<ObjectDiscoveryProgressReporter<'a>>,
     pub cancel_token: Option<&'a CancellationToken>,
+    pub active_task_id: Option<&'a str>,
 }
 
 impl ObjectDiscoveryProgress<'_> {
@@ -99,8 +100,6 @@ pub(super) struct ObjectDiscoveryCallCheckpoint {
     pub(super) response_content: String,
     pub(super) parsed_output: Value,
 }
-
-pub(super) type ObjectDiscoveryResult = Result<Value, AppError>;
 
 pub(super) struct PrepareObjectDiscoveryRequestInput<'a> {
     pub(super) input: ObjectDiscoveryInput,

@@ -19,6 +19,7 @@ macro_rules! character_ai_task_command {
             let scope = $scope(state.inner(), user_id, project_id).await?;
             let progress_task = crate::progress_task::WorkflowProgressTask::new(
                 state.inner(),
+                Some(user_id),
                 task_id,
                 a4n_core::event::channel::TaskKind::LlmCall,
                 Some(scope.project_id),
@@ -32,6 +33,7 @@ macro_rules! character_ai_task_command {
                 a4n_runtime::host_api::character_ai::CharacterAiProgress::new(
                     Some(&reporter),
                     Some(&cancel_token),
+                    progress_task.task_id(),
                 );
             let $app_state = state.inner();
             let $user_id = user_id;

@@ -1,16 +1,11 @@
 //! 按 workflow_mode 分发的 generate/preview 入口，供 runtime 窄 facade 使用。
 
-use std::collections::HashMap;
-
 use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_prompt::rendering::PromptRenderer;
-use serde_json::Value;
 
 use super::super::super::{
-    AppError, ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSourceContext,
-    OrchestratorContext, VideoPromptChunk, VideoPromptProgress,
+    AppError, ChapterVideoPromptStageInput, OrchestratorContext, VideoPromptChunk,
+    VideoPromptProgress,
 };
-use crate::video::VideoPromptRequestPreview;
 
 const MODE_BOUNDARY_FRAMES: &str = "boundary_frames";
 const MODE_FIRST_FRAME_CHAIN: &str = "first_frame_chain";
@@ -66,135 +61,14 @@ impl OrchestratorContext {
                 self.generate_chapter_first_frame_prompts(input, chunks, progress)
                     .await
             }
-            MODE_CHAT_VIDEO => {
-                self.generate_chapter_chat_video_frame_prompts(input, chunks, progress)
-                    .await
-            }
+            MODE_CHAT_VIDEO => Err(AppError::InvalidArgument(
+                "Chat 方案不生成帧提示词，请直接生成当前片段的最终提示词".to_string(),
+            )),
             MODE_STORYBOARD => {
                 self.generate_chapter_storyboard_prompts(input, chunks, progress)
                     .await
             }
             other => Err(unsupported_workflow_mode("帧提示词生成", other)),
-        }
-    }
-
-    /// 按 workflow_mode 分发章节视频提示词预览。
-    pub async fn preview_chapter_video_prompts_for_mode(
-        &self,
-        workflow_mode: &str,
-        project_id: i64,
-        chapter_id: i64,
-        source: ChapterVideoSourceContext<'_>,
-        prompt_renderer: &dyn PromptRenderer,
-        variables: &HashMap<String, Value>,
-        options: ChapterVideoPromptOptions,
-    ) -> Result<VideoPromptRequestPreview, AppError> {
-        match workflow_mode {
-            MODE_BOUNDARY_FRAMES => {
-                self.preview_chapter_video_prompt_requests(
-                    project_id,
-                    chapter_id,
-                    source,
-                    prompt_renderer,
-                    variables,
-                    options,
-                )
-                .await
-            }
-            MODE_FIRST_FRAME_CHAIN => {
-                self.preview_chapter_first_frame_video_prompt_requests(
-                    project_id,
-                    chapter_id,
-                    source,
-                    prompt_renderer,
-                    variables,
-                    options,
-                )
-                .await
-            }
-            MODE_CHAT_VIDEO => {
-                self.preview_chapter_chat_video_prompt_requests(
-                    project_id,
-                    chapter_id,
-                    source,
-                    prompt_renderer,
-                    variables,
-                    options,
-                )
-                .await
-            }
-            MODE_STORYBOARD => {
-                self.preview_chapter_storyboard_video_prompt_requests(
-                    project_id,
-                    chapter_id,
-                    source,
-                    prompt_renderer,
-                    variables,
-                    options,
-                )
-                .await
-            }
-            other => Err(unsupported_workflow_mode("视频提示词预览", other)),
-        }
-    }
-
-    /// 按 workflow_mode 分发章节帧提示词预览。
-    pub async fn preview_chapter_frame_prompts_for_mode(
-        &self,
-        workflow_mode: &str,
-        project_id: i64,
-        chapter_id: i64,
-        source: ChapterVideoSourceContext<'_>,
-        prompt_renderer: &dyn PromptRenderer,
-        variables: &HashMap<String, Value>,
-        options: ChapterVideoPromptOptions,
-    ) -> Result<VideoPromptRequestPreview, AppError> {
-        match workflow_mode {
-            MODE_BOUNDARY_FRAMES => {
-                self.preview_chapter_frame_prompt_requests(
-                    project_id,
-                    chapter_id,
-                    source,
-                    prompt_renderer,
-                    variables,
-                    options,
-                )
-                .await
-            }
-            MODE_FIRST_FRAME_CHAIN => {
-                self.preview_chapter_first_frame_prompt_requests(
-                    project_id,
-                    chapter_id,
-                    source,
-                    prompt_renderer,
-                    variables,
-                    options,
-                )
-                .await
-            }
-            MODE_CHAT_VIDEO => {
-                self.preview_chapter_chat_video_frame_prompt_requests(
-                    project_id,
-                    chapter_id,
-                    source,
-                    prompt_renderer,
-                    variables,
-                    options,
-                )
-                .await
-            }
-            MODE_STORYBOARD => {
-                self.preview_chapter_storyboard_prompt_requests(
-                    project_id,
-                    chapter_id,
-                    source,
-                    prompt_renderer,
-                    variables,
-                    options,
-                )
-                .await
-            }
-            other => Err(unsupported_workflow_mode("帧提示词预览", other)),
         }
     }
 }

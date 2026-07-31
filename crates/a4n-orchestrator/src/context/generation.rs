@@ -5,7 +5,10 @@
 use a4n_api_contract::{
     blueprint::{StartBlueprintGenerationInput, StartBlueprintRefinementInput},
     chapter::StartChapterGenerationInput,
-    generation_tasks::{GenerationSnapshotState, GenerationTaskHandle, GenerationTaskSummary},
+    generation_tasks::{
+        GenerationSnapshotState, GenerationStartRequestMeta, GenerationTaskHandle,
+        GenerationTaskSummary,
+    },
     image_generation::{ImageGenerationOperation, StartImageGenerationInput},
     inspiration::StartInspirationGenerationInput,
     optimize::{
@@ -30,9 +33,11 @@ use a4n_db::generation::{
 use a4n_queue::priority::{TaskKind, TaskPermit, TaskPriority, TaskStatus};
 use a4n_service_protocol::{
     BatchSummary, GENERATION_EVENT_SCHEMA_VERSION, GenerationError, GenerationEvent,
-    GenerationTaskEvent, GenerationTaskSnapshot, GenerationTaskStatus, InterruptionReason,
+    GenerationFinishReason, GenerationResultRef, GenerationTaskEvent, GenerationTaskSnapshot,
+    GenerationTaskStatus, InterruptionReason, StreamTextHash, TextStreamSnapshot,
 };
 use chrono::{DateTime, Utc};
+use futures::future::BoxFuture;
 use serde_json::Value;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -40,13 +45,15 @@ use tokio_util::sync::CancellationToken;
 use super::OrchestratorContext;
 use crate::generation::{
     artifacts::PreparedArtifactEvent,
+    checkpoint::{DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointWriter},
     events::{
-        GenerationReplay, GenerationSessionConfig, GenerationSessionError,
-        GenerationSessionRegistry, GenerationSubscription, GenerationTaskSession,
+        GenerationSessionConfig, GenerationSessionError, GenerationSessionRegistry,
+        GenerationSubscription, GenerationTaskSession, SessionGenerationEventPublisher,
     },
     generation_error,
     terminal::{
-        GenerationTerminalCoordinator, GenerationTerminalError, GenerationTerminalWriteOutcome,
+        CompletionDescriptor, GenerationTerminalCoordinator, GenerationTerminalError,
+        GenerationTerminalWriteOutcome,
     },
 };
 use crate::task_queue::PersistentTaskQueue;
@@ -121,12 +128,62 @@ pub struct GenerationTaskStart {
 /// 已取得 generation queue execution permit 的运行上下文。
 pub(crate) struct GenerationTaskExecution {
     pub(crate) session: Arc<GenerationTaskSession>,
+    pub(crate) publisher: SessionGenerationEventPublisher,
+    pub(crate) checkpoint_writer: GenerationCheckpointWriter,
     pub(crate) terminal: GenerationTerminalCoordinator,
     pub(crate) queue: Arc<PersistentTaskQueue>,
     pub(crate) permit: TaskPermit,
 }
 
 impl GenerationTaskExecution {
+    pub(crate) async fn complete_with_result(
+        self,
+        operation_key: &str,
+        result_ref: GenerationResultRef,
+        summary: String,
+        artifacts: Vec<PreparedArtifactEvent>,
+        batch_summary: Option<BatchSummary>,
+    ) -> Result<(), String> {
+        let snapshot = self.session.snapshot();
+        let final_text_hashes = snapshot_text_hashes(&snapshot.streams);
+        let final_usage = snapshot.usage;
+        let failure_batch_summary = batch_summary.clone();
+        let failure_artifacts = artifacts.clone();
+        let completion = self
+            .terminal
+            .complete_with_artifacts(&self.session, artifacts, move |_tx| {
+                Box::pin(async move {
+                    Ok(CompletionDescriptor {
+                        result_ref: Some(result_ref),
+                        final_text_hashes,
+                        final_usage,
+                        finish_reason: Some(GenerationFinishReason::Stop),
+                        summary: Some(summary),
+                        batch_summary,
+                    })
+                }) as BoxFuture<'_, Result<CompletionDescriptor, AppError>>
+            })
+            .await;
+        if let Err(error) = completion {
+            return Err(self
+                .fail_with_batch_summary(
+                    crate::generation::generation_public_error(error.code(), operation_key, error),
+                    failure_batch_summary,
+                    failure_artifacts,
+                )
+                .await);
+        }
+        self.complete_queue_task().await
+    }
+
+    pub(crate) async fn complete_queue_task(self) -> Result<(), String> {
+        let task_id = self.permit.task_id().to_string();
+        self.queue
+            .complete_generation_task(self.permit)
+            .await
+            .map_err(|error| format!("generation queue 完成投影失败 ({task_id}): {error}"))
+    }
+
     pub(crate) async fn fail(self, error: GenerationError) -> String {
         self.fail_with_batch_summary(error, None, Vec::new()).await
     }
@@ -142,6 +199,7 @@ impl GenerationTaskExecution {
             terminal,
             queue,
             permit,
+            ..
         } = self;
         let terminal_result = match session.snapshot().status {
             GenerationTaskStatus::Cancelling => {
@@ -199,6 +257,49 @@ impl GenerationTaskExecution {
     }
 }
 
+fn snapshot_text_hashes(streams: &[TextStreamSnapshot]) -> Vec<StreamTextHash> {
+    streams
+        .iter()
+        .map(|stream| StreamTextHash {
+            stream_id: stream.stream_id.clone(),
+            utf8_bytes: stream.next_offset,
+            sha256: stream.sha256.clone(),
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod completion_hash_tests {
+    use super::*;
+
+    #[test]
+    fn completion_hashes_cover_every_snapshot_stream() {
+        let streams = vec![
+            TextStreamSnapshot {
+                stream_id: "raw_json".to_string(),
+                text: "{}".to_string(),
+                next_offset: 2,
+                sha256: "a".repeat(64),
+            },
+            TextStreamSnapshot {
+                stream_id: "notes".to_string(),
+                text: "ok".to_string(),
+                next_offset: 2,
+                sha256: "b".repeat(64),
+            },
+        ];
+
+        let hashes = snapshot_text_hashes(&streams);
+
+        assert_eq!(hashes.len(), streams.len());
+        for (hash, stream) in hashes.iter().zip(&streams) {
+            assert_eq!(hash.stream_id, stream.stream_id);
+            assert_eq!(hash.utf8_bytes, stream.next_offset);
+            assert_eq!(hash.sha256, stream.sha256);
+        }
+    }
+}
+
 impl GenerationApplication {
     pub(crate) fn new(database: DbHandle, task_queue: Arc<PersistentTaskQueue>) -> Self {
         let registry = Arc::new(
@@ -231,17 +332,15 @@ impl GenerationApplication {
         let handle = generation_task_handle(&snapshot);
         let queue_pending = matches!(queue_task.status, TaskStatus::Pending);
 
-        if queue_pending {
-            if let Err(error) = self.task_queue.register_persisted(queue_task) {
-                self.terminate_start_failure(
-                    &task.checkpoint.task_id,
-                    task.checkpoint.attempt,
-                    false,
-                    error.to_string(),
-                )
-                .await;
-                return Err(GenerationTaskAccessError::Queue(error));
-            }
+        if queue_pending && let Err(error) = self.task_queue.register_persisted(queue_task) {
+            self.terminate_start_failure(
+                &task.checkpoint.task_id,
+                task.checkpoint.attempt,
+                false,
+                error.to_string(),
+            )
+            .await;
+            return Err(GenerationTaskAccessError::Queue(error));
         }
 
         if snapshot.status.is_terminal()
@@ -605,36 +704,56 @@ impl GenerationApplication {
         input: StartVideoGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let operation_kind = video_generation_operation_kind(&input.operation);
+        let target_id = video_generation_target_id(input.project_id, &input.operation);
         let fingerprint = video_generation_input_fingerprint(&input);
+        let prompt_operation = input.operation.is_prompt_generation();
         let reservation = a4n_db::generation::reserve_generation_task(
             self.connection(),
             ReserveGenerationTaskInput {
                 requested_by_user_id: user_id,
                 start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "video_generation",
-                    "project_id": input.project_id,
-                    "operation_kind": operation_kind,
-                }),
+                business_key_json: video_generation_business_key(
+                    input.project_id,
+                    operation_kind,
+                    &target_id,
+                ),
                 input_fingerprint_json: fingerprint,
-                task_kind: TaskKind::VideoGeneration,
-                priority: TaskPriority::Medium,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::StageOnly,
-                batch_policy: matches!(
-                    &input.operation,
+                task_kind: if prompt_operation {
+                    TaskKind::LlmCall
+                } else {
+                    TaskKind::VideoGeneration
+                },
+                priority: if prompt_operation {
+                    TaskPriority::High
+                } else {
+                    TaskPriority::Medium
+                },
+                delivery_mode: if prompt_operation {
+                    a4n_service_protocol::GenerationDeliveryMode::Stream
+                } else {
+                    a4n_service_protocol::GenerationDeliveryMode::StageOnly
+                },
+                batch_policy: match &input.operation {
                     VideoGenerationOperation::ChapterBatch { .. }
-                )
-                .then_some(a4n_service_protocol::BatchCommitPolicy::BestEffort),
+                    | VideoGenerationOperation::PromptFrames { .. }
+                    | VideoGenerationOperation::PromptVideos { .. } => {
+                        Some(a4n_service_protocol::BatchCommitPolicy::BestEffort)
+                    }
+                    _ => None,
+                },
                 project_id: Some(input.project_id),
                 root_project_id: None,
                 source_snapshot_id: None,
-                task_scope: Some("video_generation".to_string()),
+                task_scope: Some(if prompt_operation {
+                    "video_prompt_generation".to_string()
+                } else {
+                    "video_generation".to_string()
+                }),
                 workflow_run_id: None,
                 generation_run_id: None,
                 target: Some(a4n_service_protocol::GenerationTargetRef {
                     kind: format!("video_{operation_kind}"),
-                    id: video_generation_target_id(input.project_id, &input.operation),
+                    id: target_id,
                     revision: None,
                 }),
                 root_task_id: None,
@@ -654,42 +773,14 @@ impl GenerationApplication {
         input: StartBlueprintGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let fingerprint = blueprint_generation_input_fingerprint(&input);
-        let reservation = a4n_db::generation::reserve_generation_task(
-            self.connection(),
-            ReserveGenerationTaskInput {
-                requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
-                business_key_json: serde_json::json!({
-                    "version": 1,
-                    "task_kind": "blueprint_mutation",
-                    "project_id": input.project_id,
-                    "operation_mode": "blueprint",
-                }),
-                input_fingerprint_json: fingerprint,
-                task_kind: TaskKind::LlmCall,
-                priority: TaskPriority::High,
-                delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
-                batch_policy: None,
-                project_id: Some(input.project_id),
-                root_project_id: None,
-                source_snapshot_id: None,
-                task_scope: Some("blueprint_generation".to_string()),
-                workflow_run_id: None,
-                generation_run_id: None,
-                target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: "blueprint_generation".to_string(),
-                    id: input.project_id.to_string(),
-                    revision: None,
-                }),
-                root_task_id: None,
-                parent_task_id: None,
-                item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
-            },
+        self.start_blueprint_mutation_task(
+            user_id,
+            input.meta,
+            input.project_id,
+            fingerprint,
+            "blueprint_generation",
         )
         .await
-        .map_err(GenerationTaskAccessError::Persistence)?;
-        self.initialize_reserved_task(reservation).await
     }
 
     pub(crate) async fn start_blueprint_refinement_task(
@@ -698,15 +789,33 @@ impl GenerationApplication {
         input: StartBlueprintRefinementInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let fingerprint = blueprint_refinement_input_fingerprint(&input);
+        self.start_blueprint_mutation_task(
+            user_id,
+            input.meta,
+            input.project_id,
+            fingerprint,
+            "blueprint_refinement",
+        )
+        .await
+    }
+
+    async fn start_blueprint_mutation_task(
+        &self,
+        user_id: i64,
+        meta: GenerationStartRequestMeta,
+        project_id: i64,
+        fingerprint: Value,
+        task_scope: &str,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let reservation = a4n_db::generation::reserve_generation_task(
             self.connection(),
             ReserveGenerationTaskInput {
                 requested_by_user_id: user_id,
-                start_request_id: input.meta.start_request_id,
+                start_request_id: meta.start_request_id,
                 business_key_json: serde_json::json!({
                     "version": 1,
                     "task_kind": "blueprint_mutation",
-                    "project_id": input.project_id,
+                    "project_id": project_id,
                     "operation_mode": "blueprint",
                 }),
                 input_fingerprint_json: fingerprint,
@@ -714,21 +823,21 @@ impl GenerationApplication {
                 priority: TaskPriority::High,
                 delivery_mode: a4n_service_protocol::GenerationDeliveryMode::Stream,
                 batch_policy: None,
-                project_id: Some(input.project_id),
+                project_id: Some(project_id),
                 root_project_id: None,
                 source_snapshot_id: None,
-                task_scope: Some("blueprint_refinement".to_string()),
+                task_scope: Some(task_scope.to_string()),
                 workflow_run_id: None,
                 generation_run_id: None,
                 target: Some(a4n_service_protocol::GenerationTargetRef {
-                    kind: "blueprint_refinement".to_string(),
-                    id: input.project_id.to_string(),
+                    kind: task_scope.to_string(),
+                    id: project_id.to_string(),
                     revision: None,
                 }),
                 root_task_id: None,
                 parent_task_id: None,
                 item_key: None,
-                retry_of_task_id: input.meta.retry_of_task_id,
+                retry_of_task_id: meta.retry_of_task_id,
             },
         )
         .await
@@ -886,8 +995,18 @@ impl GenerationApplication {
         match self.terminal.begin_running(&session).await {
             Ok(GenerationTerminalWriteOutcome::Persisted)
             | Ok(GenerationTerminalWriteOutcome::RebuiltFromPersistedSnapshot) => {
+                let publisher = SessionGenerationEventPublisher::new(
+                    session.clone(),
+                    Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
+                        self.database.shared_connection(),
+                    )),
+                );
                 Ok(Some(GenerationTaskExecution {
                     session,
+                    publisher,
+                    checkpoint_writer: GenerationCheckpointWriter::new(
+                        self.database.shared_connection(),
+                    ),
                     terminal: self.terminal.clone(),
                     queue: Arc::clone(&self.task_queue),
                     permit,
@@ -1039,6 +1158,22 @@ impl GenerationApplication {
             target_id,
             error_message,
             response_summary_json,
+        )
+        .await
+        .map_err(generation_error)
+    }
+
+    pub(super) async fn cancel_generation_runs_for_target(
+        &self,
+        target_table: &str,
+        target_id: i64,
+        message: String,
+    ) -> Result<Vec<generation_run::Model>, AppError> {
+        a4n_db::generation::cancel_runs_for_target(
+            self.connection(),
+            target_table,
+            target_id,
+            message,
         )
         .await
         .map_err(generation_error)
@@ -1290,8 +1425,7 @@ impl GenerationApplication {
             let persisted = a4n_db::generation::load_generation_task(self.connection(), task_id)
                 .await
                 .map_err(GenerationTaskLifecycleError::from)?;
-            required_public_snapshot(persisted)
-                .map_err(|error| GenerationTerminalError::Completion(error))?
+            required_public_snapshot(persisted).map_err(GenerationTerminalError::Completion)?
         };
         Ok(generation_task_handle(&snapshot))
     }
@@ -1402,6 +1536,30 @@ impl OrchestratorContext {
                 }
                 validate_reference_media_start_input(input).map_err(AppError::InvalidArgument)?;
             }
+            VideoGenerationOperation::PromptSegmentPlan {
+                chapter_id,
+                options,
+            } => validate_video_prompt_generation_start(
+                *chapter_id,
+                options,
+                crate::video::validate_video_segment_plan_generation_options,
+            )?,
+            VideoGenerationOperation::PromptFrames {
+                chapter_id,
+                options,
+            } => validate_video_prompt_generation_start(
+                *chapter_id,
+                options,
+                crate::video::validate_video_frame_prompt_generation_options,
+            )?,
+            VideoGenerationOperation::PromptVideos {
+                chapter_id,
+                options,
+            } => validate_video_prompt_generation_start(
+                *chapter_id,
+                options,
+                crate::video::validate_video_final_prompt_generation_options,
+            )?,
         }
         Ok(())
     }
@@ -1684,19 +1842,6 @@ impl OrchestratorContext {
             .session_for_authorized_task(task)?
             .ok_or(GenerationTaskAccessError::SnapshotRequired)?;
         session.subscribe(after_sequence).map_err(Into::into)
-    }
-
-    pub fn generation_task_replay(
-        &self,
-        task_id: &str,
-        attempt: u32,
-        after_sequence: Option<u64>,
-    ) -> Result<GenerationReplay, GenerationTaskAccessError> {
-        let session = self
-            .generation
-            .session(task_id, attempt)?
-            .ok_or(GenerationTaskAccessError::SnapshotRequired)?;
-        Ok(session.replay_after(after_sequence))
     }
 
     pub async fn begin_generation_project_lifecycle_gate(
@@ -2014,7 +2159,7 @@ fn generation_task_summary_from_checkpoint(
             snapshot
                 .status
                 .is_terminal()
-                .then(|| snapshot.terminal_event)
+                .then_some(snapshot.terminal_event)
                 .flatten(),
         ),
         GenerationPublicSnapshot::Expired => (GenerationSnapshotState::Expired, None),
@@ -2192,11 +2337,24 @@ fn video_generation_input_fingerprint(input: &StartVideoGenerationInput) -> Valu
     })
 }
 
+fn video_generation_business_key(project_id: i64, operation_kind: &str, target_id: &str) -> Value {
+    serde_json::json!({
+        "version": 1,
+        "task_kind": "video_generation",
+        "project_id": project_id,
+        "operation_kind": operation_kind,
+        "target_id": target_id,
+    })
+}
+
 fn video_generation_operation_kind(operation: &VideoGenerationOperation) -> &'static str {
     match operation {
         VideoGenerationOperation::Chapter { .. } => "chapter",
         VideoGenerationOperation::ChapterBatch { .. } => "chapter_batch",
         VideoGenerationOperation::ReferenceMedia { .. } => "reference_media",
+        VideoGenerationOperation::PromptSegmentPlan { .. } => "prompt_segment_plan",
+        VideoGenerationOperation::PromptFrames { .. } => "prompt_frames",
+        VideoGenerationOperation::PromptVideos { .. } => "prompt_videos",
     }
 }
 
@@ -2210,10 +2368,53 @@ fn video_generation_target_id(project_id: i64, operation: &VideoGenerationOperat
         VideoGenerationOperation::ChapterBatch { chapter_id, .. } => {
             format!("{project_id}:chapter:{chapter_id}")
         }
-        VideoGenerationOperation::ReferenceMedia { chapter_id, .. } => {
-            format!("{project_id}:chapter:{chapter_id}:reference_media")
+        VideoGenerationOperation::ReferenceMedia { chapter_id, input } => format!(
+            "{project_id}:chapter:{chapter_id}:reference_media:plan:{}:segment:{}",
+            input.segment_plan_prompt_id, input.shot_number
+        ),
+        VideoGenerationOperation::PromptSegmentPlan { chapter_id, .. } => {
+            format!("{project_id}:chapter:{chapter_id}:prompt_segment_plan:shared")
         }
+        VideoGenerationOperation::PromptFrames {
+            chapter_id,
+            options,
+        } => format!(
+            "{project_id}:chapter:{chapter_id}:prompt_frames:plan:{}:segment:{}",
+            options
+                .segment_plan_prompt_id
+                .expect("video frame prompt start validation requires segment plan"),
+            options
+                .target_shot_number
+                .expect("video frame prompt start validation requires target segment")
+        ),
+        VideoGenerationOperation::PromptVideos {
+            chapter_id,
+            options,
+        } => format!(
+            "{project_id}:chapter:{chapter_id}:prompt_videos:plan:{}:segment:{}",
+            options
+                .segment_plan_prompt_id
+                .expect("video final prompt start validation requires segment plan"),
+            options
+                .target_shot_number
+                .expect("video final prompt start validation requires target segment")
+        ),
     }
+}
+
+fn validate_video_prompt_generation_start(
+    chapter_id: i64,
+    options: &a4n_api_contract::video::VideoPromptGenerationOptions,
+    validate_options: fn(
+        &a4n_api_contract::video::VideoPromptGenerationOptions,
+    ) -> Result<(), AppError>,
+) -> Result<(), AppError> {
+    if chapter_id <= 0 {
+        return Err(AppError::InvalidArgument(
+            "视频提示词生成 chapter_id 必须为正数".to_string(),
+        ));
+    }
+    validate_options(options)
 }
 
 fn blueprint_generation_input_fingerprint(input: &StartBlueprintGenerationInput) -> Value {
@@ -2323,4 +2524,131 @@ fn required_public_snapshot(
         ),
         operation: "初始化 generation session".to_string(),
     })
+}
+
+#[cfg(test)]
+mod video_prompt_generation_tests {
+    use super::*;
+    use a4n_api_contract::{
+        generation_tasks::GenerationStartRequestMeta,
+        video::{ReferenceMediaVideoInput, VideoPromptGenerationOptions},
+    };
+
+    fn options() -> VideoPromptGenerationOptions {
+        VideoPromptGenerationOptions {
+            workflow_mode: Some("storyboard".to_string()),
+            segment_plan_prompt_id: Some(11),
+            style: "电影感".to_string(),
+            prompt_output_language: Some("zh_cn".to_string()),
+            prompt_batch_size: 2,
+            target_shot_number: Some(4),
+            duration_secs: 6,
+            duration_secs_options: vec![6],
+            aspect_ratio: "16:9".to_string(),
+            reference_image_ids: vec![1],
+            video_library_image_ids: vec![2],
+            regenerate_existing: false,
+        }
+    }
+
+    fn input(options: VideoPromptGenerationOptions) -> StartVideoGenerationInput {
+        StartVideoGenerationInput {
+            meta: GenerationStartRequestMeta {
+                start_request_id: "request-1".to_string(),
+                retry_of_task_id: None,
+            },
+            project_id: 19,
+            operation: VideoGenerationOperation::PromptFrames {
+                chapter_id: 3,
+                options,
+            },
+        }
+    }
+
+    fn validate_start(options: &VideoPromptGenerationOptions) -> Result<(), AppError> {
+        validate_video_prompt_generation_start(
+            3,
+            options,
+            crate::video::validate_video_frame_prompt_generation_options,
+        )
+    }
+
+    #[test]
+    fn prompt_target_contains_chapter_operation_and_workflow() {
+        let operation = input(options()).operation;
+        assert_eq!(
+            video_generation_target_id(19, &operation),
+            "19:chapter:3:prompt_frames:plan:11:segment:4"
+        );
+    }
+
+    #[test]
+    fn prompt_business_key_uses_canonical_target() {
+        let input = input(options());
+        let target_id = video_generation_target_id(input.project_id, &input.operation);
+        assert_eq!(
+            video_generation_business_key(
+                input.project_id,
+                video_generation_operation_kind(&input.operation),
+                &target_id,
+            ),
+            serde_json::json!({
+                "version": 1,
+                "task_kind": "video_generation",
+                "project_id": 19,
+                "operation_kind": "prompt_frames",
+                "target_id": "19:chapter:3:prompt_frames:plan:11:segment:4",
+            })
+        );
+    }
+
+    #[test]
+    fn reference_media_target_identifies_plan_and_segment() {
+        let operation = VideoGenerationOperation::ReferenceMedia {
+            chapter_id: 3,
+            input: ReferenceMediaVideoInput {
+                segment_plan_prompt_id: 11,
+                shot_number: 4,
+                image_uploads: vec![],
+                video_uploads: vec![],
+                audio_uploads: vec![],
+                config_id: None,
+            },
+        };
+        assert_eq!(
+            video_generation_target_id(19, &operation),
+            "19:chapter:3:reference_media:plan:11:segment:4"
+        );
+    }
+
+    #[test]
+    fn prompt_fingerprint_changes_with_options() {
+        let first = input(options());
+        let mut changed_options = options();
+        changed_options.style = "水彩".to_string();
+        let second = input(changed_options);
+        assert_ne!(
+            video_generation_input_fingerprint(&first),
+            video_generation_input_fingerprint(&second)
+        );
+    }
+
+    #[test]
+    fn prompt_start_validation_rejects_missing_contract_fields() {
+        let mut invalid = options();
+        invalid.workflow_mode = Some(" ".to_string());
+        assert!(validate_start(&invalid).is_err());
+
+        invalid = options();
+        invalid.style.clear();
+        assert!(validate_start(&invalid).is_err());
+
+        invalid = options();
+        invalid.prompt_batch_size = 0;
+        assert!(validate_start(&invalid).is_err());
+
+        invalid = options();
+        invalid.duration_secs = 0;
+        assert!(validate_start(&invalid).is_err());
+    }
 }

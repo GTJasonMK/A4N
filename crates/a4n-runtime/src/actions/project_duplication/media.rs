@@ -3,8 +3,7 @@ use crate::{
 };
 use a4n_core::error::AppError;
 use a4n_orchestrator::project::{
-    DerivedProjectMediaFileCopier, FreeformProjectMediaFileCopier, ProjectDuplicationHostPort,
-    ProjectMediaCopyError,
+    ProjectDuplicationHostPort, ProjectMediaCopyError, ProjectMediaFileCopier,
 };
 use async_trait::async_trait;
 use std::{
@@ -87,19 +86,7 @@ impl<'a> RuntimeProjectDuplicationHostPort<'a> {
     }
 }
 
-impl DerivedProjectMediaFileCopier for RuntimeProjectDuplicationHostPort<'_> {
-    fn copy_media_file(
-        &mut self,
-        new_project_id: i64,
-        source_media_asset_id: i64,
-        field: &str,
-        relative_path: Option<&str>,
-    ) -> Result<Option<String>, ProjectMediaCopyError> {
-        self.copy_project_media_file(new_project_id, source_media_asset_id, field, relative_path)
-    }
-}
-
-impl FreeformProjectMediaFileCopier for RuntimeProjectDuplicationHostPort<'_> {
+impl ProjectMediaFileCopier for RuntimeProjectDuplicationHostPort<'_> {
     fn copy_media_file(
         &mut self,
         new_project_id: i64,
@@ -154,20 +141,7 @@ impl RuntimeProjectMediaFileCopier<'_> {
 }
 
 #[cfg(test)]
-impl DerivedProjectMediaFileCopier for RuntimeProjectMediaFileCopier<'_> {
-    fn copy_media_file(
-        &mut self,
-        new_project_id: i64,
-        source_media_asset_id: i64,
-        field: &str,
-        relative_path: Option<&str>,
-    ) -> Result<Option<String>, ProjectMediaCopyError> {
-        self.copy_project_media_file(new_project_id, source_media_asset_id, field, relative_path)
-    }
-}
-
-#[cfg(test)]
-impl FreeformProjectMediaFileCopier for RuntimeProjectMediaFileCopier<'_> {
+impl ProjectMediaFileCopier for RuntimeProjectMediaFileCopier<'_> {
     fn copy_media_file(
         &mut self,
         new_project_id: i64,

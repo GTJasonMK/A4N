@@ -1,4 +1,3 @@
-mod api;
 pub(crate) mod enhanced;
 mod execution;
 mod filter;

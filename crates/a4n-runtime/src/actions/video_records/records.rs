@@ -63,7 +63,13 @@ pub async fn select_segment_video(
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let row = state
         .video()
-        .select_segment_video_validated(project_id, chapter_id, input.shot_number, video_id)
+        .select_segment_video_validated(
+            project_id,
+            chapter_id,
+            input.segment_plan_prompt_id,
+            input.shot_number,
+            video_id,
+        )
         .await
         .map_err(app_error_message)?;
     Ok(video_to_summary(&row))

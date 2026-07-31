@@ -21,7 +21,6 @@ dependency_conflict.rs	enum	DownstreamConflictStrategy
 error.rs	enum	AppError
 event/bridge.rs	enum	InternalEvent
 event/bridge.rs	struct	BroadcastEventBus
-event/bridge.rs	trait	EventBus
 event/channel/contracts.rs	enum	TaskKind
 event/channel/contracts.rs	struct	TaskProgress
 event/channel/contracts.rs	struct	TaskProgressEvent
@@ -33,7 +32,6 @@ event/progress.rs	enum	ProgressSeverity
 event/progress.rs	struct	ProgressMeta
 event/snapshot.rs	struct	Snapshot
 event/snapshot.rs	struct	SnapshotDelta
-event/snapshot.rs	trait	SnapshotStore
 files/paths/app.rs	struct	AppPaths
 files/paths/project.rs	struct	ProjectPaths
 import_reverse.rs	enum	ReverseContextKind
@@ -261,8 +259,6 @@ shooting_script/contracts.rs	struct	ShootingSoundDesignV1
 shooting_script/contracts.rs	struct	ShootingSpatialContinuityV1
 shooting_script/contracts.rs	struct	ShootingTransitionContractV1
 shooting_script/contracts.rs	struct	ShootingViewpointV1
-shooting_script/transition_tokens.rs	enum	TransitionBoundaryError
-shooting_script/transition_tokens.rs	enum	TransitionTokenError
 shooting_script/validation.rs	struct	ShootingScriptValidationError
 source_spans/anchor_contract/contracts.rs	struct	AnchorQuoteWithChapter
 source_spans/metadata.rs	struct	ChapterSourceContext
@@ -300,3 +296,8 @@ video_execution/contracts.rs	struct	VideoSegmentTransitionV1
 video_execution/contracts.rs	struct	VideoShootingScriptIdentityV1
 video_execution/contracts.rs	struct	VideoSourceSpanRangeV1
 video_execution/contracts.rs	struct	VideoSpatialAnchorV1
+video_execution/segment_recipe.rs	enum	VideoSegmentGuidanceModeV1
+video_execution/segment_recipe.rs	enum	VideoSegmentWorkflowModeV1
+video_execution/segment_recipe.rs	struct	VideoReferenceMediaBindingV1
+video_execution/segment_recipe.rs	struct	VideoReferenceMediaRecipeV1
+video_execution/segment_recipe.rs	struct	VideoSegmentExecutionRecipeV1

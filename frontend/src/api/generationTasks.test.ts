@@ -245,9 +245,87 @@ describe("generation web transport", () => {
     expect(task?.resultRef).toEqual(chapterResultRef);
     expect(mocks.runtimeInvoke).toHaveBeenCalledWith(
       "get_generation_task_snapshot",
-      expect.objectContaining({ attempt: 1 }),
+      expect.objectContaining({ taskId, attempt: 1 }),
     );
     consoleError.mockRestore();
+  });
+
+  it("does not unsubscribe a Tauri subscription after its terminal event", async () => {
+    mocks.httpBackend = false;
+    mocks.runtimeInvoke.mockImplementation(async (command: string) => {
+      if (command === "subscribe_generation_task") {
+        return {
+          task_id: taskId,
+          attempt: 1,
+          subscription_id: "subscription-terminal",
+          subscribed_after_sequence: null,
+        };
+      }
+      if (command === "unsubscribe_generation_task") {
+        throw new Error("terminal subscription was already released by the backend");
+      }
+      throw new Error(`unexpected runtime command: ${command}`);
+    });
+    const { generationClient } = await import("./generationTasks");
+
+    await generationClient.attach(handle);
+    const channel = mocks.runtimeChannel;
+    if (!channel) throw new Error("Tauri generation channel was not created");
+    channel.onmessage(startedEvent());
+    channel.onmessage(completedEvent());
+
+    await vi.waitFor(() => {
+      expect(getGenerationTaskViewState(taskId, 1)?.terminalReceived).toBe(true);
+    });
+    expect(
+      mocks.runtimeInvoke.mock.calls.some(([command]) => command === "unsubscribe_generation_task"),
+    ).toBe(false);
+    await generationClient.detach(handle);
+  });
+
+  it("still unsubscribes a live Tauri subscription on manual detach", async () => {
+    mocks.httpBackend = false;
+    mocks.runtimeInvoke.mockImplementation(async (command: string) => {
+      if (command === "subscribe_generation_task") {
+        return {
+          task_id: taskId,
+          attempt: 1,
+          subscription_id: "subscription-detach",
+          subscribed_after_sequence: null,
+        };
+      }
+      if (command === "unsubscribe_generation_task") return undefined;
+      throw new Error(`unexpected runtime command: ${command}`);
+    });
+    const { generationClient } = await import("./generationTasks");
+
+    await generationClient.attach(handle);
+    await generationClient.detach(handle);
+
+    expect(mocks.runtimeInvoke).toHaveBeenCalledWith(
+      "unsubscribe_generation_task",
+      { input: { subscription_id: "subscription-detach" } },
+    );
+  });
+
+  it("passes the canonical task identity to Tauri summary lookup", async () => {
+    mocks.httpBackend = false;
+    mocks.runtimeInvoke.mockResolvedValue({
+      handle,
+      started: startedEvent().event.data,
+      updated_at_ms: 1,
+      result_ref: null,
+      snapshot_state: "available",
+      terminal_event: null,
+    });
+    const { generationClient } = await import("./generationTasks");
+
+    await generationClient.getSummary(taskId, 1);
+
+    expect(mocks.runtimeInvoke).toHaveBeenCalledWith(
+      "get_generation_task_summary",
+      expect.objectContaining({ taskId, attempt: 1 }),
+    );
   });
 });
 

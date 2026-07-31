@@ -1,8 +1,8 @@
 use super::{
     CanonicalDataPathError, canonicalize_data_file_path, canonicalize_path_in_data_dir,
     deletable_data_dir_path, error_with_rollback_file_cleanup, persist_created_media_file,
-    remove_created_file_on_error, remove_created_file_on_error_sync, remove_data_dir_in_data_dir,
-    remove_data_file_in_data_dir, write_new_data_file,
+    probe_created_audio_duration, remove_created_file_on_error, remove_created_file_on_error_sync,
+    remove_data_dir_in_data_dir, remove_data_file_in_data_dir, write_new_data_file,
 };
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -213,6 +213,20 @@ fn created_media_file_keeps_successful_output_and_reports_size() {
     assert_eq!(relative_path, "projects/1/media/output.bin");
     assert_eq!(file_size, 8);
     assert!(output.is_file());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn invalid_created_audio_is_removed_when_duration_probe_fails() {
+    let root = unique_temp_dir("a4n_created_audio_probe_error");
+    let output = root.join("invalid.wav");
+    std::fs::create_dir_all(&root).expect("create data dir");
+    std::fs::write(&output, b"not audio").expect("write invalid audio");
+
+    probe_created_audio_duration(&output, "音频文件")
+        .expect_err("invalid audio duration probe must fail");
+
+    assert!(!output.exists());
     let _ = std::fs::remove_dir_all(&root);
 }
 

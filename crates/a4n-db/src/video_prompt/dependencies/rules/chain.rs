@@ -41,11 +41,67 @@ pub(in crate::video_prompt::dependencies) fn prompt_same_generation_chain(
     if left.style != right.style || left.aspect_ratio != right.aspect_ratio {
         return false;
     }
-    match (prompt_source_hash(left), prompt_source_hash(right)) {
+    let source_matches = match (prompt_source_hash(left), prompt_source_hash(right)) {
         (Some(left_hash), Some(right_hash)) => left_hash == right_hash,
         (None, None) => true,
         _ => false,
+    };
+    source_matches && prompt_execution_scope_matches(left, right)
+}
+
+fn prompt_execution_scope_matches(
+    left: &chapter_video_prompt::Model,
+    right: &chapter_video_prompt::Model,
+) -> bool {
+    let Some(left_identity) = left
+        .metadata_json
+        .as_ref()
+        .and_then(|metadata| metadata.get("video_execution_identity"))
+        .and_then(Value::as_object)
+    else {
+        return false;
+    };
+    let Some(right_identity) = right
+        .metadata_json
+        .as_ref()
+        .and_then(|metadata| metadata.get("video_execution_identity"))
+        .and_then(Value::as_object)
+    else {
+        return false;
+    };
+    let base_matches = [
+        "contract_epoch",
+        "shooting_script_identity",
+        "projection_sha256",
+        "segment_plan_sha256",
+        "unit_plan_sha256",
+        "source_content_sha256",
+        "style_sha256",
+        "duration_secs",
+        "aspect_ratio",
+    ]
+    .into_iter()
+    .all(|field| left_identity.get(field) == right_identity.get(field));
+    if !base_matches {
+        return false;
     }
+    let left_plan = left_identity
+        .get("segment_plan_prompt_id")
+        .and_then(Value::as_i64);
+    let right_plan = right_identity
+        .get("segment_plan_prompt_id")
+        .and_then(Value::as_i64);
+    if prompt_is_shared_video_upstream(left) {
+        return right_plan == Some(left.id);
+    }
+    if prompt_is_shared_video_upstream(right) {
+        return left_plan == Some(right.id);
+    }
+    left_plan.is_some()
+        && left_plan == right_plan
+        && left_identity.get("segment_number") == right_identity.get("segment_number")
+        && left_identity.get("segment_recipe_fingerprint")
+            == right_identity.get("segment_recipe_fingerprint")
 }
 
 pub(in crate::video_prompt::dependencies) fn prompt_same_frame_reference_chain(

@@ -18,6 +18,41 @@ pub struct ServiceResponse<T> {
     pub error: Option<ServiceError>,
 }
 
+impl<T> ServiceResponse<T> {
+    pub fn ok(trace_id: String, payload: T) -> Self {
+        Self {
+            status: ServiceStatus::Ok,
+            trace_id: Some(trace_id),
+            usage: None,
+            artifact_refs: Vec::new(),
+            payload: Some(payload),
+            error: None,
+        }
+    }
+
+    pub fn error(trace_id: String, error: ServiceError) -> Self {
+        Self {
+            status: ServiceStatus::Error,
+            trace_id: Some(trace_id),
+            usage: None,
+            artifact_refs: Vec::new(),
+            payload: None,
+            error: Some(error),
+        }
+    }
+
+    pub fn from_result<E>(
+        trace_id: String,
+        result: Result<T, E>,
+        map_error: impl FnOnce(E) -> ServiceError,
+    ) -> Self {
+        match result {
+            Ok(payload) => Self::ok(trace_id, payload),
+            Err(error) => Self::error(trace_id, map_error(error)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ServiceStatus {
@@ -32,6 +67,20 @@ pub struct ServiceError {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retryable: Option<bool>,
+}
+
+impl ServiceError {
+    pub fn new(code: ServiceErrorCode, message: impl Into<String>, retryable: bool) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            retryable: Some(retryable),
+        }
+    }
+
+    pub fn non_retryable(code: ServiceErrorCode, message: impl Into<String>) -> Self {
+        Self::new(code, message, false)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq, thiserror::Error)]

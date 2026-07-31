@@ -37,7 +37,7 @@ export interface RagIngestResult {
   scene_transition_count?: number;
 }
 
-export interface PreparedClientRagIngestRecord {
+interface PreparedClientRagIngestRecord {
   chunk_id: string;
   text: string;
   content_hash: string;

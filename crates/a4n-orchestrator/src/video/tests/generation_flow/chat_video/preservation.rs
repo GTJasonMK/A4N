@@ -26,15 +26,6 @@ async fn chat_video_prompt_generation_preserves_generated_prompt_when_contract_m
         )
         .await
         .unwrap();
-    generate_chat_video_frame_prompt_stage_from_existing_plan(
-        &service,
-        &llm_switch,
-        project.id,
-        chapter.id,
-        &engine,
-    )
-    .await;
-
     service
         .generate_chapter_chat_video_prompts(
             prompt_stage_input(
@@ -135,15 +126,6 @@ async fn chat_video_prompt_generation_rejects_nonmatching_generated_video_before
         )
         .await
         .unwrap();
-    generate_chat_video_frame_prompt_stage_from_existing_plan(
-        &service,
-        &llm_switch,
-        project.id,
-        chapter.id,
-        &engine,
-    )
-    .await;
-
     service
         .generate_chapter_chat_video_prompts(
             prompt_stage_input(
@@ -235,15 +217,6 @@ async fn chat_video_prompt_generation_preserves_generated_reused_prompt_during_c
         )
         .await
         .unwrap();
-    generate_chat_video_frame_prompt_stage_from_existing_plan(
-        &service,
-        &llm_switch,
-        project.id,
-        chapter.id,
-        &engine,
-    )
-    .await;
-
     service
         .generate_chapter_chat_video_prompts(
             prompt_stage_input(

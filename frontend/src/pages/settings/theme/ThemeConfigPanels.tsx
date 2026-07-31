@@ -1,5 +1,6 @@
 import React from "react";
-import { Loader2, Plus, Upload } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
@@ -28,7 +29,7 @@ export const CreateThemePanel: React.FC<CreateThemePanelProps> = ({
     <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
       <Plus size={13} />
       <span>创建新主题</span>
-      <span className="ml-auto text-[11px] text-book-text-muted">从亮色或暗色模板开始</span>
+      <span className="ml-auto text-small text-book-text-muted">从亮色或暗色模板开始</span>
     </summary>
     <div className="border-t border-book-border/35 p-4">
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
@@ -56,7 +57,7 @@ export const CreateThemePanel: React.FC<CreateThemePanelProps> = ({
           >
             {creating ? (
               <span className="inline-flex items-center gap-1.5">
-                <Loader2 size={13} className="animate-spin" /> 创建中…
+                <LoadingSpinner size="sm" /> 创建中…
               </span>
             ) : (
               "创建"
@@ -64,7 +65,7 @@ export const CreateThemePanel: React.FC<CreateThemePanelProps> = ({
           </BookButton>
         </div>
       </div>
-      <p className="mt-2 text-[11px] text-book-text-muted">创建后可立即切换使用。</p>
+      <p className="mt-2 text-small text-book-text-muted">创建后可立即切换使用。</p>
     </div>
   </details>
 );
@@ -88,7 +89,7 @@ export const SingleThemeImportPanel: React.FC<SingleThemeImportPanelProps> = ({
     <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
       <Upload size={13} />
       <span>导入主题</span>
-      <span className="ml-auto text-[11px] text-book-text-muted">低频工具</span>
+      <span className="ml-auto text-small text-book-text-muted">低频工具</span>
     </summary>
     <div className="border-t border-book-border/35 p-4">
       <textarea
@@ -106,7 +107,7 @@ export const SingleThemeImportPanel: React.FC<SingleThemeImportPanelProps> = ({
         >
           {importing ? (
             <span className="inline-flex items-center gap-1.5">
-              <Loader2 size={12} className="animate-spin" /> 导入中…
+              <LoadingSpinner size="sm" /> 导入中…
             </span>
           ) : (
             "导入"

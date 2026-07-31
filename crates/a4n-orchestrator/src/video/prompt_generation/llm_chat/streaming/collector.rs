@@ -94,34 +94,6 @@ pub(in crate::video::prompt_generation::llm_chat) async fn stream_chat_with_vide
         if let Some(chunk_usage) = chunk.usage.clone() {
             usage = Some(chunk_usage);
         }
-        if let Some(delta) = chunk
-            .reasoning_content
-            .as_deref()
-            .filter(|text| !text.is_empty())
-        {
-            if !saw_first_chunk {
-                saw_first_chunk = true;
-                last_progress_current = last_progress_current.max(step.current);
-                report_video_prompt_progress(
-                    progress,
-                    step.current,
-                    step.total,
-                    &format!("模型已开始输出：{}", step.message),
-                )?;
-                tracing::info!(
-                    target: "a4n::video_prompt",
-                    step = step.message,
-                    duration_ms = started.elapsed().as_millis(),
-                    "视频提示词 LLM stream 收到首个可显示 chunk"
-                );
-            }
-            if let Some(report) = chunks.as_deref_mut() {
-                report(delta, index);
-            }
-            index = index.checked_add(1).ok_or_else(|| {
-                AppError::InvalidArgument("视频提示词 stream chunk 序号超过 u32 上限".to_string())
-            })?;
-        }
         if let Some(delta) = chunk.content.as_deref().filter(|text| !text.is_empty()) {
             if !saw_first_chunk {
                 saw_first_chunk = true;

@@ -34,7 +34,7 @@ where
         &checkpoint_json,
         &input.step_key,
         input.prompt_name,
-        |value| validate(value),
+        validate,
     )?;
     Ok(Some(restored))
 }

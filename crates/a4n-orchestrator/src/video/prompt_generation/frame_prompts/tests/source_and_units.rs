@@ -31,6 +31,27 @@ fn video_units_only_add_action_bridge_for_preserved_action() {
 }
 
 #[test]
+fn target_segment_selects_content_unit_even_when_a_bridge_precedes_it() {
+    let mut first = segment(1);
+    first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
+        transition_type: "match_cut".to_string(),
+        editing_mode: a4n_core::shooting_script::ShootingEditingModeV1::Continuity,
+        preserved_action: Some("角色推门动作连续完成".to_string()),
+        preserved_sound: None,
+        required_cut_point: None,
+    });
+    let plan = vec![first, segment(2)];
+
+    let unit = video_unit_for_target_segment(&plan, 5, 2).expect("target content unit");
+
+    assert_eq!(unit.unit_number, 2);
+    assert_eq!(unit.prompt_segment.segment_number, 2);
+    assert_eq!(unit.source_segment_numbers(), [2]);
+    assert!(!unit.is_action_bridge());
+    assert_eq!(unit.storyboard_number, Some(2));
+}
+
+#[test]
 fn sound_only_or_cut_metadata_does_not_create_action_bridge() {
     let mut first = segment(1);
     first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {

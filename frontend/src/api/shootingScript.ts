@@ -11,12 +11,12 @@ const currentUserId = (): number => {
   return id;
 };
 
-export type ShootingViewpointMode =
+type ShootingViewpointMode =
   | "direct_subjective"
   | "modified_subjective"
   | "limited_third_person"
   | "omniscient_objective";
-export type ShootingContinuityIntent =
+type ShootingContinuityIntent =
   | "transparent"
   | "deliberate_disorientation"
   | "open_ambiguity";
@@ -25,7 +25,7 @@ export type ShootingShotSize =
   | "extreme_wide" | "wide" | "medium_wide" | "medium" | "medium_close_up"
   | "close_up" | "extreme_close_up" | "insert";
 export type ShootingCameraAngle = "eye_level" | "high" | "low" | "overhead" | "dutch" | "subjective";
-export type ShootingCameraHeight = "ground" | "low" | "eye" | "high" | "overhead";
+type ShootingCameraHeight = "ground" | "low" | "eye" | "high" | "overhead";
 export type ShootingCameraMovement =
   | "locked" | "pan" | "tilt" | "push_in" | "pull_out" | "track"
   | "dolly" | "crane" | "handheld" | "steadicam" | "whip_pan";
@@ -142,7 +142,7 @@ export interface ChapterShootingScript {
   scenes: ShootingScene[];
 }
 
-export interface ChapterShootingScriptRecord {
+interface ChapterShootingScriptRecord {
   id: number;
   root_project_id: number;
   source_chapter_id: number;

@@ -123,8 +123,10 @@ mod tests {
             "configured embedding failure",
         ));
         let prompt_dir = PathBuf::from("test-prompts");
-        let mut config = AppConfig::default();
-        config.data_dir = PathBuf::from("test-data");
+        let config = AppConfig {
+            data_dir: PathBuf::from("test-data"),
+            ..Default::default()
+        };
 
         let builder = TestOrchestratorBuilder::new(db)
             .with_llm(Arc::clone(&llm))

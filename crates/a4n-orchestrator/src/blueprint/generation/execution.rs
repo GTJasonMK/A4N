@@ -26,10 +26,7 @@ use crate::blueprint::generation::trace::blueprint_stage_trace_requests;
 use crate::blueprint::json::parse_blueprint_json;
 use crate::blueprint::{BlueprintGenerationApplicationContext, OrchestratorContext};
 use crate::generation::{
-    checkpoint::{DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointWriter},
-    events::{GenerationEventPublisher, SessionGenerationEventPublisher},
-    generation_public_error,
-    terminal::CompletionDescriptor,
+    events::GenerationEventPublisher, generation_public_error, terminal::CompletionDescriptor,
 };
 use crate::workflow::WorkflowRunFinalizeOutcome;
 
@@ -51,11 +48,8 @@ impl OrchestratorContext {
         };
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
-        let replenisher = Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-            self.database.shared_connection(),
-        ));
-        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
-        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let publisher = execution.publisher.clone();
+        let checkpoint_writer = execution.checkpoint_writer.clone();
         let project_id = input.project_id;
         let variables = input
             .variables
@@ -451,16 +445,7 @@ impl OrchestratorContext {
             )
             .await;
         }
-        let task_id = execution.permit.task_id().to_string();
-        if let Err(error) = execution
-            .queue
-            .complete_generation_task(execution.permit)
-            .await
-        {
-            return Err(format!(
-                "generation queue 完成投影失败 ({task_id}): {error}"
-            ));
-        }
+        execution.complete_queue_task().await?;
         let outcome = completion_slot
             .lock()
             .map_err(|_| "蓝图生成结果槽位损坏".to_string())?
@@ -475,14 +460,12 @@ impl OrchestratorContext {
                     timestamp,
                 },
             )
-            .await
             .map_err(|error| format!("蓝图已保存，但项目状态事件发布失败: {error}"))?;
         }
         self.publish_internal_event(a4n_core::event::bridge::InternalEvent::BlueprintUpdated {
             project_id,
             version: outcome.blueprint.current_version.clone(),
         })
-        .await
         .map_err(|error| format!("蓝图已保存，但蓝图更新事件发布失败: {error}"))?;
         self.finalize_workflow_run_outcome_validated(
             workflow_run_id,

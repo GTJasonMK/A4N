@@ -13,7 +13,7 @@ import type {
 
 const currentUserId = () => readCurrentUserId();
 
-export interface CanvasGraphRecord {
+interface CanvasGraphRecord {
   id: number;
   project_id: number;
   name: string;
@@ -24,7 +24,7 @@ export interface CanvasGraphRecord {
   updated_at: string;
 }
 
-export interface CanvasNodeRecord {
+interface CanvasNodeRecord {
   id: number;
   graph_id: number;
   node_kind: string;
@@ -37,7 +37,7 @@ export interface CanvasNodeRecord {
   updated_at: string;
 }
 
-export interface CanvasEdgeRecord {
+interface CanvasEdgeRecord {
   id: number;
   graph_id: number;
   source_node_id: number;
@@ -105,7 +105,7 @@ export type CanvasNodeContract = Omit<
   outputs: CanvasPortContract[];
 };
 
-export interface CanvasNodeInput {
+interface CanvasNodeInput {
   client_id: string;
   id?: number | null;
   node_kind: string;
@@ -116,7 +116,7 @@ export interface CanvasNodeInput {
   state?: string | null;
 }
 
-export interface CanvasEdgeInput {
+interface CanvasEdgeInput {
   source_client_id: string;
   target_client_id: string;
   source_node_id?: number | null;

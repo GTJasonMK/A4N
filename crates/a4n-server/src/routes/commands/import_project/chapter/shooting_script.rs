@@ -35,6 +35,7 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
         state,
+        user_id,
         task_id.clone(),
         TaskKind::LlmCall,
         input.project_id,
@@ -59,6 +60,7 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
         input,
         &progress,
         cancel_token.as_ref(),
+        task_id.as_deref(),
     )
     .await;
     let result = finish_web_task(

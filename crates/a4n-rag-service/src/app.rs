@@ -39,9 +39,9 @@ impl RagServiceState {
     ) -> Result<T, AppError> {
         let _lock = self.mutation_lock.lock().await;
         let marker = RagMutationMarker::begin(&self.data_dir, operation)?;
-        let output = mutation.await?;
+        let output = mutation.await;
         marker.complete()?;
-        Ok(output)
+        output
     }
 }
 
@@ -100,18 +100,14 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         data_dir: data_dir.clone(),
     };
     let addr = service_addr()?;
-    let (shutdown_signal, shutdown) = a4n_sidecar_bootstrap::sidecar_shutdown();
-    let app = a4n_sidecar_bootstrap::with_runtime_metrics(
-        router(state).merge(a4n_sidecar_bootstrap::shutdown_router(shutdown_signal)),
-        a4n_service_protocol::RAG_SERVICE_NAME,
-    )?;
 
     tracing::info!(%addr, data_dir = ?data_dir, "starting rag sidecar (qdrant backend)");
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await?;
-    Ok(())
+    a4n_sidecar_bootstrap::serve_sidecar(
+        router(state),
+        addr,
+        a4n_service_protocol::RAG_SERVICE_NAME,
+    )
+    .await
 }
 
 fn init_tracing() -> anyhow::Result<()> {
@@ -166,8 +162,11 @@ fn router(state: RagServiceState) -> Router {
 
 #[cfg(test)]
 mod mutation_marker_tests {
-    use super::RagMutationMarker;
+    use super::{RagMutationMarker, RagServiceState};
+    use a4n_core::error::AppError;
+    use a4n_rag_core::memory_store::MemoryVectorStore;
     use a4n_test_support::process::SidecarProcessTestDir;
+    use std::sync::Arc;
 
     #[test]
     fn interrupted_mutation_marker_survives_drop_until_explicit_rebuild() {
@@ -175,5 +174,25 @@ mod mutation_marker_tests {
         let marker = RagMutationMarker::begin(data_dir.path(), "ingest").unwrap();
         drop(marker);
         assert!(RagMutationMarker::require_clean(data_dir.path()).is_err());
+    }
+
+    #[tokio::test]
+    async fn handled_mutation_error_clears_marker() {
+        let data_dir = SidecarProcessTestDir::new("rag-mutation-error");
+        let state = RagServiceState {
+            store: Arc::new(MemoryVectorStore::new()),
+            mutation_lock: Arc::new(tokio::sync::Mutex::new(())),
+            data_dir: data_dir.path().to_path_buf(),
+        };
+
+        let error = state
+            .persist_mutation("ingest", async {
+                Err::<(), _>(AppError::ConfigError("expected".into()))
+            })
+            .await
+            .expect_err("mutation should fail");
+
+        assert!(matches!(error, AppError::ConfigError(message) if message == "expected"));
+        assert!(RagMutationMarker::require_clean(data_dir.path()).is_ok());
     }
 }

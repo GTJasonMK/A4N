@@ -1,6 +1,7 @@
 use serde_json::{Value, json};
 
 use super::super::{ApiError, ServerState, command_input, i64_arg, theme_actions, to_value};
+use super::config::require_global_config_admin;
 
 macro_rules! theme_web_command {
     ($name:ident($state:ident, $user_id:ident, $args:ident) $body:block) => {
@@ -14,13 +15,6 @@ macro_rules! theme_web_command {
 
 theme_web_command!(list_themes(state, user_id, _args) {
     to_value(theme_actions::list_themes_for_user(state.runtime(), user_id).await?)
-});
-theme_web_command!(get_system_default_theme(state, _user_id, _args) {
-    to_value(
-        theme_actions::get_system_default_theme(state.runtime())
-            .await
-            .map_err(ApiError::bad_request)?,
-    )
 });
 theme_web_command!(list_user_themes(state, user_id, args) {
     let target_user_id = i64_arg(args, "userId")?;
@@ -67,9 +61,10 @@ theme_web_command!(get_theme_css_variables(state, user_id, args) {
 
 pub(in crate::routes::commands) async fn export_all_configs_json(
     state: &ServerState,
-    _user_id: i64,
+    user_id: i64,
     _args: &Value,
 ) -> Result<Value, ApiError> {
+    require_global_config_admin(state, user_id).await?;
     Ok(json!(
         a4n_runtime::host_api::settings_all::export_all_configs_to_json(state.runtime()).await?
     ))
@@ -77,9 +72,10 @@ pub(in crate::routes::commands) async fn export_all_configs_json(
 
 pub(in crate::routes::commands) async fn import_all_configs(
     state: &ServerState,
-    _user_id: i64,
+    user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
+    require_global_config_admin(state, user_id).await?;
     let input: a4n_runtime::host_api::settings_all::ImportAllConfigsInput =
         command_input(args, "import_all_configs")?;
     Ok(json!(

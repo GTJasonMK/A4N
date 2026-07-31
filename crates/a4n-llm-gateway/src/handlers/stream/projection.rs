@@ -13,21 +13,15 @@ pub(super) fn chunk_event(
     let finish_reason = chunk.finish_reason;
 
     Ok(CapabilityTaskEvent {
-        task_id,
-        event_kind: CapabilityTaskEventKind::Chunk,
-        sequence,
         chunk_index: Some(u64::from(chunk.index)),
         chunk_delta: chunk.content.or(chunk.reasoning_content),
         usage_delta: usage,
-        final_usage: None,
         is_truncated_finish_reason: finish_reason
             .as_deref()
             .map(|reason| is_truncated_finish_reason(Some(reason))),
         finish_reason,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: None,
         payload: Some(payload),
+        ..CapabilityTaskEvent::new(task_id, CapabilityTaskEventKind::Chunk, sequence)
     })
 }
 
@@ -38,19 +32,10 @@ pub(super) fn completed_event(
     finish_reason: Option<String>,
 ) -> CapabilityTaskEvent {
     CapabilityTaskEvent {
-        task_id,
-        event_kind: CapabilityTaskEventKind::Completed,
-        sequence,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
         final_usage,
         is_truncated_finish_reason: Some(is_truncated_finish_reason(finish_reason.as_deref())),
         finish_reason,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: None,
-        payload: None,
+        ..CapabilityTaskEvent::new(task_id, CapabilityTaskEventKind::Completed, sequence)
     }
 }
 
@@ -59,21 +44,7 @@ pub(super) fn failed_event(
     sequence: u64,
     error: ServiceError,
 ) -> CapabilityTaskEvent {
-    CapabilityTaskEvent {
-        task_id,
-        event_kind: CapabilityTaskEventKind::Failed,
-        sequence,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: Some(error),
-        payload: None,
-    }
+    CapabilityTaskEvent::failed(task_id, sequence, error)
 }
 
 fn usage_value(usage: &UsageInfo) -> Result<serde_json::Value, ServiceError> {

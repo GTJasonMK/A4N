@@ -65,7 +65,6 @@ pub use super::json_field_rules::required_json_i64_field;
 /// 校验快照 payload 身份与哈希（调用方已解析 snapshot 根项目 id）。
 pub fn validate_snapshot_payload_identity(
     snapshot_root_project_id: i64,
-    snapshot_id: i64,
     root_project_id: i64,
     row_id: i64,
     kind: &str,
@@ -110,7 +109,6 @@ pub fn validate_snapshot_payload_identity(
             "项目族导入包{row_label} payload_hash 与 payload_json 不一致: {row_id_field}={row_id}"
         ));
     }
-    let _ = snapshot_id;
     Ok(())
 }
 
@@ -259,8 +257,7 @@ mod tests {
         let err = validate_import_unique_ids([1, 1], "row.id").unwrap_err();
         assert!(err.contains("导入包包含重复"));
         let err =
-            validate_import_unique_key_strings(["a/1".into(), "a/1".into()].into_iter(), "ref")
-                .unwrap_err();
+            validate_import_unique_key_strings(["a/1".into(), "a/1".into()], "ref").unwrap_err();
         assert!(err.contains("导入包包含重复"));
     }
 

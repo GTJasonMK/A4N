@@ -31,6 +31,7 @@ macro_rules! export_web_project_read_command {
             let task_id = sanitize_optional_task_id(optional_string_field($args, "taskId")?)?;
             let task = register_web_task(
                 $state,
+                $user_id,
                 task_id.clone(),
                 TaskKind::ExportGeneration,
                 scope.project_id,
@@ -74,6 +75,7 @@ macro_rules! export_web_progress_command {
             let task_id = sanitize_optional_task_id(optional_string_field($args, "taskId")?)?;
             let task = register_web_task(
                 $state,
+                $user_id,
                 task_id.clone(),
                 TaskKind::ExportGeneration,
                 scope.project_id,

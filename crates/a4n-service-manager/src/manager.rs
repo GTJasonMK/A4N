@@ -132,27 +132,6 @@ impl ServiceManager {
         }
     }
 
-    /// Build the client used by capability operations.
-    ///
-    /// Health checks intentionally use a short total timeout, while capability
-    /// transport applies the shared operation/stream deadlines at its own
-    /// boundary. Reusing the health client here would silently cap long-running
-    /// generation and import/export requests at the health timeout.
-    pub fn capability_http_client(
-        &self,
-        name: &str,
-    ) -> Result<reqwest::Client, ServiceManagerError> {
-        let config = self.config(name)?;
-        match config.mode {
-            ServiceMode::Remote => self.remote_client(config, false).map(|(client, _)| client),
-            ServiceMode::Sidecar => Ok(self.capability_client.clone()),
-            _ => Err(ServiceManagerError::InvalidConfig(format!(
-                "service {} does not use HTTP transport",
-                config.name
-            ))),
-        }
-    }
-
     /// Build a capability client factory that reloads remote TLS material when
     /// its certificate files change, while keeping local sidecars on one pool.
     pub fn capability_http_client_factory(

@@ -1,12 +1,10 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  Check,
-  Loader2,
+import { Check,
   RotateCcw,
   Scissors,
   Upload,
-  X,
-} from "lucide-react";
+  X, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   applyAssemblyPostprocessEdit,
@@ -18,11 +16,10 @@ import type { ToastType } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
-import { pickLocalFile, readFileAsBase64 } from "../../../utils/fileUpload";
+import { readFileAsBase64 } from "../../../utils/fileUpload";
 import {
-  MAX_UPLOAD_VIDEO_BYTES,
-  supportedVideoAccept,
-  videoMimeForUploadFile,
+  pickVideoUploadFile,
+  type VideoUploadFile,
 } from "../../../utils/videoUpload";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { useVideoPlaybackSource } from "./useVideoPlaybackSource";
@@ -325,33 +322,21 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
     }
     if (!beginAction()) return;
     setActing(`edit-${operation}`);
-    let file: File | null = null;
+    let upload: VideoUploadFile | null = null;
     try {
-      file = await pickLocalFile(supportedVideoAccept());
+      upload = await pickVideoUploadFile();
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       onToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
       return;
     } finally {
-      if (!file) {
+      if (!upload) {
         finishAction(requestScope);
         if (isCurrentScope(requestScope)) setActing(null);
       }
     }
-    if (!file) return;
-    const mimeType = videoMimeForUploadFile(file);
-    if (!mimeType) {
-      onToast("只支持 MP4/WebM/MOV/M4V 视频，且文件类型必须与扩展名一致", "error");
-      finishAction(requestScope);
-      if (isCurrentScope(requestScope)) setActing(null);
-      return;
-    }
-    if (file.size > MAX_UPLOAD_VIDEO_BYTES) {
-      onToast(`上传视频不能超过 ${MAX_UPLOAD_VIDEO_BYTES / 1024 / 1024}MB`, "error");
-      finishAction(requestScope);
-      if (isCurrentScope(requestScope)) setActing(null);
-      return;
-    }
+    if (!upload) return;
+    const { file, mimeType } = upload;
     if (!isCurrentScope(requestScope)) {
       finishAction(requestScope);
       return;
@@ -487,7 +472,7 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
       <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden">
         <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-book-border/35 px-3 py-2.5">
           <h3 className="text-xs font-medium text-book-text-main">推送批次</h3>
-          <span className="text-[10px] text-book-text-muted">{pushes.length} 批</span>
+          <span className="text-caption text-book-text-muted">{pushes.length} 批</span>
         </div>
         <ul className="flex min-h-0 divide-x divide-book-border/35 overflow-x-auto custom-scrollbar xl:flex-1 xl:flex-col xl:divide-x-0 xl:divide-y xl:overflow-x-hidden xl:overflow-y-auto">
           {pushes.map((push, index) => {
@@ -519,7 +504,7 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
                   <div className="text-xs font-medium text-book-text-main">
                     批次 {pushIndex(push) ?? index + 1}
                   </div>
-                  <div className="mt-1 text-[10px] text-book-text-muted">
+                  <div className="mt-1 text-caption text-book-text-muted">
                     {sourceCount > 0 ? `${sourceCount} 个片段` : "未记录片段"}
                     <span className="mx-1">·</span>
                     <span className={statusTone}>{PUSH_STATUS_LABELS[status] ?? "状态未知"}</span>
@@ -537,7 +522,7 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-medium text-book-text-main">后处理预览</h3>
               {currentVideo && selectedPush ? (
-                <p className="mt-1 text-[10px] leading-relaxed text-book-text-muted">
+                <p className="mt-1 text-caption leading-relaxed text-book-text-muted">
                   批次 {pushIndex(selectedPush) ?? pushes.indexOf(selectedPush) + 1} · {PUSH_STATUS_LABELS[selectedPushStatus ?? ""] ?? "状态未知"} · {formatSeconds(currentVideo.duration_secs)} · 第 {versions.length + 1} 版
                   {currentVideo.updated_at ? ` · ${formatVideoCreatedAt(currentVideo.updated_at)}` : ""}
                 </p>
@@ -545,7 +530,7 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
             </div>
             {statusActing ? (
               <span role="status" className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
-                <Loader2 size={12} className="animate-spin" />
+                <LoadingSpinner size="sm" />
               </span>
             ) : (
               <>
@@ -590,14 +575,14 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
             {videoLoading && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white">
                 <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 px-2.5 py-1.5 backdrop-blur-sm">
-                  <Loader2 size={12} className="animate-spin" />
+                  <LoadingSpinner size="sm" />
                   正在加载视频
                 </span>
               </div>
             )}
           </div>
           {videoLoadError && (
-            <div role="alert" className="mt-2 rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-[11px] text-error">
+            <div role="alert" className="mt-2 rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-small text-error">
               {videoLoadError}
             </div>
           )}
@@ -607,13 +592,13 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
           <div className="mb-3 border-b border-book-border/35 pb-3">
             <h3 className="text-sm font-medium text-book-text-main">剪辑条</h3>
             {editDisabledReason ? (
-              <p className="mt-1 text-[10px] text-book-text-muted">{editDisabledReason}</p>
+              <p className="mt-1 text-caption text-book-text-muted">{editDisabledReason}</p>
             ) : null}
           </div>
 
           {editActing ? (
             <div role="status" className="flex min-h-24 items-center justify-center gap-2 text-xs text-book-text-muted">
-              <Loader2 size={14} className="animate-spin" />
+              <LoadingSpinner size="sm" />
               正在应用后处理编辑
             </div>
           ) : editDisabledReason || !currentVideo ? (
@@ -623,7 +608,7 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
           ) : (
             <>
               <div>
-                <div className="grid grid-cols-3 text-[10px] tabular-nums text-book-text-muted">
+                <div className="grid grid-cols-3 text-caption tabular-nums text-book-text-muted">
                   <span>0s</span>
                   <span className="justify-self-center">{markerValue.toFixed(2)}s</span>
                   <span className="justify-self-end">{duration.toFixed(2)}s</span>
@@ -694,7 +679,7 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
               </div>
 
               <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
-                <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-book-text-muted">
+                <p className="min-w-0 flex-1 text-small leading-relaxed text-book-text-muted">
                   {markerSummary}
                 </p>
                 <div className="flex shrink-0 items-center gap-2">
@@ -707,7 +692,7 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
                       size="sm"
                       onClick={() => void applyUploadEdit("insert")}
                       disabled={acting != null}
-                      className="!min-h-9 min-w-0 flex-1 !px-3 text-[11px] sm:flex-none"
+                      className="!min-h-9 min-w-0 flex-1 !px-3 text-small sm:flex-none"
                     >
                       <Upload size={12} />
                       上传并插入
@@ -718,7 +703,7 @@ export const VideoPostProcessWorkspace: React.FC<VideoPostProcessWorkspaceProps>
                       size="sm"
                       onClick={() => void applyUploadEdit("replace")}
                       disabled={acting != null}
-                      className="!min-h-9 min-w-0 flex-1 !px-3 text-[11px] sm:flex-none"
+                      className="!min-h-9 min-w-0 flex-1 !px-3 text-small sm:flex-none"
                     >
                       <Upload size={12} />
                       上传并替换

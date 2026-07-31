@@ -52,9 +52,6 @@ const projectKind = (project: RoutedProject): RoutedProjectKind => {
   throw new Error(`项目族类型无效，无法计算项目路由: ${kind || "<empty>"}`);
 };
 
-export const getProjectKindLabel = (project: RoutedProject): string =>
-  PROJECT_KIND_LABELS[projectKind(project)];
-
 /** 兼容管理端仍返回的 legacy project_type（如 novel）。 */
 export const getProjectTypeLabel = (value: string | null | undefined): string => {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -65,12 +62,12 @@ export const getProjectTypeLabel = (value: string | null | undefined): string =>
   return "未知类型";
 };
 
-export const getSourceSyncStatusLabel = (value: string | null | undefined): string => {
+const getSourceSyncStatusLabel = (value: string | null | undefined): string => {
   const normalized = String(value ?? "").trim().toLowerCase();
   return SOURCE_SYNC_STATUS_LABELS[normalized] ?? (normalized || "未知");
 };
 
-export const formatDerivedChapterScope = (scope: unknown): string | null => {
+const formatDerivedChapterScope = (scope: unknown): string | null => {
   if (!scope || typeof scope !== "object") return null;
   const record = scope as Record<string, unknown>;
   const start = Number(record.start);

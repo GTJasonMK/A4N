@@ -47,5 +47,3 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     {actions != null ? <div className="a4n-app-page-header__actions">{actions}</div> : null}
   </header>
 );
-
-export default PageHeader;

@@ -4,7 +4,7 @@ export interface DownloadableBase64File {
   data_base64: string;
 }
 
-export function base64DataToBlob(
+function base64DataToBlob(
   dataBase64: string,
   mimeType = "application/octet-stream",
 ): Blob {

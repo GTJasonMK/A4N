@@ -285,9 +285,49 @@ ON chapter_video_prompt (
                 'frame_prompt',
                 'first_frame_prompt',
                 'chat_video_frame_prompt',
+                'storyboard_prompt',
                 'video_prompt'
             )
             THEN COALESCE(metadata_json->>'prompt_output_language', 'zh_cn')
+            ELSE ''
+        END
+    ),
+    (
+        CASE
+            WHEN prompt_type IN (
+                'frame_prompt',
+                'first_frame_prompt',
+                'chat_video_frame_prompt',
+                'storyboard_prompt',
+                'video_prompt'
+            )
+            THEN COALESCE(metadata_json->'video_execution_identity'->>'segment_plan_prompt_id', '')
+            ELSE ''
+        END
+    ),
+    (
+        CASE
+            WHEN prompt_type IN (
+                'frame_prompt',
+                'first_frame_prompt',
+                'chat_video_frame_prompt',
+                'storyboard_prompt',
+                'video_prompt'
+            )
+            THEN COALESCE(metadata_json->'video_execution_identity'->>'segment_number', '')
+            ELSE ''
+        END
+    ),
+    (
+        CASE
+            WHEN prompt_type IN (
+                'frame_prompt',
+                'first_frame_prompt',
+                'chat_video_frame_prompt',
+                'storyboard_prompt',
+                'video_prompt'
+            )
+            THEN COALESCE(metadata_json->'video_execution_identity'->>'segment_recipe_fingerprint', '')
             ELSE ''
         END
     )
@@ -2563,6 +2603,34 @@ FOR EACH ROW EXECUTE FUNCTION a4n_mark_text_source_project_changed()
 ];
 
 #[cfg(test)]
+const PROJECT_FAMILY_TRIGGER_BASE_NAMES: &[&str] = &[
+    "trg_novel_project_family",
+    "trg_project_source_snapshot_family",
+    "trg_source_snapshot_chapter_family",
+    "trg_text_anchor_family",
+    "trg_project_derivation_family",
+    "trg_generation_spec_family",
+    "trg_generation_spec_text_anchor_family",
+    "trg_generation_spec_entity_ref_family",
+    "trg_media_asset_family",
+    "trg_generation_spec_media_ref_family",
+    "trg_media_provenance_family",
+    "trg_galgame_script_family",
+    "trg_galgame_scene_family",
+    "trg_galgame_scene_link_family",
+    "trg_galgame_line_family",
+    "trg_galgame_line_order_family",
+    "trg_galgame_choice_family",
+    "trg_galgame_media_binding",
+    "trg_video_segment_family",
+    "trg_assembly_timeline_family",
+    "trg_assembly_clip_family",
+    "trg_source_sync_run_family",
+    "trg_source_sync_conflict_family",
+    "trg_source_sync_decision_family",
+];
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -3038,31 +3106,3 @@ mod tests {
         }
     }
 }
-
-#[cfg(test)]
-const PROJECT_FAMILY_TRIGGER_BASE_NAMES: &[&str] = &[
-    "trg_novel_project_family",
-    "trg_project_source_snapshot_family",
-    "trg_source_snapshot_chapter_family",
-    "trg_text_anchor_family",
-    "trg_project_derivation_family",
-    "trg_generation_spec_family",
-    "trg_generation_spec_text_anchor_family",
-    "trg_generation_spec_entity_ref_family",
-    "trg_media_asset_family",
-    "trg_generation_spec_media_ref_family",
-    "trg_media_provenance_family",
-    "trg_galgame_script_family",
-    "trg_galgame_scene_family",
-    "trg_galgame_scene_link_family",
-    "trg_galgame_line_family",
-    "trg_galgame_line_order_family",
-    "trg_galgame_choice_family",
-    "trg_galgame_media_binding",
-    "trg_video_segment_family",
-    "trg_assembly_timeline_family",
-    "trg_assembly_clip_family",
-    "trg_source_sync_run_family",
-    "trg_source_sync_conflict_family",
-    "trg_source_sync_decision_family",
-];

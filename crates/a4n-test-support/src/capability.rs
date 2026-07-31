@@ -18,11 +18,10 @@ pub use video::RecordingVideoClient;
 use a4n_service_protocol::{ServiceError, ServiceErrorCode};
 
 fn unexpected_call(client: &str, operation: &str) -> ServiceError {
-    ServiceError {
-        code: ServiceErrorCode::Internal,
-        message: format!("unexpected {client} {operation} call"),
-        retryable: Some(false),
-    }
+    ServiceError::non_retryable(
+        ServiceErrorCode::Internal,
+        format!("unexpected {client} {operation} call"),
+    )
 }
 
 #[cfg(test)]

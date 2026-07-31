@@ -23,7 +23,7 @@ fn service_health_validation_rejects_identity_mismatch() {
         error.service_error_code(),
         ServiceErrorCode::VersionMismatch
     );
-    assert_eq!(error.retryable(), false);
+    assert!(!error.retryable());
     assert!(error.message().contains("identity mismatch"));
 }
 
@@ -67,7 +67,7 @@ fn service_health_validation_rejects_protocol_mismatch() {
         error.service_error_code(),
         ServiceErrorCode::VersionMismatch
     );
-    assert_eq!(error.retryable(), false);
+    assert!(!error.retryable());
     assert!(error.message().contains("protocol version mismatch"));
 }
 
@@ -89,7 +89,7 @@ fn service_health_validation_rejects_capability_mismatch() {
         error.service_error_code(),
         ServiceErrorCode::VersionMismatch
     );
-    assert_eq!(error.retryable(), false);
+    assert!(!error.retryable());
     assert!(error.message().contains("capability version mismatch"));
 }
 

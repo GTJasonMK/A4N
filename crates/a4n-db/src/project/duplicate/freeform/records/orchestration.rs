@@ -9,10 +9,8 @@ use super::{
 };
 use crate::project::duplicate::{
     ProjectDuplicateError,
-    freeform::{
-        FreeformProjectMediaCopyResult, FreeformProjectMediaFileCopier, ensure_freeform_source_mode,
-    },
-    shared::{ProjectCopyInsert, insert_project_copy_record},
+    freeform::{FreeformProjectMediaCopyResult, ensure_freeform_source_mode},
+    shared::{ProjectCopyInsert, ProjectMediaFileCopier, insert_project_copy_record},
 };
 
 pub(in crate::project::duplicate::freeform) async fn duplicate_freeform_project_media_record<
@@ -28,7 +26,7 @@ pub(in crate::project::duplicate::freeform) async fn duplicate_freeform_project_
 ) -> Result<FreeformProjectMediaCopyResult, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: FreeformProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier,
 {
     ensure_freeform_source_mode(&original.source_mode)?;
     let project = insert_project_copy_record(

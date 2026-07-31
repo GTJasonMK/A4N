@@ -19,6 +19,6 @@ export const FormField: React.FC<FormFieldProps> = ({
       {required && <span className="text-error">*</span>}
     </span>
     {children}
-    {hint && <span className="text-[11px] text-book-text-muted">{hint}</span>}
+    {hint && <span className="text-small text-book-text-muted">{hint}</span>}
   </label>
 );

@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Clipboard,
+import { Clipboard,
   Image as ImageIcon,
-  Loader2,
   Save,
   Star,
-  Trash2,
-} from "lucide-react";
+  Trash2, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
@@ -242,20 +240,20 @@ export function ImageActionDialog({
           <details className="a4n-flat-surface overflow-hidden">
             <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-xs font-medium text-book-text-sub">
               <span>诊断信息</span>
-              <span className="text-[10px] font-normal text-book-text-muted">原始生成记录</span>
+              <span className="text-caption font-normal text-book-text-muted">原始生成记录</span>
             </summary>
             <div className="border-t border-book-border/40">
               <div className="flex justify-end px-3 pt-2">
                 <button
                   type="button"
                   onClick={() => void copyRawJson()}
-                  className="pyqt-btn-secondary inline-flex !min-h-7 items-center gap-1 !px-3 text-[11px]"
+                  className="pyqt-btn-secondary inline-flex !min-h-7 items-center gap-1 !px-3 text-small"
                 >
                   <Clipboard size={11} />
                   {copied ? "已复制" : "复制 JSON"}
                 </button>
               </div>
-          <pre className="whitespace-pre-wrap break-words p-3 font-mono text-[10px] leading-relaxed text-book-text-sub">
+          <pre className="whitespace-pre-wrap break-words p-3 font-mono text-caption leading-relaxed text-book-text-sub">
                 {rawJson}
               </pre>
             </div>
@@ -280,7 +278,7 @@ export function ImageActionDialog({
                 />
                 <span className="min-w-0">
                   <span className="block text-xs font-medium text-book-text-main">加入收藏</span>
-                  <span className="mt-0.5 block text-[11px] leading-relaxed text-book-text-muted">
+                  <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
                     在图库中通过收藏筛选快速找到这张图片
                   </span>
                 </span>
@@ -302,11 +300,11 @@ export function ImageActionDialog({
             <section className="a4n-flat-surface space-y-3 p-3">
               <div>
                 <h3 className="text-xs font-semibold text-book-text-main">生成提示词</h3>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+                <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
                   修改这张图片保存的提示词记录
                 </p>
               </div>
-              <label className="grid gap-1 text-[11px] text-book-text-muted">
+              <label className="grid gap-1 text-small text-book-text-muted">
                 <textarea
                   value={editPrompt}
                   onChange={(event) => setEditPrompt(event.target.value)}
@@ -317,11 +315,11 @@ export function ImageActionDialog({
 
               {!systemManagedImageType ? (
                 <details className="rounded-[12px] border border-book-border/45 bg-book-bg-paper/30">
-                  <summary className="cursor-pointer px-3 py-2.5 text-[11px] font-medium text-book-text-sub">
+                  <summary className="cursor-pointer px-3 py-2.5 text-small font-medium text-book-text-sub">
                     高级记录字段
                   </summary>
                   <div className="grid gap-2 border-t border-book-border/40 px-3 py-3">
-                    <label className="grid gap-1 text-[11px] text-book-text-muted">
+                    <label className="grid gap-1 text-small text-book-text-muted">
                       素材分类
                       <input
                         value={editType}
@@ -330,7 +328,7 @@ export function ImageActionDialog({
                         disabled={savingEdit || busy}
                       />
                     </label>
-                    <label className="grid gap-1 text-[11px] text-book-text-muted">
+                    <label className="grid gap-1 text-small text-book-text-muted">
                       关联分镜标识
                       <input
                         value={editPanelId}
@@ -358,7 +356,7 @@ export function ImageActionDialog({
                   }
                   className="w-full !text-xs sm:w-auto"
                 >
-                  {savingEdit ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                  {savingEdit ? <LoadingSpinner size="sm" /> : <Save size={11} />}
                   保存修改
                 </BookButton>
               </div>
@@ -367,7 +365,7 @@ export function ImageActionDialog({
             <section className="a4n-flat-surface space-y-3 p-3">
               <div>
                 <h3 className="text-xs font-semibold text-book-text-main">质量评分</h3>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+                <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
                   使用 0 到 1 之间的数值记录质量评价
                 </p>
               </div>
@@ -392,7 +390,7 @@ export function ImageActionDialog({
                   className="shrink-0 !text-xs"
                 >
                   {scoringId === image.id ? (
-                    <Loader2 size={11} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   ) : (
                     "保存评分"
                   )}
@@ -402,11 +400,11 @@ export function ImageActionDialog({
           </div>
 
           <details className="a4n-flat-surface overflow-hidden">
-            <summary className="cursor-pointer px-3 py-2.5 text-[11px] font-medium text-book-text-sub">
+            <summary className="cursor-pointer px-3 py-2.5 text-small font-medium text-book-text-sub">
               危险操作
             </summary>
             <div className="flex flex-col gap-3 border-t border-book-border/40 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-[11px] leading-relaxed text-book-text-muted">
+              <p className="text-small leading-relaxed text-book-text-muted">
                 删除后会解除关联并移除这条图片记录。
               </p>
               <BookButton
@@ -451,7 +449,7 @@ function MetadataSection({
               key={`${item.label}:${item.value}`}
               className="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-3 px-3 py-2 sm:grid-cols-[130px_minmax(0,1fr)]"
             >
-              <dt className="text-[11px] text-book-text-muted">{item.label}</dt>
+              <dt className="text-small text-book-text-muted">{item.label}</dt>
               <dd
                 className={`min-w-0 break-words text-xs text-book-text-main ${
                   item.mono ? "font-mono" : ""

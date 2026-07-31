@@ -1,7 +1,4 @@
-use a4n_core::models::project::novel_project;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, TransactionTrait,
-};
+use sea_orm::{ConnectionTrait, TransactionTrait};
 
 use crate::project::{self as project_db, PROJECT_KIND_TEXT};
 use crate::project_delete::ProjectDeleteDbError;
@@ -31,10 +28,7 @@ pub async fn delete_project_cascade_record(
         source: sea_orm::DbErr::Custom(error.to_string()),
     })?;
     if project.project_kind == PROJECT_KIND_TEXT {
-        let derived_count = novel_project::Entity::find()
-            .filter(novel_project::Column::RootProjectId.eq(project_id))
-            .count(&txn)
-            .await?;
+        let derived_count = project_db::derived_project_count(&txn, project_id).await?;
         if derived_count > 0 {
             return Err(ProjectDeleteDbError::DerivedProjectsExist {
                 project_id,

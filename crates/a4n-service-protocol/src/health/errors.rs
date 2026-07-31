@@ -68,10 +68,10 @@ impl ServiceHealthValidationError {
     }
 
     pub fn into_service_error(self) -> ServiceError {
-        ServiceError {
-            code: self.service_error_code(),
-            message: redact_sensitive_message(self.message()),
-            retryable: Some(self.retryable()),
-        }
+        ServiceError::new(
+            self.service_error_code(),
+            redact_sensitive_message(self.message()),
+            self.retryable(),
+        )
     }
 }

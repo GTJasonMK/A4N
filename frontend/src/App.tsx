@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, Suspense, lazy } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { Loader2, Moon, Network, Sun } from "lucide-react";
+import { Moon, Network, Sun } from "lucide-react";
 import { ToastContainer } from "./components/feedback/Toast";
 import { ErrorBoundary } from "./components/feedback/ErrorBoundary";
 import { ConfirmDialogHost } from "./components/feedback/ConfirmDialog";
@@ -8,6 +8,7 @@ import { PromptDialogHost } from "./components/feedback/PromptDialog";
 import { AuthGate } from "./components/auth/AuthGate";
 import { StatusBar, StatusBarProvider, useStatusBarPermanent } from "./components/ui/StatusBar";
 import { ContextMenuHost } from "./components/ui/ContextMenu";
+import { LoadingSpinner } from "./components/ui/LoadingSpinner";
 import { AssetDependencyGraphDialog } from "./pages/novel-detail/asset-graph/AssetDependencyGraphDialog";
 import { useAuthStore } from "./store/auth";
 import { usePersistedState } from "./hooks/usePersistedState";
@@ -50,7 +51,7 @@ function RouteFallback() {
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/25 p-4 backdrop-blur-[2px]">
       <div className="a4n-flat-surface flex w-full max-w-xs items-center gap-3 px-4 py-3 shadow-[var(--shadow-overlay)]">
-        <Loader2 size={16} className="shrink-0 animate-spin text-book-primary" />
+        <LoadingSpinner size="md" />
         <div className="min-w-0">
           <div className="text-sm font-semibold text-book-text-main">正在打开页面</div>
           <div className="mt-0.5 text-xs text-book-text-muted">内容准备好后会自动显示</div>

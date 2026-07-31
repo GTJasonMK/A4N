@@ -4,19 +4,6 @@ use a4n_embedding::provider::EmbeddingProvider;
 use super::{chunks::chapter_rag_chunks_with_provider, contracts::ChapterRagChunkingMode};
 use crate::rag::RagRecord;
 
-#[cfg(test)]
-pub async fn expected_chapter_rag_record_ids_with_provider(
-    chapter: &chapter::Model,
-    provider: &dyn EmbeddingProvider,
-    mode: ChapterRagChunkingMode,
-) -> Result<Vec<String>, String> {
-    Ok(chapter_rag_records_with_provider(chapter, provider, mode)
-        .await?
-        .into_iter()
-        .map(|record| record.chunk_id)
-        .collect())
-}
-
 pub async fn chapter_rag_records_with_provider(
     chapter: &chapter::Model,
     provider: &dyn EmbeddingProvider,

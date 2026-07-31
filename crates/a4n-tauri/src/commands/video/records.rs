@@ -3,9 +3,9 @@ use a4n_runtime::AppState;
 use a4n_runtime::host_api::video_generation::GeneratedVideoSummary;
 use a4n_runtime::host_api::video_records::{
     self as video_records_actions, ApplyAssemblyPostprocessEditInput, AssembledChapterVideoPreview,
-    AssemblyPushResult, DeleteChapterVideoAssetsResult, PushAssembledChapterVideoInput,
-    UpdateAssemblyPushStatusInput, UpdateGeneratedVideoInput, UploadAssemblyInsertVideoInput,
-    UploadChapterVideoInput, UploadReferenceMediaVideoInput, VideoPlaybackData,
+    AssemblyPushResult, PushAssembledChapterVideoInput, UpdateAssemblyPushStatusInput,
+    UpdateGeneratedVideoInput, UploadAssemblyInsertVideoInput, UploadChapterVideoInput,
+    UploadReferenceMediaVideoInput, VideoPlaybackData,
 };
 use tauri::State;
 
@@ -158,22 +158,6 @@ pub async fn delete_video(
     video_id: i64,
 ) -> Result<(), String> {
     video_records_actions::delete_video(state.inner(), user_id, video_id).await
-}
-
-#[tauri::command]
-pub async fn delete_chapter_video_assets(
-    state: State<'_, AppState>,
-    user_id: i64,
-    project_id: i64,
-    chapter_id: i64,
-) -> Result<DeleteChapterVideoAssetsResult, String> {
-    video_records_actions::delete_chapter_video_assets(
-        state.inner(),
-        user_id,
-        project_id,
-        chapter_id,
-    )
-    .await
 }
 
 #[tauri::command]

@@ -9,6 +9,24 @@ import { BlueprintConfirmationPane } from "./BlueprintConfirmationPane";
 import { ChatBubble } from "./ChatBubble";
 
 describe("generation consistency presentation", () => {
+  it("renders one meaningful status inside an empty streaming reply", () => {
+    const html = renderToStaticMarkup(
+      <ChatBubble
+        message={{
+          id: "message-streaming",
+          role: "assistant",
+          content: "",
+          streaming: true,
+          createdAt: 1,
+        }}
+        onSendOption={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("正在整理你的灵感…");
+    expect(html).toContain('role="status"');
+  });
+
   it("keeps the persisted inspiration message visible with an explicit warning", () => {
     const recovery = resolveFormalResultRecovery({
       recoveryIssue: "consistency_error",

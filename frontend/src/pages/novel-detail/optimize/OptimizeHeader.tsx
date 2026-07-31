@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ChapterData } from "../../../api/chapter";
 import type { OptimizeSession } from "../../../api/optimize";
 import { BookIconButton } from "../../../components/ui/BookButton";
@@ -66,7 +67,7 @@ function HeaderSelect<T extends SelectValue>({
           );
           if (selected) onChange(selected.value);
         }}
-        className="pyqt-input h-9 w-full min-w-0 !py-1.5 text-[11px] sm:h-8"
+        className="pyqt-input h-9 w-full min-w-0 !py-1.5 text-small sm:h-8"
       >
         {options.map((option) => (
           <option key={`${option.value}`} value={String(option.value)}>
@@ -124,13 +125,13 @@ export function OptimizeHeader({
             {activeChapter ? chapterOptionLabel(activeChapter) : "选择章节开始优化"}
           </span>
           {taskRunning ? (
-            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-book-primary" role="status">
-              <Loader2 size={10} className="animate-spin" />
+            <span className="inline-flex shrink-0 items-center gap-1 text-small text-book-primary" role="status">
+              <LoadingSpinner size="sm" />
               运行中
             </span>
           ) : null}
         </div>
-        <div className="mt-0.5 truncate text-[11px] text-book-text-muted">
+        <div className="mt-0.5 truncate text-small text-book-text-muted">
           {activeSession ? sessionDisplayName(activeSession) : activeChapter ? "尚未分析" : "选择章节后可分析问题或继续对话"}
         </div>
       </div>

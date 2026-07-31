@@ -11,8 +11,6 @@ use crate::actions::request_preview::{model_request_preview, provider_request_st
 use crate::actions::video_prompts::resolve_project_chapter_video_source;
 #[cfg(test)]
 use a4n_core::models::ai::generated_video;
-#[cfg(test)]
-use serde_json::json;
 
 mod canvas;
 mod chapter;

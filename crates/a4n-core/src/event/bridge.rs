@@ -2,12 +2,11 @@
 //!
 //! 服务间通过事件通信实现松耦合。基于 tokio::sync::broadcast 实现发布/订阅模式。
 
-use async_trait::async_trait;
 use serde::Serialize;
 
 /// 内部事件类型
 ///
-/// 服务通过 EventBus 发布事件，当前订阅者记录这些跨服务事件日志。
+/// 服务通过内部事件总线发布事件，当前订阅者记录这些跨服务事件日志。
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
 pub enum InternalEvent {
@@ -20,21 +19,6 @@ pub enum InternalEvent {
     },
     /// 蓝图已更新
     BlueprintUpdated { project_id: i64, version: String },
-}
-
-/// 事件总线 trait
-///
-/// 服务通过此接口发布和订阅事件。
-#[async_trait]
-pub trait EventBus: Send + Sync {
-    /// 发布事件到所有订阅者
-    async fn publish(&self, event: InternalEvent) -> Result<usize, crate::error::AppError>;
-
-    /// 订阅事件流，返回独立的 Receiver
-    async fn subscribe(&self) -> tokio::sync::broadcast::Receiver<InternalEvent>;
-
-    /// 当前订阅者数量
-    fn subscriber_count(&self) -> usize;
 }
 
 /// 基于 `tokio::sync::broadcast` 的事件总线实现
@@ -50,11 +34,9 @@ impl BroadcastEventBus {
         let (tx, _) = tokio::sync::broadcast::channel(capacity);
         Self { tx }
     }
-}
 
-#[async_trait]
-impl EventBus for BroadcastEventBus {
-    async fn publish(&self, event: InternalEvent) -> Result<usize, crate::error::AppError> {
+    /// 发布事件到所有订阅者。
+    pub fn publish(&self, event: InternalEvent) -> Result<usize, crate::error::AppError> {
         match self.tx.send(event) {
             Ok(count) => Ok(count),
             Err(_) if self.tx.receiver_count() == 0 => Ok(0),
@@ -62,12 +44,17 @@ impl EventBus for BroadcastEventBus {
         }
     }
 
-    async fn subscribe(&self) -> tokio::sync::broadcast::Receiver<InternalEvent> {
+    /// 订阅事件流，返回独立的 Receiver。
+    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<InternalEvent> {
         self.tx.subscribe()
     }
+}
 
-    fn subscriber_count(&self) -> usize {
-        self.tx.receiver_count()
+impl std::fmt::Debug for BroadcastEventBus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BroadcastEventBus")
+            .field("subscriber_count", &self.tx.receiver_count())
+            .finish()
     }
 }
 
@@ -88,7 +75,7 @@ mod tests {
     async fn publish_without_subscribers_is_successful_no_delivery() {
         let bus = BroadcastEventBus::new(16);
 
-        let delivered = bus.publish(status_event()).await.unwrap();
+        let delivered = bus.publish(status_event()).unwrap();
 
         assert_eq!(delivered, 0);
     }
@@ -96,20 +83,12 @@ mod tests {
     #[tokio::test]
     async fn publish_reports_subscriber_count_when_receivers_exist() {
         let bus = BroadcastEventBus::new(16);
-        let mut rx = bus.subscribe().await;
+        let mut rx = bus.subscribe();
 
-        let delivered = bus.publish(status_event()).await.unwrap();
+        let delivered = bus.publish(status_event()).unwrap();
         let event = rx.recv().await.unwrap();
 
         assert_eq!(delivered, 1);
         assert!(matches!(event, InternalEvent::ProjectStatusChanged { .. }));
-    }
-}
-
-impl std::fmt::Debug for BroadcastEventBus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BroadcastEventBus")
-            .field("subscriber_count", &self.tx.receiver_count())
-            .finish()
     }
 }

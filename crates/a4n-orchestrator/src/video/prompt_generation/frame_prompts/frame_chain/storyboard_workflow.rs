@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use crate::video::prompt_generation::frame_prompts::{
     FramePromptGenerationSpec, NewChapterVideoPrompt, VideoPromptDraftCommonInput,
     ensure_existing_frame_prompts_can_regenerate, prompt_row_draft, report_video_prompt_progress,
-    storyboard_prompts_from_rows, validate_storyboard_prompts,
+    storyboard_prompts_from_rows, validate_storyboard_prompt_for_unit, validate_storyboard_prompts,
 };
 use crate::video::prompt_json::VideoSegmentPlan;
 use crate::video::{
@@ -44,6 +44,7 @@ pub(super) struct StoryboardWorkflowInput<'a, 'source, 'progress, 'chunk> {
     pub frame_source_prompt_type: &'a str,
     pub workflow_run_id: Option<i64>,
     pub expected_frame_count: usize,
+    pub target_shot_number: Option<i32>,
     pub prompt_batch_size: usize,
     pub regenerate_existing: bool,
     pub reusable_rows: Vec<chapter_video_prompt::Model>,
@@ -80,6 +81,7 @@ pub(super) async fn generate_storyboard_workflow(
         frame_source_prompt_type,
         workflow_run_id,
         expected_frame_count,
+        target_shot_number,
         prompt_batch_size,
         regenerate_existing,
         reusable_rows,
@@ -87,38 +89,72 @@ pub(super) async fn generate_storyboard_workflow(
         segment_draft,
         prompt_renderer,
         cancel_token,
-        mut progress,
-        mut chunks,
+        progress,
+        chunks,
     } = input;
 
     let mut prefix_rows = Vec::new();
-    for row in reusable_rows {
-        let expected = i32::try_from(prefix_rows.len())
-            .map_err(|_| {
-                AppError::InvalidArgument(format!(
-                    "可复用分镜提示词数量超过 i32 范围：{}",
-                    prefix_rows.len()
-                ))
-            })?
-            .checked_add(1)
-            .ok_or_else(|| {
-                AppError::InvalidArgument("可复用分镜提示词编号超过 i32 范围".to_string())
-            })?;
-        if row.shot_number == expected {
-            if storyboard_prompts_from_rows(std::slice::from_ref(&row)).is_err() {
+    if let Some(target) = target_shot_number {
+        if let Some(row) = reusable_rows
+            .into_iter()
+            .find(|row| row.shot_number == target)
+        {
+            let prompts = storyboard_prompts_from_rows(std::slice::from_ref(&row))?;
+            if let Some(prompt) = prompts.first()
+                && video_units.first().is_some_and(|unit| {
+                    validate_storyboard_prompt_for_unit(
+                        prompt,
+                        segment_plan,
+                        unit,
+                        allowed_reference_ids,
+                    )
+                    .is_ok()
+                })
+            {
+                prefix_rows.push(row);
+            }
+        }
+    } else {
+        for row in reusable_rows {
+            let expected = i32::try_from(prefix_rows.len())
+                .map_err(|_| {
+                    AppError::InvalidArgument(format!(
+                        "可复用分镜提示词数量超过 i32 范围：{}",
+                        prefix_rows.len()
+                    ))
+                })?
+                .checked_add(1)
+                .ok_or_else(|| {
+                    AppError::InvalidArgument("可复用分镜提示词编号超过 i32 范围".to_string())
+                })?;
+            if row.shot_number == expected {
+                if storyboard_prompts_from_rows(std::slice::from_ref(&row)).is_err() {
+                    break;
+                }
+                prefix_rows.push(row);
+            } else if row.shot_number > expected {
                 break;
             }
-            prefix_rows.push(row);
-        } else if row.shot_number > expected {
-            break;
         }
     }
 
     let storyboard_prompts = storyboard_prompts_from_rows(&prefix_rows)?;
     if storyboard_prompts.len() == expected_frame_count {
-        validate_storyboard_prompts(&storyboard_prompts, segment_plan, allowed_reference_ids)?;
+        if target_shot_number.is_some() {
+            let unit = video_units.first().ok_or_else(|| {
+                AppError::InvalidArgument("分镜提示词缺少目标视频单元规划".to_string())
+            })?;
+            validate_storyboard_prompt_for_unit(
+                &storyboard_prompts[0],
+                segment_plan,
+                unit,
+                allowed_reference_ids,
+            )?;
+        } else {
+            validate_storyboard_prompts(&storyboard_prompts, segment_plan, allowed_reference_ids)?;
+        }
         report_video_prompt_progress(
-            &mut progress,
+            progress,
             90,
             100,
             &format!(
@@ -171,6 +207,7 @@ pub(super) async fn generate_storyboard_workflow(
         frame_source_prompt_type,
         workflow_run_id,
         expected_frame_count,
+        target_shot_number,
         prompt_batch_size,
         regenerate_existing,
         storyboard_prompts,
@@ -178,8 +215,8 @@ pub(super) async fn generate_storyboard_workflow(
         segment_draft,
         prompt_renderer,
         cancel_token,
-        progress: &mut progress,
-        chunks: &mut chunks,
+        progress,
+        chunks,
     })
     .await
 }

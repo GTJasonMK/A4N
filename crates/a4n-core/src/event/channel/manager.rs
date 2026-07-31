@@ -1,6 +1,17 @@
 use super::*;
 use dashmap::DashMap;
+use parking_lot::Mutex;
+use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+const PENDING_CANCELLATION_TTL: Duration = Duration::from_secs(30);
+
+#[derive(Clone, Copy)]
+struct PendingCancellation {
+    user_id: i64,
+    requested_at: Instant,
+}
 
 /// 任务管理器
 ///
@@ -8,6 +19,7 @@ use std::sync::Arc;
 /// 线程安全，支持多任务并发注册。
 pub struct TaskManager {
     tasks: Arc<DashMap<String, Arc<TaskHandle>>>,
+    pending_cancellations: Arc<Mutex<BTreeMap<String, PendingCancellation>>>,
 }
 
 impl TaskManager {
@@ -15,6 +27,7 @@ impl TaskManager {
     pub fn new() -> Self {
         Self {
             tasks: Arc::new(DashMap::new()),
+            pending_cancellations: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
@@ -42,6 +55,14 @@ impl TaskManager {
             }
         }
         self.tasks.insert(handle.task_id.clone(), handle.clone());
+        let pending = {
+            let mut pending = self.pending_cancellations.lock();
+            prune_pending_cancellations(&mut pending);
+            pending.remove(&handle.task_id)
+        };
+        if pending.is_some_and(|pending| Some(pending.user_id) == handle.owner_user_id) {
+            handle.cancel();
+        }
         handle
     }
 
@@ -55,6 +76,29 @@ impl TaskManager {
         } else {
             false
         }
+    }
+
+    /// 记录可能早于任务注册到达的取消请求。
+    pub fn cancel_or_remember(&self, task_id: &str, user_id: i64) -> bool {
+        if self.cancel_owned(task_id, user_id) {
+            return true;
+        }
+        {
+            let mut pending = self.pending_cancellations.lock();
+            prune_pending_cancellations(&mut pending);
+            pending.insert(
+                task_id.to_string(),
+                PendingCancellation {
+                    user_id,
+                    requested_at: Instant::now(),
+                },
+            );
+        }
+        if !self.cancel_owned(task_id, user_id) {
+            return false;
+        }
+        self.pending_cancellations.lock().remove(task_id);
+        true
     }
 
     /// 列出所有活跃任务快照
@@ -86,7 +130,7 @@ impl TaskManager {
     fn snapshot_from_handle(handle: &TaskHandle) -> TaskSnapshot {
         TaskSnapshot {
             task_id: handle.task_id.clone(),
-            task_type: handle.task_type.clone(),
+            task_type: handle.task_type,
             project_id: handle.project_id,
             root_project_id: handle.root_project_id,
             source_snapshot_id: handle.source_snapshot_id,
@@ -96,6 +140,24 @@ impl TaskManager {
             cancelled: handle.is_cancelled(),
         }
     }
+
+    fn cancel_owned(&self, task_id: &str, user_id: i64) -> bool {
+        let Some(handle) = self.tasks.get(task_id) else {
+            return false;
+        };
+        if handle.owner_user_id != Some(user_id) {
+            return false;
+        }
+        handle.cancel();
+        true
+    }
+}
+
+fn prune_pending_cancellations(pending: &mut BTreeMap<String, PendingCancellation>) {
+    let now = Instant::now();
+    pending.retain(|_, request| {
+        now.saturating_duration_since(request.requested_at) <= PENDING_CANCELLATION_TTL
+    });
 }
 
 impl Default for TaskManager {

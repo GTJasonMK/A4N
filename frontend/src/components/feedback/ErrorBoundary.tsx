@@ -60,7 +60,7 @@ export class ErrorBoundary extends React.Component<
               <summary className="w-fit cursor-pointer hover:text-book-text-main">
                 诊断信息
               </summary>
-              <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">
+              <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-small leading-relaxed">
                 {this.state.error.message}
               </pre>
             </details>

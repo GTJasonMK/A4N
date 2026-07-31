@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ImportReview, ImportReviewStatus } from "../../../api/import";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookCard } from "../../../components/ui/BookCard";
@@ -50,7 +50,7 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
         <h3 className="break-words text-sm font-semibold text-book-text-main">
           {activeReview.filename}
         </h3>
-        <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+        <p className="mt-1 text-small leading-relaxed text-book-text-muted">
           {activeReview.file_type.toUpperCase()} · {getOperationStatusLabel(activeReview.review_status)} ·{" "}
           {activeReview.parsed_chapters} 章
           {activeReview.dedup_rate != null
@@ -58,7 +58,7 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
             : ""}
         </p>
         {activeReview.detected_encoding || activeReview.dedup_paragraphs > 0 ? (
-          <p className="mt-0.5 text-[11px] text-book-text-muted">
+          <p className="mt-0.5 text-small text-book-text-muted">
             {activeReview.detected_encoding ? `编码 ${activeReview.detected_encoding}` : ""}
             {activeReview.detected_encoding && activeReview.dedup_paragraphs > 0 ? " · " : ""}
             {activeReview.dedup_paragraphs > 0 ? `去重段落 ${activeReview.dedup_paragraphs}` : ""}
@@ -70,7 +70,7 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
           <section className="pb-2.5">
             <div className="a4n-kicker mb-1.5">内容摘要</div>
             {analysisSummary.chapterNumber != null || analysisSummary.title ? (
-              <div className="text-[11px] font-medium text-book-text-main">
+              <div className="text-small font-medium text-book-text-main">
                 {analysisSummary.chapterNumber != null
                   ? `第 ${analysisSummary.chapterNumber} 章`
                   : ""}
@@ -79,36 +79,36 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
               </div>
             ) : null}
             {analysisSummary.summary ? (
-              <p className="mt-2 text-[11px] leading-relaxed text-book-text-sub">
+              <p className="mt-2 text-small leading-relaxed text-book-text-sub">
                 {analysisSummary.summary}
               </p>
             ) : null}
             {analysisSummary.content ? (
-              <p className="mt-2 line-clamp-8 whitespace-pre-wrap text-[11px] leading-relaxed text-book-text-muted">
+              <p className="mt-2 line-clamp-8 whitespace-pre-wrap text-small leading-relaxed text-book-text-muted">
                 {analysisSummary.content}
               </p>
             ) : null}
           </section>
         ) : null}
         <details className="border-t border-book-border/35 pt-2">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md py-1.5 text-[11px] text-book-text-muted hover:text-book-text-main [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md py-1.5 text-small text-book-text-muted hover:text-book-text-main [&::-webkit-details-marker]:hidden">
             <span>高级编辑</span>
-            <span className="text-[10px]">分析结构与审核状态</span>
+            <span className="text-caption">分析结构与审核状态</span>
           </summary>
           <div className="mt-2">
-            <label className="mb-1 block text-[10px] text-book-text-muted">分析结构</label>
+            <label className="mb-1 block text-caption text-book-text-muted">分析结构</label>
             <textarea
               value={activeReviewJson}
               disabled={actionBusy}
               onChange={(e) => onAnalysisJsonChange(e.target.value)}
-              className="pyqt-input h-48 w-full resize-y font-mono text-[11px] leading-relaxed"
+              className="pyqt-input h-48 w-full resize-y font-mono text-small leading-relaxed"
             />
             {activeReviewJsonError && (
-              <div role="alert" className="mt-1 text-[11px] text-error">{activeReviewJsonError}</div>
+              <div role="alert" className="mt-1 text-small text-error">{activeReviewJsonError}</div>
             )}
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <select
-                className="pyqt-input !px-2 !py-1 text-[11px]"
+                className="pyqt-input !px-2 !py-1 text-small"
                 defaultValue=""
                 disabled={actionBusy}
                 onChange={(e) => {
@@ -133,7 +133,7 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
               >
                 {actBusy?.startsWith("modify-") ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <Loader2 size={11} className="animate-spin" /> 保存中…
+                    <LoadingSpinner size="sm" /> 保存中…
                   </span>
                 ) : (
                   "保存修改"

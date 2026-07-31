@@ -1,14 +1,12 @@
 import React, { useState } from "react";
-import {
-  ChevronRight,
+import { ChevronRight,
   Film,
   FolderOpen,
   History,
-  Loader2,
   Plus,
   Sparkles,
-  Upload,
-} from "lucide-react";
+  Upload, } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import { ProjectStatusHistoryList } from "../../components/ProjectStatusHistoryList";
@@ -43,7 +41,7 @@ export const ProjectStatusHistoryDialog: React.FC<ProjectStatusHistoryDialogProp
     >
       {loading ? (
         <div className="text-xs text-book-text-muted inline-flex items-center gap-2">
-          <Loader2 size={12} className="animate-spin" /> 加载历史…
+          <LoadingSpinner size="sm" /> 加载历史…
         </div>
       ) : history.length === 0 ? (
         <div className="text-xs text-book-text-muted py-6 text-center">
@@ -133,7 +131,7 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium text-book-text-main">{option.label}</span>
-              <span className="mt-0.5 block text-[11px] leading-relaxed text-book-text-muted">
+              <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
                 {option.description}
               </span>
             </span>
@@ -146,7 +144,7 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
       </div>
       {creating && (
         <div className="mt-3 inline-flex items-center gap-2 text-xs text-book-text-muted">
-          <Loader2 size={13} className="animate-spin" /> 创建中…
+          <LoadingSpinner size="sm" /> 创建中…
         </div>
       )}
     </Modal>
@@ -193,7 +191,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
           >
             {importing ? (
               <span className="inline-flex items-center gap-2">
-                <Loader2 size={14} className="animate-spin" /> 导入中…
+                <LoadingSpinner size="sm" /> 导入中…
               </span>
             ) : (
               "确认导入"

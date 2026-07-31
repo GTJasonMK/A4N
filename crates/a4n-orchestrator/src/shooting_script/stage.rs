@@ -48,22 +48,20 @@ impl OrchestratorContext {
         if let Some(value) = checkpoint_json
             .get("parsed_output")
             .filter(|value| !value.is_null())
+            && let Ok(output) = serde_json::from_value::<T>(value.clone())
+            && validate_output(&output).is_ok()
         {
-            if let Ok(output) = serde_json::from_value::<T>(value.clone()) {
-                if validate_output(&output).is_ok() {
-                    return Ok(Some(output));
-                }
-            }
+            return Ok(Some(output));
         }
         let raw_response = checkpoint_json["response_content"]
             .as_str()
             .ok_or_else(|| {
                 AppError::InvalidArgument(format!("{step_key}.response_content 必须是字符串"))
             })?;
-        if let Ok(output) = parse_strict_json_response::<T>(raw_response, label) {
-            if validate_output(&output).is_ok() {
-                return Ok(Some(output));
-            }
+        if let Ok(output) = parse_strict_json_response::<T>(raw_response, label)
+            && validate_output(&output).is_ok()
+        {
+            return Ok(Some(output));
         }
         self.load_compatible_full_repair_output(
             workflow_run_id,

@@ -5,7 +5,7 @@ use crate::video::prompt_preview::VideoPromptRequestPreview;
 use crate::video::prompt_preview::preview_steps::reused_step;
 
 use super::super::super::inputs::allowed_reference_ids_for_preview;
-use super::super::super::spec::LocalVideoPromptPreviewMode;
+use super::super::super::spec::LocalFramePromptPreviewMode;
 use super::boundary::append_boundary_frame_preview_step;
 use super::contracts::FrameWorkflowContext;
 use super::first_frame::append_first_frame_preview_step;
@@ -28,9 +28,8 @@ pub(super) async fn build_reusable_frame_preview(
         &context.input.available_assets,
         &context.input.reference_image_ids,
     )?;
-    match context.spec.mode {
-        LocalVideoPromptPreviewMode::BoundaryFrames
-        | LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => {
+    match context.mode {
+        LocalFramePromptPreviewMode::BoundaryFrames => {
             append_boundary_frame_preview_step(
                 context,
                 segment_json,
@@ -41,7 +40,7 @@ pub(super) async fn build_reusable_frame_preview(
             )
             .await?;
         }
-        LocalVideoPromptPreviewMode::FirstFrameChain => {
+        LocalFramePromptPreviewMode::FirstFrameChain => {
             append_first_frame_preview_step(
                 context,
                 segment_json,
@@ -52,7 +51,7 @@ pub(super) async fn build_reusable_frame_preview(
             )
             .await?;
         }
-        LocalVideoPromptPreviewMode::Storyboard => {
+        LocalFramePromptPreviewMode::Storyboard => {
             append_storyboard_preview_step(
                 context,
                 segment_json,
@@ -64,5 +63,5 @@ pub(super) async fn build_reusable_frame_preview(
             .await?;
         }
     }
-    Ok(preview_from_frame_steps(context.spec.mode, steps))
+    Ok(preview_from_frame_steps(context.mode, steps))
 }

@@ -74,16 +74,17 @@ pub(crate) async fn drain_event_lines(
 }
 
 pub(crate) fn parse_event_line(line: &[u8]) -> CapabilityResult<CapabilityTaskEvent> {
-    let mut event: CapabilityTaskEvent =
-        serde_json::from_slice(line).map_err(|error| ServiceError {
-            code: ServiceErrorCode::Internal,
-            message: format!("sidecar event JSON 解析失败: {error}"),
-            retryable: Some(false),
-        })?;
-    sanitize_capability_task_event(&mut event).map_err(|error| ServiceError {
-        code: ServiceErrorCode::Internal,
-        message: format!("sidecar event artifact ref 非法: {error}"),
-        retryable: Some(false),
+    let mut event: CapabilityTaskEvent = serde_json::from_slice(line).map_err(|error| {
+        ServiceError::non_retryable(
+            ServiceErrorCode::Internal,
+            format!("sidecar event JSON 解析失败: {error}"),
+        )
+    })?;
+    sanitize_capability_task_event(&mut event).map_err(|error| {
+        ServiceError::non_retryable(
+            ServiceErrorCode::Internal,
+            format!("sidecar event artifact ref 非法: {error}"),
+        )
     })?;
     Ok(event)
 }
@@ -98,9 +99,5 @@ async fn send_event(
 }
 
 fn cancelled_error() -> ServiceError {
-    ServiceError {
-        code: ServiceErrorCode::Cancelled,
-        message: "sidecar event receiver 已关闭".to_string(),
-        retryable: Some(false),
-    }
+    ServiceError::non_retryable(ServiceErrorCode::Cancelled, "sidecar event receiver 已关闭")
 }

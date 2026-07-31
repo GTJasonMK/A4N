@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, RotateCcw, Trash2 } from "lucide-react";
+import { RotateCcw, Trash2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
   executeAttributeDeletion,
@@ -323,10 +324,10 @@ export const DeletionManager: React.FC<{
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-[11px] leading-relaxed text-book-text-muted">
+      <div className="text-small leading-relaxed text-book-text-muted">
         属性需要连续多次被标记为不再适用，达到保护阈值后才能删除。
       </div>
-      <div className="flex flex-wrap items-end gap-2 text-[11px]">
+      <div className="flex flex-wrap items-end gap-2 text-small">
         <label className="flex items-center gap-1 text-book-text-muted">
           类别
           <select
@@ -370,18 +371,18 @@ export const DeletionManager: React.FC<{
             ))}
           </select>
         </label>
-        {loading ? <Loader2 size={12} className="animate-spin text-book-text-muted" /> : null}
+        {loading ? <LoadingSpinner size="sm" className="text-book-text-muted" /> : null}
         {hasCurrentMarks && marks.length > 0 ? (
-          <span className="text-[10px] text-book-text-muted">共 {marks.length} 条</span>
+          <span className="text-caption text-book-text-muted">共 {marks.length} 条</span>
         ) : null}
       </div>
-      <details className="text-[11px] text-book-text-muted">
+      <details className="text-small text-book-text-muted">
         <summary className="w-fit cursor-pointer select-none py-1 font-medium text-book-text-main">
           请求删除属性
         </summary>
-        <div className="mt-1.5 grid gap-2 rounded-xl bg-book-bg-tertiary/40 p-3 text-[11px] md:grid-cols-6">
+        <div className="mt-1.5 grid gap-2 rounded-xl bg-book-bg-tertiary/40 p-3 text-small md:grid-cols-6">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-book-text-muted">章节</span>
+            <span className="text-caption text-book-text-muted">章节</span>
             <input
               type="number"
               min={1}
@@ -397,7 +398,7 @@ export const DeletionManager: React.FC<{
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-book-text-muted">分类</span>
+            <span className="text-caption text-book-text-muted">分类</span>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
@@ -412,7 +413,7 @@ export const DeletionManager: React.FC<{
             </select>
           </label>
           <label className="flex flex-col gap-1 md:col-span-4">
-            <span className="text-[10px] text-book-text-muted">属性名称</span>
+            <span className="text-caption text-book-text-muted">属性名称</span>
             <input
               value={key}
               onChange={(event) => setKey(event.target.value)}
@@ -422,22 +423,22 @@ export const DeletionManager: React.FC<{
             />
           </label>
           <label className="flex flex-col gap-1 md:col-span-3">
-            <span className="text-[10px] text-book-text-muted">删除原因</span>
+            <span className="text-caption text-book-text-muted">删除原因</span>
             <textarea
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               disabled={requesting}
-              className="pyqt-input min-h-[58px] !px-2 !py-1 text-[11px]"
+              className="pyqt-input min-h-[58px] !px-2 !py-1 text-small"
               placeholder="说明为什么该属性应被删除"
             />
           </label>
           <label className="flex flex-col gap-1 md:col-span-3">
-            <span className="text-[10px] text-book-text-muted">证据</span>
+            <span className="text-caption text-book-text-muted">证据</span>
             <textarea
               value={evidence}
               onChange={(event) => setEvidence(event.target.value)}
               disabled={requesting}
-              className="pyqt-input min-h-[58px] !px-2 !py-1 text-[11px]"
+              className="pyqt-input min-h-[58px] !px-2 !py-1 text-small"
               placeholder="引用章节原文或明确来源"
             />
           </label>
@@ -449,7 +450,7 @@ export const DeletionManager: React.FC<{
             >
               {requesting ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" /> 记录中…
+                  <LoadingSpinner size="sm" /> 记录中…
                 </span>
               ) : (
                 "记录删除标记"
@@ -459,11 +460,11 @@ export const DeletionManager: React.FC<{
         </div>
       </details>
       {loading ? (
-        <div className="text-[11px] text-book-text-muted">加载…</div>
+        <div className="text-small text-book-text-muted">加载…</div>
       ) : !hasCurrentMarks ? (
-        <div className="text-[11px] text-book-text-muted italic">当前筛选条件尚未加载，请刷新</div>
+        <div className="text-small text-book-text-muted italic">当前筛选条件尚未加载，请刷新</div>
       ) : marks.length === 0 ? (
-        <div className="text-[11px] text-book-text-muted italic">尚无删除标记</div>
+        <div className="text-small text-book-text-muted italic">尚无删除标记</div>
       ) : (
         <ul className="a4n-flat-surface divide-y divide-book-border/45 overflow-hidden">
           {marks.map((m) => {
@@ -491,7 +492,7 @@ export const DeletionManager: React.FC<{
             return (
               <li
                 key={m.id}
-                className="px-3 py-2.5 text-[11px]"
+                className="px-3 py-2.5 text-small"
               >
                 <div className="flex min-w-0 items-start gap-2">
                   <span className="min-w-0 flex-1 font-medium text-book-text-main">
@@ -504,7 +505,7 @@ export const DeletionManager: React.FC<{
                           className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted"
                           title={executingThis ? "正在执行属性删除" : "正在重置删除标记"}
                         >
-                          <Loader2 size={12} className="animate-spin" />
+                          <LoadingSpinner size="sm" />
                         </span>
                       ) : executingId == null && resettingKey == null ? (
                         <Dropdown items={actionItems} />
@@ -512,7 +513,7 @@ export const DeletionManager: React.FC<{
                     </div>
                   ) : null}
                 </div>
-                <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[10px] text-book-text-muted">
+                <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-caption text-book-text-muted">
                   <span>第 {m.last_marked_chapter} 章</span>
                   <span aria-hidden="true">·</span>
                   <span>连续 {m.consecutive_count}/{m.threshold}</span>
@@ -523,7 +524,7 @@ export const DeletionManager: React.FC<{
                 </div>
                 <div className="mt-1.5 text-book-text-sub">{m.reason}</div>
                 {m.evidence ? (
-                  <div className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-book-text-muted">
+                  <div className="mt-0.5 line-clamp-2 text-caption leading-relaxed text-book-text-muted">
                     证据：{m.evidence}
                   </div>
                 ) : null}

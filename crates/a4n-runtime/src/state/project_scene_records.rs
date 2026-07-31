@@ -88,9 +88,16 @@ impl<'a> ProjectSceneRecordsRuntimeFacade<'a> {
         input: ChapterSceneGenerationApplicationInput,
         prompt_renderer: &dyn PromptRenderer,
         progress: ChapterSceneProgressReporter<'_>,
+        active_task_id: Option<&str>,
     ) -> Result<chapter_scene::Model, AppError> {
         self.orchestrator
-            .generate_chapter_scene_for_user_validated(user_id, input, prompt_renderer, progress)
+            .generate_chapter_scene_for_user_validated(
+                user_id,
+                input,
+                prompt_renderer,
+                progress,
+                active_task_id,
+            )
             .await
     }
 }

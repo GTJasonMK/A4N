@@ -893,10 +893,6 @@ export interface VideoPlaybackData {
   mime_type: string;
 }
 
-export interface DeleteChapterVideoAssetsResult {
-  deleted_video_count: number;
-}
-
 export interface AssembledChapterVideoClipSummary {
   duration_secs: number;
   file_path: string;
@@ -949,13 +945,10 @@ export interface UploadChapterVideoInput {
 }
 
 export interface UploadReferenceMediaVideoInput {
-  aspect_ratio: string;
   data_base64: string;
-  duration_secs: number;
   file_name: string;
   mime_type: string;
-  prompt: string;
-  segment_prompt_id: number;
+  segment_plan_prompt_id: number;
   shot_number: number;
 }
 

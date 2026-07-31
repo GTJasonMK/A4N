@@ -9,4 +9,6 @@ pub(in crate::video) use rows::{
     complete_reusable_rows, first_frame_prompts_from_rows, frame_prompts_from_rows,
     initial_first_frame_rows, storyboard_prompts_from_rows,
 };
-pub(in crate::video) use storyboard::validate_storyboard_prompts;
+pub(in crate::video) use storyboard::{
+    validate_storyboard_prompt, validate_storyboard_prompt_for_unit, validate_storyboard_prompts,
+};

@@ -259,7 +259,7 @@ const OverviewActionCard: React.FC<{
     </span>
     <div className="min-w-0 flex-1">
       <h2 className="text-xs font-medium text-book-text-main">{title}</h2>
-      <p className="mt-0.5 truncate text-[11px] text-book-text-muted">{description}</p>
+      <p className="mt-0.5 truncate text-small text-book-text-muted">{description}</p>
     </div>
     <ChevronRight size={14} className="shrink-0 text-book-text-muted" />
   </button>

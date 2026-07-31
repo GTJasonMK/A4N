@@ -104,29 +104,23 @@ impl OrchestratorContext {
                     prompt_text: rendered.prompt_text,
                 })
                 .await?;
-            self.record_canvas_node_checkpoint(
-                lifecycle.run.workflow_run_id,
-                lifecycle.step_key.clone(),
-                WORKFLOW_STATUS_COMPLETED,
-                lifecycle.input_json.clone(),
-                Some(json!({
+            self.finish_canvas_node_with_artifacts(
+                &lifecycle,
+                json!({
                     "data_type": "text",
                     "text": artifact.prompt_text,
                     "generation_spec_id": spec.id,
                     "prompt_artifact_id": artifact.id,
                     "prompt_kind": artifact.prompt_kind,
-                })),
-                None,
-                true,
+                }),
             )
-            .await?;
-            self.finish_canvas_node_success(&lifecycle).await
+            .await
         }
         .await;
 
         match result {
             Ok(summary) => Ok(summary),
-            Err(error) => self.fail_canvas_node(lifecycle, error).await,
+            Err(error) => self.finish_canvas_node_error(lifecycle, error).await,
         }
     }
 
@@ -211,12 +205,9 @@ impl OrchestratorContext {
                     prompt_text: validated.transformed_text,
                 })
                 .await?;
-            self.record_canvas_node_checkpoint(
-                lifecycle.run.workflow_run_id,
-                lifecycle.step_key.clone(),
-                WORKFLOW_STATUS_COMPLETED,
-                lifecycle.input_json.clone(),
-                Some(json!({
+            self.finish_canvas_node_with_artifacts(
+                &lifecycle,
+                json!({
                     "data_type": "text",
                     "text": artifact.prompt_text,
                     "generation_spec_id": spec.id,
@@ -224,18 +215,15 @@ impl OrchestratorContext {
                     "prompt_kind": artifact.prompt_kind,
                     "llm_finish_reason": validated.finish_reason,
                     "llm_usage": validated.usage,
-                })),
-                None,
-                true,
+                }),
             )
-            .await?;
-            self.finish_canvas_node_success(&lifecycle).await
+            .await
         }
         .await;
 
         match result {
             Ok(summary) => Ok(summary),
-            Err(error) => self.fail_canvas_node(lifecycle, error).await,
+            Err(error) => self.finish_canvas_node_error(lifecycle, error).await,
         }
     }
 
@@ -348,7 +336,7 @@ impl OrchestratorContext {
                 request,
             })
             .await
-            .map_err(|error| AppError::LlmError(format!("LlmTextNode 调用 LLM 失败: {error}")))?;
+            .map_err(map_canvas_llm_error)?;
         if is_truncated_finish_reason(response.finish_reason.as_deref()) {
             return Err(AppError::InvalidArgument(
                 "LlmTextNode 输出达到当前 max_tokens 上限，文本可能被截断；请调大输出档位或减少上游文本后重试"
@@ -386,6 +374,13 @@ impl OrchestratorContext {
             usage: response.usage,
             finish_reason: response.finish_reason,
         })
+    }
+}
+
+pub(super) fn map_canvas_llm_error(error: AppError) -> AppError {
+    match error {
+        AppError::Cancelled => AppError::Cancelled,
+        error => AppError::LlmError(format!("LlmTextNode 调用 LLM 失败: {error}")),
     }
 }
 

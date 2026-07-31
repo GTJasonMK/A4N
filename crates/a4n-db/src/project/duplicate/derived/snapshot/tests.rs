@@ -4,16 +4,14 @@ use sea_orm::DatabaseConnection;
 
 use crate::project::{
     PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO,
-    duplicate::{ProjectDuplicateError, ProjectMediaCopyError},
+    duplicate::{ProjectDuplicateError, ProjectMediaCopyError, ProjectMediaFileCopier},
 };
 
-use super::{
-    super::types::DerivedProjectMediaFileCopier, execution::copy_derived_project_graph_record,
-};
+use super::execution::copy_derived_project_graph_record;
 
 struct NoopMediaFileCopier;
 
-impl DerivedProjectMediaFileCopier for NoopMediaFileCopier {
+impl ProjectMediaFileCopier for NoopMediaFileCopier {
     fn copy_media_file(
         &mut self,
         _new_project_id: i64,

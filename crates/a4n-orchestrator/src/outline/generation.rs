@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
@@ -6,7 +6,7 @@ use a4n_api_contract::{
 };
 use a4n_core::error::AppError;
 use a4n_service_protocol::{
-    GenerationError, GenerationFinishReason, ProgressEvent, ProgressPhaseKind, ProgressSeverity,
+    GenerationError, GenerationFinishReason, StreamTextHash, TextStreamSnapshot,
 };
 use futures::future::BoxFuture;
 use serde_json::{Map, Value};
@@ -17,12 +17,7 @@ use crate::{
     collaboration::ProjectAccessRole,
     context::GenerationTaskExecution,
     generation::{
-        checkpoint::{
-            DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointMetadata,
-            GenerationCheckpointWriter,
-        },
-        events::{GenerationEventPublisher, SessionGenerationEventPublisher},
-        generation_public_error,
+        GenerationProgressUpdate, generation_public_error, publish_step_progress,
         terminal::CompletionDescriptor,
     },
 };
@@ -34,12 +29,6 @@ use super::{
     RegenerateLastPartInput, RegeneratePartOutlineInput, RegeneratePartsInput,
     with_outline_llm_stream,
 };
-
-struct OutlineProgressUpdate {
-    current: u32,
-    total: u32,
-    message: String,
-}
 
 impl OrchestratorContext {
     pub(crate) async fn validate_outline_generation_start(
@@ -153,11 +142,8 @@ impl OrchestratorContext {
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
         let operation_key = outline_operation_key(&input.operation);
-        let replenisher = Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-            self.database.shared_connection(),
-        ));
-        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
-        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let publisher = execution.publisher.clone();
+        let checkpoint_writer = execution.checkpoint_writer.clone();
         let llm_stream = OutlineLlmStreamContext {
             publisher: publisher.clone(),
             session: session.clone(),
@@ -166,12 +152,14 @@ impl OrchestratorContext {
         };
         let (progress_sender, progress_receiver) = mpsc::unbounded_channel();
         let progress_session = session.clone();
-        let progress_worker = tokio::spawn(publish_outline_progress(
+        let progress_worker = tokio::spawn(publish_step_progress(
             progress_receiver,
             publisher,
             checkpoint_writer,
             progress_session,
             operation_key,
+            "outline_checkpoint",
+            0,
         ));
         let reporter_cancel = cancel_token.clone();
         let reporter = move |current: u32, total: u32, message: &str| {
@@ -179,7 +167,7 @@ impl OrchestratorContext {
                 return Err(AppError::Cancelled);
             }
             progress_sender
-                .send(OutlineProgressUpdate {
+                .send(GenerationProgressUpdate {
                     current,
                     total,
                     message: message.to_string(),
@@ -230,14 +218,16 @@ impl OrchestratorContext {
             }
         };
 
-        let final_usage = session.snapshot().usage;
+        let snapshot = session.snapshot();
+        let final_text_hashes = snapshot_text_hashes(&snapshot.streams);
+        let final_usage = snapshot.usage;
         let completion = execution
             .terminal
             .complete_with(&session, move |_tx| {
                 Box::pin(async move {
                     Ok(CompletionDescriptor {
                         result_ref: None,
-                        final_text_hashes: Vec::new(),
+                        final_text_hashes,
                         final_usage,
                         finish_reason: Some(GenerationFinishReason::Stop),
                         summary: Some(summary.to_string()),
@@ -253,12 +243,7 @@ impl OrchestratorContext {
             )
             .await;
         }
-        let task_id = execution.permit.task_id().to_string();
-        execution
-            .queue
-            .complete_generation_task(execution.permit)
-            .await
-            .map_err(|error| format!("generation queue 完成投影失败 ({task_id}): {error}"))
+        execution.complete_queue_task().await
     }
 
     async fn ensure_outline_part_project(
@@ -443,67 +428,6 @@ impl OrchestratorContext {
     }
 }
 
-async fn publish_outline_progress(
-    mut receiver: mpsc::UnboundedReceiver<OutlineProgressUpdate>,
-    publisher: SessionGenerationEventPublisher,
-    checkpoint_writer: GenerationCheckpointWriter,
-    session: Arc<crate::generation::events::GenerationTaskSession>,
-    operation_key: &'static str,
-) -> Result<(), GenerationError> {
-    while let Some(update) = receiver.recv().await {
-        let complete = update.current >= update.total;
-        publisher
-            .progress(ProgressEvent {
-                stage_code: operation_key.to_string(),
-                phase_kind: if update.current == 0 {
-                    ProgressPhaseKind::Prepare
-                } else if complete {
-                    ProgressPhaseKind::Complete
-                } else {
-                    ProgressPhaseKind::Provider
-                },
-                message: update.message,
-                current: Some(update.current.into()),
-                total: Some(update.total.into()),
-                unit_label: Some("步骤".to_string()),
-                item_key: None,
-                item_index: None,
-                item_total: None,
-                severity: if complete {
-                    ProgressSeverity::Success
-                } else {
-                    ProgressSeverity::Info
-                },
-                estimated: false,
-            })
-            .await
-            .map_err(|error| generation_public_error(error.code(), operation_key, error))?;
-        checkpoint_writer
-            .persist_if_due(
-                &session,
-                GenerationCheckpointMetadata {
-                    step_key: Some(operation_key.to_string()),
-                    ..Default::default()
-                },
-                false,
-            )
-            .await
-            .map_err(|error| generation_public_error(error.code(), "outline_checkpoint", error))?;
-    }
-    checkpoint_writer
-        .persist_if_due(
-            &session,
-            GenerationCheckpointMetadata {
-                step_key: Some(operation_key.to_string()),
-                ..Default::default()
-            },
-            true,
-        )
-        .await
-        .map_err(|error| generation_public_error(error.code(), "outline_checkpoint", error))?;
-    Ok(())
-}
-
 async fn fail_outline_generation_execution(
     execution: GenerationTaskExecution,
     error: GenerationError,
@@ -556,6 +480,17 @@ fn variables_value(variables: Option<std::collections::BTreeMap<String, Value>>)
     variables.map(|variables| Value::Object(variables.into_iter().collect::<Map<_, _>>()))
 }
 
+fn snapshot_text_hashes(streams: &[TextStreamSnapshot]) -> Vec<StreamTextHash> {
+    streams
+        .iter()
+        .map(|stream| StreamTextHash {
+            stream_id: stream.stream_id.clone(),
+            utf8_bytes: stream.next_offset,
+            sha256: stream.sha256.clone(),
+        })
+        .collect()
+}
+
 fn require_optional_positive(value: Option<i32>, field: &str) -> Result<(), AppError> {
     if value.is_some_and(|value| value <= 0) {
         return Err(AppError::InvalidArgument(format!("{field} 必须大于 0")));
@@ -580,6 +515,33 @@ fn require_positive_i64(value: i64, field: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot_text_hashes_cover_every_stream() {
+        let streams = [
+            TextStreamSnapshot {
+                stream_id: "raw_json".to_string(),
+                text: "{}".to_string(),
+                next_offset: 2,
+                sha256: "a".repeat(64),
+            },
+            TextStreamSnapshot {
+                stream_id: "notes".to_string(),
+                text: "ok".to_string(),
+                next_offset: 2,
+                sha256: "b".repeat(64),
+            },
+        ];
+
+        let hashes = snapshot_text_hashes(&streams);
+
+        assert_eq!(hashes.len(), streams.len());
+        for (hash, stream) in hashes.iter().zip(&streams) {
+            assert_eq!(hash.stream_id, stream.stream_id);
+            assert_eq!(hash.utf8_bytes, stream.next_offset);
+            assert_eq!(hash.sha256, stream.sha256);
+        }
+    }
 
     #[test]
     fn outline_generation_operations_have_stable_unique_stage_keys() {

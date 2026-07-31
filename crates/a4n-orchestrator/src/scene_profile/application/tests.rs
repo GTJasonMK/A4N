@@ -1,7 +1,7 @@
 use super::parsing::parse_scene_profile_sync_content;
 use super::types::{
     SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_OCCURRENCE_COVERAGE_RULE,
-    SceneProfileSyncRequestContext,
+    SCENE_TRANSITION_REFERENCE_RULE, SceneProfileSyncRequestContext,
 };
 use a4n_core::models::chapter::chapter;
 use a4n_core::models::project::text_anchor;
@@ -243,10 +243,19 @@ fn scene_stage_contracts_explain_scene_occurrence_invariant() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../prompts/novel/05_analysis/scene_occurrence_extraction.md"
     ));
+    let transitions_prompt = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../prompts/novel/05_analysis/scene_transition_extraction.md"
+    ));
     assert!(candidates_prompt.contains("未实际出场"));
     assert!(candidates_prompt.contains("至少一条场景出场记录"));
     assert!(occurrences_prompt.contains("必须为每个 `scene_ref` 至少输出一条出场记录"));
     assert!(occurrences_prompt.contains("必须覆盖输入 `scenes[]`"));
+    assert!(SCENE_TRANSITION_REFERENCE_RULE.contains("to_scene_ref"));
+    assert!(SCENE_TRANSITION_REFERENCE_RULE.contains("不得为 null"));
+    assert!(transitions_prompt.contains("`to_scene_ref` 必须"));
+    assert!(transitions_prompt.contains("不得为 `null`"));
+    assert!(transitions_prompt.contains("目标场景时，不要输出该条转场"));
 }
 
 #[test]

@@ -28,6 +28,7 @@ pub async fn discover_character_profiles_for_chapters(
     let application_progress = progress.map(|progress| CharacterDiscoveryProgress {
         reporter: Some(&reporter),
         cancel_token: progress.cancel_token,
+        active_task_id: progress.task_id,
     });
     state
         .character()

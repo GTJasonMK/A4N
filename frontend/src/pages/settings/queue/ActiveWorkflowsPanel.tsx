@@ -1,10 +1,11 @@
 import React from "react";
-import { Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { WorkflowState } from "../../../api/streaming";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
 import { ProgressEventList } from "./ProgressEventList";
-import { getWorkflowStatusLabel } from "../../../utils/workflowPresentation";
+import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 
 interface ActiveWorkflowsPanelProps {
   workflows: WorkflowState[];
@@ -22,13 +23,13 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
   <section>
     <div className="flex items-baseline gap-2 px-1 pb-2">
       <h3 className="text-xs font-semibold text-book-text-main">活跃工作流</h3>
-      <span className="text-[11px] text-book-text-muted">
+      <span className="text-small text-book-text-muted">
         {workflows.length > 0 ? `${workflows.length} 个运行中` : "实时进度"}
       </span>
     </div>
     {loading && workflows.length === 0 ? (
       <div className="a4n-flat-surface flex items-center justify-center gap-1.5 px-3 py-5 text-xs text-book-text-muted">
-        <Loader2 size={12} className="animate-spin" />
+        <LoadingSpinner size="sm" />
         正在加载活跃工作流…
       </div>
     ) : workflows.length === 0 ? (
@@ -49,9 +50,9 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
                   <div className="truncate text-xs font-medium text-book-text-main">
                     {activeWorkflowTitle(workflow)}
                   </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-book-text-muted">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
                     <span className={workflowStatusTone(workflow.status)}>
-                      {getWorkflowStatusLabel(workflow.status)}
+                      {getOperationStatusLabel(workflow.status)}
                     </span>
                     {workflow.progress ? (
                       <>
@@ -65,7 +66,7 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
                 </div>
                 {cancelling ? (
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-book-text-muted">
-                    <Loader2 size={13} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   </span>
                 ) : canCancel ? (
                   <Dropdown
@@ -82,7 +83,7 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
               </div>
               {workflow.progress && <WorkflowProgress progress={workflow.progress} />}
               <ProgressEventList events={workflow.progress_events} />
-              <details className="mt-2 text-[10px] text-book-text-muted">
+              <details className="mt-2 text-caption text-book-text-muted">
                 <summary className="w-fit cursor-pointer select-none py-1 hover:text-book-text-main">
                   诊断信息
                 </summary>
@@ -150,7 +151,7 @@ const WorkflowProgress: React.FC<{ progress: NonNullable<WorkflowState["progress
 
   return (
     <div className="mt-2.5">
-      <div className="flex min-w-0 items-baseline gap-2 text-[11px]">
+      <div className="flex min-w-0 items-baseline gap-2 text-small">
         <span className="min-w-0 flex-1 truncate text-book-text-sub" title={display.stage}>
           {display.stage}
         </span>
@@ -166,7 +167,7 @@ const WorkflowProgress: React.FC<{ progress: NonNullable<WorkflowState["progress
           />
         </div>
       ) : null}
-      <div className="mt-1 truncate text-[11px] leading-4 text-book-text-muted" title={detail}>
+      <div className="mt-1 truncate text-small leading-4 text-book-text-muted" title={detail}>
         {detail}
       </div>
     </div>

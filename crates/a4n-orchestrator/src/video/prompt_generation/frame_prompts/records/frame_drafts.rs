@@ -2,7 +2,7 @@ use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_video_prompt;
 use serde_json::{Value, json};
 
-use super::super::super::super::prompt_json::VideoFramePrompt;
+use super::super::super::super::prompt_json::{VideoFramePrompt, VideoPromptShot};
 use super::super::super::super::prompt_store::{
     NewChapterVideoPrompt, NewChapterVideoPromptInput, PromptWorkflowMode, new_prompt_draft,
 };
@@ -11,6 +11,7 @@ use super::super::super::super::{
     PromptOutputLanguage, STORYBOARD_PROMPT_CONTRACT_VERSION,
 };
 use super::super::VideoUnitPlan;
+use super::rules::optional_prompt_text;
 use a4n_core::prompt_language::with_prompt_output_language_metadata;
 
 pub(in crate::video) fn prompt_row_draft(
@@ -47,6 +48,57 @@ pub(in crate::video) struct VideoPromptDraftCommonInput<'a> {
     pub execution_identity: &'a Value,
 }
 
+fn frame_prompt_draft(
+    common: VideoPromptDraftCommonInput<'_>,
+    workflow_mode: PromptWorkflowMode,
+    prompt_type: &str,
+    frame: &VideoFramePrompt,
+    metadata: Value,
+) -> NewChapterVideoPrompt {
+    new_prompt_draft(NewChapterVideoPromptInput {
+        project_id: common.project_id,
+        chapter_id: common.chapter_id,
+        workflow_mode,
+        style: Some(common.style),
+        prompt_type,
+        shot_number: frame.frame_number,
+        title: Some(&frame.title),
+        scene_summary: Some(&frame.scene_summary),
+        visual_prompt: &frame.frame_prompt,
+        motion_prompt: None,
+        negative_prompt: Some(&frame.negative_prompt),
+        duration_secs: frame.duration_secs,
+        aspect_ratio: Some(&frame.aspect_ratio),
+        reference_image_ids_json: Some(json!(frame.reference_image_ids)),
+        metadata_json: Some(metadata),
+    })
+}
+
+pub(super) fn video_prompt_shot_draft(
+    common: VideoPromptDraftCommonInput<'_>,
+    workflow_mode: PromptWorkflowMode,
+    prompt: &VideoPromptShot,
+    metadata: Value,
+) -> NewChapterVideoPrompt {
+    new_prompt_draft(NewChapterVideoPromptInput {
+        project_id: common.project_id,
+        chapter_id: common.chapter_id,
+        workflow_mode,
+        style: Some(common.style),
+        prompt_type: "video_prompt",
+        shot_number: prompt.shot_number,
+        title: Some(&prompt.title),
+        scene_summary: Some(&prompt.scene_summary),
+        visual_prompt: &prompt.visual_prompt,
+        motion_prompt: Some(&prompt.motion_prompt),
+        negative_prompt: optional_prompt_text(&prompt.negative_prompt),
+        duration_secs: prompt.duration_secs,
+        aspect_ratio: Some(&prompt.aspect_ratio),
+        reference_image_ids_json: Some(json!(prompt.reference_image_ids)),
+        metadata_json: Some(metadata),
+    })
+}
+
 pub(in crate::video) struct FramePromptDraftsInput<'a> {
     pub common: VideoPromptDraftCommonInput<'a>,
     pub workflow_mode: PromptWorkflowMode,
@@ -65,16 +117,6 @@ pub(in crate::video) fn frame_prompt_drafts(
         source_prompt_type,
         frame_prompts,
     } = input;
-    let VideoPromptDraftCommonInput {
-        project_id,
-        chapter_id,
-        style,
-        prompt_output_language,
-        source_metadata,
-        available_assets,
-        generation_asset_fingerprint,
-        execution_identity,
-    } = common;
     frame_prompts
         .iter()
         .map(|frame| {
@@ -92,31 +134,15 @@ pub(in crate::video) fn frame_prompt_drafts(
                     ),
                     "blocking_state": frame.blocking_state.clone(),
                     "lighting_state": frame.lighting_state.clone(),
-                    "available_assets": available_assets.clone(),
-                    "generation_asset_fingerprint": generation_asset_fingerprint.clone(),
-                    "video_execution_identity": execution_identity.clone(),
+                    "available_assets": common.available_assets.clone(),
+                    "generation_asset_fingerprint": common.generation_asset_fingerprint.clone(),
+                    "video_execution_identity": common.execution_identity.clone(),
                     "source_prompt_type": source_prompt_type,
-                    "source": source_metadata.clone()
+                    "source": common.source_metadata.clone()
                 }),
-                prompt_output_language,
+                common.prompt_output_language,
             );
-            new_prompt_draft(NewChapterVideoPromptInput {
-                project_id,
-                chapter_id,
-                workflow_mode,
-                style: Some(style),
-                prompt_type,
-                shot_number: frame.frame_number,
-                title: Some(&frame.title),
-                scene_summary: Some(&frame.scene_summary),
-                visual_prompt: &frame.frame_prompt,
-                motion_prompt: None,
-                negative_prompt: Some(&frame.negative_prompt),
-                duration_secs: frame.duration_secs,
-                aspect_ratio: Some(&frame.aspect_ratio),
-                reference_image_ids_json: Some(json!(frame.reference_image_ids)),
-                metadata_json: Some(metadata),
-            })
+            frame_prompt_draft(common, workflow_mode, prompt_type, frame, metadata)
         })
         .collect()
 }
@@ -135,16 +161,6 @@ pub(in crate::video) fn first_frame_prompt_drafts(
         source_prompt_type,
         first_frame_prompts,
     } = input;
-    let VideoPromptDraftCommonInput {
-        project_id,
-        chapter_id,
-        style,
-        prompt_output_language,
-        source_metadata,
-        available_assets,
-        generation_asset_fingerprint,
-        execution_identity,
-    } = common;
     first_frame_prompts
         .iter()
         .map(|frame| {
@@ -158,31 +174,21 @@ pub(in crate::video) fn first_frame_prompt_drafts(
                     ),
                     "blocking_state": frame.blocking_state.clone(),
                     "lighting_state": frame.lighting_state.clone(),
-                    "available_assets": available_assets.clone(),
-                    "generation_asset_fingerprint": generation_asset_fingerprint.clone(),
-                    "video_execution_identity": execution_identity.clone(),
+                    "available_assets": common.available_assets.clone(),
+                    "generation_asset_fingerprint": common.generation_asset_fingerprint.clone(),
+                    "video_execution_identity": common.execution_identity.clone(),
                     "source_prompt_type": source_prompt_type,
-                    "source": source_metadata.clone()
+                    "source": common.source_metadata.clone()
                 }),
-                prompt_output_language,
+                common.prompt_output_language,
             );
-            new_prompt_draft(NewChapterVideoPromptInput {
-                project_id,
-                chapter_id,
-                workflow_mode: PromptWorkflowMode::FirstFrameChain,
-                style: Some(style),
-                prompt_type: "first_frame_prompt",
-                shot_number: frame.frame_number,
-                title: Some(&frame.title),
-                scene_summary: Some(&frame.scene_summary),
-                visual_prompt: &frame.frame_prompt,
-                motion_prompt: None,
-                negative_prompt: Some(&frame.negative_prompt),
-                duration_secs: frame.duration_secs,
-                aspect_ratio: Some(&frame.aspect_ratio),
-                reference_image_ids_json: Some(json!(frame.reference_image_ids)),
-                metadata_json: Some(metadata),
-            })
+            frame_prompt_draft(
+                common,
+                PromptWorkflowMode::FirstFrameChain,
+                "first_frame_prompt",
+                frame,
+                metadata,
+            )
         })
         .collect()
 }
@@ -203,16 +209,6 @@ pub(in crate::video) fn storyboard_prompt_drafts(
         video_units,
         storyboard_prompts,
     } = input;
-    let VideoPromptDraftCommonInput {
-        project_id,
-        chapter_id,
-        style,
-        prompt_output_language,
-        source_metadata,
-        available_assets,
-        generation_asset_fingerprint,
-        execution_identity,
-    } = common;
     storyboard_prompts
         .iter()
         .map(|frame| {
@@ -230,31 +226,21 @@ pub(in crate::video) fn storyboard_prompt_drafts(
                     ),
                     "blocking_state": frame.blocking_state.clone(),
                     "lighting_state": frame.lighting_state.clone(),
-                    "available_assets": available_assets.clone(),
-                    "generation_asset_fingerprint": generation_asset_fingerprint.clone(),
-                    "video_execution_identity": execution_identity.clone(),
+                    "available_assets": common.available_assets.clone(),
+                    "generation_asset_fingerprint": common.generation_asset_fingerprint.clone(),
+                    "video_execution_identity": common.execution_identity.clone(),
                     "source_prompt_type": source_prompt_type,
-                    "source": source_metadata.clone()
+                    "source": common.source_metadata.clone()
                 }),
-                prompt_output_language,
+                common.prompt_output_language,
             );
-            new_prompt_draft(NewChapterVideoPromptInput {
-                project_id,
-                chapter_id,
-                workflow_mode: PromptWorkflowMode::Storyboard,
-                style: Some(style),
-                prompt_type: "storyboard_prompt",
-                shot_number: frame.frame_number,
-                title: Some(&frame.title),
-                scene_summary: Some(&frame.scene_summary),
-                visual_prompt: &frame.frame_prompt,
-                motion_prompt: None,
-                negative_prompt: Some(&frame.negative_prompt),
-                duration_secs: frame.duration_secs,
-                aspect_ratio: Some(&frame.aspect_ratio),
-                reference_image_ids_json: Some(json!(frame.reference_image_ids)),
-                metadata_json: Some(metadata),
-            })
+            frame_prompt_draft(
+                common,
+                PromptWorkflowMode::Storyboard,
+                "storyboard_prompt",
+                frame,
+                metadata,
+            )
         })
         .collect()
 }

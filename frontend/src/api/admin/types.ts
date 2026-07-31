@@ -99,8 +99,8 @@ export interface AdminOverviewSummary {
   daily_active_users: number;
 }
 
-export type AdminServiceMode = "embedded" | "sidecar" | "remote" | "disabled" | string;
-export type AdminServicePidStatus =
+type AdminServiceMode = "embedded" | "sidecar" | "remote" | "disabled" | string;
+type AdminServicePidStatus =
   | "observed"
   | "missing"
   | "stale"

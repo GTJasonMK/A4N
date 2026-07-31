@@ -32,6 +32,13 @@ where
     })
 }
 
+pub fn probe_created_audio_duration(path: &Path, file_label: &str) -> Result<f32, String> {
+    remove_created_file_on_error_sync(path, file_label, || {
+        a4n_media::probe_audio_duration_secs(path)
+            .map_err(|error| format!("无法读取{file_label}时长：{error}"))
+    })
+}
+
 pub fn write_new_data_file(
     data_dir: &Path,
     relative_path: &str,

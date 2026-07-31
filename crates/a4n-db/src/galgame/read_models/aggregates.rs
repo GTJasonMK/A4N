@@ -13,28 +13,8 @@ pub async fn galgame_asset_planning_read_model(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<Option<GalgameAssetPlanningReadModel>, DbErr> {
-    let Some(script) = galgame_script::Entity::find()
-        .filter(galgame_script::Column::ProjectId.eq(project_id))
-        .one(db)
-        .await?
-    else {
+    let Some((script, scenes, lines)) = galgame_script_scene_lines(db, project_id).await? else {
         return Ok(None);
-    };
-    let scenes = galgame_scene::Entity::find()
-        .filter(galgame_scene::Column::ScriptId.eq(script.id))
-        .order_by_asc(galgame_scene::Column::SceneIndex)
-        .all(db)
-        .await?;
-    let scene_ids = scenes.iter().map(|scene| scene.id).collect::<Vec<_>>();
-    let lines = if scene_ids.is_empty() {
-        Vec::new()
-    } else {
-        galgame_line::Entity::find()
-            .filter(galgame_line::Column::SceneId.is_in(scene_ids))
-            .order_by_asc(galgame_line::Column::SceneId)
-            .order_by_asc(galgame_line::Column::LineIndex)
-            .all(db)
-            .await?
     };
     let source_snapshot_chapter_ids = scenes
         .iter()
@@ -60,29 +40,10 @@ pub async fn galgame_script_detail_read_model(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<Option<GalgameScriptDetailReadModel>, DbErr> {
-    let Some(script) = galgame_script::Entity::find()
-        .filter(galgame_script::Column::ProjectId.eq(project_id))
-        .one(db)
-        .await?
-    else {
+    let Some((script, scenes, lines)) = galgame_script_scene_lines(db, project_id).await? else {
         return Ok(None);
     };
-    let scenes = galgame_scene::Entity::find()
-        .filter(galgame_scene::Column::ScriptId.eq(script.id))
-        .order_by_asc(galgame_scene::Column::SceneIndex)
-        .all(db)
-        .await?;
     let scene_ids = scenes.iter().map(|scene| scene.id).collect::<Vec<_>>();
-    let lines = if scene_ids.is_empty() {
-        Vec::new()
-    } else {
-        galgame_line::Entity::find()
-            .filter(galgame_line::Column::SceneId.is_in(scene_ids.clone()))
-            .order_by_asc(galgame_line::Column::SceneId)
-            .order_by_asc(galgame_line::Column::LineIndex)
-            .all(db)
-            .await?
-    };
     let line_ids = lines.iter().map(|line| line.id).collect::<Vec<_>>();
     let choices = if line_ids.is_empty() {
         Vec::new()
@@ -124,4 +85,41 @@ pub async fn galgame_script_detail_read_model(
         lines,
         choices,
     }))
+}
+
+async fn galgame_script_scene_lines(
+    db: &DatabaseConnection,
+    project_id: i64,
+) -> Result<
+    Option<(
+        galgame_script::Model,
+        Vec<galgame_scene::Model>,
+        Vec<galgame_line::Model>,
+    )>,
+    DbErr,
+> {
+    let Some(script) = galgame_script::Entity::find()
+        .filter(galgame_script::Column::ProjectId.eq(project_id))
+        .one(db)
+        .await?
+    else {
+        return Ok(None);
+    };
+    let scenes = galgame_scene::Entity::find()
+        .filter(galgame_scene::Column::ScriptId.eq(script.id))
+        .order_by_asc(galgame_scene::Column::SceneIndex)
+        .all(db)
+        .await?;
+    let scene_ids = scenes.iter().map(|scene| scene.id).collect::<Vec<_>>();
+    let lines = if scene_ids.is_empty() {
+        Vec::new()
+    } else {
+        galgame_line::Entity::find()
+            .filter(galgame_line::Column::SceneId.is_in(scene_ids))
+            .order_by_asc(galgame_line::Column::SceneId)
+            .order_by_asc(galgame_line::Column::LineIndex)
+            .all(db)
+            .await?
+    };
+    Ok(Some((script, scenes, lines)))
 }

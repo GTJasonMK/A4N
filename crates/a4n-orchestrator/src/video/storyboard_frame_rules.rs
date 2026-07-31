@@ -44,6 +44,11 @@ mod tests {
 
     fn prompt(id: i64, prompt_type: &str, contract_version: &str) -> chapter_video_prompt::Model {
         let now = Utc::now().naive_utc();
+        let recipe_fingerprint = if prompt_type == "video_prompt" {
+            "video-recipe"
+        } else {
+            "frame-recipe"
+        };
         chapter_video_prompt::Model {
             id,
             project_id: 1,
@@ -74,7 +79,10 @@ mod tests {
                     "source_content_sha256": "source",
                     "style_sha256": "style",
                     "duration_secs": 4,
-                    "aspect_ratio": "16:9"
+                    "aspect_ratio": "16:9",
+                    "segment_plan_prompt_id": 9,
+                    "segment_number": 3,
+                    "segment_recipe_fingerprint": recipe_fingerprint
                 }
             })),
             created_at: now,
@@ -108,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    fn storyboard_prompt_requires_current_chain_identity_and_shared_source() {
+    fn storyboard_prompt_accepts_frame_fingerprint_but_requires_current_chain_and_source() {
         let video = prompt(10, "video_prompt", STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION);
         let storyboard = prompt(11, "storyboard_prompt", STORYBOARD_PROMPT_CONTRACT_VERSION);
 

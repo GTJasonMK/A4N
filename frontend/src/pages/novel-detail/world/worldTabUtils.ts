@@ -14,7 +14,7 @@ export type WorldListItem = {
   raw?: unknown;
 };
 
-export const SYSTEM_KEYS = new Set([
+const SYSTEM_KEYS = new Set([
   "_discarded_chapter_outlines",
   "_blueprint_generation_notes",
   "_debug",

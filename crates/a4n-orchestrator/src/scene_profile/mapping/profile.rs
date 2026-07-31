@@ -6,7 +6,7 @@ use a4n_db::scene_profile::SceneProfileRecordInput;
 use serde_json::json;
 
 use super::super::contracts::SceneProfileDraft;
-use super::super::rules::{normalize_json_array, normalize_scene_type_value};
+use super::super::rules::normalize_scene_type_value;
 
 /// 将场景档案草稿规范化为 DB 写入 DTO（runtime 可直接交给 orchestrator）。
 pub fn normalize_scene_profile_record_input(
@@ -38,6 +38,16 @@ pub(super) fn normalize_profile_draft(
     draft.spatial_layout = required_text(&draft.spatial_layout, "场景空间布局")?;
     draft.atmosphere = required_text(&draft.atmosphere, "场景氛围")?;
     draft.image_prompt_seed = required_text(&draft.image_prompt_seed, "场景图片提示词种子")?;
+    if !draft.entry_points.is_array() {
+        return Err(AppError::InvalidArgument(
+            "场景出入口必须是 JSON 数组".to_string(),
+        ));
+    }
+    if !draft.rules.is_array() {
+        return Err(AppError::InvalidArgument(
+            "场景规则必须是 JSON 数组".to_string(),
+        ));
+    }
     if draft.first_seen_chapter <= 0 || draft.last_seen_chapter <= 0 {
         return Err(AppError::InvalidArgument(
             "场景首次/最近出现章节必须大于 0".to_string(),
@@ -67,8 +77,8 @@ pub(super) fn scene_profile_record_input(
         visual_description: draft.visual_description,
         spatial_layout: draft.spatial_layout,
         atmosphere: draft.atmosphere,
-        entry_points_json: normalize_json_array(draft.entry_points),
-        rules_json: normalize_json_array(draft.rules),
+        entry_points_json: draft.entry_points,
+        rules_json: draft.rules,
         first_seen_chapter: draft.first_seen_chapter,
         last_seen_chapter: draft.last_seen_chapter,
         evidence_json: json!(draft.evidence),

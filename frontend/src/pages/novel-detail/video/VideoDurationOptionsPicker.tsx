@@ -64,15 +64,15 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
 
   if (choices.length === 0) {
     return (
-      <div className="book-control min-h-[30px] rounded-xl px-2.5 py-1.5 text-[11px] text-book-text-muted">
+      <div className="book-control min-h-[30px] rounded-xl px-2.5 py-1.5 text-small text-book-text-muted">
         无可用时长
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-book-border/50 bg-book-bg-paper/40 p-1.5">
-      <div className="flex min-h-[28px] flex-wrap gap-1">
+    <div className="rounded-lg border border-book-border/50 bg-book-bg-paper/40 p-1">
+      <div className="flex min-h-[26px] flex-wrap gap-0.5">
         {displayChoices.map((duration) => {
           const active = selectedSet.has(duration);
           const onlySelected = active && selected.length <= 1;
@@ -83,7 +83,7 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
               onClick={() => toggleDuration(duration)}
               disabled={disabled || onlySelected}
               data-active={active ? "1" : undefined}
-              className="inline-flex min-w-10 items-center justify-center gap-1 rounded-lg border border-book-border/50 px-2 py-1 text-[11px] tabular-nums text-book-text-sub transition-colors hover:border-book-primary/60 hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-70 data-[active='1']:border-book-primary/70 data-[active='1']:bg-book-primary/10 data-[active='1']:text-book-primary"
+              className="inline-flex min-w-9 items-center justify-center gap-0.5 rounded-md border border-book-border/50 px-1.5 py-0.5 text-caption tabular-nums text-book-text-sub transition-colors hover:border-book-primary/60 hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-70 data-[active='1']:border-book-primary/70 data-[active='1']:bg-book-primary/10 data-[active='1']:text-book-primary"
               title={
                 onlySelected
                   ? "至少保留一个候选时长"
@@ -96,15 +96,15 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
             >
               <span>{duration}s</span>
               {active && !onlySelected && (
-                <X size={11} strokeWidth={2.2} className="shrink-0" aria-hidden="true" />
+                <X size={10} strokeWidth={2.2} className="shrink-0" aria-hidden="true" />
               )}
             </button>
           );
         })}
       </div>
       {durationLimits.durationMode === "range" && (
-        <div className="mt-1.5 flex items-center gap-1 border-t border-book-border/30 pt-1.5">
-          <span className="shrink-0 text-[10px] text-book-text-muted">自定义</span>
+        <div className="mt-1 flex items-center gap-1 border-t border-book-border/30 pt-1">
+          <span className="shrink-0 text-caption text-book-text-muted">自定义</span>
           <input
             type="number"
             min={durationLimits.minDurationSecs}
@@ -118,7 +118,7 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
               }
             }}
             disabled={disabled || selected.length >= MAX_VIDEO_DURATION_OPTION_COUNT}
-            className="pyqt-input ml-auto h-7 w-16 !px-1.5 !py-0 text-[11px]"
+            className="pyqt-input ml-auto h-6 w-14 !px-1 !py-0 text-caption"
             placeholder="秒"
             aria-label="自定义候选时长"
           />
@@ -126,11 +126,11 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
             type="button"
             onClick={addCustomDuration}
             disabled={customAddBlocked}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-book-border/60 text-book-text-sub transition-colors hover:border-book-primary/60 hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-45 sm:h-7 sm:w-7"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-book-border/60 text-book-text-sub transition-colors hover:border-book-primary/60 hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-45"
             title="加入候选时长"
             aria-label="加入候选时长"
           >
-            <Plus size={14} />
+            <Plus size={12} />
           </button>
         </div>
       )}

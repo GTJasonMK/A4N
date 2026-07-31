@@ -1,9 +1,7 @@
 use super::media_input::{image_inline_data, image_inline_data_preview};
 use super::response::{
     aspect_ratio_from_size, find_video_b64, find_video_uri, operation_error_message,
-    operation_is_cancelled, parse_gemini_veo_json_response,
-    parse_gemini_veo_json_response_allow_not_found, required_operation_name,
-    veo_resolution_from_size,
+    operation_is_cancelled, required_operation_name, veo_resolution_from_size,
 };
 use async_trait::async_trait;
 use base64::Engine as _;
@@ -14,6 +12,7 @@ use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, Vi
 
 use crate::download::download_video_url_with_api_key;
 use crate::format::detect_video_format_from_bytes;
+use crate::response::{parse_json_response, parse_json_response_allow_not_found};
 
 pub struct GeminiVeoVideoProvider {
     base_url: String,
@@ -166,7 +165,7 @@ impl GeminiVeoVideoProvider {
             .send()
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Gemini Veo 视频生成请求失败：{e}")))?;
-        parse_gemini_veo_json_response(resp, "Gemini Veo 视频生成").await
+        parse_json_response(resp, "Gemini Veo 视频生成").await
     }
 
     async fn get_json(&self, url: &str) -> Result<Value, AppError> {
@@ -178,7 +177,7 @@ impl GeminiVeoVideoProvider {
             .send()
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Gemini Veo 任务查询失败：{e}")))?;
-        parse_gemini_veo_json_response(resp, "Gemini Veo 任务查询").await
+        parse_json_response(resp, "Gemini Veo 任务查询").await
     }
 
     async fn get_status_json(&self, url: &str) -> Result<Option<Value>, AppError> {
@@ -190,7 +189,7 @@ impl GeminiVeoVideoProvider {
             .send()
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Gemini Veo 任务状态查询失败：{e}")))?;
-        parse_gemini_veo_json_response_allow_not_found(resp, "Gemini Veo 任务状态查询").await
+        parse_json_response_allow_not_found(resp, "Gemini Veo 任务状态查询").await
     }
 
     async fn decode_completed(&self, v: &Value) -> Result<VideoGenerationResult, AppError> {

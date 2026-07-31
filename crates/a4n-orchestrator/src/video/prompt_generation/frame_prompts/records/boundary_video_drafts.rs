@@ -7,14 +7,12 @@ use super::super::super::super::FRAME_SEGMENT_PLAN_CONTRACT_VERSION;
 use super::super::super::super::prompt_json::{
     VideoFramePrompt, VideoPromptShot, VideoSegmentPlan,
 };
-use super::super::super::super::prompt_store::{
-    NewChapterVideoPrompt, NewChapterVideoPromptInput, PromptWorkflowMode, new_prompt_draft,
-};
+use super::super::super::super::prompt_store::{NewChapterVideoPrompt, PromptWorkflowMode};
 use super::super::VideoUnitPlan;
 use a4n_core::prompt_language::with_prompt_output_language_metadata;
 
-use super::frame_drafts::VideoPromptDraftCommonInput;
-use super::rules::{compact_shot_metadata, optional_prompt_text};
+use super::frame_drafts::{VideoPromptDraftCommonInput, video_prompt_shot_draft};
+use super::rules::compact_shot_metadata;
 
 pub(in crate::video) struct VideoPromptDraftsInput<'a> {
     pub common: VideoPromptDraftCommonInput<'a>,
@@ -34,16 +32,6 @@ pub(in crate::video) fn video_prompt_drafts(
         frame_by_number,
         video_prompts,
     } = input;
-    let VideoPromptDraftCommonInput {
-        project_id,
-        chapter_id,
-        style,
-        prompt_output_language,
-        source_metadata,
-        available_assets,
-        generation_asset_fingerprint,
-        execution_identity,
-    } = common;
     video_prompts
         .iter()
         .map(|prompt| {
@@ -86,22 +74,11 @@ pub(in crate::video) fn video_prompt_drafts(
                     prompt.shot_number, end_frame_number
                 ))
             })?;
-            Ok(new_prompt_draft(NewChapterVideoPromptInput {
-                project_id,
-                chapter_id,
-                workflow_mode: PromptWorkflowMode::BoundaryFrames,
-                style: Some(style),
-                prompt_type: "video_prompt",
-                shot_number: prompt.shot_number,
-                title: Some(&prompt.title),
-                scene_summary: Some(&prompt.scene_summary),
-                visual_prompt: &prompt.visual_prompt,
-                motion_prompt: Some(&prompt.motion_prompt),
-                negative_prompt: optional_prompt_text(&prompt.negative_prompt),
-                duration_secs: prompt.duration_secs,
-                aspect_ratio: Some(&prompt.aspect_ratio),
-                reference_image_ids_json: Some(json!(prompt.reference_image_ids)),
-                metadata_json: Some(with_prompt_output_language_metadata(
+            Ok(video_prompt_shot_draft(
+                common,
+                PromptWorkflowMode::BoundaryFrames,
+                prompt,
+                with_prompt_output_language_metadata(
                     json!({
                         "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
                         "shot": compact_shot_metadata(prompt),
@@ -109,9 +86,9 @@ pub(in crate::video) fn video_prompt_drafts(
                         "segment": *segment,
                         "start_boundary_frame": start_boundary_frame,
                         "end_boundary_frame": end_boundary_frame,
-                        "available_assets": available_assets.clone(),
-                        "generation_asset_fingerprint": generation_asset_fingerprint.clone(),
-                        "video_execution_identity": execution_identity.clone(),
+                        "available_assets": common.available_assets.clone(),
+                        "generation_asset_fingerprint": common.generation_asset_fingerprint.clone(),
+                        "video_execution_identity": common.execution_identity.clone(),
                         "self_contained_context": prompt.self_contained_context.clone(),
                         "start_state": prompt.start_state.clone(),
                         "end_state": prompt.end_state.clone(),
@@ -125,11 +102,11 @@ pub(in crate::video) fn video_prompt_drafts(
                         "reference_binding": prompt.reference_binding.clone(),
                         "continuity_check": prompt.continuity_check.clone(),
                         "source_prompt_type": "frame_segment_plan",
-                        "source": source_metadata.clone()
+                        "source": common.source_metadata.clone()
                     }),
-                    prompt_output_language,
-                )),
-            }))
+                    common.prompt_output_language,
+                ),
+            ))
         })
         .collect()
 }

@@ -28,7 +28,8 @@ fn format_chapter_outline_for_generation(
 ) -> Result<String, String> {
     let mut lines = vec![
         "## 当前任务".to_string(),
-        format!("章节: 第{}章《{}》", outline.chapter_number, chapter_title),
+        format!("章节编号: 第{}章", outline.chapter_number),
+        format!("章节标题: {chapter_title}"),
     ];
 
     push_optional_text(&mut lines, "大纲摘要", outline.summary.as_deref());

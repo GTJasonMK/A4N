@@ -12,17 +12,14 @@ use a4n_api_contract::{
 };
 use a4n_core::error::AppError;
 use a4n_service_protocol::{
-    GenerationError, GenerationResultRef, ProgressEvent, ProgressPhaseKind, ProgressSeverity,
-    StreamTextHash,
+    GenerationError, GenerationResultRef, ProgressPhaseKind, StreamTextHash,
 };
 use futures::future::BoxFuture;
 
 use crate::OrchestratorContext;
 use crate::blueprint::BlueprintRefinementApplicationContext;
 use crate::generation::{
-    checkpoint::{DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointWriter},
-    events::{GenerationEventPublisher, SessionGenerationEventPublisher},
-    generation_public_error,
+    events::GenerationEventPublisher, generation_progress, generation_public_error,
     terminal::CompletionDescriptor,
 };
 use crate::workflow::WorkflowRunFinalizeOutcome;
@@ -51,11 +48,8 @@ impl OrchestratorContext {
         };
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
-        let replenisher = Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-            self.database.shared_connection(),
-        ));
-        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
-        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let publisher = execution.publisher.clone();
+        let checkpoint_writer = execution.checkpoint_writer.clone();
         let variables = input
             .variables
             .clone()
@@ -238,16 +232,7 @@ impl OrchestratorContext {
             )
             .await;
         }
-        let task_id = execution.permit.task_id().to_string();
-        if let Err(error) = execution
-            .queue
-            .complete_generation_task(execution.permit)
-            .await
-        {
-            return Err(format!(
-                "generation queue 完成投影失败 ({task_id}): {error}"
-            ));
-        }
+        execution.complete_queue_task().await?;
         let outcome = completion_slot
             .lock()
             .map_err(|_| "蓝图优化结果槽位损坏".to_string())?
@@ -257,7 +242,6 @@ impl OrchestratorContext {
             project_id: input.project_id,
             version: outcome.blueprint.current_version.clone(),
         })
-        .await
         .map_err(|error| format!("蓝图优化已保存，但蓝图更新事件发布失败: {error}"))?;
         self.finalize_workflow_run_outcome_validated(
             workflow_run_id,
@@ -277,19 +261,7 @@ async fn publish_refinement_progress(
     message: &str,
 ) -> Result<(), GenerationError> {
     publisher
-        .progress(ProgressEvent {
-            stage_code: stage_code.to_string(),
-            phase_kind,
-            message: message.to_string(),
-            current: None,
-            total: None,
-            unit_label: None,
-            item_key: None,
-            item_index: None,
-            item_total: None,
-            severity: ProgressSeverity::Info,
-            estimated: false,
-        })
+        .progress(generation_progress(stage_code, phase_kind, message))
         .await
         .map_err(|error| generation_public_error(error.code(), stage_code, error))
 }

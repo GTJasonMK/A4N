@@ -27,8 +27,6 @@ ripgrep
 actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 fetch-depth: 0
 dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
-A4N_REFACTOR_BASE:
-check-refactor-plan-status.sh
 check-build-feedback-tools.sh
 setup-onnxruntime.sh
 require_onnxruntime
@@ -43,17 +41,6 @@ if rg -q 'uses: [^[:space:]]+@(v[0-9]+|stable)([[:space:]]|$)' <<<"$job"; then
     echo "build-feedback workflow contains a movable action reference" >&2
     exit 1
 fi
-
-for required in \
-    'refactor base commit is unavailable' \
-    'unable to diff refactor base against HEAD' \
-    'core.quotePath=false' \
-    '--no-renames'; do
-    rg -Fq -- "$required" "$SCRIPT_DIR/check-refactor-docs.sh" || {
-        echo "refactor document checker is missing required diff handling: $required" >&2
-        exit 1
-    }
-done
 rg -Fq -- '-e normal,build' "$SCRIPT_DIR/measure-build-feedback.sh" || {
     echo "build-feedback dependency evidence must include normal and build dependencies" >&2
     exit 1

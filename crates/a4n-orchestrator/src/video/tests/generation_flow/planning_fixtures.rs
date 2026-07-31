@@ -3,7 +3,9 @@ fn frame_generation_options() -> ChapterVideoPromptOptions {
         style: "电影感写实".to_string(),
         prompt_output_language: PromptOutputLanguage::ZhCn,
         prompt_batch_size: 12,
+        segment_plan_prompt_id: None,
         target_shot_number: None,
+        segment_recipe: None,
         duration_secs: 4,
         duration_secs_options: vec![4],
         aspect_ratio: "16:9".to_string(),
@@ -48,7 +50,10 @@ fn single_segment_plan_json(duration_secs: i32) -> String {
     value.to_string()
 }
 
-fn segment_plan_json_for_shot(shot_id: i32, duration_secs: Option<i32>) -> String {
+pub(in crate::video) fn segment_plan_json_for_shot(
+    shot_id: i32,
+    duration_secs: Option<i32>,
+) -> String {
     let value = segment_plan_fixture();
     let source_shot_id = format!("shot-{shot_id}");
     let segments = value["segments"]

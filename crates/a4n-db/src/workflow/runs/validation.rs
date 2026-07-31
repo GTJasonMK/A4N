@@ -31,25 +31,62 @@ pub(in crate::workflow) fn should_update_existing_run(
     existing: &workflow_run::Model,
     incoming_status: &str,
 ) -> bool {
-    if incoming_status != WORKFLOW_STATUS_RUNNING {
-        return true;
+    if existing.status != WORKFLOW_STATUS_RUNNING {
+        return incoming_status == existing.status;
     }
-    !matches!(
-        existing.status.as_str(),
-        WORKFLOW_STATUS_COMPLETED | WORKFLOW_STATUS_SUPERSEDED
-    )
+    true
+}
+
+pub(in crate::workflow) fn requires_explicit_interrupted_resume(
+    existing: &workflow_run::Model,
+    incoming_status: &str,
+) -> bool {
+    existing.status == WORKFLOW_STATUS_INTERRUPTED
+        && existing.can_resume
+        && incoming_status != WORKFLOW_STATUS_INTERRUPTED
 }
 
 pub(in crate::workflow) fn completed_at_for_status_value(
     status: &str,
     now: chrono::NaiveDateTime,
 ) -> Option<chrono::NaiveDateTime> {
-    matches!(
-        status,
-        WORKFLOW_STATUS_COMPLETED
-            | WORKFLOW_STATUS_FAILED
-            | WORKFLOW_STATUS_CANCELLED
-            | WORKFLOW_STATUS_SUPERSEDED
-    )
-    .then_some(now)
+    (is_terminal_workflow_status(status) || status == WORKFLOW_STATUS_INTERRUPTED).then_some(now)
+}
+
+pub(in crate::workflow) fn ensure_workflow_status_transition(
+    current: &str,
+    requested: &str,
+    allow_terminal_resume: bool,
+) -> Result<(), WorkflowWriteError> {
+    if current == WORKFLOW_STATUS_RUNNING
+        || current == requested
+        || (current == WORKFLOW_STATUS_INTERRUPTED && requested == WORKFLOW_STATUS_CANCELLED)
+        || (allow_terminal_resume
+            && requested == WORKFLOW_STATUS_RUNNING
+            && matches!(
+                current,
+                WORKFLOW_STATUS_INTERRUPTED
+                    | WORKFLOW_STATUS_FAILED
+                    | WORKFLOW_STATUS_CANCELLED
+            ))
+    {
+        return Ok(());
+    }
+    Err(WorkflowWriteError::StatusConflict {
+        current: current.to_string(),
+        operation: format!("将工作流状态更新为 {requested}"),
+    })
+}
+
+pub(in crate::workflow) fn ensure_workflow_write_open(
+    current: &str,
+    operation: &str,
+) -> Result<(), WorkflowWriteError> {
+    if current != WORKFLOW_STATUS_RUNNING {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: current.to_string(),
+            operation: operation.to_string(),
+        });
+    }
+    Ok(())
 }

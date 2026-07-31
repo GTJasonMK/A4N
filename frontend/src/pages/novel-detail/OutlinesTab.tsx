@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -920,7 +920,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   if (loading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <Loader2 size={12} className="animate-spin" /> 加载大纲…
+        <LoadingSpinner size="sm" /> 加载大纲…
       </div>
     );
   }

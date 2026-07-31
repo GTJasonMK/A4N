@@ -135,7 +135,6 @@ export interface VideoConfigSummary {
   api_key_encrypted: string | null;
   backend: string;
   base_url: string | null;
-  capabilities: VideoGenerationCapabilities;
   created_at: string | null;
   default_duration_secs: number;
   default_fps: number;
@@ -153,17 +152,6 @@ export interface VideoConfigSummary {
   provider_options_json: unknown;
   supported_durations_json: unknown;
   updated_at: string | null;
-}
-
-export interface VideoGenerationCapabilities {
-  keyframe_max: number;
-  keyframe_min: number;
-  supports_first_frame: boolean;
-  supports_keyframes: boolean;
-  supports_last_frame: boolean;
-  supports_reference_media: boolean;
-  supports_storyboard_reference: boolean;
-  supports_text_only: boolean;
 }
 
 export interface VideoConfigInput {

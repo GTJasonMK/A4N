@@ -27,7 +27,7 @@ export interface WorkflowState {
   completed_at: string | null;
 }
 
-export interface WorkflowRunProgress {
+interface WorkflowRunProgress {
   current: number;
   total: number;
   message: string;
@@ -47,6 +47,7 @@ export interface WorkflowRun {
   scope_id: number | null;
   chapter_id: number | null;
   mode: string | null;
+  input_fingerprint_json: unknown | null;
   status: string;
   current_step_key: string | null;
   progress: WorkflowRunProgress | null;
@@ -75,7 +76,7 @@ export interface WorkflowCheckpoint {
   completed_at: string | null;
 }
 
-export interface GenerationRun {
+interface GenerationRun {
   id: number;
   workflow_run_id: number | null;
   workflow: string;
@@ -107,10 +108,15 @@ export interface WorkflowRunDetail {
 
 export interface ListWorkflowRunsInput {
   project_id?: number | null;
+  chapter_id?: number | null;
   workflow_kind?: string | null;
   status?: string | null;
   resumable_only?: boolean | null;
   limit?: number | null;
+}
+
+export interface GetWorkflowRunDetailOptions {
+  include_generation_runs?: boolean | null;
 }
 
 export async function listActiveWorkflows(): Promise<WorkflowState[]> {
@@ -126,10 +132,13 @@ export async function listWorkflowRuns(
   });
 }
 
-export async function getWorkflowRunDetail(workflowRunId: number): Promise<WorkflowRunDetail> {
+export async function getWorkflowRunDetail(
+  workflowRunId: number,
+  options: GetWorkflowRunDetailOptions = {},
+): Promise<WorkflowRunDetail> {
   return apiInvoke<WorkflowRunDetail>("get_workflow_run_detail", {
     userId: currentUserId(),
-    input: { workflow_run_id: workflowRunId },
+    input: { workflow_run_id: workflowRunId, ...options },
   });
 }
 

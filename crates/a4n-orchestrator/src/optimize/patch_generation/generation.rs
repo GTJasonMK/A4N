@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizePatchGenerationInput,
 };
@@ -17,11 +15,7 @@ use crate::{
     OrchestratorContext,
     context::GenerationTaskExecution,
     generation::{
-        checkpoint::{
-            DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointMetadata,
-            GenerationCheckpointWriter,
-        },
-        events::{GenerationEventPublisher, SessionGenerationEventPublisher},
+        checkpoint::GenerationCheckpointMetadata, events::GenerationEventPublisher,
         terminal::CompletionDescriptor,
     },
     optimize::{
@@ -57,11 +51,8 @@ impl OrchestratorContext {
         };
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
-        let replenisher = Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-            self.database.shared_connection(),
-        ));
-        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
-        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let publisher = execution.publisher.clone();
+        let checkpoint_writer = execution.checkpoint_writer.clone();
         let request = input.request;
 
         let optimize_session = match self
@@ -274,16 +265,7 @@ impl OrchestratorContext {
             )
             .await;
         }
-        let task_id = execution.permit.task_id().to_string();
-        if let Err(error) = execution
-            .queue
-            .complete_generation_task(execution.permit)
-            .await
-        {
-            return Err(format!(
-                "generation queue 完成投影失败 ({task_id}): {error}"
-            ));
-        }
+        execution.complete_queue_task().await?;
         self.finalize_workflow_run_outcome_validated(
             workflow.id,
             WorkflowRunFinalizeOutcome::Completed,

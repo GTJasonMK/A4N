@@ -55,7 +55,7 @@ export const CharacterProfileDetailPanel: React.FC<{
         <div className="mb-3 flex flex-col gap-3 border-b border-book-border/50 pb-3 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-sm font-semibold text-book-text-main">{profile.name}</h2>
-            <p className="mt-1 text-[11px] text-book-text-muted">{profileMeta.join(" · ")}</p>
+            <p className="mt-1 text-small text-book-text-muted">{profileMeta.join(" · ")}</p>
           </div>
           <div className="flex min-w-0 items-center gap-2">
             <Dropdown
@@ -83,7 +83,7 @@ export const CharacterProfileDetailPanel: React.FC<{
           <div className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
             {describeProfile(profile) ? (
               <section className="px-3 py-3 sm:px-4">
-                <h3 className="mb-2 text-[11px] font-semibold text-book-text-main">角色概况</h3>
+                <h3 className="mb-2 text-small font-semibold text-book-text-main">角色概况</h3>
                 <dl className="space-y-2">
                   <ProfileField label="性格" value={profile.personality} />
                   <ProfileField label="背景" value={profile.background} />

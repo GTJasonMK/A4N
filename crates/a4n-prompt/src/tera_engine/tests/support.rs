@@ -28,8 +28,7 @@ impl MemoryPromptVersionStore {
     }
 
     fn commit_failure(&self) -> Result<String, AppError> {
-        Err(AppError::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        Err(AppError::Io(std::io::Error::other(
             "test version store commit failure",
         )))
     }

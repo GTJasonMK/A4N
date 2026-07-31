@@ -2,6 +2,7 @@ mod checkpoint;
 mod errors;
 mod rules;
 
+pub(crate) use checkpoint::attach_llm_call_checkpoint_trace;
 pub use checkpoint::*;
 
 pub use a4n_db::workflow::{

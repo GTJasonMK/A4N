@@ -54,6 +54,19 @@ fn image_update_config_params(input: UpdateImageConfigInput) -> UpdateImageConfi
     }
 }
 
+pub(super) fn image_create_params(
+    input: ImageConfigInput,
+) -> Result<CreateImageConfigParams, String> {
+    validate_image_config_params(image_config_params(input)).map_err(|err| err.to_string())
+}
+
+pub(super) fn image_update_params(
+    _existing: &image_gen_config::Model,
+    input: UpdateImageConfigInput,
+) -> Result<UpdateImageConfigParams, String> {
+    Ok(image_update_config_params(input))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,17 +107,4 @@ mod tests {
             Some(Some("sk-new".to_string()))
         );
     }
-}
-
-pub(super) fn image_create_params(
-    input: ImageConfigInput,
-) -> Result<CreateImageConfigParams, String> {
-    validate_image_config_params(image_config_params(input)).map_err(|err| err.to_string())
-}
-
-pub(super) fn image_update_params(
-    _existing: &image_gen_config::Model,
-    input: UpdateImageConfigInput,
-) -> Result<UpdateImageConfigParams, String> {
-    Ok(image_update_config_params(input))
 }

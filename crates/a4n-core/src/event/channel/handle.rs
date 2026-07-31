@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 /// 持有取消令牌和进度信息，由 `TaskManager` 统一管理。
 pub struct TaskHandle {
     pub task_id: String,
+    pub owner_user_id: Option<i64>,
     pub cancel_token: CancellationToken,
     pub progress: Arc<RwLock<TaskProgress>>,
     pub progress_events: Arc<RwLock<VecDeque<TaskProgressEvent>>>,
@@ -23,6 +24,9 @@ pub struct TaskHandle {
 impl TaskHandle {
     /// 取消任务
     pub fn cancel(&self) {
+        // 与进度写入使用同一锁顺序，保证 cancel 返回后不会再提交迟到进度。
+        let _progress = self.progress.write();
+        let _events = self.progress_events.write();
         self.cancel_token.cancel();
     }
 
@@ -57,8 +61,11 @@ impl TaskHandle {
             updated_at: Some(updated_at.clone()),
         };
         let mut p = self.progress.write();
+        let mut events = self.progress_events.write();
+        if self.is_cancelled() {
+            return;
+        }
         *p = progress.clone();
-        drop(p);
 
         let event = TaskProgressEvent {
             id: format!("{}-{}", self.task_id, updated_at),
@@ -70,7 +77,6 @@ impl TaskHandle {
             meta,
             timestamp: updated_at,
         };
-        let mut events = self.progress_events.write();
         events.push_back(event);
         while events.len() > MAX_TASK_PROGRESS_EVENTS {
             events.pop_front();

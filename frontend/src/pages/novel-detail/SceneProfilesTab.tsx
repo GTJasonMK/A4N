@@ -1,14 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronRight,
-  Loader2,
+import React, { useEffect, useMemo, useState } from "react";
+import { ChevronRight,
   Map,
-  Pencil,
   Plus,
   RefreshCw,
-  Route,
-  Sparkles,
-} from "lucide-react";
+  Route, } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import type { DownstreamConflictStrategy } from "../../api/dependencyConflict";
 import {
@@ -34,8 +30,21 @@ import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgress
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
-import { EmptyHint } from "./shared";
+import {
+  DetailRow,
+  EmptyHint,
+  NumberField,
+  ProfileDetailActions,
+  ProfileEvidence,
+  SelectField,
+  TextAreaField,
+  TextField,
+  chapterRangeText,
+  splitLines,
+  stringList,
+} from "./shared";
 import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
+import { useProjectProfileCollection } from "./useProjectProfileCollection";
 
 const SCENE_TYPE_LABELS: Record<string, string> = {
   room: "房间",
@@ -57,17 +66,8 @@ const IMPORTANCE_LABELS: Record<string, string> = {
 const sceneTypeLabel = (value: string): string => SCENE_TYPE_LABELS[value] ?? "其他";
 const importanceLabel = (value: string): string => IMPORTANCE_LABELS[value] ?? "未标注";
 
-const chapterRangeText = (first: number, last: number): string =>
-  first === last ? `第 ${first} 章` : `第 ${first}-${last} 章`;
-
 const SCENE_TYPE_OPTIONS = Object.keys(SCENE_TYPE_LABELS);
 const IMPORTANCE_OPTIONS = Object.keys(IMPORTANCE_LABELS);
-
-interface SceneProfilesLoadOptions {
-  silent?: boolean;
-  force?: boolean;
-  projectId?: number;
-}
 
 export const SceneProfilesTab: React.FC<{
   projectId: number;
@@ -75,143 +75,30 @@ export const SceneProfilesTab: React.FC<{
 }> = ({ projectId, canEditProfiles }) => {
   const { addToast } = useToast();
   const { runProgressTask } = useProgressTask();
-  const [profiles, setProfiles] = useState<SceneProfile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<number | null>(null);
-  const [detailFor, setDetailFor] = useState<SceneProfile | null>(null);
-  const [editingProfile, setEditingProfile] = useState<SceneProfile | "new" | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const mountedRef = useRef(false);
-  const activeProjectIdRef = useRef(projectId);
-  const profilesRef = useRef<SceneProfile[]>([]);
-  const loadSeqRef = useRef(0);
-  const loadInFlightRef = useRef<{
-    projectId: number;
-    token: symbol;
-    promise: Promise<void>;
-  } | null>(null);
-  const actionSeqRef = useRef(0);
-  const actionBusyRef = useRef(false);
+  const {
+    profiles,
+    profilesRef,
+    loading,
+    busyId,
+    setBusyId,
+    detailFor,
+    setDetailFor,
+    editingProfile,
+    setEditingProfile,
+    load,
+    isCurrentAction,
+    beginAction,
+    finishAction,
+  } = useProjectProfileCollection<SceneProfile>({
+    projectId,
+    canEditProfiles,
+    entityLabel: "场景档案",
+    listProfiles: listSceneProfiles,
+    addToast,
+  });
 
-  const isCurrentProject = useCallback(
-    (requestProjectId: number) =>
-      mountedRef.current && activeProjectIdRef.current === requestProjectId,
-    [],
-  );
-
-  const isCurrentAction = useCallback(
-    (requestProjectId: number, requestSeq: number) =>
-      isCurrentProject(requestProjectId) && actionSeqRef.current === requestSeq,
-    [isCurrentProject],
-  );
-
-  const beginAction = useCallback(
-    (requestProjectId: number): number | null => {
-      if (!isCurrentProject(requestProjectId)) return null;
-      if (!canEditProfiles) {
-        addToast("只读协作者不能修改场景档案", "error");
-        return null;
-      }
-      if (actionBusyRef.current) return null;
-      actionBusyRef.current = true;
-      actionSeqRef.current += 1;
-      return actionSeqRef.current;
-    },
-    [addToast, canEditProfiles, isCurrentProject],
-  );
-
-  const finishAction = useCallback((requestSeq: number) => {
-    if (actionSeqRef.current === requestSeq) {
-      actionBusyRef.current = false;
-    }
-  }, []);
-
-  const load = useCallback(async (options: SceneProfilesLoadOptions = {}) => {
-    const requestProjectId = options.projectId ?? projectId;
-    const silent = options.silent ?? false;
-    if (!options.force && loadInFlightRef.current?.projectId === requestProjectId) {
-      return loadInFlightRef.current.promise;
-    }
-    const requestSeq = loadSeqRef.current + 1;
-    loadSeqRef.current = requestSeq;
-    const requestToken = Symbol(String(requestProjectId));
-    const loadPromise = (async () => {
-      if (!silent) setLoading(true);
-      try {
-        const nextProfiles = await listSceneProfiles(requestProjectId);
-        if (!isCurrentProject(requestProjectId) || loadSeqRef.current !== requestSeq) return;
-        if (nextProfiles.some((profile) => profile.project_id !== requestProjectId)) {
-          throw new Error("场景档案列表返回了其他项目的数据");
-        }
-        profilesRef.current = nextProfiles;
-        setProfiles(nextProfiles);
-      } catch (err) {
-        if (isCurrentProject(requestProjectId) && loadSeqRef.current === requestSeq) {
-          addToast(extractErrorMessage(err, "加载场景档案失败"), "error");
-        }
-      } finally {
-        if (!silent && isCurrentProject(requestProjectId) && loadSeqRef.current === requestSeq) {
-          setLoading(false);
-        }
-        if (
-          loadInFlightRef.current?.projectId === requestProjectId &&
-          loadInFlightRef.current.token === requestToken
-        ) {
-          loadInFlightRef.current = null;
-        }
-      }
-    })();
-    loadInFlightRef.current = {
-      projectId: requestProjectId,
-      token: requestToken,
-      promise: loadPromise,
-    };
-    return loadPromise;
-  }, [addToast, isCurrentProject, projectId]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      loadSeqRef.current += 1;
-      loadInFlightRef.current = null;
-      actionSeqRef.current += 1;
-      actionBusyRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    activeProjectIdRef.current = projectId;
-    loadSeqRef.current += 1;
-    loadInFlightRef.current = null;
-    actionSeqRef.current += 1;
-    actionBusyRef.current = false;
-    profilesRef.current = [];
-    setProfiles([]);
-    setDetailFor(null);
-    setEditingProfile(null);
-    setBusyId(null);
-    setSyncing(false);
-    setLoading(true);
-    void load({ projectId, force: true });
-  }, [load, projectId]);
-
-  useEffect(() => {
-    profilesRef.current = profiles;
-    setDetailFor((current) => {
-      if (!current) return null;
-      return profiles.find((profile) => profile.id === current.id) ?? null;
-    });
-    setEditingProfile((current) => {
-      if (!current || current === "new") return current;
-      return profiles.find((profile) => profile.id === current.id) ?? null;
-    });
-  }, [profiles]);
-
-  useEffect(() => {
-    if (canEditProfiles) return;
-    setEditingProfile(null);
-  }, [canEditProfiles]);
+  useEffect(() => setSyncing(false), [projectId]);
 
   const stats = useMemo(() => {
     return {
@@ -254,7 +141,7 @@ export const SceneProfilesTab: React.FC<{
           startMessage: "正在准备场景档案同步",
           successMessage: "场景档案已同步",
           errorMessage: "场景档案同步失败",
-          total: 6,
+          total: 100,
           cancelLabel: "停止同步",
           runningHint: "场景档案同步过程中请保持当前窗口打开",
         },
@@ -479,7 +366,7 @@ export const SceneProfilesTab: React.FC<{
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
-        <Loader2 size={12} className="animate-spin" /> 加载场景档案…
+        <LoadingSpinner size="sm" /> 加载场景档案…
       </div>
     );
   }
@@ -490,7 +377,7 @@ export const SceneProfilesTab: React.FC<{
         <header className="mb-3 flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-book-text-main">场景档案</h2>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+            <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
               {stats.total > 0
                 ? `共 ${stats.total} 个档案${stats.primary > 0 ? `，${stats.primary} 个关键场景` : ""}${stats.images > 0 ? `，已生成 ${stats.images} 张素材图` : ""}`
                 : "整理故事中的地点、空间关系和环境规则"}
@@ -509,7 +396,7 @@ export const SceneProfilesTab: React.FC<{
                   ? [
                       {
                         label: syncing ? "正在同步…" : "从章节同步",
-                        icon: syncing ? <Loader2 size={12} className="animate-spin" /> : <Route size={12} />,
+                        icon: syncing ? <LoadingSpinner size="sm" /> : <Route size={12} />,
                         onClick: () => void handleSync(),
                         disabled: syncing || busyId != null,
                       },
@@ -554,13 +441,13 @@ export const SceneProfilesTab: React.FC<{
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
-                  <div className="mt-0.5 text-[10px] text-book-text-muted">
+                  <div className="mt-0.5 text-caption text-book-text-muted">
                     {sceneTypeLabel(profile.scene_type)} · {importanceLabel(profile.importance)} · {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-sub">
+                  <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
                     {profile.visual_description || profile.base_description || "暂无场景摘要。"}
                   </p>
-                  <div className="mt-1 truncate text-[10px] text-book-text-muted">
+                  <div className="mt-1 truncate text-caption text-book-text-muted">
                     {profile.spatial_layout || profile.atmosphere || "未记录空间布局"}
                     {profile.occurrence_count > 0 ? ` · ${profile.occurrence_count} 次出场` : ""}
                     {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
@@ -632,7 +519,7 @@ function SceneProfileDetailModal({
     >
       {profile ? (
         <div className="space-y-3 text-xs text-book-text-sub">
-          <p className="text-[11px] leading-relaxed text-book-text-muted">
+          <p className="text-small leading-relaxed text-book-text-muted">
             {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
             {aliases.length > 0 ? ` · 别名：${aliases.join("、")}` : ""}
             {profile.occurrence_count > 0 ? ` · ${profile.occurrence_count} 次出场` : ""}
@@ -648,52 +535,15 @@ function SceneProfileDetailModal({
             <JsonRow label="当前状态" value={profile.current_state_json} />
             <DetailRow label="图像描述" value={profile.image_prompt_seed} />
           </dl>
-          {evidence.length > 0 ? (
-            <details className="a4n-flat-surface overflow-hidden">
-              <summary className="cursor-pointer px-3 py-2.5 text-[11px] font-medium text-book-text-main">
-                依据 · {evidence.length} 条
-              </summary>
-              <ul className="space-y-1 border-t border-book-border/40 px-3 py-2.5">
-                {evidence.map((item, index) => (
-                  <li key={`${item}-${index}`} className="border-l border-book-border pl-2">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
+          <ProfileEvidence items={evidence} />
           {canEdit && (
-            <div className="flex items-center justify-end gap-2 pt-1">
-              {busyId == null ? (
-                <Dropdown
-                  items={[
-                    {
-                      label: "编辑档案",
-                      icon: <Pencil size={12} />,
-                      onClick: () => onEdit(profile),
-                    },
-                    { type: "divider" },
-                    {
-                      label: "删除档案",
-                      onClick: () => onDelete(profile),
-                      danger: true,
-                    },
-                  ]}
-                />
-              ) : null}
-              <BookButton
-                variant="primary"
-                size="sm"
-                onClick={() => onGenerate(profile)}
-                disabled={busyId != null}
-                className="min-w-0 flex-1 !text-xs sm:flex-none"
-              >
-                <span className="inline-flex items-center gap-1">
-                  {busyId === profile.id ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                  生成素材图
-                </span>
-              </BookButton>
-            </div>
+            <ProfileDetailActions
+              busy={busyId != null}
+              generating={busyId === profile.id}
+              onEdit={() => onEdit(profile)}
+              onDelete={() => onDelete(profile)}
+              onGenerate={() => onGenerate(profile)}
+            />
           )}
         </div>
       ) : null}
@@ -759,7 +609,7 @@ function SceneProfileEditModal({
           onClick={() => void submit()}
           disabled={busy || saving || !draft.name.trim() || !draft.visual_description.trim()}
         >
-          {saving ? <Loader2 size={12} className="animate-spin" /> : null}
+          {saving ? <LoadingSpinner size="sm" /> : null}
           保存
         </BookButton>
       }
@@ -854,24 +704,15 @@ function SceneProfileEditModal({
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="px-3 py-2.5 sm:grid sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-[11px] font-medium text-book-text-muted">{label}</dt>
-      <dd className="mt-1 whitespace-pre-wrap leading-relaxed text-book-text-sub sm:mt-0">{value}</dd>
-    </div>
-  );
-}
-
 function JsonRow({ label, value }: { label: string; value: unknown }) {
   const text = formatJson(value);
   if (!text) return null;
   return (
     <div className="px-3 py-2.5 sm:grid sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-[11px] font-medium text-book-text-muted">{label}</dt>
-      <dd className="mt-1 min-w-0 text-[11px] leading-relaxed text-book-text-sub sm:mt-0">
+      <dt className="text-small font-medium text-book-text-muted">{label}</dt>
+      <dd className="mt-1 min-w-0 text-small leading-relaxed text-book-text-sub sm:mt-0">
         <div>{formatStructuredSummary(value)}</div>
-        <details className="mt-1 text-[10px] text-book-text-muted">
+        <details className="mt-1 text-caption text-book-text-muted">
           <summary className="w-fit cursor-pointer rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
             诊断信息
           </summary>
@@ -916,14 +757,6 @@ function formatStructuredSummary(value: unknown, depth = 0): string {
       .join("；");
   }
   return String(value);
-}
-
-function stringList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value
-        .map((item) => (typeof item === "string" ? item.trim() : ""))
-        .filter(Boolean)
-    : [];
 }
 
 function formatJson(value: unknown): string {
@@ -977,111 +810,6 @@ function sceneProfileToInput(profile: SceneProfile): SceneProfileInput {
     evidence: stringList(profile.evidence_json),
     image_prompt_seed: profile.image_prompt_seed,
   };
-}
-
-function splitLines(value: string): string[] {
-  return value
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function TextField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid gap-1 text-[11px] text-book-text-muted">
-      {label}
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="pyqt-input !px-2 !py-1 text-xs"
-      />
-    </label>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  min = 1,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min?: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="grid gap-1 text-[11px] text-book-text-muted">
-      {label}
-      <input
-        type="number"
-        min={min}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value) || min)}
-        className="pyqt-input !px-2 !py-1 text-xs"
-      />
-    </label>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  options,
-  labels,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  labels: Record<string, string>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid gap-1 text-[11px] text-book-text-muted">
-      {label}
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="pyqt-input !px-2 !py-1 text-xs"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {labels[option] ?? option}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function TextAreaField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid gap-1 text-[11px] text-book-text-muted">
-      {label}
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="pyqt-input min-h-[82px] resize-y !px-2 !py-1 text-xs"
-      />
-    </label>
-  );
 }
 
 function validateSceneProfileDraft(draft: SceneProfileInput): string | null {

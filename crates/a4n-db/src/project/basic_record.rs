@@ -1,7 +1,10 @@
 use super::validate_positive_i64;
 use a4n_core::models::project::novel_project;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
+    PaginatorTrait, QueryFilter, Set,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectBasicRecordError {
@@ -86,6 +89,16 @@ pub async fn project_title(
         .map_err(|error| ProjectBasicRecordError::database("读取项目标题", error))?
         .ok_or(ProjectBasicRecordError::ProjectNotFound { project_id })?;
     Ok(project.title)
+}
+
+pub async fn derived_project_count<C>(db: &C, root_project_id: i64) -> Result<u64, DbErr>
+where
+    C: ConnectionTrait,
+{
+    novel_project::Entity::find()
+        .filter(novel_project::Column::RootProjectId.eq(root_project_id))
+        .count(db)
+        .await
 }
 
 #[cfg(test)]

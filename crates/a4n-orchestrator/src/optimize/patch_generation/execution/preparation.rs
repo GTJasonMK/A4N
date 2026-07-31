@@ -83,9 +83,9 @@ pub(super) async fn prepare_patch_generation(
         } else {
             crate::optimize::turns::TURN_STATUS_FAILED
         };
-        if let Err(mark_error) = service.fail_turn(turn.id, status, &error.to_string()).await {
-            return Err(mark_error);
-        }
+        service
+            .fail_turn(turn.id, status, &error.to_string())
+            .await?;
         return Err(error);
     }
 

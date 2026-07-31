@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Eye, Loader2, SlidersHorizontal } from "lucide-react";
+import { Eye, SlidersHorizontal } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
@@ -103,7 +104,7 @@ export function OutlineAdvancedToolsDialog({
         <details className="group" aria-label="末尾维护与删除">
           <summary className="a4n-flat-surface flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
             <span className="font-medium text-book-text-main">末尾维护与删除</span>
-            <span className="min-w-0 flex-1 truncate text-right text-[11px] text-book-text-muted">
+            <span className="min-w-0 flex-1 truncate text-right text-small text-book-text-muted">
               重写最后一部、删除最近内容
             </span>
           </summary>
@@ -111,7 +112,7 @@ export function OutlineAdvancedToolsDialog({
             <section className="a4n-flat-surface flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
                 <h3 className="font-medium text-book-text-main">重写最后一部</h3>
-                <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+                <p className="mt-1 text-small leading-relaxed text-book-text-muted">
                   保留更早分部，只重写故事末尾的阶段规划。
                 </p>
               </div>
@@ -137,7 +138,7 @@ export function OutlineAdvancedToolsDialog({
                 >
                   {regenLastPart ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <Loader2 size={12} className="animate-spin" /> 重写中…
+                      <LoadingSpinner size="sm" /> 重写中…
                     </span>
                   ) : (
                     "重写最后一部"
@@ -149,7 +150,7 @@ export function OutlineAdvancedToolsDialog({
             <section className="a4n-flat-surface flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
                 <h3 className="font-medium text-book-text-main">删除最近分部</h3>
-                <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+                <p className="mt-1 text-small leading-relaxed text-book-text-muted">
                   从故事末尾删除指定数量的分部，操作前会再次确认。
                 </p>
               </div>
@@ -182,7 +183,7 @@ export function OutlineAdvancedToolsDialog({
                 >
                   {deletingParts ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <Loader2 size={12} className="animate-spin" /> 删除中…
+                      <LoadingSpinner size="sm" /> 删除中…
                     </span>
                   ) : (
                     "删除"
@@ -194,7 +195,7 @@ export function OutlineAdvancedToolsDialog({
             <section className="a4n-flat-surface flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
                 <h3 className="font-medium text-book-text-main">删除最近章纲</h3>
-                <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+                <p className="mt-1 text-small leading-relaxed text-book-text-muted">
                   删除后，对应章节会回到尚未规划的状态。
                 </p>
               </div>
@@ -227,7 +228,7 @@ export function OutlineAdvancedToolsDialog({
                 >
                   {deletingChapterOutlines ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <Loader2 size={12} className="animate-spin" /> 删除中…
+                      <LoadingSpinner size="sm" /> 删除中…
                     </span>
                   ) : (
                     "删除"

@@ -92,7 +92,7 @@ impl OrchestratorContext {
             progress,
             workflow_run_id,
             FORESHADOWING_STAGE,
-            validate_chapter_foreshadowing_events,
+            |output| validate_chapter_foreshadowing_events(output, facts),
         )
         .await
     }

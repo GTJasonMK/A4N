@@ -1,14 +1,12 @@
 import React from "react";
-import {
-  Camera,
+import { Camera,
   ChevronRight,
   Clock3,
   Eye,
   FileText,
-  Loader2,
   RefreshCw,
-  Star,
-} from "lucide-react";
+  Star, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { Portrait } from "../../../api/portrait";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -78,7 +76,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
             className="!text-xs"
           >
             {busy ? (
-              <Loader2 size={13} className="animate-spin" />
+              <LoadingSpinner size="sm" />
             ) : (
               <RefreshCw size={13} />
             )}
@@ -100,7 +98,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
               "无图"
             )}
             {portrait.is_primary ? (
-              <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-book-primary/90 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
+              <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-book-primary/90 px-2 py-1 text-caption font-medium text-white backdrop-blur-sm">
                 <Star size={9} fill="currentColor" /> 主图
               </span>
             ) : null}
@@ -133,7 +131,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
               onClick={() => onPrompt(portrait)}
             />
           </div>
-          <p className="mt-2 px-1 text-[10px] leading-relaxed text-book-text-muted">
+          <p className="mt-2 px-1 text-caption leading-relaxed text-book-text-muted">
             重绘会保留当前图片，并生成一张新的候选立绘。
           </p>
         </div>
@@ -160,7 +158,7 @@ const PortraitActionButton: React.FC<{
     </span>
     <span className="min-w-0 flex-1">
       <span className="block text-sm font-semibold text-book-text-main">{title}</span>
-      <span className="mt-1 block text-[11px] leading-relaxed text-book-text-muted">
+      <span className="mt-1 block text-small leading-relaxed text-book-text-muted">
         {description}
       </span>
     </span>

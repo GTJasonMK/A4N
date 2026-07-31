@@ -5,10 +5,10 @@ use sea_orm::TransactionTrait;
 
 use super::OrchestratorContext;
 use crate::project::{
-    BranchProjectApplicationInput, DerivedProjectMediaFileCopier, DuplicateProjectApplicationInput,
-    FreeformProjectMediaFileCopier, ProjectDuplicatePath, ProjectDuplicationHostPort,
-    ensure_text_project_for_copy, project_duplicate_error_to_app_error, required_project_status,
-    required_text, resolve_project_duplicate_path,
+    BranchProjectApplicationInput, DuplicateProjectApplicationInput, ProjectDuplicatePath,
+    ProjectDuplicationHostPort, ProjectMediaFileCopier, ensure_text_project_for_copy,
+    project_duplicate_error_to_app_error, required_project_status, required_text,
+    resolve_project_duplicate_path,
 };
 
 #[derive(Clone)]
@@ -61,7 +61,7 @@ impl ProjectDuplicationApplication {
         media_file_copier: &mut Copier,
     ) -> Result<novel_project::Model, AppError>
     where
-        Copier: DerivedProjectMediaFileCopier,
+        Copier: ProjectMediaFileCopier,
     {
         a4n_db::project::duplicate_derived_project_record(
             self.database.connection(),
@@ -82,7 +82,7 @@ impl ProjectDuplicationApplication {
         media_file_copier: &mut Copier,
     ) -> Result<novel_project::Model, AppError>
     where
-        Copier: FreeformProjectMediaFileCopier,
+        Copier: ProjectMediaFileCopier,
     {
         let tx = self
             .database

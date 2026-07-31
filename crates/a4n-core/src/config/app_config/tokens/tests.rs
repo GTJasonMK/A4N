@@ -44,15 +44,19 @@ fn profile_catalog_preserves_stable_order_and_unknown_profile_contract() {
 
 #[test]
 fn validation_rejects_zero_and_global_max_with_profile_names() {
-    let mut config = LlmMaxTokensConfig::default();
-    config.connection_test = 0;
+    let config = LlmMaxTokensConfig {
+        connection_test: 0,
+        ..Default::default()
+    };
     assert_eq!(
         config.validate(),
         Err("connection_test 必须大于 0".to_string())
     );
 
-    let mut config = LlmMaxTokensConfig::default();
-    config.media_prompt = 262_145;
+    let config = LlmMaxTokensConfig {
+        media_prompt: 262_145,
+        ..Default::default()
+    };
     assert_eq!(
         config.validate(),
         Err("media_prompt 不能超过 262144".to_string())
@@ -61,9 +65,11 @@ fn validation_rejects_zero_and_global_max_with_profile_names() {
 
 #[test]
 fn model_output_cap_rejects_oversized_profiles_in_catalog_order() {
-    let mut config = LlmMaxTokensConfig::default();
-    config.chapter_analysis = 4097;
-    config.media_prompt = 4098;
+    let config = LlmMaxTokensConfig {
+        chapter_analysis: 4097,
+        media_prompt: 4098,
+        ..Default::default()
+    };
 
     assert_eq!(
         config.validate_against_model_output_cap(4096),

@@ -2012,19 +2012,8 @@
     },
     "ReferenceMediaVideoInput": {
       "additionalProperties": false,
-      "description": "参考媒体视频请求；预览和正式生产共用这一 DTO。",
+      "description": "参考媒体视频请求；提示词、URL 槽、时长和画幅由当前片段 recipe 决定。",
       "properties": {
-        "aspect_ratio": {
-          "maxLength": 16,
-          "type": "string"
-        },
-        "audio_files": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "audio_uploads": {
           "default": [],
           "items": {
@@ -2041,19 +2030,6 @@
             "null"
           ]
         },
-        "duration_secs": {
-          "format": "int32",
-          "maximum": 60,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "image_files": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "image_uploads": {
           "default": [],
           "items": {
@@ -2061,12 +2037,8 @@
           },
           "type": "array"
         },
-        "prompt": {
-          "maxLength": 100000,
-          "type": "string"
-        },
-        "segment_prompt_id": {
-          "description": "关联的片段视频提示词。预览与生成使用同一片段身份。",
+        "segment_plan_prompt_id": {
+          "description": "当前共享片段规划。预览与生成使用同一规划身份。",
           "format": "int64",
           "minimum": 1,
           "type": "integer"
@@ -2077,13 +2049,6 @@
           "minimum": 1,
           "type": "integer"
         },
-        "video_files": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "video_uploads": {
           "default": [],
           "items": {
@@ -2093,11 +2058,8 @@
         }
       },
       "required": [
-        "segment_prompt_id",
-        "shot_number",
-        "prompt",
-        "duration_secs",
-        "aspect_ratio"
+        "segment_plan_prompt_id",
+        "shot_number"
       ],
       "type": "object"
     },
@@ -2804,8 +2766,168 @@
             "input"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "prompt_segment_plan",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/VideoPromptGenerationOptions"
+            }
+          },
+          "required": [
+            "kind",
+            "chapter_id",
+            "options"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "prompt_frames",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/VideoPromptGenerationOptions"
+            }
+          },
+          "required": [
+            "kind",
+            "chapter_id",
+            "options"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "prompt_videos",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/VideoPromptGenerationOptions"
+            }
+          },
+          "required": [
+            "kind",
+            "chapter_id",
+            "options"
+          ],
+          "type": "object"
         }
       ]
+    },
+    "VideoPromptGenerationOptions": {
+      "additionalProperties": false,
+      "description": "章节视频提示词三段式生成共用的输入。",
+      "properties": {
+        "aspect_ratio": {
+          "type": "string"
+        },
+        "duration_secs": {
+          "format": "int32",
+          "maximum": 60,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "duration_secs_options": {
+          "default": [],
+          "items": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "prompt_batch_size": {
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "prompt_output_language": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reference_image_ids": {
+          "default": [],
+          "items": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "regenerate_existing": {
+          "default": false,
+          "type": "boolean"
+        },
+        "segment_plan_prompt_id": {
+          "default": null,
+          "description": "当前共享片段规划。生成片段规划时为空；生成某个片段的帧或最终提示词时必填。",
+          "format": "int64",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "style": {
+          "type": "string"
+        },
+        "target_shot_number": {
+          "default": null,
+          "format": "int32",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "video_library_image_ids": {
+          "default": [],
+          "items": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "workflow_mode": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "style",
+        "prompt_batch_size",
+        "duration_secs",
+        "aspect_ratio"
+      ],
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

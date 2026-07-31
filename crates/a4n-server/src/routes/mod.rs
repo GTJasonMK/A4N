@@ -4,6 +4,7 @@ mod commands;
 mod error;
 mod generation;
 mod media;
+mod meta;
 mod projects;
 mod source_sync;
 mod temp_media;
@@ -20,6 +21,9 @@ const VIDEO_GENERATION_BODY_LIMIT_BYTES: usize = 128 * 1024 * 1024;
 pub fn api_router(state: ServerState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/meta", get(meta::get))
+        .route("/meta/commands", get(meta::commands))
+        .route("/meta/commands/{command}", get(meta::command))
         .route("/auth/login", post(auth::login))
         .route("/auth/register", post(auth::register))
         .route("/auth/me", get(auth::me))

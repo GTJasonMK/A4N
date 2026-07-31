@@ -1,5 +1,6 @@
 import React from "react";
-import { Loader2, Save } from "lucide-react";
+import { Save } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { editTextValue, type SceneEditForm as SceneEditFormState } from "./scenesDialogUtils";
 
@@ -21,7 +22,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
   <div className="flex flex-col gap-2">
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <label className="flex flex-col gap-1">
-        <span className="text-[10px] text-book-text-muted">标题</span>
+        <span className="text-caption text-book-text-muted">标题</span>
         <input
           type="text"
           value={editTextValue(form.title)}
@@ -31,7 +32,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-[10px] text-book-text-muted">场景类型</span>
+        <span className="text-caption text-book-text-muted">场景类型</span>
         <input
           type="text"
           value={editTextValue(form.scene_type)}
@@ -42,7 +43,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-[10px] text-book-text-muted">地点</span>
+        <span className="text-caption text-book-text-muted">地点</span>
         <input
           type="text"
           value={editTextValue(form.location)}
@@ -52,7 +53,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-[10px] text-book-text-muted">时间点</span>
+        <span className="text-caption text-book-text-muted">时间点</span>
         <input
           type="text"
           value={editTextValue(form.timeline_position)}
@@ -63,7 +64,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
       </label>
     </div>
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] text-book-text-muted">摘要</span>
+      <span className="text-caption text-book-text-muted">摘要</span>
       <textarea
         value={editTextValue(form.summary)}
         onChange={(event) => onChange({ summary: event.target.value })}
@@ -72,7 +73,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
       />
     </label>
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] text-book-text-muted">正文</span>
+      <span className="text-caption text-book-text-muted">正文</span>
       <textarea
         value={editTextValue(form.content)}
         onChange={(event) => onChange({ content: event.target.value })}
@@ -88,7 +89,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
       <BookButton variant="primary" size="sm" onClick={onSave} disabled={saving}>
         {saving ? (
           <span className="inline-flex items-center gap-2">
-            <Loader2 size={14} className="animate-spin" /> 保存中…
+            <LoadingSpinner size="sm" /> 保存中…
           </span>
         ) : (
           <span className="inline-flex items-center gap-2">

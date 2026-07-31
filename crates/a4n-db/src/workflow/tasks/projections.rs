@@ -1,6 +1,5 @@
 use crate::workflow::{
-    PersistedTaskInfo, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
-    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED, WorkflowReadError,
+    PersistedTaskInfo, WorkflowReadError, is_terminal_workflow_status,
 };
 use a4n_core::models::{generation::workflow_checkpoint, task::task_queue};
 use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskProgress, TaskStatus};
@@ -42,12 +41,12 @@ pub(in crate::workflow) fn persisted_task_info_from_row(
     })
 }
 
-pub(in crate::workflow) fn generated_video_ids_for_running_checkpoints(
+pub(in crate::workflow) fn generated_video_ids_for_active_checkpoints(
     checkpoints: &[workflow_checkpoint::Model],
 ) -> Vec<i64> {
     let mut video_ids = BTreeSet::new();
     for checkpoint in checkpoints {
-        if checkpoint.status != WORKFLOW_STATUS_RUNNING {
+        if is_terminal_workflow_status(&checkpoint.status) {
             continue;
         }
         if let Some(video_id) = checkpoint
@@ -68,16 +67,6 @@ pub(in crate::workflow) fn generated_video_ids_for_running_checkpoints(
         }
     }
     video_ids.into_iter().collect()
-}
-
-pub(in crate::workflow) fn is_terminal_workflow_status(status: &str) -> bool {
-    matches!(
-        status,
-        WORKFLOW_STATUS_COMPLETED
-            | WORKFLOW_STATUS_FAILED
-            | WORKFLOW_STATUS_CANCELLED
-            | WORKFLOW_STATUS_SUPERSEDED
-    )
 }
 
 pub(in crate::workflow) fn normalize_cancel_reason(reason: &str) -> String {

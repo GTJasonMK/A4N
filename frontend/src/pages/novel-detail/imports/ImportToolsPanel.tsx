@@ -1,5 +1,6 @@
 import React from "react";
-import { Eye, Loader2 } from "lucide-react";
+import { ChevronDown, CopyCheck, Eye, GitBranch } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import type { ReverseType } from "./importTabUtils";
@@ -47,11 +48,26 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
   const reverseReady = reverseAutoContext || reverseSample.trim().length > 0;
 
   return (
-    <div className="grid gap-3 text-xs">
-      <details className="a4n-flat-surface overflow-hidden">
-        <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-book-text-main">
-          <span>段落去重</span>
-          <span className="text-[11px] font-normal text-book-text-muted">按双换行识别段落</span>
+    <section aria-labelledby="import-tools-title" className="space-y-3 text-xs">
+      <div>
+        <h3 id="import-tools-title" className="text-sm font-semibold text-book-text-main">
+          辅助工具
+        </h3>
+        <p className="mt-0.5 text-small text-book-text-muted">文本检查与项目结构生成</p>
+      </div>
+      <details className="group a4n-flat-surface overflow-hidden">
+        <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3 text-book-text-main [&::-webkit-details-marker]:hidden">
+          <CopyCheck size={15} className="text-book-text-muted" />
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold">段落去重</span>
+            <span className="mt-0.5 block truncate text-small font-normal text-book-text-muted">
+              按双换行识别段落
+            </span>
+          </span>
+          <ChevronDown
+            size={14}
+            className="text-book-text-muted transition-transform group-open:rotate-180"
+          />
         </summary>
         <div className="space-y-2 border-t border-book-border/45 p-4">
           <textarea
@@ -71,7 +87,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             >
               {dedupBusy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={11} className="animate-spin" /> 检查中…
+                  <LoadingSpinner size="sm" /> 检查中…
                 </span>
               ) : (
                 "检查"
@@ -80,7 +96,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
           </div>
           {dedupResult != null && (
             <details className="border-t border-book-border/40 pt-2">
-              <summary className="cursor-pointer py-1 text-[11px] text-book-text-sub">
+              <summary className="cursor-pointer py-1 text-small text-book-text-sub">
                 查看去重结果
               </summary>
               <div className="pt-2">
@@ -91,10 +107,19 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
         </div>
       </details>
 
-      <details className="a4n-flat-surface overflow-hidden">
-        <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-book-text-main">
-          <span>结构反推</span>
-          <span className="text-[11px] font-normal text-book-text-muted">从样本文本生成蓝图或大纲</span>
+      <details className="group a4n-flat-surface overflow-hidden">
+        <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3 text-book-text-main [&::-webkit-details-marker]:hidden">
+          <GitBranch size={15} className="text-book-text-muted" />
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold">结构反推</span>
+            <span className="mt-0.5 block truncate text-small font-normal text-book-text-muted">
+              从样本文本生成蓝图或大纲
+            </span>
+          </span>
+          <ChevronDown
+            size={14}
+            className="text-book-text-muted transition-transform group-open:rotate-180"
+          />
         </summary>
         <div className="space-y-2 border-t border-book-border/45 p-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -144,8 +169,8 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
           />
           <div className="flex items-center justify-end gap-2">
             {reverseBusy === "preview" ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] text-book-text-muted">
-                <Loader2 size={11} className="animate-spin" /> 正在生成预览…
+              <span className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
+                <LoadingSpinner size="sm" /> 正在生成预览…
               </span>
             ) : null}
             {!toolsBusy && reverseReady ? (
@@ -170,7 +195,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             >
               {reverseBusy === "apply" ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={11} className="animate-spin" /> 应用中…
+                  <LoadingSpinner size="sm" /> 应用中…
                 </span>
               ) : (
                 "反推并应用"
@@ -179,7 +204,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
           </div>
           {reverseResult != null && (
             <details className="border-t border-book-border/40 pt-2">
-              <summary className="cursor-pointer py-1 text-[11px] text-book-text-sub">
+              <summary className="cursor-pointer py-1 text-small text-book-text-sub">
                 查看反推结果
               </summary>
               <div className="pt-2">
@@ -189,7 +214,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
           )}
         </div>
       </details>
-    </div>
+    </section>
   );
 };
 
@@ -216,13 +241,13 @@ const RESULT_LABELS: Record<string, string> = {
 const ImportToolResult: React.FC<{ value: unknown }> = ({ value }) => {
   const entries = isPlainRecord(value) ? Object.entries(value) : [];
   if (entries.length === 0) {
-    return <div className="whitespace-pre-wrap break-words text-[11px] leading-relaxed text-book-text-sub">{formatResultValue(value)}</div>;
+    return <div className="whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">{formatResultValue(value)}</div>;
   }
   return (
     <div className="space-y-2">
       <dl className="divide-y divide-book-border/40 border-y border-book-border/40">
         {entries.slice(0, 16).map(([key, entryValue], index) => (
-          <div key={key} className="grid gap-1 px-2.5 py-2 text-[11px] sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3">
+          <div key={key} className="grid gap-1 px-2.5 py-2 text-small sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3">
             <dt className="font-medium text-book-text-muted">
               {RESULT_LABELS[key] ?? `结果 ${index + 1}`}
             </dt>
@@ -232,7 +257,7 @@ const ImportToolResult: React.FC<{ value: unknown }> = ({ value }) => {
           </div>
         ))}
       </dl>
-      <details className="text-[10px] text-book-text-muted">
+      <details className="text-caption text-book-text-muted">
         <summary className="w-fit cursor-pointer hover:text-book-text-main">诊断信息</summary>
         <pre className="mt-1 whitespace-pre-wrap break-words rounded-xl bg-book-bg-tertiary/45 p-2 font-mono leading-relaxed text-book-text-sub">
           {JSON.stringify(value, null, 2)}

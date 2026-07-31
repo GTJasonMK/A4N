@@ -196,7 +196,7 @@ export const Modal: React.FC<ModalProps> = ({
                 {title}
               </h3>
               {subtitle ? (
-                <div className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+                <div className="mt-0.5 text-small leading-relaxed text-book-text-muted">
                   {subtitle}
                 </div>
               ) : null}

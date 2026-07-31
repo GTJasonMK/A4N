@@ -94,7 +94,7 @@ fn request_body_sends_references_only_without_first_frame() {
 }
 
 #[test]
-fn image_to_video_only_models_reject_reference_images_locally() {
+fn model_names_do_not_block_reference_image_requests_locally() {
     for model in [
         "grok-imagine-video-1.5",
         "grok-imagine-video-1.5-preview",
@@ -105,10 +105,13 @@ fn image_to_video_only_models_reject_reference_images_locally() {
         req.first_frame_image_url = None;
         req.reference_image_urls = vec!["https://example.test/ref.png".into()];
 
-        let err = CliProxyOpenAiVideoProvider::request_body(&req).unwrap_err();
+        let body = CliProxyOpenAiVideoProvider::request_body(&req).unwrap();
 
-        assert!(err.to_string().contains("不支持 reference_images"));
-        assert!(err.to_string().contains(model));
+        assert_eq!(body["model"], model);
+        assert_eq!(
+            body["reference_images"][0]["url"],
+            "https://example.test/ref.png"
+        );
     }
 }
 

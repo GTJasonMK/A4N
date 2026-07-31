@@ -79,3 +79,13 @@ export async function getTaskHistory(
     limit,
   });
 }
+
+export async function getTaskProgressEvents(
+  taskId: string,
+  limit = 50,
+): Promise<ProgressEventRecord[]> {
+  return apiInvoke<ProgressEventRecord[]>("get_workflow_progress_events", {
+    userId: currentUserId(),
+    input: { task_id: taskId, workflow_run_id: null, limit },
+  });
+}

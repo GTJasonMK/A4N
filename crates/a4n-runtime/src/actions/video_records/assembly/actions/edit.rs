@@ -92,6 +92,7 @@ pub async fn apply_assembly_postprocess_edit(
                 start_secs,
                 end_secs,
                 base_duration_secs: base.duration_secs,
+                source_duration_secs,
                 width: base.width,
                 height: base.height,
                 fps: base.fps,

@@ -2,14 +2,11 @@ use std::collections::{BTreeMap, HashSet};
 
 use serde_json::Value;
 
-use a4n_core::prompt_language::metadata_matches_prompt_output_language;
-
 use super::super::{
     AppError, FramePromptGenerationSpec, GeneratedVideoPromptShot, OrchestratorContext,
     PromptOutputLanguage, PromptWorkflowRowsContext, VideoExecutionIdentityMatch, VideoSegmentPlan,
     chat_generated_video_prompt_map, ensure_chat_video_prompts_can_generate_without_overwriting,
     ensure_video_prompts_can_regenerate, reusable_generated_video_prompts_from_rows,
-    video_prompt_rows_for_workflow,
 };
 
 pub(super) struct VideoPromptReusePreparationInput<'a> {
@@ -76,28 +73,8 @@ pub(super) async fn prepare_video_prompt_reuse(
     let matching_video_prompts = service
         .matching_prompt_rows_for_workflow(rows_context, prompt_output_language)
         .await?;
-    let all_video_prompts =
-        video_prompt_rows_for_workflow(service, project_id, chapter_id, spec.workflow_mode)
-            .await?
-            .into_iter()
-            .filter(|row| {
-                metadata_matches_prompt_output_language(
-                    row.metadata_json.as_ref(),
-                    prompt_output_language,
-                )
-            })
-            .collect::<Vec<_>>();
     let is_chat_video = spec.is_chat_video();
-    let all_chat_video_prompts = if is_chat_video {
-        all_video_prompts.clone()
-    } else {
-        Vec::new()
-    };
-    let preflight_rows = if is_chat_video {
-        &all_chat_video_prompts
-    } else {
-        &matching_video_prompts
-    };
+    let preflight_rows = &matching_video_prompts;
     if preflight_rows.iter().any(|row| row.status == "running") {
         return Err(AppError::InvalidArgument(format!(
             "当前章节已有{}正在运行，不能重新生成视频提示词",
@@ -111,7 +88,7 @@ pub(super) async fn prepare_video_prompt_reuse(
     let generation_limit = prompt_batch_size;
     let reusable_video_prompts =
         reusable_generated_video_prompts_from_rows(spec, &matching_video_prompts)?;
-    let existing_generated_video_prompt_rows = all_video_prompts
+    let existing_generated_video_prompt_rows = matching_video_prompts
         .iter()
         .filter(|row| row.generated_video_id.is_some())
         .cloned()
@@ -129,7 +106,7 @@ pub(super) async fn prepare_video_prompt_reuse(
         let reusable_chat_video_prompts =
             chat_generated_video_prompt_map(&reusable_video_prompts, spec.video_prompt_label)?;
         ensure_chat_video_prompts_can_generate_without_overwriting(
-            &all_chat_video_prompts,
+            &matching_video_prompts,
             &matching_video_prompts,
             &reusable_chat_video_prompts,
             video_segment_plan,

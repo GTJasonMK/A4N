@@ -1,7 +1,9 @@
 import { apiInvoke } from "../index";
 import { readCurrentUserId } from "../authStorage";
-import type { ModelRequestPreview } from "../requestPreview";
+import type { GenerationTaskHandle } from "../generated/generationContracts";
 import { idNum, type ApiId as Id } from "../shared";
+import { startVideoGeneration } from "./generation";
+import type { WorkflowRunDetail } from "../streaming";
 import type {
   ChapterVideoPrompt,
   DownstreamConflictStrategy,
@@ -9,8 +11,9 @@ import type {
   VideoWorkflowMode,
 } from "./types";
 
-interface GeneratePromptOptions {
+export interface GeneratePromptOptions {
   workflow_mode: VideoWorkflowMode;
+  segment_plan_prompt_id?: number;
   style: string;
   prompt_output_language?: PromptOutputLanguage;
   prompt_batch_size: number;
@@ -25,25 +28,66 @@ interface GeneratePromptOptions {
 
 export type SegmentGuidanceMode = "system_frames" | "keyframes" | "none" | "continuity";
 
+type SegmentWorkflowMode =
+  | "boundary_frames"
+  | "first_frame_chain"
+  | "storyboard"
+  | "reference_media"
+  | "chat_video";
+
+interface SegmentReferenceMediaBinding {
+  url: string;
+  usage: string;
+  upload_sha256: string | null;
+  upload_file_name: string | null;
+  upload_mime_type: string | null;
+}
+
+export interface SegmentReferenceMediaRecipe {
+  prompt: string;
+  image_rows: SegmentReferenceMediaBinding[];
+  video_rows: SegmentReferenceMediaBinding[];
+  audio_rows: SegmentReferenceMediaBinding[];
+}
+
+export interface VideoSegmentExecutionRecipe {
+  schema_version: "video_segment_execution_recipe_v1";
+  segment_number: number;
+  workflow_mode: SegmentWorkflowMode;
+  style: string;
+  prompt_output_language: PromptOutputLanguage;
+  duration_secs: number;
+  duration_secs_options: number[];
+  aspect_ratio: string;
+  reference_image_ids: number[];
+  video_library_image_ids: number[];
+  guidance_mode: SegmentGuidanceMode;
+  guidance_reference_image_ids: number[];
+  continuity_source_video_id: number | null;
+  reference_media: SegmentReferenceMediaRecipe | null;
+  adopted_video_id: number | null;
+}
+
 export interface UpdateChapterVideoPromptInput {
   visual_prompt?: string | null;
   motion_prompt?: string | null;
   negative_prompt?: string | null;
-  duration_secs?: number | null;
-  reference_image_ids_json?: unknown | null;
-  guidance_mode?: SegmentGuidanceMode;
-  continuity_source_video_id?: number | null;
+  segment_recipe?: VideoSegmentExecutionRecipe;
   downstream_strategy?: DownstreamConflictStrategy;
+}
+
+export interface UpdateVideoSegmentPlanDraftRecipeInput {
+  project_id: number;
+  chapter_id: number;
+  workflow_run_id: number;
+  source_shot_id: string;
+  segment_index_in_shot: number;
+  recipe: VideoSegmentExecutionRecipe;
 }
 
 interface OptimizeChapterVideoPromptInput {
   instruction: string;
   downstream_strategy?: DownstreamConflictStrategy;
-}
-
-export interface DeleteChapterVideoPromptGroupResult {
-  deleted_prompt_count: number;
-  deleted_image_count: number;
 }
 
 const currentUserId = (): number => {
@@ -52,74 +96,48 @@ const currentUserId = (): number => {
   return id;
 };
 
-export async function generateChapterVideoFramePrompts(
+export async function startChapterVideoFramePrompts(
   projectId: Id,
   chapterId: Id,
   options: GeneratePromptOptions,
-  taskId?: string | null,
-): Promise<ChapterVideoPrompt[]> {
-  return apiInvoke<ChapterVideoPrompt[]>("generate_chapter_video_frame_prompts", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    options,
-    taskId: taskId ?? null,
+): Promise<GenerationTaskHandle> {
+  return startVideoGeneration({
+    project_id: idNum(projectId, "项目 ID"),
+    operation: {
+      kind: "prompt_frames",
+      chapter_id: idNum(chapterId, "章节 ID"),
+      options,
+    },
   });
 }
 
-export async function generateChapterVideoSegmentPlan(
+export async function startChapterVideoSegmentPlan(
   projectId: Id,
   chapterId: Id,
   options: GeneratePromptOptions,
-  taskId?: string | null,
-): Promise<ChapterVideoPrompt[]> {
-  return apiInvoke<ChapterVideoPrompt[]>("generate_chapter_video_segment_plan", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    options,
-    taskId: taskId ?? null,
+): Promise<GenerationTaskHandle> {
+  return startVideoGeneration({
+    project_id: idNum(projectId, "项目 ID"),
+    operation: {
+      kind: "prompt_segment_plan",
+      chapter_id: idNum(chapterId, "章节 ID"),
+      options,
+    },
   });
 }
 
-export async function generateChapterVideoPrompts(
+export async function startChapterVideoPrompts(
   projectId: Id,
   chapterId: Id,
   options: GeneratePromptOptions,
-  taskId?: string | null,
-): Promise<ChapterVideoPrompt[]> {
-  return apiInvoke<ChapterVideoPrompt[]>("generate_chapter_video_prompts", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    options,
-    taskId: taskId ?? null,
-  });
-}
-
-export async function previewChapterVideoFramePromptRequests(
-  projectId: Id,
-  chapterId: Id,
-  options: GeneratePromptOptions,
-): Promise<ModelRequestPreview> {
-  return apiInvoke<ModelRequestPreview>("preview_chapter_video_frame_prompt_requests", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    options,
-  });
-}
-
-export async function previewChapterVideoPromptRequests(
-  projectId: Id,
-  chapterId: Id,
-  options: GeneratePromptOptions,
-): Promise<ModelRequestPreview> {
-  return apiInvoke<ModelRequestPreview>("preview_chapter_video_prompt_requests", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    options,
+): Promise<GenerationTaskHandle> {
+  return startVideoGeneration({
+    project_id: idNum(projectId, "项目 ID"),
+    operation: {
+      kind: "prompt_videos",
+      chapter_id: idNum(chapterId, "章节 ID"),
+      options,
+    },
   });
 }
 
@@ -131,6 +149,30 @@ export async function listChapterVideoPrompts(
     userId: currentUserId(),
     projectId: idNum(projectId, "项目 ID"),
     chapterId: idNum(chapterId, "章节 ID"),
+  });
+}
+
+export async function loadVideoSegmentPlanDraft(
+  projectId: Id,
+  chapterId: Id,
+  workflowRunId: Id,
+): Promise<WorkflowRunDetail> {
+  return apiInvoke<WorkflowRunDetail>("load_video_segment_plan_draft", {
+    userId: currentUserId(),
+    input: {
+      project_id: idNum(projectId, "项目 ID"),
+      chapter_id: idNum(chapterId, "章节 ID"),
+      workflow_run_id: idNum(workflowRunId, "片段规划 workflow ID"),
+    },
+  });
+}
+
+export async function updateVideoSegmentPlanDraftRecipe(
+  input: UpdateVideoSegmentPlanDraftRecipeInput,
+): Promise<WorkflowRunDetail> {
+  return apiInvoke<WorkflowRunDetail>("update_video_segment_plan_draft_recipe", {
+    userId: currentUserId(),
+    input,
   });
 }
 
@@ -163,21 +205,6 @@ export async function deleteChapterVideoPrompt(
   return apiInvoke<void>("delete_chapter_video_prompt", {
     userId: currentUserId(),
     promptId: idNum(promptId, "视频提示词 ID"),
-    downstreamStrategy,
-  });
-}
-
-export async function deleteChapterVideoPromptGroup(
-  projectId: Id,
-  chapterId: Id,
-  group: "video_prompts" | "frame_prompts" | "all_chain_prompts",
-  downstreamStrategy: DownstreamConflictStrategy = "reject",
-): Promise<DeleteChapterVideoPromptGroupResult> {
-  return apiInvoke<DeleteChapterVideoPromptGroupResult>("delete_chapter_video_prompt_group", {
-    userId: currentUserId(),
-    projectId: idNum(projectId, "项目 ID"),
-    chapterId: idNum(chapterId, "章节 ID"),
-    group,
     downstreamStrategy,
   });
 }

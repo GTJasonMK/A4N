@@ -1,5 +1,6 @@
 import React from "react";
-import { Download, Loader2, Trash2 } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type {
   EmbeddingModelDownloadInfo,
   LocalEmbeddingModel,
@@ -46,7 +47,7 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
           <div className="truncate text-xs font-semibold text-book-text-main">
             {model?.name ?? modelName}
           </div>
-          <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[11px] text-book-text-muted">
+          <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
             <span className={model?.downloaded ? "text-success" : "text-warning"}>
               {model?.downloaded ? "已下载" : "未下载"}
             </span>
@@ -66,8 +67,8 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
           </div>
         </div>
         {busy && model?.downloaded ? (
-          <span className="inline-flex h-8 shrink-0 items-center gap-1.5 text-[11px] text-book-text-muted">
-            <Loader2 size={13} className="animate-spin" />
+          <span className="inline-flex h-8 shrink-0 items-center gap-1.5 text-small text-book-text-muted">
+            <LoadingSpinner size="sm" />
             正在删除
           </span>
         ) : model?.downloaded ? (
@@ -84,15 +85,15 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
         ) : null}
       </div>
       {!downloadInfo && !downloadInfoError ? (
-        <div className="mb-2 text-[11px] text-book-text-muted">正在获取模型大小…</div>
+        <div className="mb-2 text-small text-book-text-muted">正在获取模型大小…</div>
       ) : downloadInfo ? (
-        <div className="mb-2 text-[11px] text-book-text-muted">
+        <div className="mb-2 text-small text-book-text-muted">
           预计总大小 {formatBytes(downloadInfo.total_size_bytes)} · 已缓存{" "}
           {formatBytes(downloadInfo.downloaded_size_bytes)} · 还需下载{" "}
           {formatBytes(downloadInfo.missing_size_bytes)}
         </div>
       ) : downloadInfoError ? (
-        <div className="mb-2 text-[11px] text-error">
+        <div className="mb-2 text-small text-error">
           {downloadInfoError}
         </div>
       ) : null}
@@ -103,7 +104,7 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
       )}
       {!model?.downloaded && model ? (
         <BookButton onClick={onDownload} disabled={busy}>
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          {busy ? <LoadingSpinner size="sm" /> : <Download size={14} />}
           {downloadLabel}
         </BookButton>
       ) : null}

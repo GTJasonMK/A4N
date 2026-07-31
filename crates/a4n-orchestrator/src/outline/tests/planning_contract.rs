@@ -70,6 +70,20 @@ fn resolve_part_generation_plan_rejects_missing_part_size() {
 }
 
 #[test]
+fn existing_part_ranges_restore_the_missing_part_size() {
+    let parts = vec![
+        sample_part_for_plan(1, 1, 3),
+        sample_part_for_plan(2, 4, 6),
+        sample_part_for_plan(3, 7, 7),
+    ];
+
+    assert_eq!(
+        infer_chapters_per_part_from_existing(&parts).unwrap(),
+        Some(3)
+    );
+}
+
+#[test]
 fn validate_existing_parts_for_plan_accepts_valid_partial_parts() {
     let parts = vec![sample_part_for_plan(2, 26, 50)];
 

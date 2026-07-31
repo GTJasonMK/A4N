@@ -1,9 +1,10 @@
 import React from "react";
-import { Loader2, Play, RefreshCw, Square } from "lucide-react";
+import { Play, RefreshCw, Square } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import type { ProgressEventRecord } from "../../api/progress";
 import type { WorkflowRunDetail } from "../../api/streaming";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
-import { getWorkflowStatusLabel } from "../../utils/workflowPresentation";
+import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
 interface CanvasWorkflowPanelProps {
   latestWorkflowRunId: number | null;
@@ -47,7 +48,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   if (latestWorkflowRunId) {
     actionItems.push({
       label: "刷新运行记录",
-      icon: loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />,
+      icon: loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={12} />,
       disabled: loading,
       onClick: onRefresh,
     });
@@ -55,7 +56,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   if (canResume) {
     actionItems.push({
       label: "继续运行",
-      icon: resuming ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />,
+      icon: resuming ? <LoadingSpinner size="sm" /> : <Play size={12} />,
       disabled: resuming,
       onClick: onResume,
     });
@@ -63,7 +64,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   if (canCancel) {
     actionItems.push({
       label: "停止运行",
-      icon: cancelling ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />,
+      icon: cancelling ? <LoadingSpinner size="sm" /> : <Square size={12} />,
       danger: true,
       disabled: cancelling,
       onClick: onCancel,
@@ -74,7 +75,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-xs font-semibold text-book-text-main">运行状态</h3>
-          <p className="mt-0.5 truncate text-[11px] text-book-text-muted" title={canResume ? resumeTitle : undefined}>
+          <p className="mt-0.5 truncate text-small text-book-text-muted" title={canResume ? resumeTitle : undefined}>
             {run
               ? canvasWorkflowStepLabel(currentStepKey)
               : latestWorkflowRunId
@@ -86,25 +87,25 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
       </div>
       {submittingLabel ? (
         <div className="mb-2 space-y-1.5 border-l-2 border-book-primary/50 bg-book-primary/5 px-2.5 py-2">
-          <div className="inline-flex items-center gap-1.5 text-[11px] text-book-text-main">
-            <Loader2 size={12} className="animate-spin" />
+          <div className="inline-flex items-center gap-1.5 text-small text-book-text-main">
+            <LoadingSpinner size="sm" />
             {submittingLabel}
           </div>
-          {!run ? <div className="text-[11px] text-book-text-muted">正在发现运行记录，找到后会自动显示节点进度。</div> : null}
+          {!run ? <div className="text-small text-book-text-muted">正在发现运行记录，找到后会自动显示节点进度。</div> : null}
         </div>
       ) : null}
       {!submittingLabel && !latestWorkflowRunId && !run ? (
-        <div className="text-[11px] text-book-text-muted">尚未运行画布节点</div>
+        <div className="text-small text-book-text-muted">尚未运行画布节点</div>
       ) : submittingLabel && !run ? null : !detail && loading ? (
-        <div className="inline-flex items-center gap-1.5 text-[11px] text-book-text-muted">
-          <Loader2 size={12} className="animate-spin" />
+        <div className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
+          <LoadingSpinner size="sm" />
           加载运行记录
         </div>
       ) : run ? (
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <div className="flex flex-wrap items-center gap-2 text-small">
             <span className={workflowStatusTextClass(run.status)}>
-              {getWorkflowStatusLabel(run.status)}
+              {getOperationStatusLabel(run.status)}
             </span>
             <span className="min-w-0 flex-1 truncate text-book-text-sub" title={run.progress?.message ?? ""}>
               {run.progress ? `${Math.round(run.progress.percent ?? 0)}% ${run.progress.message}` : "-"}
@@ -119,17 +120,17 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
             </div>
           ) : null}
           {run.error_message ? (
-            <div role="alert" className="rounded-xl border border-error/50 bg-error-bg px-2.5 py-2 text-[11px] text-error">
+            <div role="alert" className="rounded-xl border border-error/50 bg-error-bg px-2.5 py-2 text-small text-error">
               {run.error_message}
             </div>
           ) : null}
           {waitingProvider ? (
-            <div role="status" className="rounded-xl border border-warning/50 bg-warning-bg px-2.5 py-2 text-[11px] leading-4 text-warning">
+            <div role="status" className="rounded-xl border border-warning/50 bg-warning-bg px-2.5 py-2 text-small leading-4 text-warning">
               视频服务正在生成，请稍候
               {staleRunning ? "。该运行已长时间无进度更新，可能是旧版本遗留的挂起任务；请重新运行画布生成新的后台轮询。" : ""}
             </div>
           ) : null}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-book-text-muted">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-small text-book-text-muted">
             <span>
               已完成 <span className="tabular-nums text-book-text-main">{completedCheckpointCount} / {detail!.checkpoints.length}</span>
             </span>
@@ -142,7 +143,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
           {events.length > 0 ? (
             <div className="divide-y divide-book-border/45 border-y border-book-border/45">
               {events.slice(0, 5).map((event) => (
-                <div key={event.id} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2 px-2.5 py-1.5 text-[10px]">
+                <div key={event.id} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2 px-2.5 py-1.5 text-caption">
                   <span className="font-mono text-book-text-muted">
                     {event.percent == null ? "-" : `${Math.round(event.percent)}%`}
                   </span>
@@ -153,9 +154,9 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
               ))}
             </div>
           ) : (
-            <div className="text-[11px] text-book-text-muted">暂无进度事件</div>
+            <div className="text-small text-book-text-muted">暂无进度事件</div>
           )}
-          <details className="rounded border border-book-border/60 bg-book-bg-paper/45 text-[10px]">
+          <details className="rounded border border-book-border/60 bg-book-bg-paper/45 text-caption">
             <summary className="cursor-pointer px-2.5 py-2 text-book-text-muted">诊断信息</summary>
             <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-book-border/50 px-2.5 py-2">
               <span className="text-book-text-muted">运行编号</span>
@@ -188,7 +189,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
           </details>
         </div>
       ) : (
-        <div className="text-[11px] text-book-text-muted">运行记录不可用</div>
+        <div className="text-small text-book-text-muted">运行记录不可用</div>
       )}
     </section>
   );

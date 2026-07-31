@@ -41,7 +41,12 @@ where
             generation_run.response_summary_json,
             &result,
         );
-        crate::generation::record_completed_generation_run(&txn, generation_run).await?;
+        crate::generation::record_completed_generation_run_with_checkpoint_in(
+            &txn,
+            generation_run,
+            crate::generation::GenerationRunCheckpointContext::default(),
+        )
+        .await?;
     }
     txn.commit().await?;
     Ok(result)

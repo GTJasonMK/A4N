@@ -11,29 +11,23 @@ pub(super) fn validate_media_request_target_entity(
     refs: &MediaRequestRefContext<'_>,
 ) -> Result<(), String> {
     match target_entity_kind {
-        "character_profile" => {
-            if !refs.character_profile_ids.contains(&target_entity_id) {
-                return Err(format!(
-                    "项目族导入包媒体来源 request_snapshot_json.target_entity_id 引用的角色档案不存在: media_asset_id={}, target_entity_id={}",
-                    media_asset_id, target_entity_id
-                ));
-            }
+        "character_profile" if !refs.character_profile_ids.contains(&target_entity_id) => {
+            return Err(format!(
+                "项目族导入包媒体来源 request_snapshot_json.target_entity_id 引用的角色档案不存在: media_asset_id={}, target_entity_id={}",
+                media_asset_id, target_entity_id
+            ));
         }
-        "segment" => {
-            if !refs.video_segment_ids.contains(&target_entity_id) {
-                return Err(format!(
-                    "项目族导入包媒体来源 request_snapshot_json.target_entity_id 引用的视频片段不存在: media_asset_id={}, target_entity_id={}",
-                    media_asset_id, target_entity_id
-                ));
-            }
+        "segment" if !refs.video_segment_ids.contains(&target_entity_id) => {
+            return Err(format!(
+                "项目族导入包媒体来源 request_snapshot_json.target_entity_id 引用的视频片段不存在: media_asset_id={}, target_entity_id={}",
+                media_asset_id, target_entity_id
+            ));
         }
-        "assembly" => {
-            if !refs.assembly_timeline_ids.contains(&target_entity_id) {
-                return Err(format!(
-                    "项目族导入包媒体来源 request_snapshot_json.target_entity_id 引用的成片时间线不存在: media_asset_id={}, target_entity_id={}",
-                    media_asset_id, target_entity_id
-                ));
-            }
+        "assembly" if !refs.assembly_timeline_ids.contains(&target_entity_id) => {
+            return Err(format!(
+                "项目族导入包媒体来源 request_snapshot_json.target_entity_id 引用的成片时间线不存在: media_asset_id={}, target_entity_id={}",
+                media_asset_id, target_entity_id
+            ));
         }
         "galgame_scene" => {
             let scene = refs

@@ -22,7 +22,7 @@ export interface MangaPanel {
   updated_at: string | null;
 }
 
-export interface MangaPromptSource {
+interface MangaPromptSource {
   root_project_id: number;
   source_chapter_id: number;
   source_snapshot_id: number | null;
@@ -56,15 +56,15 @@ export interface MangaBoundReferenceAsset {
   [key: string]: unknown;
 }
 
-export interface MangaShootingBeatRef {
+interface MangaShootingBeatRef {
   scene_index: number;
   shot_index: number;
   beat_index: number;
 }
 
-export type MangaTextLayerKind = "dialogue" | "thought" | "narration" | "sfx";
+type MangaTextLayerKind = "dialogue" | "thought" | "narration" | "sfx";
 
-export interface MangaTextLayer {
+interface MangaTextLayer {
   layer_index: number;
   kind: MangaTextLayerKind;
   speaker: string | null;
@@ -81,7 +81,7 @@ export interface MangaTextLayer {
   avoid_covering: string[];
 }
 
-export interface MangaPanelPlan {
+interface MangaPanelPlan {
   panel_number: number;
   beat_refs: MangaShootingBeatRef[];
   function:
@@ -106,7 +106,7 @@ export interface MangaPanelPlan {
   text_layers: MangaTextLayer[];
 }
 
-export interface MangaPagePlan {
+interface MangaPagePlan {
   page_number: number;
   beat_refs: MangaShootingBeatRef[];
   role: "opening" | "setup" | "rising" | "climax" | "falling" | "resolution" | "transition";
@@ -121,7 +121,7 @@ export interface MangaPagePlan {
   panels: MangaPanelPlan[];
 }
 
-export interface MangaPageDrawingPrompt {
+interface MangaPageDrawingPrompt {
   schema_version: "manga_page_drawing_prompt_v2";
   page_number: number;
   image_prompt: string;

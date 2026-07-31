@@ -51,6 +51,7 @@ pub struct WorkflowRunSummary {
     pub scope_id: Option<i64>,
     pub chapter_id: Option<i64>,
     pub mode: Option<String>,
+    pub input_fingerprint_json: Option<Value>,
     pub status: String,
     pub current_step_key: Option<String>,
     pub progress: Option<WorkflowRunProgressSummary>,

@@ -137,8 +137,8 @@ pub use sync_projection::{
 };
 pub use sync_rules::{
     CharacterSyncRange, CharacterSyncRangeMode, analysis_profile_sync_skip_reason,
-    character_profile_sync_business_key, character_profile_sync_finalize_status,
-    character_profile_sync_mode_label, character_profile_sync_stage_call_key,
+    character_profile_sync_business_key, character_profile_sync_mode_label,
+    character_profile_sync_stage_call_key,
     character_profile_sync_workflow_fingerprint, character_sync_range,
     character_sync_start_chapter, profile_first_seen_chapter, profile_sync_skip_reason,
     sync_skip_summary, sync_skip_summary_with_reason, validate_character_sync_target_chapter,
@@ -162,13 +162,6 @@ pub struct CharacterSyncConflictReadModel {
 pub use conflict_rules::{
     character_conflict_business_key, character_conflict_call_fingerprint_json,
     character_conflict_workflow_fingerprint,
-};
-pub use discovery_rules::{
-    select_character_discovery_chapters, validate_discovered_character_chapter_scope,
-};
-pub use discovery_workflow_rules::{
-    CHARACTER_DISCOVERY_CALL_KEY, character_discovery_business_key,
-    character_discovery_call_fingerprint_json, character_discovery_workflow_fingerprint,
 };
 pub use json_field_rules::{
     attribute_counts, category_attributes, category_storage_key, optional_string,

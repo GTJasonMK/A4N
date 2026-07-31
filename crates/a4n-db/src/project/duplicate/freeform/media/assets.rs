@@ -1,5 +1,5 @@
 use crate::project::duplicate::ProjectDuplicateError;
-use crate::project::duplicate::freeform::FreeformProjectMediaFileCopier;
+use crate::project::duplicate::shared::ProjectMediaFileCopier;
 use a4n_core::models::media::media_asset;
 use chrono::NaiveDateTime;
 use sea_orm::{
@@ -16,7 +16,7 @@ pub(super) async fn copy_freeform_media_assets_record<C, Copier>(
 ) -> Result<HashMap<i64, i64>, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: FreeformProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier,
 {
     let assets = media_asset::Entity::find()
         .filter(media_asset::Column::ProjectId.eq(source_project_id))

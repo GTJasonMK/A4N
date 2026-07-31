@@ -35,8 +35,7 @@ pub(super) async fn attach_chapter_analysis_sync_state(
     let runs = state
         .workflow()
         .workflow_runs_by_project_kind(project_id, "chapter_analysis")
-        .await
-        .map_err(AppError::from)?;
+        .await?;
     let mut latest_by_chapter = HashMap::new();
     for run in runs {
         let Some(chapter_id) = run.chapter_id else {

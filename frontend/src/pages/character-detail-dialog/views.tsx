@@ -16,7 +16,7 @@ export const TabBtn: React.FC<{
     type="button"
     onClick={onClick}
     data-active={active ? "1" : undefined}
-    className="pyqt-tab inline-flex shrink-0 items-center gap-1 !text-[11px]"
+    className="pyqt-tab inline-flex shrink-0 items-center gap-1 !text-small"
   >
     {icon}
     {children}
@@ -52,7 +52,7 @@ export const ArcView: React.FC<{ data: unknown }> = ({ data }) => {
                   style={{ width: `${Math.max(0, Math.min(100, a.progress * 100))}%` }}
                 />
               </div>
-              <div className="mt-1 text-[10px] text-book-text-muted">
+              <div className="mt-1 text-caption text-book-text-muted">
                 进度 {(a.progress * 100).toFixed(0)}%
               </div>
             </div>
@@ -61,7 +61,7 @@ export const ArcView: React.FC<{ data: unknown }> = ({ data }) => {
       )}
       {stages.length > 0 && (
         <section className="p-3">
-          <div className="mb-2 text-[10px] font-semibold text-book-text-muted">发展阶段</div>
+          <div className="mb-2 text-caption font-semibold text-book-text-muted">发展阶段</div>
           <ol className="list-inside list-decimal space-y-1 text-book-text-sub">
             {stages.map((s, i) => (
               <li key={i}>{s}</li>
@@ -124,7 +124,7 @@ export const VoiceView: React.FC<{ data: unknown }> = ({ data }) => {
       <div className="a4n-flat-surface divide-y divide-book-border/45">
         {entries.map(([key, value], index) => (
           <div key={key} className="grid gap-1 px-3 py-2.5 text-xs sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3">
-            <div className="text-[11px] font-medium text-book-text-muted">
+            <div className="text-small font-medium text-book-text-muted">
               {VOICE_FIELD_LABELS[key] ?? `声音特征 ${index + 1}`}
             </div>
             <div className="min-w-0 whitespace-pre-wrap break-words leading-relaxed text-book-text-main">
@@ -133,7 +133,7 @@ export const VoiceView: React.FC<{ data: unknown }> = ({ data }) => {
           </div>
         ))}
       </div>
-      <details className="text-[11px] text-book-text-muted">
+      <details className="text-small text-book-text-muted">
         <summary className="w-fit cursor-pointer rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
           诊断信息
         </summary>
@@ -172,7 +172,7 @@ export const ConflictView: React.FC<{ conflicts: unknown[] }> = ({ conflicts }) 
                   : ""
             }`}
           >
-            <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-book-text-muted">
+            <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption text-book-text-muted">
               {typeof co.chapter_number === "number" && (
                 <span>第 {co.chapter_number} 章</span>
               )}
@@ -189,11 +189,11 @@ export const ConflictView: React.FC<{ conflicts: unknown[] }> = ({ conflicts }) 
             </div>
             <div className="text-book-text-main">
               <div className="text-book-text-muted">期望：</div>
-              <span className="text-[11px] leading-relaxed">{structuredValueText(co.expected)}</span>
+              <span className="text-small leading-relaxed">{structuredValueText(co.expected)}</span>
             </div>
             <div className="text-book-text-main mt-1">
               <div className="text-book-text-muted">实际：</div>
-              <span className="text-[11px] leading-relaxed">{structuredValueText(co.actual)}</span>
+              <span className="text-small leading-relaxed">{structuredValueText(co.actual)}</span>
             </div>
           </li>
         );

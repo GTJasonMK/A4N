@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { getBlueprint, updateWorldSetting, type Blueprint } from "../../api/blueprint";
@@ -168,7 +168,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
   if (displayLoading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <Loader2 size={12} className="animate-spin" /> 加载中…
+        <LoadingSpinner size="sm" /> 加载中…
       </div>
     );
   }

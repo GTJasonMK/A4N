@@ -35,6 +35,7 @@ pub async fn start_galgame_pipeline(
 ) -> Result<GalgameScriptDetail, String> {
     let progress_task = Arc::new(WorkflowProgressTask::new(
         state.inner(),
+        Some(user_id),
         input.task_id.clone(),
         TaskKind::GalgameGeneration,
         Some(input.project_id),

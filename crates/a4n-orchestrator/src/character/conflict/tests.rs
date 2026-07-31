@@ -127,6 +127,7 @@ fn workflow_input_uses_canonical_fingerprint_and_call_key() {
         scope,
         "character_conflict:17:陈恪",
         &request,
+        Some("character-conflict-task"),
     )
     .expect("workflow input should build");
 
@@ -138,4 +139,8 @@ fn workflow_input_uses_canonical_fingerprint_and_call_key() {
     assert_eq!(fingerprint["project_id"], json!(9));
     assert_eq!(fingerprint["character_name"], json!("陈恪"));
     assert_eq!(fingerprint["chapter_scope"]["end_chapter"], json!(8));
+    assert_eq!(
+        input.active_task_id.as_deref(),
+        Some("character-conflict-task")
+    );
 }

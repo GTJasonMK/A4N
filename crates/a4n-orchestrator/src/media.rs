@@ -52,6 +52,7 @@ pub use rules::{
 };
 
 use std::fs;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
 use a4n_core::error::AppError;
@@ -70,6 +71,7 @@ impl OrchestratorContext {
             normalize_media_value(&input.media_kind, "media_kind", is_valid_media_kind)?;
         let origin = normalize_media_value(&input.origin, "origin", is_valid_media_origin)?;
         let status = normalize_media_value(&input.status, "status", is_valid_media_status)?;
+        let duration_secs = validate_media_duration(media_kind, status, input.duration_secs)?;
         let checked_file = match input.file_path.as_deref() {
             Some(path) => Some(resolve_data_file(self.data_dir(), path, "媒体文件")?),
             None => None,
@@ -104,7 +106,7 @@ impl OrchestratorContext {
                 thumbnail_path: input.thumbnail_path,
                 width: input.width,
                 height: input.height,
-                duration_secs: input.duration_secs,
+                duration_secs,
                 fps: input.fps,
                 file_size,
                 checksum,
@@ -185,6 +187,27 @@ fn media_file_checksum(path: &Path) -> Result<String, AppError> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
+pub fn image_dimensions_from_bytes(bytes: &[u8]) -> Result<(i32, i32), AppError> {
+    let reader = image::ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|error| AppError::InvalidState {
+            current: "provider_response".to_string(),
+            operation: format!("图片 provider 返回的媒体格式无法识别：{error}"),
+        })?;
+    let (width, height) = reader
+        .into_dimensions()
+        .map_err(|error| AppError::InvalidState {
+            current: "provider_response".to_string(),
+            operation: format!("图片 provider 返回的媒体尺寸无法读取：{error}"),
+        })?;
+    Ok((
+        i32::try_from(width)
+            .map_err(|_| AppError::InvalidArgument("图片宽度超出支持范围".to_string()))?,
+        i32::try_from(height)
+            .map_err(|_| AppError::InvalidArgument("图片高度超出支持范围".to_string()))?,
+    ))
+}
+
 fn required_text<'a>(value: &'a str, label: &str) -> Result<&'a str, AppError> {
     let value = value.trim();
     if value.is_empty() {
@@ -204,6 +227,23 @@ fn normalize_media_value<'a>(
         Ok(value)
     } else {
         Err(AppError::InvalidArgument(format!("{label} 无效: {value}")))
+    }
+}
+
+fn validate_media_duration(
+    media_kind: &str,
+    status: &str,
+    duration_secs: Option<f32>,
+) -> Result<Option<f32>, AppError> {
+    match duration_secs {
+        Some(value) if value.is_finite() && value > 0.0 => Ok(Some(value)),
+        Some(_) => Err(AppError::InvalidArgument(
+            "媒体 duration_secs 必须是正数".to_string(),
+        )),
+        None if media_kind == MEDIA_KIND_AUDIO && status == MEDIA_STATUS_COMPLETED => Err(
+            AppError::InvalidArgument("completed 音频资产必须提供 duration_secs".to_string()),
+        ),
+        None => Ok(None),
     }
 }
 
@@ -230,6 +270,9 @@ fn media_db_error(error: MediaDbError) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine as _;
+
+    const PNG_1X1: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
     #[test]
     fn media_thumbnail_path_must_be_relative_to_data_dir() {
@@ -245,5 +288,26 @@ mod tests {
             AppError::InvalidArgument(message)
                 if message == "媒体缩略图必须是应用数据目录内的相对路径"
         ));
+    }
+
+    #[test]
+    fn image_dimensions_use_actual_media_bytes() {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(PNG_1X1)
+            .expect("测试 PNG 应有效");
+        assert_eq!(image_dimensions_from_bytes(&bytes).unwrap(), (1, 1));
+    }
+
+    #[test]
+    fn completed_audio_requires_positive_duration() {
+        assert!(matches!(
+            validate_media_duration(MEDIA_KIND_AUDIO, MEDIA_STATUS_COMPLETED, None),
+            Err(AppError::InvalidArgument(message))
+                if message == "completed 音频资产必须提供 duration_secs"
+        ));
+        assert_eq!(
+            validate_media_duration(MEDIA_KIND_AUDIO, MEDIA_STATUS_COMPLETED, Some(1.25)).unwrap(),
+            Some(1.25)
+        );
     }
 }

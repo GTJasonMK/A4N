@@ -1,5 +1,6 @@
 import React from "react";
-import { Loader2, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { Modal } from "../../components/ui/Modal";
 import { BookButton } from "../../components/ui/BookButton";
 import { ProfileTextarea } from "./CharacterProfileDisplay";
@@ -52,7 +53,7 @@ export const CharacterProfileEditorModal: React.FC<{
         >
           {saving ? (
             <span className="inline-flex items-center gap-2">
-              <Loader2 size={14} className="animate-spin" /> 保存中…
+              <LoadingSpinner size="sm" /> 保存中…
             </span>
           ) : (
             "保存"

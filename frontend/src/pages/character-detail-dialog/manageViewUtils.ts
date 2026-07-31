@@ -1,10 +1,10 @@
-export const CATEGORY_LABELS: Record<string, string> = {
+const CATEGORY_LABELS: Record<string, string> = {
   explicit: "显性",
   implicit: "隐性",
   social: "社会",
 };
 
-export const OPERATION_LABELS: Record<string, string> = {
+const OPERATION_LABELS: Record<string, string> = {
   add: "新增",
   added: "新增",
   modify: "修改",

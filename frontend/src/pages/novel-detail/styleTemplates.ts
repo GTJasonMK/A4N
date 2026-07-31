@@ -201,6 +201,5 @@ const VISUAL_STYLE_TEMPLATES: VisualStyleTemplate[] = [
 ];
 
 export const IMAGE_STYLE_TEMPLATES = VISUAL_STYLE_TEMPLATES;
-export const VIDEO_STYLE_TEMPLATES = VISUAL_STYLE_TEMPLATES;
 export const DEFAULT_IMAGE_STYLE = renderVisualStyleTemplate(VISUAL_STYLE_TEMPLATES[0]);
 export const DEFAULT_VIDEO_STYLE = renderVisualStyleTemplate(VISUAL_STYLE_TEMPLATES[0]);

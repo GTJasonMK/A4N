@@ -18,7 +18,6 @@ use super::keys::{
     protagonist_rag_chunk_prefix,
 };
 use super::metadata::root_text_family_metadata;
-use super::operations::clear_project_rag_store;
 use super::{RagRecord, RagRecordSyncOutcome};
 
 fn identity(model: &str) -> EmbeddingModelIdentity {
@@ -87,43 +86,6 @@ async fn chapter_delete_filter_removes_only_the_canonical_chapter_prefix() {
     assert_eq!(remaining_ids.len(), 2);
     assert!(remaining_ids.contains(&"chapter:1:101:p1"));
     assert!(remaining_ids.contains(&"outline:1:1"));
-}
-
-#[tokio::test]
-async fn clear_project_rag_store_drops_only_the_target_collection() {
-    let store = MemoryVectorStore::new();
-    store
-        .add_embeddings(
-            "1",
-            vec![embedding_record("chapter:1:100:p1", "chapter", 100)],
-        )
-        .await
-        .expect("target project record should store");
-    store
-        .add_embeddings(
-            "2",
-            vec![embedding_record("chapter:2:200:p1", "chapter", 200)],
-        )
-        .await
-        .expect("other project record should store");
-
-    clear_project_rag_store(&store, 1)
-        .await
-        .expect("target project collection should clear");
-
-    assert!(
-        !store
-            .collection_exists("1")
-            .await
-            .expect("target collection existence should load")
-    );
-    assert!(
-        store
-            .collection_exists("2")
-            .await
-            .expect("other collection existence should load")
-    );
-    assert_eq!(store.count("2").await.expect("other count should load"), 1);
 }
 
 #[test]

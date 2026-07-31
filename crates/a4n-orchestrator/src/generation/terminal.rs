@@ -429,7 +429,7 @@ impl GenerationTerminalCoordinator {
         if candidate.snapshot.status.is_terminal() {
             return Ok(GenerationTerminalWriteOutcome::AlreadyTerminal);
         }
-        let reason = candidate.snapshot.cancel_reason.ok_or_else(|| {
+        let reason = candidate.snapshot.cancel_reason.ok_or({
             GenerationSessionError::InvalidState {
                 status: candidate.snapshot.status,
                 operation: "cancelled",

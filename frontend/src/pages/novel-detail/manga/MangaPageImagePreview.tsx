@@ -1,8 +1,6 @@
 import React from "react";
-import {
-  Loader2,
-  Maximize2,
-} from "lucide-react";
+import { Maximize2, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { GeneratedImage } from "../../../api/image";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import type { MangaPagePrompt } from "./mangaPagePromptModel";
@@ -38,7 +36,7 @@ export const MangaPageImagePreview: React.FC<{
             <Maximize2 size={14} />
           </span>
         </button>
-        <div className="flex flex-wrap items-center gap-2 border-t border-book-border/45 bg-book-bg-paper/70 px-3 py-2 text-[11px] text-book-text-muted">
+        <div className="flex flex-wrap items-center gap-2 border-t border-book-border/45 bg-book-bg-paper/70 px-3 py-2 text-small text-book-text-muted">
           <span>漫画成图</span>
           <span>{image.width}×{image.height}</span>
           {image.file_size != null ? (
@@ -53,7 +51,7 @@ export const MangaPageImagePreview: React.FC<{
     <div className="flex min-h-[360px] items-center justify-center bg-book-bg-tertiary/40 p-4 text-xs text-book-text-muted">
       {loading ? (
         <span className="inline-flex items-center gap-2">
-          <Loader2 size={13} className="animate-spin" />
+          <LoadingSpinner size="sm" />
           加载图片素材…
         </span>
       ) : page.prompt.generated_image_id != null ? (

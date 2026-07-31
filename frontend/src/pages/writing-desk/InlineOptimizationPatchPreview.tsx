@@ -87,12 +87,12 @@ export function InlineOptimizationPatchPreview({
                 {proposal.patches.length} 处修改
               </span>
               {!automaticWriteback ? (
-                <span className="text-[10px] text-book-text-muted">
+                <span className="text-caption text-book-text-muted">
                   已接受 {acceptedCount} 处 · 已拒绝 {rejectedCount} 处 · 待审阅 {pendingCount} 处
                 </span>
               ) : null}
             </div>
-            <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-book-text-sub">
+            <p className="mt-0.5 line-clamp-2 text-small leading-relaxed text-book-text-sub">
               {proposal.summary}
             </p>
           </div>
@@ -103,7 +103,7 @@ export function InlineOptimizationPatchPreview({
                 size="sm"
                 onClick={preview.onAcceptAll}
                 disabled={taskRunning || diff.error != null}
-                className="!text-[11px]"
+                className="!text-small"
                 title="接受全部修改并同步到正文"
               >
                 <CheckCircle2 size={12} />
@@ -115,7 +115,7 @@ export function InlineOptimizationPatchPreview({
                 size="sm"
                 onClick={preview.onSyncAccepted}
                 disabled={taskRunning || diff.error != null}
-                className="!text-[11px]"
+                className="!text-small"
                 title={acceptedCount > 0 ? "同步已接受的修改到正文" : "完成本轮审阅"}
               >
                 <RefreshCw size={12} />
@@ -127,7 +127,7 @@ export function InlineOptimizationPatchPreview({
         </div>
 
         {!automaticWriteback ? (
-          <details className="mt-2 border-t border-book-border/40 pt-1.5 text-[11px]">
+          <details className="mt-2 border-t border-book-border/40 pt-1.5 text-small">
             <summary className="w-fit cursor-pointer text-book-text-muted hover:text-book-text-main">
               逐条审阅{pendingCount > 0 ? ` · ${pendingCount} 处待处理` : " · 已完成"}
             </summary>
@@ -140,8 +140,8 @@ export function InlineOptimizationPatchPreview({
                     className="flex min-w-0 items-center gap-2 px-1 py-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-[10px] text-book-text-muted">修改 {index + 1}</div>
-                      <div className="truncate text-[11px] text-book-text-sub">
+                      <div className="text-caption text-book-text-muted">修改 {index + 1}</div>
+                      <div className="truncate text-small text-book-text-sub">
                         {patch.reason.trim() || `调整第 ${index + 1} 处内容`}
                       </div>
                     </div>
@@ -155,7 +155,7 @@ export function InlineOptimizationPatchPreview({
                         }
                       }}
                       disabled={taskRunning}
-                      className="pyqt-input w-24 shrink-0 !px-2 !py-1 text-[11px]"
+                      className="pyqt-input w-24 shrink-0 !px-2 !py-1 text-small"
                       aria-label={`第 ${index + 1} 处修改的审阅决定`}
                     >
                       <option value="pending" disabled>
@@ -338,7 +338,7 @@ function renderSegments(segments: DiffSegment[]) {
     return (
       <span key={index}>
         {label ? (
-          <span className="mr-1 text-[10px] font-medium text-book-text-muted">{label}</span>
+          <span className="mr-1 text-caption font-medium text-book-text-muted">{label}</span>
         ) : null}
         <mark className={segmentClassName(segment.kind, segment.decision)}>{segment.text}</mark>
       </span>

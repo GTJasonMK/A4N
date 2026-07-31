@@ -1,5 +1,6 @@
 import React from "react";
-import { Eye, Loader2, RefreshCw, Search, UserPlus } from "lucide-react";
+import { Eye, RefreshCw, Search, UserPlus } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { type CharacterProfile } from "../../api/character";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
@@ -36,7 +37,7 @@ export const CharacterProfileList: React.FC<{
 }) => (
   <aside className="flex min-h-0 min-w-0 flex-col border-b border-book-border bg-book-bg-paper/45 p-3 md:border-b-0 md:border-r">
     <div className="mb-3 flex items-center gap-2">
-      <p className="min-w-0 flex-1 text-[11px] text-book-text-muted">
+      <p className="min-w-0 flex-1 text-small text-book-text-muted">
         {profiles.length > 0 ? `${profiles.length} 位角色` : "尚无角色"}
       </p>
       <Dropdown
@@ -83,11 +84,11 @@ export const CharacterProfileList: React.FC<{
       >
         {syncingAll ? (
           <span className="inline-flex items-center gap-1.5">
-            <Loader2 size={12} className="animate-spin" /> 同步中…
+            <LoadingSpinner size="sm" /> 同步中…
           </span>
         ) : discovering ? (
           <span className="inline-flex items-center gap-1.5">
-            <Loader2 size={12} className="animate-spin" /> 发现中…
+            <LoadingSpinner size="sm" /> 发现中…
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5">
@@ -99,7 +100,7 @@ export const CharacterProfileList: React.FC<{
 
     {loading && profiles.length === 0 ? (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
-        <Loader2 size={12} className="animate-spin" /> 加载中…
+        <LoadingSpinner size="sm" /> 加载中…
       </div>
     ) : profiles.length === 0 ? (
       <div className="flex flex-col items-center gap-3 py-6 text-center">
@@ -135,7 +136,7 @@ export const CharacterProfileList: React.FC<{
                     </span>
                   </span>
                   {describeProfile(profile) && (
-                    <span className="mt-0.5 block truncate text-[10px] text-book-text-muted">
+                    <span className="mt-0.5 block truncate text-caption text-book-text-muted">
                       {describeProfile(profile)}
                     </span>
                   )}

@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  FileText,
+import { FileText,
   Image,
   ImagePlus,
   Link2,
-  Loader2,
   MessageSquareText,
   Pencil,
   RefreshCw,
@@ -13,8 +11,8 @@ import {
   Users,
   Wand2,
   X,
-  Eye,
-} from "lucide-react";
+  Eye, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { CharacterProfile } from "../../../api/character";
 import type { GeneratedImage } from "../../../api/image";
 import type { Portrait } from "../../../api/portrait";
@@ -173,7 +171,7 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
   if (panelsLoading) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center gap-2 text-xs text-book-text-muted">
-        <Loader2 size={13} className="animate-spin" /> 加载整页提示词…
+        <LoadingSpinner size="sm" /> 加载整页提示词…
       </div>
     );
   }
@@ -199,7 +197,7 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
         disabled={actionsDisabled || chapterLocked || generating || generatingPageNumber != null}
       >
         {generating ? (
-          <Loader2 size={13} className="animate-spin" />
+          <LoadingSpinner size="sm" />
         ) : generated ? (
           <RefreshCw size={13} />
         ) : (
@@ -324,7 +322,7 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
         <div className="mb-3 shrink-0">
           <h2 className="text-sm font-semibold text-book-text-main">整页漫画</h2>
           <p
-            className={`mt-1 text-[11px] leading-relaxed ${
+            className={`mt-1 text-small leading-relaxed ${
               pipelineFailed > 0 || staleCount > 0
                 ? "text-warning"
                 : pipelineCompleted > 0
@@ -374,7 +372,7 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
                     >
                       <span className="block text-xs font-semibold">第 {page.pageNumber} 页</span>
                       <div
-                        className={`mt-0.5 truncate text-[10px] ${
+                        className={`mt-0.5 truncate text-caption ${
                           selected ? "text-book-primary" : "text-book-text-muted"
                         }`}
                       >
@@ -396,7 +394,7 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
                       <h3 className="text-sm font-semibold text-book-text-main">
                         第 {activePage.pageNumber} 页
                       </h3>
-                      <p className="mt-1 text-[11px] text-book-text-muted">
+                      <p className="mt-1 text-small text-book-text-muted">
                         {[
                           statusLabel(activePage.prompt.status),
                           activePage.prompt.generated_image_id != null ? "已有成图" : "尚未生成",
@@ -411,9 +409,9 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
                       !activePage.sourceStale ? (
                         <span
                           role="status"
-                          className="inline-flex min-h-8 items-center gap-1.5 px-1 text-[11px] text-book-text-muted"
+                          className="inline-flex min-h-8 items-center gap-1.5 px-1 text-small text-book-text-muted"
                         >
-                          <Loader2 size={12} className="animate-spin" /> 正在重新生成
+                          <LoadingSpinner size="sm" /> 正在重新生成
                         </span>
                       ) : null}
                       {activePageMenuItems.length > 0 ? <Dropdown items={activePageMenuItems} /> : null}
@@ -474,7 +472,7 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
                               title={activePromptDownstreamHint}
                             >
                               {promptSaving ? (
-                                <Loader2 size={12} className="animate-spin" />
+                                <LoadingSpinner size="sm" />
                               ) : (
                                 <Save size={12} />
                               )}
@@ -489,11 +487,11 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
                         <textarea
                           value={promptDraft}
                           onChange={(event) => setPromptDraft(event.target.value)}
-                          className="pyqt-input min-h-[260px] max-h-[52vh] w-full resize-y font-mono text-[12px] leading-relaxed"
+                          className="pyqt-input min-h-[260px] max-h-[52vh] w-full resize-y font-mono text-body-sm leading-relaxed"
                           disabled={actionsDisabled || promptSaving}
                         />
                       ) : (
-                        <pre className="min-h-[220px] whitespace-pre-wrap break-words border-l-2 border-book-border/70 bg-book-bg-tertiary/25 py-2 pl-3 pr-2 text-[12px] leading-relaxed text-book-text-main">
+                        <pre className="min-h-[220px] whitespace-pre-wrap break-words border-l-2 border-book-border/70 bg-book-bg-tertiary/25 py-2 pl-3 pr-2 text-body-sm leading-relaxed text-book-text-main">
                           {activePage.prompt.image_prompt}
                         </pre>
                       )}
@@ -530,7 +528,7 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
 
                       <section className="divide-y divide-book-border/35 py-3">
                         <div className="grid gap-1 px-3 py-2 md:grid-cols-[88px_minmax(0,1fr)] md:gap-3">
-                          <div className="flex items-center gap-1.5 text-[11px] font-medium text-book-text-muted">
+                          <div className="flex items-center gap-1.5 text-small font-medium text-book-text-muted">
                             <Users size={11} />
                             角色
                           </div>
@@ -541,7 +539,7 @@ export const MangaPanelList: React.FC<MangaPanelListProps> = ({
                           </div>
                         </div>
                         <div className="grid gap-1 px-3 py-2 md:grid-cols-[88px_minmax(0,1fr)] md:gap-3">
-                          <div className="flex items-center gap-1.5 text-[11px] font-medium text-book-text-muted">
+                          <div className="flex items-center gap-1.5 text-small font-medium text-book-text-muted">
                             <MessageSquareText size={11} />
                             文字
                           </div>

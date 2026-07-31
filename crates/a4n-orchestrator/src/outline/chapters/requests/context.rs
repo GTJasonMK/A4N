@@ -1,8 +1,10 @@
 use a4n_core::error::AppError;
-use a4n_core::models::chapter::part_outline;
-use serde_json::{Value, json};
+use serde_json::json;
 
-use crate::outline::context::{ChapterOutlineGenerationContext, part_context_json};
+use crate::outline::context::{
+    ChapterOutlineGenerationContext, focused_part_context, minimal_blueprint_context,
+    minimal_part_context, part_context_json,
+};
 use a4n_core::source_spans::source_text_hash as source_content_sha256;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::context::{
@@ -48,7 +50,7 @@ pub(super) fn build_chapter_outline_context_manifest(
                 COMPRESSION_MINIMAL,
                 json!({
                     "kind": "blueprint_context",
-                    "blueprint": minimal_chapter_blueprint_context(&context.blueprint_payload),
+                    "blueprint": minimal_blueprint_context(&context.blueprint_payload),
                 }),
             ),
         ],
@@ -86,14 +88,14 @@ pub(super) fn build_chapter_outline_context_manifest(
                 COMPRESSION_FOCUSED_RAW,
                 json!({
                     "kind": "part_outlines",
-                    "parts": context.parts.iter().map(focused_chapter_part_context).collect::<Vec<_>>(),
+                    "parts": context.parts.iter().map(focused_part_context).collect::<Vec<_>>(),
                 }),
             ),
             LlmContextLedgerPackDraft::new(
                 COMPRESSION_MINIMAL,
                 json!({
                     "kind": "part_outlines",
-                    "parts": context.parts.iter().map(minimal_chapter_part_context).collect::<Vec<_>>(),
+                    "parts": context.parts.iter().map(minimal_part_context).collect::<Vec<_>>(),
                 }),
             ),
         ],
@@ -103,48 +105,4 @@ pub(super) fn build_chapter_outline_context_manifest(
         dynamic_user_content,
         Some("章节大纲必须返回严格 JSON 对象；根对象必须且只能包含 chapters。".to_string()),
     ))
-}
-
-fn minimal_chapter_blueprint_context(blueprint_context: &Value) -> Value {
-    let Some(object) = blueprint_context.as_object() else {
-        return blueprint_context.clone();
-    };
-    let mut minimal = serde_json::Map::new();
-    for key in [
-        "title",
-        "genre",
-        "style",
-        "tone",
-        "one_sentence_summary",
-        "full_synopsis",
-        "chapters_per_part",
-        "blueprint_chapters_per_part",
-    ] {
-        if let Some(value) = object.get(key) {
-            minimal.insert(key.to_string(), value.clone());
-        }
-    }
-    Value::Object(minimal)
-}
-
-fn focused_chapter_part_context(part: &part_outline::Model) -> Value {
-    json!({
-        "part_number": part.part_number,
-        "title": part.title,
-        "start_chapter": part.start_chapter,
-        "end_chapter": part.end_chapter,
-        "summary": part.summary,
-        "theme": part.theme,
-        "key_events": part.key_events,
-    })
-}
-
-fn minimal_chapter_part_context(part: &part_outline::Model) -> Value {
-    json!({
-        "part_number": part.part_number,
-        "title": part.title,
-        "start_chapter": part.start_chapter,
-        "end_chapter": part.end_chapter,
-        "summary": part.summary,
-    })
 }

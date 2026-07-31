@@ -29,8 +29,18 @@ pub async fn reverse_engineer(
     input: &ReverseEngineerInput,
     target: ReverseEngineeringTarget,
     progress: ReverseProgressReporter<'_>,
+    active_task_id: Option<&str>,
 ) -> Result<Value, AppError> {
-    run_reverse_engineer(state, user_id, input, target, false, progress).await
+    run_reverse_engineer(
+        state,
+        user_id,
+        input,
+        target,
+        false,
+        progress,
+        active_task_id,
+    )
+    .await
 }
 
 pub async fn reverse_engineer_and_apply(
@@ -39,8 +49,18 @@ pub async fn reverse_engineer_and_apply(
     input: &ReverseEngineerInput,
     target: ReverseEngineeringTarget,
     progress: ReverseProgressReporter<'_>,
+    active_task_id: Option<&str>,
 ) -> Result<Value, AppError> {
-    run_reverse_engineer(state, user_id, input, target, true, progress).await
+    run_reverse_engineer(
+        state,
+        user_id,
+        input,
+        target,
+        true,
+        progress,
+        active_task_id,
+    )
+    .await
 }
 
 async fn run_reverse_engineer(
@@ -50,6 +70,7 @@ async fn run_reverse_engineer(
     target: ReverseEngineeringTarget,
     apply: bool,
     progress: ReverseProgressReporter<'_>,
+    active_task_id: Option<&str>,
 ) -> Result<Value, AppError> {
     reverse_engineer_task_scope(state, user_id, input, apply).await?;
     let variables = parse_template_variables_app_error_from_ref_with_message(
@@ -69,6 +90,7 @@ async fn run_reverse_engineer(
             apply,
             prompt_renderer: &prompt_renderer,
             progress,
+            active_task_id,
         })
         .await
 }

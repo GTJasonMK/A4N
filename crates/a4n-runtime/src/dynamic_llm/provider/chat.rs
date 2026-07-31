@@ -1,12 +1,13 @@
 use std::time::Instant;
 
 use a4n_core::error::AppError;
+use a4n_core::models::ai::llm_config;
 use a4n_llm::provider::{ChatRequest, ChatResponse};
 use a4n_queue::priority::{TaskKind, TaskPriority};
 
 use super::super::budget::ensure_max_tokens_within_model_cap;
 use super::super::config::{chat_embedded, chat_via_sidecar, require_sidecar_business_trace};
-use super::super::contracts::DynamicLlmProvider;
+use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 use super::super::trace::{
     llm_error_kind, llm_trace_status_for_error, prepare_dynamic_llm_trace_context,
     record_dynamic_llm_trace,
@@ -16,13 +17,33 @@ impl DynamicLlmProvider {
     pub async fn chat_with_config_id(
         &self,
         config_id: Option<i64>,
+        request: ChatRequest,
+    ) -> Result<ChatResponse, AppError> {
+        let resolved_model = self.resolve_runtime_model_by_id(config_id).await?;
+        self.chat_with_resolved_model(config_id, resolved_model, request)
+            .await
+    }
+
+    pub(crate) async fn chat_with_config(
+        &self,
+        config: llm_config::Model,
+        request: ChatRequest,
+    ) -> Result<ChatResponse, AppError> {
+        let config_id = Some(config.id);
+        self.chat_with_resolved_model(config_id, ResolvedLlmModel::new(config)?, request)
+            .await
+    }
+
+    async fn chat_with_resolved_model(
+        &self,
+        config_id: Option<i64>,
+        resolved_model: ResolvedLlmModel,
         mut request: ChatRequest,
     ) -> Result<ChatResponse, AppError> {
         let profile = request.max_tokens_profile.clone();
         let temperature = request.temperature;
         let message_count = request.messages.len();
         let prompt_chars: usize = request.messages.iter().map(|msg| msg.content.len()).sum();
-        let resolved_model = self.resolve_runtime_model_by_id(config_id).await?;
         let model_name = resolved_model.model_name().to_string();
         let model_max_output_tokens = resolved_model.capabilities.max_output_tokens;
         request.max_tokens = self.resolve_max_tokens(&request).await?;

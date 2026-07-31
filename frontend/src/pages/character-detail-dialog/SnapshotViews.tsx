@@ -57,21 +57,21 @@ const SnapshotItemList: React.FC<{
   const visibleItems = items.slice(0, 4);
   return (
     <section className="border-t border-book-border/35 py-2.5 first:border-t-0">
-      <div className="mb-1.5 text-[10px] font-semibold text-book-text-main">
+      <div className="mb-1.5 text-caption font-semibold text-book-text-main">
         {title} · {items.length} 条
       </div>
       <div className="divide-y divide-book-border/30">
         {visibleItems.map((item, index) => (
           <div
             key={index}
-            className="py-1.5 text-[10px] leading-relaxed text-book-text-muted"
+            className="py-1.5 text-caption leading-relaxed text-book-text-muted"
           >
             {renderItem(item, index)}
           </div>
         ))}
       </div>
       {items.length > visibleItems.length && (
-        <div className="mt-1 text-[10px] text-book-text-muted">
+        <div className="mt-1 text-caption text-book-text-muted">
           另有 {items.length - visibleItems.length} 条，本页仅展示最近内容。
         </div>
       )}
@@ -222,14 +222,14 @@ const SnapshotAttributeGroup: React.FC<{ label: string; value: unknown }> = ({
   if (entries.length === 0) return null;
   return (
     <section className="px-2.5 py-2.5">
-      <div className="mb-1 text-[10px] font-semibold text-book-text-main">
+      <div className="mb-1 text-caption font-semibold text-book-text-main">
         {label}
       </div>
       <dl className="divide-y divide-book-border/35">
         {entries.map(([key, entryValue]) => (
           <div
             key={key}
-            className="grid gap-0.5 py-1 text-[10px] sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-2"
+            className="grid gap-0.5 py-1 text-caption sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-2"
           >
             <dt
               className="break-words font-medium text-book-text-muted"
@@ -265,14 +265,14 @@ export const ProfileChapterStateDetail: React.FC<{
     state.current_location ? `位置 ${state.current_location}` : null,
   ].filter(Boolean);
   return (
-    <section className="a4n-flat-surface overflow-hidden text-[11px]">
+    <section className="a4n-flat-surface overflow-hidden text-small">
       <div className="px-3 py-3">
         <div className="font-semibold text-book-text-main">
           第 {state.chapter_number} 章
           {state.created_at ? ` · ${formatUiDateTime(state.created_at)}` : ""}
         </div>
         {metadata.length > 0 ? (
-          <div className="mt-1 text-[10px] leading-relaxed text-book-text-muted">
+          <div className="mt-1 text-caption leading-relaxed text-book-text-muted">
             {metadata.join(" · ")}
           </div>
         ) : null}
@@ -283,7 +283,7 @@ export const ProfileChapterStateDetail: React.FC<{
         ) : null}
       </div>
       <details className="border-t border-book-border/35">
-        <summary className="cursor-pointer px-3 py-2.5 text-[10px] font-medium text-book-primary hover:bg-book-bg-tertiary/45">
+        <summary className="cursor-pointer px-3 py-2.5 text-caption font-medium text-book-primary hover:bg-book-bg-tertiary/45">
           查看属性详情
         </summary>
         <div className="divide-y divide-book-border/35 border-t border-book-border/30 bg-book-bg/35 md:grid md:grid-cols-3 md:divide-x md:divide-y-0">
@@ -340,7 +340,7 @@ export const SnapshotDetail: React.FC<{ snapshot: Snapshot }> = ({
   ].filter(Boolean);
 
   return (
-    <section className="a4n-flat-surface overflow-hidden text-[11px]">
+    <section className="a4n-flat-surface overflow-hidden text-small">
       <div className="px-3 py-3">
         {(chapter != null || snapshot.created_at) && (
           <div className="font-semibold text-book-text-main">
@@ -351,17 +351,17 @@ export const SnapshotDetail: React.FC<{ snapshot: Snapshot }> = ({
           </div>
         )}
         {metadata.length > 0 ? (
-          <div className="mt-1 text-[10px] leading-relaxed text-book-text-muted">
+          <div className="mt-1 text-caption leading-relaxed text-book-text-muted">
             {metadata.join(" · ")}
           </div>
         ) : null}
         {summary ? (
-          <p className="mt-2 text-[10px] leading-relaxed text-book-text-sub">
+          <p className="mt-2 text-caption leading-relaxed text-book-text-sub">
             {summary}
           </p>
         ) : null}
         {(goal || emotion) && (
-          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-book-text-muted">
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption text-book-text-muted">
             {goal && <span>目标：{goal}</span>}
             {emotion && <span>情绪：{emotion}</span>}
           </div>
@@ -430,17 +430,17 @@ export const SnapshotDeltaView: React.FC<{ delta: SnapshotDelta }> = ({
   const toSummary = recordString(summary, "to_state_summary");
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-warning/25 bg-warning-bg/25 text-[11px]">
+    <section className="overflow-hidden rounded-2xl border border-warning/25 bg-warning-bg/25 text-small">
       <div className="px-3 py-3">
         <div className="font-semibold text-book-text-main">快照变化</div>
         {fromChapter != null && toChapter != null ? (
-          <div className="mt-1 text-[10px] text-book-text-muted">
+          <div className="mt-1 text-caption text-book-text-muted">
             第 {fromChapter} 章 → 第 {toChapter} 章
           </div>
         ) : null}
       </div>
       {(fromSummary || toSummary) && (
-        <div className="grid border-t border-warning/20 text-[10px] md:grid-cols-2 md:divide-x md:divide-book-border/30">
+        <div className="grid border-t border-warning/20 text-caption md:grid-cols-2 md:divide-x md:divide-book-border/30">
           {fromSummary && (
             <div className="px-3 py-2.5 text-book-text-muted">
               <span className="font-medium text-book-text-main">原状态</span>
@@ -466,7 +466,7 @@ export const SnapshotDeltaView: React.FC<{ delta: SnapshotDelta }> = ({
           ))}
         </div>
       ) : (
-        <div className="border-t border-warning/20 px-3 py-3 text-[10px] text-book-text-muted">
+        <div className="border-t border-warning/20 px-3 py-3 text-caption text-book-text-muted">
           未检测到属性变化
         </div>
       )}
@@ -488,13 +488,13 @@ const SnapshotDeltaCategory: React.FC<{
 
   return (
     <section className="py-2.5">
-      <div className="mb-1.5 text-[10px] font-semibold text-book-text-main">
+      <div className="mb-1.5 text-caption font-semibold text-book-text-main">
         {label}
       </div>
       <div className="space-y-2">
         {operations.map((group) => (
           <div key={group.operation} className="space-y-1">
-            <div className="text-[10px] font-medium text-book-text-muted">
+            <div className="text-caption font-medium text-book-text-muted">
               {operationLabel(group.operation)}
             </div>
             <div className="divide-y divide-book-border/30 rounded-xl bg-book-bg-paper/45 px-2.5">
@@ -522,7 +522,7 @@ const SnapshotDeltaEntry: React.FC<{
   const changed =
     operation === "modified" && isPlainRecord(value) ? value : null;
   return (
-    <div className="py-2 text-[10px]">
+    <div className="py-2 text-caption">
       <div className="font-medium text-book-text-main" title={attrKey}>
         {attributeKeyLabel(attrKey)}
       </div>

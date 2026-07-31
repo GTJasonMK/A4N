@@ -13,8 +13,8 @@ use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
-    GenerationError, GenerationFinishReason, GenerationResultRef, ProgressEvent, ProgressPhaseKind,
-    ProgressSeverity, StreamTextHash,
+    GenerationError, GenerationFinishReason, GenerationResultRef, GenerationTaskStatus,
+    ProgressPhaseKind, StreamTextHash,
 };
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
@@ -28,15 +28,10 @@ use crate::{
     collaboration::ProjectAccessRole,
     context::GenerationTaskExecution,
     generation::{
-        checkpoint::{
-            DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointMetadata,
-            GenerationCheckpointWriter,
-        },
-        events::{
-            GenerationEventPublisher, GenerationSessionError, SessionGenerationEventPublisher,
-        },
+        checkpoint::GenerationCheckpointMetadata,
+        events::{GenerationEventPublisher, GenerationSessionError},
         generation_finish_reason_text as shared_generation_finish_reason_text,
-        generation_public_error,
+        generation_progress as chapter_progress, generation_public_error,
         stream::{LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation},
         terminal::{CompletionDescriptor, GenerationTerminalError},
     },
@@ -131,10 +126,7 @@ impl OrchestratorContext {
         };
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
-        let replenisher = Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-            self.database.shared_connection(),
-        ));
-        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
+        let publisher = execution.publisher.clone();
         let chapter_service = self.chapter_generation_service();
 
         if let Err(error) = publisher
@@ -305,11 +297,17 @@ impl OrchestratorContext {
             }
         };
         let call_key = format!("chapter_generation:chapter:{}", input.chapter_number);
-        let input_fingerprint_json = match chapter_generation_call_fingerprint_json(
-            input.project_id,
-            input.chapter_number,
-            &request,
-        ) {
+        let fingerprint = || -> Result<_, AppError> {
+            let json = chapter_generation_call_fingerprint_json(
+                input.project_id,
+                input.chapter_number,
+                &request,
+            )?;
+            let sha256 = workflow::llm_call_checkpoint_fingerprint_sha256(&json)
+                .map_err(workflow_checkpoint_contract_app_error)?;
+            Ok((json, sha256))
+        };
+        let (input_fingerprint_json, input_fingerprint_sha256) = match fingerprint() {
             Ok(fingerprint) => fingerprint,
             Err(error) => {
                 return fail_chapter_generation_execution(
@@ -327,27 +325,6 @@ impl OrchestratorContext {
                 .await;
             }
         };
-        let input_fingerprint_sha256 =
-            match workflow::llm_call_checkpoint_fingerprint_sha256(&input_fingerprint_json)
-                .map_err(workflow_checkpoint_contract_app_error)
-            {
-                Ok(fingerprint) => fingerprint,
-                Err(error) => {
-                    return fail_chapter_generation_execution(
-                        self,
-                        &chapter_service,
-                        execution,
-                        Some(Arc::clone(&chapter_session)),
-                        Some(workflow_run_id),
-                        generation_error_from_app(
-                            "generation_request_invalid",
-                            "chapter_prompt",
-                            error,
-                        ),
-                    )
-                    .await;
-                }
-            };
         if let Some(trace_context) = request.trace_context.as_mut() {
             trace_context.workflow_run_id = Some(workflow_run_id);
             trace_context.call_key = Some(call_key.clone());
@@ -355,7 +332,7 @@ impl OrchestratorContext {
         }
         let request_trace = request.clone();
         let model_name = self.llm_model_name();
-        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let checkpoint_writer = execution.checkpoint_writer.clone();
         let checkpoint_metadata = GenerationCheckpointMetadata {
             step_key: Some("chapter_generation".to_string()),
             call_key: Some(call_key.clone()),
@@ -541,16 +518,7 @@ impl OrchestratorContext {
             .await;
         }
 
-        let task_id = execution.permit.task_id().to_string();
-        if let Err(error) = execution
-            .queue
-            .complete_generation_task(execution.permit)
-            .await
-        {
-            return Err(format!(
-                "generation queue 完成投影失败 ({task_id}): {error}"
-            ));
-        }
+        execution.complete_queue_task().await?;
         let chapter_id = chapter_id.load(Ordering::Acquire);
         if chapter_id <= 0 {
             return Err("generation completed 但缺少章节结果 id".to_string());
@@ -940,6 +908,7 @@ async fn fail_chapter_generation_execution(
     workflow_run_id: Option<i64>,
     error: GenerationError,
 ) -> Result<(), String> {
+    let workflow_outcome = chapter_generation_failure_outcome(execution.session.snapshot().status);
     if let Some(chapter_session) = chapter_session.as_deref() {
         chapter_service
             .restore_generation_status_ref(chapter_session)
@@ -947,38 +916,32 @@ async fn fail_chapter_generation_execution(
     }
     let workflow_error = if let Some(workflow_run_id) = workflow_run_id {
         orchestrator
-            .fail_chapter_generation_workflow(workflow_run_id, &error.message)
+            .finalize_workflow_run_outcome_validated(
+                workflow_run_id,
+                workflow_outcome,
+                Some(&error.message),
+            )
             .await
+            .map(|_| ())
+            .map_err(|status_error| status_error.to_string())
             .err()
     } else {
         None
     };
     let mut message = execution.fail(error).await;
     if let Some(workflow_error) = workflow_error {
-        message.push_str(&format!(
-            "; 记录章节生成工作流失败状态失败: {workflow_error}"
-        ));
+        message.push_str(&format!("; 记录章节生成工作流终态失败: {workflow_error}"));
     }
     Err(message)
 }
 
-fn chapter_progress(
-    stage_code: &str,
-    phase_kind: ProgressPhaseKind,
-    message: &str,
-) -> ProgressEvent {
-    ProgressEvent {
-        stage_code: stage_code.to_string(),
-        phase_kind,
-        message: message.to_string(),
-        current: None,
-        total: None,
-        unit_label: None,
-        item_key: None,
-        item_index: None,
-        item_total: None,
-        severity: ProgressSeverity::Info,
-        estimated: false,
+fn chapter_generation_failure_outcome(
+    status: GenerationTaskStatus,
+) -> crate::workflow::WorkflowRunFinalizeOutcome {
+    if status == GenerationTaskStatus::Cancelling {
+        crate::workflow::WorkflowRunFinalizeOutcome::Cancelled
+    } else {
+        crate::workflow::WorkflowRunFinalizeOutcome::Failed
     }
 }
 
@@ -1014,4 +977,21 @@ fn check_cancelled(cancel_token: &CancellationToken) -> Result<(), String> {
         .is_cancelled()
         .then(|| AppError::Cancelled.to_string())
         .map_or(Ok(()), Err)
+}
+
+#[cfg(test)]
+mod cancellation_tests {
+    use super::*;
+
+    #[test]
+    fn cancelling_generation_finalizes_workflow_as_cancelled() {
+        assert_eq!(
+            chapter_generation_failure_outcome(GenerationTaskStatus::Cancelling),
+            crate::workflow::WorkflowRunFinalizeOutcome::Cancelled,
+        );
+        assert_eq!(
+            chapter_generation_failure_outcome(GenerationTaskStatus::Running),
+            crate::workflow::WorkflowRunFinalizeOutcome::Failed,
+        );
+    }
 }

@@ -97,7 +97,6 @@ export function extractErrorMessage(err: unknown, defaultMessage = "Unknown erro
 
 /** 全局未授权事件名；store/auth 订阅后统一清理登录状态 */
 export const AUTH_UNAUTHORIZED_EVENT = "a4n-auth-unauthorized";
-export { isTauriRuntime } from "./runtime";
 
 export class ApiUnauthorizedError extends Error {
   constructor(message = "未登录") {
@@ -117,6 +116,15 @@ type WebAuthTokenPair = {
 };
 
 let webAuthRefreshPromise: Promise<boolean> | null = null;
+
+function generationRequestBody(
+  args?: Record<string, unknown>,
+): Record<string, unknown> {
+  const input = (args?.input ?? {}) as Record<string, unknown>;
+  return args?.runtime_config_snapshot == null
+    ? input
+    : { ...input, runtime_config_snapshot: args.runtime_config_snapshot };
+}
 
 async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   switch (cmd) {
@@ -243,67 +251,67 @@ async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promis
     case "start_chapter_generation":
       return webRequest<T>("/generation-tasks/chapter", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_inspiration_generation":
       return webRequest<T>("/generation-tasks/inspiration", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_blueprint_generation":
       return webRequest<T>("/generation-tasks/blueprint", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_blueprint_refinement":
       return webRequest<T>("/generation-tasks/blueprint-refinement", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_outline_generation":
       return webRequest<T>("/generation-tasks/outline", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_portrait_generation":
       return webRequest<T>("/generation-tasks/portrait", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_image_generation":
       return webRequest<T>("/generation-tasks/image", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_video_generation":
       return webRequest<T>("/generation-tasks/video", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_optimize_chat_generation":
       return webRequest<T>("/generation-tasks/optimize-chat", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_optimize_analysis_generation":
       return webRequest<T>("/generation-tasks/optimize-analysis", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     case "start_optimize_patch_generation":
       return webRequest<T>("/generation-tasks/optimize-patch", {
         method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
+        body: generationRequestBody(args),
         auth: true,
       });
     default:

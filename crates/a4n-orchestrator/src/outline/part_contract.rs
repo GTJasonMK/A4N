@@ -24,7 +24,10 @@ pub use persistence::{
 };
 #[cfg(test)]
 pub use plan::validate_part_generation_inputs;
-pub use plan::{resolve_part_generation_plan, validate_existing_parts_for_plan};
+pub use plan::{
+    infer_chapters_per_part_from_existing, resolve_part_generation_plan,
+    validate_existing_parts_for_plan,
+};
 pub use prompt::{PART_GENERATION_OUTPUT_CONTRACT, part_generation_manifest_user_message};
 pub use validation::{
     ensure_continue_part_request, ensure_no_part_outline_conflict, validate_part_outline_request,

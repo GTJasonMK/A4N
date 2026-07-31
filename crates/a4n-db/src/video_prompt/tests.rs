@@ -184,14 +184,24 @@ fn prompt_sync_video_prompt_requires_shared_segment_plan_source() {
     let mut valid = sync_draft(1, 2, "video_prompt", "first_frame_chain", 1);
     valid.fields.metadata_json = Some(json!({
         "source_prompt_type": "frame_segment_plan",
-        "source": {"content_sha256": "same-source"}
+        "source": {"content_sha256": "same-source"},
+        "video_execution_identity": {
+            "segment_plan_prompt_id": 10,
+            "segment_number": 1,
+            "segment_recipe_fingerprint": "recipe-1"
+        }
     }));
     validate_prompt_sync_draft(1, 2, &valid).unwrap();
 
     let mut invalid = valid;
     invalid.fields.metadata_json = Some(json!({
         "source_prompt_type": "unknown_segment_plan",
-        "source": {"content_sha256": "same-source"}
+        "source": {"content_sha256": "same-source"},
+        "video_execution_identity": {
+            "segment_plan_prompt_id": 10,
+            "segment_number": 1,
+            "segment_recipe_fingerprint": "recipe-1"
+        }
     }));
     let err = validate_prompt_sync_draft(1, 2, &invalid)
         .expect_err("video_prompt must use shared segment source");

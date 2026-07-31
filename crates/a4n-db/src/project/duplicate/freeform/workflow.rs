@@ -3,7 +3,7 @@ use chrono::NaiveDateTime;
 use sea_orm::ConnectionTrait;
 
 use super::{
-    FreeformCopyMaps, FreeformProjectMediaCopyResult, FreeformProjectMediaFileCopier,
+    FreeformCopyMaps, FreeformProjectMediaCopyResult,
     canvas::{
         copy_freeform_canvas_graphs_record, copy_freeform_canvas_text_assets_record,
         copy_freeform_generation_specs_record,
@@ -24,6 +24,7 @@ use crate::project::duplicate::{
         copy_derived_generation_spec_media_refs, copy_derived_media_bindings,
         copy_derived_prompt_artifacts,
     },
+    shared::ProjectMediaFileCopier,
 };
 
 pub async fn duplicate_freeform_project_record<C, Copier>(
@@ -36,7 +37,7 @@ pub async fn duplicate_freeform_project_record<C, Copier>(
 ) -> Result<novel_project::Model, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: FreeformProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier,
 {
     ensure_freeform_source_mode(&original.source_mode)?;
 

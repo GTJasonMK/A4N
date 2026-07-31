@@ -1,4 +1,5 @@
 use super::{
+    completion::completed_video_write_is_idempotent,
     error::normalize_generated_video_error_message,
     waiting::validate_generated_video_waiting_status,
 };
@@ -31,5 +32,25 @@ fn generated_video_error_message_is_trimmed_and_must_not_be_blank() {
     assert!(matches!(
         err,
         VideoDbError::InvalidArgument(message) if message == "视频失败原因不能为空"
+    ));
+}
+
+#[test]
+fn completed_video_write_is_idempotent_only_for_the_adopted_file() {
+    assert!(
+        completed_video_write_is_idempotent("running", None, "new.mp4").is_ok_and(|same| !same)
+    );
+    assert!(
+        completed_video_write_is_idempotent("completed", Some("adopted.mp4"), "adopted.mp4")
+            .is_ok_and(|same| same)
+    );
+    assert!(matches!(
+        completed_video_write_is_idempotent(
+            "completed",
+            Some("adopted.mp4"),
+            "duplicate.mp4"
+        ),
+        Err(VideoDbError::InvalidState { current, operation })
+            if current == "completed" && operation == "用不同文件重复完成视频生成"
     ));
 }

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Loader2 } from "lucide-react";
+import { Eye } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   previewGenerateAgeVariantRequest,
@@ -184,7 +185,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
             >
               {busy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" /> 生成中…
+                  <LoadingSpinner size="sm" /> 生成中…
                 </span>
               ) : (
                 "生成变体"

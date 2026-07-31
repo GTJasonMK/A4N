@@ -232,7 +232,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
             .await
     });
     tokio::time::timeout(Duration::from_secs(5), async {
-        while backpressure_rx.len() == 0 {
+        while backpressure_rx.is_empty() {
             tokio::task::yield_now().await;
         }
     })
@@ -355,7 +355,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
             .await
     });
     tokio::time::timeout(Duration::from_secs(5), async {
-        while event_rx.len() == 0 {
+        while event_rx.is_empty() {
             tokio::task::yield_now().await;
         }
     })

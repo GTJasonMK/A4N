@@ -30,6 +30,11 @@ SIDECAR_PACKAGES=(
     "a4n-import-service"
     "a4n-export-service"
 )
+TOOL_SPECS=(
+    "a4n-cli:a4n"
+    "a4n-server:a4n-server"
+    "a4n-migration:a4n-migration"
+)
 
 BUILD_MODE="release"
 TARGET_TRIPLE=""
@@ -152,7 +157,11 @@ if ! $SKIP_BUILD && ! $DRY_RUN; then
     guard_build_cache
 fi
 
-for package in "${SIDECAR_PACKAGES[@]}"; do
+prepare_external_binary() {
+    local package="$1"
+    local binary_name="$2"
+    local cargo_args source_binary target_binary runtime_dependency
+
     cargo_args=(cargo build -p "$package")
     if [[ "$BUILD_MODE" == "release" ]]; then
         cargo_args+=(--release)
@@ -175,16 +184,18 @@ for package in "${SIDECAR_PACKAGES[@]}"; do
         log_info "build $package: skipped (--no-build)"
     fi
 
-    source_binary="$PROFILE_DIR/${package}${BINARY_EXT}"
-    target_binary="$EXTERNAL_BIN_DIR/${package}-${TARGET_TRIPLE}${BINARY_EXT}"
+    source_binary="$PROFILE_DIR/${binary_name}${BINARY_EXT}"
+    target_binary="$EXTERNAL_BIN_DIR/${binary_name}-${TARGET_TRIPLE}${BINARY_EXT}"
     if $DRY_RUN; then
         log_info "copy $package:"
         print_command cp "$source_binary" "$target_binary"
         log_ok "$(basename "$target_binary")"
     else
-        [[ -f "$source_binary" ]] || die "缺少 sidecar 二进制: $source_binary"
+        [[ -f "$source_binary" ]] || die "缺少 externalBin 二进制: $source_binary"
         cp "$source_binary" "$target_binary"
-        chmod +x "$target_binary" 2>/dev/null || true
+        if [[ "$TARGET_TRIPLE" != *-windows-* ]]; then
+            chmod +x "$target_binary"
+        fi
         if [[ "$TARGET_TRIPLE" == *-apple-darwin && "$package" == "a4n-embedding-service" ]]; then
             runtime_dependency="$(otool -L "$target_binary" | awk '/libonnxruntime.*dylib/ { print $1; exit }')"
             [[ -n "$runtime_dependency" ]] || die "embedding sidecar 未链接 ONNX Runtime"
@@ -193,6 +204,13 @@ for package in "${SIDECAR_PACKAGES[@]}"; do
         fi
         log_ok "$(basename "$target_binary")"
     fi
+}
+
+for package in "${SIDECAR_PACKAGES[@]}"; do
+    prepare_external_binary "$package" "$package"
+done
+for spec in "${TOOL_SPECS[@]}"; do
+    prepare_external_binary "${spec%%:*}" "${spec#*:}"
 done
 
 runtime_source="$(onnxruntime_root)/lib/$RUNTIME_NAME"

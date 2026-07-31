@@ -3,7 +3,7 @@ use a4n_core::models::task::task_queue;
 use sea_orm::sea_query::Expr;
 use sea_orm::{ActiveModelTrait, DbBackend, Statement, TransactionTrait};
 
-use super::mutations::upsert_workflow_run;
+use super::mutations::upsert_workflow_run_in_transaction;
 use super::validation::validate_workflow_run_input;
 
 pub async fn claim_exclusive_workflow_run(
@@ -33,7 +33,7 @@ pub async fn claim_exclusive_workflow_run(
             running.id, running.workflow_kind, current_step_key, active_task_id
         )));
     }
-    let run = upsert_workflow_run(db, input.run).await?;
+    let run = upsert_workflow_run_in_transaction(&tx, input.run).await?;
     persist_claimed_video_task(&tx, &run).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(run)
@@ -112,10 +112,21 @@ async fn persist_claimed_video_task(
         .await
         .map_err(WorkflowWriteError::Database)?
     {
-        if existing.workflow_run_id.is_some_and(|id| id != run.id) {
-            return Err(WorkflowWriteError::InvalidArgument(format!(
-                "视频任务 {task_id} 已绑定其他工作流"
-            )));
+        if let Some(previous_run_id) = existing.workflow_run_id.filter(|id| *id != run.id) {
+            let previous = workflow_run::Entity::find_by_id(previous_run_id)
+                .one(tx)
+                .await
+                .map_err(WorkflowWriteError::Database)?
+                .ok_or_else(|| {
+                    WorkflowWriteError::InvalidData(format!(
+                        "视频任务 {task_id} 绑定的工作流 {previous_run_id} 不存在"
+                    ))
+                })?;
+            if previous.status != WORKFLOW_STATUS_COMPLETED {
+                return Err(WorkflowWriteError::InvalidArgument(format!(
+                    "视频任务 {task_id} 已绑定未完成工作流 {previous_run_id}"
+                )));
+            }
         }
         if is_terminal_task_status(&existing.status) {
             return Err(WorkflowWriteError::InvalidArgument(format!(
@@ -230,6 +241,7 @@ async fn running_video_generation_workflow(
         .filter(workflow_run::Column::Status.eq(WORKFLOW_STATUS_RUNNING))
         .order_by_desc(workflow_run::Column::UpdatedAt)
         .order_by_desc(workflow_run::Column::Id)
+        .lock_exclusive()
         .one(tx)
         .await
         .map_err(WorkflowWriteError::Database)

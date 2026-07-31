@@ -8,7 +8,10 @@
       "../../target/tauri-sidecars/a4n-image-service",
       "../../target/tauri-sidecars/a4n-video-service",
       "../../target/tauri-sidecars/a4n-import-service",
-      "../../target/tauri-sidecars/a4n-export-service"
+      "../../target/tauri-sidecars/a4n-export-service",
+      "../../target/tauri-sidecars/a4n",
+      "../../target/tauri-sidecars/a4n-server",
+      "../../target/tauri-sidecars/a4n-migration"
     ],
     "resources": {
       "../../target/tauri-sidecars/*onnxruntime*": "",

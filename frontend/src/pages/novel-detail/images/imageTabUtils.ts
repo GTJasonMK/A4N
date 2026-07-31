@@ -50,7 +50,7 @@ function getImageSource(metadata: unknown): Record<string, unknown> | null {
   return asRecord(source);
 }
 
-export function getImageSourceHash(metadata: unknown): string | null {
+function getImageSourceHash(metadata: unknown): string | null {
   const hash = getImageSource(metadata)?.content_sha256;
   return typeof hash === "string" && hash.trim() ? hash.trim() : null;
 }

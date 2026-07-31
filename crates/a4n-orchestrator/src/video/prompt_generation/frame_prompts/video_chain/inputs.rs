@@ -20,6 +20,7 @@ pub(super) fn select_boundary_video_prompt_inputs(
     duration_secs: i32,
     allowed_reference_ids: &HashSet<i64>,
     label: &str,
+    target_segment_number: Option<i32>,
 ) -> Result<(Vec<VideoFramePrompt>, Vec<VideoUnitPlan>), AppError> {
     let actual_frame_count = frame_rows.len();
     let prompts = frame_prompts_from_rows(&frame_rows)?;
@@ -43,7 +44,25 @@ pub(super) fn select_boundary_video_prompt_inputs(
         })
         .collect::<Result<HashMap<_, _>, AppError>>()?;
 
-    let units = video_units_for_segment_plan(segment_plan, duration_secs)?;
+    let mut units = video_units_for_segment_plan(segment_plan, duration_secs)?;
+    let target_end_frame_number = target_segment_number
+        .map(|target| {
+            target.checked_add(1).ok_or_else(|| {
+                AppError::InvalidArgument("目标片段编号超过边界帧可表示范围".to_string())
+            })
+        })
+        .transpose()?;
+    if let Some(target_segment_number) = target_segment_number {
+        if units.len() != 1 {
+            return Err(AppError::InvalidArgument(
+                "片段卡片首尾帧只能绑定一个目标视频单元".to_string(),
+            ));
+        }
+        units[0].unit_number = target_segment_number;
+        units[0].prompt_segment.segment_number = target_segment_number;
+        units[0].start_frame_number = Some(1);
+        units[0].end_frame_number = Some(2);
+    }
     let mut selected_units = Vec::new();
     let mut selected_frame_numbers = BTreeSet::new();
     for unit in units {
@@ -82,10 +101,27 @@ pub(super) fn select_boundary_video_prompt_inputs(
         )));
     }
 
-    let selected_frames = prompts
+    let mut selected_frames = prompts
         .into_iter()
         .filter(|frame| selected_frame_numbers.contains(&frame.frame_number))
         .collect::<Vec<_>>();
+    if let (Some(target_segment_number), Some(target_end_frame_number)) =
+        (target_segment_number, target_end_frame_number)
+    {
+        selected_units[0].start_frame_number = Some(target_segment_number);
+        selected_units[0].end_frame_number = Some(target_end_frame_number);
+        for frame in &mut selected_frames {
+            frame.frame_number = match frame.frame_number {
+                1 => target_segment_number,
+                2 => target_end_frame_number,
+                actual => {
+                    return Err(AppError::InvalidArgument(format!(
+                        "目标片段首尾帧只允许本地编号 1/2，实际为 {actual}"
+                    )));
+                }
+            };
+        }
+    }
     Ok((selected_frames, selected_units))
 }
 
@@ -177,5 +213,46 @@ pub(super) fn video_prompt_chain_input<'a, 'source>(
         variables,
         options,
         cancel_token,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::video::prompt_generation::frame_prompts::tests::{
+        boundary_frame, row_for_boundary_frame, segment,
+    };
+
+    #[test]
+    fn targeted_boundary_inputs_keep_target_segment_identity() {
+        let target_segment = segment(2);
+        let rows = vec![
+            row_for_boundary_frame(1, boundary_frame(1, Vec::new(), vec![2])),
+            row_for_boundary_frame(2, boundary_frame(2, Vec::new(), vec![2])),
+        ];
+
+        let (frames, units) = select_boundary_video_prompt_inputs(
+            rows,
+            std::slice::from_ref(&target_segment),
+            target_segment.duration_secs,
+            &HashSet::new(),
+            "边界帧提示词",
+            Some(2),
+        )
+        .expect("target segment 2 should use its two local boundary frames");
+
+        assert_eq!(
+            frames
+                .iter()
+                .map(|frame| frame.frame_number)
+                .collect::<Vec<_>>(),
+            [2, 3]
+        );
+        assert_eq!(units.len(), 1);
+        assert_eq!(units[0].unit_number, 2);
+        assert_eq!(units[0].prompt_segment.segment_number, 2);
+        assert_eq!(units[0].source_segment_numbers(), [2]);
+        assert_eq!(units[0].start_frame_number, Some(2));
+        assert_eq!(units[0].end_frame_number, Some(3));
     }
 }

@@ -3,7 +3,7 @@ pub use a4n_orchestrator::character::CHARACTER_PROFILE_SYNC_STEPS;
 
 #[derive(Clone, Copy)]
 pub(super) struct CharacterProgressScope<'a> {
-    progress: Option<&'a CharacterAiProgress<'a>>,
+    pub(super) progress: Option<&'a CharacterAiProgress<'a>>,
     base: u32,
     span: u32,
     total: u32,

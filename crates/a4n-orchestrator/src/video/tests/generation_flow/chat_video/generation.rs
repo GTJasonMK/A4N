@@ -1,5 +1,5 @@
 #[tokio::test]
-async fn chat_video_prompt_generation_writes_copyable_prompts_after_frame_stage() {
+async fn chat_video_prompt_generation_writes_copyable_prompts_after_segment_plan() {
     let db = Arc::new(setup_db().await);
     let llm_switch = SwitchableLlmProvider::new();
     let service =
@@ -8,12 +8,12 @@ async fn chat_video_prompt_generation_writes_copyable_prompts_after_frame_stage(
     let engine = TeraPromptEngine::from_directory(&prompts_dir()).unwrap();
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
-    generate_chat_video_frame_prompt_stage(&service, &llm_switch, project.id, chapter.id, &engine)
+    generate_chat_video_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine)
         .await;
     let llm = SequenceLlmProvider::new_owned(serial_chat_video_shot_replies());
     let mut progress_events = Vec::new();
-    let mut progress = |current: u32, total: u32, message: &str| -> Result<(), AppError> {
-        progress_events.push((current, total, message.to_string()));
+    let mut progress = |update: VideoPromptProgressUpdate| -> Result<(), AppError> {
+        progress_events.push((update.current, update.total, update.message));
         Ok(())
     };
 
@@ -97,7 +97,7 @@ async fn chat_video_prompt_generation_writes_copyable_prompts_after_frame_stage(
         .count(db.as_ref())
         .await
         .unwrap();
-    assert_eq!(frame_stage_count, 3);
+    assert_eq!(frame_stage_count, 0);
 
     let segment_plan_count = chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter.id))
@@ -142,15 +142,6 @@ async fn chat_video_prompt_generation_reuses_shared_segment_plan_when_available(
         )
         .await
         .unwrap();
-    generate_chat_video_frame_prompt_stage_from_existing_plan(
-        &service,
-        &llm_switch,
-        project.id,
-        chapter.id,
-        &engine,
-    )
-    .await;
-
     let rows = service
         .generate_chapter_chat_video_prompts(
             prompt_stage_input(

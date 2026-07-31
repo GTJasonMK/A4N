@@ -48,26 +48,13 @@ impl OrchestratorContext {
             .await;
 
         if workflow.owned {
-            let error_message = result.as_ref().err().map(ToString::to_string);
-            if let Err(finalize_error) = self
-                .finalize_workflow_run_validated(
+            return self
+                .finalize_workflow_result(
                     workflow.workflow_run_id,
-                    result.is_ok(),
-                    error_message.as_deref(),
+                    result,
+                    Some("图片生成完成"),
                 )
-                .await
-            {
-                return match result {
-                    Ok(_) => Err(AppError::InvalidState {
-                        current: "image_generated".to_string(),
-                        operation: format!("图片生成完成，但工作流状态写入失败: {finalize_error}"),
-                    }),
-                    Err(error) => Err(append_secondary_error(
-                        error,
-                        format!("工作流失败状态写入失败: {finalize_error}"),
-                    )),
-                };
-            }
+                .await;
         }
         result
     }
@@ -160,10 +147,7 @@ impl OrchestratorContext {
 
         progress
             .check_cancelled()
-            .map_err(|message| AppError::InvalidState {
-                current: "running".to_string(),
-                operation: message,
-            })?;
+            .map_err(|_| AppError::Cancelled)?;
         let provider_output = host_port
             .generate_image(
                 ImageGenerationProviderInput {
@@ -175,12 +159,11 @@ impl OrchestratorContext {
                 progress,
             )
             .await?;
+        let (actual_width, actual_height) =
+            crate::media::image_dimensions_from_bytes(&provider_output.bytes)?;
         progress
             .check_cancelled()
-            .map_err(|message| AppError::InvalidState {
-                current: "running".to_string(),
-                operation: message,
-            })?;
+            .map_err(|_| AppError::Cancelled)?;
 
         let created_at = chrono::Utc::now().naive_utc();
         let metadata_json = attach_image_generation_trace(
@@ -193,8 +176,8 @@ impl OrchestratorContext {
                 provider_model: &provider_output.model,
                 chapter_id: input.chapter_id,
                 panel_id: input.panel_id.as_deref(),
-                width: input.width,
-                height: input.height,
+                width: actual_width,
+                height: actual_height,
                 generated_at: created_at,
                 runtime_config_snapshot: input.runtime_config_snapshot.clone(),
             },
@@ -218,8 +201,8 @@ impl OrchestratorContext {
                     file_path: persisted.relative_path.clone(),
                     prompt: input.request.prompt.clone(),
                     model: provider_output.model.clone(),
-                    width: input.width,
-                    height: input.height,
+                    width: actual_width,
+                    height: actual_height,
                     file_size: Some(persisted.file_size),
                     chapter_id: input.chapter_id,
                     panel_id: input.panel_id.clone(),
@@ -367,7 +350,15 @@ impl OrchestratorContext {
                 .remove_generated_image_file(&path, "旧漫画页图片")
                 .await?;
         }
-        host_port.sync_project_asset_lineage(input.project_id).await
+        if let Err(error) = host_port.sync_project_asset_lineage(input.project_id).await {
+            tracing::error!(
+                project_id = input.project_id,
+                image_id = outcome.summary.id,
+                error = %error,
+                "图片权威数据已提交，资产谱系同步失败"
+            );
+        }
+        Ok(())
     }
 }
 

@@ -92,7 +92,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
           embeddedInModal ? "pt-0" : ""
         }`}
       >
-        <span className="text-[11px] text-book-text-muted">
+        <span className="text-small text-book-text-muted">
           {activeNumber != null ? `第 ${activeNumber} 章` : "尚未选择章节"}
         </span>
         <SegmentedControl

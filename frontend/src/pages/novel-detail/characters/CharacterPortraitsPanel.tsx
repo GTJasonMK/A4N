@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import { listProfiles, type CharacterProfile } from "../../../api/character";
 import {
@@ -345,7 +345,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   if (displayLoading) {
     return (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
-        <Loader2 size={12} className="animate-spin" /> 加载人物三视图拆解…
+        <LoadingSpinner size="sm" /> 加载人物三视图拆解…
       </div>
     );
   }

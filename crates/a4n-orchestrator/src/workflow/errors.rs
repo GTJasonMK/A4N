@@ -1,4 +1,7 @@
-use super::{WorkflowCheckpointContractError, WorkflowReadError, WorkflowWriteError};
+use super::{
+    WORKFLOW_STATUS_CANCELLED, WorkflowCheckpointContractError, WorkflowReadError,
+    WorkflowWriteError,
+};
 use a4n_core::error::AppError;
 
 pub(crate) fn workflow_checkpoint_contract_app_error(
@@ -32,6 +35,17 @@ pub(crate) fn workflow_write_app_error(error: WorkflowWriteError) -> AppError {
         WorkflowWriteError::InvalidArgument(message) => AppError::InvalidArgument(message),
         WorkflowWriteError::NotFound(message) => AppError::NotFound(message),
         WorkflowWriteError::InvalidData(message) => AppError::Internal(anyhow::anyhow!(message)),
+        WorkflowWriteError::StatusConflict {
+            current,
+            operation: _,
+        }
+            if current == WORKFLOW_STATUS_CANCELLED =>
+        {
+            AppError::Cancelled
+        }
+        WorkflowWriteError::StatusConflict { current, operation } => {
+            AppError::InvalidState { current, operation }
+        }
         WorkflowWriteError::Database(error) => AppError::Database(error),
     }
 }
@@ -83,5 +97,15 @@ mod tests {
             }
             other => panic!("expected not found, got {other}"),
         }
+    }
+
+    #[test]
+    fn cancelled_workflow_status_conflict_stays_cancelled() {
+        let error = workflow_write_app_error(WorkflowWriteError::StatusConflict {
+            current: WORKFLOW_STATUS_CANCELLED.to_string(),
+            operation: "完成工作流".to_string(),
+        });
+
+        assert!(matches!(error, AppError::Cancelled));
     }
 }

@@ -5,7 +5,6 @@ import { idNum, type ApiId as Id } from "./shared";
 import { generationClient } from "./generationTasks";
 import type {
   GenerationTaskHandle,
-  OutlineGenerationOperation,
   StartOutlineGenerationInput,
 } from "./generated/generationContracts";
 
@@ -74,7 +73,6 @@ export async function listParts(projectId: Id): Promise<PartOutline[]> {
 }
 
 export type OutlineGenerationInput = Omit<StartOutlineGenerationInput, "meta">;
-export type { OutlineGenerationOperation };
 
 export async function startOutlineGeneration(
   input: OutlineGenerationInput,

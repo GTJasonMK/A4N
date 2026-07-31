@@ -56,7 +56,7 @@ impl OrchestratorContext {
         let result = self
             .execute_manga_prompt_optimization(workflow_run.id, prepared, cleanup_port)
             .await;
-        self.finalize_manga_prompt_optimization(workflow_run.id, result)
+        self.finalize_workflow_result(workflow_run.id, result, Some("漫画提示词优化完成"))
             .await
     }
 
@@ -99,14 +99,12 @@ impl OrchestratorContext {
         mut prepared: PreparedMangaPromptOptimization,
         cleanup_port: &dyn MangaPromptDownstreamCleanupPort,
     ) -> MangaPromptOptimizationResult {
-        let input_fingerprint_sha256 =
-            workflow::llm_call_checkpoint_fingerprint_sha256(&prepared.input_fingerprint_json)
-                .map_err(workflow_checkpoint_contract_app_error)?;
-        if let Some(trace_context) = prepared.request.trace_context.as_mut() {
-            trace_context.workflow_run_id = Some(workflow_run_id);
-            trace_context.call_key = Some(prepared.call_key.clone());
-            trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
-        }
+        workflow::attach_llm_call_checkpoint_trace(
+            &mut prepared.request,
+            workflow_run_id,
+            &prepared.call_key,
+            &prepared.input_fingerprint_json,
+        )?;
         self.mark_workflow_current_step(workflow_run_id, &prepared.call_key)
             .await?;
         let image_prompt = self
@@ -158,7 +156,7 @@ impl OrchestratorContext {
                 let response = self
                     .stream_complete_llm(request)
                     .await
-                    .map_err(|err| AppError::LlmError(format!("优化漫画提示词失败: {err}")))?;
+                    .map_err(manga_prompt_optimization_llm_error)?;
                 if is_truncated_finish_reason(response.finish_reason.as_deref()) {
                     return Err(AppError::InvalidArgument(
                         "优化漫画提示词输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“媒体提示词”输出档位，或缩短本次提示词后重试".to_string(),
@@ -231,28 +229,12 @@ impl OrchestratorContext {
         }
         Ok(image_prompt)
     }
+}
 
-    async fn finalize_manga_prompt_optimization(
-        &self,
-        workflow_run_id: i64,
-        result: MangaPromptOptimizationResult,
-    ) -> MangaPromptOptimizationResult {
-        let (success, error_message) = match &result {
-            Ok(_) => (true, None),
-            Err(error) => (false, Some(error.to_string())),
-        };
-        let status_result = self
-            .finalize_workflow_run_validated(workflow_run_id, success, error_message.as_deref())
-            .await;
-        match (result, status_result) {
-            (result, Ok(_)) => result,
-            (Ok(_), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
-                "漫画提示词优化完成，但工作流状态写入失败: {status_error}"
-            ))),
-            (Err(primary), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
-                "{primary}；工作流失败状态写入失败: {status_error}"
-            ))),
-        }
+pub(super) fn manga_prompt_optimization_llm_error(error: AppError) -> AppError {
+    match error {
+        AppError::Cancelled => AppError::Cancelled,
+        other => AppError::LlmError(format!("优化漫画提示词失败: {other}")),
     }
 }
 

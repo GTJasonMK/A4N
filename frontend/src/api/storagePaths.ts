@@ -5,7 +5,6 @@ import type {
 } from "./generated/host";
 
 export type {
-  OrphanProjectDataDirSummary,
   OrphanProjectDataDirsSummary,
   StoragePathsSummary,
 } from "./generated/host";

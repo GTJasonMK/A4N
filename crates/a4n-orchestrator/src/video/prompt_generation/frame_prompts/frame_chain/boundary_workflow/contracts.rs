@@ -101,6 +101,7 @@ pub(super) struct BoundaryIterationInput<'a, 'progress> {
     pub(super) generated_this_run: usize,
     pub(super) regenerate_existing: bool,
     pub(super) current_frame_count: usize,
+    pub(super) next_frame_number: Option<i32>,
     pub(super) kept_prompt_ids: &'a BTreeSet<i64>,
     pub(super) progress: &'a mut Option<VideoPromptProgress<'progress>>,
 }

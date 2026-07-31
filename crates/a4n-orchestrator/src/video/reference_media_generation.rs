@@ -16,8 +16,12 @@ use super::{
     VideoProviderExecutionInput, VideoProviderHostPort, VideoProviderRequestBody,
     VideoProviderRequestInput, VideoProviderValidationMode, provider_request_snapshot_value,
     reference_media_rules::{
+        MAX_SEEDANCE2_AUDIO_FILES, MAX_SEEDANCE2_IMAGE_FILES, MAX_SEEDANCE2_VIDEO_FILES,
         PreparedReferenceMediaVideoRequest, ReferenceMediaVideoInput,
-        build_reference_media_video_request, reference_media_provider_request_note,
+        ResolvedReferenceMediaVideoInput, build_reference_media_video_request,
+        reference_media_prompt_from_recipe, reference_media_provider_request_note,
+        reference_media_upload_slot_count, resolve_reference_media_urls,
+        validate_reference_media_upload_identity,
     },
 };
 
@@ -81,8 +85,9 @@ pub trait ReferenceMediaVideoGenerationHostPort: Send + Sync {
 struct PreparedReferenceMediaVideoGeneration {
     project_id: i64,
     chapter_id: i64,
-    segment_prompt_id: i64,
+    segment_plan_prompt_id: i64,
     shot_number: i32,
+    video_execution_identity: Value,
     config: video_gen_config::Model,
     request: VideoGenerationRequest,
     provider_input_note: Option<String>,
@@ -113,7 +118,7 @@ impl OrchestratorContext {
             })
             .await?;
         let note = reference_media_provider_request_note(
-            &format!("当前表单；{}", body.source_label),
+            &format!("当前片段执行方案；{}", body.source_label),
             &prepared.config,
             &prepared.request,
             prepared.provider_input_note.as_deref(),
@@ -131,12 +136,8 @@ impl OrchestratorContext {
         input: GenerateReferenceMediaVideoInput,
         progress: &mut VideoGenerationProgress<'_>,
     ) -> Result<generated_video::Model, AppError> {
-        progress
-            .progress(1, VIDEO_GENERATION_PROGRESS_TOTAL, "正在校验参考媒体请求")
-            .map_err(AppError::InvalidArgument)?;
-        progress
-            .check_cancelled("参考媒体视频生成已停止")
-            .map_err(AppError::InvalidArgument)?;
+        progress.progress(1, VIDEO_GENERATION_PROGRESS_TOTAL, "正在校验参考媒体请求")?;
+        progress.check_cancelled("参考媒体视频生成已停止")?;
         let prepared = self
             .prepare_reference_media_video_generation(
                 host_port,
@@ -149,12 +150,8 @@ impl OrchestratorContext {
         self.ensure_video_capacity(prepared.config.id, prepared.config.max_concurrent)
             .await?;
 
-        progress
-            .progress(2, VIDEO_GENERATION_PROGRESS_TOTAL, "正在创建视频生成记录")
-            .map_err(AppError::InvalidArgument)?;
-        progress
-            .check_cancelled("参考媒体视频生成已停止")
-            .map_err(AppError::InvalidArgument)?;
+        progress.progress(2, VIDEO_GENERATION_PROGRESS_TOTAL, "正在创建视频生成记录")?;
+        progress.check_cancelled("参考媒体视频生成已停止")?;
         let request_body = host_port
             .reference_media_provider_request_body(VideoProviderRequestInput {
                 project_id: prepared.project_id,
@@ -183,8 +180,9 @@ impl OrchestratorContext {
                 AppError::InvalidArgument("参考媒体请求缺少 reference_media".into())
             })?;
         let metadata = json!({
-            "prompt_id": prepared.segment_prompt_id,
+            "segment_plan_prompt_id": prepared.segment_plan_prompt_id,
             "shot_number": prepared.shot_number,
+            "video_execution_identity": prepared.video_execution_identity,
             "config_id": prepared.config.id,
             "provider_backend": prepared.config.backend,
             "reference_media": {
@@ -220,7 +218,8 @@ impl OrchestratorContext {
                 step_key: "generate_reference_media_video".to_string(),
                 title: "参考媒体视频 provider 生成".to_string(),
                 prompt_template_name: Some("reference_media_video".to_string()),
-                prompt_id: Some(prepared.segment_prompt_id),
+                // 共享片段规划可生成多个候选视频，不参与一对一 prompt 生命周期。
+                prompt_id: None,
             })
             .await?;
         if let Err(error) = self
@@ -236,13 +235,11 @@ impl OrchestratorContext {
                 .await;
         }
 
-        progress
-            .progress(3, VIDEO_GENERATION_PROGRESS_TOTAL, "正在调用 Seedance 2.0")
-            .map_err(AppError::InvalidArgument)?;
-        if let Err(message) = progress.check_cancelled("参考媒体视频生成已停止") {
-            return self
-                .mark_generated_video_failed_validated(video.id, None, &message)
-                .await;
+        progress.progress(3, VIDEO_GENERATION_PROGRESS_TOTAL, "正在调用 Seedance 2.0")?;
+        if progress.check_cancelled("参考媒体视频生成已停止").is_err() {
+            self.mark_generated_video_cancelled_validated(video.id, None, "参考媒体视频生成已停止")
+                .await?;
+            return Err(AppError::Cancelled);
         }
         let mut provider_input = VideoProviderRequestInput {
             project_id: prepared.project_id,
@@ -262,40 +259,35 @@ impl OrchestratorContext {
             .submit_reference_media_video(provider_input, progress)
             .await
             .map_err(|error| error.to_string());
-        if let Ok(result) = &result {
-            if let Some(job_id) = result
+        if let Ok(result) = &result
+            && let Some(job_id) = result
                 .provider_job_id
                 .as_deref()
                 .filter(|id| !id.trim().is_empty())
-            {
-                progress
-                    .checkpoint_provider_job(video.id, &prepared.config, job_id)
-                    .await?;
-            }
+        {
+            progress
+                .checkpoint_provider_job(video.id, &prepared.config, job_id)
+                .await?;
         }
         if result.as_ref().is_ok_and(|result| result.bytes.is_empty()) {
-            progress
-                .progress(
-                    4,
-                    VIDEO_GENERATION_PROGRESS_TOTAL,
-                    "Seedance 2.0 已提交异步任务，开始等待生成结果",
-                )
-                .map_err(AppError::InvalidArgument)?;
+            progress.progress(
+                4,
+                VIDEO_GENERATION_PROGRESS_TOTAL,
+                "Seedance 2.0 已提交异步任务，开始等待生成结果",
+            )?;
         } else {
-            progress
-                .progress(
-                    6,
-                    VIDEO_GENERATION_PROGRESS_TOTAL,
-                    "视频模型已返回，正在保存文件",
-                )
-                .map_err(AppError::InvalidArgument)?;
+            progress.progress(
+                6,
+                VIDEO_GENERATION_PROGRESS_TOTAL,
+                "视频模型已返回，正在保存文件",
+            )?;
         }
         let updated = self
             .apply_video_provider_result_validated(
                 VideoProviderExecutionInput {
                     video,
                     config: prepared.config,
-                    prompt_id: Some(prepared.segment_prompt_id),
+                    prompt_id: None,
                     missing_result_message: "Seedance 2.0 未返回文件或任务 ID".to_string(),
                     cancel_token: progress.cancel_token(),
                 },
@@ -303,9 +295,7 @@ impl OrchestratorContext {
                 host_port.video_provider_host_port(),
             )
             .await?;
-        progress
-            .progress(7, VIDEO_GENERATION_PROGRESS_TOTAL, "视频文件已保存")
-            .map_err(AppError::InvalidArgument)?;
+        progress.progress(7, VIDEO_GENERATION_PROGRESS_TOTAL, "视频文件已保存")?;
         Ok(updated)
     }
 
@@ -321,55 +311,82 @@ impl OrchestratorContext {
             user_id,
             project_id,
             chapter_id,
-            mut input,
+            input,
         } = input;
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         self.project_chapter_video_source(project_id, chapter_id, operation, writable)
             .await?;
-        let segment_prompt_id = input.segment_prompt_id;
+        let segment_plan_prompt_id = input.segment_plan_prompt_id;
         let shot_number = input.shot_number;
-        let prompt = self
-            .chapter_video_prompt_for_import(project_id, chapter_id, segment_prompt_id)
+        let plan = self
+            .require_current_shared_segment_plan(project_id, chapter_id, segment_plan_prompt_id)
             .await?;
-        if prompt.shot_number != shot_number {
+        let recipe = a4n_core::video_execution::video_segment_recipe_from_metadata(
+            plan.metadata_json.as_ref(),
+            shot_number,
+        )
+        .map_err(AppError::InvalidArgument)?
+        .ok_or_else(|| {
+            AppError::InvalidArgument(format!("当前规划缺少片段 {shot_number} 的执行方案"))
+        })?;
+        if recipe.workflow_mode.as_str() != "reference_media" {
             return Err(AppError::InvalidArgument(format!(
-                "参考媒体片段序号不匹配：提示词 #{} 属于片段 {}，请求为片段 {}",
-                segment_prompt_id, prompt.shot_number, shot_number
+                "片段 {shot_number} 当前未选择参考媒体方案"
             )));
         }
+        let reference_media = recipe.reference_media.as_ref().ok_or_else(|| {
+            AppError::InvalidArgument(format!("片段 {shot_number} 尚未保存参考媒体提示词和媒体槽"))
+        })?;
+        let plan_identity = plan
+            .metadata_json
+            .as_ref()
+            .and_then(|metadata| metadata.get("video_execution_identity"))
+            .cloned()
+            .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少执行身份".to_string()))?;
+        let video_execution_identity = super::prompt_generation::video_segment_execution_identity(
+            plan_identity,
+            Some(plan.id),
+            Some(&recipe),
+        )?;
         let config = host_port.resolve_video_config(input.config_id).await?;
-        let source_media_id = segment_prompt_id;
+        let source_media_id = segment_plan_prompt_id;
         let mut staging_artifacts = Vec::new();
-        for (kind, uploads, urls) in [
+        let mut uploaded_image_urls = Vec::new();
+        let mut uploaded_video_urls = Vec::new();
+        let mut uploaded_audio_urls = Vec::new();
+        for (kind, uploads, rows, urls) in [
             (
                 "image",
-                std::mem::take(&mut input.image_uploads),
-                &mut input.image_files,
+                input.image_uploads,
+                reference_media.image_rows.as_slice(),
+                &mut uploaded_image_urls,
             ),
             (
                 "video",
-                std::mem::take(&mut input.video_uploads),
-                &mut input.video_files,
+                input.video_uploads,
+                reference_media.video_rows.as_slice(),
+                &mut uploaded_video_urls,
             ),
             (
                 "audio",
-                std::mem::take(&mut input.audio_uploads),
-                &mut input.audio_files,
+                input.audio_uploads,
+                reference_media.audio_rows.as_slice(),
+                &mut uploaded_audio_urls,
             ),
         ] {
-            for upload in uploads {
-                let mime = upload.mime_type.trim().to_ascii_lowercase();
-                if !mime.starts_with(&format!("{kind}/")) {
-                    return Err(AppError::InvalidArgument(format!(
-                        "{kind}_uploads 的 MIME 必须以 {kind}/ 开头"
-                    )));
-                }
+            validate_reference_media_upload_identity(rows, &uploads, kind)
+                .map_err(AppError::InvalidArgument)?;
+            let expected_uploads = reference_media_upload_slot_count(rows);
+            if uploads.len() != expected_uploads {
+                return Err(AppError::InvalidArgument(format!(
+                    "{kind}_uploads 需要 {expected_uploads} 个本地文件，实际提交 {} 个；刷新页面后请重新选择本地文件",
+                    uploads.len()
+                )));
+            }
+            for (index, upload) in uploads.into_iter().enumerate() {
                 if mode == VideoProviderValidationMode::Preview {
-                    urls.push(super::reference_media_preview_placeholder_url(
-                        kind,
-                        urls.len(),
-                    ));
+                    urls.push(super::reference_media_preview_placeholder_url(kind, index));
                     continue;
                 }
                 let (url, artifact) = host_port
@@ -385,16 +402,54 @@ impl OrchestratorContext {
                 staging_artifacts.push(artifact);
             }
         }
+        let image_files = resolve_reference_media_urls(
+            &reference_media.image_rows,
+            uploaded_image_urls,
+            "image_files",
+            MAX_SEEDANCE2_IMAGE_FILES,
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let video_files = resolve_reference_media_urls(
+            &reference_media.video_rows,
+            uploaded_video_urls,
+            "video_files",
+            MAX_SEEDANCE2_VIDEO_FILES,
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let audio_files = resolve_reference_media_urls(
+            &reference_media.audio_rows,
+            uploaded_audio_urls,
+            "audio_files",
+            MAX_SEEDANCE2_AUDIO_FILES,
+        )
+        .map_err(AppError::InvalidArgument)?;
+        if image_files.is_empty() && video_files.is_empty() && audio_files.is_empty() {
+            return Err(AppError::InvalidArgument(
+                "参考媒体方案至少需要一个图片、视频或音频媒体槽".to_string(),
+            ));
+        }
         let PreparedReferenceMediaVideoRequest {
             request,
             provider_input_note,
-        } = build_reference_media_video_request(&config, input, mode)
-            .map_err(AppError::InvalidArgument)?;
+        } = build_reference_media_video_request(
+            &config,
+            ResolvedReferenceMediaVideoInput {
+                prompt: reference_media_prompt_from_recipe(reference_media),
+                image_files,
+                video_files,
+                audio_files,
+                duration_secs: recipe.duration_secs,
+                aspect_ratio: recipe.aspect_ratio.clone(),
+            },
+            mode,
+        )
+        .map_err(AppError::InvalidArgument)?;
         Ok(PreparedReferenceMediaVideoGeneration {
             project_id,
             chapter_id,
-            segment_prompt_id,
+            segment_plan_prompt_id,
             shot_number,
+            video_execution_identity,
             config,
             request,
             provider_input_note,

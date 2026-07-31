@@ -18,7 +18,7 @@ export const StoryEventsSummaryCard: React.FC<StoryEventsSummaryCardProps> = ({
   loading,
   onRefresh,
 }) => (
-  <div className="flex min-h-8 items-center gap-3 text-[11px] text-book-text-muted">
+  <div className="flex min-h-8 items-center gap-3 text-small text-book-text-muted">
     <div className="min-w-0 flex-1 truncate">
       {totalChapters > 0 ? `已分析 ${analyzedChapters}/${totalChapters} 章` : "暂无章节"}
       {eventCount > 0 ? ` · ${eventCount} 个事件` : ""}

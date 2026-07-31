@@ -35,6 +35,18 @@ pub async fn verify_session_refresh_token(
     session_id: &str,
     refresh_token: &str,
 ) -> Result<user_session::Model, AppError> {
+    let session = verify_active_session(db, user_id, session_id).await?;
+    if session.refresh_token_hash != hash_refresh_token(refresh_token) {
+        return Err(AppError::Unauthorized("刷新令牌与会话不匹配".into()));
+    }
+    Ok(session)
+}
+
+pub async fn verify_active_session(
+    db: &DatabaseConnection,
+    user_id: i64,
+    session_id: &str,
+) -> Result<user_session::Model, AppError> {
     let now = Utc::now().naive_utc();
     let session = user_session::Entity::find_by_id(session_id.to_string())
         .filter(user_session::Column::UserId.eq(user_id))
@@ -45,9 +57,6 @@ pub async fn verify_session_refresh_token(
 
     if session.is_revoked || session.expires_at <= now {
         return Err(AppError::Unauthorized("会话已过期或已撤销".into()));
-    }
-    if session.refresh_token_hash != hash_refresh_token(refresh_token) {
-        return Err(AppError::Unauthorized("刷新令牌与会话不匹配".into()));
     }
     let user = user::Entity::find_by_id(user_id)
         .one(db)

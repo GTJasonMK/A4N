@@ -56,16 +56,22 @@ impl<'a> VideoGenerationProgress<'a> {
         }
     }
 
-    pub fn progress(&mut self, current: u32, total: u32, message: &str) -> Result<(), String> {
+    pub fn progress(&mut self, current: u32, total: u32, message: &str) -> Result<(), AppError> {
         if let Some(reporter) = self.reporter.as_deref_mut() {
-            reporter(current, total.max(1), message).map_err(|error| error.to_string())?;
+            if let Err(error) = reporter(current, total.max(1), message) {
+                if matches!(error, AppError::Cancelled) {
+                    self.cancel_token.cancel();
+                } else {
+                    return Err(error);
+                }
+            }
         }
         Ok(())
     }
 
-    pub fn check_cancelled(&self, message: &str) -> Result<(), String> {
+    pub fn check_cancelled(&self, _message: &str) -> Result<(), AppError> {
         if self.cancel_token.is_cancelled() {
-            return Err(message.to_string());
+            return Err(AppError::Cancelled);
         }
         Ok(())
     }
@@ -223,6 +229,7 @@ impl VideoGenerationCheckpointContext {
                 checkpoint_key,
                 true,
                 Some("视频 provider job 已创建，可恢复轮询".to_string()),
+                None,
             )
             .await
             .map_err(|error| checkpoint_error(error.to_string()))?;
@@ -317,10 +324,26 @@ impl crate::OrchestratorContext {
             missing_result_message,
             cancel_token,
         } = input;
+        let has_resumable_job = result.as_ref().ok().is_some_and(|result| {
+            result.bytes.is_empty()
+                && crate::video::normalized_provider_job_id(result.provider_job_id.as_deref())
+                    .is_some()
+        });
+        if cancel_token.is_cancelled() && !has_resumable_job {
+            self.mark_generated_video_cancelled_validated(video.id, prompt_id, "视频生成已停止")
+                .await?;
+            return Err(AppError::Cancelled);
+        }
         match result {
             Ok(result) if !result.bytes.is_empty() => {
-                self.complete_video_provider_result(host_port, video, prompt_id, result)
-                    .await
+                self.complete_video_provider_result(
+                    host_port,
+                    video,
+                    prompt_id,
+                    result,
+                    &cancel_token,
+                )
+                .await
             }
             Ok(result) => {
                 let job_id = crate::video::required_provider_job_id(
@@ -381,6 +404,15 @@ impl crate::OrchestratorContext {
         else {
             return Ok(video);
         };
+        let business_key = crate::video::video_provider_workflow_business_key(video.id)
+            .map_err(AppError::InvalidArgument)?;
+        if let Some(run) = self
+            .latest_workflow_run_by_business_key(&business_key)
+            .await?
+            .filter(|run| run.status == crate::workflow::WORKFLOW_STATUS_INTERRUPTED)
+        {
+            self.mark_workflow_running_validated(run.id).await?;
+        }
         let workflow_run_id = self
             .record_video_provider_progress_validated(&video, 1, 2, "正在恢复视频 provider 轮询")
             .await?;
@@ -406,8 +438,21 @@ impl crate::OrchestratorContext {
                     self.sync_canvas_video_workflow(&updated, None).await?;
                     return Ok(updated);
                 }
+                let video = self
+                    .update_generated_video_waiting_status_validated(
+                        video.id,
+                        prompt_id,
+                        crate::video::GENERATED_VIDEO_WAITING_STATUS_RUNNING,
+                    )
+                    .await?;
                 let updated = self
-                    .complete_video_provider_result(host_port, video, prompt_id, result)
+                    .complete_video_provider_result(
+                        host_port,
+                        video,
+                        prompt_id,
+                        result,
+                        &cancel_token,
+                    )
                     .await?;
                 let (status, error_message) =
                     if updated.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
@@ -529,7 +574,13 @@ impl crate::OrchestratorContext {
                             .await;
                     }
                     let updated = self
-                        .complete_video_provider_result(host_port, video, prompt_id, result)
+                        .complete_video_provider_result(
+                            host_port,
+                            video,
+                            prompt_id,
+                            result,
+                            &cancel_token,
+                        )
                         .await?;
                     let (status, can_resume, error_message) =
                         if updated.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
@@ -628,6 +679,7 @@ impl crate::OrchestratorContext {
         video: generated_video::Model,
         prompt_id: Option<i64>,
         result: VideoGenerationResult,
+        cancel_token: &CancellationToken,
     ) -> Result<generated_video::Model, AppError> {
         let persisted = match host_port
             .persist_video_result(&video, prompt_id, result)
@@ -640,6 +692,55 @@ impl crate::OrchestratorContext {
                     .await;
             }
         };
+        if cancel_token.is_cancelled() {
+            let cancelled =
+                if crate::video::normalized_provider_job_id(video.provider_job_id.as_deref())
+                    .is_some()
+                {
+                    self.interrupt_video_provider_job(
+                        &video,
+                        prompt_id,
+                        "视频生成已停止，已丢弃迟到的供应商结果",
+                    )
+                    .await
+                } else {
+                    self.mark_generated_video_cancelled_validated(
+                        video.id,
+                        prompt_id,
+                        "视频生成已停止，已丢弃迟到的供应商结果",
+                    )
+                    .await
+                };
+            if let Err(error) = cancelled {
+                let authoritative = self.generated_video_by_id(video.id).await?;
+                if authoritative.as_ref().is_some_and(|video| {
+                    video.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED
+                }) {
+                    return Err(error);
+                }
+                if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await {
+                    tracing::error!(
+                        video_id = video.id,
+                        error = %cleanup_error,
+                        "取消视频时写入迟到文件 cleanup intent 失败"
+                    );
+                }
+                if authoritative.as_ref().is_some_and(|video| {
+                    matches!(video.status.as_str(), "cancelled" | "interrupted")
+                }) {
+                    return Err(AppError::Cancelled);
+                }
+                return Err(error);
+            }
+            if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await {
+                tracing::error!(
+                    video_id = video.id,
+                    error = %cleanup_error,
+                    "取消视频时写入迟到文件 cleanup intent 失败"
+                );
+            }
+            return Err(AppError::Cancelled);
+        }
         // 正式文件已写出后的创建窗口：DB 完成写失败必须优先请求 durable cleanup intent，
         // 不能只依赖进程内同步删除；remove_video_result 的 Host 实现负责 outbox。
         let updated = match self
@@ -655,20 +756,69 @@ impl crate::OrchestratorContext {
         {
             Ok(updated) => updated,
             Err(error) => {
-                let cleanup = host_port.remove_video_result(&persisted).await.err();
-                let message = match cleanup {
-                    Some(cleanup) => {
-                        format!(
-                            "视频完成状态写入失败：{error}；已尝试写入文件 cleanup intent：{cleanup}"
-                        )
+                let can_adopt = crate::video::can_adopt_authoritative_video_completion(&error);
+                let authoritative = self.generated_video_by_id(video.id).await?;
+                if let Some(authoritative) = authoritative {
+                    if authoritative.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
+                        if authoritative.file_path.as_deref() != Some(persisted.file_path.as_str())
+                            && let Err(cleanup_error) =
+                                host_port.remove_video_result(&persisted).await
+                        {
+                            tracing::error!(
+                                video_id = video.id,
+                                error = %cleanup_error,
+                                "清理重复供应商视频文件失败"
+                            );
+                        }
+                        if !can_adopt {
+                            return Err(error);
+                        }
+                        authoritative
+                    } else if matches!(authoritative.status.as_str(), "cancelled" | "interrupted") {
+                        if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await
+                        {
+                            tracing::error!(
+                                video_id = video.id,
+                                error = %cleanup_error,
+                                "清理迟到视频文件失败"
+                            );
+                        }
+                        return Err(AppError::Cancelled);
+                    } else if authoritative.status == "failed" {
+                        if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await
+                        {
+                            tracing::error!(
+                                video_id = video.id,
+                                error = %cleanup_error,
+                                "清理失败视频的迟到文件失败"
+                            );
+                        }
+                        return Err(error);
+                    } else {
+                        let cleanup = host_port.remove_video_result(&persisted).await.err();
+                        let message = match cleanup {
+                            Some(cleanup) => format!(
+                                "视频完成状态写入失败：{error}；已尝试写入文件 cleanup intent：{cleanup}"
+                            ),
+                            None => format!(
+                                "视频完成状态写入失败：{error}；正式文件 cleanup intent 已写入 outbox"
+                            ),
+                        };
+                        return self
+                            .mark_video_provider_failed(authoritative, prompt_id, &message)
+                            .await;
                     }
-                    None => format!(
-                        "视频完成状态写入失败：{error}；正式文件 cleanup intent 已写入 outbox"
-                    ),
-                };
-                return self
-                    .mark_video_provider_failed(video, prompt_id, &message)
-                    .await;
+                } else {
+                    let cleanup = host_port.remove_video_result(&persisted).await.err();
+                    if let Some(cleanup_error) = cleanup.as_ref() {
+                        tracing::error!(
+                            video_id = video.id,
+                            error = %cleanup_error,
+                            "视频记录消失后清理供应商文件失败"
+                        );
+                    }
+                    return Err(error);
+                }
             }
         };
         self.complete_generated_video_provider_runs_validated(&updated)

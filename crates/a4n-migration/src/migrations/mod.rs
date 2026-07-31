@@ -3,6 +3,7 @@
 pub mod canvas_assemble_clip_order;
 pub mod canvas_assemble_edge_role;
 pub mod chapter_shooting_script;
+pub mod chapter_video_prompt_execution_identity;
 pub mod chapter_video_prompt_language_identity;
 pub mod cleanup_outbox;
 pub mod cleanup_outbox_generation_scope;
@@ -34,6 +35,8 @@ pub mod object_profile_usage_fields;
 pub mod postgres_baseline;
 pub mod project_collaboration;
 pub mod segment_card_video_workflow;
+pub mod segment_execution_recipe_identity;
+pub mod segment_recipe_adoption_repair;
 pub mod shared_video_segment_plan;
 pub mod shooting_script_narrative_units;
 pub mod shooting_script_staged_generation;

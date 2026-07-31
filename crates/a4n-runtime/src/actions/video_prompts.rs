@@ -1,7 +1,6 @@
 use a4n_core::{dependency_conflict::DownstreamConflictStrategy, error::AppError};
-use a4n_orchestrator::video::{VideoPromptApplicationContext, VideoPromptDownstreamCleanupPort};
+use a4n_orchestrator::video::VideoPromptDownstreamCleanupPort;
 use async_trait::async_trait;
-use tokio_util::sync::CancellationToken;
 
 use crate::{
     AppState,
@@ -9,21 +8,12 @@ use crate::{
     prompt_renderer::RuntimePromptRenderer,
 };
 
-pub use crate::actions::request_preview::{ModelRequestPreview, ModelRequestPreviewStep};
 pub use a4n_orchestrator::video::{
-    ChapterVideoPromptSummary, DeleteChapterVideoPromptGroupResult,
-    GenerateChapterVideoPromptInput, GeneratePromptOptionsInput, OptimizeChapterVideoPromptInput,
-    VideoPromptTaskScope, VideoPromptUpdateApplicationInput as UpdateChapterVideoPromptInput,
+    ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
+    UpdateVideoSegmentPlanDraftRecipeInput,
+    VideoPromptUpdateApplicationInput as UpdateChapterVideoPromptInput,
 };
-pub use a4n_orchestrator::video::{
-    VideoPromptChunk, VideoPromptProgress, VideoPromptRequestPreview,
-};
-
-mod preview;
-
-use preview::{
-    replan_video_prompt_request_preview_for_state, video_prompt_preview_to_model_request_preview,
-};
+pub use a4n_orchestrator::workflow::WorkflowRunDetailSummary;
 
 struct RuntimeVideoPromptCleanup<'a> {
     state: &'a AppState,
@@ -51,148 +41,6 @@ impl VideoPromptDownstreamCleanupPort for RuntimeVideoPromptCleanup<'_> {
     }
 }
 
-pub async fn chapter_video_prompt_task_scope(
-    state: &AppState,
-    input: &GenerateChapterVideoPromptInput,
-) -> Result<VideoPromptTaskScope, String> {
-    state
-        .video()
-        .video_prompt_task_scope_validated(input)
-        .await
-        .map_err(error_message)
-}
-
-pub async fn generate_chapter_video_frame_prompts(
-    state: &AppState,
-    input: GenerateChapterVideoPromptInput,
-    progress: Option<VideoPromptProgress<'_>>,
-    chunks: Option<VideoPromptChunk<'_>>,
-    cancel_token: CancellationToken,
-) -> Result<Vec<ChapterVideoPromptSummary>, String> {
-    let runtime_video_config = crate::runtime_config::current_video_model();
-    let prompt_renderer = RuntimePromptRenderer::new(state);
-    state
-        .video()
-        .generate_chapter_video_frame_prompts_validated(
-            VideoPromptApplicationContext {
-                runtime_video_config: runtime_video_config.as_ref(),
-                prompt_renderer: &prompt_renderer,
-            },
-            input,
-            progress,
-            chunks,
-            cancel_token,
-        )
-        .await
-        .map_err(error_message)
-}
-
-pub async fn generate_chapter_video_segment_plan(
-    state: &AppState,
-    input: GenerateChapterVideoPromptInput,
-    progress: Option<VideoPromptProgress<'_>>,
-    chunks: Option<VideoPromptChunk<'_>>,
-    cancel_token: CancellationToken,
-) -> Result<Vec<ChapterVideoPromptSummary>, String> {
-    let runtime_video_config = crate::runtime_config::current_video_model();
-    let prompt_renderer = RuntimePromptRenderer::new(state);
-    state
-        .video()
-        .generate_chapter_video_segment_plan_validated(
-            VideoPromptApplicationContext {
-                runtime_video_config: runtime_video_config.as_ref(),
-                prompt_renderer: &prompt_renderer,
-            },
-            input,
-            progress,
-            chunks,
-            cancel_token,
-        )
-        .await
-        .map_err(error_message)
-}
-
-pub async fn generate_chapter_video_prompts(
-    state: &AppState,
-    input: GenerateChapterVideoPromptInput,
-    progress: Option<VideoPromptProgress<'_>>,
-    chunks: Option<VideoPromptChunk<'_>>,
-    cancel_token: CancellationToken,
-) -> Result<Vec<ChapterVideoPromptSummary>, String> {
-    let runtime_video_config = crate::runtime_config::current_video_model();
-    let prompt_renderer = RuntimePromptRenderer::new(state);
-    state
-        .video()
-        .generate_chapter_video_prompts_validated(
-            VideoPromptApplicationContext {
-                runtime_video_config: runtime_video_config.as_ref(),
-                prompt_renderer: &prompt_renderer,
-            },
-            input,
-            progress,
-            chunks,
-            cancel_token,
-        )
-        .await
-        .map_err(error_message)
-}
-
-pub async fn preview_chapter_video_frame_prompt_requests(
-    state: &AppState,
-    input: GenerateChapterVideoPromptInput,
-) -> Result<VideoPromptRequestPreview, String> {
-    let runtime_video_config = crate::runtime_config::current_video_model();
-    let prompt_renderer = RuntimePromptRenderer::new(state);
-    let preview = state
-        .video()
-        .preview_chapter_video_frame_prompt_requests_validated(
-            VideoPromptApplicationContext {
-                runtime_video_config: runtime_video_config.as_ref(),
-                prompt_renderer: &prompt_renderer,
-            },
-            input,
-        )
-        .await
-        .map_err(error_message)?;
-    replan_video_prompt_request_preview_for_state(state, preview).await
-}
-
-pub async fn preview_chapter_video_frame_prompt_model_request(
-    state: &AppState,
-    input: GenerateChapterVideoPromptInput,
-) -> Result<ModelRequestPreview, String> {
-    let preview = preview_chapter_video_frame_prompt_requests(state, input).await?;
-    video_prompt_preview_to_model_request_preview(state, preview).await
-}
-
-pub async fn preview_chapter_video_prompt_requests(
-    state: &AppState,
-    input: GenerateChapterVideoPromptInput,
-) -> Result<VideoPromptRequestPreview, String> {
-    let runtime_video_config = crate::runtime_config::current_video_model();
-    let prompt_renderer = RuntimePromptRenderer::new(state);
-    let preview = state
-        .video()
-        .preview_chapter_video_prompt_requests_validated(
-            VideoPromptApplicationContext {
-                runtime_video_config: runtime_video_config.as_ref(),
-                prompt_renderer: &prompt_renderer,
-            },
-            input,
-        )
-        .await
-        .map_err(error_message)?;
-    replan_video_prompt_request_preview_for_state(state, preview).await
-}
-
-pub async fn preview_chapter_video_prompt_model_request(
-    state: &AppState,
-    input: GenerateChapterVideoPromptInput,
-) -> Result<ModelRequestPreview, String> {
-    let preview = preview_chapter_video_prompt_requests(state, input).await?;
-    video_prompt_preview_to_model_request_preview(state, preview).await
-}
-
 pub async fn list_chapter_video_prompts(
     state: &AppState,
     user_id: i64,
@@ -202,6 +50,30 @@ pub async fn list_chapter_video_prompts(
     state
         .video()
         .list_chapter_video_prompts_validated(user_id, project_id, chapter_id)
+        .await
+        .map_err(error_message)
+}
+
+pub async fn load_video_segment_plan_draft(
+    state: &AppState,
+    user_id: i64,
+    input: LoadVideoSegmentPlanDraftInput,
+) -> Result<WorkflowRunDetailSummary, String> {
+    state
+        .video()
+        .load_video_segment_plan_draft_validated(user_id, input)
+        .await
+        .map_err(error_message)
+}
+
+pub async fn update_video_segment_plan_draft_recipe(
+    state: &AppState,
+    user_id: i64,
+    input: UpdateVideoSegmentPlanDraftRecipeInput,
+) -> Result<WorkflowRunDetailSummary, String> {
+    state
+        .video()
+        .update_video_segment_plan_draft_recipe_validated(user_id, input)
         .await
         .map_err(error_message)
 }
@@ -235,28 +107,6 @@ pub async fn delete_chapter_video_prompt(
         .delete_chapter_video_prompt_validated(
             user_id,
             prompt_id,
-            downstream_strategy,
-            &RuntimeVideoPromptCleanup { state, user_id },
-        )
-        .await
-        .map_err(error_message)
-}
-
-pub async fn delete_chapter_video_prompt_group(
-    state: &AppState,
-    user_id: i64,
-    project_id: i64,
-    chapter_id: i64,
-    group: &str,
-    downstream_strategy: DownstreamConflictStrategy,
-) -> Result<DeleteChapterVideoPromptGroupResult, String> {
-    state
-        .video()
-        .delete_chapter_video_prompt_group_validated(
-            user_id,
-            project_id,
-            chapter_id,
-            group,
             downstream_strategy,
             &RuntimeVideoPromptCleanup { state, user_id },
         )

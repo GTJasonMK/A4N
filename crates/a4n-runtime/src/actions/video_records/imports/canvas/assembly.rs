@@ -111,7 +111,6 @@ where
             "画布成片",
             "画布成片文件",
         )
-        .map(|(relative_path, file_size)| (relative_path, file_size))
     });
     match result {
         Ok(result) => Ok(result),

@@ -236,6 +236,7 @@ impl OrchestratorContext {
         let run = self
             .workflow_run_models(ListWorkflowRunsInput {
                 project_id: Some(project.id),
+                chapter_id: None,
                 workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
                 status: None,
                 resumable_only: None,
@@ -328,6 +329,7 @@ impl OrchestratorContext {
         let run = self
             .workflow_run_models(ListWorkflowRunsInput {
                 project_id: Some(project.id),
+                chapter_id: None,
                 workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
                 status: Some(WORKFLOW_STATUS_RUNNING.to_string()),
                 resumable_only: None,
@@ -366,6 +368,9 @@ impl OrchestratorContext {
                 error_message.as_deref(),
             )
             .await;
+        if matches!(&finalized, Err(AppError::Cancelled)) {
+            return Err(AppError::Cancelled);
+        }
         match (result, finalized) {
             (Ok(detail), Ok(_)) => Ok(detail),
             (Err(error), Ok(_)) => Err(error),

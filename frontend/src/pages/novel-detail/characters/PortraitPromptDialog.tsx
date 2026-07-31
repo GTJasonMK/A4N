@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Loader2 } from "lucide-react";
+import { Eye } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   generatePortraitPrompt,
@@ -154,7 +155,7 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
           <BookButton variant="primary" onClick={handleRender} disabled={busy}>
             {busy ? (
               <span className="inline-flex items-center gap-1.5">
-                <Loader2 size={12} className="animate-spin" /> 渲染中…
+                <LoadingSpinner size="sm" /> 渲染中…
               </span>
             ) : rendered === null ? (
               "渲染提示词"

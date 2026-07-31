@@ -87,14 +87,6 @@ impl ReverseEngineeringTarget {
         }
     }
 
-    pub fn failure_event(self) -> &'static str {
-        match self {
-            Self::Blueprint => "reverse_blueprint_failed",
-            Self::Outline => "reverse_outline_failed",
-            Self::PartOutline => "reverse_part_outline_failed",
-        }
-    }
-
     pub(crate) fn preparing_context_message(self) -> &'static str {
         match self {
             Self::Blueprint => "正在准备反推蓝图上下文",

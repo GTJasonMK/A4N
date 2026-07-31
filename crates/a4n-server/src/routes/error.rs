@@ -5,11 +5,15 @@ use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::Serialize;
+use serde_json::{Value, json};
 
 #[derive(Debug)]
 pub struct ApiError {
     status: StatusCode,
+    code: &'static str,
     message: String,
+    retryable: bool,
+    details: Value,
 }
 
 /// Generation 固定路由使用的规范 Host 错误体；不污染旧 API 的 `{error}` 合同。
@@ -72,71 +76,101 @@ impl GenerationApiError {
 }
 
 #[derive(Serialize)]
-struct ErrorBody<'a> {
-    error: &'a str,
+struct ErrorBody {
+    code: &'static str,
+    message: String,
+    retryable: bool,
+    trace_id: Option<String>,
+    details: Value,
+    /// 兼容旧 Web 客户端；新调用方应读取 `message`。
+    error: String,
 }
 
 impl ApiError {
     pub fn unauthorized(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::UNAUTHORIZED,
+            code: "unauthorized",
             message: message.into(),
+            retryable: false,
+            details: json!({}),
         }
     }
 
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::BAD_REQUEST,
+            code: "invalid_request",
             message: message.into(),
+            retryable: false,
+            details: json!({}),
         }
     }
 
     pub fn forbidden(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::FORBIDDEN,
+            code: "forbidden",
             message: message.into(),
+            retryable: false,
+            details: json!({}),
         }
     }
 
     pub fn not_found(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::NOT_FOUND,
+            code: "not_found",
             message: message.into(),
+            retryable: false,
+            details: json!({}),
         }
     }
 }
 
 impl From<AppError> for ApiError {
     fn from(error: AppError) -> Self {
-        let status = match error {
-            AppError::InvalidArgument(_) | AppError::InvalidState { .. } => StatusCode::BAD_REQUEST,
-            AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
-            AppError::Forbidden(_) => StatusCode::FORBIDDEN,
-            AppError::NotFound(_) => StatusCode::NOT_FOUND,
-            AppError::ConfigError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AppError::Database(_)
-            | AppError::Internal(_)
+        let (status, code, retryable) = match &error {
+            AppError::InvalidArgument(_) => (StatusCode::BAD_REQUEST, "invalid_argument", false),
+            AppError::InvalidState { .. } => (StatusCode::CONFLICT, "invalid_state", false),
+            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized", false),
+            AppError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden", false),
+            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found", false),
+            AppError::ConfigError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "config_error", false),
+            AppError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "database_error", true),
+            AppError::Timeout(_) => (StatusCode::GATEWAY_TIMEOUT, "timeout", true),
+            AppError::Cancelled => (StatusCode::CONFLICT, "cancelled", false),
+            AppError::Internal(_)
             | AppError::Io(_)
             | AppError::Serialization(_)
             | AppError::LlmError(_)
             | AppError::VectorStoreError(_)
-            | AppError::EmbeddingError(_)
-            | AppError::Cancelled
-            | AppError::Timeout(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | AppError::EmbeddingError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", false)
+            }
         };
         Self {
             status,
+            code,
             message: error.to_string(),
+            retryable,
+            details: json!({}),
         }
     }
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        let message = self.message;
         (
             self.status,
             Json(ErrorBody {
-                error: &self.message,
+                code: self.code,
+                message: message.clone(),
+                retryable: self.retryable,
+                trace_id: None,
+                details: self.details,
+                error: message,
             }),
         )
             .into_response()

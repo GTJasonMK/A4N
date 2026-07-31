@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use a4n_core::error::AppError;
-use a4n_service_protocol::{
-    GenerationError, GenerationTaskStatus, GenerationUsage, ProgressEvent, ProgressPhaseKind,
-    ProgressSeverity,
-};
+use a4n_service_protocol::{GenerationError, GenerationTaskStatus, GenerationUsage};
 
 use crate::generation::{
     events::{GenerationSessionError, GenerationTaskSession},
@@ -14,30 +11,12 @@ use crate::generation::{
 
 use super::AgentLoopExecutionError;
 
+pub(in crate::optimize) use crate::generation::generation_progress as optimize_progress;
+
 pub(in crate::optimize) struct GenerationStreamCompletion {
     pub(in crate::optimize) raw_utf8_bytes: u64,
     pub(in crate::optimize) raw_sha256: String,
     pub(in crate::optimize) final_usage: Option<GenerationUsage>,
-}
-
-pub(in crate::optimize) fn optimize_progress(
-    stage_code: &str,
-    phase_kind: ProgressPhaseKind,
-    message: &str,
-) -> ProgressEvent {
-    ProgressEvent {
-        stage_code: stage_code.to_string(),
-        phase_kind,
-        message: message.to_string(),
-        current: None,
-        total: None,
-        unit_label: None,
-        item_key: None,
-        item_index: None,
-        item_total: None,
-        severity: ProgressSeverity::Info,
-        estimated: false,
-    }
 }
 
 pub(in crate::optimize) fn generation_error_from_session(

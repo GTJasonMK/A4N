@@ -1,7 +1,10 @@
 use super::QueueDbError;
 use a4n_core::models::task::task_queue;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QuerySelect,
+    Set, TransactionTrait,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TaskStatusTimestampUpdate {
@@ -16,11 +19,17 @@ pub async fn update_task_status(
     status: &str,
     error: Option<&str>,
 ) -> Result<(), QueueDbError> {
-    let task = task_queue::Entity::find_by_id(task_id.to_string())
-        .one(db)
+    let tx = db.begin().await?;
+    let mut query = task_queue::Entity::find_by_id(task_id.to_string());
+    if tx.get_database_backend() != DbBackend::Sqlite {
+        query = query.lock_exclusive();
+    }
+    let task = query
+        .one(&tx)
         .await?
         .ok_or_else(|| QueueDbError::NotFound(format!("任务不存在: {task_id}")))?;
     if is_terminal_status(&task.status) {
+        tx.commit().await?;
         return Ok(());
     }
 
@@ -35,7 +44,8 @@ pub async fn update_task_status(
     if let Some(msg) = error {
         active.error_message = Set(Some(msg.to_string()));
     }
-    active.update(db).await?;
+    active.update(&tx).await?;
+    tx.commit().await?;
     Ok(())
 }
 

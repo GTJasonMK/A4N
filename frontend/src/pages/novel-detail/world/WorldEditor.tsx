@@ -75,7 +75,7 @@ export const WorldEditor: React.FC<WorldEditorProps> = ({
             { id: "text", label: "纯文本" },
           ]}
         />
-        <p className="text-[11px] leading-relaxed text-book-text-muted">
+        <p className="text-small leading-relaxed text-book-text-muted">
           {modeDescription}
         </p>
       </div>
@@ -160,7 +160,7 @@ const StructuredWorldEditor: React.FC<StructuredWorldEditorProps> = ({
             className="min-h-[220px] text-xs font-mono leading-relaxed"
             placeholder={"王都｜政治中心，暗流涌动\n灰港｜走私与情报交易之城\n禁林"}
           />
-          <div className="mt-1.5 text-[11px] text-book-text-muted">
+          <div className="mt-1.5 text-small text-book-text-muted">
             每行一条，可写“名称｜描述”，支持中文竖线或英文 |。
           </div>
         </div>
@@ -181,7 +181,7 @@ const StructuredWorldEditor: React.FC<StructuredWorldEditorProps> = ({
             className="min-h-[220px] text-xs font-mono leading-relaxed"
             placeholder={"学院派｜重视秩序与传承\n流亡者｜被放逐的旧贵族残党"}
           />
-          <div className="mt-1.5 text-[11px] text-book-text-muted">
+          <div className="mt-1.5 text-small text-book-text-muted">
             复杂字段请切换到高级模式继续调整。
           </div>
         </div>

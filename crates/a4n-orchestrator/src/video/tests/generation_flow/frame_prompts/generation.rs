@@ -52,8 +52,8 @@ async fn frame_prompt_generation_writes_only_segment_plan_and_boundary_frames() 
     let project_id = project.id;
     let chapter_id = chapter.id;
     let mut progress_events = Vec::new();
-    let mut progress = |current: u32, total: u32, message: &str| -> Result<(), AppError> {
-        progress_events.push((current, total, message.to_string()));
+    let mut progress = |update: VideoPromptProgressUpdate| -> Result<(), AppError> {
+        progress_events.push(update);
         Ok(())
     };
 
@@ -90,8 +90,12 @@ async fn frame_prompt_generation_writes_only_segment_plan_and_boundary_frames() 
         rows.iter()
             .any(|row| row.prompt_type == "frame_segment_plan")
     );
-    assert!(progress_events.iter().any(|(_, total, message)| {
-        *total == 100 && message.contains("边界帧提示词记录已更新")
+    assert!(progress_events.iter().any(|update| {
+        update.total == 100 && update.message.contains("边界帧提示词记录已更新")
+    }));
+    assert!(progress_events.iter().any(|update| {
+        update.stage_code == "video_prompt_item_committed"
+            && update.item_key.as_deref() == Some("frame_prompt:1")
     }));
 }
 

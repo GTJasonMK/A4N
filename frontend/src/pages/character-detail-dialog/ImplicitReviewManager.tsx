@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Loader2, RefreshCw } from "lucide-react";
+import { Eye, RefreshCw } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
   applyImplicitUpdateDecision,
@@ -366,7 +367,7 @@ export const ImplicitReviewManager: React.FC<{
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-[11px] text-book-text-muted">
+      <div className="flex items-center gap-2 text-small text-book-text-muted">
         <span className="min-w-0 flex-1">
           {review
             ? needsReview.length > 0
@@ -384,13 +385,13 @@ export const ImplicitReviewManager: React.FC<{
           <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
         </BookIconButton>
       </div>
-      <details className="text-[11px] text-book-text-muted">
+      <details className="text-small text-book-text-muted">
         <summary className="w-fit cursor-pointer select-none py-1 hover:text-book-text-main">
           复审范围 · 最近 {windowChapters} 章 · 连续 {threshold} 次后提醒
         </summary>
         <div className="mt-1.5 flex flex-wrap items-end gap-2 rounded-xl bg-book-bg-tertiary/40 p-2.5">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px]">检查章节数</span>
+            <span className="text-caption">检查章节数</span>
             <input
               type="number"
               min={1}
@@ -409,7 +410,7 @@ export const ImplicitReviewManager: React.FC<{
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px]">提醒阈值</span>
+            <span className="text-caption">提醒阈值</span>
             <input
               type="number"
               min={1}
@@ -435,7 +436,7 @@ export const ImplicitReviewManager: React.FC<{
           >
             {loading ? (
               <span className="inline-flex items-center gap-1.5">
-                <Loader2 size={11} className="animate-spin" /> 更新中…
+                <LoadingSpinner size="sm" /> 更新中…
               </span>
             ) : (
               "更新结果"
@@ -444,11 +445,11 @@ export const ImplicitReviewManager: React.FC<{
         </div>
       </details>
       {loading ? (
-        <div className="text-[11px] text-book-text-muted">加载…</div>
+        <div className="text-small text-book-text-muted">加载…</div>
       ) : !hasCurrentReview ? (
-        <div className="text-[11px] text-book-text-muted italic">当前复审参数尚未加载，请刷新</div>
+        <div className="text-small text-book-text-muted italic">当前复审参数尚未加载，请刷新</div>
       ) : attrs.length === 0 ? (
-        <div className="text-[11px] text-book-text-muted italic">
+        <div className="text-small text-book-text-muted italic">
           尚无隐性属性或行为分类记录
         </div>
       ) : (
@@ -536,7 +537,7 @@ const ImplicitReviewItem: React.FC<{
 
   return (
     <li
-      className={`a4n-flat-surface overflow-hidden px-3 py-2.5 text-[11px] ${
+      className={`a4n-flat-surface overflow-hidden px-3 py-2.5 text-small ${
         attr.threshold_reached ? "bg-warning-bg/25" : ""
       }`}
     >
@@ -548,7 +549,7 @@ const ImplicitReviewItem: React.FC<{
           <span className="shrink-0 text-book-text-sub">{formatPercent(attr.conform_rate)} 符合</span>
         </div>
         <div className="mt-0.5 truncate text-book-text-sub">{jsonPreview(attr.current_value)}</div>
-        <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[10px] text-book-text-muted">
+        <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-caption text-book-text-muted">
           <span>{attr.conform_count} 条符合</span>
           <span aria-hidden="true">·</span>
           <span>{attr.non_conform_count} 条不符合</span>
@@ -572,7 +573,7 @@ const ImplicitReviewItem: React.FC<{
                 >
                   {deciding ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <Loader2 size={11} className="animate-spin" /> 生成中…
+                      <LoadingSpinner size="sm" /> 生成中…
                     </span>
                   ) : (
                     "生成复审建议"
@@ -582,7 +583,7 @@ const ImplicitReviewItem: React.FC<{
                 <BookButton onClick={onApply} disabled={actionsDisabled || applying}>
                   {applying ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <Loader2 size={11} className="animate-spin" /> 应用中…
+                      <LoadingSpinner size="sm" /> 应用中…
                     </span>
                   ) : (
                     "应用建议"
@@ -591,10 +592,10 @@ const ImplicitReviewItem: React.FC<{
               ) : null}
             </div>
           ) : (
-            <div className="text-[10px] text-book-text-muted">暂无行为证据，暂时无法复审</div>
+            <div className="text-caption text-book-text-muted">暂无行为证据，暂时无法复审</div>
           )}
           {decision ? (
-            <div className="rounded-xl border-l-2 border-book-primary/55 bg-book-primary/5 px-3 py-2.5 text-[10px] leading-relaxed">
+            <div className="rounded-xl border-l-2 border-book-primary/55 bg-book-primary/5 px-3 py-2.5 text-caption leading-relaxed">
               <div className="font-medium text-book-text-main">
                 建议{decisionLabel(decision.decision)}
                 {decision.suggested_new_value != null
@@ -610,7 +611,7 @@ const ImplicitReviewItem: React.FC<{
           {hasEvidence ? (
             <ol className="divide-y divide-book-border/25 rounded-xl bg-book-bg-tertiary/35 px-3">
               {attr.evidence.map((item) => (
-                <li key={item.behavior_id} className="py-2.5 text-[10px] leading-relaxed">
+                <li key={item.behavior_id} className="py-2.5 text-caption leading-relaxed">
                   <div className="text-book-text-muted">
                     第 {item.chapter_number} 章 · {behaviorTypeLabel(item.behavior_type)}
                   </div>

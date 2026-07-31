@@ -5,7 +5,7 @@ import React from "react";
  * 宽度 hug 内容；panel 变体固定 200px（写作桌 RAG/正文优化）。
  */
 
-export interface SegmentedOption<T extends string = string> {
+interface SegmentedOption<T extends string = string> {
   id: T;
   label: React.ReactNode;
   icon?: React.ReactNode;

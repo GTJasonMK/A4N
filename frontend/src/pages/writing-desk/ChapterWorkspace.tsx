@@ -132,11 +132,11 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
       ) : (
         <>
           <div className="mb-2.5 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
-            <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-[15px] font-semibold text-book-text-main">
+            <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-body-lg font-semibold text-book-text-main">
               {selectedChapterTitle(activeChapter, activeOutline) || `第 ${activeChapter?.chapter_number ?? activeOutline?.chapter_number ?? "—"} 章`}
             </h2>
             <div className="flex min-w-0 shrink-0 items-center gap-2">
-              <span className="text-[11px] text-book-text-muted">
+              <span className="text-small text-book-text-muted">
                 {wordCount.toLocaleString()} 字
                 {activeChapter?.status
                   ? ` · ${getOperationStatusLabel(activeChapter.status)}`
@@ -145,7 +145,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
             </div>
           </div>
 
-          <div
+          <nav
             className="tab-bar flex min-w-0 shrink-0 flex-wrap border-b border-book-border/80 bg-book-bg-paper/70"
             role="tablist"
             aria-label="章节工作区"
@@ -163,7 +163,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                 {label}
               </button>
             ))}
-          </div>
+          </nav>
 
           <div className="mt-2 min-h-0 min-w-0 flex-1">
             {bottomTab === "content" && (

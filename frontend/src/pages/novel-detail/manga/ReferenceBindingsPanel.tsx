@@ -67,7 +67,7 @@ export const ReferenceBindingsPanel: React.FC<{
             className="py-3"
           >
             <div className="flex items-start gap-2">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-book-border/50 bg-book-bg-tertiary text-[10px] text-book-text-muted">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-book-border/50 bg-book-bg-tertiary text-caption text-book-text-muted">
                 {boundSrc ? (
                   <img src={boundSrc} alt={slot.label} className="h-full w-full object-cover" />
                 ) : (
@@ -80,7 +80,7 @@ export const ReferenceBindingsPanel: React.FC<{
                     {slot.label}
                   </span>
                   <span
-                    className={`text-[10px] ${
+                    className={`text-caption ${
                       slot.boundAsset
                         ? "text-success"
                         : slot.required
@@ -91,7 +91,7 @@ export const ReferenceBindingsPanel: React.FC<{
                     {slot.boundAsset ? "已绑定" : slot.required ? "必需" : "可选"}
                   </span>
                 </div>
-                <div className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
+                <div className="mt-0.5 line-clamp-2 text-small leading-relaxed text-book-text-muted">
                   {slot.purpose ?? slot.targetName ?? slot.slotId}
                 </div>
               </div>

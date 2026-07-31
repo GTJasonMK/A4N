@@ -13,17 +13,6 @@ import type {
   LocalEmbeddingModelSummary,
 } from "../generated/host";
 
-export type {
-  EmbeddingConfigSummary,
-  ImageConfigInput,
-  ImageConfigSummary,
-  LlmConfigSummary,
-  UpdateImageConfigInput,
-  UpdateVideoConfigInput,
-  VideoConfigInput,
-  VideoConfigSummary,
-} from "../generated/config";
-
 export type LlmConfig = Omit<LlmConfigSummary, "created_at" | "updated_at">;
 export type CreateEmbeddingInput = ApiCreateEmbeddingInput;
 export type CreateLlmInput = ApiCreateLlmInput;

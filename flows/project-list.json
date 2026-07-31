@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "project-list",
+  "description": "验证登录状态并列出当前用户可访问的项目。",
+  "steps": [
+    {
+      "id": "projects",
+      "type": "call",
+      "command": "list_projects",
+      "args": {
+        "page": 1,
+        "pageSize": 50
+      },
+      "capture": {
+        "items": "/items",
+        "total": "/total"
+      }
+    }
+  ]
+}

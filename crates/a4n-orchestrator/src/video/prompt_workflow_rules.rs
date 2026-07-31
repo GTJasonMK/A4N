@@ -12,8 +12,17 @@ pub fn video_prompt_workflow_business_key(
     project_id: i64,
     chapter_id: i64,
     workflow_mode: &str,
+    options: &ChapterVideoPromptOptions,
 ) -> String {
-    format!("video_prompt:{workflow_kind}:{project_id}:{chapter_id}:{workflow_mode}")
+    let base = format!("video_prompt:{workflow_kind}:{project_id}:{chapter_id}:{workflow_mode}");
+    match (options.segment_plan_prompt_id, options.target_shot_number) {
+        (Some(plan_id), Some(segment_number)) => {
+            format!("{base}:plan:{plan_id}:segment:{segment_number}")
+        }
+        (Some(plan_id), None) => format!("{base}:plan:{plan_id}"),
+        (None, Some(segment_number)) => format!("{base}:segment:{segment_number}"),
+        (None, None) => base,
+    }
 }
 
 /// 章节视频提示词工作流输入指纹。
@@ -41,6 +50,10 @@ pub fn video_prompt_workflow_fingerprint(
             "style": &options.style,
             "prompt_output_language": options.prompt_output_language.as_str(),
             "prompt_batch_size": options.prompt_batch_size,
+            "segment_plan_prompt_id": options.segment_plan_prompt_id,
+            "target_shot_number": options.target_shot_number,
+            "segment_recipe_fingerprint": options.segment_recipe.as_ref()
+                .and_then(|recipe| recipe.generation_fingerprint().ok()),
             "duration_secs": options.duration_secs,
             "duration_secs_options": &options.duration_secs_options,
             "aspect_ratio": &options.aspect_ratio,
@@ -61,6 +74,8 @@ pub fn video_prompt_workflow_run_input(
     workflow_step_key: &str,
     source: &ChapterVideoSource,
     options: &ChapterVideoPromptOptions,
+    active_task_id: &str,
+    root_project_id: i64,
 ) -> Result<(UpsertWorkflowRunInput, Value), String> {
     if project_id <= 0 {
         return Err("项目 ID 必须大于 0".to_string());
@@ -77,6 +92,12 @@ pub fn video_prompt_workflow_run_input(
     if workflow_step_key.trim().is_empty() {
         return Err("workflow_step_key 不能为空".to_string());
     }
+    if active_task_id.trim().is_empty() {
+        return Err("active_task_id 不能为空".to_string());
+    }
+    if root_project_id <= 0 {
+        return Err("root_project_id 必须大于 0".to_string());
+    }
     let fingerprint = video_prompt_workflow_fingerprint(
         workflow_kind,
         project_id,
@@ -91,10 +112,11 @@ pub fn video_prompt_workflow_run_input(
             project_id,
             chapter_id,
             workflow_mode,
+            options,
         ),
         workflow_kind: workflow_kind.to_string(),
         project_id: Some(project_id),
-        root_project_id: None,
+        root_project_id: Some(root_project_id),
         source_snapshot_id: None,
         scope_table: Some("chapter".to_string()),
         scope_id: Some(chapter_id),
@@ -103,7 +125,7 @@ pub fn video_prompt_workflow_run_input(
         input_fingerprint_json: Some(fingerprint.clone()),
         status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some(workflow_step_key.to_string()),
-        active_task_id: None,
+        active_task_id: Some(active_task_id.to_string()),
         can_resume: false,
         resume_block_reason: None,
         error_message: None,
@@ -167,7 +189,9 @@ mod tests {
             style: "anime".into(),
             prompt_output_language: PromptOutputLanguage::ZhCn,
             prompt_batch_size: 1,
+            segment_plan_prompt_id: None,
             target_shot_number: None,
+            segment_recipe: None,
             duration_secs: 5,
             duration_secs_options: vec![5],
             aspect_ratio: "16:9".into(),
@@ -180,11 +204,49 @@ mod tests {
     }
 
     #[test]
-    fn business_key_includes_mode() {
+    fn business_key_includes_mode_and_card_target() {
+        let options = sample_options();
         assert_eq!(
-            video_prompt_workflow_business_key("storyboard", 1, 2, "storyboard"),
+            video_prompt_workflow_business_key("storyboard", 1, 2, "storyboard", &options),
             "video_prompt:storyboard:1:2:storyboard"
         );
+
+        let mut targeted = options;
+        targeted.segment_plan_prompt_id = Some(11);
+        targeted.target_shot_number = Some(4);
+        assert_eq!(
+            video_prompt_workflow_business_key("storyboard", 1, 2, "storyboard", &targeted),
+            "video_prompt:storyboard:1:2:storyboard:plan:11:segment:4"
+        );
+    }
+
+    #[test]
+    fn fingerprint_separates_card_targets() {
+        let source = ChapterVideoSource {
+            content: "chapter".into(),
+            summary: None,
+            analysis: None,
+        };
+        let mut first = sample_options();
+        first.segment_plan_prompt_id = Some(11);
+        first.target_shot_number = Some(4);
+        let mut second = first.clone();
+        second.target_shot_number = Some(5);
+
+        let first =
+            video_prompt_workflow_fingerprint("video_prompts", 1, 2, "storyboard", &source, &first);
+        let second = video_prompt_workflow_fingerprint(
+            "video_prompts",
+            1,
+            2,
+            "storyboard",
+            &source,
+            &second,
+        );
+
+        assert_eq!(first["options"]["segment_plan_prompt_id"], 11);
+        assert_eq!(first["options"]["target_shot_number"], 4);
+        assert_ne!(first, second);
     }
 
     #[test]
@@ -195,13 +257,34 @@ mod tests {
             analysis: None,
         };
         assert!(
-            video_prompt_workflow_run_input("k", 0, 1, "m", "s", &source, &sample_options())
-                .is_err()
+            video_prompt_workflow_run_input(
+                "k",
+                0,
+                1,
+                "m",
+                "s",
+                &source,
+                &sample_options(),
+                "task-1",
+                1,
+            )
+            .is_err()
         );
-        let (input, fp) =
-            video_prompt_workflow_run_input("k", 1, 2, "m", "s", &source, &sample_options())
-                .expect("ok");
+        let (input, fp) = video_prompt_workflow_run_input(
+            "k",
+            1,
+            2,
+            "m",
+            "s",
+            &source,
+            &sample_options(),
+            "task-1",
+            9,
+        )
+        .expect("ok");
         assert_eq!(input.status, WORKFLOW_STATUS_RUNNING);
+        assert_eq!(input.active_task_id.as_deref(), Some("task-1"));
+        assert_eq!(input.root_project_id, Some(9));
         assert_eq!(fp["chapter_id"], 2);
     }
 }

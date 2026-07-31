@@ -15,3 +15,13 @@ pub(in crate::workflow) const WORKFLOW_STATUSES: &[&str] = &[
     WORKFLOW_STATUS_COMPLETED,
     WORKFLOW_STATUS_SUPERSEDED,
 ];
+
+pub(in crate::workflow) fn is_terminal_workflow_status(status: &str) -> bool {
+    matches!(
+        status,
+        WORKFLOW_STATUS_COMPLETED
+            | WORKFLOW_STATUS_FAILED
+            | WORKFLOW_STATUS_CANCELLED
+            | WORKFLOW_STATUS_SUPERSEDED
+    )
+}

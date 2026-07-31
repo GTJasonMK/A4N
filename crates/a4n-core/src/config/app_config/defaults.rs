@@ -41,9 +41,6 @@ pub(super) fn default_llm_max_context_tokens() -> usize {
 pub(super) fn default_llm_max_output_tokens() -> usize {
     DEFAULT_LLM_MAX_OUTPUT_TOKENS
 }
-pub(super) fn default_retry_times() -> u32 {
-    2
-}
 pub(super) fn default_embedding_backend() -> String {
     "local_hash".into()
 }
@@ -73,9 +70,6 @@ pub(super) fn default_image_width() -> u32 {
 }
 pub(super) fn default_image_height() -> u32 {
     1024
-}
-pub(super) fn default_queue_capacity() -> usize {
-    100
 }
 pub(super) fn default_event_bus_capacity() -> usize {
     1024
@@ -110,7 +104,6 @@ impl Default for LlmConfig {
             max_context_tokens: default_llm_max_context_tokens(),
             max_output_tokens: default_llm_max_output_tokens(),
             request_options_json: None,
-            retry_times: default_retry_times(),
             max_tokens: LlmMaxTokensConfig::default(),
         }
     }
@@ -147,7 +140,6 @@ impl Default for ImageGenConfig {
 impl Default for SystemConfig {
     fn default() -> Self {
         Self {
-            queue_capacity: default_queue_capacity(),
             event_bus_capacity: default_event_bus_capacity(),
         }
     }

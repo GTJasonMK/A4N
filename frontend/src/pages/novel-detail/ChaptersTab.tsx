@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Loader2, Upload } from "lucide-react";
+import { ChevronRight, Upload } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import { useToast } from "../../components/feedback/Toast";
@@ -180,7 +181,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   if (displayLoading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <Loader2 size={12} className="animate-spin" /> 加载章节…
+        <LoadingSpinner size="sm" /> 加载章节…
       </div>
     );
   }
@@ -252,7 +253,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
             >
               {importing ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 size={14} className="animate-spin" /> 导入中…
+                  <LoadingSpinner size="sm" /> 导入中…
                 </span>
               ) : (
                 "确认导入"
@@ -321,7 +322,7 @@ const ChapterRow: React.FC<{
           第 {chapter.chapter_number} 章
           {chapter.title?.trim() ? ` · ${chapter.title.trim()}` : ""}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-book-text-muted">
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
           <span>{chapterWordCount(chapter).toLocaleString("zh-CN")} 字</span>
           {status ? (
             <>

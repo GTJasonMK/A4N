@@ -57,6 +57,9 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::generation_snapshot_retention::Migration),
             Box::new(crate::migrations::generation_snapshot_hash_contract::Migration),
             Box::new(crate::migrations::segment_card_video_workflow::Migration),
+            Box::new(crate::migrations::segment_execution_recipe_identity::Migration),
+            Box::new(crate::migrations::segment_recipe_adoption_repair::Migration),
+            Box::new(crate::migrations::chapter_video_prompt_execution_identity::Migration),
         ]
     }
 }
@@ -106,7 +109,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(9)
+                .take(12)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -120,6 +123,9 @@ mod tests {
                 "generation_snapshot_retention",
                 "generation_snapshot_hash_contract",
                 "segment_card_video_workflow",
+                "segment_execution_recipe_identity",
+                "segment_recipe_adoption_repair",
+                "chapter_video_prompt_execution_identity",
             ],
             "deployed migration history must remain registered in execution order"
         );

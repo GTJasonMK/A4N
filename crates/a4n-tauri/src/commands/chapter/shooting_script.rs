@@ -28,6 +28,7 @@ pub async fn generate_chapter_shooting_script(
 ) -> Result<ChapterShootingScriptView, String> {
     let progress_task = WorkflowProgressTask::new(
         state.inner(),
+        Some(user_id),
         task_id,
         TaskKind::LlmCall,
         Some(input.project_id),
@@ -48,6 +49,7 @@ pub async fn generate_chapter_shooting_script(
         input,
         &reporter,
         Some(&cancel_token),
+        progress_task.task_id(),
     )
     .await;
     progress_task.remove(state.inner());

@@ -871,6 +871,29 @@ fn validate_cg_importance(value: &Value, id: i64) -> Result<(), AppError> {
     }
 }
 
+fn validate_input(input: &GalgameAssetGenerationApplicationInput) -> Result<(), AppError> {
+    if input.project_id <= 0 {
+        return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
+    }
+    if input.limit.is_some_and(|limit| limit == 0) {
+        return Err(AppError::InvalidArgument("limit 必须大于 0".to_string()));
+    }
+    let mut seen = BTreeSet::new();
+    for spec_id in &input.generation_spec_ids {
+        if *spec_id <= 0 {
+            return Err(AppError::InvalidArgument(
+                "generation_spec_ids 必须全部是正整数".to_string(),
+            ));
+        }
+        if !seen.insert(*spec_id) {
+            return Err(AppError::InvalidArgument(format!(
+                "generation_spec_ids 不能包含重复 ID: {spec_id}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -947,27 +970,4 @@ mod tests {
         assert!(validate_cg_importance(&json!({"cg_importance": "critical"}), 1).is_ok());
         assert!(validate_cg_importance(&json!({"cg_importance": "invalid"}), 1).is_err());
     }
-}
-
-fn validate_input(input: &GalgameAssetGenerationApplicationInput) -> Result<(), AppError> {
-    if input.project_id <= 0 {
-        return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
-    }
-    if input.limit.is_some_and(|limit| limit == 0) {
-        return Err(AppError::InvalidArgument("limit 必须大于 0".to_string()));
-    }
-    let mut seen = BTreeSet::new();
-    for spec_id in &input.generation_spec_ids {
-        if *spec_id <= 0 {
-            return Err(AppError::InvalidArgument(
-                "generation_spec_ids 必须全部是正整数".to_string(),
-            ));
-        }
-        if !seen.insert(*spec_id) {
-            return Err(AppError::InvalidArgument(format!(
-                "generation_spec_ids 不能包含重复 ID: {spec_id}"
-            )));
-        }
-    }
-    Ok(())
 }

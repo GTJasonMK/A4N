@@ -1,5 +1,6 @@
 import React from "react";
 import { DownloadCloud, Loader2, RotateCcw, Search } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -48,7 +49,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
         className="inline-flex h-10 w-10 items-center justify-center text-book-text-muted sm:h-8 sm:w-8"
         title="正在载入默认提示词"
       >
-        <Loader2 size={14} className="animate-spin" />
+        <LoadingSpinner size="sm" />
       </span>
     ) : (
       <Dropdown

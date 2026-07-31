@@ -49,13 +49,6 @@ use std::sync::Arc;
 pub type DatabaseConnection = sea_orm::DatabaseConnection;
 pub type SharedDatabaseConnection = Arc<DatabaseConnection>;
 
-/// `a4n-db` 持久化 helper 可接受的连接边界。
-///
-/// 上层 crate 依赖该 trait，而不是直接依赖具体 ORM 的连接 trait。
-pub trait DatabaseConnectionTrait: sea_orm::ConnectionTrait {}
-
-impl<T> DatabaseConnectionTrait for T where T: sea_orm::ConnectionTrait + ?Sized {}
-
 #[derive(Clone)]
 pub struct DbHandle {
     connection: SharedDatabaseConnection,

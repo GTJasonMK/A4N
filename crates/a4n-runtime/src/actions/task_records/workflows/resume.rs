@@ -28,6 +28,11 @@ pub async fn resume_workflow_run_for_user(
     )?;
     match dispatch {
         UnifiedResumeDispatch::VideoProviderJob { video_id } => {
+            state
+                .workflow()
+                .mark_workflow_running(input.workflow_run_id)
+                .await
+                .map_err(app_error_message)?;
             video_generation::poll_video_job(state, user_id, video_id).await?;
             workflow_run_summary(state, input.workflow_run_id).await
         }

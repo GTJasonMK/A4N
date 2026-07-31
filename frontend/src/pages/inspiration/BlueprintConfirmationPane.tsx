@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { AlertTriangle, ArrowLeft, Check, Eye, Loader2, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Eye, RefreshCw, X } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import type { Blueprint } from "../../api/blueprint";
@@ -71,7 +72,7 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="text-sm font-semibold text-book-text-main">调整蓝图</h3>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+                  <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
                     说明希望加强、删减或改变的创作方向
                   </p>
                 </div>
@@ -119,7 +120,7 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
                 >
                   {refining ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <Loader2 size={14} className="animate-spin" /> 优化中…
+                      <LoadingSpinner size="sm" /> 优化中…
                     </span>
                   ) : (
                     "提交优化"

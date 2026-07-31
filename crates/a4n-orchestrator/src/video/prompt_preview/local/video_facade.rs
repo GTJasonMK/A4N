@@ -74,7 +74,7 @@ impl OrchestratorContext {
                 variables,
                 options,
             },
-            LocalVideoPromptPreviewSpec::chat_video_boundary_frames(),
+            LocalVideoPromptPreviewSpec::chat_video(),
         )
         .await
     }

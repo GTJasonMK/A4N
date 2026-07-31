@@ -20,14 +20,14 @@ pub fn validate_provider_api_key_secret_policy(
         return Ok(());
     }
 
-    let message =
-        provider_api_key_secret_policy_rejection_message(service).ok_or_else(|| ServiceError {
-            code: ServiceErrorCode::ConfigurationError,
-            message: redact_sensitive_message(format!(
+    let message = provider_api_key_secret_policy_rejection_message(service).ok_or_else(|| {
+        ServiceError::non_retryable(
+            ServiceErrorCode::ConfigurationError,
+            redact_sensitive_message(format!(
                 "unknown provider sidecar service for api_key secret policy: {service}"
             )),
-            retryable: Some(false),
-        })?;
+        )
+    })?;
 
     if matches!(policy.scope, SecretMaterialScope::TrustedRemote) {
         validate_egress_scope(service, EgressDataType::ProviderSecret, &policy.scope)

@@ -46,7 +46,7 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
   return (
     <div className="min-w-0 space-y-2 text-xs">
       <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)] sm:items-center">
-        <label className="truncate text-[11px] font-medium text-book-text-sub">
+        <label className="truncate text-small font-medium text-book-text-sub">
           {label}
         </label>
         <select
@@ -68,11 +68,11 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
 
       {selectedTemplate ? (
         <div className="border-y border-book-border/45 py-2.5">
-          <p className="text-[11px] leading-relaxed text-book-text-muted">
+          <p className="text-small leading-relaxed text-book-text-muted">
             {selectedTemplate.summary}
           </p>
           <details className="group mt-1.5">
-            <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg px-1.5 text-[11px] text-book-text-muted transition-colors hover:bg-book-bg-tertiary/55 hover:text-book-text-main [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg px-1.5 text-small text-book-text-muted transition-colors hover:bg-book-bg-tertiary/55 hover:text-book-text-main [&::-webkit-details-marker]:hidden">
               <ChevronRight
                 size={12}
                 className="shrink-0 transition-transform group-open:rotate-90"

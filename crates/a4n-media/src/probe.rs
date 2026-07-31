@@ -47,6 +47,21 @@ pub enum VideoProbeError {
     InvalidDuration,
 }
 
+#[derive(Debug, Error)]
+pub enum AudioProbeError {
+    #[error(transparent)]
+    Command(#[from] FfprobeCommandError),
+    #[error("ffprobe output is not valid JSON: {source}")]
+    InvalidJson {
+        #[source]
+        source: serde_json::Error,
+    },
+    #[error("ffprobe output does not contain an audio stream")]
+    MissingAudioStream,
+    #[error("ffprobe output does not contain a valid audio duration")]
+    InvalidDuration,
+}
+
 pub fn probe_video_properties(path: &Path) -> Result<VideoProbeProperties, VideoProbeError> {
     let output = run_ffprobe(
         &[
@@ -81,6 +96,42 @@ pub fn probe_video_has_audio(path: &Path) -> Result<bool, FfprobeCommandError> {
         path,
     )?;
     Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
+}
+
+pub fn probe_audio_duration_secs(path: &Path) -> Result<f32, AudioProbeError> {
+    let output = run_ffprobe(
+        &[
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=index",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+        ],
+        path,
+    )?;
+    parse_audio_duration_secs(&output.stdout)
+}
+
+pub fn parse_audio_duration_secs(stdout: &[u8]) -> Result<f32, AudioProbeError> {
+    let value: Value =
+        serde_json::from_slice(stdout).map_err(|source| AudioProbeError::InvalidJson { source })?;
+    value
+        .get("streams")
+        .and_then(Value::as_array)
+        .and_then(|streams| streams.first())
+        .ok_or(AudioProbeError::MissingAudioStream)?;
+    value
+        .get("format")
+        .and_then(|format| format.get("duration"))
+        .and_then(Value::as_str)
+        .and_then(|value| value.parse::<f32>().ok())
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .ok_or(AudioProbeError::InvalidDuration)
 }
 
 pub fn parse_video_probe_properties(

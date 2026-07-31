@@ -29,7 +29,8 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::IntoResponse;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures::{Stream, stream};
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
+use serde_json::Value;
 use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::time::Duration;
@@ -53,10 +54,42 @@ pub(super) struct HistoryListQuery {
     cursor: Option<String>,
 }
 
+fn generation_start_input<T>(
+    mut body: Value,
+) -> Result<
+    (
+        T,
+        Option<a4n_runtime::runtime_config::RuntimeConfigSnapshot>,
+    ),
+    GenerationApiError,
+>
+where
+    T: DeserializeOwned,
+{
+    let runtime_config_snapshot =
+        a4n_runtime::runtime_config::snapshot_from_args(&body).map_err(|message| {
+            GenerationApiError::bad_request("generation_request_invalid", message)
+        })?;
+    let fields = body.as_object_mut().ok_or_else(|| {
+        GenerationApiError::bad_request(
+            "generation_request_invalid",
+            "generation 请求必须是 JSON object",
+        )
+    })?;
+    fields.remove("runtime_config_snapshot");
+    let input = serde_json::from_value(body).map_err(|error| {
+        GenerationApiError::bad_request(
+            "generation_request_invalid",
+            format!("generation 请求无效: {error}"),
+        )
+    })?;
+    Ok((input, runtime_config_snapshot))
+}
+
 pub(super) async fn start_chapter(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartChapterGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -70,10 +103,16 @@ pub(super) async fn start_chapter(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::chapter_generation::start_chapter_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartChapterGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::chapter_generation::start_chapter_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -88,7 +127,7 @@ pub(super) async fn start_chapter(
 pub(super) async fn start_inspiration(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartInspirationGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -102,10 +141,16 @@ pub(super) async fn start_inspiration(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::inspiration_records::start_inspiration_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartInspirationGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::inspiration_records::start_inspiration_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -120,7 +165,7 @@ pub(super) async fn start_inspiration(
 pub(super) async fn start_blueprint(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartBlueprintGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -134,10 +179,16 @@ pub(super) async fn start_blueprint(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::blueprint_records::start_blueprint_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartBlueprintGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::blueprint_records::start_blueprint_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -152,7 +203,7 @@ pub(super) async fn start_blueprint(
 pub(super) async fn start_blueprint_refinement(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartBlueprintRefinementInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -166,10 +217,16 @@ pub(super) async fn start_blueprint_refinement(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::blueprint_records::start_blueprint_refinement_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartBlueprintRefinementInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::blueprint_records::start_blueprint_refinement_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -184,7 +241,7 @@ pub(super) async fn start_blueprint_refinement(
 pub(super) async fn start_outline(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartOutlineGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -198,10 +255,16 @@ pub(super) async fn start_outline(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::outline_records::start_outline_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartOutlineGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::outline_records::start_outline_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -216,7 +279,7 @@ pub(super) async fn start_outline(
 pub(super) async fn start_portrait(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartPortraitGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -230,10 +293,16 @@ pub(super) async fn start_portrait(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::portrait_generation::start_portrait_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartPortraitGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::portrait_generation::start_portrait_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -248,7 +317,7 @@ pub(super) async fn start_portrait(
 pub(super) async fn start_image(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartImageGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -262,10 +331,16 @@ pub(super) async fn start_image(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::image_generation::start_image_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartImageGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::image_generation::start_image_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -280,7 +355,7 @@ pub(super) async fn start_image(
 pub(super) async fn start_video(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartVideoGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -294,10 +369,16 @@ pub(super) async fn start_video(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::video_generation::start_video_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartVideoGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::video_generation::start_video_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -312,7 +393,7 @@ pub(super) async fn start_video(
 pub(super) async fn start_optimize_chat(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartOptimizeChatGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -326,10 +407,16 @@ pub(super) async fn start_optimize_chat(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::optimize::start_optimize_chat_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartOptimizeChatGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::optimize::start_optimize_chat_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -344,7 +431,7 @@ pub(super) async fn start_optimize_chat(
 pub(super) async fn start_optimize_analysis(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartOptimizeAnalysisGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -358,10 +445,16 @@ pub(super) async fn start_optimize_analysis(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::optimize::start_optimize_analysis_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartOptimizeAnalysisGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::optimize::start_optimize_analysis_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -376,7 +469,7 @@ pub(super) async fn start_optimize_analysis(
 pub(super) async fn start_optimize_patch(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<StartOptimizePatchGenerationInput>,
+    Json(body): Json<Value>,
 ) -> Result<
     (
         StatusCode,
@@ -390,10 +483,16 @@ pub(super) async fn start_optimize_patch(
             "需要有效的 Bearer token",
         )
     })?;
-    let handle = a4n_runtime::host_api::optimize::start_optimize_patch_generation_typed(
-        state.runtime(),
+    let (input, runtime_config_snapshot) =
+        generation_start_input::<StartOptimizePatchGenerationInput>(body)?;
+    let handle = a4n_runtime::runtime_config::request_scope(
         user.id,
-        input,
+        runtime_config_snapshot,
+        a4n_runtime::host_api::optimize::start_optimize_patch_generation_typed(
+            state.runtime(),
+            user.id,
+            input,
+        ),
     )
     .await
     .map_err(map_access_error)?;
@@ -853,6 +952,48 @@ fn map_terminal_error(error: generation_actions::GenerationTerminalError) -> Gen
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generation_start_separates_runtime_snapshot_from_task_input() {
+        let secret = "sk-request-only";
+        let (input, snapshot) =
+            generation_start_input::<StartImageGenerationInput>(serde_json::json!({
+                "meta": {
+                    "start_request_id": "00000000-0000-4000-8000-000000000001",
+                    "retry_of_task_id": null
+                },
+                "project_id": 5,
+                "operation": {
+                    "kind": "scene",
+                    "prompt": "雨夜车站",
+                    "config_id": null,
+                    "chapter_id": 9
+                },
+                "runtime_config_snapshot": {
+                    "schema_version": 1,
+                    "image": {
+                        "id": null,
+                        "name": "request image config",
+                        "backend": "openai-compatible-image",
+                        "base_url": "https://example.test/v1",
+                        "api_key_encrypted": secret,
+                        "model": "image-test",
+                        "max_concurrent": 1,
+                        "default_width": 512,
+                        "default_height": 512,
+                        "is_default": true
+                    }
+                }
+            }))
+            .unwrap();
+
+        assert_eq!(input.project_id, 5);
+        assert_eq!(
+            snapshot.unwrap().image.unwrap().name,
+            "request image config"
+        );
+        assert!(!serde_json::to_string(&input).unwrap().contains(secret));
+    }
 
     #[test]
     fn parses_generation_attempt_and_last_event_id() {

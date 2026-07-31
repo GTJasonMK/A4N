@@ -1,11 +1,10 @@
 use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
 use serde_json::{Value, json};
-use tokio_util::sync::CancellationToken;
 
 use crate::{
     OrchestratorContext,
-    structured_llm::{ChatJsonStreamInput, parse_strict_json_response},
+    structured_llm::{ChatJsonStreamInput, parse_strict_json_response, stream_error_or_cancelled},
     workflow::{
         CompletedLlmCallCheckpointInput, required_llm_call_checkpoint_json,
         workflow_checkpoint_contract_app_error,
@@ -69,10 +68,12 @@ impl OrchestratorContext {
                             "{call_key}.parsed_output 缺失，不能恢复结构纠正断点"
                         ))
                     })?;
-                return Ok(RepairCallResult {
-                    value,
-                    restored: true,
-                });
+                if validate_repair_value(suffix, &value, input.parse_output).is_ok() {
+                    return Ok(RepairCallResult {
+                        value,
+                        restored: true,
+                    });
+                }
             }
             if let Some(value) = self
                 .load_compatible_structured_repair_value(CompatibleRepairCheckpointInput {
@@ -111,17 +112,9 @@ impl OrchestratorContext {
                 },
             )
             .await
-            .map_err(|error| {
-                if input
-                    .cancel_token
-                    .is_some_and(CancellationToken::is_cancelled)
-                {
-                    AppError::Cancelled
-                } else {
-                    AppError::LlmError(error)
-                }
-            })?;
+            .map_err(|error| stream_error_or_cancelled(error, input.cancel_token))?;
         let value: Value = parse_strict_json_response(&result.response_content, input.label)?;
+        validate_repair_value(suffix, &value, input.parse_output)?;
 
         if let Some(checkpoint_context) = input.checkpoint.as_ref() {
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
@@ -156,7 +149,44 @@ impl OrchestratorContext {
     }
 }
 
+fn validate_repair_value<T, P>(
+    suffix: &str,
+    value: &Value,
+    parse_output: &P,
+) -> Result<(), AppError>
+where
+    P: Fn(&Value) -> Result<T, AppError>,
+{
+    if suffix == "schema_repair" {
+        parse_output(value).map(|_| ())
+    } else {
+        Ok(())
+    }
+}
+
 pub(super) struct RepairCallResult {
     pub(super) value: Value,
     pub(super) restored: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn full_repair_values_must_match_the_target_contract() {
+        let parse_output = |value: &Value| {
+            value
+                .get("required")
+                .filter(|value| value.is_string())
+                .map(|_| ())
+                .ok_or_else(|| AppError::InvalidArgument("required 缺失".to_string()))
+        };
+        let invalid = json!({"unexpected": true});
+
+        assert!(validate_repair_value("schema_repair", &invalid, &parse_output).is_err());
+        assert!(validate_repair_value("schema_patch", &invalid, &parse_output).is_ok());
+    }
 }

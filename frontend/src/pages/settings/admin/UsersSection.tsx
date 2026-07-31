@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { BarChart3, KeyRound, Loader2, Plus, RefreshCw, Shield, UserX } from "lucide-react";
+import { BarChart3, KeyRound, Plus, RefreshCw, Shield, UserX } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   createInviteCode,
@@ -92,38 +93,12 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
   const [usageFor, setUsageFor] = useState<number | null>(null);
   const [usageInfo, setUsageInfo] = useState<UsageLog[] | null>(null);
   const [usageLoadingFor, setUsageLoadingFor] = useState<number | null>(null);
-  const activeCallerUserIdRef = useRef(callerUserId);
-  const mountedRef = useRef(true);
   const actingKeysRef = useRef<Set<string>>(new Set());
-  const loadSeqRef = useRef(0);
   const tokenSeqRef = useRef(0);
   const usageSeqRef = useRef(0);
   const tokenInFlightForRef = useRef<number | null>(null);
   const usageInFlightForRef = useRef<number | null>(null);
   const createFormVersionRef = useRef(0);
-
-  activeCallerUserIdRef.current = callerUserId;
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const isCurrentCaller = useCallback((requestCallerUserId: number) => {
-    return (
-      mountedRef.current &&
-      activeCallerUserIdRef.current === requestCallerUserId
-    );
-  }, []);
-
-  const isCurrentLoad = useCallback(
-    (requestCallerUserId: number, seq: number) => {
-      return isCurrentCaller(requestCallerUserId) && loadSeqRef.current === seq;
-    },
-    [isCurrentCaller],
-  );
 
   const isActing = useCallback(
     (key: string) => actingKeys.has(key),
@@ -147,24 +122,24 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     setActingKeys(next);
   }, []);
 
-  const loadUsers = useCallback(async () => {
-    const requestCallerUserId = callerUserId;
-    const requestSeq = loadSeqRef.current + 1;
-    loadSeqRef.current = requestSeq;
-    try {
-      const [nextUsers, nextInviteCodes] = await Promise.all([
-        listAllUsers(requestCallerUserId),
-        listInviteCodes(requestCallerUserId),
-      ]);
-      if (!isCurrentLoad(requestCallerUserId, requestSeq)) return;
+  const loadUsers = useCallback(
+    () => Promise.all([listAllUsers(callerUserId), listInviteCodes(callerUserId)]),
+    [callerUserId],
+  );
+  const applyUsers = useCallback(
+    ([nextUsers, nextInviteCodes]: [AdminUser[], AdminInviteCode[]]) => {
       setUsers(nextUsers);
       setInviteCodes(nextInviteCodes);
-    } catch (err) {
-      if (!isCurrentLoad(requestCallerUserId, requestSeq)) return;
-      throw err;
-    }
-  }, [callerUserId, isCurrentLoad]);
-  const { loading, load } = useAdminSectionLoader(loadUsers, "加载用户失败");
+    },
+    [],
+  );
+  const { loading, load, isCurrentScope: isCurrentCaller } =
+    useAdminSectionLoader(
+      callerUserId,
+      loadUsers,
+      applyUsers,
+      "加载用户失败",
+    );
 
   useEffect(() => {
     actingKeysRef.current = new Set();
@@ -497,7 +472,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
       <ul className="space-y-2.5">
         {loading && users.length === 0 ? (
           <li className="a4n-flat-surface inline-flex w-full items-center gap-1.5 p-3 text-xs text-book-text-muted">
-            <Loader2 size={12} className="animate-spin" />
+            <LoadingSpinner size="sm" />
             正在加载用户…
           </li>
         ) : users.length === 0 ? (
@@ -510,7 +485,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
               <div className="min-w-0">
                 <div className="truncate font-medium text-book-text-main">{u.username}</div>
                 <div className="mt-1 truncate text-book-text-muted">{u.email}</div>
-                <div className="mt-0.5 text-[11px] text-book-text-muted">
+                <div className="mt-0.5 text-small text-book-text-muted">
                   {userRoleLabel(u.role)}
                   {u.is_active === false ? " · 已禁用" : ""}
                   {u.last_login_at ? ` · 最近登录 ${formatAdminDate(u.last_login_at)}` : " · 尚未登录"}
@@ -518,7 +493,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
               </div>
               <div>
                   {isActing(`role-${u.id}`) || isActing(`del-${u.id}`) ? (
-                    <Loader2 size={13} className="animate-spin text-book-text-muted" />
+                    <LoadingSpinner size="sm" className="text-book-text-muted" />
                   ) : (
                     <Dropdown items={userActions(u)} />
                   )}
@@ -537,7 +512,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
         <ul className="divide-y divide-book-border/30 border-t border-book-border/30">
           {loading && inviteCodes.length === 0 ? (
             <li className="inline-flex w-full items-center gap-1.5 p-3 text-xs text-book-text-muted">
-              <Loader2 size={12} className="animate-spin" />
+              <LoadingSpinner size="sm" />
               正在加载邀请码…
             </li>
           ) : inviteCodes.length === 0 ? (
@@ -668,24 +643,24 @@ const TokenSummaryPanel: React.FC<{
   return (
     <div className="overflow-hidden">
       {loading && !record ? (
-        <div className="inline-flex items-center gap-1.5 px-3 py-3 text-[11px] text-book-text-muted">
-          <Loader2 size={12} className="animate-spin" /> 正在加载数据…
+        <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
+          <LoadingSpinner size="sm" /> 正在加载数据…
         </div>
       ) : !record ? (
-        <div className="px-3 py-3 text-[11px] text-book-text-muted">暂无数据</div>
+        <div className="px-3 py-3 text-small text-book-text-muted">暂无数据</div>
       ) : (
         <>
           <dl className="grid grid-cols-2 divide-x divide-y divide-book-border/30 sm:grid-cols-3">
             {items.map(([label, item]) => (
               <div key={label} className="px-3 py-2.5">
-                <dt className="text-[10px] text-book-text-muted">{label}</dt>
+                <dt className="text-caption text-book-text-muted">{label}</dt>
                 <dd className="mt-0.5 font-mono text-sm font-semibold text-book-text-main">
                   {item == null ? "—" : item.toLocaleString()}
                 </dd>
               </div>
             ))}
           </dl>
-          <details className="border-t border-book-border/30 px-3 py-2 text-[10px] text-book-text-muted">
+          <details className="border-t border-book-border/30 px-3 py-2 text-caption text-book-text-muted">
             <summary className="cursor-pointer">诊断信息</summary>
             <pre className="mt-2 whitespace-pre-wrap break-words font-mono">
               {JSON.stringify(data, null, 2)}
@@ -703,15 +678,15 @@ const UsageRecordsPanel: React.FC<{
 }> = ({ data, loading }) => (
   <div className="overflow-hidden">
     {loading && data == null ? (
-      <div className="inline-flex items-center gap-1.5 px-3 py-3 text-[11px] text-book-text-muted">
-        <Loader2 size={12} className="animate-spin" /> 正在加载数据…
+      <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
+        <LoadingSpinner size="sm" /> 正在加载数据…
       </div>
     ) : !data?.length ? (
-      <div className="px-3 py-3 text-[11px] text-book-text-muted">暂无调用记录</div>
+      <div className="px-3 py-3 text-small text-book-text-muted">暂无调用记录</div>
     ) : (
       <ul className="divide-y divide-book-border/30">
         {data.map((item, index) => (
-          <li key={item.id} className="px-3 py-2.5 text-[11px]">
+          <li key={item.id} className="px-3 py-2.5 text-small">
             <div className="flex min-w-0 items-center gap-2">
               <span className="min-w-0 flex-1 truncate font-medium text-book-text-main">
                 {item.model || `调用 ${index + 1}`}

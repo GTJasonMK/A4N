@@ -15,10 +15,6 @@ use archive::read_epub_archive;
 pub struct EpubParser;
 
 impl EpubParser {
-    pub fn new() -> Self {
-        Self
-    }
-
     /// 从 EPUB 字节数据解析文本内容
     pub fn parse(&self, data: &[u8]) -> Result<ParseResult, ImportTransformError> {
         let archive = read_epub_archive(data)?;

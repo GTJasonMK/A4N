@@ -24,8 +24,8 @@ use crate::video::prompt_generation::frame_prompts::{
     build_video_context_manifest, ensure_existing_frame_prompts_can_regenerate,
     first_frame_prompt_drafts, frame_prompt_available_assets_context, frame_prompt_progress_spec,
     parse_video_frame_prompts_with_defaults, render_or_restore_json_with_validation_with_context,
-    report_video_prompt_progress, serialize_video_value, validate_first_frame_prompts,
-    video_prompt_generation_trace, video_stage_fingerprint,
+    report_video_prompt_item_committed, report_video_prompt_progress, serialize_video_value,
+    validate_first_frame_prompts, video_prompt_generation_trace, video_stage_fingerprint,
 };
 use crate::video::prompt_generation::{ProgressSpan, VideoPromptStepProgress};
 use crate::video::prompt_json::VideoFramePromptDefaults;
@@ -89,12 +89,12 @@ pub(super) async fn generate_first_frame_workflow(
         segment_draft,
         prompt_renderer,
         cancel_token,
-        mut progress,
-        mut chunks,
+        progress,
+        chunks,
     } = input;
     let validate_frame_prompts_for_spec =
         |frame_prompts: &[VideoFramePrompt]| -> Result<(), AppError> {
-            validate_first_frame_prompts(frame_prompts, &segment_plan, &allowed_reference_ids)
+            validate_first_frame_prompts(frame_prompts, segment_plan, allowed_reference_ids)
         };
     let message = if regenerate_existing {
         spec.frame_regenerate_progress
@@ -112,32 +112,32 @@ pub(super) async fn generate_first_frame_workflow(
         )
         .await?;
     }
-    report_video_prompt_progress(&mut progress, 60, 100, message)?;
-    let frame_prompt_available_assets = frame_prompt_available_assets_context(&available_assets)?;
+    report_video_prompt_progress(progress, 60, 100, message)?;
+    let frame_prompt_available_assets = frame_prompt_available_assets_context(available_assets)?;
     let frame_prompt_context = FramePromptContext {
         prompt_renderer,
         project_id,
         chapter_summary: source.summary,
         chapter_analysis: source.analysis,
-        segment_plan: &segment_json,
+        segment_plan: segment_json,
         available_assets: &frame_prompt_available_assets,
-        style: &style,
+        style,
         prompt_output_language,
-        aspect_ratio: &aspect_ratio,
-        reference_ids: &reference_ids,
+        aspect_ratio,
+        reference_ids,
     };
     let frame_user = build_first_frame_prompt_user(frame_prompt_context, source.content).await?;
     let frame_context_manifest = build_video_context_manifest(VideoContextManifestInput {
         prompt_renderer,
         project_id,
-        variables: &vars,
+        variables: vars,
         source: &source,
-        source_spans: &source_spans,
+        source_spans,
         prompt_names: &["chapter_video_segment_plan", spec.frame_prompt_name],
         previous_outputs: &[VideoContextPreviousOutput {
             pack_kind: VIDEO_PREVIOUS_OUTPUT_SEGMENT_PLAN,
             source_name: "chapter_video_segment_plan",
-            parsed_output: &segment_json,
+            parsed_output: segment_json,
             raw_output: None,
             placeholder: false,
         }],
@@ -170,14 +170,14 @@ pub(super) async fn generate_first_frame_workflow(
             prompt_renderer,
             prompt_name: spec.frame_prompt_name,
             project_id,
-            variables: &vars,
+            variables: vars,
             context_manifest: frame_context_manifest,
             temperature: 0.45,
             cancel_token,
             step: VideoPromptStepProgress::new(60, 100, message)
                 .with_span(ProgressSpan::new(60, 90)),
-            progress: &mut progress,
-            chunks: &mut chunks,
+            progress,
+            chunks,
             structured_progress: Some(frame_prompt_progress_spec(
                 "首帧",
                 Some(expected_frame_count),
@@ -193,7 +193,7 @@ pub(super) async fn generate_first_frame_workflow(
                 &[VideoFramePromptDefaults {
                     frame_number: 1,
                     duration_secs: first_segment.duration_secs,
-                    aspect_ratio: &aspect_ratio,
+                    aspect_ratio,
                     segment_numbers: vec![first_segment.segment_number],
                     reference_image_ids: reference_image_ids.to_vec(),
                 }],
@@ -222,6 +222,15 @@ pub(super) async fn generate_first_frame_workflow(
     service
         .sync_chapter_prompts(chapter_id, checkpoint_drafts)
         .await?;
-    report_video_prompt_progress(&mut progress, 90, 100, spec.frame_saved_progress)?;
+    report_video_prompt_item_committed(
+        progress,
+        90,
+        100,
+        spec.frame_prompt_type,
+        1,
+        1,
+        expected_frame_count,
+        spec.frame_saved_progress,
+    )?;
     Ok(frame_drafts)
 }

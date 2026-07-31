@@ -227,7 +227,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
       <section aria-label="工作流明细" className="space-y-2">
         <div className="flex items-baseline gap-2 px-1">
           <h3 className="text-xs font-medium text-book-text-main">工作流明细</h3>
-          <p className="text-[11px] text-book-text-muted">按调用域查看消耗与生成表现</p>
+          <p className="text-small text-book-text-muted">按调用域查看消耗与生成表现</p>
         </div>
         <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
           <DiagnosticDomainDetails
@@ -293,7 +293,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
       <section aria-label="最近调用" className="space-y-2">
         <div className="flex items-baseline gap-2 px-1">
           <h3 className="text-xs font-medium text-book-text-main">最近调用</h3>
-          <p className="text-[11px] text-book-text-muted">按需查看逐条记录</p>
+          <p className="text-small text-book-text-muted">按需查看逐条记录</p>
         </div>
         <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
           <DiagnosticDomainDetails
@@ -346,7 +346,7 @@ const OverviewRow: React.FC<{
     >
       <dt className="font-medium text-book-text-main">{kindLabel(kind)}</dt>
       <dd
-        className={`mt-1 min-w-0 text-[11px] leading-relaxed ${
+        className={`mt-1 min-w-0 text-small leading-relaxed ${
           failed && !item ? "text-error" : "text-book-text-muted"
         }`}
       >
@@ -444,7 +444,7 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
           y2={topPad + plotHeight}
           className="stroke-book-border"
         />
-        <text x={2} y={topPad + 8} className="fill-book-text-muted text-[10px]">
+        <text x={2} y={topPad + 8} className="fill-book-text-muted text-caption">
           {formatInteger(maxCalls)}
         </text>
         {visibleRows.map((row, index) => {
@@ -489,7 +489,7 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
                   x={x + barWidth / 2}
                   y={CHART_HEIGHT - 6}
                   textAnchor="middle"
-                  className="fill-book-text-muted text-[10px]"
+                  className="fill-book-text-muted text-caption"
                 >
                   {row.date.slice(5)}
                 </text>
@@ -498,7 +498,7 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
           );
         })}
       </svg>
-      <div className="flex flex-wrap items-center gap-3 text-[11px] text-book-text-muted">
+      <div className="flex flex-wrap items-center gap-3 text-small text-book-text-muted">
         <Legend colorClass="bg-info" label="LLM" />
         <Legend colorClass="bg-success" label="图片" />
         <Legend colorClass="bg-warning" label="视频" />
@@ -529,7 +529,7 @@ const DiagnosticDomainDetails: React.FC<{
   >
     <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
       <span className="font-medium text-book-text-main">{title}</span>
-      <span className="min-w-0 flex-1 truncate text-right text-[11px] text-book-text-muted">
+      <span className="min-w-0 flex-1 truncate text-right text-small text-book-text-muted">
         {description}
       </span>
       <ChevronRight
@@ -607,11 +607,11 @@ const RecentLlmCalls: React.FC<{
             <WorkflowLabel workflow={row.workflow} />
             <div className="text-right tabular-nums">
               <div>{formatTokenValue(row.total_tokens)}</div>
-              <div className="text-[11px] text-book-text-muted">
+              <div className="text-small text-book-text-muted">
                 输入 {formatOptionalCompact(row.prompt_tokens)} / 输出{" "}
                 {formatOptionalCompact(row.completion_tokens)}
               </div>
-              <div className="text-[11px] text-book-text-muted">
+              <div className="text-small text-book-text-muted">
                 {formatCacheDetail(row)} / {formatDuration(row.duration_ms)}
               </div>
             </div>
@@ -650,7 +650,7 @@ const RecentMediaCalls: React.FC<{
                 {kindLabel(row.kind)} / {row.title}
               </div>
               <div
-                className="text-[11px] text-book-text-muted truncate"
+                className="text-small text-book-text-muted truncate"
                 title={row.workflow}
               >
                 {row.workflow}
@@ -658,7 +658,7 @@ const RecentMediaCalls: React.FC<{
             </div>
             <div className="text-right tabular-nums">
               <div>{statusLabel(row.status)}</div>
-              <div className="text-[11px] text-book-text-muted">
+              <div className="text-small text-book-text-muted">
                 {formatDuration(row.duration_ms)}
               </div>
             </div>

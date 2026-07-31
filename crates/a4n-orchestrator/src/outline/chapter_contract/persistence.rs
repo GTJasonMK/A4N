@@ -1,9 +1,9 @@
 use super::fields::{optional_f32, optional_non_null, optional_positive_i32, required_string};
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_outline;
-use a4n_db::DatabaseConnectionTrait as ConnectionTrait;
 use a4n_db::DbHandle;
 use a4n_db::outline::{self as outline_db, ChapterOutlineSyncDraft, OutlineDbError};
+use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 pub fn chapter_outline_sync_draft_from_json(

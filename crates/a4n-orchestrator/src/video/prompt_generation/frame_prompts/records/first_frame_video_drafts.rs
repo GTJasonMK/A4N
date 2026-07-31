@@ -7,14 +7,12 @@ use super::super::super::super::FIRST_FRAME_CHAIN_CONTRACT_VERSION;
 use super::super::super::super::prompt_json::{
     VideoFramePrompt, VideoPromptShot, VideoSegmentPlan,
 };
-use super::super::super::super::prompt_store::{
-    NewChapterVideoPrompt, NewChapterVideoPromptInput, PromptWorkflowMode, new_prompt_draft,
-};
+use super::super::super::super::prompt_store::{NewChapterVideoPrompt, PromptWorkflowMode};
 use super::super::VideoUnitPlan;
 use a4n_core::prompt_language::with_prompt_output_language_metadata;
 
-use super::frame_drafts::VideoPromptDraftCommonInput;
-use super::rules::{compact_shot_metadata, optional_prompt_text};
+use super::frame_drafts::{VideoPromptDraftCommonInput, video_prompt_shot_draft};
+use super::rules::compact_shot_metadata;
 
 pub(in crate::video) struct FirstFrameVideoPromptDraftsInput<'a> {
     pub common: VideoPromptDraftCommonInput<'a>,
@@ -36,19 +34,6 @@ pub(in crate::video) fn first_frame_video_prompt_drafts(
         first_frame_by_number,
         video_prompts,
     } = input;
-    let VideoPromptDraftCommonInput {
-        project_id,
-        chapter_id,
-        style,
-        prompt_output_language,
-        source_metadata,
-        available_assets,
-        generation_asset_fingerprint,
-        execution_identity,
-    } = common;
-    let generated_first_frame = first_frame_by_number.get(&1).ok_or_else(|| {
-        AppError::InvalidArgument("首帧串联视频提示词缺少初始首帧 #1".to_string())
-    })?;
     video_prompts
         .iter()
         .map(|prompt| {
@@ -67,35 +52,26 @@ pub(in crate::video) fn first_frame_video_prompt_drafts(
                     ))
                 })?;
             let start_first_frame = if prompt.shot_number == 1 {
-                json!(generated_first_frame)
+                json!(first_frame_by_number.get(&1).ok_or_else(|| {
+                    AppError::InvalidArgument("首帧串联视频提示词缺少初始首帧 #1".to_string())
+                })?)
             } else {
                 Value::Null
             };
-            Ok(new_prompt_draft(NewChapterVideoPromptInput {
-                project_id,
-                chapter_id,
-                workflow_mode: PromptWorkflowMode::FirstFrameChain,
-                style: Some(style),
-                prompt_type: "video_prompt",
-                shot_number: prompt.shot_number,
-                title: Some(&prompt.title),
-                scene_summary: Some(&prompt.scene_summary),
-                visual_prompt: &prompt.visual_prompt,
-                motion_prompt: Some(&prompt.motion_prompt),
-                negative_prompt: optional_prompt_text(&prompt.negative_prompt),
-                duration_secs: prompt.duration_secs,
-                aspect_ratio: Some(&prompt.aspect_ratio),
-                reference_image_ids_json: Some(json!(prompt.reference_image_ids)),
-                metadata_json: Some(with_prompt_output_language_metadata(
+            Ok(video_prompt_shot_draft(
+                common,
+                PromptWorkflowMode::FirstFrameChain,
+                prompt,
+                with_prompt_output_language_metadata(
                     json!({
                         "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
                         "shot": compact_shot_metadata(prompt),
                         "video_unit": video_unit,
                         "segment": *segment,
                         "start_first_frame": start_first_frame,
-                        "available_assets": available_assets.clone(),
-                        "generation_asset_fingerprint": generation_asset_fingerprint.clone(),
-                        "video_execution_identity": execution_identity.clone(),
+                        "available_assets": common.available_assets.clone(),
+                        "generation_asset_fingerprint": common.generation_asset_fingerprint.clone(),
+                        "video_execution_identity": common.execution_identity.clone(),
                         "self_contained_context": prompt.self_contained_context.clone(),
                         "start_state": prompt.start_state.clone(),
                         "end_state": prompt.end_state.clone(),
@@ -126,11 +102,11 @@ pub(in crate::video) fn first_frame_video_prompt_drafts(
                                 Value::Null
                             }
                         },
-                        "source": source_metadata.clone()
+                        "source": common.source_metadata.clone()
                     }),
-                    prompt_output_language,
-                )),
-            }))
+                    common.prompt_output_language,
+                ),
+            ))
         })
         .collect()
 }

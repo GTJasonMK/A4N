@@ -1,8 +1,8 @@
 use super::CharacterDbError;
 use a4n_core::models::character::snapshot_reference;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    Set,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -141,35 +141,6 @@ where
         .order_by_desc(snapshot_reference::Column::CreatedAt)
         .one(db)
         .await
-}
-
-pub async fn snapshot_reference_hash_exists<C>(db: &C, content_hash: &str) -> Result<bool, DbErr>
-where
-    C: ConnectionTrait,
-{
-    snapshot_reference::Entity::find()
-        .filter(snapshot_reference::Column::SnapshotHash.eq(content_hash))
-        .count(db)
-        .await
-        .map(|count| count > 0)
-}
-
-pub async fn gc_snapshot_references_except<C>(
-    db: &C,
-    referenced_hashes: &[String],
-) -> Result<u64, DbErr>
-where
-    C: ConnectionTrait,
-{
-    if referenced_hashes.is_empty() {
-        return Ok(0);
-    }
-
-    snapshot_reference::Entity::delete_many()
-        .filter(snapshot_reference::Column::SnapshotHash.is_not_in(referenced_hashes.to_vec()))
-        .exec(db)
-        .await
-        .map(|result| result.rows_affected)
 }
 
 #[cfg(test)]

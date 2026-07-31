@@ -72,6 +72,7 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
             .map_err(ApiError::bad_request)?;
     let task = register_web_task(
         state,
+        user_id,
         task_id.clone(),
         TaskKind::RagIngestion,
         scope.project_id,
@@ -172,7 +173,7 @@ pub(in crate::routes::commands) async fn get_embedding_model_download_info(
 
 pub(in crate::routes::commands) async fn download_embedding_model(
     state: &ServerState,
-    _user_id: i64,
+    user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
     let mut input: embedding_model_actions::EmbeddingModelInput =
@@ -182,6 +183,7 @@ pub(in crate::routes::commands) async fn download_embedding_model(
     let scope = embedding_model_actions::embedding_model_download_task_scope();
     let task = register_web_task(
         state,
+        user_id,
         task_id.clone(),
         TaskKind::EmbeddingDownload,
         None,
@@ -216,17 +218,17 @@ pub(in crate::routes::commands) async fn download_embedding_model(
         cancel_token,
     )
     .await;
-    if let Some(worker) = progress_worker {
-        if let Err(join_error) = worker.await {
-            let bridge_error = format!("模型下载进度事件任务异常退出: {join_error}");
-            result = Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
-                "{}",
-                match result {
-                    Ok(_) => bridge_error,
-                    Err(error) => format!("{error}；{bridge_error}"),
-                }
-            )));
-        }
+    if let Some(worker) = progress_worker
+        && let Err(join_error) = worker.await
+    {
+        let bridge_error = format!("模型下载进度事件任务异常退出: {join_error}");
+        result = Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
+            "{}",
+            match result {
+                Ok(_) => bridge_error,
+                Err(error) => format!("{error}；{bridge_error}"),
+            }
+        )));
     }
     let summary = finish_web_task(state, task_id, result).await?;
     Ok(json!(summary))

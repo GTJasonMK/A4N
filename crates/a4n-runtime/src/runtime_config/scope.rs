@@ -28,27 +28,26 @@ pub fn snapshot_from_args(args: &Value) -> Result<Option<RuntimeConfigSnapshot>,
     Ok(Some(snapshot))
 }
 
-pub async fn scope<F, T>(snapshot: RuntimeConfigSnapshot, future: F) -> T
+pub fn scope<F, T>(snapshot: RuntimeConfigSnapshot, future: F) -> impl Future<Output = T>
 where
     F: Future<Output = T>,
 {
-    RUNTIME_CONFIG_SNAPSHOT.scope(snapshot, future).await
+    RUNTIME_CONFIG_SNAPSHOT.scope(snapshot, Box::pin(future))
 }
 
-pub async fn request_scope<F, T>(
+pub fn request_scope<F, T>(
     user_id: i64,
     snapshot: Option<RuntimeConfigSnapshot>,
     future: F,
-) -> T
+) -> impl Future<Output = T>
 where
     F: Future<Output = T>,
 {
-    RUNTIME_USER_ID
-        .scope(user_id, async move {
-            match snapshot {
-                Some(snapshot) => RUNTIME_CONFIG_SNAPSHOT.scope(snapshot, future).await,
-                None => future.await,
-            }
-        })
-        .await
+    let future = Box::pin(future);
+    RUNTIME_USER_ID.scope(user_id, async move {
+        match snapshot {
+            Some(snapshot) => RUNTIME_CONFIG_SNAPSHOT.scope(snapshot, future).await,
+            None => future.await,
+        }
+    })
 }

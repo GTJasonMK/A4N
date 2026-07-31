@@ -15,9 +15,9 @@ pub use progress::*;
 pub use queries::*;
 
 pub(super) use progress::trim_workflow_progress_events;
-pub(super) use queries::{workflow_checkpoints, workflow_run_by_id};
+pub(super) use queries::{locked_workflow_run_by_id, workflow_checkpoints};
 
 #[cfg(test)]
-pub(in crate::workflow) use projections::workflow_run_progress_summary;
+pub(in crate::workflow) use projections::{workflow_run_progress_summary, workflow_run_summary};
 #[cfg(test)]
 pub(in crate::workflow) use validation::*;

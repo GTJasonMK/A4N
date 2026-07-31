@@ -1,17 +1,15 @@
 import React from "react";
-import {
-  ChevronDown,
+import { ChevronDown,
   ChevronRight,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+  RefreshCw, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { WorkflowRun, WorkflowRunDetail } from "../../../api/streaming";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
 import {
   getWorkflowKindLabel,
   getWorkflowModeLabel,
-  getWorkflowStatusLabel,
+  getOperationStatusLabel,
 } from "../../../utils/workflowPresentation";
 
 const PANEL_RESUMABLE_WORKFLOW_KINDS = new Set([
@@ -43,14 +41,14 @@ export const WorkflowRunsPanel: React.FC<WorkflowRunsPanelProps> = ({
   <section>
     <div className="flex items-baseline gap-2 px-1 pb-2">
       <h3 className="text-xs font-semibold text-book-text-main">持久化工作流</h3>
-      <span className="text-[11px] text-book-text-muted">
+      <span className="text-small text-book-text-muted">
         {runs.length > 0 ? `最近 ${runs.length} 条` : "可恢复的运行记录"}
       </span>
-      {loading ? <Loader2 size={12} className="ml-auto animate-spin text-book-text-muted" /> : null}
+      {loading ? <LoadingSpinner size="sm" className="ml-auto  text-book-text-muted" /> : null}
     </div>
     {loading && runs.length === 0 ? (
       <div className="a4n-flat-surface flex items-center justify-center gap-1.5 px-3 py-5 text-xs text-book-text-muted">
-        <Loader2 size={12} className="animate-spin" />
+        <LoadingSpinner size="sm" />
         正在加载工作流…
       </div>
     ) : runs.length === 0 ? (
@@ -149,8 +147,8 @@ const WorkflowRunRow: React.FC<{
           <div className="truncate font-medium text-book-text-main">
             {kindLabel}
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-book-text-muted">
-            <span className={runStatusTone(run.status)}>{getWorkflowStatusLabel(run.status)}</span>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
+            <span className={runStatusTone(run.status)}>{getOperationStatusLabel(run.status)}</span>
             {run.mode ? (
               <>
                 <span aria-hidden="true">·</span>
@@ -172,16 +170,16 @@ const WorkflowRunRow: React.FC<{
               </>
             ) : null}
           </div>
-          <div className="mt-1.5 truncate text-[11px] text-book-text-sub">
+          <div className="mt-1.5 truncate text-small text-book-text-sub">
             {displayStage}
           </div>
-          <div className="truncate text-[11px] leading-4 text-book-text-muted" title={detailText}>
+          <div className="truncate text-small leading-4 text-book-text-muted" title={detailText}>
             {formatWorkflowDetail(detailText)}
           </div>
         </div>
         {detailLoading || resuming ? (
           <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-book-text-muted">
-            <Loader2 size={13} className="animate-spin" />
+            <LoadingSpinner size="sm" />
           </span>
         ) : (
           <Dropdown items={menuItems} />
@@ -200,21 +198,21 @@ const WorkflowRunDetailBlock: React.FC<{
 }> = ({ detail, loading }) => {
   if (loading && !detail) {
     return (
-      <div className="mt-3 flex items-center gap-1.5 border-t border-book-border/30 pt-3 text-[11px] text-book-text-muted">
-        <Loader2 size={11} className="animate-spin" />
+      <div className="mt-3 flex items-center gap-1.5 border-t border-book-border/30 pt-3 text-small text-book-text-muted">
+        <LoadingSpinner size="sm" />
         正在加载调用详情…
       </div>
     );
   }
   if (!detail) {
     return (
-      <div className="mt-3 border-t border-book-border/30 pt-3 text-[11px] text-book-text-muted">
+      <div className="mt-3 border-t border-book-border/30 pt-3 text-small text-book-text-muted">
         暂无调用详情
       </div>
     );
   }
   return (
-    <div className="mt-3 space-y-3 border-t border-book-border/30 pt-3 text-[11px] text-book-text-muted">
+    <div className="mt-3 space-y-3 border-t border-book-border/30 pt-3 text-small text-book-text-muted">
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
         <span className="text-book-text-sub">{detail.checkpoints.length} 个检查点</span>
         <span aria-hidden="true">·</span>
@@ -233,7 +231,7 @@ const WorkflowRunDetailBlock: React.FC<{
                   第 {checkpoint.step_order} 步
                 </span>
                 <span className={runStatusTone(checkpoint.status)}>
-                  {getWorkflowStatusLabel(checkpoint.status)}
+                  {getOperationStatusLabel(checkpoint.status)}
                 </span>
               </li>
             ))}
@@ -254,7 +252,7 @@ const WorkflowRunDetailBlock: React.FC<{
                   {run.title || "生成请求"}
                 </span>
                 <span className={runStatusTone(run.status)}>
-                  {getWorkflowStatusLabel(run.status)}
+                  {getOperationStatusLabel(run.status)}
                   {run.attempt > 1 ? ` · 第 ${run.attempt} 次` : ""}
                 </span>
               </li>
@@ -268,7 +266,7 @@ const WorkflowRunDetailBlock: React.FC<{
 };
 
 const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetail }> = ({ detail }) => (
-  <details className="text-[10px] text-book-text-muted">
+  <details className="text-caption text-book-text-muted">
     <summary className="w-fit cursor-pointer select-none py-1 hover:text-book-text-main">
       诊断信息
     </summary>

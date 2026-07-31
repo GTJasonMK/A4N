@@ -37,17 +37,7 @@ fn canonical_names_parse_and_round_trip_through_adapters() {
 }
 
 #[test]
-fn catalogs_preserve_chapter_derived_and_ingestable_order() {
-    assert_eq!(
-        RagDataType::CHAPTER_DERIVED.map(RagDataType::as_str),
-        [
-            "chapter",
-            "chapter_summary",
-            "chapter_metadata",
-            "key_event",
-            "foreshadowing",
-        ]
-    );
+fn ingestable_catalog_preserves_order() {
     assert_eq!(
         RagDataType::INGESTABLE.map(RagDataType::as_str),
         [

@@ -1,16 +1,14 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  BadgeCheck,
+import { BadgeCheck,
   Box,
   Clipboard,
-  Loader2,
   MapPinned,
   RefreshCw,
   Search,
   Sparkles,
   Star,
-  Upload,
-} from "lucide-react";
+  Upload, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   deleteImage,
@@ -45,6 +43,7 @@ import {
   supportedImageAccept,
 } from "../../../utils/imageUpload";
 import { ImageActionDialog } from "../images/ImageActionDialog";
+import { chapterRangeText } from "../shared";
 import {
   IMAGE_STYLE_TEMPLATES,
   renderVisualStyleTemplate,
@@ -138,11 +137,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const categoryLabel = (value: string): string => CATEGORY_LABELS[value] ?? "未分类";
 const importanceLabel = (value: string): string => IMPORTANCE_LABELS[value] ?? "未标注";
-
-const chapterRangeText = (first: number, last: number): string => {
-  if (first === last) return `第 ${first} 章`;
-  return `第 ${first}-${last} 章`;
-};
 
 const groupKey = (group: ProfileMaterialGroup): string => `${group.kind}:${group.profile.id}`;
 
@@ -695,10 +689,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
             title="刷新素材管理数据"
             aria-label="刷新素材管理数据"
           >
-            {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            {loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={13} />}
           </button>
         </div>
-        <div className="border-t border-book-border/35 px-3 py-2 text-[11px] leading-relaxed text-book-text-muted">
+        <div className="border-t border-book-border/35 px-3 py-2 text-small leading-relaxed text-book-text-muted">
           当前 {groups.length} 个档案 · {stats.imageCount} 张素材图
           {stats.missingCount > 0 ? ` · ${stats.missingCount} 项待补齐` : ""}
           {stats.staleCount > 0 ? ` · ${stats.staleCount} 项需更新` : ""}
@@ -706,7 +700,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         <details className="group border-t border-book-border/35">
           <summary className="flex min-h-10 cursor-pointer list-none items-center gap-3 px-3 py-2 text-xs [&::-webkit-details-marker]:hidden">
             <span className="font-medium text-book-text-main">生成设置</span>
-            <span className="min-w-0 flex-1 truncate text-right text-[10px] text-book-text-muted">
+            <span className="min-w-0 flex-1 truncate text-right text-caption text-book-text-muted">
               {selectedStyleTemplate?.name ?? "自定义风格"}
             </span>
           </summary>
@@ -749,7 +743,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
                     className="pyqt-btn-primary inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 px-3 text-xs sm:flex-none"
                     title="为当前筛选结果中的缺失档案生成素材图"
                   >
-                    {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                    {batchBusy ? <LoadingSpinner size="sm" /> : <Sparkles size={13} />}
                     补齐 {stats.missingCount} 项缺失
                   </button>
                 )}
@@ -904,11 +898,11 @@ function MaterialCard({
           <h3 className="truncate text-sm font-medium text-book-text-main">
             {group.profile.name}
           </h3>
-          <p className="mt-1 truncate text-[10px] text-book-text-muted">
+          <p className="mt-1 truncate text-caption text-book-text-muted">
             {MATERIAL_KIND_LABELS[group.kind]} · {categoryLabel(group.profile.category)} · {importanceLabel(group.profile.importance)} · {chapterRangeText(group.profile.first_seen_chapter, group.profile.last_seen_chapter)}
           </p>
         </div>
-        <div className="shrink-0 text-right text-[10px] leading-relaxed">
+        <div className="shrink-0 text-right text-caption leading-relaxed">
           <div className={stateTone}>{MATERIAL_STATE_LABELS[group.material_state]}</div>
           <div className="text-book-text-muted">{group.image_count} 张</div>
         </div>
@@ -957,7 +951,7 @@ function MaterialCard({
       <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-book-text-sub">
         {group.profile.primary_text || "暂无视觉描述。"}
       </p>
-      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
+      <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-muted">
         {group.profile.secondary_text || "未记录补充信息。"}
       </p>
 
@@ -970,7 +964,7 @@ function MaterialCard({
                 <button
                   type="button"
                   onClick={() => onOpenImage(item.image)}
-                  className={`relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border bg-book-bg-tertiary text-[10px] text-book-text-muted ${
+                  className={`relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border bg-book-bg-tertiary text-caption text-book-text-muted ${
                     item.is_primary
                       ? "border-book-primary/80"
                       : "border-book-border/45"
@@ -1017,11 +1011,11 @@ function MaterialCard({
             );
           })
         ) : hero ? (
-          <div className="flex h-14 w-full items-center justify-center rounded-xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-[11px] text-book-text-muted">
+          <div className="flex h-14 w-full items-center justify-center rounded-xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-small text-book-text-muted">
             暂无其他候选素材
           </div>
         ) : (
-          <div className="flex h-14 w-full items-center justify-center rounded-xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-[11px] text-book-text-muted">
+          <div className="flex h-14 w-full items-center justify-center rounded-xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-small text-book-text-muted">
             缺失素材图
           </div>
         )}
@@ -1033,7 +1027,7 @@ function MaterialCard({
             role="status"
             className="inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 text-xs text-book-text-muted"
           >
-            <Loader2 size={13} className="animate-spin" /> 正在生成
+            <LoadingSpinner size="sm" /> 正在生成
           </span>
         ) : directGenerate ? (
           <button
@@ -1137,7 +1131,7 @@ function ProfileMaterialUploadDialog({
             <span className="block text-xs font-medium text-book-text-main">
               上传后设为主素材
             </span>
-            <span className="mt-0.5 block text-[11px] leading-relaxed text-book-text-muted">
+            <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
               在项目素材和后续生成中优先使用这张图片
             </span>
           </span>
@@ -1175,7 +1169,7 @@ function ProfileMaterialUploadDialog({
               }}
             />
           </label>
-          <div className="mt-2 text-[11px] text-book-text-muted">
+          <div className="mt-2 text-small text-book-text-muted">
             支持 PNG、JPEG、WebP，文件不超过 20MB。
           </div>
         </div>
@@ -1192,7 +1186,7 @@ function ProfileMaterialUploadDialog({
           </button>
           {busy ? (
             <span role="status" className="inline-flex items-center gap-1.5 text-xs text-book-text-muted">
-              <Loader2 size={13} className="animate-spin" />
+              <LoadingSpinner size="sm" />
               正在上传
             </span>
           ) : null}

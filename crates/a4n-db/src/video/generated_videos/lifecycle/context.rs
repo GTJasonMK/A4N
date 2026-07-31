@@ -1,6 +1,6 @@
 use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set};
 
 use super::super::records::prompt_for_generated_video_record;
 use crate::video::VideoDbError;
@@ -14,6 +14,7 @@ where
     C: ConnectionTrait,
 {
     let video = generated_video::Entity::find_by_id(video_id)
+        .lock_exclusive()
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
@@ -22,6 +23,33 @@ where
         None => None,
     };
     Ok((video, prompt))
+}
+
+pub(super) fn ensure_generated_video_status_mutable(
+    status: &str,
+    operation: &str,
+) -> Result<(), VideoDbError> {
+    if matches!(status, "completed" | "failed" | "cancelled") {
+        Err(VideoDbError::InvalidState {
+            current: status.to_string(),
+            operation: operation.to_string(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+pub(super) fn ensure_generated_video_status_allows_completion(
+    status: &str,
+) -> Result<(), VideoDbError> {
+    if matches!(status, "pending" | "running") {
+        Ok(())
+    } else {
+        Err(VideoDbError::InvalidState {
+            current: status.to_string(),
+            operation: "完成视频生成".to_string(),
+        })
+    }
 }
 
 pub(super) async fn update_prompt_status_record<C>(

@@ -23,6 +23,17 @@ pub struct ChatJsonStreamInput<'a> {
     pub cancelled_message: &'a str,
 }
 
+pub(crate) fn stream_error_or_cancelled(
+    error: String,
+    cancel_token: Option<&CancellationToken>,
+) -> AppError {
+    if cancel_token.is_some_and(CancellationToken::is_cancelled) {
+        AppError::Cancelled
+    } else {
+        AppError::LlmError(error)
+    }
+}
+
 pub fn parse_strict_json_response<T>(raw: &str, context: &str) -> Result<T, AppError>
 where
     T: DeserializeOwned,
@@ -36,6 +47,26 @@ where
             json_response_preview(trimmed)
         ))
     })
+}
+
+pub(crate) fn llm_response_preview(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return "<empty>".to_string();
+    }
+    let prefix = trimmed.chars().take(180).collect::<String>();
+    if trimmed.chars().count() <= 260 {
+        return prefix;
+    }
+    let suffix = trimmed
+        .chars()
+        .rev()
+        .take(80)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+    format!("{prefix} … {suffix}")
 }
 
 fn strict_json_parse_error_hint(err: &serde_json::Error) -> &'static str {
@@ -73,4 +104,24 @@ fn json_response_preview(trimmed: &str) -> String {
         .replace('\r', "\\r")
         .replace('\n', "\\n")
         .replace('\t', "\\t")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stream_error_preserves_cancellation() {
+        let token = CancellationToken::new();
+        token.cancel();
+
+        assert!(matches!(
+            stream_error_or_cancelled("stopped".to_string(), Some(&token)),
+            AppError::Cancelled
+        ));
+        assert!(matches!(
+            stream_error_or_cancelled("transport".to_string(), None),
+            AppError::LlmError(message) if message == "transport"
+        ));
+    }
 }

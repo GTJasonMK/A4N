@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, RefreshCw, X } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import { cancelAdminTask, listPendingTasks, type AdminTaskInfo } from "../../../api/admin";
 import { useToast } from "../../../components/feedback/Toast";
@@ -8,7 +9,7 @@ import { Dropdown } from "../../../components/ui/Dropdown";
 import {
   getTaskPriorityLabel,
   getTaskTypeLabel,
-  getWorkflowStatusLabel,
+  getOperationStatusLabel,
 } from "../../../utils/workflowPresentation";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 
@@ -29,47 +30,17 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
   const { addToast } = useToast();
   const [tasks, setTasks] = useState<AdminTaskInfo[]>([]);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
-  const activeCallerUserIdRef = useRef(callerUserId);
-  const mountedRef = useRef(true);
   const tasksRef = useRef(tasks);
   const cancellingIdsRef = useRef(cancellingIds);
-  const loadSeqRef = useRef(0);
 
-  activeCallerUserIdRef.current = callerUserId;
   tasksRef.current = tasks;
   cancellingIdsRef.current = cancellingIds;
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const isCurrentCaller = useCallback((requestCallerUserId: number) => {
-    return mountedRef.current && activeCallerUserIdRef.current === requestCallerUserId;
-  }, []);
-
-  const isCurrentLoad = useCallback((requestCallerUserId: number, seq: number) => {
-    return isCurrentCaller(requestCallerUserId) && loadSeqRef.current === seq;
-  }, [isCurrentCaller]);
-
-  const loadTasks = useCallback(async () => {
-    const requestCallerUserId = callerUserId;
-    const requestSeq = loadSeqRef.current + 1;
-    loadSeqRef.current = requestSeq;
-    try {
-      const nextTasks = await listPendingTasks(requestCallerUserId);
-      if (!isCurrentLoad(requestCallerUserId, requestSeq)) return;
-      setTasks(nextTasks);
-    } catch (err) {
-      if (!isCurrentLoad(requestCallerUserId, requestSeq)) return;
-      throw err;
-    }
-  }, [callerUserId, isCurrentLoad]);
-  const { loading, load } = useAdminSectionLoader(loadTasks, "加载失败", {
-    intervalMs: 5000,
-  });
+  const loadTasks = useCallback(() => listPendingTasks(callerUserId), [callerUserId]);
+  const { loading, load, isCurrentScope: isCurrentCaller } =
+    useAdminSectionLoader(callerUserId, loadTasks, setTasks, "加载失败", {
+      intervalMs: 5000,
+    });
 
   useEffect(() => {
     setTasks([]);
@@ -117,7 +88,7 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
       </div>
       {loading && tasks.length === 0 ? (
         <div className="a4n-flat-surface inline-flex items-center justify-center gap-1.5 py-4 text-xs text-book-text-muted">
-          <Loader2 size={12} className="animate-spin" />
+          <LoadingSpinner size="sm" />
           正在加载待处理任务…
         </div>
       ) : tasks.length === 0 ? (
@@ -133,8 +104,8 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
                   <div className="truncate font-medium text-book-text-main">
                     {getTaskTypeLabel(t.task_type)}
                   </div>
-                  <div className="mt-1 truncate text-[11px] text-book-text-muted">
-                    {[getWorkflowStatusLabel(t.status), getTaskPriorityLabel(t.priority), formatTaskDate(t.created_at)]
+                  <div className="mt-1 truncate text-small text-book-text-muted">
+                    {[getOperationStatusLabel(t.status), getTaskPriorityLabel(t.priority), formatTaskDate(t.created_at)]
                       .filter(Boolean)
                       .join(" · ")}
                   </div>
@@ -142,7 +113,7 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
                 <span className="ml-auto">
                   {cancellingIds.has(t.id) ? (
                     <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
-                      <Loader2 size={12} className="animate-spin" />
+                      <LoadingSpinner size="sm" />
                     </span>
                   ) : (
                     <Dropdown
@@ -158,7 +129,7 @@ export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId 
                   )}
                 </span>
               </div>
-              <details className="mt-1 text-[11px] text-book-text-muted">
+              <details className="mt-1 text-small text-book-text-muted">
                 <summary className="w-fit cursor-pointer select-none rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
                   诊断信息
                 </summary>

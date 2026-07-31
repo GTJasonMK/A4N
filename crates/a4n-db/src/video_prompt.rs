@@ -1,6 +1,7 @@
 //! 视频提示词下游依赖与可变性规则（从 a4n-services 收敛，供 orchestrator facade 使用）。
 
 use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
@@ -28,6 +29,7 @@ pub struct UpdateChapterVideoPromptInput {
     pub duration_secs: Option<i32>,
     pub reference_image_ids_json: Option<Option<Value>>,
     pub metadata_patch: Option<Value>,
+    pub segment_recipe: Option<VideoSegmentExecutionRecipeV1>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -52,8 +54,42 @@ pub struct ChapterVideoPromptSyncDraft {
     pub generation_trace: Option<PreparedVideoPromptGenerationTrace>,
 }
 
-type PromptIdentity = (String, String, i32, Option<String>);
-type PromptScope = (String, String, Option<String>);
+type PromptExecutionIdentity = (i64, i32, String);
+type PromptIdentity = (
+    String,
+    String,
+    i32,
+    Option<String>,
+    Option<PromptExecutionIdentity>,
+);
+type PromptScope = (
+    String,
+    String,
+    Option<String>,
+    Option<PromptExecutionIdentity>,
+);
+
+fn prompt_execution_identity(metadata: Option<&Value>) -> Option<PromptExecutionIdentity> {
+    let identity = metadata?.get("video_execution_identity")?;
+    let segment_plan_prompt_id = identity
+        .get("segment_plan_prompt_id")?
+        .as_i64()
+        .filter(|value| *value > 0)?;
+    let segment_number = identity
+        .get("segment_number")?
+        .as_i64()
+        .and_then(|value| i32::try_from(value).ok())
+        .filter(|value| *value > 0)?;
+    let recipe_fingerprint = identity.get("segment_recipe_fingerprint")?.as_str()?.trim();
+    if recipe_fingerprint.is_empty() {
+        return None;
+    }
+    Some((
+        segment_plan_prompt_id,
+        segment_number,
+        recipe_fingerprint.to_string(),
+    ))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum PromptStage {

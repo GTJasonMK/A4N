@@ -287,7 +287,7 @@ export const QueueTab: React.FC = () => {
 
   return (
     <div className="custom-scrollbar flex h-auto flex-col gap-3 overflow-visible md:h-full md:overflow-y-auto md:pr-2">
-      <div className="flex shrink-0 items-center justify-end gap-2 text-[11px] text-book-text-muted">
+      <div className="flex shrink-0 items-center justify-end gap-2 text-small text-book-text-muted">
         <span className="inline-flex items-center gap-1.5">
           <Activity size={12} className="text-book-primary" />
           每 5 秒自动刷新

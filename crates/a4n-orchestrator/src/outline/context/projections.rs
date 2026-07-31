@@ -56,6 +56,50 @@ pub fn part_context_json(part: &part_outline::Model) -> Value {
     })
 }
 
+pub(in crate::outline) fn minimal_blueprint_context(blueprint_context: &Value) -> Value {
+    let Some(object) = blueprint_context.as_object() else {
+        return blueprint_context.clone();
+    };
+    let mut minimal = serde_json::Map::new();
+    for key in [
+        "title",
+        "genre",
+        "style",
+        "tone",
+        "one_sentence_summary",
+        "full_synopsis",
+        "chapters_per_part",
+        "blueprint_chapters_per_part",
+    ] {
+        if let Some(value) = object.get(key) {
+            minimal.insert(key.to_string(), value.clone());
+        }
+    }
+    Value::Object(minimal)
+}
+
+pub(in crate::outline) fn focused_part_context(part: &part_outline::Model) -> Value {
+    json!({
+        "part_number": part.part_number,
+        "title": part.title,
+        "start_chapter": part.start_chapter,
+        "end_chapter": part.end_chapter,
+        "summary": part.summary,
+        "theme": part.theme,
+        "key_events": part.key_events,
+    })
+}
+
+pub(in crate::outline) fn minimal_part_context(part: &part_outline::Model) -> Value {
+    json!({
+        "part_number": part.part_number,
+        "title": part.title,
+        "start_chapter": part.start_chapter,
+        "end_chapter": part.end_chapter,
+        "summary": part.summary,
+    })
+}
+
 pub fn chapter_outline_context_json(outline: &chapter_outline::Model) -> Value {
     json!({
         "chapter_number": outline.chapter_number,

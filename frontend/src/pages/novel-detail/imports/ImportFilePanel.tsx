@@ -1,5 +1,6 @@
 import React from "react";
-import { FolderOpen, Loader2 } from "lucide-react";
+import { FileText, FolderOpen, Upload } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 
 interface ImportFilePanelProps {
@@ -21,55 +22,64 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
   onSelectFile,
   onImport,
 }) => (
-  <section className="a4n-flat-surface p-4">
-    <div className="mb-3">
+  <section className="a4n-flat-surface p-4 sm:p-5">
+    <div className="mb-4">
       <h3 className="text-sm font-semibold text-book-text-main">导入新文件</h3>
-      <p className="mt-0.5 text-[11px] text-book-text-muted">
+      <p className="mt-0.5 text-small text-book-text-muted">
         支持 TXT、Markdown、EPUB 与 DOCX
       </p>
     </div>
-    <div className="flex flex-wrap items-end gap-2 text-xs">
-      <div className="min-w-0 w-full pb-1 text-book-text-sub sm:w-auto sm:flex-1 sm:pb-2">
-        <span className={fileName ? "break-all" : "text-book-text-muted"}>
+    <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
+      <button
+        type="button"
+        onClick={onSelectFile}
+        disabled={importBusy || externalBusy}
+        className="pyqt-input flex h-10 min-w-0 items-center gap-2.5 px-3 text-left text-xs transition-colors disabled:cursor-not-allowed"
+        title={fileName || "选择导入文件"}
+      >
+        <FileText size={15} className="shrink-0 text-book-text-muted" />
+        <span
+          className={`min-w-0 flex-1 truncate ${
+            fileName ? "text-book-text-main" : "text-book-text-muted"
+          }`}
+        >
           {fileName || "尚未选择文件"}
         </span>
-      </div>
-      <label className="flex flex-col gap-1">
-        <span className="text-book-text-muted">类型</span>
+        <span className="inline-flex shrink-0 items-center gap-1.5 font-medium text-book-text-sub">
+          <FolderOpen size={14} />
+          {fileName ? "重新选择" : "选择文件"}
+        </span>
+      </button>
+      <label className="min-w-0">
+        <span className="sr-only">文件类型</span>
         <select
+          aria-label="文件类型"
           value={fileType}
           onChange={(e) => onFileTypeChange(e.target.value)}
           disabled={importBusy || externalBusy}
-          className="pyqt-input"
+          className="pyqt-input a4n-compact-select h-10 w-full !min-h-10 text-xs"
         >
-          <option value="txt">txt</option>
-          <option value="markdown">markdown</option>
-          <option value="epub">epub</option>
-          <option value="docx">docx</option>
+          <option value="txt">TXT</option>
+          <option value="markdown">Markdown</option>
+          <option value="epub">EPUB</option>
+          <option value="docx">DOCX</option>
         </select>
       </label>
-      <BookButton
-        variant="secondary"
-        size="sm"
-        onClick={onSelectFile}
-        disabled={importBusy || externalBusy}
-        className="!min-h-8 !text-xs"
-      >
-        <FolderOpen size={14} /> 选择文件
-      </BookButton>
       <BookButton
         variant="primary"
         size="sm"
         onClick={onImport}
         disabled={importBusy || externalBusy || !fileName.trim()}
-        className="!min-h-8 !text-xs"
+        className="h-10 !min-h-10 !px-4 !text-xs"
       >
         {importBusy ? (
           <>
-            <Loader2 size={11} className="animate-spin" /> 导入中…
+            <LoadingSpinner size="sm" /> 导入中…
           </>
         ) : (
-          "开始导入"
+          <>
+            <Upload size={14} /> 开始导入
+          </>
         )}
       </BookButton>
     </div>

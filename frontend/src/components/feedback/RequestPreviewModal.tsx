@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Clipboard, Loader2, RotateCcw, XCircle } from "lucide-react";
+import { CheckCircle2, Clipboard, RotateCcw, XCircle } from "lucide-react";
+import { LoadingSpinner } from "../ui/LoadingSpinner";
 import type {
   ModelRequestPreview,
   ModelRequestPreviewMessage,
@@ -197,7 +198,7 @@ const PromptBlock: React.FC<{
           <Clipboard size={12} />
         </button>
       </div>
-      <pre className="min-h-[7rem] whitespace-pre-wrap break-words px-3 py-3 font-mono text-[11px] leading-relaxed text-book-text-main [overflow-wrap:anywhere]">
+      <pre className="min-h-[7rem] whitespace-pre-wrap break-words px-3 py-3 font-mono text-small leading-relaxed text-book-text-main [overflow-wrap:anywhere]">
         {content}
       </pre>
     </section>
@@ -244,7 +245,7 @@ const StepView: React.FC<{
         <span className="min-w-0 flex-1 truncate font-semibold text-book-text-main">
           {step.title}
         </span>
-        <span className={`inline-flex shrink-0 items-center gap-1 text-[11px] ${stateClass(step.state)}`}>
+        <span className={`inline-flex shrink-0 items-center gap-1 text-small ${stateClass(step.state)}`}>
           {stateIcon(step.state)}
           {stateLabel(step.state)}
         </span>
@@ -254,7 +255,7 @@ const StepView: React.FC<{
           {step.note}
         </div>
       )}
-      <details className="mb-3 text-[10px] text-book-text-muted">
+      <details className="mb-3 text-caption text-book-text-muted">
         <summary className="w-fit cursor-pointer hover:text-book-text-main">请求信息</summary>
         <div className="mt-2 flex min-w-0 flex-wrap gap-x-3 gap-y-1 border-l-2 border-book-border/60 pl-2 leading-relaxed">
           {step.prompt_name && <span>模板 {step.prompt_name}</span>}
@@ -298,7 +299,7 @@ const StepView: React.FC<{
         </div>
       )}
       {requestJson.trim() && (
-        <details className="mt-3 text-[10px] text-book-text-muted">
+        <details className="mt-3 text-caption text-book-text-muted">
           <summary className="w-fit cursor-pointer hover:text-book-text-main">完整请求</summary>
           <div className="mt-2">
             <PromptBlock
@@ -311,7 +312,7 @@ const StepView: React.FC<{
         </details>
       )}
       {(contextPlanJson.trim() || contextPackRefsJson.trim() || contextManifestJson.trim()) && (
-        <details className="mt-3 text-[10px] text-book-text-muted">
+        <details className="mt-3 text-caption text-book-text-muted">
           <summary className="w-fit cursor-pointer hover:text-book-text-main">上下文详情</summary>
           <div className="mt-2 grid min-w-0 gap-3 xl:grid-cols-3">
             <PromptBlock
@@ -431,10 +432,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
       }
     >
       {loading ? (
-        <div className="flex min-h-[18rem] flex-col items-center justify-center gap-3 text-book-text-muted">
-          <Loader2 size={28} className="animate-spin text-book-primary" />
-          <span className="text-sm">正在构造模型请求…</span>
-        </div>
+        <LoadingSpinner size="lg" text="正在构造模型请求…" inline={false} className="min-h-[18rem]" />
       ) : data ? (
         <div className="flex min-w-0 flex-col gap-3">
           {data.steps.map((step) => (

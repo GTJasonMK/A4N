@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { QueueStats } from "../../../api/task";
 
 interface QueueStatsGridProps {
@@ -20,7 +20,7 @@ export const QueueStatsGrid: React.FC<QueueStatsGridProps> = ({ stats }) => (
       <QueueMetric label="向量处理" waiting={stats?.embedding_queue.waiting} running={stats?.embedding_queue.running} />
       <QueueMetric label="后台任务" waiting={stats?.background_queue.waiting} running={stats?.background_queue.running} />
     </dl>
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-book-border/35 px-3 py-2 text-[11px] text-book-text-muted">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-book-border/35 px-3 py-2 text-small text-book-text-muted">
       <span className="font-medium text-book-text-sub">等待优先级</span>
       <PrioritySummary stats={stats} />
     </div>
@@ -45,15 +45,15 @@ const MetricValue: React.FC<{
   active?: boolean;
 }> = ({ label, value, active = false }) => (
   <dd className="flex min-w-[3.5rem] items-baseline justify-end gap-1 text-right">
-    <span className="text-[10px] text-book-text-muted">{label}</span>
+    <span className="text-caption text-book-text-muted">{label}</span>
     <span className={`font-mono text-sm font-semibold ${active ? "text-book-primary" : "text-book-text-main"}`}>
-      {value == null ? <Loader2 size={14} className="animate-spin text-book-text-muted" /> : value.toLocaleString()}
+      {value == null ? <LoadingSpinner size="sm" className="text-book-text-muted" /> : value.toLocaleString()}
     </span>
   </dd>
 );
 
 const QueueTotal: React.FC<{ stats: QueueStats | null }> = ({ stats }) => {
-  if (!stats) return <Loader2 size={13} className="animate-spin text-book-text-muted" />;
+  if (!stats) return <LoadingSpinner size="sm" className="text-book-text-muted" />;
   const queues = [
     stats.llm_queue,
     stats.image_queue,
@@ -64,7 +64,7 @@ const QueueTotal: React.FC<{ stats: QueueStats | null }> = ({ stats }) => {
   const waiting = queues.reduce((sum, queue) => sum + queue.waiting, 0);
   const running = queues.reduce((sum, queue) => sum + queue.running, 0);
   return (
-    <span className="text-[11px] text-book-text-muted">
+    <span className="text-small text-book-text-muted">
       等待 <b className="font-mono font-semibold text-book-text-main">{waiting}</b>
       <span className="mx-1.5">·</span>
       执行 <b className="font-mono font-semibold text-book-primary">{running}</b>

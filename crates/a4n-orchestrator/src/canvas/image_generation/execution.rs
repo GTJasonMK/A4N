@@ -112,43 +112,23 @@ impl OrchestratorContext {
                     spec.as_ref().map(|spec| spec.id),
                 )
                 .await?;
-            self.record_canvas_node_checkpoint(
-                lifecycle.run.workflow_run_id,
-                lifecycle.step_key.clone(),
-                WORKFLOW_STATUS_COMPLETED,
-                lifecycle.input_json.clone(),
-                Some(json!({
+            self.finish_canvas_node_with_artifacts(
+                &lifecycle,
+                json!({
                     "data_type": "image",
                     "generated_image_id": outcome.summary.id,
                     "file_path": outcome.summary.file_path,
                     "generation_spec_id": spec.as_ref().map(|spec| spec.id),
                     "media_asset_id": media_asset_id,
-                })),
-                None,
-                true,
+                }),
             )
-            .await?;
-            self.finish_canvas_node_success(&lifecycle).await
+            .await
         }
         .await;
 
         match result {
             Ok(summary) => Ok(summary),
-            Err(primary) => {
-                let cancelled = self
-                    .canvas_workflow_run_is_cancelled(lifecycle.run.workflow_run_id)
-                    .await
-                    .map_err(|status_error| {
-                        AppError::Internal(anyhow::anyhow!(
-                            "{primary}；画布 workflow 取消状态复验失败: {status_error}"
-                        ))
-                    })?;
-                if cancelled {
-                    self.cancel_canvas_node(lifecycle, "用户取消画布运行").await
-                } else {
-                    self.fail_canvas_node(lifecycle, primary).await
-                }
-            }
+            Err(primary) => self.finish_canvas_node_error(lifecycle, primary).await,
         }
     }
 

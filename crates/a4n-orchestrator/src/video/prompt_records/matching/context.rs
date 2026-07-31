@@ -23,6 +23,11 @@ const VIDEO_EXECUTION_BASE_IDENTITY_FIELDS: [&str; 9] = [
     "duration_secs",
     "aspect_ratio",
 ];
+const VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS: [&str; 3] = [
+    "segment_plan_prompt_id",
+    "segment_number",
+    "segment_recipe_fingerprint",
+];
 
 pub(in crate::video) fn video_execution_base_identity_matches(
     stored_metadata: Option<&Value>,
@@ -38,6 +43,29 @@ pub(in crate::video) fn video_execution_base_identity_matches(
         return false;
     };
     VIDEO_EXECUTION_BASE_IDENTITY_FIELDS.iter().all(|field| {
+        expected_identity
+            .get(*field)
+            .is_some_and(|expected| stored_identity.get(*field) == Some(expected))
+    })
+}
+
+pub(in crate::video) fn video_execution_segment_identity_matches(
+    stored_metadata: Option<&Value>,
+    expected_identity: &Value,
+) -> bool {
+    if !video_execution_base_identity_matches(stored_metadata, expected_identity) {
+        return false;
+    }
+    let Some(stored_identity) = stored_metadata
+        .and_then(|metadata| metadata.get("video_execution_identity"))
+        .and_then(Value::as_object)
+    else {
+        return false;
+    };
+    let Some(expected_identity) = expected_identity.as_object() else {
+        return false;
+    };
+    VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS.iter().all(|field| {
         expected_identity
             .get(*field)
             .is_some_and(|expected| stored_identity.get(*field) == Some(expected))
@@ -188,7 +216,7 @@ fn prompt_type_uses_generation_assets(prompt_type: &str) -> bool {
     )
 }
 
-pub(super) fn expected_contract_version(
+pub(in crate::video) fn expected_contract_version(
     expected_workflow_mode: &str,
     prompt_type: &str,
 ) -> Option<&'static str> {

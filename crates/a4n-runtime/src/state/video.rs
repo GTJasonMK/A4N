@@ -6,12 +6,11 @@ use a4n_core::models::ai::{generated_image, generated_video};
 use a4n_orchestrator::{
     GenerationTaskAccessError, GenerationTaskStart, OrchestratorContext,
     video::{
-        ChapterVideoPromptSummary, DeleteChapterVideoPromptGroupResult,
-        GenerateChapterVideoPromptInput, OptimizeChapterVideoPromptInput,
+        ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
         ProjectChapterVideoSource, UpdateAssemblyPushStatusInput, UpdateGeneratedVideoInput,
-        VideoPromptApplicationContext, VideoPromptChunk, VideoPromptDownstreamCleanupPort,
-        VideoPromptProgress, VideoPromptRequestPreview, VideoPromptTaskScope,
-        VideoPromptUpdateApplicationInput, VideoRecordLifecycleHostPort,
+        UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
+        VideoPromptDownstreamCleanupPort, VideoPromptUpdateApplicationInput,
+        VideoRecordLifecycleHostPort,
     },
 };
 use a4n_prompt::rendering::PromptRenderer;
@@ -49,6 +48,18 @@ impl<'a> VideoRuntimeFacade<'a> {
     {
         self.orchestrator
             .run_video_generation_task(user_id, input, handle, host_port)
+            .await
+    }
+
+    pub(crate) async fn run_video_prompt_generation_task(
+        &self,
+        user_id: i64,
+        input: StartVideoGenerationInput,
+        handle: GenerationTaskHandle,
+        context: VideoPromptApplicationContext<'_>,
+    ) -> Result<(), String> {
+        self.orchestrator
+            .run_video_prompt_generation_task(user_id, input, handle, context)
             .await
     }
 
@@ -105,11 +116,18 @@ impl<'a> VideoRuntimeFacade<'a> {
         &self,
         project_id: i64,
         chapter_id: i64,
+        segment_plan_prompt_id: i64,
         shot_number: i32,
         video_id: i64,
     ) -> Result<generated_video::Model, AppError> {
         self.orchestrator
-            .select_segment_video_validated(project_id, chapter_id, shot_number, video_id)
+            .select_segment_video_validated(
+                project_id,
+                chapter_id,
+                segment_plan_prompt_id,
+                shot_number,
+                video_id,
+            )
             .await
     }
 
@@ -120,17 +138,6 @@ impl<'a> VideoRuntimeFacade<'a> {
     ) -> Result<(), AppError> {
         self.orchestrator
             .delete_video_record_validated(host_port, video_id)
-            .await
-    }
-
-    pub(crate) async fn delete_chapter_video_records_validated(
-        &self,
-        host_port: &dyn VideoRecordLifecycleHostPort,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<u64, AppError> {
-        self.orchestrator
-            .delete_chapter_video_records_validated(host_port, project_id, chapter_id)
             .await
     }
 
@@ -262,9 +269,6 @@ impl<'a> VideoRuntimeFacade<'a> {
         &self,
         project_id: i64,
         chapter_id: i64,
-        prompt: &str,
-        declared_duration_secs: i32,
-        aspect_ratio: &str,
         properties: a4n_orchestrator::video::ImportedVideoProperties,
         source_file_name: &str,
         source_extension: &str,
@@ -276,9 +280,6 @@ impl<'a> VideoRuntimeFacade<'a> {
             .create_imported_reference_media_video_record_validated(
                 project_id,
                 chapter_id,
-                prompt,
-                declared_duration_secs,
-                aspect_ratio,
                 properties,
                 source_file_name,
                 source_extension,
@@ -515,15 +516,6 @@ impl<'a> VideoRuntimeFacade<'a> {
 
     // --- prompts ---
 
-    pub(crate) async fn video_prompt_task_scope_validated(
-        &self,
-        input: &GenerateChapterVideoPromptInput,
-    ) -> Result<VideoPromptTaskScope, AppError> {
-        self.orchestrator
-            .video_prompt_task_scope_validated(input)
-            .await
-    }
-
     pub(crate) async fn list_chapter_video_prompts_validated(
         &self,
         user_id: i64,
@@ -532,6 +524,26 @@ impl<'a> VideoRuntimeFacade<'a> {
     ) -> Result<Vec<ChapterVideoPromptSummary>, AppError> {
         self.orchestrator
             .list_chapter_video_prompts_validated(user_id, project_id, chapter_id)
+            .await
+    }
+
+    pub(crate) async fn load_video_segment_plan_draft_validated(
+        &self,
+        user_id: i64,
+        input: LoadVideoSegmentPlanDraftInput,
+    ) -> Result<a4n_orchestrator::workflow::WorkflowRunDetailSummary, AppError> {
+        self.orchestrator
+            .load_video_segment_plan_draft_validated(user_id, input)
+            .await
+    }
+
+    pub(crate) async fn update_video_segment_plan_draft_recipe_validated(
+        &self,
+        user_id: i64,
+        input: UpdateVideoSegmentPlanDraftRecipeInput,
+    ) -> Result<a4n_orchestrator::workflow::WorkflowRunDetailSummary, AppError> {
+        self.orchestrator
+            .update_video_segment_plan_draft_recipe_validated(user_id, input)
             .await
     }
 
@@ -556,22 +568,6 @@ impl<'a> VideoRuntimeFacade<'a> {
     ) -> Result<(), AppError> {
         self.orchestrator
             .delete_chapter_video_prompt_validated(user_id, prompt_id, strategy, cleanup)
-            .await
-    }
-
-    pub(crate) async fn delete_chapter_video_prompt_group_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-        group: &str,
-        strategy: a4n_core::dependency_conflict::DownstreamConflictStrategy,
-        cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<DeleteChapterVideoPromptGroupResult, AppError> {
-        self.orchestrator
-            .delete_chapter_video_prompt_group_validated(
-                user_id, project_id, chapter_id, group, strategy, cleanup,
-            )
             .await
     }
 
@@ -603,85 +599,6 @@ impl<'a> VideoRuntimeFacade<'a> {
     ) -> Result<ProjectChapterVideoSource, AppError> {
         self.orchestrator
             .project_chapter_video_source(project_id, chapter_id, operation, writable)
-            .await
-    }
-
-    // --- generation / preview ---
-
-    pub(crate) async fn generate_chapter_video_frame_prompts_validated(
-        &self,
-        context: VideoPromptApplicationContext<'_>,
-        input: GenerateChapterVideoPromptInput,
-        progress: Option<VideoPromptProgress<'_>>,
-        chunks: Option<VideoPromptChunk<'_>>,
-        cancel_token: tokio_util::sync::CancellationToken,
-    ) -> Result<Vec<ChapterVideoPromptSummary>, AppError> {
-        self.orchestrator
-            .generate_chapter_video_frame_prompts_validated(
-                context,
-                input,
-                progress,
-                chunks,
-                cancel_token,
-            )
-            .await
-    }
-
-    pub(crate) async fn generate_chapter_video_segment_plan_validated(
-        &self,
-        context: VideoPromptApplicationContext<'_>,
-        input: GenerateChapterVideoPromptInput,
-        progress: Option<VideoPromptProgress<'_>>,
-        chunks: Option<VideoPromptChunk<'_>>,
-        cancel_token: tokio_util::sync::CancellationToken,
-    ) -> Result<Vec<ChapterVideoPromptSummary>, AppError> {
-        self.orchestrator
-            .generate_chapter_video_segment_plan_validated(
-                context,
-                input,
-                progress,
-                chunks,
-                cancel_token,
-            )
-            .await
-    }
-
-    pub(crate) async fn generate_chapter_video_prompts_validated(
-        &self,
-        context: VideoPromptApplicationContext<'_>,
-        input: GenerateChapterVideoPromptInput,
-        progress: Option<VideoPromptProgress<'_>>,
-        chunks: Option<VideoPromptChunk<'_>>,
-        cancel_token: tokio_util::sync::CancellationToken,
-    ) -> Result<Vec<ChapterVideoPromptSummary>, AppError> {
-        self.orchestrator
-            .generate_chapter_video_prompts_validated(
-                context,
-                input,
-                progress,
-                chunks,
-                cancel_token,
-            )
-            .await
-    }
-
-    pub(crate) async fn preview_chapter_video_frame_prompt_requests_validated(
-        &self,
-        context: VideoPromptApplicationContext<'_>,
-        input: GenerateChapterVideoPromptInput,
-    ) -> Result<VideoPromptRequestPreview, AppError> {
-        self.orchestrator
-            .preview_chapter_video_frame_prompt_requests_validated(context, input)
-            .await
-    }
-
-    pub(crate) async fn preview_chapter_video_prompt_requests_validated(
-        &self,
-        context: VideoPromptApplicationContext<'_>,
-        input: GenerateChapterVideoPromptInput,
-    ) -> Result<VideoPromptRequestPreview, AppError> {
-        self.orchestrator
-            .preview_chapter_video_prompt_requests_validated(context, input)
             .await
     }
 }

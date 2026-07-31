@@ -217,14 +217,11 @@ fn valid_manifest_path(path: &str) -> bool {
     !path.is_empty()
         && !path.contains('\0')
         && !Path::new(path).is_absolute()
-        && !path
-            .split(|character| character == '/' || character == '\\')
-            .any(|part| part == "..")
+        && !path.split(['/', '\\']).any(|part| part == "..")
 }
 
 fn manifest_file_name(path: &str) -> Option<&str> {
-    path.rsplit(|character| character == '/' || character == '\\')
-        .find(|part| !part.is_empty())
+    path.rsplit(['/', '\\']).find(|part| !part.is_empty())
 }
 
 fn sha256(path: &Path) -> std::io::Result<String> {
@@ -285,6 +282,7 @@ mod tests {
             target: "linux-x86_64".to_string(),
             protocol_version: PROTOCOL_VERSION,
             binaries,
+            tools: Vec::new(),
             runtime_files: vec![ReleaseRuntimeFileManifest {
                 name: "libonnxruntime.so.1".to_string(),
                 path: "bin/services/libonnxruntime.so.1".to_string(),

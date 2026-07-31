@@ -1,7 +1,10 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_video_prompt;
+use serde_json::json;
 
-use crate::video::prompt_generation::frame_prompts::PreparedVideoPromptInputs;
+use crate::video::prompt_generation::frame_prompts::{
+    PreparedVideoPromptInputs, load_shared_segment_plan_for_execution, report_video_prompt_progress,
+};
 use crate::video::{VideoPromptChunk, VideoPromptProgress};
 
 use super::contracts::FramePromptChainInput;
@@ -10,9 +13,6 @@ use super::frame_preparation::{
     FrameWorkflowPreparationInput, PreparedFrameWorkflow, prepare_frame_workflow,
 };
 use super::layout_dispatch::{FrameLayoutDispatchInput, generate_frame_layout};
-use super::planning_workflow::{
-    PlanningWorkflowInput, PreparedPlanningWorkflow, prepare_frame_chain_planning,
-};
 
 pub(in crate::video::prompt_generation::frame_prompts) async fn generate_chapter_frame_prompt_chain(
     input: FramePromptChainInput<'_, '_>,
@@ -35,7 +35,10 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_chapter
         source_spans,
         regenerate_existing,
         prompt_batch_size,
+        segment_plan_prompt_id,
+        target_shot_number,
         style,
+        segment_recipe,
         prompt_output_language,
         duration_secs,
         aspect_ratio,
@@ -50,33 +53,50 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_chapter
     } = service
         .prepare_video_prompt_inputs(project_id, chapter_id, &source, variables, options, true)
         .await?;
-    let PreparedPlanningWorkflow {
-        segment_json,
-        segment_plan,
-        segment_draft,
-        execution_identity,
-    } = prepare_frame_chain_planning(PlanningWorkflowInput {
+    let segment_plan_prompt_id = segment_plan_prompt_id.ok_or_else(|| {
+        AppError::InvalidArgument("帧提示词生成缺少 segment_plan_prompt_id".to_string())
+    })?;
+    let segment_recipe = segment_recipe
+        .ok_or_else(|| AppError::InvalidArgument("帧提示词生成缺少 segment_recipe".to_string()))?;
+    let target_shot_number = target_shot_number
+        .ok_or_else(|| AppError::InvalidArgument("帧提示词生成缺少目标片段".to_string()))?;
+    report_video_prompt_progress(&mut progress, 20, 100, "已加载当前共享片段规划")?;
+    let loaded_plan = load_shared_segment_plan_for_execution(
         service,
-        spec,
         project_id,
         chapter_id,
-        source,
-        source_metadata: &source_metadata,
-        source_spans: &source_spans,
-        project_context: project_context.as_ref(),
-        style: &style,
-        prompt_output_language,
-        duration_secs,
-        aspect_ratio: &aspect_ratio,
-        variables: &vars,
-        regenerate_existing,
-        workflow_run_id,
-        prompt_renderer,
-        cancel_token,
-        progress: &mut progress,
-        chunks: &mut chunks,
-    })
+        segment_plan_prompt_id,
+    )
     .await?;
+    let crate::video::prompt_generation::frame_prompts::LoadedSharedSegmentPlan {
+        segment_json: loaded_segment_json,
+        segment_plan: loaded_segment_plan,
+        execution_identity,
+    } = loaded_plan;
+    let (segment_json, segment_plan) = if matches!(
+        spec.layout,
+        crate::video::prompt_generation::frame_prompts::FramePromptLayout::BoundaryFrames
+    ) {
+        let segment = loaded_segment_plan
+            .iter()
+            .find(|segment| segment.segment_number == target_shot_number)
+            .cloned()
+            .ok_or_else(|| {
+                AppError::InvalidArgument(format!(
+                    "共享片段规划中不存在目标片段 {target_shot_number}"
+                ))
+            })?;
+        let plan = vec![segment];
+        (json!({ "segments": &plan }), plan)
+    } else {
+        (loaded_segment_json, loaded_segment_plan)
+    };
+    let segment_draft = None;
+    let execution_identity = super::super::video_segment_frame_execution_identity(
+        execution_identity,
+        Some(segment_plan_prompt_id),
+        Some(&segment_recipe),
+    )?;
     let PreparedFrameWorkflow {
         frame_source_prompt_type,
         allowed_reference_ids,
@@ -100,6 +120,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_chapter
         execution_identity: &execution_identity,
         available_assets: &available_assets,
         segment_plan: &segment_plan,
+        target_shot_number: Some(target_shot_number),
         segment_draft: segment_draft.as_ref(),
         regenerate_existing,
         progress: &mut progress,
@@ -128,6 +149,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_chapter
         frame_source_prompt_type,
         workflow_run_id,
         expected_frame_count,
+        target_shot_number: Some(target_shot_number),
         prompt_batch_size,
         regenerate_existing,
         reusable_frame_rows,
@@ -143,7 +165,6 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_chapter
         service,
         spec,
         chapter_id,
-        expected_frame_count,
         regenerate_existing,
         segment_draft,
         frame_drafts,

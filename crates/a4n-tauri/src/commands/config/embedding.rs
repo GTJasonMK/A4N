@@ -87,6 +87,7 @@ pub async fn download_embedding_model(
     let scope = a4n_runtime::host_api::embedding_model::embedding_model_download_task_scope();
     let progress_task = Arc::new(WorkflowProgressTask::new(
         state.inner(),
+        None,
         input.task_id.clone(),
         TaskKind::EmbeddingDownload,
         None,
@@ -119,17 +120,17 @@ pub async fn download_embedding_model(
         cancel_token,
     )
     .await;
-    if let Some(worker) = progress_worker {
-        if let Err(join_error) = worker.await {
-            let bridge_error = format!("模型下载进度事件任务异常退出: {join_error}");
-            result = Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
-                "{}",
-                match result {
-                    Ok(_) => bridge_error,
-                    Err(error) => format!("{error}；{bridge_error}"),
-                }
-            )));
-        }
+    if let Some(worker) = progress_worker
+        && let Err(join_error) = worker.await
+    {
+        let bridge_error = format!("模型下载进度事件任务异常退出: {join_error}");
+        result = Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
+            "{}",
+            match result {
+                Ok(_) => bridge_error,
+                Err(error) => format!("{error}；{bridge_error}"),
+            }
+        )));
     }
     let summary = match result {
         Ok(summary) => summary,

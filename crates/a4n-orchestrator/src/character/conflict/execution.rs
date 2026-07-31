@@ -81,6 +81,7 @@ impl OrchestratorContext {
         input: CharacterConflictCheckInput,
         prompt_renderer: &dyn PromptRenderer,
         progress: CharacterConflictProgressReporter<'_>,
+        active_task_id: Option<&str>,
     ) -> Result<Vec<Value>, AppError> {
         self.verify_project_permission(
             input.project_id,
@@ -101,6 +102,7 @@ impl OrchestratorContext {
             prepared.chapter_scope,
             &prepared.call_key,
             &prepared.request,
+            active_task_id,
         )?;
         let workflow_run = self.begin_workflow_run_validated(workflow_input).await?;
         let result = self
@@ -111,7 +113,7 @@ impl OrchestratorContext {
                 progress,
             )
             .await;
-        self.finalize_character_conflict_check(workflow_run.id, result)
+        self.finalize_workflow_result(workflow_run.id, result, None)
             .await
     }
 
@@ -221,14 +223,12 @@ impl OrchestratorContext {
             &workflow_fingerprint,
             &prepared.request,
         )?;
-        let input_fingerprint_sha256 =
-            workflow::llm_call_checkpoint_fingerprint_sha256(&fingerprint_json)
-                .map_err(workflow_checkpoint_contract_app_error)?;
-        if let Some(trace_context) = prepared.request.trace_context.as_mut() {
-            trace_context.workflow_run_id = Some(workflow_run_id);
-            trace_context.call_key = Some(prepared.call_key.clone());
-            trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
-        }
+        workflow::attach_llm_call_checkpoint_trace(
+            &mut prepared.request,
+            workflow_run_id,
+            &prepared.call_key,
+            &fingerprint_json,
+        )?;
         self.mark_workflow_current_step(workflow_run_id, &prepared.call_key)
             .await?;
         if let Some(checkpoint) = self
@@ -280,27 +280,6 @@ impl OrchestratorContext {
         })
         .await?;
         Ok(conflicts)
-    }
-
-    async fn finalize_character_conflict_check(
-        &self,
-        workflow_run_id: i64,
-        result: CharacterConflictCheckResult,
-    ) -> CharacterConflictCheckResult {
-        let (success, error_message) = match &result {
-            Ok(_) => (true, None),
-            Err(error) => (false, Some(error.to_string())),
-        };
-        let status_result = self
-            .finalize_workflow_run_validated(workflow_run_id, success, error_message.as_deref())
-            .await;
-        match (result, status_result) {
-            (result, Ok(_)) => result,
-            (Ok(_), Err(status_error)) => Err(status_error),
-            (Err(primary), Err(status_error)) => Err(AppError::Internal(anyhow::anyhow!(
-                "{primary}；工作流失败状态写入失败: {status_error}"
-            ))),
-        }
     }
 }
 

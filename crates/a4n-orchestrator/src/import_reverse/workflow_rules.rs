@@ -63,6 +63,7 @@ pub fn import_reverse_workflow_run_input(
     auto_context: bool,
     context_limit: Option<i64>,
     variables: &HashMap<String, Value>,
+    active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
     let mode = if apply { "apply" } else { "reverse" };
     Ok(UpsertWorkflowRunInput {
@@ -86,7 +87,7 @@ pub fn import_reverse_workflow_run_input(
         )),
         status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some(prompt_name.to_string()),
-        active_task_id: None,
+        active_task_id: active_task_id.map(str::to_string),
         can_resume: true,
         resume_block_reason: None,
         error_message: None,
@@ -106,9 +107,22 @@ mod tests {
     fn builds_running_input() {
         let vars = HashMap::new();
         let input =
-            import_reverse_workflow_run_input(2, "outline", false, "sample", true, Some(3), &vars)
-                .unwrap();
+            import_reverse_workflow_run_input(
+                2,
+                "outline",
+                false,
+                "sample",
+                true,
+                Some(3),
+                &vars,
+                Some("import-reverse-task"),
+            )
+            .unwrap();
         assert!(input.business_key.contains("outline:reverse"));
         assert_eq!(input.status, WORKFLOW_STATUS_RUNNING);
+        assert_eq!(
+            input.active_task_id.as_deref(),
+            Some("import-reverse-task")
+        );
     }
 }

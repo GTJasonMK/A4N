@@ -1,5 +1,6 @@
 import React from "react";
-import { Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import type { TaskInfo } from "../../../api/task";
 import { taskProgressDisplay } from "./queueTabUtils";
@@ -26,14 +27,14 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
   <section>
     <div className="flex items-baseline gap-2 px-1 pb-2">
       <h3 className="text-xs font-semibold text-book-text-main">最近任务</h3>
-      <span className="text-[11px] text-book-text-muted">
+      <span className="text-small text-book-text-muted">
         {tasks.length > 0 ? `显示最近 ${tasks.length} 条` : "执行记录"}
       </span>
-      {loading ? <Loader2 size={12} className="ml-auto animate-spin text-book-text-muted" /> : null}
+      {loading ? <LoadingSpinner size="sm" className="ml-auto  text-book-text-muted" /> : null}
     </div>
     {loading && tasks.length === 0 ? (
       <div className="a4n-flat-surface flex items-center justify-center gap-1.5 px-3 py-5 text-xs text-book-text-muted">
-        <Loader2 size={12} className="animate-spin" />
+        <LoadingSpinner size="sm" />
         正在加载最近任务…
       </div>
     ) : tasks.length === 0 ? (
@@ -54,7 +55,7 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
                   <div className="truncate font-medium text-book-text-main">
                     {getTaskTypeLabel(task.task_type)}
                   </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-book-text-muted">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
                     <span className={task.priority === "high" ? "text-error" : undefined}>
                       {getTaskPriorityLabel(task.priority)}
                     </span>
@@ -76,11 +77,11 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
                     ) : null}
                   </div>
                   <div className="mt-1.5 min-w-0">
-                    <span className="block truncate text-[11px] text-book-text-sub">
+                    <span className="block truncate text-small text-book-text-sub">
                       {progressDisplay.stage}
                     </span>
                     {progressDisplay.detail ? (
-                      <span className="block truncate text-[11px] leading-4 text-book-text-muted">
+                      <span className="block truncate text-small leading-4 text-book-text-muted">
                         {progressDisplay.detail}
                       </span>
                     ) : null}
@@ -88,7 +89,7 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
                 </div>
                 {cancelling ? (
                   <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
-                    <Loader2 size={13} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   </span>
                 ) : canCancel ? (
                   <Dropdown
@@ -104,7 +105,7 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
                 ) : null}
               </div>
               <ProgressEventList events={task.progress_events} limit={2} />
-              <details className="mt-1 text-[10px] text-book-text-muted">
+              <details className="mt-1 text-caption text-book-text-muted">
                 <summary className="cursor-pointer">诊断信息</summary>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono">
                   <span>任务编号 {task.id}</span>

@@ -29,6 +29,7 @@ include!("tests/shooting_script_fixture.rs");
 
 mod context_contract;
 mod generation_flow;
+pub(in crate::video) use generation_flow::segment_plan_json_for_shot;
 mod prompt_json_contract;
 mod prompt_preview_flow;
 mod prompt_store_flow;

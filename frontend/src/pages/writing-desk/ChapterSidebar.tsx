@@ -101,7 +101,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
         <div className="flex min-w-0 items-center gap-2 px-1 py-1">
           <h2 className="min-w-0 flex-1 text-xs font-semibold text-book-text-main">章节</h2>
           {chapterNumbers.length > 0 ? (
-            <span className="text-[10px] text-book-text-muted">
+            <span className="text-caption text-book-text-muted">
               {filteredChapterNumbers.length === chapterNumbers.length
                 ? `${chapterNumbers.length} 章`
                 : `${filteredChapterNumbers.length} / ${chapterNumbers.length} 章`}
@@ -132,7 +132,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             <button
               type="button"
               onClick={onClearChapterQuery}
-              className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full text-[11px] text-book-text-muted hover:bg-book-primary/10 hover:text-book-primary sm:right-1.5 sm:h-5 sm:w-5"
+              className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full text-small text-book-text-muted hover:bg-book-primary/10 hover:text-book-primary sm:right-1.5 sm:h-5 sm:w-5"
               aria-label="清空章节搜索"
               title="清空搜索"
             >
@@ -188,7 +188,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
           <button
             type="button"
             onClick={() => setOutlineDetailOpen(true)}
-            className="w-full rounded-xl px-2 py-2 text-left text-[11px] leading-snug text-book-text-sub transition-colors hover:bg-book-bg-tertiary/55"
+            className="w-full rounded-xl px-2 py-2 text-left text-small leading-snug text-book-text-sub transition-colors hover:bg-book-bg-tertiary/55"
             title="查看本章章纲"
           >
             <div className="flex min-w-0 items-center gap-1.5">
@@ -198,13 +198,13 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
               </span>
             </div>
             {currentOutlineSummary ? (
-              <div className="mt-0.5 truncate text-[10px] text-book-text-muted">
+              <div className="mt-0.5 truncate text-caption text-book-text-muted">
                 {currentOutlineSummary}
               </div>
             ) : null}
           </button>
         ) : (
-          <p className="px-2 py-2 text-[11px] text-book-text-muted">本章暂无章纲</p>
+          <p className="px-2 py-2 text-small text-book-text-muted">本章暂无章纲</p>
         )}
       </div>
 
@@ -217,7 +217,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
         {activeOutline && (
           <div className="space-y-3 text-xs leading-relaxed text-book-text-sub">
             <div>
-              <div className="mb-1 text-[11px] font-semibold text-book-text-muted">
+              <div className="mb-1 text-small font-semibold text-book-text-muted">
                 第 {activeOutline.chapter_number} 章
               </div>
               <div className="font-serif text-base font-semibold text-book-text-main">

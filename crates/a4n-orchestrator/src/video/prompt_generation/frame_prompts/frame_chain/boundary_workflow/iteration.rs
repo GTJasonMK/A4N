@@ -22,9 +22,11 @@ pub(super) async fn prepare_boundary_iteration(
         .current_frame_count
         .checked_add(1)
         .ok_or_else(|| AppError::InvalidArgument("边界帧数量超过 usize 上限".to_string()))?;
-    let frame_number = i32::try_from(next_frame_count).map_err(|_| {
-        AppError::InvalidArgument(format!("边界帧编号超过 i32 上限：{next_frame_count}"))
-    })?;
+    let frame_number = input
+        .next_frame_number
+        .unwrap_or(i32::try_from(next_frame_count).map_err(|_| {
+            AppError::InvalidArgument(format!("边界帧编号超过 i32 上限：{next_frame_count}"))
+        })?);
     let generated_this_run = input.generated_this_run.checked_add(1).ok_or_else(|| {
         AppError::InvalidArgument("本批边界帧生成数量超过 usize 上限".to_string())
     })?;

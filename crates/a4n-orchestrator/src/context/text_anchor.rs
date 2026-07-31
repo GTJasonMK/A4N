@@ -104,6 +104,33 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn require_current_chapter_content_anchors_for_preview(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<text_anchor::Model>, AppError> {
+        let rows = self
+            .read_current_chapter_content_anchor_records(project_id, chapter_id)
+            .await?;
+        if rows.anchors.is_empty() {
+            return Err(AppError::InvalidState {
+                current: format!("第 {} 章缺少当前正文文本锚点", rows.chapter.chapter_number),
+                operation: "预览模型请求".to_string(),
+            });
+        }
+        if rows
+            .anchors
+            .iter()
+            .any(|anchor| anchor.source_version_hash != rows.source_version_hash)
+        {
+            return Err(AppError::InvalidState {
+                current: format!("第 {} 章正文文本锚点已过期", rows.chapter.chapter_number),
+                operation: "预览模型请求".to_string(),
+            });
+        }
+        Ok(rows.anchors)
+    }
+
     pub async fn merge_profile_evidence_records(
         &self,
         root_project_id: i64,

@@ -13,12 +13,10 @@ use super::contracts::{
 };
 use evidence::{ensure_stage_anchor_exists, validate_sync_evidence_against_chapters};
 use validation::{
-    CHARACTER_SYNC_ATTRIBUTE_CHANGES_PER_CHAPTER_MAX, CHARACTER_SYNC_BEHAVIORS_PER_CHAPTER_MAX,
-    CHARACTER_SYNC_DELETION_CANDIDATES_PER_CHAPTER_MAX, chapter_state_drafts,
-    chapter_state_drafts_json, sort_sync_items_by_chapter, validate_attribute_change,
-    validate_behavior, validate_chapter_state, validate_deletion_candidate,
-    validate_materialized_character_sync_projection, validate_sync_item_chapters,
-    validate_sync_item_count_by_chapter, validate_unique_deletion_candidates,
+    chapter_state_drafts, chapter_state_drafts_json, sort_sync_items_by_chapter,
+    validate_attribute_change, validate_behavior, validate_chapter_state,
+    validate_deletion_candidate, validate_materialized_character_sync_projection,
+    validate_sync_item_chapters, validate_unique_deletion_candidates,
 };
 
 pub(super) fn parse_character_profile_sync_stage_output(
@@ -107,11 +105,6 @@ fn parse_sync_attribute_changes(
         &changes,
         &input.selected_chapter_numbers,
     )?;
-    validate_sync_item_count_by_chapter(
-        "attribute_changes",
-        &changes,
-        CHARACTER_SYNC_ATTRIBUTE_CHANGES_PER_CHAPTER_MAX,
-    )?;
     sort_sync_items_by_chapter(&mut changes)?;
     Ok(changes)
 }
@@ -135,11 +128,6 @@ fn parse_sync_behaviors(
         validate_behavior(index, behavior)?;
     }
     validate_sync_item_chapters("behaviors", &behaviors, &input.selected_chapter_numbers)?;
-    validate_sync_item_count_by_chapter(
-        "behaviors",
-        &behaviors,
-        CHARACTER_SYNC_BEHAVIORS_PER_CHAPTER_MAX,
-    )?;
     sort_sync_items_by_chapter(&mut behaviors)?;
     Ok(behaviors)
 }
@@ -157,11 +145,6 @@ fn parse_sync_deletion_candidates(
         "deletion_candidates",
         &candidates,
         &input.selected_chapter_numbers,
-    )?;
-    validate_sync_item_count_by_chapter(
-        "deletion_candidates",
-        &candidates,
-        CHARACTER_SYNC_DELETION_CANDIDATES_PER_CHAPTER_MAX,
     )?;
     sort_sync_items_by_chapter(&mut candidates)?;
     Ok(candidates)

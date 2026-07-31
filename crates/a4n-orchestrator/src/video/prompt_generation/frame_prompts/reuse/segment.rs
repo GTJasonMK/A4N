@@ -10,14 +10,58 @@ use crate::video::prompt_store::{
 };
 
 use super::super::{
-    ReusableSegmentPlan, SHARED_SEGMENT_PLAN_TITLE, VideoShootingScriptProjection,
-    current_source_hash, prompt_row_source_hash, segment_plan_rows, source_hash_matches,
+    LoadedSharedSegmentPlan, ReusableSegmentPlan, SHARED_SEGMENT_PLAN_CONTRACT_VERSION,
+    SHARED_SEGMENT_PLAN_TITLE, VideoShootingScriptProjection, segment_plan_rows,
     video_execution_chain_identity, video_projection_from_shooting_script,
 };
 use super::contracts::{
-    ReusableSegmentPlanForPreviewQuery, ReusableSegmentPlanForSpecQuery,
-    ReusableSegmentPlanFromRowInput, ReusableSegmentPlanQuery,
+    ReusableSegmentPlanForPreviewQuery, ReusableSegmentPlanFromRowInput, ReusableSegmentPlanQuery,
+    ReusableSharedSegmentPlanQuery,
 };
+
+pub(in crate::video::prompt_generation::frame_prompts) async fn load_shared_segment_plan_for_execution(
+    service: &OrchestratorContext,
+    project_id: i64,
+    chapter_id: i64,
+    segment_plan_prompt_id: i64,
+) -> Result<LoadedSharedSegmentPlan, AppError> {
+    let row = service
+        .require_current_shared_segment_plan(project_id, chapter_id, segment_plan_prompt_id)
+        .await?;
+    let metadata = row
+        .metadata_json
+        .as_ref()
+        .and_then(Value::as_object)
+        .ok_or_else(|| AppError::InvalidArgument("共享片段规划 metadata_json 无效".to_string()))?;
+    if metadata.get("contract_version").and_then(Value::as_str)
+        != Some(SHARED_SEGMENT_PLAN_CONTRACT_VERSION)
+    {
+        return Err(AppError::InvalidArgument(format!(
+            "共享片段规划合同已过期，当前需要 {SHARED_SEGMENT_PLAN_CONTRACT_VERSION}"
+        )));
+    }
+    let segment_plan = serde_json::from_value::<Vec<crate::video::prompt_json::VideoSegmentPlan>>(
+        metadata
+            .get("segments")
+            .cloned()
+            .ok_or_else(|| AppError::InvalidArgument("共享片段规划缺少 segments".to_string()))?,
+    )
+    .map_err(|error| AppError::InvalidArgument(format!("共享片段规划 segments 无效：{error}")))?;
+    if segment_plan.is_empty() {
+        return Err(AppError::InvalidArgument(
+            "共享片段规划必须包含至少一个片段".to_string(),
+        ));
+    }
+    let execution_identity = metadata
+        .get("video_execution_identity")
+        .cloned()
+        .ok_or_else(|| AppError::InvalidArgument("共享片段规划缺少执行身份".to_string()))?;
+    Ok(LoadedSharedSegmentPlan {
+        segment_json: json!({ "segments": &segment_plan }),
+        segment_plan,
+        execution_identity,
+    })
+}
 
 pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_no_existing_segment_plan_before_new_planning(
     service: &OrchestratorContext,
@@ -257,14 +301,13 @@ pub(in crate::video::prompt_generation::frame_prompts) fn reusable_segment_plan_
     })
 }
 
-pub(in crate::video::prompt_generation::frame_prompts) async fn reusable_segment_plan_for_spec(
-    query: ReusableSegmentPlanForSpecQuery<'_>,
+pub(in crate::video::prompt_generation::frame_prompts) async fn reusable_shared_segment_plan(
+    query: ReusableSharedSegmentPlanQuery<'_>,
 ) -> Result<Option<ReusableSegmentPlan>, AppError> {
-    let ReusableSegmentPlanForSpecQuery {
+    let ReusableSharedSegmentPlanQuery {
         service,
         project_id,
         chapter_id,
-        spec,
         source_metadata,
         source_spans,
         style,
@@ -278,16 +321,16 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn reusable_segment
         service,
         project_id,
         chapter_id,
-        workflow_mode: spec.segment_storage_workflow_mode(),
-        prompt_type: spec.segment_storage_prompt_type(),
+        workflow_mode: PromptWorkflowMode::SharedSegmentPlan,
+        prompt_type: super::super::SHARED_SEGMENT_PLAN_PROMPT_TYPE,
         source_metadata,
         source_spans,
         style,
         duration_secs,
         aspect_ratio,
         shooting_script_projection: &shooting_script_projection,
-        contract_version: spec.segment_storage_contract_version(),
-        context: spec.segment_storage_context(),
+        contract_version: super::super::SHARED_SEGMENT_PLAN_CONTRACT_VERSION,
+        context: super::super::SHARED_SEGMENT_PLAN_CONTEXT,
     })
     .await
 }
@@ -388,4 +431,30 @@ pub(in crate::video::prompt_generation::frame_prompts) fn prompt_resume_context_
         prompt_row_source_hash(row),
         current_source_hash(source_metadata),
     )
+}
+
+fn prompt_row_source_hash(row: &chapter_video_prompt::Model) -> Option<&str> {
+    row.metadata_json
+        .as_ref()
+        .and_then(|metadata| metadata.get("source"))
+        .and_then(|source| source.get("content_sha256"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn current_source_hash(source_metadata: &Value) -> Option<&str> {
+    source_metadata
+        .get("content_sha256")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn source_hash_matches(row_hash: Option<&str>, current_hash: Option<&str>) -> bool {
+    match (row_hash, current_hash) {
+        (Some(row_hash), Some(current_hash)) => row_hash == current_hash,
+        (None, None) => true,
+        _ => false,
+    }
 }

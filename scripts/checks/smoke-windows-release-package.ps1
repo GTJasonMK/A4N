@@ -22,8 +22,14 @@ $LauncherErr = Join-Path $TempRoot "launcher.err.log"
 $Launcher = $null
 $PackageRoot = $null
 $SidecarPids = @()
+$LocalCli = $null
+$LocalConfig = $null
+$LocalServer = $null
 
 function Stop-SmokeProcesses {
+    if ($null -ne $LocalCli -and $null -ne $LocalConfig -and $null -ne $LocalServer -and (Test-Path -LiteralPath $LocalCli)) {
+        & $LocalCli --config $LocalConfig --server $LocalServer local stop --force *> $null
+    }
     if ($null -ne $Launcher -and -not $Launcher.HasExited) {
         Stop-Process -Id $Launcher.Id -Force -ErrorAction SilentlyContinue
         $Launcher.WaitForExit(5000) | Out-Null
@@ -68,6 +74,14 @@ try {
     if (-not (Test-Path -LiteralPath $StartScript -PathType Leaf)) {
         throw "release package is missing start.ps1"
     }
+    foreach ($tool in "a4n.exe", "a4n-server.exe", "a4n-migration.exe") {
+        $toolPath = Join-Path $PackageRoot "bin\$tool"
+        if (-not (Test-Path -LiteralPath $toolPath -PathType Leaf)) {
+            throw "release package is missing executable tool: $tool"
+        }
+    }
+    $LocalCli = (Resolve-Path -LiteralPath (Join-Path $PackageRoot "bin\a4n.exe")).Path
+    $LocalConfig = Join-Path $TempRoot "cli.json"
 
     $modules = @("prompt", "llm", "embedding", "rag", "image", "video", "import", "export")
     $addrNames = @(
@@ -81,6 +95,19 @@ try {
     $basePort = if ($env:A4N_RELEASE_SMOKE_BASE_PORT) { [int]$env:A4N_RELEASE_SMOKE_BASE_PORT } else { 48641 }
     if ($basePort -lt 1024 -or $basePort -gt 65528) {
         throw "invalid A4N_RELEASE_SMOKE_BASE_PORT: $basePort"
+    }
+    $LocalServer = "http://127.0.0.1:$($basePort + 8)"
+    Push-Location -LiteralPath $TempRoot
+    try {
+        $capabilities = (& $LocalCli --config $LocalConfig --agent capabilities export) | ConvertFrom-Json
+        $capabilityData = $capabilities.data
+        if ($LASTEXITCODE -ne 0 -or
+            $capabilityData.total_commands -ne $capabilityData.matched_commands -or
+            $capabilityData.total_commands -ne @($capabilityData.commands).Count) {
+            throw "installed CLI capability export failed"
+        }
+    } finally {
+        Pop-Location
     }
     $urls = @()
     for ($index = 0; $index -lt $modules.Count; $index++) {
@@ -203,7 +230,41 @@ try {
         }
     }
 
-    Write-Host "windows release package smoke passed: host + 8 sidecars, logs, stale PID, cleanup, non-ASCII path"
+    Push-Location -LiteralPath $TempRoot
+    try {
+        & $LocalCli --config $LocalConfig --server $LocalServer --agent local start --no-qdrant
+        if ($LASTEXITCODE -ne 0) { throw "installed CLI local start failed" }
+        & $LocalCli --config $LocalConfig --server $LocalServer --agent health
+        if ($LASTEXITCODE -ne 0) { throw "installed CLI health failed" }
+        & $LocalCli --config $LocalConfig --server $LocalServer --agent capabilities check
+        if ($LASTEXITCODE -ne 0) { throw "installed CLI capability compatibility check failed" }
+        & $LocalCli --config $LocalConfig --server $LocalServer --agent local stop
+        if ($LASTEXITCODE -ne 0) { throw "installed CLI local stop failed" }
+    } finally {
+        Pop-Location
+    }
+    foreach ($url in $urls) {
+        $portAlive = $false
+        try {
+            Invoke-RestMethod -Uri "$url/healthz" -TimeoutSec 1 | Out-Null
+            $portAlive = $true
+        } catch {
+        }
+        if ($portAlive) {
+            throw "local managed sidecar survived local stop: $url"
+        }
+    }
+    $serverAlive = $false
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri "$LocalServer/api/health" -TimeoutSec 1 | Out-Null
+        $serverAlive = $true
+    } catch {
+    }
+    if ($serverAlive) {
+        throw "local Server port survived local stop: $LocalServer"
+    }
+
+    Write-Host "windows release package smoke passed: host + CLI tools + local Server + 8 sidecars, logs, stale PID, cleanup, non-ASCII path"
 } catch {
     if (Test-Path -LiteralPath $LauncherOut) { Get-Content -LiteralPath $LauncherOut -Tail 200 -ErrorAction SilentlyContinue }
     if (Test-Path -LiteralPath $LauncherErr) { Get-Content -LiteralPath $LauncherErr -Tail 200 -ErrorAction SilentlyContinue }

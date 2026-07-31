@@ -1,5 +1,6 @@
 import React from "react";
-import { ChevronRight, Loader2, Undo2 } from "lucide-react";
+import { ChevronRight, Undo2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import type { RollbackPreview } from "../../api/project";
 import type { ProjectStatus } from "../../utils/projectStatus";
@@ -40,15 +41,15 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
       <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-xs text-book-text-sub [&::-webkit-details-marker]:hidden">
         <Undo2 size={12} className="shrink-0 text-book-text-muted" />
         <span className="font-medium">回滚到先前阶段</span>
-        <span className="text-[10px] text-book-text-muted">{targets.length} 个可选目标</span>
-        <span className="ml-auto text-[10px] text-warning">谨慎操作</span>
+        <span className="text-caption text-book-text-muted">{targets.length} 个可选目标</span>
+        <span className="ml-auto text-caption text-warning">谨慎操作</span>
         <ChevronRight
           size={11}
           className="shrink-0 text-book-text-muted transition-transform duration-200 group-open:rotate-90"
         />
       </summary>
       <div className="mt-2 space-y-2 sm:pl-5">
-        <label className="flex min-w-0 flex-col gap-1 text-[10px] text-book-text-muted">
+        <label className="flex min-w-0 flex-col gap-1 text-caption text-book-text-muted">
           目标阶段
           <select
             value={target ?? ""}
@@ -75,7 +76,7 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
             </div>
             {preview == null ? (
               <div className="inline-flex items-center gap-1.5 text-xs text-book-text-muted">
-                <Loader2 size={10} className="animate-spin" /> 正在检查影响范围…
+                <LoadingSpinner size="sm" /> 正在检查影响范围…
               </div>
             ) : (
               <RollbackPreviewView preview={preview} />
@@ -91,7 +92,7 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
                 >
                   {acting === actionKey ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <Loader2 size={12} className="animate-spin" /> 回滚中…
+                      <LoadingSpinner size="sm" /> 回滚中…
                     </span>
                   ) : (
                     "确认回滚"

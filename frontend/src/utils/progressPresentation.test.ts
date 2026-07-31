@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ProgressMeta, ProgressTimelineItem } from "../api/progress";
+import { streamLineFromBuffer } from "./progressDisplay";
 import { compactProgressEvents, progressDisplayModel } from "./progressPresentation";
 
 const meta: ProgressMeta = {
@@ -15,6 +16,12 @@ const meta: ProgressMeta = {
 };
 
 describe("progress presentation", () => {
+  it("compacts cumulative model output to the latest single-line tail", () => {
+    expect(streamLineFromBuffer(`  start\n${"尾".repeat(200)}  `)).toBe(
+      `…${"尾".repeat(180)}`,
+    );
+  });
+
   it("uses structured metadata for the rich progress display", () => {
     expect(
       progressDisplayModel({

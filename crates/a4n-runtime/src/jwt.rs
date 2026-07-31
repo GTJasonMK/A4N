@@ -14,3 +14,20 @@ pub use contracts::{Claims, TokenPair};
 use signing::{create_access_token_with_role, create_refresh_token};
 pub use tokens::{create_media_token, create_token_pair_with_role};
 pub use verification::{refresh_access_token_with_role, verify_token};
+
+pub(crate) fn create_session_access_token_with_role(
+    user_id: &str,
+    name: Option<&str>,
+    role: &str,
+    session_id: &str,
+    secret: &str,
+) -> Result<String, AppError> {
+    create_access_token_with_role(
+        user_id,
+        name,
+        role,
+        Some(session_id),
+        secret,
+        ACCESS_TOKEN_EXP_MINUTES,
+    )
+}

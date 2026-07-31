@@ -177,6 +177,14 @@ impl AuthApplication {
         .await
     }
 
+    async fn verify_active_session(
+        &self,
+        user_id: i64,
+        session_id: &str,
+    ) -> Result<user_session::Model, AppError> {
+        a4n_db::auth::verify_active_session(self.database.connection(), user_id, session_id).await
+    }
+
     async fn rotate_session_refresh_token(
         &self,
         session: user_session::Model,
@@ -353,6 +361,14 @@ impl OrchestratorContext {
         self.auth
             .verify_session_refresh_token(user_id, session_id, refresh_token)
             .await
+    }
+
+    pub async fn verify_active_session(
+        &self,
+        user_id: i64,
+        session_id: &str,
+    ) -> Result<user_session::Model, AppError> {
+        self.auth.verify_active_session(user_id, session_id).await
     }
 
     pub async fn rotate_session_refresh_token(

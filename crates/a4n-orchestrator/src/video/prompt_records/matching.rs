@@ -23,11 +23,12 @@ pub(in crate::video) use assets::video_generation_asset_fingerprint;
 #[cfg(test)]
 pub(super) use context::prompt_matches_generation_context;
 pub(super) use context::prompt_matches_generation_context_for_workflow;
-pub(in crate::video) use context::reusable_rows_are_complete;
+#[cfg(test)]
+use context::reference_ids_match;
 #[cfg(test)]
 pub(super) use context::video_execution_base_identity_matches;
-#[cfg(test)]
-use context::{expected_contract_version, reference_ids_match};
+pub(in crate::video) use context::video_execution_segment_identity_matches;
+pub(in crate::video) use context::{expected_contract_version, reusable_rows_are_complete};
 
 #[cfg(test)]
 include!("tests.rs");

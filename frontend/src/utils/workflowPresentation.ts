@@ -27,12 +27,10 @@ const WORKFLOW_STATUS_LABELS: Record<string, string> = {
   stale: "已过期",
 };
 
-export const getWorkflowStatusLabel = (value: string | null | undefined): string => {
+export const getOperationStatusLabel = (value: string | null | undefined): string => {
   const normalized = String(value ?? "").trim().toLowerCase();
   return WORKFLOW_STATUS_LABELS[normalized] ?? "未知状态";
 };
-
-export const getOperationStatusLabel = getWorkflowStatusLabel;
 
 const TASK_TYPE_LABELS: Record<string, string> = {
   llm_call: "语言模型调用",

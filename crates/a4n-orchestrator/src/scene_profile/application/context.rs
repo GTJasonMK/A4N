@@ -122,25 +122,8 @@ pub(super) async fn read_current_chapter_content_anchors(
     project_id: i64,
     chapter_id: i64,
 ) -> Result<Vec<text_anchor::Model>, String> {
-    let rows = state
-        .read_current_chapter_content_anchor_records(project_id, chapter_id)
+    state
+        .require_current_chapter_content_anchors_for_preview(project_id, chapter_id)
         .await
-        .map_err(|error| error.to_string())?;
-    if rows.anchors.is_empty() {
-        return Err(format!(
-            "状态无效：当前状态 第 {} 章缺少当前正文文本锚点，不允许操作 预览模型请求",
-            rows.chapter.chapter_number
-        ));
-    }
-    if rows
-        .anchors
-        .iter()
-        .any(|anchor| anchor.source_version_hash != rows.source_version_hash)
-    {
-        return Err(format!(
-            "状态无效：当前状态 第 {} 章正文文本锚点已过期，不允许操作 预览模型请求",
-            rows.chapter.chapter_number
-        ));
-    }
-    Ok(rows.anchors)
+        .map_err(|error| error.to_string())
 }

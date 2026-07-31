@@ -6,22 +6,15 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  Loader2,
-  Network,
+import { Network,
   RefreshCcw,
   RotateCcw,
   ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+  ZoomOut, } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
-import {
-  canListenAppEvents,
-  listenAppEvent,
-  type UnlistenFn,
-} from "../../api/runtime";
 import { listProfiles, type CharacterProfile } from "../../api/character";
 import {
   characterAttributeEntries,
@@ -32,8 +25,8 @@ import {
   removePortableItem,
   writePortableItem,
 } from "../../utils/portableStorage";
-import { EmptyHint, type ChapterAnalysisUpdatedPayload } from "./shared";
-import { useNovelDetailLoader } from "./useNovelDetailLoader";
+import { EmptyHint } from "./shared";
+import { useChapterAnalysisLoader } from "./useNovelDetailLoader";
 import { THEME_APPLIED_EVENT } from "../../theme/activeTheme";
 
 interface CurrentRelationship {
@@ -204,7 +197,8 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     },
     [projectId],
   );
-  const { loading, load } = useNovelDetailLoader(
+  const { loading } = useChapterAnalysisLoader(
+    projectId,
     loadRelationships,
     "加载关系失败",
   );
@@ -212,45 +206,6 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   useEffect(() => {
     setCurrentDetail(null);
   }, [projectId]);
-
-  useEffect(() => {
-    if (!canListenAppEvents()) return;
-
-    let disposed = false;
-    let unlisten: UnlistenFn | null = null;
-
-    void listenAppEvent<ChapterAnalysisUpdatedPayload>(
-      "chapter-analysis-updated",
-      (event) => {
-        if (Number(event.payload?.project_id) === projectId) {
-          void load({ silent: true, force: true });
-        }
-      },
-    ).then((detach) => {
-      if (disposed) {
-        detach();
-      } else {
-        unlisten = detach;
-      }
-    });
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [load, projectId]);
-
-  useEffect(() => {
-    const refreshOnFocus = () => {
-      if (document.visibilityState === "visible") void load({ silent: true });
-    };
-    window.addEventListener("focus", refreshOnFocus);
-    document.addEventListener("visibilitychange", refreshOnFocus);
-    return () => {
-      window.removeEventListener("focus", refreshOnFocus);
-      document.removeEventListener("visibilitychange", refreshOnFocus);
-    };
-  }, [load]);
 
   const displayProfiles = loadedProjectId === projectId ? profiles : [];
   const displayLoading = loading || loadedProjectId !== projectId;
@@ -272,7 +227,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   if (displayLoading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <Loader2 size={12} className="animate-spin" /> 加载关系…
+        <LoadingSpinner size="sm" /> 加载关系…
       </div>
     );
   }
@@ -618,10 +573,10 @@ const CurrentRelationshipsCard: React.FC<{
           />
         </div>
         <div className="hidden min-w-0 items-baseline gap-2 lg:flex">
-          <div className="text-[13px] font-semibold text-book-text-main">
+          <div className="text-body font-semibold text-book-text-main">
             关系图
           </div>
-          <div className="text-[11px] text-book-text-muted">
+          <div className="text-small text-book-text-muted">
             {layout.nodes.length} 位角色 · {layout.edges.length} 条关系
           </div>
         </div>
@@ -736,12 +691,12 @@ const RelationshipGraphPanel: React.FC<{
     >
       {hoveredRelationship ? (
         <section className="border-b border-book-primary/15 bg-book-primary/5 px-4 py-3">
-          <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-book-text-main">
+          <div className="mb-1 flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-main">
             <span className="truncate">{hoveredRelationship.character_a}</span>
             <span className="text-book-primary">→</span>
             <span className="truncate">{hoveredRelationship.character_b}</span>
           </div>
-          <div className="line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
+          <div className="line-clamp-2 text-small leading-relaxed text-book-text-muted">
             {hoveredRelationship.description}
           </div>
         </section>
@@ -758,7 +713,7 @@ const RelationshipGraphPanel: React.FC<{
               >
                 {selectedNode.name}
               </div>
-              <div className="mt-0.5 text-[11px] text-book-text-muted">
+              <div className="mt-0.5 text-small text-book-text-muted">
                 共 {selectedNode.degree} 条关系
               </div>
             </div>
@@ -773,12 +728,12 @@ const RelationshipGraphPanel: React.FC<{
                 className="block w-full rounded-xl border border-book-border/40 bg-book-bg-paper/45 px-3 py-2.5 text-left transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/55 focus-visible:border-book-primary/45 focus-visible:outline-none"
                 title="查看关系详情"
               >
-                <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-book-text-main">
+                <div className="flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-main">
                   <span className="truncate">{relationship.character_a}</span>
                   <span className="text-book-primary">→</span>
                   <span className="truncate">{relationship.character_b}</span>
                 </div>
-                <div className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
+                <div className="mt-0.5 line-clamp-2 text-small leading-relaxed text-book-text-muted">
                   {relationship.description}
                 </div>
               </button>
@@ -788,7 +743,7 @@ const RelationshipGraphPanel: React.FC<{
       ) : null}
 
       <section className="px-2 py-3">
-        <div className="mb-1 px-2 text-[11px] font-semibold text-book-text-main">
+        <div className="mb-1 px-2 text-small font-semibold text-book-text-main">
           全部角色
         </div>
         <div className="grid gap-1.5">
@@ -807,13 +762,13 @@ const RelationshipGraphPanel: React.FC<{
                 }`}
                 title={node.name}
               >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-book-bg-tertiary text-[10px] font-semibold text-book-text-muted">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-book-bg-tertiary text-caption font-semibold text-book-text-muted">
                   {initialOf(node.name)}
                 </span>
                 <span className="min-w-0 truncate text-xs font-medium">
                   {node.name}
                 </span>
-                <span className="shrink-0 text-[10px] text-book-text-muted">
+                <span className="shrink-0 text-caption text-book-text-muted">
                   {node.degree} 条
                 </span>
               </button>

@@ -1,3 +1,12 @@
+struct NoopVideoRecordLifecycleHost;
+
+#[async_trait::async_trait]
+impl VideoRecordLifecycleHostPort for NoopVideoRecordLifecycleHost {
+    async fn delete_video_tail_frame_assets(&self, _video_id: i64) -> Result<(), AppError> {
+        Ok(())
+    }
+}
+
 #[tokio::test]
 async fn delete_missing_video_returns_not_found_without_touching_prompt_reference() {
     let db = Arc::new(setup_db().await);
@@ -18,6 +27,57 @@ async fn delete_missing_video_returns_not_found_without_touching_prompt_referenc
         .unwrap();
     assert_eq!(stored.generated_video_id, Some(999));
     assert_eq!(stored.status, "completed");
+}
+
+#[tokio::test]
+async fn delete_video_cancels_active_provider_workflow() {
+    let db = Arc::new(setup_db().await);
+    let project = insert_video_project(db.as_ref(), "视频项目").await;
+    let service = crate::video::test_video_orchestrator(db.clone()).await;
+    let video = service
+        .create_video_record(video_record_input(project.id))
+        .await
+        .unwrap();
+    let video = service
+        .mark_generated_video_job_and_prompt_validated(
+            video.id,
+            "job-delete",
+            Some(json!({"status": "submitted"})),
+            None,
+        )
+        .await
+        .unwrap();
+    service
+        .mark_video_provider_workflow_validated(
+            &video,
+            crate::workflow::WORKFLOW_STATUS_RUNNING,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+
+    service
+        .delete_video_record_validated(&NoopVideoRecordLifecycleHost, video.id)
+        .await
+        .unwrap();
+
+    assert!(
+        generated_video::Entity::find_by_id(video.id)
+            .one(db.as_ref())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let workflow = a4n_db::workflow::latest_workflow_run_by_business_key(
+        db.as_ref(),
+        &format!("video_provider_job:{}", video.id),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(workflow.status, crate::workflow::WORKFLOW_STATUS_CANCELLED);
+    assert!(!workflow.can_resume);
 }
 
 #[tokio::test]

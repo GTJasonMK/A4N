@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
-import { Loader2 } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
 import { AuthPage } from "../../pages/AuthPage";
+import { LoadingSpinner } from "../ui/LoadingSpinner";
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -35,9 +35,8 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   if (!initialized) {
     return (
       <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-6">
-        <div className="a4n-flat-surface flex items-center gap-2 px-4 py-3 text-sm text-book-text-muted">
-          <Loader2 size={18} className="animate-spin" />
-          加载中…
+        <div className="a4n-flat-surface px-4 py-3">
+          <LoadingSpinner size="md" text="加载中…" />
         </div>
       </div>
     );

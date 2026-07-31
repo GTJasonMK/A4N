@@ -3,7 +3,6 @@ use super::contracts::{
 };
 use a4n_core::error::AppError;
 use a4n_core::profile_text::required_text;
-use serde_json::{Value, json};
 
 pub fn normalize_scene_type_value(value: &str) -> Result<String, AppError> {
     let value = required_text(value, "场景类型")?;
@@ -14,10 +13,6 @@ pub fn normalize_scene_type_value(value: &str) -> Result<String, AppError> {
         "场景类型无效: {value}；允许值：{}",
         SCENE_TYPES.join("/")
     )))
-}
-
-pub(super) fn normalize_json_array(value: Value) -> Value {
-    if value.is_array() { value } else { json!([]) }
 }
 
 pub(super) fn validate_positive_i32(value: i32, field: &str) -> Result<i32, AppError> {

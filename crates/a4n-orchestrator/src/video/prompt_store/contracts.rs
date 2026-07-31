@@ -1,10 +1,12 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_core::video_execution::{VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1};
 use a4n_llm::provider::{ChatRequest, UsageInfo};
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(in crate::video) enum PromptWorkflowMode {
+    SharedSegmentPlan,
     BoundaryFrames,
     FirstFrameChain,
     ChatVideo,
@@ -14,6 +16,7 @@ pub(in crate::video) enum PromptWorkflowMode {
 impl PromptWorkflowMode {
     pub(in crate::video) fn as_str(self) -> &'static str {
         match self {
+            Self::SharedSegmentPlan => "shared_segment_plan",
             Self::BoundaryFrames => "boundary_frames",
             Self::FirstFrameChain => "first_frame_chain",
             Self::ChatVideo => "chat_video",
@@ -23,6 +26,7 @@ impl PromptWorkflowMode {
 
     pub(in crate::video) fn from_row(row: &chapter_video_prompt::Model) -> Result<Self, AppError> {
         match row.workflow_mode.as_str() {
+            "shared_segment_plan" => Ok(Self::SharedSegmentPlan),
             "boundary_frames" => Ok(Self::BoundaryFrames),
             "first_frame_chain" => Ok(Self::FirstFrameChain),
             "chat_video" => Ok(Self::ChatVideo),
@@ -31,14 +35,6 @@ impl PromptWorkflowMode {
                 "章节视频提示词 #{} workflow_mode 无效: {}",
                 row.id, other
             ))),
-        }
-    }
-
-    pub(in crate::video) fn storage_str(self, prompt_type: &str) -> &'static str {
-        if prompt_type == "frame_segment_plan" {
-            "shared_segment_plan"
-        } else {
-            self.as_str()
         }
     }
 }
@@ -117,6 +113,58 @@ impl NewChapterVideoPrompt {
             && self.prompt_type == prompt_type
             && self.shot_number == shot_number
     }
+
+    pub(in crate::video) fn with_segment_recipe_metadata(
+        mut self,
+        segment_plan_prompt_id: i64,
+        recipe: &VideoSegmentExecutionRecipeV1,
+    ) -> Result<Self, AppError> {
+        let metadata = self
+            .metadata_json
+            .get_or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or_else(|| {
+                AppError::InvalidArgument("视频提示词 metadata_json 必须是对象".to_string())
+            })?;
+        metadata.insert(
+            "segment_plan_prompt_id".to_string(),
+            json!(segment_plan_prompt_id),
+        );
+        metadata.insert("segment_number".to_string(), json!(recipe.segment_number));
+        metadata.insert(
+            "segment_recipe_fingerprint".to_string(),
+            json!(
+                recipe
+                    .generation_fingerprint()
+                    .map_err(AppError::InvalidArgument)?
+            ),
+        );
+        metadata.insert(
+            "guidance_mode".to_string(),
+            json!(recipe.guidance_mode.as_str()),
+        );
+        metadata.insert(
+            "keyframe_image_ids".to_string(),
+            if recipe.guidance_mode == VideoSegmentGuidanceModeV1::Keyframes {
+                json!(recipe.guidance_reference_image_ids)
+            } else {
+                Value::Null
+            },
+        );
+        metadata.insert(
+            "continuity_source".to_string(),
+            if recipe.guidance_mode == VideoSegmentGuidanceModeV1::Continuity {
+                recipe
+                    .continuity_source_video_id
+                    .map(|video_id| json!({ "video_id": video_id }))
+                    .unwrap_or(Value::Null)
+            } else {
+                Value::Null
+            },
+        );
+        self.reference_image_ids_json = Some(json!(recipe.provider_reference_image_ids()));
+        Ok(self)
+    }
 }
 
 pub(in crate::video) fn new_prompt_draft(
@@ -139,20 +187,6 @@ pub(in crate::video) fn new_prompt_draft(
         reference_image_ids_json,
         metadata_json,
     } = input;
-    let metadata_json = if prompt_type == "video_prompt" {
-        match metadata_json {
-            Some(Value::Object(mut metadata)) => {
-                metadata
-                    .entry("guidance_mode")
-                    .or_insert_with(|| json!("system_frames"));
-                Some(Value::Object(metadata))
-            }
-            None => Some(json!({ "guidance_mode": "system_frames" })),
-            malformed => malformed,
-        }
-    } else {
-        metadata_json
-    };
     NewChapterVideoPrompt {
         project_id,
         chapter_id,
@@ -176,9 +210,12 @@ pub(in crate::video) fn new_prompt_draft(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_core::video_execution::{
+        VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoSegmentWorkflowModeV1,
+    };
 
     #[test]
-    fn video_prompt_draft_has_explicit_default_guidance_mode() {
+    fn video_prompt_draft_does_not_invent_guidance_mode() {
         let draft = new_prompt_draft(NewChapterVideoPromptInput {
             project_id: 1,
             chapter_id: 2,
@@ -196,12 +233,52 @@ mod tests {
             reference_image_ids_json: None,
             metadata_json: None,
         });
-        assert_eq!(
-            draft
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("guidance_mode")),
-            Some(&json!("system_frames"))
-        );
+        assert!(draft.metadata_json.is_none());
+    }
+
+    #[test]
+    fn system_frames_do_not_freeze_inactive_guidance_inputs() {
+        let recipe = VideoSegmentExecutionRecipeV1 {
+            schema_version: VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
+            segment_number: 1,
+            workflow_mode: VideoSegmentWorkflowModeV1::BoundaryFrames,
+            style: "cinematic".to_string(),
+            prompt_output_language: "zh_cn".to_string(),
+            duration_secs: 6,
+            duration_secs_options: vec![6],
+            aspect_ratio: "16:9".to_string(),
+            reference_image_ids: vec![11],
+            video_library_image_ids: Vec::new(),
+            guidance_mode: VideoSegmentGuidanceModeV1::SystemFrames,
+            guidance_reference_image_ids: vec![22],
+            continuity_source_video_id: Some(33),
+            reference_media: None,
+            adopted_video_id: None,
+        };
+        let draft = new_prompt_draft(NewChapterVideoPromptInput {
+            project_id: 1,
+            chapter_id: 2,
+            workflow_mode: PromptWorkflowMode::BoundaryFrames,
+            style: Some("cinematic"),
+            prompt_type: "video_prompt",
+            shot_number: 1,
+            title: None,
+            scene_summary: None,
+            visual_prompt: "画面",
+            motion_prompt: None,
+            negative_prompt: None,
+            duration_secs: 6,
+            aspect_ratio: Some("16:9"),
+            reference_image_ids_json: None,
+            metadata_json: None,
+        })
+        .with_segment_recipe_metadata(9, &recipe)
+        .unwrap();
+
+        assert_eq!(draft.reference_image_ids_json, Some(json!([11])));
+        let metadata = draft.metadata_json.unwrap();
+        assert_eq!(metadata["guidance_mode"], "system_frames");
+        assert!(metadata["keyframe_image_ids"].is_null());
+        assert!(metadata["continuity_source"].is_null());
     }
 }

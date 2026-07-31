@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
-import { Eye, Loader2, Search, Send, ShieldCheck, Square, Wand2 } from "lucide-react";
+import { Eye, Search, Send, ShieldCheck, Square, Wand2 } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ChapterData } from "../../../api/chapter";
 import type { ProposeOptimizationPatchesResponse } from "../../../api/optimize";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
@@ -135,7 +136,7 @@ export function OptimizeComposer({
     >
       {showReviewMode ? (
         <div className="mb-2 flex min-w-0 items-center gap-2">
-          <span className="min-w-0 flex-1 text-[11px] text-book-text-muted">补丁处理方式</span>
+          <span className="min-w-0 flex-1 text-small text-book-text-muted">补丁处理方式</span>
           <SegmentedControl
             ariaLabel="补丁审阅方式"
             value={automaticWriteback ? "batch" : "single"}
@@ -201,7 +202,7 @@ export function OptimizeComposer({
             title={cancellingOptimize ? "正在停止" : "停止当前 Agent 任务"}
           >
             {cancellingOptimize ? (
-              <Loader2 size={15} className="animate-spin" />
+              <LoadingSpinner size="sm" />
             ) : (
               <Square size={14} />
             )}

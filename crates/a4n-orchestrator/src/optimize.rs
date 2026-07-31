@@ -19,8 +19,6 @@ pub(crate) mod runtime_tools;
 mod service;
 mod session_events;
 mod session_names;
-#[cfg(test)]
-mod streaming;
 mod turns;
 mod workflow_rules;
 

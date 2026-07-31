@@ -19,10 +19,8 @@ pub(in crate::file_parsers) fn order_epub_html_entries(
             ordered.push(entry.text.clone());
         }
     }
-    for (index, entry) in entries.into_iter().enumerate() {
-        if !used[index] {
-            ordered.push(entry.text);
-        }
+    if ordered.is_empty() {
+        return entries.into_iter().map(|entry| entry.text).collect();
     }
     ordered
 }

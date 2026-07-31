@@ -606,7 +606,6 @@ export const useInspirationChatController = () => {
     blueprintProgress: blueprintWorkflow.blueprintProgress,
     blueprintCancelling: blueprintWorkflow.blueprintCancelling,
     blueprintStreamText: blueprintWorkflow.blueprintStreamText,
-    blueprintStreamVersion: blueprintWorkflow.blueprintStreamVersion,
     blueprintRequestPreviewOpen: blueprintWorkflow.requestPreviewOpen,
     blueprintRequestPreviewLoading: blueprintWorkflow.requestPreviewLoading,
     blueprintRequestPreviewData: blueprintWorkflow.requestPreviewData,

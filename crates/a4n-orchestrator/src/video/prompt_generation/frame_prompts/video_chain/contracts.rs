@@ -62,6 +62,9 @@ pub(super) fn video_prompt_drafts_for_spec(
         execution_identity,
     };
     match spec.workflow_mode {
+        PromptWorkflowMode::SharedSegmentPlan => Err(AppError::InvalidArgument(
+            "共享片段规划不能写入卡片最终提示词".to_string(),
+        )),
         PromptWorkflowMode::BoundaryFrames => video_prompt_drafts(VideoPromptDraftsInput {
             common,
             segment_by_number,

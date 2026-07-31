@@ -1,5 +1,6 @@
 import React from "react";
-import { Check, ChevronDown, Loader2, RotateCcw, Save } from "lucide-react";
+import { Check, ChevronDown, RotateCcw, Save } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import type { PromptEntry } from "../../../api/prompt";
@@ -117,7 +118,7 @@ const PromptEditorHeader: React.FC<{
             {prompt.description}
           </div>
         ) : null}
-        <div className={`mt-1 inline-flex items-center gap-1 text-[11px] ${dirty ? "text-warning" : "text-book-text-muted"}`}>
+        <div className={`mt-1 inline-flex items-center gap-1 text-small ${dirty ? "text-warning" : "text-book-text-muted"}`}>
           {dirty ? null : <Check size={11} />}
           {saving ? "正在保存…" : dirty ? "有未保存修改" : prompt.is_modified ? "已保存自定义内容" : "使用默认内容"}
         </div>
@@ -125,13 +126,13 @@ const PromptEditorHeader: React.FC<{
       <div className="flex shrink-0 items-center gap-2">
         {dirty || saving ? (
           <BookButton variant="primary" size="sm" onClick={onSave} disabled={saving}>
-            {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+            {saving ? <LoadingSpinner size="sm" /> : <Save size={13} />}
             {saving ? "保存中…" : "保存"}
           </BookButton>
         ) : null}
         {resetting ? (
           <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted" title="正在恢复默认内容">
-            <Loader2 size={14} className="animate-spin" />
+            <LoadingSpinner size="sm" />
           </span>
         ) : moreItems.length > 0 ? (
           <Dropdown items={moreItems} />
@@ -143,7 +144,7 @@ const PromptEditorHeader: React.FC<{
 
 const PromptMetadata: React.FC<{ prompt: PromptEntry }> = ({ prompt }) => {
   return (
-    <details className="mt-2 shrink-0 border-t border-book-border/30 pt-2 text-[11px]">
+    <details className="mt-2 shrink-0 border-t border-book-border/30 pt-2 text-small">
       <summary className="cursor-pointer text-book-text-muted transition-colors hover:text-book-text-sub">
         诊断信息
       </summary>
@@ -162,7 +163,7 @@ const PromptMetadata: React.FC<{ prompt: PromptEntry }> = ({ prompt }) => {
           </div>
         )}
         {prompt.path && (
-          <div className="break-all font-mono text-[11px] text-book-text-muted">
+          <div className="break-all font-mono text-small text-book-text-muted">
             文件：{prompt.path}
           </div>
         )}

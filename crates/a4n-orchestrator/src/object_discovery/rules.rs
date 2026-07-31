@@ -1,73 +1,45 @@
 //! 物体发现工作流指纹与章节范围纯规则（无 DB）。
 
 use a4n_core::models::{chapter::chapter, project::text_anchor};
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
 use a4n_llm::provider::ChatRequest;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::collections::BTreeSet;
 
-use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
+use crate::discovery_workflow::{
+    discovery_business_key, discovery_call_fingerprint_json, discovery_workflow_run_input,
+};
+use crate::workflow::UpsertWorkflowRunInput;
+
+const OBJECT_DISCOVERY_WORKFLOW_KIND: &str = "object_discovery";
 
 /// 物体发现 LLM 调用键。
-pub const OBJECT_DISCOVERY_CALL_KEY: &str = "object_discovery.llm";
+pub(super) const OBJECT_DISCOVERY_CALL_KEY: &str = "object_discovery.llm";
 
 /// 物体发现 exclusive workflow business key。
-pub fn object_discovery_business_key(project_id: i64, chapter_number: Option<i32>) -> String {
-    match chapter_number {
-        Some(chapter_number) => format!("object_discovery:{project_id}:chapter:{chapter_number}"),
-        None => format!("object_discovery:{project_id}:all"),
-    }
-}
-
-/// 物体发现工作流输入指纹。
-pub fn object_discovery_workflow_fingerprint(
+pub(super) fn object_discovery_business_key(
     project_id: i64,
     chapter_number: Option<i32>,
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
-    request: &ChatRequest,
-) -> Value {
-    json!({
-        "workflow": "object_discovery",
-        "contract_version": 1,
-        "project_id": project_id,
-        "chapter_number": chapter_number,
-        "chapters": chapters.iter().map(|chapter| json!({
-            "id": chapter.id,
-            "chapter_number": chapter.chapter_number,
-            "content_sha256": source_content_sha256(&chapter.content),
-            "analysis_data": chapter.analysis_data})).collect::<Vec<_>>(),
-        "text_anchors": text_anchors.iter().map(|anchor| json!({
-            "id": anchor.id,
-            "source_chapter_id": anchor.source_chapter_id,
-            "source_id": anchor.source_id,
-            "quote_hash": anchor.quote_hash,
-            "start_offset": anchor.start_offset,
-            "end_offset": anchor.end_offset})).collect::<Vec<_>>(),
-        "system_prompt_sha256": request.messages.first()
-            .map(|message| source_content_sha256(&message.content)),
-        "temperature": request.temperature,
-        "max_tokens_profile": request.max_tokens_profile,
-        "response_format": request.response_format})
+) -> String {
+    discovery_business_key(OBJECT_DISCOVERY_WORKFLOW_KIND, project_id, chapter_number)
 }
 
 /// 物体发现单次 LLM 调用指纹。
-pub fn object_discovery_call_fingerprint_json(
+pub(super) fn object_discovery_call_fingerprint_json(
     project_id: i64,
     chapter_number: Option<i32>,
     request: &ChatRequest,
 ) -> Result<Value, String> {
-    Ok(json!({
-        "workflow": "object_discovery",
-        "call_key": OBJECT_DISCOVERY_CALL_KEY,
-        "project_id": project_id,
-        "chapter_number": chapter_number,
-        "request": context_aware_chat_request_trace_json(request).map_err(|err| err.to_string())?}))
+    discovery_call_fingerprint_json(
+        OBJECT_DISCOVERY_WORKFLOW_KIND,
+        OBJECT_DISCOVERY_CALL_KEY,
+        project_id,
+        chapter_number,
+        request,
+    )
 }
 
 /// 从可分析章节中选择本次物体发现范围，并在 IO 前后的 application 边界统一校验输入。
-pub fn select_object_discovery_chapters(
+pub(super) fn select_object_discovery_chapters(
     mut chapters: Vec<chapter::Model>,
     project_id: i64,
     chapter_number: Option<i32>,
@@ -102,46 +74,27 @@ pub(super) fn object_discovery_workflow_run_input(
     chapters: &[chapter::Model],
     text_anchors: &[text_anchor::Model],
     request: &ChatRequest,
+    active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
-    if project_id <= 0 {
-        return Err("项目 ID 必须大于 0".to_string());
-    }
     if chapter_number.is_some_and(|value| value <= 0) {
         return Err("物体档案发现章节号必须大于 0".to_string());
     }
-    let mode = chapter_number
-        .map(|value| format!("chapter:{value}"))
-        .unwrap_or_else(|| "all".to_string());
-    Ok(UpsertWorkflowRunInput {
-        business_key: object_discovery_business_key(project_id, chapter_number),
-        workflow_kind: "object_discovery".to_string(),
-        project_id: Some(project_id),
-        root_project_id: None,
-        source_snapshot_id: None,
-        scope_table: Some("novel_project".to_string()),
-        scope_id: Some(project_id),
-        chapter_id: None,
-        mode: Some(mode),
-        input_fingerprint_json: Some(object_discovery_workflow_fingerprint(
-            project_id,
-            chapter_number,
-            chapters,
-            text_anchors,
-            request,
-        )),
-        status: WORKFLOW_STATUS_RUNNING.to_string(),
-        current_step_key: Some(OBJECT_DISCOVERY_CALL_KEY.to_string()),
-        active_task_id: None,
-        can_resume: false,
-        resume_block_reason: None,
-        error_message: None,
-    })
+    discovery_workflow_run_input(
+        OBJECT_DISCOVERY_WORKFLOW_KIND,
+        OBJECT_DISCOVERY_CALL_KEY,
+        project_id,
+        chapter_number,
+        chapters,
+        text_anchors,
+        request,
+        active_task_id,
+    )
 }
 
 /// 校验物体档案 first/last_seen 是否落在本次已分析章节集合内。
 ///
 /// `objects` 为 `(first_seen_chapter, last_seen_chapter)` 按 objects 数组下标顺序。
-pub fn validate_object_discovery_chapter_scope(
+pub(super) fn validate_object_discovery_chapter_scope(
     objects: &[(i32, i32)],
     analyzed_chapters: &BTreeSet<i32>,
 ) -> Result<(), String> {

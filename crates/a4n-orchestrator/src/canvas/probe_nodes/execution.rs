@@ -5,7 +5,6 @@ use serde_json::{Value, json};
 use crate::{
     OrchestratorContext,
     canvas::{CanvasOutputDataType, CanvasOutputValue},
-    workflow::WORKFLOW_STATUS_COMPLETED,
 };
 
 use super::contracts::CanvasProbeNodeExecutionInput;
@@ -56,37 +55,14 @@ impl OrchestratorContext {
                 ),
             })
             .await?;
-            self.record_canvas_node_checkpoint(
-                lifecycle.run.workflow_run_id,
-                lifecycle.step_key.clone(),
-                WORKFLOW_STATUS_COMPLETED,
-                lifecycle.input_json.clone(),
-                Some(artifact_json),
-                None,
-                true,
-            )
-            .await?;
-            self.finish_canvas_node_success(&lifecycle).await
+            self.finish_canvas_node_with_artifacts(&lifecycle, artifact_json)
+                .await
         }
         .await;
 
         match result {
             Ok(summary) => Ok(summary),
-            Err(primary) => {
-                let cancelled = self
-                    .canvas_workflow_run_is_cancelled(lifecycle.run.workflow_run_id)
-                    .await
-                    .map_err(|status_error| {
-                        AppError::Internal(anyhow::anyhow!(
-                            "{primary}；画布 workflow 取消状态复验失败: {status_error}"
-                        ))
-                    })?;
-                if cancelled {
-                    self.cancel_canvas_node(lifecycle, "用户取消画布运行").await
-                } else {
-                    self.fail_canvas_node(lifecycle, primary).await
-                }
-            }
+            Err(primary) => self.finish_canvas_node_error(lifecycle, primary).await,
         }
     }
 

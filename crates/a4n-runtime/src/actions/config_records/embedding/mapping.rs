@@ -27,6 +27,40 @@ pub(super) fn embedding_config_summary(config: &embedding_config::Model) -> Embe
     }
 }
 
+pub(super) fn embedding_create_params(
+    input: CreateEmbeddingInput,
+) -> Result<CreateEmbeddingConfigParams, String> {
+    validate_embedding_config_params(CreateEmbeddingConfigParams {
+        name: input.name,
+        backend: input.backend,
+        base_url: input.base_url,
+        api_key_encrypted: input.api_key_encrypted,
+        model: input.model,
+        dimension: input.dimension,
+        batch_size: input.batch_size,
+        local_model_path: input.local_model_path,
+    })
+    .map_err(|err| err.to_string())
+}
+
+pub(super) fn embedding_update_params(
+    existing: &embedding_config::Model,
+    input: UpdateEmbeddingInput,
+) -> Result<UpdateEmbeddingConfigParams, String> {
+    Ok(UpdateEmbeddingConfigParams {
+        name: input.name.unwrap_or_else(|| existing.name.clone()),
+        backend: input.backend.unwrap_or_else(|| existing.backend.clone()),
+        base_url: input.base_url.or_else(|| existing.base_url.clone()),
+        api_key_encrypted: input.api_key_encrypted,
+        model: input.model.unwrap_or_else(|| existing.model.clone()),
+        dimension: input.dimension.unwrap_or(existing.dimension),
+        batch_size: input.batch_size.unwrap_or(existing.batch_size),
+        local_model_path: input
+            .local_model_path
+            .or_else(|| existing.local_model_path.clone()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -65,38 +99,4 @@ mod tests {
             Some(Some("sk-new".to_string()))
         );
     }
-}
-
-pub(super) fn embedding_create_params(
-    input: CreateEmbeddingInput,
-) -> Result<CreateEmbeddingConfigParams, String> {
-    validate_embedding_config_params(CreateEmbeddingConfigParams {
-        name: input.name,
-        backend: input.backend,
-        base_url: input.base_url,
-        api_key_encrypted: input.api_key_encrypted,
-        model: input.model,
-        dimension: input.dimension,
-        batch_size: input.batch_size,
-        local_model_path: input.local_model_path,
-    })
-    .map_err(|err| err.to_string())
-}
-
-pub(super) fn embedding_update_params(
-    existing: &embedding_config::Model,
-    input: UpdateEmbeddingInput,
-) -> Result<UpdateEmbeddingConfigParams, String> {
-    Ok(UpdateEmbeddingConfigParams {
-        name: input.name.unwrap_or_else(|| existing.name.clone()),
-        backend: input.backend.unwrap_or_else(|| existing.backend.clone()),
-        base_url: input.base_url.or_else(|| existing.base_url.clone()),
-        api_key_encrypted: input.api_key_encrypted,
-        model: input.model.unwrap_or_else(|| existing.model.clone()),
-        dimension: input.dimension.unwrap_or(existing.dimension),
-        batch_size: input.batch_size.unwrap_or(existing.batch_size),
-        local_model_path: input
-            .local_model_path
-            .or_else(|| existing.local_model_path.clone()),
-    })
 }

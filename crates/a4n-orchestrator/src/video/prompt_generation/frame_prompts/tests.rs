@@ -46,7 +46,7 @@ fn frame(frame_number: i32, reference_image_ids: Vec<i64>) -> VideoFramePrompt {
     }
 }
 
-fn segment(segment_number: i32) -> VideoSegmentPlan {
+pub(super) fn segment(segment_number: i32) -> VideoSegmentPlan {
     use a4n_core::video_execution::*;
     VideoSegmentPlan {
         schema_version: VIDEO_SEGMENT_PLAN_V2.to_string(),
@@ -194,7 +194,7 @@ fn segment_plan_row(id: i64, source_hash: Option<&str>) -> chapter_video_prompt:
     }
 }
 
-fn boundary_frame(
+pub(super) fn boundary_frame(
     frame_number: i32,
     reference_image_ids: Vec<i64>,
     segment_numbers: Vec<i32>,
@@ -204,7 +204,10 @@ fn boundary_frame(
     frame
 }
 
-fn row_for_boundary_frame(id: i64, frame: VideoFramePrompt) -> chapter_video_prompt::Model {
+pub(super) fn row_for_boundary_frame(
+    id: i64,
+    frame: VideoFramePrompt,
+) -> chapter_video_prompt::Model {
     let now = chrono::Utc::now().naive_utc();
     chapter_video_prompt::Model {
         id,

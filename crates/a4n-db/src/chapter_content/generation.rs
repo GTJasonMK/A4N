@@ -1,8 +1,9 @@
-use a4n_core::models::chapter::chapter::{self, STATUS_DRAFT};
-use chrono::NaiveDateTime;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
+use a4n_core::models::chapter::{
+    chapter::{self, STATUS_DRAFT},
+    chapter_outline,
 };
+use chrono::NaiveDateTime;
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 use super::{
     ChapterGenerationExistingRecord, ChapterGenerationLifecycleError,
@@ -83,25 +84,6 @@ where
     Ok(true)
 }
 
-pub async fn finish_generated_chapter_content_record<C>(
-    db: &C,
-    input: GeneratedChapterContentRecordInput,
-) -> Result<chapter::Model, ChapterGenerationLifecycleError>
-where
-    C: ConnectionTrait + TransactionTrait,
-{
-    let tx = db
-        .begin()
-        .await
-        .map_err(ChapterGenerationLifecycleError::database)?;
-    let updated_chapter =
-        finish_generated_chapter_content_record_in_transaction(&tx, input).await?;
-    tx.commit()
-        .await
-        .map_err(ChapterGenerationLifecycleError::database)?;
-    Ok(updated_chapter)
-}
-
 /// Writes the canonical chapter result into an already-open transaction.
 ///
 /// Generation terminal completion uses this entry so the chapter row and the
@@ -113,6 +95,19 @@ pub async fn finish_generated_chapter_content_record_in_transaction<C>(
 where
     C: ConnectionTrait,
 {
+    let outline_id = chapter_outline::Entity::find()
+        .filter(chapter_outline::Column::ProjectId.eq(input.project_id))
+        .filter(chapter_outline::Column::ChapterNumber.eq(input.chapter_number))
+        .one(db)
+        .await
+        .map_err(ChapterGenerationLifecycleError::database)?
+        .map(|outline| outline.id)
+        .ok_or_else(|| {
+            ChapterGenerationLifecycleError::NotFound(format!(
+                "项目 {} 第 {} 章大纲不存在",
+                input.project_id, input.chapter_number
+            ))
+        })?;
     let updated_chapter = match input.existing_chapter_id {
         Some(chapter_id) => {
             let current = chapter::Entity::find_by_id(chapter_id)
@@ -134,6 +129,7 @@ where
             active.word_count = Set(input.word_count);
             active.title = Set(Some(input.title.clone()));
             active.summary = Set(Some(input.summary.clone()));
+            active.outline_id = Set(Some(outline_id));
             active.style_tags = Set(None);
             active.analysis_data = Set(None);
             active.status = Set(STATUS_DRAFT.to_string());
@@ -151,7 +147,7 @@ where
             word_count: Set(input.word_count),
             status: Set(STATUS_DRAFT.to_string()),
             summary: Set(Some(input.summary.clone())),
-            outline_id: Set(None),
+            outline_id: Set(Some(outline_id)),
             style_tags: Set(None),
             analysis_data: Set(None),
             created_at: Set(input.now),

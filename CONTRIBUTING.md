@@ -18,7 +18,7 @@ cd frontend && npm ci
 - 数据库、provider、文件、进程和 Host transport 适配留在 `a4n-runtime`。
 - Host API 合同属于 `a4n-api-contract`，sidecar 合同属于 `a4n-service-protocol`。
 - 不在 Runtime、Orchestrator、数据库或 sidecar 复制第二套业务规则、权限规则、事件合同或失败补偿。
-- 架构边界变化必须在同一 PR 更新 `docs/重构/模块化重构执行计划-v2.md`。
+- 架构边界变化必须在同一 PR 更新对应合同、边界检查和测试。
 
 ## 提交前检查
 

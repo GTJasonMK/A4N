@@ -56,8 +56,7 @@ pub(super) async fn complete_llm_trace_project_scope(
     }
     let project = facade
         .project_by_id(project_id)
-        .await
-        .map_err(AppError::from)?
+        .await?
         .ok_or_else(|| AppError::NotFound(format!("LLM trace 引用的项目不存在: {project_id}")))?;
     trace_context.root_project_id = Some(validated_authoritative_trace_root_project_id(
         project_id,

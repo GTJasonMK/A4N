@@ -162,6 +162,20 @@ fn allows_blank_api_key_when_user_secret_forwarding_is_denied() {
     validate_video_provider_request(&request).unwrap();
 }
 
+#[test]
+fn validates_generate_project_scope_against_request_envelope() {
+    let mut request = provider_request(video_payload(""), false);
+    request.project_id = Some(42);
+    request.payload.project_id = Some(42);
+
+    validate_video_provider_request(&request).expect("matching project scope");
+
+    request.payload.project_id = Some(41);
+    let error = validate_video_provider_request(&request).expect_err("mismatched project scope");
+    assert_eq!(error.code, ServiceErrorCode::ConfigurationError);
+    assert!(error.message.contains("generation payload project_id"));
+}
+
 fn provider_request(
     payload: VideoProviderPayload,
     allow_user_secret: bool,
@@ -226,6 +240,7 @@ fn video_payload(api_key: &str) -> VideoProviderPayload {
         api_key: api_key.to_string(),
         provider_options_json: None,
         provider_idempotency_key_sha256: None,
+        project_id: None,
         request: VideoGenerationRequest {
             prompt: "test prompt".to_string(),
             negative_prompt: None,

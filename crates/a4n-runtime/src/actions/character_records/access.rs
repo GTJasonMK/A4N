@@ -37,7 +37,7 @@ pub(super) async fn find_profile_by_name_for_user(
     let name = required_text(name, "角色名称")?;
     state
         .character()
-        .profile_by_project_name(project_id, &name)
+        .profile_by_project_name(project_id, name)
         .await
         .map_err(app_error_message)?
         .ok_or_else(|| format!("角色不存在: project_id={project_id}, name={name}"))

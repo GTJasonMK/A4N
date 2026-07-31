@@ -23,6 +23,7 @@ pub type CharacterProfileBatchProgressReporter<'a> =
 #[derive(Clone, Copy, Default)]
 pub struct CharacterProfileBatchProgress<'a> {
     pub reporter: Option<CharacterProfileBatchProgressReporter<'a>>,
+    pub active_task_id: Option<&'a str>,
 }
 
 impl CharacterProfileBatchProgress<'_> {
@@ -337,6 +338,7 @@ impl OrchestratorContext {
                     prompt_renderer,
                     Some(CharacterProfileSyncProgress {
                         reporter: Some(&profile_reporter),
+                        active_task_id: progress.active_task_id,
                     }),
                     trace_port,
                 )

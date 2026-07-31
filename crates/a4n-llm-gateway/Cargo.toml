@@ -24,5 +24,4 @@ tracing = { workspace = true }
 a4n-capabilities = { path = "../a4n-capabilities", features = ["test-support"] }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-test-support = { path = "../a4n-test-support" }
-async-trait = { workspace = true }
 sha2 = { workspace = true }

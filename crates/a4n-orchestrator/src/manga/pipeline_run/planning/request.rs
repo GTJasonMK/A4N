@@ -27,7 +27,6 @@ pub(super) async fn generate_planning_trace(
         chapter_content: &context.chapter_content,
         source_spans: &context.source_spans,
         prompt_names: &[
-            "shooting_script_projection",
             "manga_character_binding",
             "manga_speech_selection",
             "manga_visual_anchor_extraction",

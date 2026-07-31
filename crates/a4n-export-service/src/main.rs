@@ -3,10 +3,9 @@ use a4n_export_core::{
     render_json, render_zip,
 };
 use a4n_service_protocol::{
-    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, EgressDataType, HealthStatus,
-    PROTOCOL_VERSION, ServiceError, ServiceErrorCode, ServiceHealth, ServiceRequest,
-    ServiceResponse, ServiceStatus, known_service_health_for_host, redact_sensitive_message,
-    validate_egress_scope, validate_known_service_request_envelope,
+    EXPORT_SERVICE_NAME, HealthStatus, ServiceError, ServiceErrorCode, ServiceHealth,
+    ServiceRequest, ServiceResponse, known_service_health_for_host, redact_sensitive_message,
+    validate_known_service_request,
 };
 use axum::{
     Json, Router,
@@ -25,7 +24,6 @@ async fn main() -> anyhow::Result<()> {
     let addr = a4n_sidecar_bootstrap::socket_addr("A4N_EXPORT_SERVICE_ADDR", "127.0.0.1:47648")?;
     let policy = a4n_service_protocol::sidecar_resource_policy("export")
         .expect("export sidecar must have a resource policy");
-    let (shutdown_signal, shutdown) = a4n_sidecar_bootstrap::sidecar_shutdown();
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route(
@@ -46,14 +44,8 @@ async fn main() -> anyhow::Result<()> {
         .layer(a4n_sidecar_bootstrap::concurrency_limit(
             policy.max_concurrent_requests,
         ))
-        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth))
-        .merge(a4n_sidecar_bootstrap::shutdown_router(shutdown_signal));
-    let app = a4n_sidecar_bootstrap::with_runtime_metrics(app, EXPORT_SERVICE_NAME)?;
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await?;
-    Ok(())
+        .layer(middleware::from_fn(a4n_sidecar_bootstrap::require_auth));
+    a4n_sidecar_bootstrap::serve_sidecar(app, addr, EXPORT_SERVICE_NAME).await
 }
 
 async fn healthz(headers: HeaderMap) -> Json<ServiceHealth> {
@@ -89,54 +81,26 @@ fn result_response<T, E>(trace_id: String, result: Result<T, E>) -> ServiceRespo
 where
     E: std::fmt::Display,
 {
-    match result {
-        Ok(payload) => ServiceResponse {
-            status: ServiceStatus::Ok,
-            trace_id: Some(trace_id),
-            usage: None,
-            artifact_refs: Vec::new(),
-            payload: Some(payload),
-            error: None,
-        },
-        Err(err) => ServiceResponse {
-            status: ServiceStatus::Error,
-            trace_id: Some(trace_id),
-            usage: None,
-            artifact_refs: Vec::new(),
-            payload: None,
-            error: Some(ServiceError {
-                code: ServiceErrorCode::ConfigurationError,
-                message: redact_sensitive_message(err.to_string()),
-                retryable: Some(false),
-            }),
-        },
-    }
+    ServiceResponse::from_result(trace_id, result, |err| {
+        ServiceError::non_retryable(
+            ServiceErrorCode::ConfigurationError,
+            redact_sensitive_message(err.to_string()),
+        )
+    })
 }
 
 fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
-    validate_known_service_request_envelope(request, EXPORT_SERVICE_NAME)?;
-    validate_egress_scope(
-        EXPORT_SERVICE_NAME,
-        EgressDataType::Archive,
-        &request.secret_policy.scope,
-    )
-    .map(|_| ())
+    validate_known_service_request(request, EXPORT_SERVICE_NAME)
 }
 
 fn error_response<T, P>(request: &ServiceRequest<P>, error: ServiceError) -> ServiceResponse<T> {
-    ServiceResponse {
-        status: ServiceStatus::Error,
-        trace_id: Some(request.trace_context.trace_id.clone()),
-        usage: None,
-        artifact_refs: Vec::new(),
-        payload: None,
-        error: Some(error),
-    }
+    ServiceResponse::error(request.trace_context.trace_id.clone(), error)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_service_protocol::{EXPORT_RENDER_CAPABILITY_VERSION, PROTOCOL_VERSION, ServiceStatus};
 
     #[test]
     fn rejects_incompatible_capability_version() {

@@ -1,13 +1,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
-import {
-  Download,
+import { Download,
   Film,
   ListVideo,
-  Loader2,
   Plus,
   RefreshCw,
-  Trash2,
-} from "lucide-react";
+  Trash2, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   assembleChapterVideos,
@@ -25,11 +23,10 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
 import { downloadBlob } from "../../../utils/downloadFile";
-import { pickLocalFile, readFileAsBase64 } from "../../../utils/fileUpload";
+import { readFileAsBase64 } from "../../../utils/fileUpload";
 import {
-  MAX_UPLOAD_VIDEO_BYTES,
-  supportedVideoAccept,
-  videoMimeForUploadFile,
+  pickVideoUploadFile,
+  type VideoUploadFile,
 } from "../../../utils/videoUpload";
 import { videoPlaybackDataToBlob, videoPlaybackDataToObjectUrl } from "../../../utils/videoPlayback";
 import { EmptyHint, type ChapterRow } from "../shared";
@@ -41,6 +38,8 @@ interface VideoAssemblyWorkspaceProps {
   chapter: ChapterRow;
   workflowMode: VideoWorkflowMode;
   videos: GeneratedVideo[];
+  adoptedVideoIds: ReadonlySet<number>;
+  missingSegmentNumbers?: number[];
   onToast: (message: unknown, type: ToastType) => void;
   onRefresh: () => Promise<void> | void;
 }
@@ -139,6 +138,8 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   chapter,
   workflowMode,
   videos,
+  adoptedVideoIds,
+  missingSegmentNumbers = [],
   onToast,
   onRefresh,
 }) => {
@@ -177,7 +178,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             (workflowMode === "mixed"
               ? video.video_type === ASSEMBLY_INSERT_VIDEO_TYPE
                 ? video.workflow_mode === "mixed"
-                : asRecord(video.metadata_json)?.selected_for_segment === true
+                : adoptedVideoIds.has(video.id)
               : video.workflow_mode === workflowMode) &&
             video.status === "completed" &&
             Boolean(video.file_path?.trim()) &&
@@ -188,7 +189,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
           const rightOrder = assemblyClipSortOrder(b) ?? Number.MAX_SAFE_INTEGER;
           return leftOrder - rightOrder || a.id - b.id;
         }),
-    [videos, workflowMode],
+    [adoptedVideoIds, videos, workflowMode],
   );
   const pushedSourceIds = useMemo(() => {
     const ids = new Set<number>();
@@ -332,6 +333,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   }, [pushableClips.length]);
 
   const handleAssemble = async () => {
+    if (missingSegmentNumbers.length > 0) {
+      setError(`以下片段尚未采用有效视频：${missingSegmentNumbers.join("、")}`);
+      return;
+    }
     if (clips.length === 0) {
       setError("当前没有可拼接的已完成视频");
       return;
@@ -432,33 +437,21 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     if (!beginAction()) return;
     setActing(key);
     setError(null);
-    let file: File | null = null;
+    let upload: VideoUploadFile | null = null;
     try {
-      file = await pickLocalFile(supportedVideoAccept());
+      upload = await pickVideoUploadFile();
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       onToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
       return;
     } finally {
-      if (!file) {
+      if (!upload) {
         finishAction(requestScope);
         if (isCurrentScope(requestScope)) setActing(null);
       }
     }
-    if (!file) return;
-    const mimeType = videoMimeForUploadFile(file);
-    if (!mimeType) {
-      onToast("只支持 MP4/WebM/MOV/M4V 视频，且文件类型必须与扩展名一致", "error");
-      finishAction(requestScope);
-      if (isCurrentScope(requestScope)) setActing(null);
-      return;
-    }
-    if (file.size > MAX_UPLOAD_VIDEO_BYTES) {
-      onToast(`上传视频不能超过 ${MAX_UPLOAD_VIDEO_BYTES / 1024 / 1024}MB`, "error");
-      finishAction(requestScope);
-      if (isCurrentScope(requestScope)) setActing(null);
-      return;
-    }
+    if (!upload) return;
+    const { file, mimeType } = upload;
     if (!isCurrentScope(requestScope)) {
       finishAction(requestScope);
       return;
@@ -578,7 +571,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             className="!min-h-8 !px-3"
           >
             {acting === "insert-start" ? (
-              <Loader2 size={13} className="animate-spin" />
+              <LoadingSpinner size="sm" />
             ) : (
               <Plus size={13} />
             )}
@@ -600,14 +593,19 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/35 pb-3">
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-medium text-book-text-main">成片预览</h3>
-            <p className="mt-1 text-[11px] text-book-text-muted">
+            <p className="mt-1 text-small text-book-text-muted">
               {clips.length} 段 · {formatSeconds(totalDuration)}
               {pushedSourceIds.size > 0 ? ` · 已推送 ${pushedSourceIds.size} 段` : ""}
             </p>
+            {missingSegmentNumbers.length > 0 ? (
+              <p className="mt-1 text-caption text-warning">
+                尚缺片段 {missingSegmentNumbers.join("、")} 的有效采用视频
+              </p>
+            ) : null}
           </div>
           {acting === "insert-start" || exporting ? (
             <span role="status" className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
-              <Loader2 size={12} className="animate-spin" />
+              <LoadingSpinner size="sm" />
             </span>
           ) : !loading && !cacheLoading && !pushing && assemblyMenuItems.length > 0 ? (
             <Dropdown items={assemblyMenuItems} />
@@ -616,18 +614,18 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             variant={preview ? "secondary" : "primary"}
             size="sm"
             onClick={() => void handleAssemble()}
-            disabled={loading || cacheLoading || pushing}
+            disabled={loading || cacheLoading || pushing || missingSegmentNumbers.length > 0}
             className="!min-h-8 !px-3"
           >
             <span className="inline-flex items-center gap-1">
-              {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              {loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={13} />}
               {preview ? "更新预览" : "生成预览"}
             </span>
           </BookButton>
         </div>
           {preview ? (
             <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 rounded-xl bg-book-bg-tertiary/35 p-2.5">
-              <label className="flex min-h-8 items-center gap-2 text-[11px] text-book-text-muted">
+              <label className="flex min-h-8 items-center gap-2 text-small text-book-text-muted">
                 <span>推送段数</span>
                 <input
                   type="number"
@@ -651,10 +649,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                     pushing ||
                     pushableClips.length === 0
                   }
-                  className="pyqt-input h-8 w-16 !px-2 !py-1 text-[11px]"
+                  className="pyqt-input h-8 w-16 !px-2 !py-1 text-small"
                 />
               </label>
-              <span className="min-w-0 flex-1 truncate text-[11px] text-book-text-muted">
+              <span className="min-w-0 flex-1 truncate text-small text-book-text-muted">
                 {selectedPushEndVideo
                   ? `推送至 ${assemblyClipLabel(selectedPushEndVideo)}`
                   : "没有待推送片段"}
@@ -681,7 +679,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                 className="!min-h-8 !px-3"
               >
                 <span className="inline-flex items-center gap-1">
-                  {pushing ? <Loader2 size={13} className="animate-spin" /> : <Film size={13} />}
+                  {pushing ? <LoadingSpinner size="sm" /> : <Film size={13} />}
                   推送后处理
                 </span>
               </BookButton>
@@ -710,7 +708,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
           {(loading || cacheLoading || videoLoading) && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white">
               <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 px-2.5 py-1.5 backdrop-blur-sm">
-                <Loader2 size={12} className="animate-spin" />
+                <LoadingSpinner size="sm" />
                 {loading
                   ? "正在生成预览"
                   : cacheLoading
@@ -722,12 +720,12 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         </div>
 
         {error && (
-          <div role="alert" className="mt-2 rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-[11px] text-error">
+          <div role="alert" className="mt-2 rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-small text-error">
             {error}
           </div>
         )}
         {preview && (
-          <div className="mt-2 text-[10px] leading-relaxed text-book-text-muted">
+          <div className="mt-2 text-caption leading-relaxed text-book-text-muted">
             {preview.clips.length} 段 · {formatBytes(preview.file_size)} · {preview.cached ? "缓存预览" : "本次生成"}
             {preview.updated_at ? ` · ${formatVideoCreatedAt(preview.updated_at)}` : ""}
           </div>
@@ -737,7 +735,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden">
         <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-book-border/35 px-3 py-2.5">
           <h3 className="text-xs font-medium text-book-text-main">片段顺序</h3>
-          <span className="text-[10px] text-book-text-muted">{clips.length} 段</span>
+          <span className="text-caption text-book-text-muted">{clips.length} 段</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
           {clips.length === 0 ? (
@@ -791,27 +789,27 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                         <div className="truncate text-xs font-medium text-book-text-main">
                           片段 {index + 1} · {assemblyClipLabel(video)}
                         </div>
-                        <div className="mt-1 text-[10px] text-book-text-muted">
+                        <div className="mt-1 text-caption text-book-text-muted">
                           {formatSeconds(video.duration_secs)} · {getOperationStatusLabel(video.status)}
                           {pushed ? " · 已推送" : ""}
                         </div>
                       </div>
                       {rowActionBusy ? (
                         <span role="status" className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-book-text-muted">
-                          <Loader2 size={12} className="animate-spin" />
+                          <LoadingSpinner size="sm" />
                         </span>
                       ) : !assemblyBusy && rowActionItems.length > 0 ? (
                         <Dropdown items={rowActionItems} />
                       ) : null}
                     </div>
                     {isInsert && (
-                      <div className="mt-1 text-[10px] text-book-text-muted">
+                      <div className="mt-1 text-caption text-book-text-muted">
                         {insertAfterVideoId == null
                           ? "插入位置：成片开头"
                           : "插入位置：所选片段之后"}
                       </div>
                     )}
-                    <div className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-book-text-sub">
+                    <div className="mt-1 line-clamp-2 text-caption leading-relaxed text-book-text-sub">
                       {video.prompt}
                     </div>
                   </li>

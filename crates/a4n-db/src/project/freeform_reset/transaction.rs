@@ -64,16 +64,13 @@ where
         &targets.generation_spec_ids,
     )
     .await?;
-    let media_paths =
-        crate::media::filter_unreferenced_media_paths(&txn, &targets.media_paths).await?;
-    if !media_paths.is_empty() {
-        crate::cleanup_outbox::insert_file_artifact_cleanup_intent(
-            &txn,
-            format!("project-generated-data-reset:{project_id}"),
-            crate::cleanup_outbox::FileArtifactCleanupPayload::new(project_id, media_paths.clone()),
-        )
-        .await?;
-    }
+    let media_paths = crate::media::schedule_unreferenced_media_cleanup(
+        &txn,
+        project_id,
+        &targets.media_paths,
+        format!("project-generated-data-reset:{project_id}"),
+    )
+    .await?;
     crate::generation::complete_project_reset_gate(&txn, project_id)
         .await
         .map_err(|error| FreeformGeneratedResetDbError::Database {

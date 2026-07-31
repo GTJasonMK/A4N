@@ -1,5 +1,5 @@
 import React from "react";
-import { Eye, Loader2, Send } from "lucide-react";
+import { Eye, Send } from "lucide-react";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { ChatBubble } from "./ChatBubble";
@@ -19,7 +19,6 @@ interface ConversationPaneProps {
   onInputFocus: () => void;
   onInputBlur: () => void;
   sending: boolean;
-  showThinking: boolean;
   messagesEndRef: React.RefObject<HTMLDivElement>;
   placeholder: string;
   inputActive: boolean;
@@ -42,7 +41,6 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   onInputFocus,
   onInputBlur,
   sending,
-  showThinking,
   messagesEndRef,
   placeholder,
   inputActive,
@@ -53,11 +51,6 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
         {messages.map((m) => (
           <ChatBubble key={m.id} message={m} onSendOption={onSendOption} />
         ))}
-        {showThinking && (
-          <div className="flex items-center gap-1.5 pl-1 text-sm text-book-text-muted">
-            <Loader2 size={13} className="animate-spin" /> 创作助手正在整理…
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
     </div>
@@ -67,7 +60,7 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
         inputActive ? "pb-4 sm:pb-3" : "pb-2.5"
       }`}
     >
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto flex max-w-3xl items-end gap-2">
         <textarea
           ref={inputRef}
           value={input}
@@ -77,17 +70,13 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
           onCompositionEnd={onCompositionEnd}
           onFocus={onInputFocus}
           onBlur={onInputBlur}
-          placeholder={placeholder}
-          disabled={sending}
-          rows={Math.min(5, Math.max(2, input.split("\n").length))}
+          placeholder={sending ? "可先写下下一步想法，回复完成后即可发送…" : placeholder}
+          rows={Math.min(5, Math.max(1, input.split("\n").length))}
           spellCheck={false}
           lang="zh-CN"
-          className="pyqt-input mb-2 max-h-[140px] min-h-[52px] w-full resize-y !rounded-[16px] px-4 py-2.5 text-[15px] leading-5"
+          className="pyqt-input max-h-[140px] !min-h-8 min-w-0 flex-1 resize-y !rounded-[12px] px-4 !py-[5px] text-body-lg leading-5"
         />
-        <div className="flex items-center gap-2">
-          <span className="mr-auto hidden text-[11px] text-book-text-muted sm:inline">
-            Enter 发送 · Shift+Enter 换行
-          </span>
+        <div className="flex shrink-0 items-center gap-2 [&>div>button]:!h-8 [&>div>button]:!w-8">
           <Dropdown
             items={[
               {
@@ -103,13 +92,10 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
             size="sm"
             onClick={onSend}
             disabled={!input.trim() || sending}
-            className="!min-h-8 !px-3 !text-xs"
+            className="!h-8 !min-h-8 !px-3 !text-xs"
           >
             {sending ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                发送中…
-              </>
+              "等待回复"
             ) : (
               <>
                 <Send size={14} />

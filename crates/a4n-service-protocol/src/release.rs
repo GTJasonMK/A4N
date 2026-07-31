@@ -9,6 +9,8 @@ pub struct ReleaseManifest {
     pub target: String,
     pub protocol_version: u32,
     pub binaries: Vec<ReleaseBinaryManifest>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<ReleaseToolManifest>,
     pub runtime_files: Vec<ReleaseRuntimeFileManifest>,
 }
 
@@ -31,6 +33,16 @@ pub struct ReleaseBinaryManifest {
 pub struct ReleaseRuntimeFileManifest {
     pub name: String,
     pub path: String,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ReleaseToolManifest {
+    pub name: String,
+    pub path: String,
+    pub version: String,
+    pub target: String,
     pub sha256: String,
 }
 

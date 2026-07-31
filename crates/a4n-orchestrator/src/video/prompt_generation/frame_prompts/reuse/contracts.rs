@@ -5,7 +5,6 @@ use crate::video::prompt_store::PromptWorkflowMode;
 use crate::video::{OrchestratorContext, PromptOutputLanguage};
 use a4n_core::source_spans::SourceSpan;
 
-use super::super::FramePromptGenerationSpec;
 use crate::video::prompt_json::VideoShootingScriptProjection;
 
 pub(in crate::video::prompt_generation::frame_prompts) struct ReusableSegmentPlanQuery<'a> {
@@ -24,11 +23,10 @@ pub(in crate::video::prompt_generation::frame_prompts) struct ReusableSegmentPla
     pub context: &'a str,
 }
 
-pub(in crate::video::prompt_generation::frame_prompts) struct ReusableSegmentPlanForSpecQuery<'a> {
+pub(in crate::video::prompt_generation::frame_prompts) struct ReusableSharedSegmentPlanQuery<'a> {
     pub service: &'a OrchestratorContext,
     pub project_id: i64,
     pub chapter_id: i64,
-    pub spec: &'a FramePromptGenerationSpec,
     pub source_metadata: &'a Value,
     pub source_spans: &'a [SourceSpan],
     pub style: &'a str,
@@ -46,19 +44,6 @@ pub(crate) struct ReusableSegmentPlanForPreviewQuery<'a> {
     pub style: &'a str,
     pub duration_secs: i32,
     pub aspect_ratio: &'a str,
-}
-
-pub(in crate::video::prompt_generation::frame_prompts) struct DownstreamSegmentPlanningGuardInput<
-    'a,
-> {
-    pub service: &'a OrchestratorContext,
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub spec: &'a FramePromptGenerationSpec,
-    pub source_metadata: &'a Value,
-    pub style: &'a str,
-    pub aspect_ratio: &'a str,
-    pub operation: &'a str,
 }
 
 pub(in crate::video::prompt_generation::frame_prompts) struct ReusableSegmentPlanFromRowInput<'a> {

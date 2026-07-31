@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use super::{
     checkpoint::{OptimizedMangaPromptFields, restored_manga_prompt_optimization_checkpoint},
     contracts::MangaPromptOptimizationInput,
-    execution::required_manga_prompt_optimization_input,
+    execution::{manga_prompt_optimization_llm_error, required_manga_prompt_optimization_input},
     request::{
         build_manga_prompt_optimization_request, manga_prompt_optimization_input_fingerprint,
     },
@@ -79,6 +79,14 @@ fn input_contract_trims_instruction_and_rejects_invalid_downstream_id() {
     })
     .expect_err("invalid image id should fail");
     assert!(err.to_string().contains("下游图片 ID 必须大于 0"));
+}
+
+#[test]
+fn prompt_optimization_llm_error_preserves_cancelled() {
+    assert!(matches!(
+        manga_prompt_optimization_llm_error(AppError::Cancelled),
+        AppError::Cancelled
+    ));
 }
 
 #[test]

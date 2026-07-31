@@ -117,6 +117,12 @@ impl ExportRenderZipInput {
     }
 }
 
+impl ExportRenderZipOutput {
+    pub fn into_zip_bytes(self) -> Result<Vec<u8>, ExportRenderError> {
+        decode_base64("导出 zip", &self.bytes_base64)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,11 +136,5 @@ mod tests {
         }))
         .expect_err("unknown export fields must fail");
         assert!(error.to_string().contains("unknown field `legacy_mode`"));
-    }
-}
-
-impl ExportRenderZipOutput {
-    pub fn into_zip_bytes(self) -> Result<Vec<u8>, ExportRenderError> {
-        decode_base64("导出 zip", &self.bytes_base64)
     }
 }

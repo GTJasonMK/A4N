@@ -27,7 +27,7 @@ impl OrchestratorContext {
         self.mark_chapter_analysis_current_step(workflow_run_id, spec.step_key)
             .await?;
         let fingerprint = chapter_analysis_stage_fingerprint(spec.stage, &request)?;
-        let output = if let Some(checkpoint) = self
+        let restored = if let Some(checkpoint) = self
             .load_completed_chapter_analysis_stage_checkpoint(
                 workflow_run_id,
                 spec.step_key,
@@ -35,12 +35,27 @@ impl OrchestratorContext {
             )
             .await?
         {
-            progress.report(
-                spec.restored_progress,
-                CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL,
-                &format!("{}已复用断点", spec.context),
-            )?;
-            restored_chapter_analysis_stage_output(checkpoint, spec.context)?
+            let output = restored_chapter_analysis_stage_output(checkpoint, spec.context)?;
+            if validate(&output).is_ok() {
+                progress.report(
+                    spec.restored_progress,
+                    CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL,
+                    &format!("{}已复用断点", spec.context),
+                )?;
+                Some(output)
+            } else {
+                progress.report(
+                    spec.progress_span.start(),
+                    CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL,
+                    &format!("{}断点已失效，正在重新生成", spec.context),
+                )?;
+                None
+            }
+        } else {
+            None
+        };
+        let output = if let Some(output) = restored {
+            output
         } else {
             let response_content =
                 chat_chapter_analysis_stage(self, request.clone(), spec, progress).await?;

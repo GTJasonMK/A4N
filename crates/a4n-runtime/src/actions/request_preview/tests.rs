@@ -107,48 +107,6 @@ fn chat_request_step_renders_context_aware_preview() {
 }
 
 #[test]
-fn chat_request_from_preview_value_restores_context_request_fields() {
-    let manifest = json!({"schema_version": 1, "packs": []});
-    let request = json!({
-        "messages": [
-            {"role": "system", "content": "system"},
-            {"role": "user", "content": "user"}
-        ],
-        "temperature": 0.2,
-        "max_tokens": 512,
-        "max_tokens_profile": "media_prompt",
-        "response_format": {"type": "json_object"},
-        "tools": [{"type": "function"}],
-        "tool_choice": "auto",
-        "stop_sequences": ["END"]
-    });
-
-    let restored = chat_request_from_preview_value(&request, Some(manifest.clone()))
-        .expect("preview request restores");
-
-    assert_eq!(restored.messages.len(), 2);
-    assert_eq!(restored.max_tokens, Some(512));
-    assert_eq!(restored.max_tokens_profile.as_deref(), Some("media_prompt"));
-    assert_eq!(
-        restored
-            .response_format
-            .as_ref()
-            .map(|format| format.r#type.as_str()),
-        Some("json_object")
-    );
-    assert_eq!(restored.tools.as_ref().map(Vec::len), Some(1));
-    assert_eq!(restored.tool_choice.as_deref(), Some("auto"));
-    assert_eq!(
-        restored
-            .stop_sequences
-            .as_ref()
-            .and_then(|items| items.first()),
-        Some(&"END".to_string())
-    );
-    assert_eq!(restored.context_manifest_json, Some(manifest));
-}
-
-#[test]
 fn provider_request_step_redacts_inline_base64_media() {
     let step = provider_request_step(
         "image",

@@ -9,7 +9,9 @@ use a4n_llm::context::{
     LlmContextLedgerPackDraft,
 };
 
-use super::super::super::context::part_context_json;
+use super::super::super::context::{
+    focused_part_context, minimal_blueprint_context, minimal_part_context, part_context_json,
+};
 use super::super::super::part_contract::PART_GENERATION_OUTPUT_CONTRACT;
 
 pub(super) fn build_part_outline_context_manifest(
@@ -54,7 +56,7 @@ pub(super) fn build_part_outline_context_manifest(
                 COMPRESSION_MINIMAL,
                 json!({
                     "kind": "blueprint_context",
-                    "blueprint": minimal_outline_blueprint_context(blueprint_context),
+                    "blueprint": minimal_blueprint_context(blueprint_context),
                 }),
             ),
         ],
@@ -119,48 +121,4 @@ pub(super) fn build_part_outline_context_manifest(
             PART_GENERATION_OUTPUT_CONTRACT
         )),
     ))
-}
-
-fn minimal_outline_blueprint_context(blueprint_context: &Value) -> Value {
-    let Some(object) = blueprint_context.as_object() else {
-        return blueprint_context.clone();
-    };
-    let mut minimal = serde_json::Map::new();
-    for key in [
-        "title",
-        "genre",
-        "style",
-        "tone",
-        "one_sentence_summary",
-        "full_synopsis",
-        "chapters_per_part",
-        "blueprint_chapters_per_part",
-    ] {
-        if let Some(value) = object.get(key) {
-            minimal.insert(key.to_string(), value.clone());
-        }
-    }
-    Value::Object(minimal)
-}
-
-fn focused_part_context(part: &part_outline::Model) -> Value {
-    json!({
-        "part_number": part.part_number,
-        "title": part.title,
-        "start_chapter": part.start_chapter,
-        "end_chapter": part.end_chapter,
-        "summary": part.summary,
-        "theme": part.theme,
-        "key_events": part.key_events,
-    })
-}
-
-fn minimal_part_context(part: &part_outline::Model) -> Value {
-    json!({
-        "part_number": part.part_number,
-        "title": part.title,
-        "start_chapter": part.start_chapter,
-        "end_chapter": part.end_chapter,
-        "summary": part.summary,
-    })
 }

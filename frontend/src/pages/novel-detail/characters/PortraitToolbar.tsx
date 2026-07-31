@@ -1,5 +1,6 @@
 import React from "react";
-import { Camera, Eye, Loader2, Upload } from "lucide-react";
+import { Camera, Eye, Upload } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import type { CharacterProfile } from "../../../api/character";
@@ -39,7 +40,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
       <header className="flex flex-col gap-2 px-3 pb-3 pt-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-book-text-main">立绘素材</h2>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+          <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
             {selectedProfile
               ? `${selectedProfile.name} ${visiblePortraitCount} 张，全项目共 ${totalPortraitCount} 张`
               : `共 ${totalPortraitCount} 张立绘，来自 ${profiles.length} 位角色档案`}
@@ -77,7 +78,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
           >
             {generating ? (
               <span className="inline-flex items-center gap-1.5">
-                <Loader2 size={13} className="animate-spin" /> 生成中…
+                <LoadingSpinner size="sm" /> 生成中…
               </span>
             ) : (
               "批量补缺"

@@ -994,18 +994,16 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
 
   return (
     <>
-      <div className="content-wide grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="lg:col-start-1 lg:row-start-1">
-          <ImportFilePanel
-            fileName={importFileName}
-            fileType={fileType}
-            importBusy={importBusy}
-            externalBusy={fileExternalBusy}
-            onFileTypeChange={setFileType}
-            onSelectFile={handleSelectImportFile}
-            onImport={handleImport}
-          />
-        </div>
+      <div className="content-wide space-y-4">
+        <ImportFilePanel
+          fileName={importFileName}
+          fileType={fileType}
+          importBusy={importBusy}
+          externalBusy={fileExternalBusy}
+          onFileTypeChange={setFileType}
+          onSelectFile={handleSelectImportFile}
+          onImport={handleImport}
+        />
         <input
           ref={importFileInputRef}
           type="file"
@@ -1013,7 +1011,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
           className="hidden"
           onChange={handleImportFileChange}
         />
-        <div className="lg:col-start-1 lg:row-start-2">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <ImportReviewQueuePanel
             reviews={reviews}
             loading={loading}
@@ -1034,42 +1032,39 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
             onViewDetail={handleViewDetail}
             onAct={handleAct}
           />
-        </div>
-        <div
-          ref={detailPanelRef}
-          className="scroll-mt-28 lg:col-start-2 lg:row-start-1 lg:row-span-3"
-        >
-          <ImportReviewDetailPanel
-            activeReview={activeReview}
-            activeReviewJson={activeReviewJson}
-            activeReviewJsonError={activeReviewJsonError}
-            activeReviewJsonDirty={activeReviewJsonDirty}
-            actBusy={actBusy}
-            externalBusy={detailExternalBusy}
-            onAnalysisJsonChange={handleAnalysisJsonChange}
-            onModify={handleModify}
-            onUpdateStatus={handleUpdateStatus}
-          />
-        </div>
-        <div className="lg:col-start-1 lg:row-start-3">
-          <ImportToolsPanel
-            dedupText={dedupText}
-            dedupResult={dedupResult}
-            dedupBusy={dedupBusy}
-            reverseType={reverseType}
-            reverseSample={reverseSample}
-            reverseAutoContext={reverseAutoContext}
-            reverseResult={reverseResult}
-            reverseBusy={reverseBusy}
-            externalBusy={toolsExternalBusy}
-            onDedupTextChange={handleDedupTextChange}
-            onDedup={handleDedup}
-            onReverseTypeChange={handleReverseTypeChange}
-            onReverseSampleChange={handleReverseSampleChange}
-            onReverseAutoContextChange={handleReverseAutoContextChange}
-            onPreviewReverseRequest={handlePreviewReverseRequest}
-            onReverseEngineer={handleReverseEngineer}
-          />
+          <aside className="space-y-4">
+            <div ref={detailPanelRef} className="scroll-mt-28">
+              <ImportReviewDetailPanel
+                activeReview={activeReview}
+                activeReviewJson={activeReviewJson}
+                activeReviewJsonError={activeReviewJsonError}
+                activeReviewJsonDirty={activeReviewJsonDirty}
+                actBusy={actBusy}
+                externalBusy={detailExternalBusy}
+                onAnalysisJsonChange={handleAnalysisJsonChange}
+                onModify={handleModify}
+                onUpdateStatus={handleUpdateStatus}
+              />
+            </div>
+            <ImportToolsPanel
+              dedupText={dedupText}
+              dedupResult={dedupResult}
+              dedupBusy={dedupBusy}
+              reverseType={reverseType}
+              reverseSample={reverseSample}
+              reverseAutoContext={reverseAutoContext}
+              reverseResult={reverseResult}
+              reverseBusy={reverseBusy}
+              externalBusy={toolsExternalBusy}
+              onDedupTextChange={handleDedupTextChange}
+              onDedup={handleDedup}
+              onReverseTypeChange={handleReverseTypeChange}
+              onReverseSampleChange={handleReverseSampleChange}
+              onReverseAutoContextChange={handleReverseAutoContextChange}
+              onPreviewReverseRequest={handlePreviewReverseRequest}
+              onReverseEngineer={handleReverseEngineer}
+            />
+          </aside>
         </div>
       </div>
       <ProgressDialog

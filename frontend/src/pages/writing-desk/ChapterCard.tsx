@@ -72,7 +72,7 @@ export const ChapterCard: React.FC<ChapterCardProps> = ({
             </span>
           </div>
           {metaParts.length > 0 && (
-            <div className="mt-0.5 truncate text-[11px] text-book-text-muted">
+            <div className="mt-0.5 truncate text-small text-book-text-muted">
               {metaParts.join(" · ")}
             </div>
           )}

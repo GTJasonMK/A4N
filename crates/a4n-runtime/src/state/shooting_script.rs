@@ -35,6 +35,7 @@ impl<'a> ShootingScriptRuntimeFacade<'a> {
         input: ChapterShootingScriptSourceInput,
         progress: ShootingScriptProgressReporter<'_>,
         cancel_token: Option<&CancellationToken>,
+        active_task_id: Option<&str>,
     ) -> Result<ResolvedChapterShootingScript, AppError> {
         self.orchestrator
             .generate_chapter_shooting_script_for_user_validated(
@@ -42,6 +43,7 @@ impl<'a> ShootingScriptRuntimeFacade<'a> {
                 input,
                 progress,
                 cancel_token,
+                active_task_id,
             )
             .await
     }

@@ -74,10 +74,10 @@ export const ScriptContent: React.FC<{
             <h3 className="text-sm font-semibold text-book-text-main">
               场景 {scene.scene_index} · {scene.title}
             </h3>
-            <span className="text-[11px] text-book-text-muted">
+            <span className="text-small text-book-text-muted">
               {scene.shots.length} 个镜头
             </span>
-            <div className="w-full text-[11px] text-book-text-muted">
+            <div className="w-full text-small text-book-text-muted">
               {scene.slugline}
             </div>
           </div>
@@ -95,7 +95,7 @@ export const ScriptContent: React.FC<{
                       <div className="truncate text-xs font-semibold text-book-text-main">
                         镜头 {shot.shot_index} · {shot.title}
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-book-text-muted">
+                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-caption text-book-text-muted">
                         <span>{shootingShotSizeLabel(shot.shot_size)}</span>
                         <span>{shootingCameraAngleLabel(shot.camera_angle)}</span>
                         <span>
@@ -130,7 +130,7 @@ export const ScriptContent: React.FC<{
                               {beat.actor ? `${beat.actor}：` : ""}
                               {beat.visible_action}
                               {beat.reaction ? (
-                                <div className="mt-0.5 text-[11px] text-book-text-muted">
+                                <div className="mt-0.5 text-small text-book-text-muted">
                                   反应 · {beat.reaction}
                                 </div>
                               ) : null}
@@ -166,7 +166,7 @@ const Info: React.FC<{
         : "grid gap-1 py-2.5 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-3"
     }
   >
-    <div className="text-[11px] text-book-text-muted">{label}</div>
+    <div className="text-small text-book-text-muted">{label}</div>
     <div className="text-xs leading-relaxed text-book-text-main">{value}</div>
   </div>
 );

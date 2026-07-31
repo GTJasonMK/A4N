@@ -13,9 +13,9 @@ pub(in crate::video_prompt::dependencies) fn frame_image_generation_source_for_p
     }
 }
 
-pub(in crate::video_prompt::dependencies) fn ensure_frame_prompt_generation_source_matches<'a>(
+pub(in crate::video_prompt::dependencies) fn ensure_frame_prompt_generation_source_matches(
     prompt: &chapter_video_prompt::Model,
-    generation_source: &'a str,
+    generation_source: &str,
 ) -> Result<&'static str, VideoDbError> {
     let expected_source = frame_image_generation_source_for_prompt(prompt).ok_or_else(|| {
         VideoDbError::InvalidArgument(format!(

@@ -1,5 +1,6 @@
 import React from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { type Theme } from "../../../api/theme";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { ThemeCard } from "./ThemeCard";
@@ -63,7 +64,7 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
           { id: "user", label: "我的", disabled: !hasUser || mutationBusy },
         ]}
       />
-      <span className="min-w-0 flex-1 truncate text-[11px] text-book-text-muted">
+      <span className="min-w-0 flex-1 truncate text-small text-book-text-muted">
         {loading ? "正在更新…" : `${themes.length} 个主题`}
       </span>
       <button
@@ -80,7 +81,7 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
 
     {loading && themes.length === 0 ? (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <Loader2 size={12} className="animate-spin" /> 加载主题…
+        <LoadingSpinner size="sm" /> 加载主题…
       </div>
     ) : themes.length === 0 ? (
       <div className="a4n-empty-state a4n-empty-state--framed text-xs">

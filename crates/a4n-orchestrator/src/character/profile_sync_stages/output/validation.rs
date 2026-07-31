@@ -16,9 +16,6 @@ use crate::character::profile_sync_stages::contracts::{
     CharacterProfileSyncChapterStateDraft, CharacterProfileSyncExtraction,
 };
 
-pub(super) const CHARACTER_SYNC_ATTRIBUTE_CHANGES_PER_CHAPTER_MAX: usize = 6;
-pub(super) const CHARACTER_SYNC_BEHAVIORS_PER_CHAPTER_MAX: usize = 6;
-pub(super) const CHARACTER_SYNC_DELETION_CANDIDATES_PER_CHAPTER_MAX: usize = 3;
 const CHARACTER_SYNC_DESCRIPTION_MAX_CHARS: usize = 120;
 const CHARACTER_SYNC_IMPACT_ANALYSIS_MAX_CHARS: usize = 160;
 const CHARACTER_SYNC_STATE_SUMMARY_MAX_CHARS: usize = 160;
@@ -306,30 +303,6 @@ pub(super) fn validate_sync_item_chapters(
                     .map(|chapter| format!("第 {chapter} 章"))
                     .collect::<Vec<_>>()
                     .join("、")
-            ));
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn validate_sync_item_count_by_chapter(
-    label: &str,
-    items: &[Value],
-    max_per_chapter: usize,
-) -> Result<(), String> {
-    let mut counts = BTreeMap::<i32, usize>::new();
-    for (index, item) in items.iter().enumerate() {
-        let chapter = required_i32_at(
-            item,
-            "chapter_number",
-            &format!("{label}[{index}].chapter_number"),
-        )?;
-        let count = counts.entry(chapter).or_default();
-        *count += 1;
-        if *count > max_per_chapter {
-            return Err(format!(
-                "{label} 第 {chapter} 章最多 {max_per_chapter} 条，实际至少 {} 条；请只保留最重要的新变化或关键行为",
-                *count
             ));
         }
     }

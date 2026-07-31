@@ -43,8 +43,8 @@ async fn video_prompt_generation_writes_segment_aligned_video_prompts_after_boun
 
     let video_llm = SequenceLlmProvider::new_owned(serial_video_shot_replies());
     let mut progress_events = Vec::new();
-    let mut progress = |current: u32, total: u32, message: &str| -> Result<(), AppError> {
-        progress_events.push((current, total, message.to_string()));
+    let mut progress = |update: VideoPromptProgressUpdate| -> Result<(), AppError> {
+        progress_events.push((update.current, update.total, update.message));
         Ok(())
     };
     let rows = service

@@ -1,7 +1,8 @@
 use super::*;
 
 use super::projections::workflow_progress_event_summary;
-use super::queries::workflow_run_by_id;
+use super::queries::locked_workflow_run_by_id;
+use super::validation::ensure_workflow_write_open;
 
 pub async fn workflow_progress_events(
     db: &DatabaseConnection,
@@ -30,11 +31,19 @@ pub async fn record_workflow_progress_event(
         WorkflowWriteError::InvalidData(format!("工作流进度 total 超出 i32 范围: {total}"))
     })?;
     let percent = (current as f32 / total as f32) * 100.0;
+    let meta_json = input
+        .meta
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|error| WorkflowWriteError::InvalidData(error.to_string()))?;
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = locked_workflow_run_by_id(&tx, input.workflow_run_id).await?;
+    ensure_workflow_write_open(&run.status, "记录工作流进度")?;
     let now = Utc::now().naive_utc();
     let event_index = workflow_progress_event::Entity::find()
         .filter(workflow_progress_event::Column::WorkflowRunId.eq(input.workflow_run_id))
         .order_by_desc(workflow_progress_event::Column::EventIndex)
-        .one(db)
+        .one(&tx)
         .await
         .map_err(WorkflowWriteError::Database)?
         .map(|event| {
@@ -44,11 +53,6 @@ pub async fn record_workflow_progress_event(
         })
         .transpose()?
         .unwrap_or(1);
-    let meta_json = input
-        .meta
-        .map(serde_json::to_value)
-        .transpose()
-        .map_err(|error| WorkflowWriteError::InvalidData(error.to_string()))?;
 
     let progress_json = json!({
         "current": current,
@@ -58,11 +62,13 @@ pub async fn record_workflow_progress_event(
         "meta": meta_json,
         "updated_at": now.to_string(),
     });
-    let mut run: workflow_run::ActiveModel =
-        workflow_run_by_id(db, input.workflow_run_id).await?.into();
-    run.progress_json = Set(Some(progress_json));
-    run.updated_at = Set(now);
-    run.update(db).await.map_err(WorkflowWriteError::Database)?;
+    let mut active: workflow_run::ActiveModel = run.into();
+    active.progress_json = Set(Some(progress_json));
+    active.updated_at = Set(now);
+    active
+        .update(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
 
     let event = workflow_progress_event::ActiveModel {
         id: NotSet,
@@ -76,10 +82,11 @@ pub async fn record_workflow_progress_event(
         meta_json: Set(meta_json),
         created_at: Set(now),
     }
-    .insert(db)
+    .insert(&tx)
     .await
     .map_err(WorkflowWriteError::Database)?;
-    trim_workflow_progress_events(db, input.workflow_run_id).await?;
+    trim_workflow_progress_events(&tx, input.workflow_run_id).await?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(event)
 }
 

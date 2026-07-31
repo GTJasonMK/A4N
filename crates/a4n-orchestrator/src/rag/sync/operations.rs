@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use a4n_core::rag::RagDataType;
 use a4n_rag_core::vector_store::DeleteFilter;
-#[cfg(test)]
-use a4n_rag_core::vector_store::VectorStore;
 use serde_json::Value;
 
 use super::contracts::{
@@ -183,17 +181,4 @@ impl OrchestratorContext {
             })
             .map(|_| ())
     }
-}
-
-#[cfg(test)]
-pub(super) async fn clear_project_rag_store(
-    vector_store: &dyn VectorStore,
-    project_id: i64,
-) -> Result<(), RagSyncError> {
-    vector_store
-        .drop_collection(&project_id.to_string())
-        .await
-        .map_err(|error| RagSyncError::ClearProject {
-            message: error.to_string(),
-        })
 }

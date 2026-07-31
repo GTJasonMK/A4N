@@ -15,8 +15,8 @@ async fn first_frame_chain_writes_only_initial_first_frame_then_segment_video_pr
     ]);
     let mut first_frame_progress_events = Vec::new();
     let mut first_frame_progress =
-        |current: u32, total: u32, message: &str| -> Result<(), AppError> {
-            first_frame_progress_events.push((current, total, message.to_string()));
+        |update: VideoPromptProgressUpdate| -> Result<(), AppError> {
+            first_frame_progress_events.push((update.current, update.total, update.message));
             Ok(())
         };
 

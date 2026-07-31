@@ -19,12 +19,12 @@ pub async fn test_llm_config(state: &AppState, config_id: i64) -> Result<bool, S
         .map_err(|error| error.to_string())?;
     if state.runtime_profile().uses_sidecars() {
         return provider
-            .probe_with_config_id(Some(config_id), request)
+            .probe_with_config(config, request)
             .await
             .map_err(|error| error.to_string());
     }
     let response = provider
-        .chat_with_config_id(Some(config_id), request)
+        .chat_with_config(config, request)
         .await
         .map_err(|error| error.to_string())?;
     Ok(!response.message.content.is_empty())

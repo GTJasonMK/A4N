@@ -28,10 +28,6 @@ theme_command!(
     theme_actions::list_user_themes_for_user(&state, user_id, user_id)
 );
 theme_command!(
-    get_system_default_theme(state) -> Option<ThemeSummary>,
-    theme_actions::get_system_default_theme(&state)
-);
-theme_command!(
     create_theme(state, user_id: i64, input: CreateThemeInput) -> ThemeSummary,
     theme_actions::create_theme_for_user(&state, user_id, input)
 );

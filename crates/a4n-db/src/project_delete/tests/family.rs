@@ -76,6 +76,52 @@ async fn project_delete_removes_only_target_prompt_override_settings() {
 }
 
 #[tokio::test]
+async fn project_delete_gate_rejects_text_root_with_derivatives_without_pending_operation() {
+    let db = setup_db().await;
+    let owner = crate::auth::create_user(
+        &db,
+        "project_delete_gate_owner",
+        "project-delete-gate-owner@example.invalid",
+        "project-delete-gate-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    assert_eq!(owner.id, 1);
+    let (root, _derived) = root_with_video_derivative(&db).await;
+
+    let error = crate::generation::begin_project_lifecycle_gate(
+        &db,
+        root.id,
+        root.user_id,
+        crate::generation::ProjectLifecycleOperation::Delete,
+    )
+    .await
+    .expect_err("root delete gate should reject projects with derivatives");
+
+    assert!(
+        matches!(
+            &error,
+            crate::generation::GenerationLifecycleGateError::InvalidArgument(message)
+                if message.contains("存在 1 个派生项目")
+        ),
+        "unexpected gate error: {error:?}"
+    );
+    let root = novel_project::Entity::find_by_id(root.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(root.lifecycle_gate, crate::generation::PROJECT_GATE_ACTIVE);
+    assert!(
+        crate::generation::pending_lifecycle_operations(&db)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
 async fn project_delete_rejects_text_root_with_derivatives() {
     let db = setup_db().await;
     let (root, derived) = root_with_video_derivative(&db).await;

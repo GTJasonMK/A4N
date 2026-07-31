@@ -66,6 +66,7 @@ pub(in crate::routes::commands) async fn generate_chapter_scene(
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
         state,
+        user_id,
         task_id.clone(),
         TaskKind::LlmCall,
         scope.project_id,
@@ -74,9 +75,14 @@ pub(in crate::routes::commands) async fn generate_chapter_scene(
     )
     .await;
     let progress = web_progress_reporter(task);
-    let result =
-        chapter_scene_actions::generate_chapter_scene(state.runtime(), user_id, input, &progress)
-            .await;
+    let result = chapter_scene_actions::generate_chapter_scene(
+        state.runtime(),
+        user_id,
+        input,
+        &progress,
+        task_id.as_deref(),
+    )
+    .await;
     let scene = finish_web_task(state, task_id, result).await?;
     Ok(json!(scene))
 }

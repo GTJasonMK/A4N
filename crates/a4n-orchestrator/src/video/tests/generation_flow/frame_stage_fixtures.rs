@@ -1,55 +1,21 @@
-async fn generate_chat_video_frame_prompt_stage(
+async fn generate_chat_video_segment_plan_stage(
     service: &OrchestratorContext,
     llm_switch: &SwitchableLlmProvider,
     project_id: i64,
     chapter_id: i64,
     engine: &TeraPromptEngine,
-) {
-    let mut replies = vec![
-        segment_plan_json_for_shot(1, None),
-        segment_plan_json_for_shot(2, None),
-    ];
-    replies.extend(boundary_frame_prompt_replies());
-    generate_chat_video_frame_prompt_stage_with_replies(
-        service, llm_switch, project_id, chapter_id, engine, replies,
-    )
-    .await;
-}
-
-async fn generate_chat_video_frame_prompt_stage_from_existing_plan(
-    service: &OrchestratorContext,
-    llm_switch: &SwitchableLlmProvider,
-    project_id: i64,
-    chapter_id: i64,
-    engine: &TeraPromptEngine,
-) {
-    generate_chat_video_frame_prompt_stage_with_replies(
-        service,
-        llm_switch,
-        project_id,
-        chapter_id,
-        engine,
-        boundary_frame_prompt_replies(),
-    )
-    .await;
-}
-
-async fn generate_chat_video_frame_prompt_stage_with_replies(
-    service: &OrchestratorContext,
-    llm_switch: &SwitchableLlmProvider,
-    project_id: i64,
-    chapter_id: i64,
-    engine: &TeraPromptEngine,
-    replies: Vec<String>,
 ) {
     service
-        .generate_chapter_chat_video_frame_prompts(
+        .generate_chapter_segment_plan(
             prompt_stage_input(
                 llm_switch,
                 project_id,
                 chapter_id,
                 "chat_video",
-                &SequenceLlmProvider::new_owned(replies),
+                &SequenceLlmProvider::new_owned(vec![
+                    segment_plan_json_for_shot(1, None),
+                    segment_plan_json_for_shot(2, None),
+                ]),
                 engine,
                 frame_generation_options(),
                 None,

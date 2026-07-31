@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Film, GitCompare, Layers3, Loader2 } from "lucide-react";
+import { Film, GitCompare, Layers3 } from "lucide-react";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   getProject,
   listSourceSnapshotChapters,
@@ -163,10 +164,10 @@ export const VideoProjectWorkspace: React.FC = () => {
         />
       ) : null}
 
-      <section aria-label="视频项目工作区" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 md:overflow-hidden md:px-5 md:py-5">
+      <section aria-label="视频项目工作区" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden">
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
-            <Loader2 size={14} className="animate-spin" />
+            <LoadingSpinner size="sm" />
             加载视频项目
           </div>
         ) : project && !canEditProject ? (
@@ -199,7 +200,7 @@ export const VideoProjectWorkspace: React.FC = () => {
                   </select>
                 </label>
                 <aside aria-label="来源章节" className="a4n-flat-surface hidden max-h-full min-h-0 self-start overflow-y-auto p-2 custom-scrollbar md:block">
-                  <div className="mb-2 hidden px-2 text-[11px] font-medium text-book-text-muted md:block">
+                  <div className="mb-2 hidden px-2 text-small font-medium text-book-text-muted md:block">
                     来源章节
                   </div>
                   <div className="space-y-1">
@@ -216,7 +217,7 @@ export const VideoProjectWorkspace: React.FC = () => {
                         >
                           <div className="font-medium">第 {chapter.chapter_number} 章</div>
                           {title ? (
-                            <div className="mt-0.5 truncate text-[11px] text-book-text-muted">
+                            <div className="mt-0.5 truncate text-small text-book-text-muted">
                               {title}
                             </div>
                           ) : null}

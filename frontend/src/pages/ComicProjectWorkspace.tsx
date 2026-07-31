@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { GitCompare, Loader2, PanelsTopLeft } from "lucide-react";
+import { GitCompare, PanelsTopLeft } from "lucide-react";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   getProject,
   listSourceSnapshotChapters,
@@ -121,10 +122,10 @@ export const ComicProjectWorkspace: React.FC = () => {
         />
       ) : null}
 
-      <section aria-label="漫画项目工作区" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-4 md:overflow-hidden md:px-5 md:py-5 custom-scrollbar">
+      <section aria-label="漫画项目工作区" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden custom-scrollbar">
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
-            <Loader2 size={14} className="animate-spin" />
+            <LoadingSpinner size="sm" />
             加载漫画项目
           </div>
         ) : project ? (

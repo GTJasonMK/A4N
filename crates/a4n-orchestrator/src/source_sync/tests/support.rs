@@ -1,41 +1,9 @@
-use chrono::Utc;
 use serde_json::json;
 
-use super::super::{CONFLICT_STATUS_PENDING, source_sync_conflict};
 use crate::galgame::{
     GalgamePersistLine, GalgamePersistScene, GalgameSceneRegenerationPlan, LINE_TYPE_DIALOGUE,
     SCENE_ENTRY_MAIN,
 };
-
-pub(super) fn conflict_with_target(
-    conflict_scope: &str,
-    target_kind: &str,
-    target_id: i64,
-    local_summary_json: serde_json::Value,
-) -> source_sync_conflict::Model {
-    source_sync_conflict::Model {
-        id: 1,
-        sync_run_id: 10,
-        derived_project_id: 2,
-        root_project_id: 1,
-        from_snapshot_id: 100,
-        to_snapshot_id: 101,
-        conflict_scope: conflict_scope.to_string(),
-        target_kind: target_kind.to_string(),
-        target_id,
-        source_change_kind: "updated".to_string(),
-        local_state_kind: "clean".to_string(),
-        severity: "warning".to_string(),
-        status: CONFLICT_STATUS_PENDING.to_string(),
-        resolution_strategy: None,
-        source_summary_json: json!({}),
-        local_summary_json,
-        affected_refs_json: json!({}),
-        decision_json: None,
-        created_at: Utc::now().naive_utc(),
-        resolved_at: None,
-    }
-}
 
 pub(super) fn valid_regenerate_scene_apply_plan() -> GalgameSceneRegenerationPlan {
     GalgameSceneRegenerationPlan {

@@ -1,8 +1,9 @@
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
 use a4n_runtime::host_api::video_prompts::{
-    self as video_prompt_actions, ChapterVideoPromptSummary, DeleteChapterVideoPromptGroupResult,
+    self as video_prompt_actions, ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput,
     OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
+    UpdateVideoSegmentPlanDraftRecipeInput, WorkflowRunDetailSummary,
 };
 use tauri::State;
 
@@ -14,6 +15,25 @@ pub async fn list_chapter_video_prompts(
     chapter_id: i64,
 ) -> Result<Vec<ChapterVideoPromptSummary>, String> {
     video_prompt_actions::list_chapter_video_prompts(state.inner(), user_id, project_id, chapter_id)
+        .await
+}
+
+#[tauri::command]
+pub async fn load_video_segment_plan_draft(
+    state: State<'_, AppState>,
+    user_id: i64,
+    input: LoadVideoSegmentPlanDraftInput,
+) -> Result<WorkflowRunDetailSummary, String> {
+    video_prompt_actions::load_video_segment_plan_draft(state.inner(), user_id, input).await
+}
+
+#[tauri::command]
+pub async fn update_video_segment_plan_draft_recipe(
+    state: State<'_, AppState>,
+    user_id: i64,
+    input: UpdateVideoSegmentPlanDraftRecipeInput,
+) -> Result<WorkflowRunDetailSummary, String> {
+    video_prompt_actions::update_video_segment_plan_draft_recipe(state.inner(), user_id, input)
         .await
 }
 
@@ -52,28 +72,6 @@ pub async fn delete_chapter_video_prompt(
         state.inner(),
         user_id,
         prompt_id,
-        downstream_strategy,
-    )
-    .await
-}
-
-#[tauri::command]
-pub async fn delete_chapter_video_prompt_group(
-    state: State<'_, AppState>,
-    user_id: i64,
-    project_id: i64,
-    chapter_id: i64,
-    group: String,
-    downstream_strategy: Option<String>,
-) -> Result<DeleteChapterVideoPromptGroupResult, String> {
-    let downstream_strategy =
-        DownstreamConflictStrategy::from_optional_str(downstream_strategy.as_deref())?;
-    video_prompt_actions::delete_chapter_video_prompt_group(
-        state.inner(),
-        user_id,
-        project_id,
-        chapter_id,
-        &group,
         downstream_strategy,
     )
     .await

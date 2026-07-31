@@ -30,6 +30,9 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
         source_spans,
         project_context,
         style,
+        prompt_output_language,
+        previous_segment_plan,
+        previous_segment_recipes,
         duration_secs,
         aspect_ratio,
         prompt_renderer,
@@ -82,6 +85,9 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
             shooting_script_projection: &analysis,
             default_aspect_ratio: aspect_ratio,
             style,
+            prompt_output_language,
+            previous_segment_plan,
+            previous_segment_recipes,
             duration_secs,
             context: segment_context,
             progress_message: segment_progress,
@@ -91,6 +97,15 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
             chunks,
         })
         .await?;
+    if cancel_token.is_some_and(tokio_util::sync::CancellationToken::is_cancelled) {
+        return Err(AppError::Cancelled);
+    }
+    report_video_prompt_progress(
+        progress,
+        segment_span.end().saturating_add(5).min(99),
+        100,
+        "片段规划校验完成，正在提交正式记录",
+    )?;
     Ok(PreparedSegmentPlan {
         segment_stage_outputs,
         segment_trace: segment_trace

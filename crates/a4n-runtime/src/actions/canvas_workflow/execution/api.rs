@@ -10,6 +10,7 @@ use a4n_orchestrator::{
 };
 
 use super::{host_port::RuntimeCanvasGraphExecutionHostPort, prelude::*};
+use crate::actions::canvas_workflow::node_lifecycle::runtime_summary;
 
 pub async fn run_canvas_graph(
     state: &AppState,
@@ -70,7 +71,7 @@ pub async fn resume_canvas_graph_run(
         )
         .await?;
     if prepared.runnable_node_ids.is_empty() {
-        return Ok(canvas_run_summary(
+        return Ok(runtime_summary(
             prepared.summary(WORKFLOW_STATUS_COMPLETED, None),
         ));
     }
@@ -81,7 +82,7 @@ fn submit_prepared_canvas_graph_run(
     state: &AppState,
     prepared: PreparedCanvasGraphRun,
 ) -> Result<CanvasRunSummary, String> {
-    let summary = canvas_run_summary(prepared.summary(WORKFLOW_STATUS_RUNNING, None));
+    let summary = runtime_summary(prepared.summary(WORKFLOW_STATUS_RUNNING, None));
     let runtime_snapshot = crate::runtime_config::current_snapshot();
     let background_state = state.clone();
     tokio::spawn(async move {
@@ -136,15 +137,4 @@ async fn run_prepared_canvas_graph(
         .canvas()
         .run_prepared_canvas_graph_validated(prepared, &host_port)
         .await
-}
-
-fn canvas_run_summary(summary: CanvasNodeRunSummary) -> CanvasRunSummary {
-    CanvasRunSummary {
-        workflow_run_id: summary.workflow_run_id,
-        project_id: summary.project_id,
-        graph_id: summary.graph_id,
-        mode: summary.mode,
-        status: summary.status,
-        error_message: summary.error_message,
-    }
 }

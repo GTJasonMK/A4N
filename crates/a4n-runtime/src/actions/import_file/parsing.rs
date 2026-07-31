@@ -7,11 +7,22 @@ pub(super) fn parse_import_file_bytes(
     file_type: &str,
     file_bytes: &[u8],
 ) -> Result<ImportFileResult, String> {
-    let text_content = import_file_text_content(file_type, file_bytes)?;
-
-    let parse_result = TxtParser::new()
-        .parse(&text_content)
-        .map_err(|error| format!("章节解析失败: {error}"))?;
+    let parse_result = match file_type.trim().to_ascii_lowercase().as_str() {
+        "txt" | "md" | "markdown" => {
+            let text = std::str::from_utf8(file_bytes)
+                .map_err(|error| format!("无法解析文本编码: {error}"))?;
+            TxtParser::new()
+                .parse(text)
+                .map_err(|error| format!("章节解析失败: {error}"))?
+        }
+        "epub" => EpubParser
+            .parse(file_bytes)
+            .map_err(|error| format!("EPUB 解析失败: {error}"))?,
+        "docx" => DocxParser
+            .parse(file_bytes)
+            .map_err(|error| format!("DOCX 解析失败: {error}"))?,
+        other => return Err(format!("不支持的文件类型: {other}")),
+    };
     let chapters = parse_result
         .chapters
         .iter()
@@ -39,33 +50,4 @@ pub(super) fn parse_import_file_bytes(
         total_words,
         warnings: parse_result.warnings,
     })
-}
-
-fn import_file_text_content(file_type: &str, file_bytes: &[u8]) -> Result<String, String> {
-    match file_type.trim().to_ascii_lowercase().as_str() {
-        "txt" | "md" | "markdown" => String::from_utf8(file_bytes.to_vec())
-            .map_err(|error| format!("无法解析文本编码: {error}")),
-        "epub" => parsed_document_text(
-            EpubParser::new()
-                .parse(file_bytes)
-                .map_err(|error| format!("EPUB 解析失败: {error}"))?,
-        ),
-        "docx" => parsed_document_text(
-            DocxParser::new()
-                .parse(file_bytes)
-                .map_err(|error| format!("DOCX 解析失败: {error}"))?,
-        ),
-        other => Err(format!("不支持的文件类型: {other}")),
-    }
-}
-
-fn parsed_document_text(
-    result: a4n_import_core::file_parsers::ParseResult,
-) -> Result<String, String> {
-    Ok(result
-        .chapters
-        .iter()
-        .map(|chapter| format!("{}\n{}\n", chapter.title, chapter.content))
-        .collect::<Vec<_>>()
-        .join("\n"))
 }

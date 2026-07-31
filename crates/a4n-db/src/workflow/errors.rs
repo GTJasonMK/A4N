@@ -18,6 +18,8 @@ pub enum WorkflowWriteError {
     NotFound(String),
     #[error("持久化工作流数据无效: {0}")]
     InvalidData(String),
+    #[error("当前状态 {current} 不允许执行 {operation}")]
+    StatusConflict { current: String, operation: String },
     #[error("工作流写入数据库操作失败: {0}")]
     Database(#[source] sea_orm::DbErr),
 }

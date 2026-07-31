@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
@@ -317,18 +317,18 @@ export const EventManager: React.FC<{
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-[10px] text-book-text-muted">
+      <div className="text-caption text-book-text-muted">
         属性事件记录每次角色属性变化，手动维护也会写入同一条事件溯源链路。
       </div>
       <details className="border-y border-book-border/35 py-1">
-        <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-[11px] [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-small [&::-webkit-details-marker]:hidden">
           <span className="font-medium text-book-text-main">筛选事件</span>
-          <span className="min-w-0 truncate text-[10px] text-book-text-muted">
+          <span className="min-w-0 truncate text-caption text-book-text-muted">
             {filterSummary}
             {hasCurrentEvents ? ` · ${events.length} 条` : ""}
           </span>
         </summary>
-        <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-3">
+        <div className="mt-2 grid grid-cols-2 gap-2 text-small sm:grid-cols-3">
           <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
             起始章
             <input
@@ -421,7 +421,7 @@ export const EventManager: React.FC<{
             <BookButton variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
               {loading ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={11} className="animate-spin" /> 筛选中…
+                  <LoadingSpinner size="sm" /> 筛选中…
                 </span>
               ) : (
                 "应用筛选"
@@ -431,12 +431,12 @@ export const EventManager: React.FC<{
         </div>
       </details>
       <details className="border-b border-book-border/35 py-1">
-        <summary className="cursor-pointer py-1 text-[11px] font-medium text-book-text-main">
+        <summary className="cursor-pointer py-1 text-small font-medium text-book-text-main">
           手动维护属性
         </summary>
-        <div className="mt-2 grid gap-2 text-[11px] sm:grid-cols-2">
+        <div className="mt-2 grid gap-2 text-small sm:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-book-text-muted">操作</span>
+            <span className="text-caption text-book-text-muted">操作</span>
             <select
               value={mode}
               onChange={(event) => setMode(event.target.value === "modify" ? "modify" : "add")}
@@ -448,7 +448,7 @@ export const EventManager: React.FC<{
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-book-text-muted">章节</span>
+            <span className="text-caption text-book-text-muted">章节</span>
             <input
               type="number"
               min={1}
@@ -464,7 +464,7 @@ export const EventManager: React.FC<{
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-book-text-muted">分类</span>
+            <span className="text-caption text-book-text-muted">分类</span>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
@@ -479,7 +479,7 @@ export const EventManager: React.FC<{
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-book-text-muted">属性名称</span>
+            <span className="text-caption text-book-text-muted">属性名称</span>
             <input
               value={key}
               onChange={(event) => setKey(event.target.value)}
@@ -489,32 +489,32 @@ export const EventManager: React.FC<{
             />
           </label>
           <label className="flex flex-col gap-1 sm:col-span-2">
-            <span className="text-[10px] text-book-text-muted">属性值</span>
+            <span className="text-caption text-book-text-muted">属性值</span>
             <textarea
               value={valueText}
               onChange={(event) => setValueText(event.target.value)}
               disabled={saving}
-              className="book-control min-h-[58px] resize-y rounded-xl px-2.5 py-2 text-[11px]"
+              className="book-control min-h-[58px] resize-y rounded-xl px-2.5 py-2 text-small"
               placeholder="填写角色当前的属性内容"
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-book-text-muted">原因</span>
+            <span className="text-caption text-book-text-muted">原因</span>
             <textarea
               value={cause}
               onChange={(event) => setCause(event.target.value)}
               disabled={saving}
-              className="pyqt-input min-h-[58px] !px-2 !py-1 text-[11px]"
+              className="pyqt-input min-h-[58px] !px-2 !py-1 text-small"
               placeholder="说明这次属性变化的原因"
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-book-text-muted">证据</span>
+            <span className="text-caption text-book-text-muted">证据</span>
             <textarea
               value={evidence}
               onChange={(event) => setEvidence(event.target.value)}
               disabled={saving}
-              className="pyqt-input min-h-[58px] !px-2 !py-1 text-[11px]"
+              className="pyqt-input min-h-[58px] !px-2 !py-1 text-small"
               placeholder="引用章节原文或明确来源"
             />
           </label>
@@ -527,7 +527,7 @@ export const EventManager: React.FC<{
             >
               {saving ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" />
+                  <LoadingSpinner size="sm" />
                   {mode === "add" ? "新增中…" : "保存中…"}
                 </span>
               ) : mode === "add" ? (
@@ -540,11 +540,11 @@ export const EventManager: React.FC<{
         </div>
       </details>
       {loading ? (
-        <div className="text-[11px] text-book-text-muted">加载…</div>
+        <div className="text-small text-book-text-muted">加载…</div>
       ) : !hasCurrentEvents ? (
-        <div className="text-[11px] text-book-text-muted italic">当前筛选条件尚未加载，请筛选</div>
+        <div className="text-small text-book-text-muted italic">当前筛选条件尚未加载，请筛选</div>
       ) : events.length === 0 ? (
-        <div className="text-[11px] text-book-text-muted italic">尚无事件</div>
+        <div className="text-small text-book-text-muted italic">尚无事件</div>
       ) : (
         <ul className="a4n-flat-surface divide-y divide-book-border/45">
           {events.map((event) => {
@@ -553,24 +553,24 @@ export const EventManager: React.FC<{
             return (
               <li
                 key={event.id}
-                className="px-3 py-2.5 text-[11px]"
+                className="px-3 py-2.5 text-small"
               >
                 <div className="mb-1 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                   <span className="font-medium text-book-text-main">
                     {attributeKeyLabel(event.key)}
                   </span>
-                  <span className="text-[10px] text-book-text-muted">
+                  <span className="text-caption text-book-text-muted">
                     第 {event.chapter_number} 章 · {categoryLabel(event.category)} ·{" "}
                     {operationLabel(event.operation)}
                   </span>
                   {event.timestamp && (
-                    <span className="ml-auto shrink-0 text-[10px] text-book-text-muted">
+                    <span className="ml-auto shrink-0 text-caption text-book-text-muted">
                       {formatUiDateTime(event.timestamp)}
                     </span>
                   )}
                 </div>
                 {(oldValue || newValue) && (
-                  <div className="grid divide-y divide-book-border/30 border-y border-book-border/30 text-[10px] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                  <div className="grid divide-y divide-book-border/30 border-y border-book-border/30 text-caption sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                     {oldValue && (
                       <div className="px-2 py-1.5">
                         <span className="text-book-text-muted">旧值：</span>
@@ -586,17 +586,17 @@ export const EventManager: React.FC<{
                   </div>
                 )}
                 {event.change_description && (
-                  <div className="mt-1 text-[10px] leading-relaxed text-book-text-main">
+                  <div className="mt-1 text-caption leading-relaxed text-book-text-main">
                     摘要：{event.change_description}
                   </div>
                 )}
                 {event.cause && (
-                  <div className="mt-1 text-[10px] leading-relaxed text-book-text-sub">
+                  <div className="mt-1 text-caption leading-relaxed text-book-text-sub">
                     原因：{event.cause}
                   </div>
                 )}
                 {event.evidence && (
-                  <blockquote className="mt-1.5 border-l-2 border-book-border/70 pl-2 text-[10px] leading-relaxed text-book-text-muted">
+                  <blockquote className="mt-1.5 border-l-2 border-book-border/70 pl-2 text-caption leading-relaxed text-book-text-muted">
                     {event.evidence}
                   </blockquote>
                 )}

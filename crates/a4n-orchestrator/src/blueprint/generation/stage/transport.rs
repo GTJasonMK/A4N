@@ -43,7 +43,7 @@ pub(super) async fn generate_blueprint_stage_output(
                     ..Default::default()
                 },
             }),
-            usage_base: None,
+            usage_base: session.snapshot().usage,
         },
     )
     .await
@@ -58,10 +58,7 @@ pub(super) async fn generate_blueprint_stage_output(
     ensure_blueprint_response_not_truncated(Some(finish_reason.as_str()), spec.title)?;
     Ok(BlueprintStageLlmOutput {
         response_content: output.content,
-        usage: output
-            .usage
-            .map(|usage| serde_json::to_value(usage))
-            .transpose()?,
+        usage: output.usage.map(serde_json::to_value).transpose()?,
         finish_reason: Some(finish_reason),
     })
 }

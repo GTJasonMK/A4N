@@ -29,7 +29,7 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
                 <h2 className="truncate text-base font-semibold text-book-text-main">
                   {user.username}
                 </h2>
-                <p className="mt-0.5 text-[11px] text-book-text-muted">
+                <p className="mt-0.5 text-small text-book-text-muted">
                   {user.role === "admin" ? "管理员" : "普通用户"} · 当前账户
                 </p>
               </div>
@@ -59,7 +59,7 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
             </span>
             <div className="min-w-0">
               <h2 className="font-serif text-base font-semibold text-book-text-main">A4N</h2>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+              <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
                 本地优先的 AI 叙事创作工具
               </p>
             </div>
@@ -67,23 +67,21 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
           <details className="border-t border-book-border/35 text-xs">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
               <span className="font-medium text-book-text-main">应用详情</span>
-              <span className="text-[10px] text-book-text-muted">运行方式与技术信息</span>
+              <span className="text-caption text-book-text-muted">运行方式与技术信息</span>
             </summary>
             <dl className="space-y-2 border-t border-book-border/35 px-4 py-3">
               <Row label="完整名称">Agents for Narrative</Row>
               <Row label="运行形态">本地优先桌面应用</Row>
               <Row label="技术栈">
-                <span className="font-mono text-[11px]">Rust + Tauri 2 / React 18 + Tailwind v4</span>
+                <span className="font-mono text-small">Rust + Tauri 2 / React 18 + Tailwind v4</span>
               </Row>
             </dl>
           </details>
         </section>
 
-        <StoragePathsPanel
-          callerUserId={user?.id ?? null}
-          isAdmin={user?.role === "admin"}
-          className=""
-        />
+        {user?.role === "admin" && (
+          <StoragePathsPanel callerUserId={user.id} isAdmin className="" />
+        )}
       </div>
     </div>
   </div>

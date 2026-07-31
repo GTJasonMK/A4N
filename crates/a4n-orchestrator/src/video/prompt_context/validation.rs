@@ -65,11 +65,21 @@ pub fn validate_prompt_options_with_reference_limit(
             "target_shot_number 必须为正整数".to_string(),
         ));
     }
+    if options
+        .segment_plan_prompt_id
+        .is_some_and(|value| value <= 0)
+    {
+        return Err(AppError::InvalidArgument(
+            "segment_plan_prompt_id 必须为正整数".to_string(),
+        ));
+    }
     Ok(ChapterVideoPromptOptions {
         style: style.to_string(),
         prompt_output_language,
         prompt_batch_size: options.prompt_batch_size,
+        segment_plan_prompt_id: options.segment_plan_prompt_id,
         target_shot_number: options.target_shot_number,
+        segment_recipe: options.segment_recipe,
         duration_secs: options.duration_secs,
         duration_secs_options,
         aspect_ratio: aspect_ratio.to_string(),

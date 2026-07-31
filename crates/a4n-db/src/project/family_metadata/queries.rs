@@ -11,7 +11,8 @@ pub async fn project_family_metadata(
     db: &DatabaseConnection,
     query: ProjectFamilyMetadataQuery,
 ) -> Result<ProjectFamilyMetadata, ProjectFamilyMetadataReadError> {
-    let mut metadata_by_project_id = project_family_metadata_batch(db, &[query.clone()]).await?;
+    let mut metadata_by_project_id =
+        project_family_metadata_batch(db, std::slice::from_ref(&query)).await?;
     metadata_by_project_id.remove(&query.project_id).ok_or(
         ProjectFamilyMetadataReadError::MetadataMissing {
             project_id: query.project_id,

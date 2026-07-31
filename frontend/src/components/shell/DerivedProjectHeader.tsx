@@ -5,7 +5,7 @@ import React from "react";
  * 对齐预览 derived-head：图标 + 标题/副标题 + 操作 + context-bar
  */
 
-export interface DerivedContextItem {
+interface DerivedContextItem {
   label: string;
   value: React.ReactNode;
 }
@@ -41,11 +41,11 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
           {icon}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-serif text-[15px] font-semibold text-book-text-main">
+          <h1 className="truncate font-serif text-body-lg font-semibold text-book-text-main">
             {title}
           </h1>
           {subtitle != null ? (
-            <p className="mt-0.5 truncate text-[11px] text-book-text-muted">{subtitle}</p>
+            <p className="mt-0.5 truncate text-small text-book-text-muted">{subtitle}</p>
           ) : null}
         </div>
         {actions != null ? (
@@ -71,7 +71,7 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
           {stages.map((stage) => (
             <span
               key={stage.id}
-              className={`inline-flex items-center gap-1.5 text-[11px] ${
+              className={`inline-flex items-center gap-1.5 text-small ${
                 stage.active ? "font-semibold text-book-primary" : "text-book-text-muted"
               }`}
             >
@@ -89,5 +89,3 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
     </header>
   );
 };
-
-export default DerivedProjectHeader;

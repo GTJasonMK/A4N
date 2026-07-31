@@ -13,7 +13,7 @@ use super::super::requests::{
     build_first_frame_prompt_preview_user, build_frame_prompt_preview_request,
     build_storyboard_prompt_preview_user,
 };
-use super::super::spec::{LocalVideoPromptPreviewMode, LocalVideoPromptPreviewSpec};
+use super::super::spec::{LocalFramePromptPreviewMode, LocalVideoPromptPreviewSpec};
 use super::super::states::{
     BoundaryFramePromptPreviewState, BoundaryFramePromptPreviewStateInput,
     StoryboardPromptPreviewState,
@@ -31,6 +31,7 @@ pub(super) struct ResolveAvailableVideoFramePredecessorInput<'a, 'source> {
     pub(super) source: &'a ChapterVideoSourceContext<'source>,
     pub(super) prepared: &'a PreparedVideoPromptPreviewInputs,
     pub(super) spec: LocalVideoPromptPreviewSpec,
+    pub(super) mode: LocalFramePromptPreviewMode,
     pub(super) segment_json: &'a Value,
     pub(super) segment_plan: &'a [VideoSegmentPlan],
     pub(super) allowed_reference_ids: &'a HashSet<i64>,
@@ -50,14 +51,14 @@ impl OrchestratorContext {
             source,
             prepared,
             spec,
+            mode,
             segment_json,
             segment_plan,
             allowed_reference_ids,
             execution_identity,
         } = request;
-        match spec.mode {
-            LocalVideoPromptPreviewMode::BoundaryFrames
-            | LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => {
+        match mode {
+            LocalFramePromptPreviewMode::BoundaryFrames => {
                 match self
                     .boundary_frame_prompt_preview_state(BoundaryFramePromptPreviewStateInput {
                         project_id,
@@ -114,7 +115,7 @@ impl OrchestratorContext {
                     }
                 }
             }
-            LocalVideoPromptPreviewMode::FirstFrameChain => {
+            LocalFramePromptPreviewMode::FirstFrameChain => {
                 if let Some(frame_prompts) = self
                     .reusable_first_frame_prompts_for_preview(
                         project_id,
@@ -160,7 +161,7 @@ impl OrchestratorContext {
                     Ok((placeholder_first_frame_prompts(segment_plan), true))
                 }
             }
-            LocalVideoPromptPreviewMode::Storyboard => {
+            LocalFramePromptPreviewMode::Storyboard => {
                 match self
                     .storyboard_prompt_preview_state(
                         project_id,

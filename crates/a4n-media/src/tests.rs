@@ -1,6 +1,7 @@
 use super::{
-    VideoAssemblyClip, VideoPostprocessError, VideoPostprocessOperation, VideoPostprocessRequest,
-    VideoProbeError, build_video_assembly_filter, build_video_postprocess_filter, parse_frame_rate,
+    AudioProbeError, VideoAssemblyClip, VideoPostprocessError, VideoPostprocessOperation,
+    VideoPostprocessRequest, VideoProbeError, build_video_assembly_filter,
+    build_video_postprocess_filter, parse_audio_duration_secs, parse_frame_rate,
     parse_video_probe_properties,
 };
 use std::path::Path;
@@ -10,6 +11,27 @@ fn parse_frame_rate_accepts_fractional_and_plain_values() {
     assert_eq!(parse_frame_rate("24000/1001"), Some(24));
     assert_eq!(parse_frame_rate("30"), Some(30));
     assert_eq!(parse_frame_rate("0/0"), None);
+}
+
+#[test]
+fn parse_audio_duration_requires_audio_stream_and_positive_duration() {
+    let duration = parse_audio_duration_secs(
+        br#"{
+            "streams": [{"index": 0}],
+            "format": {"duration": "2.500000"}
+        }"#,
+    )
+    .expect("valid audio duration should parse");
+    assert!((duration - 2.5).abs() < f32::EPSILON);
+
+    assert!(matches!(
+        parse_audio_duration_secs(br#"{"streams": [], "format": {"duration": "2.5"}}"#),
+        Err(AudioProbeError::MissingAudioStream)
+    ));
+    assert!(matches!(
+        parse_audio_duration_secs(br#"{"streams": [{"index": 0}], "format": {"duration": "0"}}"#),
+        Err(AudioProbeError::InvalidDuration)
+    ));
 }
 
 #[test]
@@ -156,7 +178,9 @@ fn postprocess_insert_filter_keeps_prefix_source_and_tail() {
     assert!(filter.contains("[1:v:0]scale=642:360"));
     assert!(filter.contains("fps=24"));
     assert!(filter.contains("trim=start=2.000:end=8.000"));
-    assert!(filter.ends_with("[v0][vsrc][vtail]concat=n=3:v=1:a=0[outv]"));
+    assert!(filter.contains("[0:a:0]atrim=start=0.000:end=2.000"));
+    assert!(filter.contains("anullsrc=channel_layout=stereo:sample_rate=48000"));
+    assert!(filter.ends_with("[v0][a0][vsrc][asrc][vtail][atail]concat=n=3:v=1:a=1[outv][outa]"));
 }
 
 #[test]
@@ -168,7 +192,7 @@ fn postprocess_delete_filter_joins_prefix_and_tail_without_source() {
     assert!(filter.contains("trim=start=0:end=2.000"));
     assert!(!filter.contains("[1:v:0]"));
     assert!(filter.contains("trim=start=4.000:end=8.000"));
-    assert!(filter.ends_with("[v0][vtail]concat=n=2:v=1:a=0[outv]"));
+    assert!(filter.ends_with("[v0][a0][vtail][atail]concat=n=2:v=1:a=1[outv][outa]"));
 }
 
 #[test]
@@ -187,7 +211,7 @@ fn postprocess_replace_filter_requires_and_inserts_source() {
     );
     let filter = build_video_postprocess_filter(&request).expect("build replace filter");
 
-    assert!(filter.ends_with("[v0][vsrc][vtail]concat=n=3:v=1:a=0[outv]"));
+    assert!(filter.ends_with("[v0][a0][vsrc][asrc][vtail][atail]concat=n=3:v=1:a=1[outv][outa]"));
 }
 
 #[test]
@@ -198,6 +222,17 @@ fn postprocess_delete_rejects_an_empty_result() {
         build_video_postprocess_filter(&request),
         Err(VideoPostprocessError::EmptyResult)
     ));
+}
+
+#[test]
+fn postprocess_silent_inputs_keep_video_only_output() {
+    let mut request = postprocess_request(VideoPostprocessOperation::Delete, None, 2.0, 4.0);
+    request.base_has_audio = false;
+
+    let filter = build_video_postprocess_filter(&request).expect("build silent delete filter");
+
+    assert!(!filter.contains("anullsrc"));
+    assert!(filter.ends_with("[v0][vtail]concat=n=2:v=1:a=0[outv]"));
 }
 
 fn postprocess_request(
@@ -214,6 +249,9 @@ fn postprocess_request(
         start_secs,
         end_secs,
         base_duration_secs: 8.0,
+        base_has_audio: true,
+        source_duration_secs: source_path.map(|_| 1.0),
+        source_has_audio: false,
         width: 641,
         height: 359,
         fps: 0,

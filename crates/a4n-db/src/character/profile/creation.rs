@@ -115,7 +115,12 @@ where
         target_table: "protagonist_profile".to_string(),
         target_id: profile.id,
     }];
-    crate::generation::record_completed_generation_run(&tx, generation_run).await?;
+    crate::generation::record_completed_generation_run_with_checkpoint_in(
+        &tx,
+        generation_run,
+        crate::generation::GenerationRunCheckpointContext::default(),
+    )
+    .await?;
     tx.commit()
         .await
         .map_err(CharacterProfileCreateError::Database)?;

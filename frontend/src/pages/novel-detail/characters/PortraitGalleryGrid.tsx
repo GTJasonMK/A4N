@@ -60,7 +60,7 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
                 "无图"
               )}
               {portrait.is_primary ? (
-                <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-md bg-book-primary/90 px-2 py-1 text-[10px] text-white backdrop-blur-sm">
+                <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-md bg-book-primary/90 px-2 py-1 text-caption text-white backdrop-blur-sm">
                   <Star size={9} fill="currentColor" /> 主图
                 </span>
               ) : null}
@@ -69,7 +69,7 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
               <div className="truncate text-xs font-medium text-book-text-main">
                 {profile?.name ?? "未关联角色"}
               </div>
-              <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-book-text-muted">
+              <div className="mt-1 flex min-w-0 items-center gap-2 text-caption text-book-text-muted">
                 {portrait.portrait_type ? <span className="truncate">{portrait.portrait_type}</span> : null}
                 {portrait.expression ? <span className="truncate">{portrait.expression}</span> : null}
               </div>

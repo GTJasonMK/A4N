@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Eye, Loader2, SlidersHorizontal } from "lucide-react";
+import { Eye, SlidersHorizontal } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
-import { Dropdown } from "../../../components/ui/Dropdown";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
 import { parseNumberInput, type NumberInputValue } from "./outlineTabUtils";
@@ -47,7 +47,7 @@ export function PartOutlineSection({
       <header className="flex items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-book-text-main">分部大纲</h2>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+          <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
             {hasParts ? `共 ${parts.length} 部，按故事阶段组织章节` : "先规划故事的阶段与章节范围"}
           </p>
         </div>
@@ -72,10 +72,10 @@ export function PartOutlineSection({
         >
           <summary className="flex cursor-pointer items-center justify-between gap-3 py-1 text-xs font-medium text-book-text-sub">
             <span>{generationActionLabel}</span>
-            <span className="text-[10px] font-normal text-book-text-muted">设置部数与章节范围</span>
+            <span className="text-caption font-normal text-book-text-muted">设置部数与章节范围</span>
           </summary>
-          <div className="mt-3 grid grid-cols-1 gap-3 border-t border-book-border/35 pt-3 sm:grid-cols-2">
-            <label className="flex min-w-0 flex-col gap-1 text-[11px] text-book-text-muted">
+          <div className="mt-3 grid grid-cols-1 items-end gap-3 border-t border-book-border/35 pt-3 md:grid-cols-[minmax(10rem,1fr)_minmax(10rem,1fr)_auto]">
+            <label className="flex min-w-0 flex-col gap-1 text-small text-book-text-muted">
               {hasParts ? "本次追加部数" : "生成部数"}
               <input
                 type="number"
@@ -84,10 +84,10 @@ export function PartOutlineSection({
                 value={partCount}
                 disabled={disabled}
                 onChange={(event) => onPartCountChange(parseNumberInput(event.target.value))}
-                className="pyqt-input w-full"
+                className="pyqt-input h-10 w-full"
               />
             </label>
-            <label className="flex min-w-0 flex-col gap-1 text-[11px] text-book-text-muted">
+            <label className="flex min-w-0 flex-col gap-1 text-small text-book-text-muted">
               每部章节数
               <input
                 type="number"
@@ -99,39 +99,39 @@ export function PartOutlineSection({
                 onChange={(event) =>
                   onChaptersPerPartChange(parseNumberInput(event.target.value))
                 }
-                className="pyqt-input w-full"
+                className="pyqt-input h-10 w-full"
               />
             </label>
-          </div>
-          <div className="mt-3 flex items-center justify-end gap-2">
-            {!generating ? (
-              <Dropdown
-                items={[
-                  {
-                    label: hasParts ? "查看追加请求" : "查看生成请求",
-                    icon: <Eye size={12} />,
-                    onClick: onPreviewGenerate,
-                    disabled,
-                  },
-                ]}
-              />
-            ) : null}
-            <BookButton
-              variant="primary"
-              size="sm"
-              onClick={onGenerate}
-              disabled={disabled || generating}
-              className="min-w-0 flex-1 !text-xs sm:flex-none"
-            >
-              {generating ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={13} className="animate-spin" />
-                  {hasParts ? "追加中…" : "生成中…"}
-                </span>
-              ) : (
-                generationActionLabel
-              )}
-            </BookButton>
+            <div className="flex items-center justify-end gap-2 md:pb-0">
+              {!generating ? (
+                <BookIconButton
+                  label={hasParts ? "查看追加请求" : "查看生成请求"}
+                  variant="secondary"
+                  size="md"
+                  onClick={onPreviewGenerate}
+                  disabled={disabled}
+                  className="!h-10 !w-10"
+                >
+                  <Eye size={14} />
+                </BookIconButton>
+              ) : null}
+              <BookButton
+                variant="primary"
+                size="sm"
+                onClick={onGenerate}
+                disabled={disabled || generating}
+                className="h-10 min-w-0 flex-1 !min-h-10 !px-4 !text-xs md:flex-none"
+              >
+                {generating ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <LoadingSpinner size="sm" />
+                    {hasParts ? "追加中…" : "生成中…"}
+                  </span>
+                ) : (
+                  generationActionLabel
+                )}
+              </BookButton>
+            </div>
           </div>
         </details>
       ) : null}
@@ -160,11 +160,11 @@ export function PartOutlineSection({
                   第 {part.part_number} 部
                   {nonEmptyText(part.title) ? ` · ${nonEmptyText(part.title)}` : ""}
                 </div>
-                <div className="mt-0.5 text-[10px] text-book-text-muted">
+                <div className="mt-0.5 text-caption text-book-text-muted">
                   第 {part.start_chapter}-{part.end_chapter} 章
                 </div>
                 {nonEmptyText(part.summary) ? (
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-book-text-sub">
+                  <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
                     {nonEmptyText(part.summary)}
                   </p>
                 ) : null}

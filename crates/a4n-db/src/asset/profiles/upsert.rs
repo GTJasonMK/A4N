@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use a4n_core::models::asset::object_profile;
+use a4n_core::profile_text::merge_profile_evidence_json;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
-use serde_json::{Value, json};
 
 use crate::asset::{AssetDbError, ObjectProfileRecordInput, ObjectProfileUpsertRecordResult};
 
@@ -48,35 +48,11 @@ where
 {
     let first_seen_chapter = existing.first_seen_chapter.min(input.first_seen_chapter);
     let last_seen_chapter = existing.last_seen_chapter.max(input.last_seen_chapter);
-    let evidence_json =
-        merge_text_set_json(existing.evidence_json.clone(), input.evidence_json.clone());
+    let evidence_json = merge_profile_evidence_json(&existing.evidence_json, &input.evidence_json);
     let mut active: object_profile::ActiveModel = existing.into();
     apply_object_profile_input(&mut active, input);
     active.first_seen_chapter = Set(first_seen_chapter);
     active.last_seen_chapter = Set(last_seen_chapter);
     active.evidence_json = Set(evidence_json);
     active.update(db).await.map_err(AssetDbError::Database)
-}
-
-fn merge_text_set_json(existing: Value, incoming: Value) -> Value {
-    let mut values = existing
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .collect::<BTreeSet<_>>();
-    values.extend(
-        incoming
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned),
-    );
-    json!(values.into_iter().collect::<Vec<_>>())
 }

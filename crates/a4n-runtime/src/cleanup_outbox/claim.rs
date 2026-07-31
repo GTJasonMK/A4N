@@ -24,17 +24,16 @@ pub(super) async fn process_claimed_cleanup(
     let mut errors = Vec::new();
 
     renew_cleanup_lease(state, id, lease_token).await?;
-    if cleanup_requires_rag(state.runtime_profile()) {
-        if let Err(error) = run_with_lease_heartbeat(
+    if cleanup_requires_rag(state.runtime_profile())
+        && let Err(error) = run_with_lease_heartbeat(
             state,
             id,
             lease_token,
             state.rag().clear_project_rag(project_id),
         )
         .await
-        {
-            errors.push(format!("清理项目 RAG 失败: {error}"));
-        }
+    {
+        errors.push(format!("清理项目 RAG 失败: {error}"));
     }
     renew_cleanup_lease(state, id, lease_token).await?;
 

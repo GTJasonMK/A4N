@@ -1,4 +1,4 @@
-use super::auth::authenticated_user_from_access_token;
+use super::auth::{authenticated_user, authenticated_user_from_access_token};
 use super::error::ApiError;
 use crate::state::ServerState;
 use a4n_runtime::host_api::{auth_records, storage_paths};
@@ -25,7 +25,7 @@ pub(super) async fn serve(
     Query(query): Query<MediaQuery>,
 ) -> Result<Response, ApiError> {
     let path = media_file::relative_media_path(&query.path).map_err(ApiError::bad_request)?;
-    authorize_media_request(&state, &query, &path).await?;
+    authorize_media_request(&state, &headers, &query, &path).await?;
     let data_dir = storage_paths::data_dir_path(state.runtime().data_dir());
     let path = data_dir.join(path);
     let path = file_utils::canonicalize_path_in_data_dir(&data_dir, &path, MEDIA_LABEL).map_err(
@@ -37,14 +37,19 @@ pub(super) async fn serve(
             }
         },
     )?;
-    file_response(&path, headers.get(header::RANGE))
+    file_response(&path, headers.get(header::RANGE), MEDIA_LABEL)
 }
 
 async fn authorize_media_request(
     state: &ServerState,
+    headers: &HeaderMap,
     query: &MediaQuery,
     path: &Path,
 ) -> Result<(), ApiError> {
+    if headers.contains_key(header::AUTHORIZATION) {
+        authenticated_user(state, headers).await?;
+        return Ok(());
+    }
     if let Some(token) = query
         .access_token
         .as_deref()
@@ -67,14 +72,15 @@ async fn authorize_media_request(
     Ok(())
 }
 
-fn file_response(
+pub(super) fn file_response(
     path: &Path,
     range_header: Option<&header::HeaderValue>,
+    label: &str,
 ) -> Result<Response, ApiError> {
     let media = media_file::read_media_file_response(
         path,
         range_header.map(header::HeaderValue::to_str),
-        MEDIA_LABEL,
+        label,
     )
     .map_err(ApiError::bad_request)?;
     let mut response = Response::builder()

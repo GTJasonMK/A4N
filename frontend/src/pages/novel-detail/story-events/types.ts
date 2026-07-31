@@ -1,12 +1,5 @@
 import type { ChapterData } from "../../../api/chapter";
 
-export interface ChapterAnalysisUpdatedPayload {
-  project_id?: number;
-  chapter_id?: number;
-  chapter_number?: number;
-  updated_at?: string | null;
-}
-
 export interface StoryEvent {
   id: string;
   chapterId: number;

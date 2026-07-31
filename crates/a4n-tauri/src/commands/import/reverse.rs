@@ -35,6 +35,7 @@ async fn run_reverse_engineer_command(
         .map_err(|e| e.to_string())?;
     let progress = WorkflowProgressTask::new(
         state.inner(),
+        Some(user_id),
         task_id,
         TaskKind::LlmCall,
         Some(scope.project_id),
@@ -44,11 +45,25 @@ async fn run_reverse_engineer_command(
     let output = {
         let reporter = progress_reporter(&progress, target.cancelled_message());
         if apply {
-            reverse_engineer_and_apply(state.inner(), user_id, &input, target, &reporter)
+            reverse_engineer_and_apply(
+                state.inner(),
+                user_id,
+                &input,
+                target,
+                &reporter,
+                progress.task_id(),
+            )
                 .await
                 .map_err(|e| e.to_string())
         } else {
-            reverse_engineer(state.inner(), user_id, &input, target, &reporter)
+            reverse_engineer(
+                state.inner(),
+                user_id,
+                &input,
+                target,
+                &reporter,
+                progress.task_id(),
+            )
                 .await
                 .map_err(|e| e.to_string())
         }

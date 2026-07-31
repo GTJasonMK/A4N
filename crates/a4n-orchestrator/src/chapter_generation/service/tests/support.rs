@@ -1,14 +1,8 @@
-use std::sync::Arc;
-
 use a4n_core::models::chapter::chapter::{self, STATUS_DRAFT};
 use a4n_core::models::project::novel_project;
-use a4n_prompt::engine::PromptEntry;
-use a4n_prompt::tera_engine::TeraPromptEngine;
 use sea_orm::*;
 
 use crate::project::{PROJECT_KIND_TEXT, SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT};
-
-use super::super::ChapterGenerationService;
 
 pub(super) async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
@@ -19,28 +13,6 @@ fn fixed_time() -> chrono::NaiveDateTime {
         .unwrap()
         .and_hms_opt(10, 0, 0)
         .unwrap()
-}
-
-pub(super) fn test_service(db: Arc<DatabaseConnection>) -> ChapterGenerationService {
-    ChapterGenerationService::new(db)
-}
-
-pub(super) fn writing_prompt_engine() -> TeraPromptEngine {
-    TeraPromptEngine::with_defaults(vec![PromptEntry {
-        name: "writing".to_string(),
-        title: "writing".to_string(),
-        content: "系统提示词".to_string(),
-        description: None,
-        tags: vec![],
-        category: "writing".to_string(),
-        dependencies: vec![],
-        is_modified: false,
-        version: "1.0".to_string(),
-        modified_at: chrono::Utc::now().naive_utc(),
-        used_by: Vec::new(),
-        path: None,
-    }])
-    .unwrap()
 }
 
 pub(super) async fn insert_project(db: &DatabaseConnection) -> novel_project::Model {

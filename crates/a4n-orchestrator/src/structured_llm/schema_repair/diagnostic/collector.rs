@@ -101,10 +101,10 @@ pub(super) fn keyword_from_schema_path(schema_path: &str) -> &str {
 }
 
 fn expected_schema_fragment(schema: &Value, schema_path: &str) -> Value {
-    if let Some(value) = schema.pointer(schema_path) {
-        if value.is_object() {
-            return value.clone();
-        }
+    if let Some(value) = schema.pointer(schema_path)
+        && value.is_object()
+    {
+        return value.clone();
     }
     let parent = parent_pointer(schema_path).unwrap_or("");
     schema.pointer(parent).cloned().unwrap_or_else(|| json!({}))

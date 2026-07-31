@@ -7,9 +7,30 @@ use std::{
 use a4n_media::{
     VideoAssemblyClip, VideoAssemblyRequest, VideoPostprocessOperation, VideoPostprocessRequest,
     assemble_videos, check_ffmpeg_available, extract_video_frame, extract_video_tail_frame,
-    generate_video_thumbnail, postprocess_video, probe_video_has_audio, probe_video_properties,
-    trim_video_segment,
+    generate_video_thumbnail, postprocess_video, probe_audio_duration_secs, probe_video_has_audio,
+    probe_video_properties, trim_video_segment,
 };
+
+#[test]
+fn ffprobe_reports_real_audio_duration_when_available() {
+    if let Err(error) = check_ffmpeg_available() {
+        eprintln!("skipping real FFprobe audio test because FFmpeg is unavailable: {error}");
+        return;
+    }
+
+    let temp_dir = unique_temp_dir();
+    std::fs::create_dir_all(&temp_dir).expect("create FFprobe audio smoke directory");
+    let input = temp_dir.join("input.wav");
+    create_fixture_audio(&input);
+
+    let duration = probe_audio_duration_secs(&input).expect("probe fixture audio duration");
+    assert!(
+        (0.9..=1.1).contains(&duration),
+        "fixture audio duration should be about one second: {duration}"
+    );
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove FFprobe audio smoke directory");
+}
 
 #[test]
 fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
@@ -90,6 +111,13 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
     ))
     .expect("replace fixture video range");
 
+    for output in [&inserted, &deleted, &replaced] {
+        assert!(
+            probe_video_has_audio(output).expect("probe postprocess output audio"),
+            "postprocess output should preserve base audio and pad silent segments"
+        );
+    }
+
     let inserted_duration = probe_video_properties(&inserted)
         .expect("probe inserted output")
         .duration_secs;
@@ -152,6 +180,9 @@ fn postprocess_request<'a>(
         start_secs,
         end_secs,
         base_duration_secs: 1.0,
+        base_has_audio: true,
+        source_duration_secs: source_path.map(|_| 1.0),
+        source_has_audio: false,
         width: 64,
         height: 64,
         fps: 30,
@@ -184,6 +215,32 @@ fn create_fixture_video(path: &Path, with_audio: bool) {
     assert!(
         output.status.success(),
         "generate FFmpeg fixture: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn create_fixture_audio(path: &Path) {
+    let output = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=48000",
+            "-t",
+            "1",
+            "-c:a",
+            "pcm_s16le",
+        ])
+        .arg(path)
+        .output()
+        .expect("start FFmpeg audio fixture generation");
+    assert!(
+        output.status.success(),
+        "generate FFmpeg audio fixture: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 }

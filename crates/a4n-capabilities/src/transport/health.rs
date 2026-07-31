@@ -43,11 +43,10 @@ pub(crate) fn validate_health_expectation(
     if let Some(service) = expected_service_name
         && expected_capability_version.is_none()
     {
-        return Err(ServiceError {
-            code: ServiceErrorCode::ConfigurationError,
-            message: format!("typed HTTP client service {service} 未注册 capability version"),
-            retryable: Some(false),
-        });
+        return Err(ServiceError::non_retryable(
+            ServiceErrorCode::ConfigurationError,
+            format!("typed HTTP client service {service} 未注册 capability version"),
+        ));
     }
     Ok(())
 }

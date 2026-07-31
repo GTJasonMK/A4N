@@ -9,7 +9,7 @@ use super::super::super::{
 };
 
 impl OrchestratorContext {
-    pub(in crate::video::prompt_generation::frame_prompts) async fn prepare_video_prompt_inputs(
+    pub(in crate::video) async fn prepare_video_prompt_inputs(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -27,7 +27,9 @@ impl OrchestratorContext {
             style,
             prompt_output_language,
             prompt_batch_size,
+            segment_plan_prompt_id,
             target_shot_number,
+            segment_recipe,
             duration_secs,
             aspect_ratio,
             reference_image_ids,
@@ -76,7 +78,9 @@ impl OrchestratorContext {
             source_spans,
             regenerate_existing,
             prompt_batch_size: prompt_batch_size as usize,
+            segment_plan_prompt_id,
             target_shot_number,
+            segment_recipe,
             style,
             prompt_output_language,
             duration_secs,

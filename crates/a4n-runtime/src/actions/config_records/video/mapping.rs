@@ -3,7 +3,6 @@ mod params;
 use super::contracts::{UpdateVideoConfigInput, VideoConfigInput, VideoConfigSummary};
 use a4n_core::models::ai::video_gen_config;
 use a4n_orchestrator::video::validate_video_config_params;
-use a4n_orchestrator::video::video_generation_capabilities;
 
 use params::{video_config_params, video_update_config_params};
 
@@ -29,15 +28,24 @@ pub(super) fn video_config_summary(config: &video_gen_config::Model) -> VideoCon
         supported_durations_json: config.supported_durations_json.clone(),
         default_fps: config.default_fps,
         provider_options_json: config.provider_options_json.clone(),
-        capabilities: video_generation_capabilities(
-            &config.backend,
-            &config.model,
-            config.provider_options_json.as_ref(),
-        ),
         is_default: config.is_default,
         created_at: Some(config.created_at.to_string()),
         updated_at: Some(config.updated_at.to_string()),
     }
+}
+
+pub(super) fn video_create_params(
+    input: VideoConfigInput,
+) -> Result<a4n_orchestrator::video::VideoConfigParams, String> {
+    validate_video_config_params(video_config_params(input))
+        .map_err(|err| a4n_core::error::AppError::InvalidArgument(err).to_string())
+}
+
+pub(super) fn video_update_params(
+    _existing: &video_gen_config::Model,
+    input: UpdateVideoConfigInput,
+) -> Result<a4n_orchestrator::video::UpdateVideoConfigParams, String> {
+    Ok(video_update_config_params(input))
 }
 
 #[cfg(test)]
@@ -84,18 +92,4 @@ mod tests {
             Some(Some("sk-new".to_string()))
         );
     }
-}
-
-pub(super) fn video_create_params(
-    input: VideoConfigInput,
-) -> Result<a4n_orchestrator::video::VideoConfigParams, String> {
-    validate_video_config_params(video_config_params(input))
-        .map_err(|err| a4n_core::error::AppError::InvalidArgument(err).to_string())
-}
-
-pub(super) fn video_update_params(
-    _existing: &video_gen_config::Model,
-    input: UpdateVideoConfigInput,
-) -> Result<a4n_orchestrator::video::UpdateVideoConfigParams, String> {
-    Ok(video_update_config_params(input))
 }

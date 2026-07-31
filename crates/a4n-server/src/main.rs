@@ -8,8 +8,11 @@ use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
+const SERVER_THREAD_STACK_SIZE: usize = 8 * 1024 * 1024;
+
 fn main() -> anyhow::Result<()> {
     tokio::runtime::Builder::new_multi_thread()
+        .thread_stack_size(SERVER_THREAD_STACK_SIZE)
         .enable_all()
         .build()?
         .block_on(async_main())
@@ -26,8 +29,28 @@ async fn async_main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(bind_addr).await?;
     tracing::info!("A4N Web server listening on http://{bind_addr}");
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
+}
+
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("install SIGTERM handler");
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {},
+            _ = terminate.recv() => {},
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+    tracing::info!("A4N Web server shutting down");
 }
 
 fn router(state: state::ServerState, frontend_dist: PathBuf) -> Router {

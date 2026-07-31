@@ -38,7 +38,7 @@ export const ManageView: React.FC<{
             type="button"
             onClick={() => setSec(s.id)}
             data-active={sec === s.id ? "1" : undefined}
-            className="pyqt-tab shrink-0 !text-[10px]"
+            className="pyqt-tab shrink-0 !text-caption"
             title={s.label}
             aria-label={s.label}
           >

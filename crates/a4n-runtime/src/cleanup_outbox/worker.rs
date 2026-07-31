@@ -122,32 +122,6 @@ pub async fn drain_cleanup_outbox(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{CleanupKind, next_cleanup_kind};
-
-    #[test]
-    fn cleanup_kinds_rotate_before_repeating() {
-        let mut index = 0;
-        let order = (0..8)
-            .map(|_| next_cleanup_kind(&mut index))
-            .collect::<Vec<_>>();
-        assert_eq!(
-            order,
-            vec![
-                CleanupKind::FileArtifact,
-                CleanupKind::MediaWorkflowReset,
-                CleanupKind::ProjectDeletion,
-                CleanupKind::Generation,
-                CleanupKind::FileArtifact,
-                CleanupKind::MediaWorkflowReset,
-                CleanupKind::ProjectDeletion,
-                CleanupKind::Generation,
-            ]
-        );
-    }
-}
-
 pub async fn recover_cleanup_outbox(state: &AppState) {
     if let Err(error) = drain_cleanup_outbox(state, None, STARTUP_DRAIN_LIMIT).await {
         tracing::warn!(error = %error, "启动恢复 cleanup outbox 失败");
@@ -212,5 +186,31 @@ async fn purge_completed_cleanup_audits(state: &AppState) {
         }
         Ok(_) => {}
         Err(error) => tracing::warn!(error = %error, "cleanup outbox 审计 TTL 清理失败"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CleanupKind, next_cleanup_kind};
+
+    #[test]
+    fn cleanup_kinds_rotate_before_repeating() {
+        let mut index = 0;
+        let order = (0..8)
+            .map(|_| next_cleanup_kind(&mut index))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            order,
+            vec![
+                CleanupKind::FileArtifact,
+                CleanupKind::MediaWorkflowReset,
+                CleanupKind::ProjectDeletion,
+                CleanupKind::Generation,
+                CleanupKind::FileArtifact,
+                CleanupKind::MediaWorkflowReset,
+                CleanupKind::ProjectDeletion,
+                CleanupKind::Generation,
+            ]
+        );
     }
 }

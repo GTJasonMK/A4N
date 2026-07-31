@@ -100,16 +100,13 @@ pub async fn rollback_project_status_record(
     )
     .await?;
     project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, changed_at).await?;
-    let media_paths =
-        crate::media::filter_unreferenced_media_paths(&tx, &candidate_media_paths).await?;
-    if !media_paths.is_empty() {
-        crate::cleanup_outbox::insert_file_artifact_cleanup_intent(
-            &tx,
-            format!("project-status-rollback:{project_id}:{to_status}"),
-            crate::cleanup_outbox::FileArtifactCleanupPayload::new(project_id, media_paths.clone()),
-        )
-        .await?;
-    }
+    let media_paths = crate::media::schedule_unreferenced_media_cleanup(
+        &tx,
+        project_id,
+        &candidate_media_paths,
+        format!("project-status-rollback:{project_id}:{to_status}"),
+    )
+    .await?;
     tx.commit().await?;
     Ok(ProjectStatusRollbackOutcome {
         project: updated,

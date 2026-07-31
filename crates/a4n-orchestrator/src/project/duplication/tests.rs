@@ -8,9 +8,9 @@ use a4n_core::{
     models::{media::media_asset, project::novel_project},
 };
 use a4n_db::project::{
-    CreateFreeformVideoProjectParams, DerivedProjectMediaFileCopier,
-    FreeformProjectMediaFileCopier, PROJECT_KIND_TEXT, ProjectMediaCopyError, SOURCE_MODE_SELF,
-    SOURCE_SYNC_CURRENT, create_freeform_video_project_record,
+    CreateFreeformVideoProjectParams, PROJECT_KIND_TEXT, ProjectMediaCopyError,
+    ProjectMediaFileCopier, SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT,
+    create_freeform_video_project_record,
 };
 use async_trait::async_trait;
 use chrono::Utc;
@@ -50,19 +50,7 @@ impl TestProjectDuplicationHost {
     }
 }
 
-impl DerivedProjectMediaFileCopier for TestProjectDuplicationHost {
-    fn copy_media_file(
-        &mut self,
-        _new_project_id: i64,
-        _source_media_asset_id: i64,
-        _field: &str,
-        relative_path: Option<&str>,
-    ) -> Result<Option<String>, ProjectMediaCopyError> {
-        self.copied_path(relative_path)
-    }
-}
-
-impl FreeformProjectMediaFileCopier for TestProjectDuplicationHost {
+impl ProjectMediaFileCopier for TestProjectDuplicationHost {
     fn copy_media_file(
         &mut self,
         _new_project_id: i64,

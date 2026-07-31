@@ -6,8 +6,12 @@ interface AdminSectionLoaderOptions {
   intervalMs?: number;
 }
 
-export function useAdminSectionLoader(
-  loadData: () => Promise<void>,
+type AdminSectionScope = number | string;
+
+export function useAdminSectionLoader<T>(
+  scopeKey: AdminSectionScope,
+  loadData: () => Promise<T>,
+  applyData: (data: T) => void,
   errorMessage: string,
   options: AdminSectionLoaderOptions = {},
 ) {
@@ -15,8 +19,14 @@ export function useAdminSectionLoader(
   const [loading, setLoading] = useState(false);
   const { intervalMs } = options;
   const mountedRef = useRef(true);
+  const activeScopeRef = useRef(scopeKey);
   const loadSeqRef = useRef(0);
-  const inFlightLoadRef = useRef<(() => Promise<void>) | null>(null);
+  const inFlightLoadRef = useRef<{
+    scopeKey: AdminSectionScope;
+    loadData: () => Promise<T>;
+  } | null>(null);
+
+  activeScopeRef.current = scopeKey;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -25,28 +35,40 @@ export function useAdminSectionLoader(
     };
   }, []);
 
-  const isCurrentLoad = useCallback((seq: number) => {
-    return mountedRef.current && loadSeqRef.current === seq;
+  const isCurrentScope = useCallback((requestScopeKey: AdminSectionScope) => {
+    return mountedRef.current && Object.is(activeScopeRef.current, requestScopeKey);
   }, []);
 
+  const isCurrentLoad = useCallback(
+    (requestScopeKey: AdminSectionScope, seq: number) => {
+      return isCurrentScope(requestScopeKey) && loadSeqRef.current === seq;
+    },
+    [isCurrentScope],
+  );
+
   const load = useCallback(async () => {
-    if (inFlightLoadRef.current === loadData) return;
+    if (
+      Object.is(inFlightLoadRef.current?.scopeKey, scopeKey) &&
+      inFlightLoadRef.current?.loadData === loadData
+    ) return;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
-    inFlightLoadRef.current = loadData;
+    inFlightLoadRef.current = { scopeKey, loadData };
     setLoading(true);
     try {
-      await loadData();
+      const data = await loadData();
+      if (!isCurrentLoad(scopeKey, requestSeq)) return;
+      applyData(data);
     } catch (err) {
-      if (!isCurrentLoad(requestSeq)) return;
+      if (!isCurrentLoad(scopeKey, requestSeq)) return;
       addToast(extractErrorMessage(err, errorMessage), "error");
     } finally {
-      if (isCurrentLoad(requestSeq)) {
+      if (isCurrentLoad(scopeKey, requestSeq)) {
         inFlightLoadRef.current = null;
         setLoading(false);
       }
     }
-  }, [addToast, errorMessage, isCurrentLoad, loadData]);
+  }, [addToast, applyData, errorMessage, isCurrentLoad, loadData, scopeKey]);
 
   useEffect(() => {
     void load();
@@ -57,5 +79,5 @@ export function useAdminSectionLoader(
     return () => window.clearInterval(timer);
   }, [intervalMs, load]);
 
-  return { loading, load };
+  return { loading, load, isCurrentScope };
 }

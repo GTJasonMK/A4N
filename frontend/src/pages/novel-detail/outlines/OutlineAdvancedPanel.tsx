@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Loader2 } from "lucide-react";
+import { Eye } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { useToast } from "../../../components/feedback/Toast";
@@ -48,7 +49,7 @@ const CompletionRow: React.FC<{ label: string; current: number; total: number }>
   const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
   return (
     <div>
-      <div className="mb-1 flex items-center gap-2 text-[11px]">
+      <div className="mb-1 flex items-center gap-2 text-small">
         <span className="font-medium text-book-text-sub">{label}</span>
         <span className="ml-auto tabular-nums text-book-text-muted">
           {current} / {total}
@@ -66,7 +67,7 @@ const CompletionRow: React.FC<{ label: string; current: number; total: number }>
 
 const PacingSummary: React.FC<{ data: ChapterOutlinePacing }> = ({ data }) => (
   <div className="space-y-2">
-    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px]">
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-small">
       <span className="font-medium text-book-text-main">{data.summary || "暂无节奏结论"}</span>
       <span className="text-book-text-muted">
         {data.chapter_count} 章 · 平均节奏 {data.pacing_score.toFixed(2)}
@@ -75,7 +76,7 @@ const PacingSummary: React.FC<{ data: ChapterOutlinePacing }> = ({ data }) => (
     {data.analysis.length > 0 ? (
       <div className="divide-y divide-book-border/35">
         {data.analysis.map((item) => (
-          <div key={item.chapter_number} className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-2 py-1.5 text-[11px]">
+          <div key={item.chapter_number} className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-2 py-1.5 text-small">
             <span className="min-w-0 truncate text-book-text-sub">
               第 {item.chapter_number} 章{item.title ? ` · ${item.title}` : ""}
             </span>
@@ -94,7 +95,7 @@ const PacingSummary: React.FC<{ data: ChapterOutlinePacing }> = ({ data }) => (
         ))}
       </div>
     ) : (
-      <div className="text-[11px] text-book-text-muted">暂无章节节奏数据</div>
+      <div className="text-small text-book-text-muted">暂无章节节奏数据</div>
     )}
   </div>
 );
@@ -128,7 +129,7 @@ function AdvancedActionRow({
     >
       <div className="min-w-0 flex-1">
         <h5 className="text-xs font-medium text-book-text-main">{title}</h5>
-        <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">{description}</p>
+        <p className="mt-1 text-small leading-relaxed text-book-text-muted">{description}</p>
       </div>
       <div className="flex items-center justify-end gap-2 sm:shrink-0">
         {!busy ? (
@@ -152,7 +153,7 @@ function AdvancedActionRow({
         >
           {busy ? (
             <span className="inline-flex items-center gap-1.5">
-              <Loader2 size={11} className="animate-spin" /> {actionBusyLabel}
+              <LoadingSpinner size="sm" /> {actionBusyLabel}
             </span>
           ) : (
             actionLabel
@@ -950,7 +951,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
               aria-checked={autoPoll}
               onClick={() => setAutoPoll((current) => !current)}
               disabled={controlsDisabled}
-              className="ml-auto inline-flex items-center gap-2 text-[11px] text-book-text-muted disabled:cursor-not-allowed disabled:opacity-50"
+              className="ml-auto inline-flex items-center gap-2 text-small text-book-text-muted disabled:cursor-not-allowed disabled:opacity-50"
               title={autoPoll ? "关闭自动刷新" : "开启自动刷新"}
             >
               <span>自动刷新</span>
@@ -971,11 +972,11 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
               size="sm"
               onClick={loadProgress}
               disabled={disabled || progressLoading}
-              className="!px-2 !text-[11px]"
+              className="!px-2 !text-small"
             >
               {progressLoading ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={11} className="animate-spin" /> 刷新中…
+                  <LoadingSpinner size="sm" /> 刷新中…
                 </span>
               ) : (
                 "刷新"
@@ -992,7 +993,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
               />
             </div>
           ) : (
-            <p className="text-[11px] text-book-text-muted">尚未查询生成进度。</p>
+            <p className="text-small text-book-text-muted">尚未查询生成进度。</p>
           )}
         </section>
 
@@ -1001,16 +1002,16 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
             <div className="min-w-0 flex-1">
               <h4 className="text-sm font-medium text-book-text-main">章纲节奏分析</h4>
               {!pacing ? (
-                <p className="mt-0.5 text-[11px] text-book-text-muted">检查高潮、平缓和转折的章节分布。</p>
+                <p className="mt-0.5 text-small text-book-text-muted">检查高潮、平缓和转折的章节分布。</p>
               ) : null}
             </div>
             {pacingLoading ? (
               <span
                 role="status"
-                className="inline-flex min-h-8 shrink-0 items-center gap-1.5 text-[11px] text-book-text-muted"
+                className="inline-flex min-h-8 shrink-0 items-center gap-1.5 text-small text-book-text-muted"
                 title="正在分析章纲节奏"
               >
-                <Loader2 size={11} className="animate-spin" /> 分析中…
+                <LoadingSpinner size="sm" /> 分析中…
               </span>
             ) : pacing ? (
               <Dropdown
@@ -1041,7 +1042,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       <section className="space-y-2">
         <div>
           <h4 className="text-sm font-medium text-book-text-main">选中分部</h4>
-          <p className="mt-0.5 text-[11px] text-book-text-muted">为一个分部补齐对应的章节大纲。</p>
+          <p className="mt-0.5 text-small text-book-text-muted">为一个分部补齐对应的章节大纲。</p>
         </div>
         <select
           value={selectedPartId}
@@ -1074,7 +1075,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       <section className="space-y-2">
         <div>
           <h4 className="text-sm font-medium text-book-text-main">全部分部</h4>
-          <p className="mt-0.5 text-[11px] text-book-text-muted">批量补齐现有章纲，或沿用当前结构续作下一部。</p>
+          <p className="mt-0.5 text-small text-book-text-muted">批量补齐现有章纲，或沿用当前结构续作下一部。</p>
         </div>
         <div className="grid gap-2">
           <AdvancedActionRow
@@ -1105,7 +1106,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       <details className="group">
         <summary className="a4n-flat-surface flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
           <span className="font-medium text-book-text-main">覆盖性重写</span>
-          <span className="min-w-0 flex-1 truncate text-right text-[11px] text-book-text-muted">
+          <span className="min-w-0 flex-1 truncate text-right text-small text-book-text-muted">
             重写选中分部或完整分部结构
           </span>
         </summary>
@@ -1142,14 +1143,14 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           节拍映射
         </summary>
         <div className="space-y-3 border-t border-book-border/40 p-3 text-xs">
-          <p className="text-[11px] leading-relaxed text-book-text-muted">
+          <p className="text-small leading-relaxed text-book-text-muted">
             使用 JSON 描述故事节拍到章节的映射。该设置面向高级工作流，默认不影响普通大纲生成。
           </p>
           <textarea
             value={beatJson}
             onChange={(event) => setBeatJson(event.target.value)}
             disabled={controlsDisabled}
-            className="pyqt-input h-24 w-full resize-y font-mono text-[11px]"
+            className="pyqt-input h-24 w-full resize-y font-mono text-small"
           />
           <div className="flex items-center justify-end gap-2">
             {!beatBusy ? (
@@ -1173,7 +1174,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
             >
               {beatBusy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={11} className="animate-spin" /> 应用中…
+                  <LoadingSpinner size="sm" /> 应用中…
                 </span>
               ) : (
                 "应用节拍"

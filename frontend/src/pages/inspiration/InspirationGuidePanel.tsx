@@ -1,5 +1,5 @@
 import React from "react";
-import { HelpCircle, Loader2 } from "lucide-react";
+import { HelpCircle } from "lucide-react";
 
 interface InspirationGuidePanelProps {
   progressSummaryLines: string[];
@@ -18,7 +18,7 @@ export const InspirationGuidePanel: React.FC<InspirationGuidePanelProps> = ({
     <div className="flex h-full min-h-0 w-full flex-col p-3">
       <header className="border-b border-book-border/55 px-1 pb-3 pt-1">
         <h2 className="text-sm font-semibold text-book-text-main">创作进度</h2>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+        <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
           已确认的信息会随对话自动整理
         </p>
       </header>
@@ -57,30 +57,27 @@ export const InspirationProgressContent: React.FC<InspirationGuidePanelProps> = 
         </ul>
       ) : (
         <div className="rounded-[12px] border border-dashed border-book-border bg-book-bg px-3 py-3 text-xs leading-relaxed text-book-text-muted">
-          {sending ? (
-            <span className="inline-flex items-center gap-1.5">
-              <Loader2 size={12} className="animate-spin" />
-              创作助手正在整理当前进度…
-            </span>
-          ) : (
-            "每轮对话后会自动汇总已确认的故事信息。"
-          )}
+          {sending
+            ? "本轮回复完成后，将在这里汇总故事信息。"
+            : "每轮对话后会自动汇总已确认的故事信息。"}
         </div>
       )}
     </section>
 
     <section className="mt-4 border-t border-book-border/45 pt-3">
-      <div className="mb-2 text-[10px] font-semibold text-book-text-muted">
+      <div className="mb-2 text-caption font-semibold text-book-text-muted">
         下一步
       </div>
       <div className="px-1 py-1">
         <div className="flex items-start gap-2 text-xs leading-relaxed text-book-text-main">
           <HelpCircle size={13} className="mt-0.5 shrink-0 text-book-accent" />
           <span className="min-w-0 break-words">
-            {nextQuestion ||
-              (isReady
-                ? "可以先生成首版蓝图，再回到详情页继续细化。"
-                : "继续回答创作助手的追问，把核心冲突、人物动机和世界规则说清楚。")}
+            {sending
+              ? "等待本轮回复完成后查看下一步建议。"
+              : nextQuestion ||
+                (isReady
+                  ? "可以先生成首版蓝图，再回到详情页继续细化。"
+                  : "继续回答创作助手的追问，把核心冲突、人物动机和世界规则说清楚。")}
           </span>
         </div>
       </div>

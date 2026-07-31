@@ -61,7 +61,7 @@ export const AttributePreview: React.FC<{
 
   return (
     <section className="px-3 py-3 sm:px-4">
-      <h3 className="mb-2 text-[11px] font-semibold text-book-text-main">{label}</h3>
+      <h3 className="mb-2 text-small font-semibold text-book-text-main">{label}</h3>
       <ul className="divide-y divide-book-border/35">
         {visibleEntries.slice(0, 6).map(({ key, text }) => (
           <li key={key}>
@@ -80,7 +80,7 @@ export const AttributePreview: React.FC<{
         ))}
       </ul>
       {visibleEntries.length > 6 && (
-        <div className="mt-2 text-[10px] text-book-text-muted">
+        <div className="mt-2 text-caption text-book-text-muted">
           另有 {visibleEntries.length - 6} 项，进入深度详情查看完整状态和溯源。
         </div>
       )}

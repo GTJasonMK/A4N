@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ChevronDown,
+import { ChevronDown,
   ChevronRight,
-  Loader2,
   RefreshCw,
-  Save,
-} from "lucide-react";
+  Save, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -176,7 +174,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
             <span className="block text-xs font-semibold text-book-text-main">
               场景输出预算
             </span>
-            <span className="block truncate text-[11px] text-book-text-muted">
+            <span className="block truncate text-small text-book-text-muted">
               {maxTokensSummary(form, loading, modelMaxOutputTokens)}
             </span>
           </span>
@@ -200,7 +198,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
             >
               {saving ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={13} className="animate-spin" /> 保存中…
+                  <LoadingSpinner size="sm" /> 保存中…
                 </span>
               ) : (
                 <>
@@ -218,7 +216,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
         </div>
       ) : (
         <div className="space-y-4 border-t border-book-border/35 p-3">
-          <div className="text-[11px] leading-relaxed text-book-text-muted">
+          <div className="text-small leading-relaxed text-book-text-muted">
             每个场景的输出上限不能超过默认模型的最大输出
             {modelMaxOutputTokens ? ` ${modelMaxOutputTokens}` : ""}。
           </div>
@@ -228,7 +226,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                 {group.fields.map((field) => (
                   <label key={field.key} className="block">
-                    <span className="block text-[11px] text-book-text-muted mb-1">
+                    <span className="block text-small text-book-text-muted mb-1">
                       {field.label}
                     </span>
                     <BookInput
@@ -264,7 +262,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
             </div>
           ))}
           {dirty && validationError ? (
-            <div role="status" className="text-[11px] leading-relaxed text-warning">
+            <div role="status" className="text-small leading-relaxed text-warning">
               {validationError}
             </div>
           ) : null}

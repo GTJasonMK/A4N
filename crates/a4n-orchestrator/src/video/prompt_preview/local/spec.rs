@@ -7,11 +7,18 @@ use a4n_core::error::AppError;
 
 use super::{PromptWorkflowMode, VideoSegmentPlan};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum LocalVideoPromptPreviewMode {
     BoundaryFrames,
     FirstFrameChain,
-    ChatVideoBoundaryFrames,
+    ChatVideo,
+    Storyboard,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum LocalFramePromptPreviewMode {
+    BoundaryFrames,
+    FirstFrameChain,
     Storyboard,
 }
 
@@ -37,13 +44,28 @@ impl LocalVideoPromptPreviewSpec {
         match self.mode {
             LocalVideoPromptPreviewMode::BoundaryFrames => PromptWorkflowMode::BoundaryFrames,
             LocalVideoPromptPreviewMode::FirstFrameChain => PromptWorkflowMode::FirstFrameChain,
-            LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => PromptWorkflowMode::ChatVideo,
+            LocalVideoPromptPreviewMode::ChatVideo => PromptWorkflowMode::ChatVideo,
             LocalVideoPromptPreviewMode::Storyboard => PromptWorkflowMode::Storyboard,
         }
     }
 
     pub(super) fn workflow_mode(self) -> &'static str {
         self.prompt_workflow_mode().as_str()
+    }
+
+    pub(super) fn frame_mode(self) -> Option<LocalFramePromptPreviewMode> {
+        match self.mode {
+            LocalVideoPromptPreviewMode::BoundaryFrames => {
+                Some(LocalFramePromptPreviewMode::BoundaryFrames)
+            }
+            LocalVideoPromptPreviewMode::FirstFrameChain => {
+                Some(LocalFramePromptPreviewMode::FirstFrameChain)
+            }
+            LocalVideoPromptPreviewMode::Storyboard => {
+                Some(LocalFramePromptPreviewMode::Storyboard)
+            }
+            LocalVideoPromptPreviewMode::ChatVideo => None,
+        }
     }
 
     pub(super) fn boundary_frames() -> Self {
@@ -82,21 +104,21 @@ impl LocalVideoPromptPreviewSpec {
         }
     }
 
-    pub(super) fn chat_video_boundary_frames() -> Self {
+    pub(super) fn chat_video() -> Self {
         Self {
-            mode: LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames,
+            mode: LocalVideoPromptPreviewMode::ChatVideo,
             reuse_sequence: VideoPromptReuseSequence::NearestPrevious,
             segment_prompt_type: "frame_segment_plan",
             segment_title: "视频片段规划",
             segment_reused_note: "已存在当前章节共享片段规划，Chat 视频提示词请求会直接使用该前置结果",
-            frame_key: "chat_video_frame_prompts",
-            frame_title: "Chat 首尾帧提示词",
-            frame_prompt_type: "chat_video_frame_prompt",
+            frame_key: "frames",
+            frame_title: "",
+            frame_prompt_type: "",
             frame_source_prompt_type: "frame_segment_plan",
-            frame_prompt_name: "chapter_video_frame_prompts",
+            frame_prompt_name: "",
             video_title: "Chat 视频提示词",
             video_prompt_name: "chapter_video_chat_prompt",
-            video_placeholder_note: "结构预览：真实生成时 previous_steps.chapter_video_segment_plan 和 chapter_video_frame_prompts 会替换为 Chat 前序模型输出；这里用占位前序结果展示单段 Chat 视频提示词请求格式。",
+            video_placeholder_note: "结构预览：真实生成时 previous_steps.chapter_video_segment_plan 会替换为共享片段规划模型输出；Chat 方案不生成中间帧提示词。",
         }
     }
 

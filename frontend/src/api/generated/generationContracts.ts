@@ -247,6 +247,21 @@ export type VideoGenerationOperation =
       chapter_id: number;
       input: ReferenceMediaVideoInput;
       kind: "reference_media";
+    }
+  | {
+      chapter_id: number;
+      kind: "prompt_segment_plan";
+      options: VideoPromptGenerationOptions;
+    }
+  | {
+      chapter_id: number;
+      kind: "prompt_frames";
+      options: VideoPromptGenerationOptions;
+    }
+  | {
+      chapter_id: number;
+      kind: "prompt_videos";
+      options: VideoPromptGenerationOptions;
     };
 
 export interface GenerationContractBundle {
@@ -616,32 +631,46 @@ export interface StartVideoGenerationInput {
   project_id: number;
 }
 /**
- * 参考媒体视频请求；预览和正式生产共用这一 DTO。
+ * 参考媒体视频请求；提示词、URL 槽、时长和画幅由当前片段 recipe 决定。
  */
 export interface ReferenceMediaVideoInput {
-  aspect_ratio: string;
-  audio_files?: string[];
   audio_uploads?: ReferenceMediaUploadInput[];
   config_id?: number | null;
-  duration_secs: number;
-  image_files?: string[];
   image_uploads?: ReferenceMediaUploadInput[];
-  prompt: string;
   /**
-   * 关联的片段视频提示词。预览与生成使用同一片段身份。
+   * 当前共享片段规划。预览与生成使用同一规划身份。
    */
-  segment_prompt_id: number;
+  segment_plan_prompt_id: number;
   /**
    * 片段顺序快照，用于结果筛选和身份校验。
    */
   shot_number: number;
-  video_files?: string[];
   video_uploads?: ReferenceMediaUploadInput[];
 }
 export interface ReferenceMediaUploadInput {
   data_base64: string;
   file_name: string;
   mime_type: string;
+}
+/**
+ * 章节视频提示词三段式生成共用的输入。
+ */
+export interface VideoPromptGenerationOptions {
+  aspect_ratio: string;
+  duration_secs: number;
+  duration_secs_options?: number[];
+  prompt_batch_size: number;
+  prompt_output_language?: string | null;
+  reference_image_ids?: number[];
+  regenerate_existing?: boolean;
+  /**
+   * 当前共享片段规划。生成片段规划时为空；生成某个片段的帧或最终提示词时必填。
+   */
+  segment_plan_prompt_id?: number | null;
+  style: string;
+  target_shot_number?: number | null;
+  video_library_image_ids?: number[];
+  workflow_mode?: string | null;
 }
 export interface GenerationSubscriptionHandle {
   attempt: number;

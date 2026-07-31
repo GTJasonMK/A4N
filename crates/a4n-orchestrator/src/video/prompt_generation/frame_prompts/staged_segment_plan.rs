@@ -1,5 +1,6 @@
 mod contracts;
 mod finalization;
+mod recipes;
 mod recovery;
 mod shots;
 
@@ -13,6 +14,13 @@ use self::contracts::{
     CompletedSegmentPlanRecoveryInput, FinalizeStagedSegmentPlanInput, StagedSegmentPlanResult,
 };
 use self::finalization::finalize_staged_segment_plan;
+use self::recipes::segment_plan_shot_recipe_artifacts;
+pub(in crate::video) use self::recipes::{
+    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_recipe_state,
+    materialize_video_segment_plan_draft_recipes,
+    update_video_segment_plan_draft_recipe_checkpoint,
+    video_segment_recipes_from_draft_for_final_plan,
+};
 use self::recovery::reuse_completed_staged_segment_plan;
 use self::shots::render_segment_plan_shots;
 use super::video_final_segment_plan_fingerprint;
@@ -28,6 +36,7 @@ pub(super) async fn render_staged_segment_plan_with_duration(
             "视频片段规划必须基于至少一个导演镜头".to_string(),
         ));
     }
+    let cancel_token = input.cancel_token;
     let final_fingerprint_json = video_final_segment_plan_fingerprint(
         input.project_id,
         input.source,
@@ -64,6 +73,7 @@ pub(super) async fn render_staged_segment_plan_with_duration(
         shooting_script_projection,
         duration_secs,
         default_aspect_ratio,
+        cancel_token,
         rendered_shots,
     })
     .await

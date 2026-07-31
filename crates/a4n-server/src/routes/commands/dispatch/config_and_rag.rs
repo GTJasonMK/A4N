@@ -9,7 +9,6 @@ pub(super) async fn try_dispatch(
     let result = match cmd {
         "list_themes" => list_themes(state, user_id, args).await?,
         "list_user_themes" => list_user_themes(state, user_id, args).await?,
-        "get_system_default_theme" => get_system_default_theme(state, user_id, args).await?,
         "create_theme" => create_theme(state, user_id, args).await?,
         "update_theme" => update_theme(state, user_id, args).await?,
         "delete_theme" => delete_theme(state, user_id, args).await?,

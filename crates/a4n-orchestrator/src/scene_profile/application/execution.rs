@@ -64,7 +64,12 @@ impl OrchestratorContext {
             .await
             .map_err(scene_profile_sync_application_error)?;
         let workflow_run = self
-            .begin_scene_profile_sync_workflow_validated(project_id, chapter_number, &chapters)
+            .begin_scene_profile_sync_workflow_validated(
+                project_id,
+                chapter_number,
+                &chapters,
+                progress.and_then(|progress| progress.active_task_id),
+            )
             .await?;
         let result = chapters::sync_scene_profile_chapters(
             self,
@@ -77,6 +82,9 @@ impl OrchestratorContext {
         )
         .await;
         let finalized = finalize_scene_profile_sync_workflow(self, workflow_run.id, &result).await;
+        if matches!(&finalized, Err(AppError::Cancelled)) {
+            return Err(AppError::Cancelled);
+        }
         match (result, finalized) {
             (Ok(summary), Ok(())) => Ok(summary),
             (Err(error), Ok(())) => Err(scene_profile_sync_application_error(error)),
@@ -95,6 +103,9 @@ impl OrchestratorContext {
 }
 
 fn scene_profile_sync_application_error(message: String) -> AppError {
+    if message == "场景档案同步已停止" {
+        return AppError::Cancelled;
+    }
     AppError::InvalidState {
         current: "scene_profile_sync".to_string(),
         operation: message,

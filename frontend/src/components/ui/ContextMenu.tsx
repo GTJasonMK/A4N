@@ -139,7 +139,7 @@ export const ContextMenuHost: React.FC = () => {
             )}
             <span className="flex-1 whitespace-nowrap">{it.label}</span>
             {it.shortcut && (
-              <span className="text-[10px] text-book-text-muted">{it.shortcut}</span>
+              <span className="text-caption text-book-text-muted">{it.shortcut}</span>
             )}
           </button>
         );

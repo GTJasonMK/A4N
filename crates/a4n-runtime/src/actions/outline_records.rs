@@ -3,7 +3,7 @@ use crate::actions::request_preview::{
 };
 use a4n_core::error::AppError;
 #[cfg(test)]
-use a4n_core::models::chapter::{chapter_outline, part_outline};
+use a4n_core::models::chapter::chapter_outline;
 use a4n_llm::provider::ChatRequest;
 use a4n_orchestrator::outline::OutlineRequestPreviewStep;
 

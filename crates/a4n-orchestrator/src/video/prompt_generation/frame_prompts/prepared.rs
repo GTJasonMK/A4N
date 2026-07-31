@@ -6,25 +6,28 @@ use super::{
     FRAME_SEGMENT_PLAN_CONTRACT_VERSION, NewChapterVideoPrompt, PromptOutputLanguage, SourceSpan,
     VideoPromptGenerationTrace, VideoSegmentPlan,
 };
+use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 
-pub(super) struct PreparedVideoPromptInputs {
-    pub(super) source_metadata: Value,
-    pub(super) source_spans: Vec<SourceSpan>,
-    pub(super) regenerate_existing: bool,
-    pub(super) prompt_batch_size: usize,
-    pub(super) target_shot_number: Option<i32>,
-    pub(super) style: String,
-    pub(super) prompt_output_language: PromptOutputLanguage,
-    pub(super) duration_secs: i32,
-    pub(super) aspect_ratio: String,
-    pub(super) reference_image_ids: Vec<i64>,
-    pub(super) video_library_image_ids: Vec<i64>,
-    pub(super) reference_ids: Value,
-    pub(super) generation_asset_fingerprint: Value,
-    pub(super) project_context: Option<Value>,
-    pub(super) available_assets: Value,
-    pub(super) vars: HashMap<String, Value>,
-    pub(super) workflow_run_id: Option<i64>,
+pub(in crate::video) struct PreparedVideoPromptInputs {
+    pub(in crate::video) source_metadata: Value,
+    pub(in crate::video) source_spans: Vec<SourceSpan>,
+    pub(in crate::video) regenerate_existing: bool,
+    pub(in crate::video) prompt_batch_size: usize,
+    pub(in crate::video) target_shot_number: Option<i32>,
+    pub(in crate::video) segment_plan_prompt_id: Option<i64>,
+    pub(in crate::video) segment_recipe: Option<VideoSegmentExecutionRecipeV1>,
+    pub(in crate::video) style: String,
+    pub(in crate::video) prompt_output_language: PromptOutputLanguage,
+    pub(in crate::video) duration_secs: i32,
+    pub(in crate::video) aspect_ratio: String,
+    pub(in crate::video) reference_image_ids: Vec<i64>,
+    pub(in crate::video) video_library_image_ids: Vec<i64>,
+    pub(in crate::video) reference_ids: Value,
+    pub(in crate::video) generation_asset_fingerprint: Value,
+    pub(in crate::video) project_context: Option<Value>,
+    pub(in crate::video) available_assets: Value,
+    pub(in crate::video) vars: HashMap<String, Value>,
+    pub(in crate::video) workflow_run_id: Option<i64>,
 }
 
 pub(super) struct PreparedSegmentPlan {
@@ -40,6 +43,12 @@ pub(crate) struct ReusableSegmentPlan {
     pub(crate) segment_plan: Vec<VideoSegmentPlan>,
     pub(super) draft: NewChapterVideoPrompt,
     pub(crate) execution_identity: Value,
+}
+
+pub(super) struct LoadedSharedSegmentPlan {
+    pub(super) segment_json: Value,
+    pub(super) segment_plan: Vec<VideoSegmentPlan>,
+    pub(super) execution_identity: Value,
 }
 
 pub(super) const SHARED_SEGMENT_PLAN_PROMPT_TYPE: &str = "frame_segment_plan";

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { GitBranch, Loader2 } from "lucide-react";
+import { GitBranch } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { useToast } from "../../../components/feedback/Toast";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
@@ -143,19 +144,19 @@ export const ProjectStatusInline: React.FC<ProjectStatusInlineProps> = ({
         <div className="flex min-w-0 items-center gap-2.5">
           <GitBranch size={14} className="shrink-0 text-book-primary" />
           <div className="flex min-w-0 flex-col">
-            <span className="text-[11px] text-book-text-muted">当前阶段</span>
+            <span className="text-small text-book-text-muted">当前阶段</span>
             <span className="text-sm font-semibold text-book-text-main">{currentText}</span>
           </div>
         </div>
         {checkingForward && (
           <span className="inline-flex flex-1 items-center gap-1.5 text-book-text-sub sm:border-l sm:border-book-border/45 sm:pl-3">
-            <Loader2 size={11} className="animate-spin" /> 正在检查下一步…
+            <LoadingSpinner size="sm" /> 正在检查下一步…
           </span>
         )}
         {!checkingForward && canForwardStatus && next && (
           <>
             <div className="flex min-w-0 flex-1 flex-col border-t border-book-border/40 pt-2 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
-              <span className="text-book-text-muted text-[11px]">可推进至</span>
+              <span className="text-book-text-muted text-small">可推进至</span>
               <span className="text-sm font-semibold text-book-primary">{nextText}</span>
             </div>
             <BookButton
@@ -168,7 +169,7 @@ export const ProjectStatusInline: React.FC<ProjectStatusInlineProps> = ({
             >
               {busy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={11} className="animate-spin" /> 推进中…
+                  <LoadingSpinner size="sm" /> 推进中…
                 </span>
               ) : (
                 "推进阶段"

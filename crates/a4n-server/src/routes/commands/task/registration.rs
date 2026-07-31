@@ -7,6 +7,7 @@ use a4n_runtime::host_api::task_records as task_records_actions;
 use super::super::ServerState;
 pub(in crate::routes::commands) async fn register_web_task(
     state: &ServerState,
+    owner_user_id: i64,
     task_id: Option<String>,
     task_type: TaskKind,
     project_id: impl Into<Option<i64>>,
@@ -18,6 +19,7 @@ pub(in crate::routes::commands) async fn register_web_task(
         state.runtime(),
         TaskHandle {
             task_id: task_id.clone(),
+            owner_user_id: Some(owner_user_id),
             cancel_token: tokio_util::sync::CancellationToken::new(),
             progress: Arc::new(parking_lot::RwLock::new(TaskProgress::with_meta(
                 0,

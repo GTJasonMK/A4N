@@ -13,7 +13,7 @@ import {
 import { useGenerationTask } from "../../../hooks/useGenerationTask";
 import type { GenerationTaskViewState } from "../../../utils/generationEventReducer";
 
-export type OutlineGenerationUiOptions = GenerationProgressUiOptions;
+type OutlineGenerationUiOptions = GenerationProgressUiOptions;
 
 export type RunOutlineGeneration = (
   options: OutlineGenerationUiOptions,

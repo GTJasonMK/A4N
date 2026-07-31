@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Check, History, Loader2 } from "lucide-react";
+import { Check, History } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { useToast } from "../../../components/feedback/Toast";
 import { extractErrorMessage } from "../../../api";
@@ -139,22 +140,22 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
       </summary>
       <div className="mt-2">
         {loading ? (
-          <div className="text-[11px] text-book-text-muted inline-flex items-center gap-1.5">
-            <Loader2 size={10} className="animate-spin" /> 加载历史…
+          <div className="text-small text-book-text-muted inline-flex items-center gap-1.5">
+            <LoadingSpinner size="sm" /> 加载历史…
           </div>
         ) : history.length === 0 ? (
-          <div className="text-[11px] text-book-text-muted italic">
+          <div className="text-small text-book-text-muted italic">
             尚无历史记录（首次保存后会有）
           </div>
         ) : (
           <>
-            <div className="mb-1.5 flex items-center gap-2 text-[11px]">
+            <div className="mb-1.5 flex items-center gap-2 text-small">
               <span className="text-book-text-muted">选择两个版本查看内容差异</span>
               {diffPair.length === 2 && (
                 <BookButton variant="secondary" size="sm" onClick={handleDiff} disabled={diffLoading}>
                   {diffLoading ? (
                     <>
-                      <Loader2 size={10} className="animate-spin" />
+                      <LoadingSpinner size="sm" />
                       对比中…
                     </>
                   ) : (
@@ -185,16 +186,16 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
                           <span className="font-medium text-book-text-main">
                             {promptVersionLabel(index)}
                           </span>
-                          <time className="text-[10px] tabular-nums text-book-text-muted">
+                          <time className="text-caption tabular-nums text-book-text-muted">
                             {formatUiDateTime(version.timestamp)}
                           </time>
                           {version.author ? (
-                            <span className="text-[10px] text-book-text-muted">
+                            <span className="text-caption text-book-text-muted">
                               {version.author}
                             </span>
                           ) : null}
                         </span>
-                        <span className="mt-0.5 block truncate text-[11px] text-book-text-sub">
+                        <span className="mt-0.5 block truncate text-small text-book-text-sub">
                           {version.message || "保存提示词"}
                         </span>
                       </span>
@@ -204,7 +205,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
               })}
             </ul>
             {diffResult != null && (
-              <pre className="mt-2 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-[11px] leading-relaxed text-book-text-sub">
+              <pre className="mt-2 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-small leading-relaxed text-book-text-sub">
                 {diffResult}
               </pre>
             )}

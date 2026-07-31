@@ -119,8 +119,7 @@ pub async fn chat_json_stream_result_with_progress(
                 }
                 next_heartbeat_chars = content
                     .len()
-                    .checked_add(STREAM_PROGRESS_HEARTBEAT_CHARS)
-                    .unwrap_or(usize::MAX);
+                    .saturating_add(STREAM_PROGRESS_HEARTBEAT_CHARS);
             }
         }
         if let Some(reason) = chunk.finish_reason.as_deref() {

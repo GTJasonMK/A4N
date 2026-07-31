@@ -346,6 +346,14 @@ impl OrchestratorContext {
                     .finish_canvas_video_generation(&lifecycle, spec.id, failed)
                     .await;
             }
+            if self
+                .canvas_workflow_run_is_cancelled(lifecycle.run.workflow_run_id)
+                .await?
+            {
+                self.cancel_canvas_video_record(&video, "画布运行已取消，视频未提交 provider")
+                    .await?;
+                return Err(AppError::Cancelled);
+            }
             let result = host_port
                 .submit_canvas_video(CanvasVideoProviderInput {
                     project_id: input.project_id,
@@ -364,21 +372,7 @@ impl OrchestratorContext {
 
         match result {
             Ok(summary) => Ok(summary),
-            Err(primary) => {
-                let cancelled = self
-                    .canvas_workflow_run_is_cancelled(lifecycle.run.workflow_run_id)
-                    .await
-                    .map_err(|status_error| {
-                        AppError::Internal(anyhow::anyhow!(
-                            "{primary}；画布 workflow 取消状态复验失败: {status_error}"
-                        ))
-                    })?;
-                if cancelled {
-                    self.cancel_canvas_node(lifecycle, "用户取消画布运行").await
-                } else {
-                    self.fail_canvas_node(lifecycle, primary).await
-                }
-            }
+            Err(primary) => self.finish_canvas_node_error(lifecycle, primary).await,
         }
     }
 
@@ -427,6 +421,11 @@ impl OrchestratorContext {
                 self.wait_for_canvas_video_job_completion(host_port, config, video, job_id)
                     .await
             }
+            Err(AppError::Cancelled) => {
+                self.cancel_canvas_video_record(&video, "画布视频生成已取消")
+                    .await?;
+                Err(AppError::Cancelled)
+            }
             Err(error) => {
                 self.mark_generated_video_failed_validated(video.id, None, &error.to_string())
                     .await
@@ -440,6 +439,15 @@ impl OrchestratorContext {
         video: generated_video::Model,
         result: VideoGenerationResult,
     ) -> Result<generated_video::Model, AppError> {
+        let workflow_run_id = canvas_video_workflow_run_id(&video)?;
+        if self
+            .canvas_workflow_run_is_cancelled(workflow_run_id)
+            .await?
+        {
+            self.cancel_canvas_video_record(&video, "画布运行已取消，视频结果不再写入")
+                .await?;
+            return Err(AppError::Cancelled);
+        }
         let persisted = match host_port.persist_canvas_video_file(CanvasVideoFileInput {
             project_id: video.project_id,
             video_id: video.id,
@@ -469,10 +477,55 @@ impl OrchestratorContext {
         {
             Ok(updated) => updated,
             Err(error) => {
-                let _ = host_port
-                    .remove_canvas_video_file(&persisted.relative_path)
-                    .await;
-                return Err(error);
+                let can_adopt = crate::video::can_adopt_authoritative_video_completion(&error);
+                let authoritative = self.generated_video_by_id(video.id).await?;
+                if let Some(authoritative) = authoritative {
+                    if authoritative.status == crate::video::GENERATED_VIDEO_STATUS_COMPLETED {
+                        if authoritative.file_path.as_deref()
+                            != Some(persisted.relative_path.as_str())
+                            && let Err(cleanup_error) = host_port
+                                .remove_canvas_video_file(&persisted.relative_path)
+                                .await
+                        {
+                            tracing::error!(
+                                video_id = video.id,
+                                error = %cleanup_error,
+                                "清理重复画布视频文件失败"
+                            );
+                        }
+                        if !can_adopt {
+                            return Err(error);
+                        }
+                        authoritative
+                    } else {
+                        if let Err(cleanup_error) = host_port
+                            .remove_canvas_video_file(&persisted.relative_path)
+                            .await
+                        {
+                            tracing::error!(
+                                video_id = video.id,
+                                error = %cleanup_error,
+                                "清理未采用的画布视频文件失败"
+                            );
+                        }
+                        if matches!(authoritative.status.as_str(), "cancelled" | "interrupted") {
+                            return Err(AppError::Cancelled);
+                        }
+                        return Err(error);
+                    }
+                } else {
+                    if let Err(cleanup_error) = host_port
+                        .remove_canvas_video_file(&persisted.relative_path)
+                        .await
+                    {
+                        tracing::error!(
+                            video_id = video.id,
+                            error = %cleanup_error,
+                            "视频记录消失后清理画布视频文件失败"
+                        );
+                    }
+                    return Err(error);
+                }
             }
         };
         self.complete_generated_video_provider_runs_validated(&updated)
@@ -640,6 +693,20 @@ impl OrchestratorContext {
         .await
     }
 
+    async fn cancel_canvas_video_record(
+        &self,
+        video: &generated_video::Model,
+        message: &str,
+    ) -> Result<(), AppError> {
+        if crate::video::normalized_provider_job_id(video.provider_job_id.as_deref()).is_some() {
+            self.interrupt_canvas_video_polling(video, message).await
+        } else {
+            self.mark_generated_video_cancelled_validated(video.id, None, message)
+                .await
+                .map(|_| ())
+        }
+    }
+
     async fn finish_canvas_video_generation(
         &self,
         lifecycle: &crate::canvas::CanvasNodeLifecycle,
@@ -724,12 +791,9 @@ impl OrchestratorContext {
                         },
                     )
                     .await?;
-                self.record_canvas_node_checkpoint(
-                    lifecycle.run.workflow_run_id,
-                    lifecycle.step_key.clone(),
-                    WORKFLOW_STATUS_COMPLETED,
-                    lifecycle.input_json.clone(),
-                    Some(json!({
+                self.finish_canvas_node_with_artifacts(
+                    lifecycle,
+                    json!({
                         "data_type": "video",
                         "generated_video_id": video.id,
                         "status": video.status,
@@ -737,12 +801,9 @@ impl OrchestratorContext {
                         "thumbnail_path": video.thumbnail_path,
                         "generation_spec_id": generation_spec_id,
                         "media_asset_id": asset.id,
-                    })),
-                    None,
-                    true,
+                    }),
                 )
-                .await?;
-                self.finish_canvas_node_success(lifecycle).await
+                .await
             }
             other => Err(AppError::InvalidState {
                 current: format!("generated_video_status={other}"),

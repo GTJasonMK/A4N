@@ -34,10 +34,7 @@ pub(super) async fn preview_visual(
             variables: &context.variables,
             chapter_content: &context.chapter_content,
             source_spans: &context.source_spans,
-            prompt_names: &[
-                "shooting_script_projection",
-                "manga_visual_anchor_extraction",
-            ],
+            prompt_names: &["manga_visual_anchor_extraction"],
             previous_outputs: &[MangaContextPreviousOutput {
                 pack_kind: MANGA_PREVIOUS_OUTPUT_SHOOTING_SCRIPT_EVENTS,
                 prompt_name: "shooting_script_projection",

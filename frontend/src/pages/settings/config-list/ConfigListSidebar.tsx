@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { formatConfigTestTime } from "./testResultUtils";
 import type { ConfigItem, ConfigItemMeta, ConfigTestResult } from "./types";
 
@@ -44,10 +45,10 @@ export function ConfigListSidebar<C>({
   }, [creating, items.length, selectedId]);
 
   return (
-    <aside className="a4n-mobile-scroll-rail max-h-48 overflow-x-auto md:max-h-none md:overflow-y-auto custom-scrollbar">
+    <aside className="max-h-48 overflow-y-auto overflow-x-hidden md:max-h-none custom-scrollbar">
       {loading && items.length === 0 ? (
         <div className="flex items-center justify-center h-20 text-xs text-book-text-muted">
-          <Loader2 size={14} className="animate-spin mr-2" /> 加载…
+          <LoadingSpinner size="sm" className="mr-2" /> 加载…
         </div>
       ) : items.length === 0 ? (
         <div className="a4n-empty-state a4n-empty-state--compact text-xs leading-relaxed">
@@ -56,7 +57,7 @@ export function ConfigListSidebar<C>({
           点击左上角"新增"开始。
         </div>
       ) : (
-        <ul className="flex min-w-max gap-2 p-px md:grid md:min-w-0 md:auto-rows-max md:content-start md:gap-2">
+        <ul className="grid gap-2 p-px auto-rows-max content-start">
           {items.map((item) => {
             const meta = formatItem(item.config, item.isActive);
             const selected = item.id === selectedId && !creating;
@@ -70,20 +71,20 @@ export function ConfigListSidebar<C>({
                   onClick={() => onSelect(item.id)}
                   disabled={busy}
                   aria-current={selected ? "true" : undefined}
-                  className={`group min-w-[13rem] rounded-xl border bg-book-bg-paper px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 md:w-full md:min-w-0 ${
+                  className={`group w-full rounded-xl border bg-book-bg-paper px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                     selected
                       ? "border-book-primary/55 bg-book-primary/10 shadow-[inset_3px_0_0_var(--color-book-primary)]"
                       : "border-book-border/40 hover:border-book-primary/35 hover:bg-book-bg-tertiary"
                   }`}
                 >
-                  <div className="mb-0.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-book-text-main">
+                  <div className="mb-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="min-w-0 flex-1 break-words text-sm font-semibold text-book-text-main">
                       {meta.primary}
                     </span>
-                    <span className="flex shrink-0 items-center gap-1 text-[10px]">
+                    <span className="flex shrink-0 flex-wrap items-center gap-1 text-caption">
                       {testResult ? (
                         <span
-                          className={`inline-flex items-center gap-0.5 text-[11px] ${
+                          className={`inline-flex items-center gap-0.5 text-small ${
                             testResult.status === "success"
                               ? "text-success"
                               : "text-error"
@@ -109,10 +110,10 @@ export function ConfigListSidebar<C>({
                     </span>
                   </div>
                   {meta.secondary && (
-                    <div className="text-xs text-book-text-sub truncate">{meta.secondary}</div>
+                    <div className="text-xs text-book-text-sub break-words">{meta.secondary}</div>
                   )}
                   {meta.tertiary && (
-                    <div className="text-[11px] text-book-text-muted truncate">
+                    <div className="text-small text-book-text-muted break-words">
                       {meta.tertiary}
                     </div>
                   )}

@@ -4,7 +4,7 @@ use super::super::super::{ApiError, ServerState, auth_records_actions, required_
 
 const SYSTEM_DEFAULT_CONFIG_ID: i64 = -1;
 
-pub(super) async fn require_global_config_admin(
+pub(in crate::routes::commands::front) async fn require_global_config_admin(
     state: &ServerState,
     user_id: i64,
 ) -> Result<(), ApiError> {

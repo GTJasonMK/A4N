@@ -7,7 +7,8 @@ use a4n_db::blueprint::{
     upsert_novel_blueprint_record,
 };
 use a4n_db::generation::{
-    GenerationRunTraceTarget, RecordCompletedGenerationRunInput, record_completed_generation_run,
+    GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
+    record_completed_generation_run_in_transaction,
 };
 use a4n_db::project::{
     ProjectStatusHistoryInput, insert_project_status_history, project_by_id_record,
@@ -175,7 +176,7 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
         .map_err(project_status_write_error_to_app_error)?;
     }
 
-    record_completed_generation_run(
+    record_completed_generation_run_in_transaction(
         tx,
         RecordCompletedGenerationRunInput {
             project_id,

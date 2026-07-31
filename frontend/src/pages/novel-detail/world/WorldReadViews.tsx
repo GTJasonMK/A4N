@@ -30,7 +30,7 @@ const SectionTitle: React.FC<{
   <div className="mb-2 flex items-center gap-2 border-b border-book-border/40 pb-1.5">
     <span className="text-book-primary">{icon}</span>
     <h4 className="text-xs font-semibold text-book-text-main">{title}</h4>
-    {meta && <span className="text-[11px] text-book-text-muted">{meta}</span>}
+    {meta && <span className="text-small text-book-text-muted">{meta}</span>}
   </div>
 );
 
@@ -66,7 +66,7 @@ const ListBlock: React.FC<{ items: WorldListItem[]; emptyText: string }> = ({
           ) : null}
           {item.description && (
             <div
-              className={`${item.title ? "mt-1 " : ""}whitespace-pre-wrap text-[11px] leading-relaxed text-book-text-sub`}
+              className={`${item.title ? "mt-1 " : ""}whitespace-pre-wrap text-small leading-relaxed text-book-text-sub`}
             >
               {item.description}
             </div>
@@ -102,10 +102,10 @@ const ExtraFields: React.FC<{ obj: WorldObject; consumedKeys: Set<string> }> = (
                 key={key}
                 className="grid gap-1 py-2 md:grid-cols-[120px_minmax(0,1fr)] md:gap-3"
               >
-                <dt className="text-[11px] font-medium text-book-text-muted">
+                <dt className="text-small font-medium text-book-text-muted">
                   {formatFieldLabel(key)}
                 </dt>
-                <dd className="whitespace-pre-wrap break-words text-[11px] leading-relaxed text-book-text-sub">
+                <dd className="whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">
                   {summarizeExtraValue(value)}
                 </dd>
               </div>
@@ -274,7 +274,7 @@ const WorldMiniList: React.FC<{
     <div className="mb-2 flex items-baseline gap-2 border-b border-book-border/40 pb-1.5">
       <div className="text-xs font-semibold text-book-text-main">{title}</div>
       {items.length > 0 ? (
-        <span className="text-[11px] text-book-text-muted">{items.length} 项</span>
+        <span className="text-small text-book-text-muted">{items.length} 项</span>
       ) : null}
     </div>
     {items.length === 0 ? (
@@ -291,7 +291,7 @@ const WorldMiniList: React.FC<{
             ) : null}
             {item.description ? (
               <div
-                className={`${item.title ? "mt-0.5 " : ""}line-clamp-2 text-[11px] leading-relaxed text-book-text-muted`}
+                className={`${item.title ? "mt-0.5 " : ""}line-clamp-2 text-small leading-relaxed text-book-text-muted`}
               >
                 {item.description}
               </div>
@@ -301,7 +301,7 @@ const WorldMiniList: React.FC<{
       </ul>
     )}
     {items.length > 3 ? (
-      <div className="mt-2 text-[10px] text-book-text-muted">
+      <div className="mt-2 text-caption text-book-text-muted">
         另有 {items.length - 3} 项，可在完整设定中查看
       </div>
     ) : null}

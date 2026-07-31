@@ -120,11 +120,19 @@ validate_catalog_fields
 
 mapfile -t deploy_packages < <(extract_bash_sidecar_packages "scripts/deploy.sh")
 mapfile -t tauri_prepare_packages < <(extract_bash_sidecar_packages "scripts/dev/prepare-tauri-external-bin.sh")
-mapfile -t tauri_external_bins < <(extract_tauri_external_bins "crates/a4n-tauri/tauri.sidecars.conf.json")
+mapfile -t all_tauri_external_bins < <(extract_tauri_external_bins "crates/a4n-tauri/tauri.sidecars.conf.json")
+tauri_external_bins=("${all_tauri_external_bins[@]:0:${#expected[@]}}")
+tauri_tools=("${all_tauri_external_bins[@]:${#expected[@]}}")
 
 compare_inventory "scripts/deploy.sh SIDECAR_PACKAGES" "${deploy_packages[@]}"
 compare_inventory "scripts/dev/prepare-tauri-external-bin.sh SIDECAR_PACKAGES" "${tauri_prepare_packages[@]}"
 compare_inventory "crates/a4n-tauri/tauri.sidecars.conf.json bundle.externalBin" "${tauri_external_bins[@]}"
+expected_tools=(a4n a4n-server a4n-migration)
+[[ "${tauri_tools[*]}" == "${expected_tools[*]}" ]] || {
+    printf 'Tauri tool inventory mismatch: expected [%s], got [%s]\n' \
+        "${expected_tools[*]}" "${tauri_tools[*]}" >&2
+    exit 1
+}
 check_portable_launcher_syntax
 
 printf 'sidecar package inventory is consistent (%s entries)\n' "${#expected[@]}"

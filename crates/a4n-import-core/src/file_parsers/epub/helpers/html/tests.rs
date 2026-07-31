@@ -24,3 +24,10 @@ fn preserves_block_boundaries_for_chapter_detection() {
     assert_eq!(result.chapters[0].title, "第1章 开始");
     assert_eq!(result.chapters[1].title, "第2章 继续");
 }
+
+#[test]
+fn ignores_document_head_when_body_is_present() {
+    let html = "<html><head><title>第1章 重复标题</title></head><body><h1>第1章 正文标题</h1><p>正文。</p></body></html>";
+
+    assert_eq!(strip_html_tags(html), "第1章 正文标题\n正文。");
+}

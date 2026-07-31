@@ -9,26 +9,18 @@ use a4n_api_contract::{
 };
 use a4n_core::error::AppError;
 use a4n_service_protocol::{
-    BatchCommitPolicy, BatchSummary, GenerationArtifactRef, GenerationError,
-    GenerationFinishReason, GenerationResultRef, ProgressEvent, ProgressPhaseKind,
-    ProgressSeverity,
+    BatchCommitPolicy, BatchSummary, GenerationArtifactRef, GenerationError, GenerationResultRef,
 };
-use futures::future::BoxFuture;
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 
 use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
-    generation::artifacts::{GenerationArtifactCoordinator, PreparedArtifactEvent},
     generation::{
-        checkpoint::{
-            DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointMetadata,
-            GenerationCheckpointWriter,
-        },
-        events::{GenerationEventPublisher, SessionGenerationEventPublisher},
-        generation_public_error,
-        terminal::CompletionDescriptor,
+        GenerationProgressUpdate,
+        artifacts::{GenerationArtifactCoordinator, PreparedArtifactEvent},
+        generation_public_error, publish_step_progress,
     },
     media::{
         BatchImageGenerationInput, BatchImageGenerationItem, BatchImageGenerationOutcome,
@@ -37,12 +29,6 @@ use crate::{
         SceneProfileImageInput,
     },
 };
-
-struct ImageProgressUpdate {
-    current: u32,
-    total: u32,
-    message: String,
-}
 
 struct ImageGenerationResult {
     summary: String,
@@ -161,24 +147,23 @@ impl OrchestratorContext {
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
         let operation_key = image_operation_key(&input.operation);
-        let replenisher = Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-            self.database.shared_connection(),
-        ));
-        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
-        let checkpoint_writer = GenerationCheckpointWriter::new(self.database.shared_connection());
+        let publisher = execution.publisher.clone();
+        let checkpoint_writer = execution.checkpoint_writer.clone();
         let (progress_sender, progress_receiver) = mpsc::unbounded_channel();
         let progress_publish_failed = Arc::new(AtomicBool::new(false));
         let progress_publish_failed_for_reporter = Arc::clone(&progress_publish_failed);
-        let progress_worker = tokio::spawn(publish_image_progress(
+        let progress_worker = tokio::spawn(publish_step_progress(
             progress_receiver,
             publisher,
             checkpoint_writer,
             session.clone(),
             operation_key,
+            operation_key,
+            0,
         ));
         let reporter = move |current: u32, total: u32, message: &str| {
             if progress_sender
-                .send(ImageProgressUpdate {
+                .send(GenerationProgressUpdate {
                     current,
                     total,
                     message: message.to_string(),
@@ -243,39 +228,9 @@ impl OrchestratorContext {
                 .fail_with_batch_summary(error, batch_summary, artifacts)
                 .await);
         }
-        let final_usage = session.snapshot().usage;
-        let failure_batch_summary = batch_summary.clone();
-        let failure_artifacts = artifacts.clone();
-        let completion = execution
-            .terminal
-            .complete_with_artifacts(&session, artifacts, move |_tx| {
-                Box::pin(async move {
-                    Ok(CompletionDescriptor {
-                        result_ref: Some(result_ref),
-                        final_text_hashes: Vec::new(),
-                        final_usage,
-                        finish_reason: Some(GenerationFinishReason::Stop),
-                        summary: Some(summary),
-                        batch_summary,
-                    })
-                }) as BoxFuture<'_, Result<CompletionDescriptor, AppError>>
-            })
-            .await;
-        if let Err(error) = completion {
-            return Err(execution
-                .fail_with_batch_summary(
-                    generation_public_error(error.code(), operation_key, error),
-                    failure_batch_summary,
-                    failure_artifacts,
-                )
-                .await);
-        }
-        let task_id = execution.permit.task_id().to_string();
         execution
-            .queue
-            .complete_generation_task(execution.permit)
+            .complete_with_result(operation_key, result_ref, summary, artifacts, batch_summary)
             .await
-            .map_err(|error| format!("generation queue 完成投影失败 ({task_id}): {error}"))
     }
 
     async fn execute_image_generation_operation(
@@ -399,67 +354,6 @@ impl OrchestratorContext {
             }
         }
     }
-}
-
-async fn publish_image_progress(
-    mut receiver: mpsc::UnboundedReceiver<ImageProgressUpdate>,
-    publisher: SessionGenerationEventPublisher,
-    checkpoint_writer: GenerationCheckpointWriter,
-    session: Arc<crate::generation::events::GenerationTaskSession>,
-    operation_key: &'static str,
-) -> Result<(), GenerationError> {
-    while let Some(update) = receiver.recv().await {
-        let complete = update.current >= update.total;
-        publisher
-            .progress(ProgressEvent {
-                stage_code: operation_key.to_string(),
-                phase_kind: if update.current == 0 {
-                    ProgressPhaseKind::Prepare
-                } else if complete {
-                    ProgressPhaseKind::Complete
-                } else {
-                    ProgressPhaseKind::Provider
-                },
-                message: update.message,
-                current: Some(update.current.into()),
-                total: Some(update.total.into()),
-                unit_label: Some("步骤".to_string()),
-                item_key: None,
-                item_index: None,
-                item_total: None,
-                severity: if complete {
-                    ProgressSeverity::Success
-                } else {
-                    ProgressSeverity::Info
-                },
-                estimated: false,
-            })
-            .await
-            .map_err(|error| generation_public_error(error.code(), operation_key, error))?;
-        checkpoint_writer
-            .persist_if_due(
-                &session,
-                GenerationCheckpointMetadata {
-                    step_key: Some(operation_key.to_string()),
-                    ..Default::default()
-                },
-                false,
-            )
-            .await
-            .map_err(|error| generation_public_error(error.code(), operation_key, error))?;
-    }
-    checkpoint_writer
-        .persist_if_due(
-            &session,
-            GenerationCheckpointMetadata {
-                step_key: Some(operation_key.to_string()),
-                ..Default::default()
-            },
-            true,
-        )
-        .await
-        .map_err(|error| generation_public_error(error.code(), operation_key, error))?;
-    Ok(())
 }
 
 fn single_image_result(

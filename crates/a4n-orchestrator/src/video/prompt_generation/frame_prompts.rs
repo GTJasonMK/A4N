@@ -56,6 +56,7 @@ use super::{
     FieldMilestone, ProgressSpan, RenderedVideoPromptTrace, StructuredJsonProgressSpec,
     VideoPromptLlmCallTraceContext, VideoPromptRenderInput, VideoPromptStepProgress,
     build_video_prompt_request_with_call_trace, render_and_chat_trace_with_context,
+    report_video_prompt_checkpoint, report_video_prompt_item_committed,
     report_video_prompt_progress,
 };
 use a4n_core::source_spans::SourceSpan;
@@ -70,20 +71,23 @@ pub(in crate::video) use self::boundary_context::{
 };
 pub(in crate::video) use self::boundary_sync::reusable_frame_prefix_len_with_previous_images;
 use self::boundary_sync::*;
-pub(in crate::video) use self::checkpoint::video_execution_chain_identity;
 use self::checkpoint::*;
+pub(in crate::video) use self::checkpoint::{
+    video_execution_chain_identity, video_segment_execution_identity,
+    video_segment_frame_execution_identity,
+};
 use self::frame_chain::{
-    FramePromptChainInput, SegmentPlanForSpecInput, generate_chapter_frame_prompt_chain,
-    generate_chapter_segment_plan_for_spec,
+    FramePromptChainInput, SharedSegmentPlanInput, generate_chapter_frame_prompt_chain,
+    generate_shared_segment_plan,
 };
 use self::generation_spec::*;
 use self::parsing::*;
-pub(in crate::video) use self::prepared::ReusableSegmentPlan;
 use self::prepared::{
-    PreparedSegmentPlan, PreparedVideoPromptInputs, SHARED_SEGMENT_PLAN_CONTEXT,
+    LoadedSharedSegmentPlan, PreparedSegmentPlan, SHARED_SEGMENT_PLAN_CONTEXT,
     SHARED_SEGMENT_PLAN_CONTRACT_VERSION, SHARED_SEGMENT_PLAN_PROGRESS,
     SHARED_SEGMENT_PLAN_PROMPT_TYPE, SHARED_SEGMENT_PLAN_TITLE,
 };
+pub(in crate::video) use self::prepared::{PreparedVideoPromptInputs, ReusableSegmentPlan};
 use self::progress::*;
 use self::records::{
     ChatVideoPromptDraftsInput, FirstFramePromptDraftsInput, FirstFrameVideoPromptDraftsInput,
@@ -99,7 +103,8 @@ pub(in crate::video) use self::records::{
     first_frame_prompts_from_rows, frame_prompts_from_rows, initial_first_frame_rows,
     reusable_boundary_video_prompts_from_rows, reusable_chat_video_prompts_from_rows,
     reusable_first_frame_video_prompts_from_rows, storyboard_prompts_from_rows,
-    validate_first_frame_prompts, validate_frame_prompts, validate_storyboard_prompts,
+    validate_first_frame_prompts, validate_frame_prompts, validate_storyboard_prompt,
+    validate_storyboard_prompt_for_unit, validate_storyboard_prompts,
 };
 use self::render_restore::*;
 use self::reuse::*;
@@ -110,13 +115,20 @@ pub(in crate::video) use self::reuse::{
     video_prompt_segments_with_reference_ids,
 };
 pub(in crate::video) use self::shooting_script_projection::video_projection_from_shooting_script;
-use self::staged_segment_plan::*;
+use self::staged_segment_plan::{StagedSegmentPlanInput, render_staged_segment_plan_with_duration};
+pub(in crate::video) use self::staged_segment_plan::{
+    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_recipe_state,
+    materialize_video_segment_plan_draft_recipes,
+    update_video_segment_plan_draft_recipe_checkpoint,
+    video_segment_recipes_from_draft_for_final_plan,
+};
 pub(in crate::video) use self::validation::boundary_frame_prompt_rows_prefix;
 use self::validation::*;
 use self::video_units::*;
 pub(in crate::video) use self::video_units::{
     VideoUnitPlan, expected_boundary_frame_count, expected_video_unit_count,
-    storyboard_expected_segment_numbers, video_units_for_segment_plan,
+    storyboard_expected_segment_numbers, video_unit_for_target_segment,
+    video_units_for_segment_plan,
 };
 
 const FINAL_VIDEO_PROMPT_OUTPUT_CONTRACT_VERSION: &str =

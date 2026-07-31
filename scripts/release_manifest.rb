@@ -5,6 +5,12 @@ require "json"
 require "optparse"
 require "pathname"
 
+TOOL_BINARIES = [
+  ["a4n-cli", "a4n"],
+  ["a4n-server", "a4n-server"],
+  ["a4n-migration", "a4n-migration"]
+].freeze
+
 def fail_with(message)
   warn "release manifest: #{message}"
   exit 1
@@ -152,7 +158,7 @@ def generate(options)
     "name" => host_name,
     "service" => "host",
     "path" => host_relative,
-    "version" => cargo_version(root, host.sub(/\.(exe)\z/, "")),
+    "version" => cargo_version(root, host),
     "target" => target,
     "sha256" => sha256(host_path),
     "protocol_version" => protocol,
@@ -180,6 +186,24 @@ def generate(options)
     }
   end
 
+  tools = TOOL_BINARIES.map do |crate, tool|
+    name = "#{tool}#{extension}"
+    relative = if tauri_app
+                 "#{tauri_app.fetch(:root)}/Contents/MacOS/#{name}"
+               else
+                 "bin/#{name}"
+               end
+    path = safe_package_path(package_root, relative)
+    fail_with("missing #{relative}") unless path.file?
+    {
+      "name" => name,
+      "path" => relative,
+      "version" => cargo_version(root, crate),
+      "target" => target,
+      "sha256" => sha256(path)
+    }
+  end
+
   runtime_name = runtime_file_name(target)
   runtime_relative = if tauri_app
                        "#{tauri_app.fetch(:root)}/Contents/Resources/#{runtime_name}"
@@ -201,13 +225,14 @@ def generate(options)
     "target" => target,
     "protocol_version" => protocol,
     "binaries" => binaries,
+    "tools" => tools,
     "runtime_files" => runtime_files
   }
   File.write(output, JSON.pretty_generate(manifest) + "\n")
   checksum = output.sub_ext(".sha256")
-  files = binaries + runtime_files
+  files = binaries + tools + runtime_files
   File.write(checksum, files.map { |entry| "#{entry.fetch("sha256")}  #{entry.fetch("path")}" }.join("\n") + "\n")
-  puts "generated #{output} (#{binaries.length} binaries, #{runtime_files.length} runtime file)"
+  puts "generated #{output} (#{binaries.length} binaries, #{tools.length} tools, #{runtime_files.length} runtime file)"
 end
 
 def verify(options)
@@ -216,9 +241,11 @@ def verify(options)
   manifest = JSON.parse(File.read(path))
   fail_with("manifest schema version is unsupported") unless manifest.fetch("schema_version") == 2
   package = manifest.fetch("package")
+  version = manifest.fetch("version")
   target = manifest.fetch("target")
   protocol = manifest.fetch("protocol_version")
   fail_with("manifest package is empty") unless package.is_a?(String) && !package.strip.empty?
+  fail_with("manifest version is empty") unless version.is_a?(String) && !version.strip.empty?
   fail_with("manifest target is empty") unless target.is_a?(String) && !target.strip.empty?
   fail_with("manifest protocol version is invalid") unless protocol.is_a?(Integer)
   binaries = manifest.fetch("binaries")
@@ -240,12 +267,34 @@ def verify(options)
   end
   layout = manifest_layout(binaries, target)
   host = binaries.find { |entry| entry.fetch("service") == "host" }
+  fail_with("manifest version does not match host") unless host.fetch("version") == version
   expected_host_path = if layout.fetch(:type) == :tauri_macos
                          "#{layout.fetch(:root)}/Contents/MacOS/#{layout.fetch(:host)}"
                        else
                          "bin/#{host.fetch("name")}"
                        end
   fail_with("manifest host path is invalid") unless host.fetch("path") == expected_host_path
+  tools = manifest.fetch("tools")
+  extension = binary_extension(target)
+  expected_tool_names = TOOL_BINARIES.map { |_, tool| "#{tool}#{extension}" }
+  fail_with("manifest must contain a4n CLI, Server, and migration tools") unless tools.is_a?(Array) && tools.length == TOOL_BINARIES.length
+  fail_with("manifest tool names do not match release tools") unless tools.map { |entry| entry.fetch("name") } == expected_tool_names
+  tools.zip(TOOL_BINARIES).each do |entry, (crate, _tool)|
+    name = entry.fetch("name")
+    expected_path = if layout.fetch(:type) == :tauri_macos
+                      "#{layout.fetch(:root)}/Contents/MacOS/#{name}"
+                    else
+                      "bin/#{name}"
+                    end
+    fail_with("manifest tool target is invalid") unless entry.fetch("target") == target
+    fail_with("manifest tool version is invalid") unless entry.fetch("version") == cargo_version(Pathname(__dir__).parent, crate)
+    fail_with("manifest tool SHA-256 is invalid") unless sha256_value?(entry.fetch("sha256"))
+    fail_with("manifest tool name does not match path") unless manifest_file_name(entry.fetch("path")) == name
+    fail_with("manifest tool path does not match layout") unless entry.fetch("path") == expected_path
+    actual_path = safe_package_path(package_root, entry.fetch("path"))
+    fail_with("missing #{entry.fetch("path")}") unless actual_path.file?
+    fail_with("SHA-256 mismatch for #{name}") unless sha256(actual_path).casecmp?(entry.fetch("sha256"))
+  end
   runtime_files = manifest.fetch("runtime_files")
   fail_with("manifest must contain one ONNX Runtime file") unless runtime_files.is_a?(Array) && runtime_files.length == 1
   expected_runtime_name = runtime_file_name(target)
@@ -281,7 +330,9 @@ def verify(options)
       fail_with("manifest service path does not match layout") unless manifest_entry.fetch("name") == binary_name && manifest_entry.fetch("path") == expected_path
     end
   end
-  puts "verified #{path} (#{binaries.length} binaries, #{runtime_files.length} runtime file)"
+  paths = (binaries + tools + runtime_files).map { |entry| entry.fetch("path") }
+  fail_with("manifest file paths are duplicated") unless paths.uniq.length == paths.length
+  puts "verified #{path} (#{binaries.length} binaries, #{tools.length} tools, #{runtime_files.length} runtime file)"
 rescue JSON::ParserError, KeyError, TypeError => error
   fail_with("manifest JSON is invalid: #{error.message}")
 end

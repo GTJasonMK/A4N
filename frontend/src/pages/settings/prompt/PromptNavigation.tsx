@@ -37,7 +37,7 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
         {category.label || category.key}
       </button>
     ))}
-    <span className="ml-auto inline-flex shrink-0 items-center px-2 text-[11px] text-book-text-muted">
+    <span className="ml-auto inline-flex shrink-0 items-center px-2 text-small text-book-text-muted">
       {filteredCount} 项
     </span>
   </div>

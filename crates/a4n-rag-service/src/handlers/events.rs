@@ -2,7 +2,7 @@ use crate::app::RagServiceState;
 use crate::contracts::{IngestOutput, IngestPayload};
 use crate::protocol::{service_error, validate_service_request};
 use a4n_service_protocol::{
-    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError, ServiceErrorCode, ServiceRequest,
+    CapabilityTaskEvent, CapabilityTaskEventKind, ServiceError, ServiceRequest,
     redact_sensitive_message,
 };
 use a4n_sidecar_bootstrap::{
@@ -10,7 +10,7 @@ use a4n_sidecar_bootstrap::{
 };
 use axum::{Json, body::Bytes, extract::State, response::IntoResponse};
 use futures::{Stream, stream};
-use serde_json::{Value, json};
+use serde_json::json;
 use std::convert::Infallible;
 
 pub(crate) async fn ingest_events(
@@ -68,7 +68,6 @@ fn rag_ingest_event_stream(
                     Err(error) => failed_ingest_event(task_id, 2, service_error(&error)),
                 };
                 if event_tx.send(event).await.is_err() {
-                    return;
                 }
             }
         }
@@ -86,16 +85,12 @@ pub(crate) fn progress_ingest_event(
     sequence: u64,
     record_count: usize,
 ) -> CapabilityTaskEvent {
-    rag_ingest_event(
-        task_id,
-        CapabilityTaskEventKind::Progress,
-        sequence,
-        None,
-        Some(json!({
+    CapabilityTaskEvent::new(task_id, CapabilityTaskEventKind::Progress, sequence).with_payload(
+        json!({
             "current": 0,
             "total": record_count,
             "message": "rag sidecar 正在写入向量索引"
-        })),
+        }),
     )
 }
 
@@ -104,20 +99,8 @@ pub(crate) fn completed_ingest_event(
     sequence: u64,
     output: IngestOutput,
 ) -> Result<CapabilityTaskEvent, ServiceError> {
-    let payload = serde_json::to_value(output).map_err(|error| ServiceError {
-        code: ServiceErrorCode::Internal,
-        message: redact_sensitive_message(format!(
-            "rag ingest output serialization failed: {error}"
-        )),
-        retryable: Some(false),
-    })?;
-    Ok(rag_ingest_event(
-        task_id,
-        CapabilityTaskEventKind::Completed,
-        sequence,
-        None,
-        Some(payload),
-    ))
+    CapabilityTaskEvent::new(task_id, CapabilityTaskEventKind::Completed, sequence)
+        .with_serialized_payload(output, "rag ingest output serialization failed")
 }
 
 pub(crate) fn failed_ingest_event(
@@ -125,35 +108,5 @@ pub(crate) fn failed_ingest_event(
     sequence: u64,
     error: ServiceError,
 ) -> CapabilityTaskEvent {
-    rag_ingest_event(
-        task_id,
-        CapabilityTaskEventKind::Failed,
-        sequence,
-        Some(error),
-        None,
-    )
-}
-
-fn rag_ingest_event(
-    task_id: String,
-    event_kind: CapabilityTaskEventKind,
-    sequence: u64,
-    error: Option<ServiceError>,
-    payload: Option<Value>,
-) -> CapabilityTaskEvent {
-    CapabilityTaskEvent {
-        task_id,
-        event_kind,
-        sequence,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error,
-        payload,
-    }
+    CapabilityTaskEvent::failed(task_id, sequence, error)
 }

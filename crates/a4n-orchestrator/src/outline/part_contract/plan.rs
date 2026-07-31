@@ -41,6 +41,16 @@ pub fn resolve_part_generation_plan(
     })
 }
 
+pub fn infer_chapters_per_part_from_existing(
+    parts: &[part_outline::Model],
+) -> Result<Option<i32>, AppError> {
+    validate_existing_parts_for_plan(parts)?;
+    Ok(parts
+        .iter()
+        .map(|part| part.end_chapter - part.start_chapter + 1)
+        .max())
+}
+
 pub fn validate_existing_parts_for_plan(parts: &[part_outline::Model]) -> Result<(), AppError> {
     validate_existing_parts(parts, "请先清理后再生成")
 }

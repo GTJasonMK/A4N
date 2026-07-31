@@ -96,6 +96,82 @@ struct ReverseEngineerPreviewArgs {
     input: import_reverse_actions::ReverseEngineerInput,
 }
 
+pub(in crate::routes::commands) async fn reverse_engineer_command(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+    target: import_reverse_actions::ReverseEngineeringTarget,
+    apply: bool,
+) -> Result<Value, ApiError> {
+    let command: ReverseEngineerCommandArgs = serde_json::from_value(args.clone())
+        .map_err(|e| ApiError::bad_request(format!("{} 参数无效: {e}", target.prompt_name())))?;
+    let scope = import_reverse_actions::reverse_engineer_task_scope(
+        state.runtime(),
+        user_id,
+        &command.input,
+        apply,
+    )
+    .await?;
+
+    let task_id = sanitize_optional_task_id(command.task_id)?;
+    let task = register_web_task(
+        state,
+        user_id,
+        task_id.clone(),
+        TaskKind::LlmCall,
+        scope.project_id,
+        scope.total,
+        target.initial_message(apply),
+    )
+    .await;
+    let progress = web_progress_reporter(task);
+    let result = if apply {
+        import_reverse_actions::reverse_engineer_and_apply(
+            state.runtime(),
+            user_id,
+            &command.input,
+            target,
+            &progress,
+            task_id.as_deref(),
+        )
+        .await
+    } else {
+        import_reverse_actions::reverse_engineer(
+            state.runtime(),
+            user_id,
+            &command.input,
+            target,
+            &progress,
+            task_id.as_deref(),
+        )
+        .await
+    };
+    finish_web_task(state, task_id, result).await
+}
+
+pub(in crate::routes::commands) async fn preview_reverse_engineer_request_command(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+    target: import_reverse_actions::ReverseEngineeringTarget,
+) -> Result<Value, ApiError> {
+    let command: ReverseEngineerPreviewArgs =
+        serde_json::from_value(args.clone()).map_err(|e| {
+            ApiError::bad_request(format!(
+                "preview_{}_request 参数无效: {e}",
+                target.prompt_name()
+            ))
+        })?;
+    let preview = import_reverse_actions::preview_reverse_engineer_request(
+        state.runtime(),
+        user_id,
+        &command.input,
+        target,
+    )
+    .await?;
+    to_value(preview)
+}
+
 #[cfg(test)]
 mod reverse_engineer_command_args_tests {
     use super::{ReverseEngineerCommandArgs, ReverseEngineerPreviewArgs};
@@ -148,77 +224,4 @@ mod reverse_engineer_command_args_tests {
 
         assert!(err.to_string().contains("unexpected"));
     }
-}
-
-pub(in crate::routes::commands) async fn reverse_engineer_command(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-    target: import_reverse_actions::ReverseEngineeringTarget,
-    apply: bool,
-) -> Result<Value, ApiError> {
-    let command: ReverseEngineerCommandArgs = serde_json::from_value(args.clone())
-        .map_err(|e| ApiError::bad_request(format!("{} 参数无效: {e}", target.prompt_name())))?;
-    let scope = import_reverse_actions::reverse_engineer_task_scope(
-        state.runtime(),
-        user_id,
-        &command.input,
-        apply,
-    )
-    .await?;
-
-    let task_id = sanitize_optional_task_id(command.task_id)?;
-    let task = register_web_task(
-        state,
-        task_id.clone(),
-        TaskKind::LlmCall,
-        scope.project_id,
-        scope.total,
-        target.initial_message(apply),
-    )
-    .await;
-    let progress = web_progress_reporter(task);
-    let result = if apply {
-        import_reverse_actions::reverse_engineer_and_apply(
-            state.runtime(),
-            user_id,
-            &command.input,
-            target,
-            &progress,
-        )
-        .await
-    } else {
-        import_reverse_actions::reverse_engineer(
-            state.runtime(),
-            user_id,
-            &command.input,
-            target,
-            &progress,
-        )
-        .await
-    };
-    finish_web_task(state, task_id, result).await
-}
-
-pub(in crate::routes::commands) async fn preview_reverse_engineer_request_command(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-    target: import_reverse_actions::ReverseEngineeringTarget,
-) -> Result<Value, ApiError> {
-    let command: ReverseEngineerPreviewArgs =
-        serde_json::from_value(args.clone()).map_err(|e| {
-            ApiError::bad_request(format!(
-                "preview_{}_request 参数无效: {e}",
-                target.prompt_name()
-            ))
-        })?;
-    let preview = import_reverse_actions::preview_reverse_engineer_request(
-        state.runtime(),
-        user_id,
-        &command.input,
-        target,
-    )
-    .await?;
-    to_value(preview)
 }

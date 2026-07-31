@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
   checkProfileSyncConflict,
@@ -472,25 +472,25 @@ export const SnapshotManager: React.FC<{
         >
           {loading ? (
             <span className="inline-flex items-center gap-1.5">
-              <Loader2 size={11} className="animate-spin" /> 刷新中…
+              <LoadingSpinner size="sm" /> 刷新中…
             </span>
           ) : (
             "刷新"
           )}
         </BookButton>
         {hasCurrentSnapshots && snapshots.length > 0 ? (
-          <span className="pb-1 text-[10px] text-book-text-muted">
+          <span className="pb-1 text-caption text-book-text-muted">
             {snapshots.length} 个快照
           </span>
         ) : null}
       </div>
       <details className="a4n-flat-surface px-3 py-2">
-        <summary className="cursor-pointer text-[11px] font-medium text-book-text-main">
+        <summary className="cursor-pointer text-small font-medium text-book-text-main">
           比较与回滚
         </summary>
         <div className="mt-3 grid gap-3 lg:grid-cols-2">
           <section>
-            <div className="mb-1.5 text-[10px] font-medium text-book-text-muted">
+            <div className="mb-1.5 text-caption font-medium text-book-text-muted">
               比较章节状态
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -542,7 +542,7 @@ export const SnapshotManager: React.FC<{
             </div>
           </section>
           <section className="border-l-2 border-error/35 pl-3">
-            <div className="mb-1.5 text-[10px] font-medium text-book-text-muted">
+            <div className="mb-1.5 text-caption font-medium text-book-text-muted">
               回滚角色状态
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -573,7 +573,7 @@ export const SnapshotManager: React.FC<{
                 type="button"
                 onClick={handleRollback}
                 disabled={!canRollback || rollingBack}
-                className="pyqt-btn-secondary !min-h-9 !border-error/50 !px-2 text-[11px] !text-error hover:!bg-error-bg sm:!min-h-[26px]"
+                className="pyqt-btn-secondary !min-h-9 !border-error/50 !px-2 text-small !text-error hover:!bg-error-bg sm:!min-h-[26px]"
               >
                 {rollingBack ? "回滚中" : "回滚"}
               </button>
@@ -582,16 +582,16 @@ export const SnapshotManager: React.FC<{
         </div>
       </details>
       {loading ? (
-        <div className="text-[11px] text-book-text-muted">加载…</div>
+        <div className="text-small text-book-text-muted">加载…</div>
       ) : !hasCurrentSnapshots ? (
-        <div className="text-[11px] text-book-text-muted italic">
+        <div className="text-small text-book-text-muted italic">
           当前快照范围尚未加载，请刷新
         </div>
       ) : (
         <>
           {conflict && (
             <div
-              className={`rounded-xl border-l-2 px-3 py-2.5 text-[11px] ${
+              className={`rounded-xl border-l-2 px-3 py-2.5 text-small ${
                 conflict.has_conflict
                   ? "border-error/60 bg-error-bg/35 text-error"
                   : "border-book-border bg-book-bg-tertiary/25 text-book-text-muted"
@@ -607,38 +607,38 @@ export const SnapshotManager: React.FC<{
                 </div>
               ) : null}
               {conflict.available_snapshot_chapters.length > 0 && (
-                <div className="mt-1 text-[10px]">
+                <div className="mt-1 text-caption">
                   可回滚快照：第{" "}
                   {conflict.available_snapshot_chapters.join("、")} 章
                 </div>
               )}
               {conflict.has_conflict &&
                 conflict.available_snapshot_chapters.length === 0 && (
-                  <div className="mt-1 text-[10px]">
+                  <div className="mt-1 text-caption">
                     没有可用快照，可回滚到初始状态后重新同步。
                   </div>
                 )}
             </div>
           )}
           {snapshots.length === 0 ? (
-            <div className="text-[11px] text-book-text-muted italic">
+            <div className="text-small text-book-text-muted italic">
               尚无快照引用
             </div>
           ) : (
             <ul className="a4n-flat-surface divide-y divide-book-border/45">
               {snapshots.map((s) => {
                 return (
-                  <li key={s.id} className="px-3 py-2 text-[11px]">
+                  <li key={s.id} className="px-3 py-2 text-small">
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-book-text-main">
                           第 {s.chapter_number} 章
-                          <span className="ml-2 text-[10px] font-normal text-book-text-muted">
+                          <span className="ml-2 text-caption font-normal text-book-text-muted">
                             变化 {s.changes_in_chapter} · 行为{" "}
                             {s.behaviors_in_chapter}
                           </span>
                         </div>
-                        <div className="mt-1 text-[10px] leading-relaxed text-book-text-muted">
+                        <div className="mt-1 text-caption leading-relaxed text-book-text-muted">
                           {snapshotReferenceCountText(s)}
                           {s.state_summary ? ` · ${s.state_summary}` : ""}
                         </div>
@@ -646,14 +646,14 @@ export const SnapshotManager: React.FC<{
                       <button
                         type="button"
                         onClick={() => void handleViewState(s.chapter_number)}
-                        className="shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] text-book-primary hover:bg-book-primary/10"
+                        className="shrink-0 rounded-lg px-1.5 py-0.5 text-caption text-book-primary hover:bg-book-primary/10"
                       >
                         状态
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleView(s.snapshot_hash)}
-                        className="shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] text-book-primary hover:bg-book-primary/10"
+                        className="shrink-0 rounded-lg px-1.5 py-0.5 text-caption text-book-primary hover:bg-book-primary/10"
                       >
                         详情
                       </button>

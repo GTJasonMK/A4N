@@ -5,7 +5,6 @@ use a4n_core::error::AppError;
 use tokio_util::sync::CancellationToken;
 
 use crate::OrchestratorContext;
-use crate::workflow::WorkflowRunFinalizeOutcome;
 
 use self::{design::generate_shooting_scenes, screenplay::generate_screenplay_plan};
 use super::{
@@ -25,10 +24,16 @@ impl OrchestratorContext {
         source: ChapterShootingScriptSourceInput,
         progress: ShootingScriptProgressReporter<'_>,
         cancel_token: Option<&CancellationToken>,
+        active_task_id: Option<&str>,
     ) -> Result<ResolvedChapterShootingScript, AppError> {
         self.verify_project_or_derived_family_editor_validated(user_id, source.project_id)
             .await?;
-        self.generate_chapter_shooting_script_with_progress(source, progress, cancel_token)
+        self.generate_chapter_shooting_script_with_progress(
+            source,
+            progress,
+            cancel_token,
+            active_task_id,
+        )
             .await
     }
 
@@ -37,6 +42,7 @@ impl OrchestratorContext {
         source: ChapterShootingScriptSourceInput,
         progress: ShootingScriptProgressReporter<'_>,
         cancel_token: Option<&CancellationToken>,
+        active_task_id: Option<&str>,
     ) -> Result<ResolvedChapterShootingScript, AppError> {
         let target_revision = self
             .next_chapter_shooting_script_revision(source.clone())
@@ -46,6 +52,7 @@ impl OrchestratorContext {
                 source.project_id,
                 source.source_chapter_id,
                 target_revision,
+                active_task_id,
             )
             .await?;
         let result = self
@@ -59,26 +66,8 @@ impl OrchestratorContext {
                 cancel_token,
             )
             .await;
-        let outcome = match &result {
-            Ok(_) => WorkflowRunFinalizeOutcome::Completed,
-            Err(AppError::Cancelled) => WorkflowRunFinalizeOutcome::Cancelled,
-            Err(_) => WorkflowRunFinalizeOutcome::Failed,
-        };
-        let error_message = result.as_ref().err().map(ToString::to_string);
-        let finalized = self
-            .finalize_workflow_run_outcome_validated(workflow.id, outcome, error_message.as_deref())
-            .await;
-        match (result, finalized) {
-            (Ok(value), Ok(_)) => Ok(value),
-            (Ok(_), Err(status_error)) => Err(status_error),
-            (Err(error), Ok(_)) => Err(error),
-            (Err(error), Err(status_error)) => Err(AppError::InvalidState {
-                current: error.to_string(),
-                operation: format!(
-                    "章节拍摄剧本生成失败，且 workflow 终态写入失败: {status_error}"
-                ),
-            }),
-        }
+        self.finalize_workflow_outcome_result(workflow.id, result, "章节拍摄剧本生成")
+            .await
     }
 
     pub(crate) async fn regenerate_chapter_shooting_script_with_progress(

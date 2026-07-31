@@ -41,36 +41,79 @@ pub enum VideoGenerationOperation {
         chapter_id: i64,
         input: ReferenceMediaVideoInput,
     },
+    PromptSegmentPlan {
+        #[schemars(range(min = 1))]
+        chapter_id: i64,
+        options: VideoPromptGenerationOptions,
+    },
+    PromptFrames {
+        #[schemars(range(min = 1))]
+        chapter_id: i64,
+        options: VideoPromptGenerationOptions,
+    },
+    PromptVideos {
+        #[schemars(range(min = 1))]
+        chapter_id: i64,
+        options: VideoPromptGenerationOptions,
+    },
 }
 
-/// 参考媒体视频请求；预览和正式生产共用这一 DTO。
+impl VideoGenerationOperation {
+    pub fn is_prompt_generation(&self) -> bool {
+        matches!(
+            self,
+            Self::PromptSegmentPlan { .. } | Self::PromptFrames { .. } | Self::PromptVideos { .. }
+        )
+    }
+}
+
+/// 章节视频提示词三段式生成共用的输入。
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct VideoPromptGenerationOptions {
+    #[serde(default)]
+    pub workflow_mode: Option<String>,
+    /// 当前共享片段规划。生成片段规划时为空；生成某个片段的帧或最终提示词时必填。
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub segment_plan_prompt_id: Option<i64>,
+    pub style: String,
+    #[serde(default)]
+    pub prompt_output_language: Option<String>,
+    #[schemars(range(min = 1))]
+    pub prompt_batch_size: i32,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub target_shot_number: Option<i32>,
+    #[schemars(range(min = 1, max = 60))]
+    pub duration_secs: i32,
+    #[serde(default)]
+    pub duration_secs_options: Vec<i32>,
+    pub aspect_ratio: String,
+    #[serde(default)]
+    pub reference_image_ids: Vec<i64>,
+    #[serde(default)]
+    pub video_library_image_ids: Vec<i64>,
+    #[serde(default)]
+    pub regenerate_existing: bool,
+}
+
+/// 参考媒体视频请求；提示词、URL 槽、时长和画幅由当前片段 recipe 决定。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ReferenceMediaVideoInput {
-    /// 关联的片段视频提示词。预览与生成使用同一片段身份。
+    /// 当前共享片段规划。预览与生成使用同一规划身份。
     #[schemars(range(min = 1))]
-    pub segment_prompt_id: i64,
+    pub segment_plan_prompt_id: i64,
     /// 片段顺序快照，用于结果筛选和身份校验。
     #[schemars(range(min = 1))]
     pub shot_number: i32,
-    #[schemars(length(max = 100_000))]
-    pub prompt: String,
-    #[serde(default)]
-    pub image_files: Vec<String>,
     #[serde(default)]
     pub image_uploads: Vec<ReferenceMediaUploadInput>,
     #[serde(default)]
-    pub video_files: Vec<String>,
-    #[serde(default)]
     pub video_uploads: Vec<ReferenceMediaUploadInput>,
     #[serde(default)]
-    pub audio_files: Vec<String>,
-    #[serde(default)]
     pub audio_uploads: Vec<ReferenceMediaUploadInput>,
-    #[schemars(range(min = 1, max = 60))]
-    pub duration_secs: i32,
-    #[schemars(length(max = 16))]
-    pub aspect_ratio: String,
     #[serde(default)]
     #[schemars(range(min = 1))]
     pub config_id: Option<i64>,
@@ -130,13 +173,10 @@ pub struct VideoPlaybackData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct DeleteChapterVideoAssetsResult {
-    pub deleted_video_count: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SelectSegmentVideoInput {
+    #[schemars(range(min = 1))]
+    pub segment_plan_prompt_id: i64,
     #[schemars(range(min = 1))]
     pub shot_number: i32,
 }
@@ -213,11 +253,8 @@ pub struct UploadReferenceMediaVideoInput {
     pub file_name: String,
     pub mime_type: String,
     pub data_base64: String,
-    pub prompt: String,
-    pub duration_secs: i32,
-    pub aspect_ratio: String,
     #[schemars(range(min = 1))]
-    pub segment_prompt_id: i64,
+    pub segment_plan_prompt_id: i64,
     #[schemars(range(min = 1))]
     pub shot_number: i32,
 }

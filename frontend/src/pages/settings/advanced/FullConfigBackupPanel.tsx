@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
-import { ChevronRight, Download, Loader2, Upload } from "lucide-react";
+import { ChevronRight, Download, Upload } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 
 interface FullConfigBackupPanelProps {
   overwrite: boolean;
@@ -32,7 +33,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
   return (
     <section aria-label="配置备份" className="w-full max-w-3xl">
       <h3 className="text-sm font-semibold text-book-text-main">配置备份</h3>
-      <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+      <p className="mt-1 text-small leading-relaxed text-book-text-muted">
         备份或恢复模型、提示词、主题和系统配置。
       </p>
 
@@ -44,15 +45,15 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
             disabled={exporting || importing}
             className="flex min-h-11 w-full items-center gap-3 px-3 py-3 text-left text-book-text-main transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-primary disabled:opacity-50"
           >
-            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            {exporting ? <LoadingSpinner size="sm" /> : <Download size={14} />}
             <span className="min-w-0 flex-1">
               <span className="block font-medium">导出配置文件</span>
-              <span className="mt-0.5 block text-[11px] text-book-text-muted">保存一份完整配置备份</span>
+              <span className="mt-0.5 block text-small text-book-text-muted">保存一份完整配置备份</span>
             </span>
             <ChevronRight size={13} className="text-book-text-muted" />
           </button>
           {lastExportPath ? (
-            <details className="border-t border-book-border/35 text-[11px] text-book-text-muted">
+            <details className="border-t border-book-border/35 text-small text-book-text-muted">
               <summary className="cursor-pointer px-3 py-2.5 transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-text-main">
                 最近导出位置
               </summary>
@@ -70,10 +71,10 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
             disabled={importing || exporting}
             className="flex min-h-11 w-full items-center gap-3 px-3 py-3 text-left text-book-text-main transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-primary disabled:opacity-50"
           >
-            {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            {importing ? <LoadingSpinner size="sm" /> : <Upload size={14} />}
             <span className="min-w-0 flex-1">
               <span className="block font-medium">导入配置文件</span>
-              <span className="mt-0.5 block text-[11px] text-book-text-muted">从 JSON 备份恢复配置</span>
+              <span className="mt-0.5 block text-small text-book-text-muted">从 JSON 备份恢复配置</span>
             </span>
             <ChevronRight size={13} className="text-book-text-muted" />
           </button>
@@ -99,7 +100,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-book-text-sub">覆盖同名项</span>
-                <span className="mt-0.5 block text-[11px] text-book-text-muted">
+                <span className="mt-0.5 block text-small text-book-text-muted">
                   {overwrite ? "导入时替换已有同名配置" : "保留已有配置，只补充新项目"}
                 </span>
               </span>

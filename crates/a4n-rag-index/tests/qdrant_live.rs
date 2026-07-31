@@ -38,12 +38,18 @@ async fn store() -> Arc<QdrantVectorStore> {
     .expect("connect qdrant")
 }
 
-fn record(id: &str, emb: Vec<f32>, content: &str, chapter: i64) -> EmbeddingRecord {
+fn record(
+    project_id: i64,
+    id: &str,
+    emb: Vec<f32>,
+    content: &str,
+    chapter: i64,
+) -> EmbeddingRecord {
     EmbeddingRecord {
         id: id.to_string(),
         embedding: emb,
         metadata: json!({
-            "project_id": 42,
+            "project_id": project_id,
             "data_type": "chapter",
             "chapter_number": chapter,
         }),
@@ -60,13 +66,43 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
     let store = store().await;
     let collection = "42";
 
+    let expected_ids = vec!["not-indexed-yet".to_string()];
+    assert!(
+        store
+            .metadata_by_ids(collection, &expected_ids)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        store
+            .metadata_by_filter(
+                collection,
+                DeleteFilter {
+                    project_id: 42,
+                    data_type: None,
+                    chapter_number: None,
+                    ids: vec![],
+                    id_prefixes: vec![],
+                },
+            )
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let empty_report = store
+        .completeness_report_by_ids(collection, &expected_ids)
+        .await
+        .unwrap();
+    assert_eq!(empty_report.missing_ids, expected_ids);
+
     let n = store
         .add_embeddings(
             collection,
             vec![
-                record("doc-a", vec![1.0, 0.0, 0.0], "林晚施展血契之术", 1),
-                record("doc-b", vec![0.0, 1.0, 0.0], "普通章节叙述文本", 2),
-                record("doc-c", vec![0.0, 0.0, 1.0], "第三条无空格专名段落", 3),
+                record(42, "doc-a", vec![1.0, 0.0, 0.0], "林晚施展血契之术", 1),
+                record(42, "doc-b", vec![0.0, 1.0, 0.0], "普通章节叙述文本", 2),
+                record(42, "doc-c", vec![0.0, 0.0, 1.0], "第三条无空格专名段落", 3),
             ],
         )
         .await
@@ -74,6 +110,26 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
     assert_eq!(n, 3);
     assert!(store.collection_exists(collection).await.unwrap());
     assert_eq!(store.count(collection).await.unwrap(), 3);
+
+    let other_collection = "project/43";
+    store
+        .add_embeddings(
+            other_collection,
+            vec![record(
+                43,
+                "other-doc",
+                vec![1.0, 0.0, 0.0, 0.0],
+                "另一项目使用不同嵌入维度",
+                1,
+            )],
+        )
+        .await
+        .expect("ingest second collection with different dimension");
+    assert_eq!(store.count(other_collection).await.unwrap(), 1);
+    assert_eq!(
+        store.list_collections().await.unwrap(),
+        vec![collection.to_string(), other_collection.to_string()]
+    );
 
     let vec_hits = store
         .query(collection, vec![1.0, 0.0, 0.0], 2, None)
@@ -167,6 +223,35 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
     store.drop_collection(collection).await.expect("drop");
     assert!(!store.collection_exists(collection).await.unwrap());
     assert_eq!(store.count(collection).await.unwrap(), 0);
+    assert_eq!(store.count(other_collection).await.unwrap(), 1);
+
+    store
+        .add_embeddings(
+            collection,
+            vec![record(
+                42,
+                "doc-rebuilt",
+                vec![1.0, 0.0, 0.0, 0.0],
+                "删除后以新维度重建",
+                4,
+            )],
+        )
+        .await
+        .expect("rebuild collection with new dimension");
+    let rebuilt = store
+        .query(collection, vec![1.0, 0.0, 0.0, 0.0], 1, None)
+        .await
+        .expect("query rebuilt collection");
+    assert_eq!(rebuilt[0].id, "doc-rebuilt");
+
+    store
+        .drop_collection(collection)
+        .await
+        .expect("drop rebuilt");
+    store
+        .drop_collection(other_collection)
+        .await
+        .expect("drop second collection");
 
     assert!(store.health_check().await.unwrap());
 }

@@ -3,11 +3,10 @@ use a4n_core::models::asset::object_profile;
 use a4n_db::DbHandle;
 
 use super::OrchestratorContext;
-use a4n_db::asset::AssetDbError;
 
 use crate::asset::{
-    ObjectProfileDraft, ObjectProfileUpsertRecordResult, normalize_object_profile_record_input,
-    normalize_object_profile_record_inputs,
+    ObjectProfileDraft, ObjectProfileUpsertRecordResult, asset_error,
+    normalize_object_profile_record_input, normalize_object_profile_record_inputs,
 };
 
 #[derive(Clone)]
@@ -88,14 +87,6 @@ impl AssetApplication {
         )
         .await
         .map_err(asset_error)
-    }
-}
-
-fn asset_error(error: AssetDbError) -> AppError {
-    match error {
-        AssetDbError::Database(error) => AppError::Database(error),
-        AssetDbError::NotFound(message) => AppError::NotFound(message),
-        AssetDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
     }
 }
 

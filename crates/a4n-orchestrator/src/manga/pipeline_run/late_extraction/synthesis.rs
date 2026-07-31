@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::{Map, Value, json};
 
-use super::super::super::PIPELINE_TOTAL_STEPS;
+use super::super::super::MangaPipelineStartStage;
 use super::super::super::checkpoint::{checkpoint_insert, checkpoint_insert_trace};
 use super::super::super::pipeline_prompt::{
     MANGA_PREVIOUS_OUTPUT_ITEM_EXTRACTION, MANGA_PREVIOUS_OUTPUT_SHOOTING_SCRIPT_EVENTS,
@@ -10,8 +10,7 @@ use super::super::super::pipeline_prompt::{
     MangaRenderTraceInput, build_manga_context_manifest,
     manga_chapter_comic_synthesis_user_message, validate_manga_chapter_comic_synthesis,
 };
-use super::super::super::pipeline_status::MangaPipelineStatusInput;
-use super::super::contracts::{MangaRunContext, MangaRunningPipelineCheckpointInput};
+use super::super::contracts::MangaRunContext;
 
 pub(super) struct ComicSynthesisStageInput<'a> {
     pub(super) events_json: &'a Value,
@@ -56,7 +55,6 @@ pub(super) async fn run_comic_synthesis_stage(
         chapter_content: &context.chapter_content,
         source_spans: &context.source_spans,
         prompt_names: &[
-            "shooting_script_projection",
             "manga_speech_selection",
             "manga_visual_anchor_extraction",
             "manga_item_extraction",
@@ -140,37 +138,12 @@ pub(super) async fn run_comic_synthesis_stage(
         json!(comic_synthesis_out),
     );
     context
-        .service
-        .save_running_pipeline_checkpoint(MangaRunningPipelineCheckpointInput {
-            chapter_id: context.chapter_id,
-            project_id: context.project_id,
-            stage: "comic_synthesis",
-            current: 5,
-            message: "已完成漫画章节综合",
-            task_id: context.task_id,
-            source_metadata: &context.source_metadata,
-            reference_assets_metadata: &context.reference_assets_metadata,
-            prompt_fingerprint: &context.prompt_fingerprint,
+        .checkpoint_and_advance_stage(
             checkpoint,
-        })
-        .await?;
-    context
-        .service
-        .ensure_pipeline_not_cancelled(context.project_id, context.chapter_id)
-        .await?;
-    context
-        .service
-        .set_pipeline_status(MangaPipelineStatusInput {
-            chapter_id: context.chapter_id,
-            project_id: context.project_id,
-            pipeline_status: "running",
-            stage: "page_planning",
-            current: 6,
-            total: PIPELINE_TOTAL_STEPS,
-            message: "正在生成漫画分页规划",
-            task_id: context.task_id,
-            allow_cancel_override: false,
-        })
+            MangaPipelineStartStage::ComicSynthesis,
+            "已完成漫画章节综合",
+            MangaPipelineStartStage::PagePlanning,
+        )
         .await?;
 
     Ok((comic_synthesis_trace, synthesis_json))

@@ -101,10 +101,9 @@ pub(super) fn embedding_model_operation_path(operation: &str) -> CapabilityResul
         "download_info" => Ok("/embedding/model/download_info"),
         "download" => Ok("/embedding/model/download"),
         "delete" => Ok("/embedding/model/delete"),
-        _ => Err(ServiceError {
-            code: ServiceErrorCode::ConfigurationError,
-            message: format!("unsupported embedding model operation: {operation}"),
-            retryable: Some(false),
-        }),
+        _ => Err(ServiceError::non_retryable(
+            ServiceErrorCode::ConfigurationError,
+            format!("unsupported embedding model operation: {operation}"),
+        )),
     }
 }

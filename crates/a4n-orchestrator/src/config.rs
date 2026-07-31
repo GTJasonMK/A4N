@@ -21,6 +21,3 @@ pub use settings_export_rules::{
     AllConfigsExport, EmbeddingRow, ImageRow, ImportAllConfigsInput, ImportAllResult, LlmRow,
     PromptRow, SystemSettingRow, ThemeRow, VideoRow,
 };
-
-/// Host/runtime 使用的 embedding 更新补丁别名（与 core UpdateEmbeddingConfigParams 对齐）。
-pub type EmbeddingConfigUpdatePatch = a4n_core::config::UpdateEmbeddingConfigParams;

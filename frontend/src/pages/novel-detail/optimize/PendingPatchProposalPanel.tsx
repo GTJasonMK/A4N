@@ -28,7 +28,7 @@ export function PendingPatchProposalPanel({
           <div className="font-semibold text-book-text-main">
             {proposal.patches.length} 个补丁待审阅
           </div>
-          <div className="mt-0.5 truncate text-[11px] text-book-text-sub" title={proposal.summary}>
+          <div className="mt-0.5 truncate text-small text-book-text-sub" title={proposal.summary}>
             {proposal.summary}
           </div>
         </div>
@@ -63,7 +63,7 @@ export function PendingPatchProposalPanel({
             size="sm"
             onClick={onApply}
             disabled={taskRunning}
-            className="!text-[11px]"
+            className="!text-small"
             title="确认后应用这些局部补丁"
           >
             <CheckCircle2 size={12} />

@@ -5,6 +5,9 @@ use a4n_core::{
         chapter::chapter_video_prompt,
     },
     source_spans::{metadata_source_content_sha256, source_text_hash},
+    video_execution::{
+        VideoSegmentExecutionRecipeV1, video_segment_recipes_for_plan_from_metadata,
+    },
 };
 use a4n_db::collaboration::ProjectAccessRole;
 use a4n_service_protocol::GenerationArtifactRef;
@@ -33,15 +36,13 @@ use super::{
     VideoGenerationProgress, VideoGenerationRecordInput, VideoProviderExecutionInput,
     VideoProviderHostPort, VideoProviderRequestBody, VideoProviderRequestInput,
     VideoProviderValidationMode, boundary_frame_numbers_for_prompt,
-    cliproxy_grok_model_is_image_to_video_only, ensure_newapi_first_frame_image_supported,
-    first_frame_prompt_matches_video_prompt, frame_prompt_matches_video_prompt,
-    image_generation_prompt_id, image_generation_source, latest_boundary_frame_image_id,
-    latest_storyboard_image_id, linked_video_preview_config_id,
-    previous_video_prompt_matches_current, prompt_provider_workflow,
-    reference_ids_with_prompt_frame_images, reference_ids_with_storyboard_image,
-    reference_image_ids, required_prompt_source_prompt_type, required_video_execution_identity,
-    storyboard_prompt_matches_video_prompt, tail_frame_image_matches_prompt,
-    validate_video_duration_for_config_secs, video_generation_capabilities,
+    ensure_newapi_first_frame_image_supported, first_frame_prompt_matches_video_prompt,
+    frame_prompt_matches_video_prompt, image_generation_prompt_id, image_generation_source,
+    latest_boundary_frame_image_id, latest_storyboard_image_id, linked_video_preview_config_id,
+    prompt_provider_workflow, reference_ids_with_prompt_frame_images,
+    reference_ids_with_storyboard_image, reference_image_ids, required_prompt_source_prompt_type,
+    required_video_execution_identity, storyboard_prompt_matches_video_prompt,
+    tail_frame_image_belongs_to_video, validate_video_duration_for_config_secs,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -179,16 +180,12 @@ impl OrchestratorContext {
         input: GenerateChapterVideoInput,
         progress: &mut VideoGenerationProgress<'_>,
     ) -> Result<generated_video::Model, AppError> {
-        progress
-            .progress(
-                0,
-                VIDEO_GENERATION_PROGRESS_TOTAL,
-                "正在检查视频提示词和配置",
-            )
-            .map_err(AppError::InvalidArgument)?;
-        progress
-            .check_cancelled("视频生成已停止")
-            .map_err(AppError::InvalidArgument)?;
+        progress.progress(
+            0,
+            VIDEO_GENERATION_PROGRESS_TOTAL,
+            "正在检查视频提示词和配置",
+        )?;
+        progress.check_cancelled("视频生成已停止")?;
         let prepared = self
             .prepare_chapter_video_generation(
                 host_port,
@@ -201,12 +198,8 @@ impl OrchestratorContext {
         self.ensure_video_capacity(context.config.id, context.config.max_concurrent)
             .await?;
 
-        progress
-            .progress(2, VIDEO_GENERATION_PROGRESS_TOTAL, "正在创建视频生成记录")
-            .map_err(AppError::InvalidArgument)?;
-        progress
-            .check_cancelled("视频生成已停止")
-            .map_err(AppError::InvalidArgument)?;
+        progress.progress(2, VIDEO_GENERATION_PROGRESS_TOTAL, "正在创建视频生成记录")?;
+        progress.check_cancelled("视频生成已停止")?;
         let video = self
             .create_chapter_video_generation_record(host_port, &prepared)
             .await?;
@@ -227,13 +220,15 @@ impl OrchestratorContext {
                 .await;
         }
 
-        progress
-            .progress(3, VIDEO_GENERATION_PROGRESS_TOTAL, "正在调用视频模型")
-            .map_err(AppError::InvalidArgument)?;
-        if let Err(message) = progress.check_cancelled("视频生成已停止") {
-            return self
-                .mark_generated_video_failed_validated(video.id, Some(context.prompt.id), &message)
-                .await;
+        progress.progress(3, VIDEO_GENERATION_PROGRESS_TOTAL, "正在调用视频模型")?;
+        if progress.check_cancelled("视频生成已停止").is_err() {
+            self.mark_generated_video_cancelled_validated(
+                video.id,
+                Some(context.prompt.id),
+                "视频生成已停止",
+            )
+            .await?;
+            return Err(AppError::Cancelled);
         }
         let prompt_length_context = video_request_prompt_length_context(&context.request);
         let mut provider_input = VideoProviderRequestInput {
@@ -259,33 +254,28 @@ impl OrchestratorContext {
                     &prompt_length_context,
                 )
             });
-        if let Ok(result) = &result {
-            if let Some(job_id) = result
+        if let Ok(result) = &result
+            && let Some(job_id) = result
                 .provider_job_id
                 .as_deref()
                 .filter(|id| !id.trim().is_empty())
-            {
-                progress
-                    .checkpoint_provider_job(video.id, &context.config, job_id)
-                    .await?;
-            }
+        {
+            progress
+                .checkpoint_provider_job(video.id, &context.config, job_id)
+                .await?;
         }
         if result.as_ref().is_ok_and(|result| result.bytes.is_empty()) {
-            progress
-                .progress(
-                    4,
-                    VIDEO_GENERATION_PROGRESS_TOTAL,
-                    "视频模型已提交异步任务，开始等待生成结果",
-                )
-                .map_err(AppError::InvalidArgument)?;
+            progress.progress(
+                4,
+                VIDEO_GENERATION_PROGRESS_TOTAL,
+                "视频模型已提交异步任务，开始等待生成结果",
+            )?;
         } else {
-            progress
-                .progress(
-                    6,
-                    VIDEO_GENERATION_PROGRESS_TOTAL,
-                    "视频模型已返回，正在保存文件",
-                )
-                .map_err(AppError::InvalidArgument)?;
+            progress.progress(
+                6,
+                VIDEO_GENERATION_PROGRESS_TOTAL,
+                "视频模型已返回，正在保存文件",
+            )?;
         }
         let updated = self
             .apply_video_provider_result_validated(
@@ -300,9 +290,7 @@ impl OrchestratorContext {
                 host_port.video_provider_host_port(),
             )
             .await?;
-        progress
-            .progress(7, VIDEO_GENERATION_PROGRESS_TOTAL, "视频文件已保存")
-            .map_err(AppError::InvalidArgument)?;
+        progress.progress(7, VIDEO_GENERATION_PROGRESS_TOTAL, "视频文件已保存")?;
         Ok(updated)
     }
 
@@ -336,6 +324,8 @@ impl OrchestratorContext {
         if prompt.prompt_type != "video_prompt" {
             return Err(invalid_argument("请选择 video_prompt 类型的提示词生成视频"));
         }
+        self.require_current_segment_recipe_for_video_prompt(&prompt)
+            .await?;
 
         let mut provider_input_note = None;
         if mode == VideoProviderValidationMode::Preview {
@@ -365,12 +355,11 @@ impl OrchestratorContext {
                 ));
             }
             if let Some(source_hash) = metadata_source_content_sha256(prompt.metadata_json.as_ref())
+                && source_hash != source_text_hash(&source.source.content)
             {
-                if source_hash != source_text_hash(&source.source.content) {
-                    return Err(invalid_argument(
-                        "当前提示词基于旧正文内容，请重新生成视频提示词",
-                    ));
-                }
+                return Err(invalid_argument(
+                    "当前提示词基于旧正文内容，请重新生成视频提示词",
+                ));
             }
         }
 
@@ -408,32 +397,6 @@ impl OrchestratorContext {
             return Err(invalid_argument(
                 "纯文本生成不能绑定参考图片；请清空当前片段参考图后重试",
             ));
-        }
-        if provider_workflow.uses_text_only()
-            && config.backend == CLIPROXY_OPENAI_VIDEO_BACKEND
-            && cliproxy_grok_model_is_image_to_video_only(&config.model)
-        {
-            return Err(invalid_argument(format!(
-                "当前视频模型 {} 仅支持图生视频，不能使用纯文本生成",
-                config.model
-            )));
-        }
-        if provider_workflow.uses_keyframes() {
-            let capabilities = video_generation_capabilities(
-                &config.backend,
-                &config.model,
-                config.provider_options_json.as_ref(),
-            );
-            let keyframe_count = prompt_reference_image_ids.len();
-            if !capabilities.supports_keyframes
-                || !(capabilities.keyframe_min as usize..=capabilities.keyframe_max as usize)
-                    .contains(&keyframe_count)
-            {
-                return Err(invalid_argument(format!(
-                    "当前视频服务关键帧数量范围为 {}-{} 张，当前 {} 张",
-                    capabilities.keyframe_min, capabilities.keyframe_max, keyframe_count
-                )));
-            }
         }
         let storyboard_workflow = provider_workflow.uses_storyboard();
         let cliproxy_grok_mode =
@@ -538,7 +501,6 @@ impl OrchestratorContext {
         let last_frame_image_url_available = image_inputs.last_frame_image_url.is_some();
         enforce_cliproxy_video_media_contract(
             &config.backend,
-            &config.model,
             cliproxy_grok_mode,
             references.provider_reference_image_count,
             first_frame_image_url_available,
@@ -767,6 +729,8 @@ impl OrchestratorContext {
                     row.id
                 )));
             }
+            self.require_current_segment_recipe_for_video_prompt(row)
+                .await?;
             super::ensure_provider_generation_workflow(row).map_err(AppError::InvalidArgument)?;
             if row.status == "running" {
                 return Err(invalid_argument(format!(
@@ -788,6 +752,98 @@ impl OrchestratorContext {
             }
         }
         Ok(rows.into_iter().map(|row| row.id).collect())
+    }
+
+    async fn require_current_segment_recipe_for_video_prompt(
+        &self,
+        prompt: &chapter_video_prompt::Model,
+    ) -> Result<VideoSegmentExecutionRecipeV1, AppError> {
+        let metadata = prompt
+            .metadata_json
+            .as_ref()
+            .and_then(Value::as_object)
+            .ok_or_else(|| invalid_argument(format!("视频提示词 #{} 缺少 metadata", prompt.id)))?;
+        let plan_id = metadata
+            .get("segment_plan_prompt_id")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| {
+                invalid_argument(format!(
+                    "视频提示词 #{} 缺少 segment_plan_prompt_id，属于旧执行方案",
+                    prompt.id
+                ))
+            })?;
+        let segment_number = metadata
+            .get("segment_number")
+            .and_then(Value::as_i64)
+            .and_then(|value| i32::try_from(value).ok())
+            .filter(|value| *value > 0)
+            .ok_or_else(|| {
+                invalid_argument(format!("视频提示词 #{} 缺少有效 segment_number", prompt.id))
+            })?;
+        if segment_number != prompt.shot_number {
+            return Err(invalid_argument(format!(
+                "视频提示词 #{} 的 segment_number 与 shot_number 不一致",
+                prompt.id
+            )));
+        }
+        let plan = self
+            .require_current_shared_segment_plan(prompt.project_id, prompt.chapter_id, plan_id)
+            .await?;
+        let plan_style = plan
+            .style
+            .as_deref()
+            .map(str::trim)
+            .filter(|style| !style.is_empty())
+            .ok_or_else(|| invalid_argument("当前片段规划缺少 style"))?;
+        let recipe =
+            video_segment_recipes_for_plan_from_metadata(plan.metadata_json.as_ref(), plan_style)
+                .map_err(AppError::InvalidArgument)?
+                .into_iter()
+                .find(|recipe| recipe.segment_number == segment_number)
+                .ok_or_else(|| {
+                    invalid_argument(format!("当前规划缺少片段 {segment_number} 的执行方案"))
+                })?;
+        let expected_fingerprint = recipe
+            .generation_fingerprint()
+            .map_err(AppError::InvalidArgument)?;
+        let identity = metadata
+            .get("video_execution_identity")
+            .and_then(Value::as_object)
+            .ok_or_else(|| invalid_argument(format!("视频提示词 #{} 缺少执行身份", prompt.id)))?;
+        let valid = metadata
+            .get("segment_recipe_fingerprint")
+            .and_then(Value::as_str)
+            == Some(expected_fingerprint.as_str())
+            && identity
+                .get("segment_plan_prompt_id")
+                .and_then(Value::as_i64)
+                == Some(plan_id)
+            && identity.get("segment_number").and_then(Value::as_i64)
+                == Some(i64::from(segment_number))
+            && identity
+                .get("segment_recipe_fingerprint")
+                .and_then(Value::as_str)
+                == Some(expected_fingerprint.as_str())
+            && prompt.workflow_mode == recipe.workflow_mode.as_str()
+            && prompt.style.as_deref().map(str::trim) == Some(recipe.style.trim())
+            && prompt.duration_secs == recipe.duration_secs
+            && prompt.aspect_ratio.as_deref() == Some(recipe.aspect_ratio.as_str())
+            && metadata
+                .get("prompt_output_language")
+                .and_then(Value::as_str)
+                == Some(recipe.prompt_output_language.as_str())
+            && metadata.get("guidance_mode").and_then(Value::as_str)
+                == Some(recipe.guidance_mode.as_str())
+            && reference_image_ids(prompt.reference_image_ids_json.as_ref())
+                .map_err(AppError::InvalidArgument)?
+                == recipe.provider_reference_image_ids();
+        if !valid {
+            return Err(invalid_argument(format!(
+                "视频提示词 #{} 不属于当前片段执行方案，请在片段卡片中重新生成",
+                prompt.id
+            )));
+        }
+        Ok(recipe)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1015,40 +1071,17 @@ impl OrchestratorContext {
                     "连续性来源视频 #{source_video_id} 不再是当前章节的已完成视频，请重新选择"
                 )));
             }
-            let source_prompt_id = source_video
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("prompt_id"))
-                .and_then(Value::as_i64)
-                .ok_or_else(|| {
-                    invalid_argument(format!(
-                        "连续性来源视频 #{source_video_id} 缺少 prompt_id，无法定位尾帧"
-                    ))
-                })?;
-            let source_prompt = self.chapter_video_prompt(source_prompt_id).await?;
             let images = self
                 .generated_images_for_video_prompt_references(project_id, chapter_id)
                 .await?;
             return Ok(images
                 .iter()
-                .find(|image| tail_frame_image_matches_prompt(image, &source_prompt))
+                .find(|image| tail_frame_image_belongs_to_video(image, source_video_id))
                 .map(|image| image.id));
         }
-        let previous_prompt = self
-            .chapter_video_first_frame_chain_prompt_candidates(project_id, chapter_id)
-            .await?
-            .into_iter()
-            .find(|candidate| previous_video_prompt_matches_current(prompt, candidate));
-        let Some(previous_prompt) = previous_prompt else {
-            return Ok(None);
-        };
-        let images = self
-            .generated_images_for_video_prompt_references(project_id, chapter_id)
-            .await?;
-        Ok(images
-            .iter()
-            .find(|image| tail_frame_image_matches_prompt(image, &previous_prompt))
-            .map(|image| image.id))
+        Err(invalid_argument(
+            "首帧续接的后续片段必须显式冻结 continuity 来源视频",
+        ))
     }
 
     async fn storyboard_image_id_for_prompt(

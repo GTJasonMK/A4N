@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Loader2, BookOpen, Globe } from "lucide-react";
+import { BookOpen, Globe } from "lucide-react";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { BookButton } from "../components/ui/BookButton";
 import { BookInput } from "../components/ui/BookInput";
 import { BookCard } from "../components/ui/BookCard";
@@ -200,7 +201,7 @@ export const AuthPage: React.FC = () => {
           </span>
           <div className="min-w-0">
             <h1 className="font-serif text-lg font-semibold text-book-text-main">A4N</h1>
-            <p className="text-[11px] text-book-text-muted">AI 长篇创作助手</p>
+            <p className="text-small text-book-text-muted">AI 长篇创作助手</p>
           </div>
         </header>
 
@@ -219,7 +220,7 @@ export const AuthPage: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <label className="flex flex-col gap-1">
-                <span className="text-[12px] font-medium text-book-text-sub">用户名</span>
+                <span className="text-body-sm font-medium text-book-text-sub">用户名</span>
                 <BookInput
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -230,7 +231,7 @@ export const AuthPage: React.FC = () => {
               </label>
               {mode === "register" && (
                 <label className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium text-book-text-sub">邮箱</span>
+                  <span className="text-body-sm font-medium text-book-text-sub">邮箱</span>
                   <BookInput
                     type="email"
                     value={email}
@@ -243,7 +244,7 @@ export const AuthPage: React.FC = () => {
               )}
               {mode === "register" && (
                 <label className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium text-book-text-sub">邀请码</span>
+                  <span className="text-body-sm font-medium text-book-text-sub">邀请码</span>
                   <BookInput
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
@@ -254,7 +255,7 @@ export const AuthPage: React.FC = () => {
                 </label>
               )}
               <label className="flex flex-col gap-1">
-                <span className="text-[12px] font-medium text-book-text-sub">密码</span>
+                <span className="text-body-sm font-medium text-book-text-sub">密码</span>
                 <BookInput
                   type="password"
                   value={password}
@@ -275,7 +276,7 @@ export const AuthPage: React.FC = () => {
               >
                 {submitting ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <Loader2 size={12} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                     {mode === "login" ? "登录中…" : "创建中…"}
                   </span>
                 ) : mode === "login" ? (
@@ -286,7 +287,7 @@ export const AuthPage: React.FC = () => {
               </BookButton>
             </form>
 
-            <p className="mt-4 text-center text-[11px] leading-relaxed text-book-text-muted">
+            <p className="mt-4 text-center text-small leading-relaxed text-book-text-muted">
               {mode === "login"
                 ? "你的创作内容优先保存在本地。"
                 : "创建成功后会自动登录当前账户。"}
@@ -312,12 +313,12 @@ export const AuthPage: React.FC = () => {
           <section id="oauth-login-panel" aria-label="第三方账号登录" className="space-y-4 text-xs">
             <div>
               <h2 className="text-sm font-semibold text-book-text-main">第三方账号登录</h2>
-              <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+              <p className="mt-1 text-small leading-relaxed text-book-text-muted">
                 先获取授权链接，在浏览器完成授权后粘贴返回的授权码。
               </p>
             </div>
             <label className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium text-book-text-sub">登录服务</span>
+              <span className="text-body-sm font-medium text-book-text-sub">登录服务</span>
               <select
                 value={oauthProvider}
                 onChange={(e) => handleOauthProviderChange(e.target.value)}
@@ -340,7 +341,7 @@ export const AuthPage: React.FC = () => {
               >
                 {oauthBusy ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <Loader2 size={11} className="animate-spin" /> 正在生成…
+                    <LoadingSpinner size="sm" /> 正在生成…
                   </span>
                 ) : (
                   "获取授权链接"
@@ -348,19 +349,19 @@ export const AuthPage: React.FC = () => {
               </BookButton>
             ) : (
               <>
-                <div className="rounded-xl bg-book-primary/8 px-3 py-2.5 text-[11px] leading-relaxed text-book-text-sub">
+                <div className="rounded-xl bg-book-primary/8 px-3 py-2.5 text-small leading-relaxed text-book-text-sub">
                   {oauthLinkCopied
                     ? "授权链接已复制。请在浏览器完成授权，再粘贴返回的授权码。"
                     : "授权链接已生成，但自动复制失败。请展开链接后手动复制。"}
                 </div>
-                <details className="text-[10px] text-book-text-muted">
+                <details className="text-caption text-book-text-muted">
                   <summary className="w-fit cursor-pointer hover:text-book-text-main">查看授权链接</summary>
-                  <div className="mt-1 break-all rounded-xl bg-book-bg-tertiary/50 p-2.5 font-mono text-[11px] leading-relaxed text-book-text-sub">
+                  <div className="mt-1 break-all rounded-xl bg-book-bg-tertiary/50 p-2.5 font-mono text-small leading-relaxed text-book-text-sub">
                     {oauthAuthorizeUrl}
                   </div>
                 </details>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium text-book-text-sub">授权码</span>
+                  <span className="text-body-sm font-medium text-book-text-sub">授权码</span>
                   <BookInput
                     value={oauthCode}
                     onChange={(e) => setOauthCode(e.target.value)}
@@ -377,7 +378,7 @@ export const AuthPage: React.FC = () => {
                 >
                   {oauthBusy ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <Loader2 size={11} className="animate-spin" /> 正在登录…
+                      <LoadingSpinner size="sm" /> 正在登录…
                     </span>
                   ) : (
                     "完成登录"

@@ -54,16 +54,19 @@ pub type SceneProfileSyncProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Se
 pub struct SceneProfileSyncProgress<'a> {
     reporter: Option<SceneProfileSyncProgressReporter<'a>>,
     pub(super) cancel_token: Option<&'a CancellationToken>,
+    pub(super) active_task_id: Option<&'a str>,
 }
 
 impl<'a> SceneProfileSyncProgress<'a> {
     pub fn new(
         reporter: Option<SceneProfileSyncProgressReporter<'a>>,
         cancel_token: Option<&'a CancellationToken>,
+        active_task_id: Option<&'a str>,
     ) -> Self {
         Self {
             reporter,
             cancel_token,
+            active_task_id,
         }
     }
 

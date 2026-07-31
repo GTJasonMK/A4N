@@ -107,7 +107,8 @@ async fn generate_chapter_analysis_inner(
 ) -> Result<ChapterSummary, String> {
     let cancel_token = progress.cancel_token();
     let reporter = |current, total, message: &str| progress.progress(current, total, message);
-    let runtime_progress = ChapterAnalysisProgress::new(Some(&reporter), Some(&cancel_token));
+    let runtime_progress =
+        ChapterAnalysisProgress::new(Some(&reporter), Some(&cancel_token), progress.task_id());
     let updated = chapter_workflow::generate_chapter_analysis_with_progress(
         state,
         user_id,
@@ -126,7 +127,8 @@ async fn resume_chapter_analysis_sync_inner(
 ) -> Result<ChapterSummary, String> {
     let cancel_token = progress.cancel_token();
     let reporter = |current, total, message: &str| progress.progress(current, total, message);
-    let runtime_progress = ChapterAnalysisProgress::new(Some(&reporter), Some(&cancel_token));
+    let runtime_progress =
+        ChapterAnalysisProgress::new(Some(&reporter), Some(&cancel_token), progress.task_id());
     let updated = chapter_workflow::resume_chapter_analysis_sync_with_progress(
         state,
         user_id,

@@ -24,7 +24,7 @@ export function assembleClipEdges(
     .sort((left, right) => left.orderIndex - right.orderIndex);
 }
 
-export function assembleClipEdgesForTarget(edges: StudioEdge[], targetNodeId: string): StudioEdge[] {
+function assembleClipEdgesForTarget(edges: StudioEdge[], targetNodeId: string): StudioEdge[] {
   return edges.filter(
     (edge) =>
       edge.target === targetNodeId &&

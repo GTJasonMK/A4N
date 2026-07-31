@@ -5,8 +5,8 @@ mod projection;
 mod tests;
 
 use a4n_core::{blueprint_context::blueprint_llm_context, error::AppError};
-use a4n_db::DatabaseConnectionTrait as ConnectionTrait;
 use a4n_db::optimize::OptimizationContextReadInput;
+use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 use super::{OptimizeAgentPermissions, optimize_db_error};

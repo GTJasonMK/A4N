@@ -18,6 +18,7 @@ pub(super) async fn finalize_staged_segment_plan(
         shooting_script_projection,
         duration_secs,
         default_aspect_ratio,
+        cancel_token,
         rendered_shots,
     } = input;
     let combined_raw = json!({ "segments": rendered_shots.segment_inputs }).to_string();
@@ -32,6 +33,9 @@ pub(super) async fn finalize_staged_segment_plan(
         &segment_plan,
         shooting_script_projection,
     )?;
+    if cancel_token.is_some_and(tokio_util::sync::CancellationToken::is_cancelled) {
+        return Err(AppError::Cancelled);
+    }
     let stage_outputs = json!({ "segment_plan_per_shot": rendered_shots.stage_outputs });
     save_completed_video_workflow_checkpoint(
         service,

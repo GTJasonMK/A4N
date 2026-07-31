@@ -18,6 +18,7 @@ pub async fn rag_ingest_all(
     let scope = rag_ingest::rag_ingest_task_scope(state.inner(), user_id, project_id).await?;
     let progress_task = WorkflowProgressTask::new_with_context(
         state.inner(),
+        Some(user_id),
         task_id.clone(),
         TaskKind::RagIngestion,
         WorkflowTaskContext {

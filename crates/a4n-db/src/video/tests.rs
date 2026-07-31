@@ -11,6 +11,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     Set,
 };
+use serde_json::json;
 
 mod generated_images;
 
@@ -31,139 +32,26 @@ async fn freeform_video_project(db: &DatabaseConnection, title: &str) -> novel_p
     .unwrap()
 }
 
-#[tokio::test]
-async fn selecting_segment_candidate_is_unique_and_marks_old_continuity_stale() {
-    let db = setup_db().await;
-    let root = crate::project::create_project_record(
-        &db,
-        crate::project::CreateProjectRecordInput {
-            user_id: 1,
-            title: "片段候选采用测试根文本".to_string(),
-            description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
-        },
-    )
-    .await
-    .unwrap();
+async fn video_test_chapter(db: &DatabaseConnection, project_id: i64) -> chapter::Model {
     let now = Utc::now().naive_utc();
-    let chapter = chapter::ActiveModel {
-        project_id: Set(root.id),
+    chapter::ActiveModel {
+        project_id: Set(project_id),
+        outline_id: Set(None),
         chapter_number: Set(1),
         title: Set(Some("第一章".to_string())),
-        content: Set("正文".to_string()),
-        word_count: Set(2),
-        status: Set("completed".to_string()),
+        content: Set("章节正文".to_string()),
+        word_count: Set(4),
+        status: Set("draft".to_string()),
+        summary: Set(None),
+        style_tags: Set(None),
+        analysis_data: Set(None),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
     }
-    .insert(&db)
+    .insert(db)
     .await
-    .unwrap();
-    let project = crate::project::create_derived_project_record(
-        &db,
-        1,
-        crate::project::CreateDerivedProjectParams {
-            root_project_id: root.id,
-            derived_kind: crate::project::PROJECT_KIND_VIDEO.to_string(),
-            title: "片段候选采用测试".to_string(),
-            description: String::new(),
-            chapter_scope: crate::project::DerivedChapterScope {
-                start_chapter: 1,
-                end_chapter: 1,
-            },
-            creation_options_json: serde_json::json!({}),
-        },
-    )
-    .await
-    .unwrap();
-    let mut candidate_ids = Vec::new();
-    for index in 0..2 {
-        let video = create_generated_video_record(
-            &db,
-            CreateGeneratedVideoRecordDraftInput {
-                project_id: project.id,
-                chapter_id: Some(chapter.id),
-                video_type: "chapter_video".to_string(),
-                workflow_mode: Some("boundary_frames".to_string()),
-                prompt: format!("candidate {index}"),
-                negative_prompt: None,
-                model: "test".to_string(),
-                width: 1280,
-                height: 720,
-                duration_secs: 4.0,
-                fps: 24,
-                source_video_id: None,
-                source_image_id: None,
-                provider_job_id: None,
-                metadata_json: Some(serde_json::json!({"shot_number": 1})),
-            },
-        )
-        .await
-        .unwrap();
-        let mut active: generated_video::ActiveModel = video.into();
-        active.status = Set("completed".to_string());
-        active.file_path = Set(Some(format!("videos/candidate-{index}.mp4")));
-        candidate_ids.push(active.update(&db).await.unwrap().id);
-    }
-    chapter_video_prompt::ActiveModel {
-        project_id: Set(project.id),
-        chapter_id: Set(chapter.id),
-        prompt_type: Set("video_prompt".to_string()),
-        workflow_mode: Set("first_frame_chain".to_string()),
-        shot_number: Set(2),
-        visual_prompt: Set("续接".to_string()),
-        duration_secs: Set(4),
-        status: Set("pending".to_string()),
-        metadata_json: Set(Some(serde_json::json!({
-            "guidance_mode": "continuity",
-            "continuity_source": {"video_id": candidate_ids[0], "shot_number": 1}
-        }))),
-        created_at: Set(now),
-        updated_at: Set(now),
-        ..Default::default()
-    }
-    .insert(&db)
-    .await
-    .unwrap();
-
-    select_segment_video_record(&db, project.id, chapter.id, 1, candidate_ids[0])
-        .await
-        .unwrap();
-    select_segment_video_record(&db, project.id, chapter.id, 1, candidate_ids[1])
-        .await
-        .unwrap();
-
-    let videos = generated_videos_for_chapter(&db, project.id, chapter.id)
-        .await
-        .unwrap();
-    let selected = videos
-        .iter()
-        .filter(|video| {
-            video
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("selected_for_segment"))
-                .and_then(serde_json::Value::as_bool)
-                == Some(true)
-        })
-        .map(|video| video.id)
-        .collect::<Vec<_>>();
-    assert_eq!(selected, vec![candidate_ids[1]]);
-    let prompt = chapter_video_prompt::Entity::find()
-        .filter(chapter_video_prompt::Column::ChapterId.eq(chapter.id))
-        .one(&db)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        prompt
-            .metadata_json
-            .as_ref()
-            .and_then(|metadata| metadata.get("continuity_stale"))
-            .and_then(serde_json::Value::as_bool),
-        Some(true)
-    );
+    .unwrap()
 }
 
 #[test]
@@ -281,6 +169,88 @@ async fn delete_generated_image_removes_only_generated_target_binding() {
             .unwrap()
             .is_some()
     );
+}
+
+#[tokio::test]
+async fn delete_generated_image_clears_every_segment_recipe_image_reference() {
+    let db = setup_db().await;
+    let project = freeform_video_project(&db, "片段方案图片引用删除测试").await;
+    let chapter = video_test_chapter(&db, project.id).await;
+    let image = create_generated_image_record(
+        &db,
+        CreateGeneratedImageRecordDraftInput {
+            project_id: project.id,
+            image_type: "video_reference".to_string(),
+            file_path: format!("projects/{}/images/recipe-reference.png", project.id),
+            prompt: "recipe reference".to_string(),
+            model: "test".to_string(),
+            width: 512,
+            height: 512,
+            file_size: Some(1024),
+            chapter_id: Some(chapter.id),
+            panel_id: None,
+            metadata_json: None,
+            created_at: None,
+        },
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    let plan = chapter_video_prompt::ActiveModel {
+        project_id: Set(project.id),
+        chapter_id: Set(chapter.id),
+        style: Set(Some("cinematic".to_string())),
+        prompt_type: Set("frame_segment_plan".to_string()),
+        workflow_mode: Set("shared_segment_plan".to_string()),
+        shot_number: Set(1),
+        title: Set(Some("片段规划".to_string())),
+        scene_summary: Set(None),
+        visual_prompt: Set("{}".to_string()),
+        motion_prompt: Set(None),
+        negative_prompt: Set(None),
+        duration_secs: Set(6),
+        aspect_ratio: Set(Some("16:9".to_string())),
+        reference_image_ids_json: Set(None),
+        status: Set("completed".to_string()),
+        generated_video_id: Set(None),
+        metadata_json: Set(Some(json!({
+            "segment_recipes": [{
+                "schema_version": "video_segment_execution_recipe_v1",
+                "segment_number": 1,
+                "workflow_mode": "storyboard",
+                "style": "cinematic",
+                "prompt_output_language": "zh_cn",
+                "duration_secs": 6,
+                "duration_secs_options": [6],
+                "aspect_ratio": "16:9",
+                "reference_image_ids": [image.id, 101],
+                "video_library_image_ids": [image.id, 102],
+                "guidance_mode": "keyframes",
+                "guidance_reference_image_ids": [image.id, 103],
+                "continuity_source_video_id": null,
+                "reference_media": null,
+                "adopted_video_id": null
+            }]
+        }))),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    delete_generated_image_record(&db, image.id).await.unwrap();
+
+    let stored = chapter_video_prompt::Entity::find_by_id(plan.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let recipe = &stored.metadata_json.unwrap()["segment_recipes"][0];
+    assert_eq!(recipe["reference_image_ids"], json!([101]));
+    assert_eq!(recipe["video_library_image_ids"], json!([102]));
+    assert_eq!(recipe["guidance_reference_image_ids"], json!([103]));
 }
 
 #[tokio::test]

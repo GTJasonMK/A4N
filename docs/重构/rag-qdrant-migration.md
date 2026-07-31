@@ -17,7 +17,7 @@
 
 - API 合同：`VectorStore` / HTTP `/rag/*` **不变**
 - 逻辑 collection 名仍为 `project_id` 字符串
-- 物理 Qdrant collection：`A4N_QDRANT_COLLECTION`（默认 `a4n_rag`）
+- 每个逻辑 collection 使用独立物理 Qdrant collection：`A4N_QDRANT_COLLECTION__<UUID v5>`（默认前缀 `a4n_rag`）
 - Point id：`UUID v5(固定 ns, chunk_id)`；payload 存原文 `chunk_id`
 
 ## 环境变量
@@ -26,7 +26,7 @@
 |------|------|
 | `A4N_QDRANT_URL` | **必填**，如 `http://127.0.0.1:6334`（gRPC）或 `http://127.0.0.1:6333` |
 | `A4N_QDRANT_API_KEY` | 可选 |
-| `A4N_QDRANT_COLLECTION` | 默认 `a4n_rag` |
+| `A4N_QDRANT_COLLECTION` | 物理 collection 前缀，默认 `a4n_rag` |
 | `A4N_RAG_SERVICE_ADDR` | sidecar 监听，默认 `127.0.0.1:47644` |
 
 ## 本地启动
@@ -52,11 +52,11 @@ export A4N_QDRANT_URL=http://127.0.0.1:6334
 
 ## 数据迁移
 
-**不做** Lance/Tantivy 文件导入。对每个项目执行 **rebuild**（从业务库读源 → embed → 写入 Qdrant）。
+**不做** Lance/Tantivy 文件导入。对每个项目执行 **rebuild**（从业务库读源 → embed → 写入该项目独立的 Qdrant collection）。旧版单一物理 collection 不再读取；所有项目完成 rebuild 后可删除旧 collection。
 
 旧目录 `data/lance`、`data/tantivy` 可删除。
 
-若存在 `.a4n-rag-mutation-in-progress`，确认 Qdrant 一致后删除标记再 rebuild。
+正常返回的写入错误会自动清理 mutation 标记。若进程中断后仍存在 `.a4n-rag-mutation-in-progress`，确认 Qdrant 一致后删除标记再 rebuild。
 
 ## 中文全文
 

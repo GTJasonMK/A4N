@@ -35,6 +35,7 @@ pub async fn check_character_conflict(
     start_chapter: Option<i32>,
     end_chapter: Option<i32>,
     progress: CharacterConflictProgressReporter<'_>,
+    active_task_id: Option<&str>,
 ) -> Result<Vec<Value>, AppError> {
     let prompt_renderer = RuntimePromptRenderer::new(state);
     state
@@ -49,6 +50,7 @@ pub async fn check_character_conflict(
             },
             &prompt_renderer,
             progress,
+            active_task_id,
         )
         .await
 }

@@ -6,11 +6,13 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 
-use crate::project::duplicate::{ProjectDuplicateError, shared::remap_derived_optional_id};
+use crate::project::duplicate::{
+    ProjectDuplicateError,
+    shared::{ProjectMediaFileCopier, remap_derived_optional_id},
+};
 
 use super::{
-    super::types::{DerivedProjectMediaFileCopier, DuplicatedDerivedSourceSnapshot},
-    rules::ensure_copyable_derived_media_asset,
+    super::types::DuplicatedDerivedSourceSnapshot, rules::ensure_copyable_derived_media_asset,
 };
 
 pub(in crate::project::duplicate::derived) async fn copy_derived_media_assets<C, Copier>(
@@ -24,7 +26,7 @@ pub(in crate::project::duplicate::derived) async fn copy_derived_media_assets<C,
 ) -> Result<HashMap<i64, i64>, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: DerivedProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier,
 {
     let assets = media_asset::Entity::find()
         .filter(media_asset::Column::ProjectId.eq(source_project_id))

@@ -17,17 +17,17 @@ where
     P: Fn(&Value) -> Result<T, a4n_core::error::AppError>,
 {
     let raw_value = serde_json::from_str::<Value>(input.raw_response);
-    if let Ok(value) = raw_value.as_ref() {
-        if let Ok(output) = (input.parse_output)(value) {
-            return InitialRepairOutcome::Complete(StructuredOutputRepairResult {
-                output,
-                final_value: value.clone(),
-                mode: StructuredRepairMode::None,
-                restored: false,
-                schema_sha256: None,
-                field_patch_error: None,
-            });
-        }
+    if let Ok(value) = raw_value.as_ref()
+        && let Ok(output) = (input.parse_output)(value)
+    {
+        return InitialRepairOutcome::Complete(StructuredOutputRepairResult {
+            output,
+            final_value: value.clone(),
+            mode: StructuredRepairMode::None,
+            restored: false,
+            schema_sha256: None,
+            field_patch_error: None,
+        });
     }
 
     let initial_error = match raw_value.as_ref() {

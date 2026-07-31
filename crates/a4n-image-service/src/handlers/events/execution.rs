@@ -57,17 +57,15 @@ pub(super) fn image_generation_event_stream(
                     Err(error) => failed_generation_event(
                         task_id,
                         2,
-                        ServiceError {
-                            code: ServiceErrorCode::Internal,
-                            message: redact_sensitive_message(format!(
+                        ServiceError::non_retryable(
+                            ServiceErrorCode::Internal,
+                            redact_sensitive_message(format!(
                                 "image generation task failed: {error}"
                             )),
-                            retryable: Some(false),
-                        },
+                        ),
                     ),
                 };
                 if event_tx.send(event).await.is_err() {
-                    return;
                 }
             }
         }

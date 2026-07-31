@@ -8,9 +8,8 @@ pub(super) use placeholders::{
     placeholder_storyboard_prompts,
 };
 pub(super) use projections::{
-    preview_boundary_from_steps, preview_chat_boundary_from_steps,
-    preview_chat_video_prompt_from_steps, preview_first_frame_from_steps,
-    preview_storyboard_from_steps, preview_storyboard_video_prompt_from_steps,
-    preview_video_prompt_from_steps,
+    preview_boundary_from_steps, preview_chat_video_prompt_from_steps,
+    preview_first_frame_from_steps, preview_storyboard_from_steps,
+    preview_storyboard_video_prompt_from_steps, preview_video_prompt_from_steps,
 };
 pub(super) use request::{placeholder_step_from_request, reused_step, step_from_request};

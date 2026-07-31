@@ -24,7 +24,8 @@ use uuid::{Uuid, Version};
 
 use super::{
     canonical_json_sha256, canonical_json_text,
-    lifecycle_gate::require_generation_owner_gates_active, verify_canonical_json_sha256,
+    lifecycle_gate::{require_generation_owner_gates_active, resolve_generation_root_project_id},
+    verify_canonical_json_sha256,
 };
 
 pub const GENERATION_SEQUENCE_LEASE_SIZE: i64 = 256;
@@ -209,28 +210,6 @@ struct PreparedReservation {
     input_fingerprint_sha256: String,
 }
 
-pub async fn lookup_generation_task_by_start_request(
-    db: &DatabaseConnection,
-    requested_by_user_id: i64,
-    start_request_id: &str,
-    input_fingerprint_json: &Value,
-) -> Result<Option<PersistedGenerationTask>, GenerationTaskPersistenceError> {
-    validate_safe_id(requested_by_user_id, "requested_by_user_id")?;
-    let start_request_id = parse_uuid_v4(start_request_id, "start_request_id")?;
-    let input_fingerprint_sha256 = canonical_json_sha256(input_fingerprint_json)?;
-    let Some(mapping) =
-        generation_start_request::Entity::find_by_id((requested_by_user_id, start_request_id))
-            .one(db)
-            .await?
-    else {
-        return Ok(None);
-    };
-    ensure_start_request_fingerprint(&mapping, &input_fingerprint_sha256)?;
-    Ok(Some(
-        load_persisted_generation_task(db, &mapping.task_id).await?,
-    ))
-}
-
 pub async fn reserve_generation_task(
     db: &DatabaseConnection,
     input: ReserveGenerationTaskInput,
@@ -240,7 +219,18 @@ pub async fn reserve_generation_task(
             "生成任务 reservation 仅支持 PostgreSQL".to_string(),
         ));
     }
-    let prepared = prepare_reservation(input)?;
+    let mut prepared = prepare_reservation(input)?;
+    if let Some(project_id) = prepared.input.project_id {
+        let canonical_root_project_id = resolve_generation_root_project_id(db, project_id).await?;
+        if let Some(provided_root_project_id) = prepared.input.root_project_id
+            && provided_root_project_id != canonical_root_project_id
+        {
+            return Err(GenerationTaskPersistenceError::InvalidArgument(format!(
+                "root_project_id {provided_root_project_id} 与项目 {project_id} 的规范 root {canonical_root_project_id} 不一致"
+            )));
+        }
+        prepared.input.root_project_id = Some(canonical_root_project_id);
+    }
     let tx = db.begin().await?;
 
     require_generation_owner_gates_active(
@@ -791,9 +781,9 @@ fn prepare_reservation(
             "business_key_json 必须是含 version 的对象".to_string(),
         )
     })?;
-    if !business_key_object
+    if business_key_object
         .get("version")
-        .is_some_and(|version| !version.is_null())
+        .is_none_or(serde_json::Value::is_null)
     {
         return Err(GenerationTaskPersistenceError::InvalidArgument(
             "business_key_json 缺少非空 version".to_string(),
@@ -822,7 +812,6 @@ fn prepare_reservation(
             "无 project_id 时不能设置 root_project_id".to_string(),
         ));
     }
-    input.root_project_id = input.root_project_id.or(input.project_id);
     input.task_scope = normalize_optional_text(input.task_scope, "task_scope", 128)?;
     input.root_task_id = normalize_optional_uuid(input.root_task_id, "root_task_id")?;
     input.parent_task_id = normalize_optional_uuid(input.parent_task_id, "parent_task_id")?;
@@ -1589,7 +1578,7 @@ mod tests {
             delivery_mode: GenerationDeliveryMode::Stream,
             batch_policy: None,
             project_id: Some(11),
-            root_project_id: None,
+            root_project_id: Some(11),
             source_snapshot_id: None,
             task_scope: Some("text_generation".to_string()),
             workflow_run_id: None,

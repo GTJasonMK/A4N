@@ -84,12 +84,6 @@ export function latestPendingPatchProposal(
   };
 }
 
-export function upsertTurn(turns: OptimizeTurn[], nextTurn: OptimizeTurn): OptimizeTurn[] {
-  const index = turns.findIndex((turn) => turn.id === nextTurn.id);
-  if (index < 0) return [...turns, nextTurn];
-  return turns.map((turn) => (turn.id === nextTurn.id ? nextTurn : turn));
-}
-
 export function persistedTurnCount(turns: OptimizeTurn[], text: string): number {
   const normalized = text.trim();
   return turns.filter((turn) => turn.user_text.trim() === normalized).length;
@@ -499,29 +493,6 @@ function compactBehaviorText(text?: string | null): string | null {
   return value.length > 48 ? `${value.slice(0, 48)}...` : value;
 }
 
-export function formatPatchProposalSummary(
-  proposal: ProposeOptimizationPatchesResponse,
-): string {
-  const lines = [
-    proposal.summary,
-    `补丁数：${proposal.patches.length}`,
-    `基准 hash：${proposal.base_content_hash.slice(0, 12)}`,
-  ];
-  for (const [index, patch] of proposal.patches.slice(0, 5).entries()) {
-    const operation = patchOperationLabel(patch.operation);
-    lines.push(
-      `${index + 1}. ${operation} · ${patch.reason || patch.patch_id}\n- 原文：${truncateDisplayText(
-        patch.old_text,
-        90,
-      )}${patch.operation === "delete" ? "" : `\n- 新文：${truncateDisplayText(patch.new_text, 90)}`}`,
-    );
-  }
-  if (proposal.patches.length > 5) {
-    lines.push(`... 另有 ${proposal.patches.length - 5} 个补丁`);
-  }
-  return lines.filter(Boolean).join("\n");
-}
-
 export function parseOptimizeIssues(raw: unknown): OptimizeIssue[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -641,12 +612,6 @@ export function patchOperationLabel(operation: string): string {
     default:
       return operation;
   }
-}
-
-function truncateDisplayText(text: string, maxChars: number): string {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (normalized.length <= maxChars) return normalized;
-  return `${normalized.slice(0, maxChars)}...`;
 }
 
 function parseJsonObject(content: string): Record<string, unknown> | null {

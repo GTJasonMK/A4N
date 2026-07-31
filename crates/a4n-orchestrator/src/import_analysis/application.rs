@@ -57,6 +57,7 @@ impl OrchestratorContext {
             .await;
         match result {
             Ok(summary) => Ok(summary),
+            Err(AppError::Cancelled) => Err(AppError::Cancelled),
             Err(error) => {
                 let error_text = error.to_string();
                 record_import_analysis_failure(self, project_id, &error_text)
@@ -289,10 +290,7 @@ impl OrchestratorContext {
                 character_trace_port,
             )
             .await
-            .map_err(|error| AppError::InvalidState {
-                current: format!("import_chapter_{}", chapter.chapter_number),
-                operation: format!("结构化分析失败: {error}"),
-            })?;
+            .map_err(|error| import_chapter_analysis_error(error, chapter.chapter_number))?;
             analyzed += 1;
             save_import_stage(
                 self,
@@ -389,6 +387,16 @@ fn import_analysis_error(error: impl ToString) -> AppError {
     }
 }
 
+fn import_chapter_analysis_error(error: AppError, chapter_number: i32) -> AppError {
+    match error {
+        AppError::Cancelled => AppError::Cancelled,
+        error => AppError::InvalidState {
+            current: format!("import_chapter_{chapter_number}"),
+            operation: format!("结构化分析失败: {error}"),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,5 +412,13 @@ mod tests {
         assert!(
             required_applied_count(&json!({"character_count": -1}), "character_count").is_err()
         );
+    }
+
+    #[test]
+    fn imported_chapter_analysis_preserves_cancellation() {
+        assert!(matches!(
+            import_chapter_analysis_error(AppError::Cancelled, 1),
+            AppError::Cancelled
+        ));
     }
 }

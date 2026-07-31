@@ -5,7 +5,9 @@ mod paths;
 mod probe;
 mod upload;
 
-pub(in crate::actions::video_records) use completion::mark_imported_video_completed;
+pub(in crate::actions::video_records) use completion::{
+    enqueue_unadopted_video_file_cleanup, mark_imported_video_completed,
+};
 #[cfg(test)]
 pub(in crate::actions::video_records) use copying::copy_imported_video_file;
 pub(super) use copying::persist_imported_video_file;

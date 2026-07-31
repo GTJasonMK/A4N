@@ -742,8 +742,7 @@ impl OrchestratorContext {
                 from: outcome.previous_status.as_str().to_string(),
                 to: ProjectStatus::Draft.as_str().to_string(),
                 timestamp: Utc::now().naive_utc(),
-            })
-            .await?;
+            })?;
         }
         Ok(ProjectGeneratedDataResetApplicationResult::Standard(
             outcome,

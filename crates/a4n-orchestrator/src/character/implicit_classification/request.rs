@@ -85,14 +85,12 @@ pub(super) async fn prepare_implicit_classification_call(
         "implicit_attributes": implicit_attributes,
         "behavior": behavior,
     });
-    let input_fingerprint_sha256 =
-        workflow::llm_call_checkpoint_fingerprint_sha256(&input_fingerprint_json)
-            .map_err(workflow_checkpoint_contract_app_error)?;
-    if let Some(trace_context) = request.trace_context.as_mut() {
-        trace_context.workflow_run_id = Some(workflow_run_id);
-        trace_context.call_key = Some(call_key.clone());
-        trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
-    }
+    workflow::attach_llm_call_checkpoint_trace(
+        &mut request,
+        workflow_run_id,
+        &call_key,
+        &input_fingerprint_json,
+    )?;
 
     Ok(PreparedImplicitClassificationCall {
         request,

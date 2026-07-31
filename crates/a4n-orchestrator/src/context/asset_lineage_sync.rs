@@ -48,4 +48,19 @@ impl OrchestratorContext {
             .sync_project_asset_lineage(project_id)
             .await
     }
+
+    pub(crate) async fn sync_project_asset_lineage_after_commit(
+        &self,
+        project_id: i64,
+        operation: &str,
+    ) {
+        if let Err(error) = self.sync_project_asset_lineage(project_id).await {
+            tracing::error!(
+                project_id,
+                operation,
+                error = %error,
+                "权威数据已提交，资产谱系同步失败"
+            );
+        }
+    }
 }

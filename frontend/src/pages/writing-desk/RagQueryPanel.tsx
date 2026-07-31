@@ -20,7 +20,7 @@ export const RagQueryPanel: React.FC<RagQueryPanelProps> = ({
       : "a4n-desk-rail flex h-full min-w-0 flex-col overflow-hidden border-l border-book-border/80 !p-0"}
   >
     {!embeddedInModal ? (
-      <div className="shrink-0 border-b border-book-border/60 px-3 py-2 text-[11px] text-book-text-muted">
+      <div className="shrink-0 border-b border-book-border/60 px-3 py-2 text-small text-book-text-muted">
         {chapterNumber != null ? `检索第 ${chapterNumber} 章相关资料` : "检索项目资料库"}
       </div>
     ) : null}

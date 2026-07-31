@@ -9,7 +9,7 @@ use a4n_queue::priority::{TaskKind, TaskPriority, TaskStatus};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, NotSet,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -19,7 +19,9 @@ pub(in crate::workflow) use errors::WorkflowValidationError;
 pub use errors::{WorkflowCheckpointContractError, WorkflowReadError, WorkflowWriteError};
 
 mod status;
-pub(in crate::workflow) use status::MAX_PERSISTED_PROGRESS_EVENTS;
+pub(in crate::workflow) use status::{
+    MAX_PERSISTED_PROGRESS_EVENTS, is_terminal_workflow_status,
+};
 pub use status::{
     WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
     WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED,

@@ -36,18 +36,14 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         engine: Arc::new(engine),
     };
     let addr = service_addr()?;
-    let (shutdown_signal, shutdown) = a4n_sidecar_bootstrap::sidecar_shutdown();
-    let app = a4n_sidecar_bootstrap::with_runtime_metrics(
-        router(state).merge(a4n_sidecar_bootstrap::shutdown_router(shutdown_signal)),
-        a4n_service_protocol::PROMPT_SERVICE_NAME,
-    )?;
 
     tracing::info!(%addr, prompts_dir = ?prompts_dir, git_dir = ?git_dir, "starting prompt sidecar");
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await?;
-    Ok(())
+    a4n_sidecar_bootstrap::serve_sidecar(
+        router(state),
+        addr,
+        a4n_service_protocol::PROMPT_SERVICE_NAME,
+    )
+    .await
 }
 
 pub(crate) async fn run_from_args() -> anyhow::Result<()> {

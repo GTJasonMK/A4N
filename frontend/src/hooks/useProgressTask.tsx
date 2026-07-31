@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { extractErrorMessage } from "../api";
 import { cancelWorkflow } from "../api/streaming";
+import { getTaskProgressEvents } from "../api/task";
 import { ProgressDialog } from "../components/feedback/ProgressDialog";
 import type {
   ProgressDialogStatus,
@@ -14,6 +15,7 @@ import type {
 } from "../components/feedback/ProgressDialog";
 import type { ProgressMeta } from "../api/progress";
 import { isCancelledOperation } from "../utils/cancellation";
+import { streamLineFromBuffer } from "../utils/progressDisplay";
 
 interface ProgressTaskState {
   open: boolean;
@@ -24,9 +26,7 @@ interface ProgressTaskState {
   message: string;
   meta: ProgressMeta | null;
   streamText: string | null;
-  streamVersion: number;
   error: string | null;
-  connectionWarning: string | null;
   events: ProgressTimelineItem[];
   cancelLabel?: string;
   runningHint?: React.ReactNode;
@@ -41,16 +41,16 @@ export interface ProgressTaskOptions {
   total?: number;
   /**
    * 仅作取消身份；不得再用于订阅旧 workflow 事件。
-   * 新 generation 路径请用 runGenerationProgressTask。
+   * 新 generation 路径请用 runGenerationProgressTaskThen。
    */
   cancelTaskId?: string | null;
   showStream?: boolean;
-  onTimelineEvent?: (event: ProgressTimelineItem) => void;
-  onChunk?: (content: string, index: number) => void;
   cancelLabel?: string;
   runningHint?: React.ReactNode;
   formatProgress?: (current: number, total: number, percent: number) => React.ReactNode;
   cancelTask?: (taskId: string) => Promise<void>;
+  /** 自定义取消函数仍对应 Host task 时显式开启；默认 Host 任务会自动读取后端进度。 */
+  pollTaskProgress?: boolean;
 }
 
 export interface ProgressTaskControl {
@@ -60,7 +60,7 @@ export interface ProgressTaskControl {
     total?: number,
     meta?: ProgressMeta | null,
   ) => void;
-  appendStreamChunk: (content: string) => void;
+  setStreamText: (text: string) => void;
 }
 
 export type RunProgressTask = <T>(
@@ -81,9 +81,56 @@ interface ProgressTaskController extends ProgressTaskApi {
 }
 
 const MAX_PROGRESS_EVENTS = 160;
-const MAX_STREAM_BUFFER_CHARS = 800;
-const MAX_STREAM_LINE_CHARS = 180;
-const STREAM_FLUSH_INTERVAL_MS = 120;
+const HOST_PROGRESS_POLL_MS = 500;
+
+export async function runTaskWithPolling<T, TUpdate>(
+  task: Promise<T>,
+  poll: () => Promise<TUpdate>,
+  applyUpdate: (update: TUpdate) => void,
+): Promise<T> {
+  let finished = false;
+  let polling = false;
+
+  const pollOnce = async () => {
+    if (finished || polling) return;
+    polling = true;
+    try {
+      const update = await poll();
+      if (!finished) applyUpdate(update);
+    } catch {
+      // apiInvoke 已记录错误；辅助进度查询不能覆盖真实业务结果。
+    } finally {
+      polling = false;
+    }
+  };
+
+  const timer = globalThis.setInterval(() => void pollOnce(), HOST_PROGRESS_POLL_MS);
+  try {
+    return await task;
+  } finally {
+    finished = true;
+    globalThis.clearInterval(timer);
+  }
+}
+
+export async function runTaskWithProgressEvents<T>(
+  taskId: string,
+  task: Promise<T>,
+  setProgress: ProgressTaskControl["setProgress"],
+): Promise<T> {
+  const seenEventIds = new Set<string>();
+  return runTaskWithPolling(
+    task,
+    () => getTaskProgressEvents(taskId, 200),
+    (events) => {
+      for (const event of events) {
+        if (seenEventIds.has(event.id)) continue;
+        seenEventIds.add(event.id);
+        setProgress(event.message, event.current, event.total, event.meta ?? null);
+      }
+    },
+  );
+}
 
 const createProgressTaskState = (): ProgressTaskState => ({
   open: false,
@@ -94,9 +141,7 @@ const createProgressTaskState = (): ProgressTaskState => ({
   message: "",
   meta: null,
   streamText: null,
-  streamVersion: 0,
   error: null,
-  connectionWarning: null,
   events: [],
   cancelLabel: undefined,
   runningHint: undefined,
@@ -126,17 +171,6 @@ const appendProgressEvent = <T extends { events: ProgressTimelineItem[] }>(
   events: [...state.events, event].slice(-MAX_PROGRESS_EVENTS),
 });
 
-const trimChars = (text: string, maxChars: number): string => {
-  const chars = Array.from(text);
-  if (chars.length <= maxChars) return text;
-  return `…${chars.slice(chars.length - maxChars).join("")}`;
-};
-
-const streamLineFromBuffer = (buffer: string): string => {
-  const compact = buffer.replace(/\s+/g, " ").trim();
-  return compact ? trimChars(compact, MAX_STREAM_LINE_CHARS) : "";
-};
-
 const ProgressTaskContext = createContext<ProgressTaskApi | null>(null);
 
 export function useProgressTask(): ProgressTaskApi {
@@ -151,7 +185,6 @@ function useProgressTaskController(): ProgressTaskController {
   const [progressTask, setProgressTask] = useState<ProgressTaskState>(createProgressTaskState);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const activeTaskIdRef = useRef<string | null>(null);
   const cancelTaskRef = useRef<((taskId: string) => Promise<void>) | null>(null);
   const cancellingRef = useRef(false);
 
@@ -164,8 +197,6 @@ function useProgressTaskController(): ProgressTaskController {
     const eventScope = `progress-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     let taskCurrent = 0;
     let taskTotal = validTotal(options.total);
-    let streamBuffer = "";
-    let streamFlushTimer: number | null = null;
 
     const createEvent = (
       status: ProgressDialogStatus,
@@ -185,11 +216,6 @@ function useProgressTaskController(): ProgressTaskController {
       timestamp: Date.now(),
     });
 
-    const emitTimelineEvent = (event: ProgressTimelineItem): ProgressTimelineItem => {
-      options.onTimelineEvent?.(event);
-      return event;
-    };
-
     setProgressTask({
       ...createProgressTaskState(),
       open: true,
@@ -202,44 +228,27 @@ function useProgressTaskController(): ProgressTaskController {
       runningHint: options.runningHint,
       formatProgress: options.formatProgress,
       streamText: showStream ? "" : null,
-      events: [
-        emitTimelineEvent(createEvent("running", 0, taskTotal, options.startMessage, null)),
-      ],
+      events: [createEvent("running", 0, taskTotal, options.startMessage, null)],
     });
 
-    const flushStreamBuffer = () => {
-      streamFlushTimer = null;
+    const setStreamText = (text: string) => {
       if (!showStream) return;
-      const line = streamLineFromBuffer(streamBuffer);
-      if (!line) return;
+      const line = streamLineFromBuffer(text);
       setProgressTask((prev) => ({
         ...prev,
         streamText: line,
-        streamVersion: prev.streamVersion + 1,
       }));
-    };
-
-    const scheduleStreamFlush = () => {
-      if (streamFlushTimer != null) return;
-      streamFlushTimer = window.setTimeout(flushStreamBuffer, STREAM_FLUSH_INTERVAL_MS);
-    };
-
-    const appendStreamChunk = (content: string) => {
-      if (!content) return;
-      streamBuffer = trimChars(`${streamBuffer}${content}`, MAX_STREAM_BUFFER_CHARS);
-      scheduleStreamFlush();
     };
 
     const control: ProgressTaskControl = {
       setProgress: (message, current, nextTotal, meta) => {
-        const timelineEvent = emitTimelineEvent(
-          createEvent(
-            "running",
-            current ?? taskCurrent,
-            nextTotal == null ? taskTotal : validTotal(nextTotal),
-            message,
-            meta ?? null,
-          ),
+        if (cancellingRef.current) return;
+        const timelineEvent = createEvent(
+          "running",
+          current ?? taskCurrent,
+          nextTotal == null ? taskTotal : validTotal(nextTotal),
+          message,
+          meta ?? null,
         );
         taskCurrent = timelineEvent.current;
         taskTotal = timelineEvent.total;
@@ -256,21 +265,24 @@ function useProgressTaskController(): ProgressTaskController {
           ),
         );
       },
-      appendStreamChunk,
+      setStreamText,
     };
 
     const cancellableTaskId = options.cancelTaskId?.trim() || null;
-    activeTaskIdRef.current = cancellableTaskId || eventScope;
     cancelTaskRef.current = options.cancelTask ?? null;
     cancellingRef.current = false;
     setActiveTaskId(cancellableTaskId);
     setCancelling(false);
 
     try {
-      const result = await task(control);
-      const timelineEvent = emitTimelineEvent(
-        createEvent("success", taskTotal, taskTotal, options.successMessage),
-      );
+      const taskPromise = task(control);
+      const shouldPollTaskProgress =
+        cancellableTaskId != null &&
+        (options.pollTaskProgress ?? options.cancelTask == null);
+      const result = shouldPollTaskProgress
+        ? await runTaskWithProgressEvents(cancellableTaskId, taskPromise, control.setProgress)
+        : await taskPromise;
+      const timelineEvent = createEvent("success", taskTotal, taskTotal, options.successMessage);
       taskCurrent = timelineEvent.current;
       taskTotal = timelineEvent.total;
       setProgressTask((prev) =>
@@ -291,8 +303,11 @@ function useProgressTaskController(): ProgressTaskController {
     } catch (err) {
       const errorMessage = extractErrorMessage(err, options.errorMessage);
       const cancelled = isCancelledOperation(errorMessage);
-      const timelineEvent = emitTimelineEvent(
-        createEvent(cancelled ? "cancelled" : "error", taskCurrent, taskTotal, errorMessage),
+      const timelineEvent = createEvent(
+        cancelled ? "cancelled" : "error",
+        taskCurrent,
+        taskTotal,
+        errorMessage,
       );
       taskCurrent = timelineEvent.current;
       taskTotal = timelineEvent.total;
@@ -312,11 +327,6 @@ function useProgressTaskController(): ProgressTaskController {
       );
       throw err;
     } finally {
-      if (streamFlushTimer != null) {
-        window.clearTimeout(streamFlushTimer);
-        flushStreamBuffer();
-      }
-      activeTaskIdRef.current = null;
       cancelTaskRef.current = null;
       cancellingRef.current = false;
       setActiveTaskId(null);
@@ -375,9 +385,7 @@ export const ProgressTaskProvider: React.FC<{ children: React.ReactNode }> = ({ 
         message={controller.progressTask.message}
         meta={controller.progressTask.meta}
         streamText={controller.progressTask.streamText}
-        streamVersion={controller.progressTask.streamVersion}
         error={controller.progressTask.error}
-        connectionWarning={controller.progressTask.connectionWarning}
         events={controller.progressTask.events}
         cancelLabel={controller.progressTask.cancelLabel}
         runningHint={controller.progressTask.runningHint}

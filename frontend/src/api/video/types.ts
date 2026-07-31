@@ -14,10 +14,9 @@ export type VideoWorkflowMode =
   | "canvas_assembly";
 export type { DownstreamConflictStrategy } from "../dependencyConflict";
 
-export type VideoGenConfig = Omit<VideoConfigSummary, "duration_mode" | "capabilities"> & {
+export type VideoGenConfig = Omit<VideoConfigSummary, "duration_mode"> & {
   duration_mode: VideoDurationMode;
   supported_durations_json: number[] | null;
-  capabilities?: VideoConfigSummary["capabilities"];
 };
 
 export interface ChapterVideoPrompt {
@@ -55,7 +54,6 @@ export type AssemblyPushResult = Omit<ApiAssemblyPushResult, "video"> & {
   video: GeneratedVideo;
 };
 
-export type DeleteChapterVideoAssetsResult = ApiDeleteChapterVideoAssetsResult;
 export type UploadChapterVideoInput = ApiUploadChapterVideoInput;
 export type UploadReferenceMediaVideoInput = ApiUploadReferenceMediaVideoInput;
 export type UploadAssemblyInsertVideoInput = ApiUploadAssemblyInsertVideoInput;
@@ -83,18 +81,6 @@ export type UpdateVideoConfigInput = Omit<ApiUpdateVideoConfigInput, "duration_m
   supported_durations_json?: number[] | null;
 };
 
-export interface ChapterVideosBatchInput {
-  prompt_ids: number[];
-  config_id?: number | null;
-}
-
-export interface ChapterVideosBatchResult {
-  videos: GeneratedVideo[];
-  success_count: number;
-  failed_count: number;
-  pending_count: number;
-}
-
 export interface PreviewChapterVideoPromptOverrideInput {
   visual_prompt?: string | null;
   motion_prompt?: string | null;
@@ -111,7 +97,6 @@ import type {
   ApplyAssemblyPostprocessEditInput as ApiApplyAssemblyPostprocessEditInput,
   AssembledChapterVideoPreview as ApiAssembledChapterVideoPreview,
   AssemblyPushResult as ApiAssemblyPushResult,
-  DeleteChapterVideoAssetsResult as ApiDeleteChapterVideoAssetsResult,
   GeneratedVideoSummary,
   PushAssembledChapterVideoInput as ApiPushAssembledChapterVideoInput,
   UploadAssemblyInsertVideoInput as ApiUploadAssemblyInsertVideoInput,

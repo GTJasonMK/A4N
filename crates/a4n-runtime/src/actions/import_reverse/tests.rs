@@ -34,5 +34,4 @@ fn reverse_targets_distinguish_preview_and_apply_messages() {
     assert_eq!(target.success_message(false), "反推章节大纲完成");
     assert_eq!(target.success_message(true), "反推章节大纲结果已应用");
     assert_eq!(target.cancelled_message(), "反推章节大纲已停止");
-    assert_eq!(target.failure_event(), "reverse_outline_failed");
 }

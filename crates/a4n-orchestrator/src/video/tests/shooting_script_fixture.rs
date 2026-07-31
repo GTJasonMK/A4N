@@ -7,7 +7,9 @@ use a4n_core::shooting_script::{
     ShootingViewpointV1,
 };
 
-fn test_chapter_shooting_script(source_span_id: &str) -> ChapterShootingScriptV1 {
+pub(in crate::video) fn test_chapter_shooting_script(
+    source_span_id: &str,
+) -> ChapterShootingScriptV1 {
     let beat = |beat_index: u32, beat_id: &str, visible_action: &str| ShootingPerformanceBeatV1 {
         beat_index,
         beat_id: beat_id.to_string(),

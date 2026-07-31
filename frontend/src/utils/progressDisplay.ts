@@ -14,9 +14,18 @@ interface ProgressDisplayInput {
 }
 
 const DEFAULT_STAGE = "任务执行中";
+const MAX_STREAM_LINE_CHARS = 180;
 
 const normalizeProgressText = (text?: string | null): string =>
   (text ?? "").replace(/\s+/g, " ").trim();
+
+export const streamLineFromBuffer = (buffer: string): string => {
+  const compact = normalizeProgressText(buffer);
+  const chars = Array.from(compact);
+  return chars.length > MAX_STREAM_LINE_CHARS
+    ? `…${chars.slice(-MAX_STREAM_LINE_CHARS).join("")}`
+    : compact;
+};
 
 const sameProgressText = (left?: string | null, right?: string | null): boolean =>
   normalizeProgressText(left) === normalizeProgressText(right);

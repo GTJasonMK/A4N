@@ -15,7 +15,7 @@ pub fn create_token_pair_with_role(
     secret: &str,
 ) -> Result<TokenPair, AppError> {
     let access_token =
-        create_access_token_with_role(user_id, name, role, secret, ACCESS_TOKEN_EXP_MINUTES)?;
+        create_access_token_with_role(user_id, name, role, None, secret, ACCESS_TOKEN_EXP_MINUTES)?;
     let refresh_token = create_refresh_token(user_id, secret, REFRESH_TOKEN_EXP_DAYS)?;
     Ok(TokenPair {
         access_token,

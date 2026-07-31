@@ -79,7 +79,7 @@ where
             "target_id": row.id,
         }],
     });
-    crate::generation::record_completed_generation_run_with_checkpoint(
+    crate::generation::record_completed_generation_run_with_checkpoint_in(
         db,
         crate::generation::RecordCompletedGenerationRunInput {
             project_id: row.project_id,

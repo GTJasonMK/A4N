@@ -8,10 +8,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const runtimeRoot = path.join(root, "crates", "a4n-runtime", "src", "actions");
 const outputPath = path.join(
   root,
-  "docs",
-  "重构",
-  "剩余重构",
-  "06-host-api-dto-inventory.tsv",
+  "scripts",
+  "checks",
+  "host-api-dto-inventory.tsv",
 );
 const hostApiSource = fs.readFileSync(
   path.join(root, "crates", "a4n-runtime", "src", "host_api.rs"),

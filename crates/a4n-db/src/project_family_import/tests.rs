@@ -79,6 +79,62 @@ fn project_family_import_media_error_has_distinct_classification() {
 }
 
 #[tokio::test]
+async fn project_family_import_activates_deserialized_project_lifecycle_gate() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let user = crate::auth::create_user(
+        &db,
+        "project_family_lifecycle_gate",
+        "project-family-lifecycle-gate@example.invalid",
+        "project-family-lifecycle-gate-password",
+        a4n_core::models::user::role::ROLE_USER,
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    let project = novel_project::Model {
+        id: 1,
+        user_id: 99,
+        title: "生命周期门禁导入".to_string(),
+        description: String::new(),
+        project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        project_kind: crate::project::PROJECT_KIND_TEXT.to_string(),
+        source_mode: crate::project::SOURCE_MODE_SELF.to_string(),
+        root_project_id: None,
+        parent_project_id: None,
+        source_snapshot_id: None,
+        source_sync_status: "current".to_string(),
+        derived_project_status: None,
+        status: "draft".to_string(),
+        lifecycle_gate: String::new(),
+        target_chapters: 1,
+        current_chapter: 0,
+        total_chapters: Some(1),
+        chapters_per_part: Some(1),
+        avatar_svg: None,
+        avatar_animal: None,
+        raw_blueprint: None,
+        import_analysis_progress: None,
+        export_config: None,
+        created_at: now,
+        updated_at: now,
+    };
+    let package = ProjectFamilyImportPackage {
+        root_project_id: project.id,
+        projects: vec![project],
+        ..Default::default()
+    };
+
+    let imported =
+        import_project_family_package_rows(&db, user.id, &package, &mut FailingMediaImporter)
+            .await
+            .expect("deserialized package project should import as active");
+
+    assert_eq!(imported.len(), 1);
+    assert_eq!(imported[0].user_id, user.id);
+    assert_eq!(imported[0].lifecycle_gate, "active");
+}
+
+#[tokio::test]
 async fn project_family_media_write_failure_rolls_back_database_rows() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let user = crate::auth::create_user(

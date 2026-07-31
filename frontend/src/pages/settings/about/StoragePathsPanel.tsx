@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Copy,
+import { Copy,
   Database,
   FolderOpen,
-  Loader2,
   RefreshCw,
-  Trash2,
-} from "lucide-react";
+  Trash2, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
@@ -229,7 +227,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
           <FolderOpen size={14} className="shrink-0 text-book-primary" />
           <div className="min-w-0 flex-1">
             <h3 className="text-xs font-semibold text-book-text-main">存储位置</h3>
-            <p className="mt-0.5 text-[11px] text-book-text-muted">完整路径默认隐藏</p>
+            <p className="mt-0.5 text-small text-book-text-muted">完整路径默认隐藏</p>
           </div>
           <BookIconButton
             label="刷新路径"
@@ -244,13 +242,13 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
 
         {loading && !paths ? (
           <div className="inline-flex items-center gap-1.5 text-book-text-muted">
-            <Loader2 size={11} className="animate-spin" /> 加载中…
+            <LoadingSpinner size="sm" /> 加载中…
           </div>
         ) : (
           <details className="border-t border-book-border/35 pt-2">
             <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-book-text-sub [&::-webkit-details-marker]:hidden">
               <span>查看存储位置</span>
-              <span className="text-[11px] text-book-text-muted">{rows.length} 项</span>
+              <span className="text-small text-book-text-muted">{rows.length} 项</span>
             </summary>
             <div className="mt-2 divide-y divide-book-border/30 border-y border-book-border/30">
               {rows.map(([label, value]) => (
@@ -259,7 +257,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
                   className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-2 py-2"
                 >
                   <span className="text-book-text-muted">{label}</span>
-                  <span className="break-all font-mono text-[11px] text-book-text-main">
+                  <span className="break-all font-mono text-small text-book-text-main">
                     {storageValueForDisplay(label, value)}
                   </span>
                   {label === "数据库" ? (
@@ -293,7 +291,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
             <Trash2 size={14} className="shrink-0 text-book-primary" />
             <div className="min-w-0 flex-1">
               <h3 className="text-xs font-semibold text-book-text-main">存储清理</h3>
-              <p className="mt-0.5 text-[11px] text-book-text-muted">
+              <p className="mt-0.5 text-small text-book-text-muted">
                 扫描并清理已失去项目归属的本地目录
               </p>
             </div>
@@ -302,7 +300,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
           <div className="flex flex-wrap items-center gap-2 border-t border-book-border/35 pt-3">
             <div className="min-w-0 flex-1">
               <div className="font-medium text-book-text-main">孤儿项目目录</div>
-              <div className="mt-0.5 text-[11px] text-book-text-muted">
+              <div className="mt-0.5 text-small text-book-text-muted">
                 {orphanSummary
                   ? orphanSummary.total_count > 0
                     ? `${orphanSummary.total_count} 个目录，约 ${formatBytes(orphanSummary.total_size_bytes)}`
@@ -316,12 +314,12 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
               onClick={scanOrphanProjectDirs}
               disabled={orphanLoading || orphanCleaning}
             >
-              {orphanLoading ? <Loader2 size={12} className="animate-spin" /> : null}
+              {orphanLoading ? <LoadingSpinner size="sm" /> : null}
               {orphanLoading ? "扫描中…" : "扫描"}
             </BookButton>
             {orphanCleaning ? (
-              <span className="inline-flex min-h-8 items-center gap-1 px-2 text-[11px] text-book-text-muted">
-                <Loader2 size={12} className="animate-spin" />
+              <span className="inline-flex min-h-8 items-center gap-1 px-2 text-small text-book-text-muted">
+                <LoadingSpinner size="sm" />
                 正在清理…
               </span>
             ) : (orphanSummary?.total_count ?? 0) > 0 ? (
@@ -339,7 +337,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
           </div>
 
           {orphanSummary && orphanSummary.items.length > 0 ? (
-            <details className="border-t border-book-border/35 pt-2 text-[10px] text-book-text-muted">
+            <details className="border-t border-book-border/35 pt-2 text-caption text-book-text-muted">
               <summary className="w-fit cursor-pointer hover:text-book-text-main">
                 诊断信息
               </summary>

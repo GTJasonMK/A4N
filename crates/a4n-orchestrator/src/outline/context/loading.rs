@@ -1,11 +1,13 @@
 use super::contracts::{ChapterOutlineGenerationContext, PartOutlineGenerationContext};
 use super::projections::{chapter_outline_context_json, outline_blueprint_context_json};
-use crate::outline::part_contract::resolve_part_generation_plan;
+use crate::outline::part_contract::{
+    infer_chapters_per_part_from_existing, resolve_part_generation_plan,
+};
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::{chapter_outline, part_outline};
 use a4n_core::models::project::{blueprint_character, blueprint_relationship};
-use a4n_db::DatabaseConnectionTrait as ConnectionTrait;
 use a4n_db::project as project_db;
+use sea_orm::ConnectionTrait;
 use serde_json::json;
 
 pub async fn load_part_generation_context<C>(
@@ -27,16 +29,17 @@ where
         .ok_or_else(|| {
             AppError::InvalidArgument(format!("项目 {project_id} 缺少蓝图，无法生成分部大纲"))
         })?;
+    let parts = load_part_outlines(db, project_id).await?;
+    let existing_chapters_per_part = infer_chapters_per_part_from_existing(&parts)?;
     let plan = resolve_part_generation_plan(
         requested_part_count,
-        requested_chapters_per_part,
+        requested_chapters_per_part.or(existing_chapters_per_part),
         project.chapters_per_part,
         blueprint.chapters_per_part,
     )?;
 
     let characters = load_blueprint_characters(db, project_id).await?;
     let relationships = load_blueprint_relationships(db, project_id).await?;
-    let parts = load_part_outlines(db, project_id).await?;
     let blueprint_payload = outline_blueprint_context_json(
         &blueprint,
         &characters,

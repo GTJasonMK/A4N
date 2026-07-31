@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Loader2, Network as NetworkIcon, Play } from "lucide-react";
+import { CheckCircle2, Network as NetworkIcon, Play } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { useToast } from "../../../components/feedback/Toast";
 import { extractErrorMessage } from "../../../api";
@@ -336,10 +337,10 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
         >
           <NetworkIcon size={11} /> 依赖图 / 反向依赖
         </summary>
-        <div className="mt-2 text-[11px]">
+        <div className="mt-2 text-small">
           {graphLoading ? (
             <div className="text-book-text-muted inline-flex items-center gap-1.5">
-              <Loader2 size={10} className="animate-spin" /> 加载中…
+              <LoadingSpinner size="sm" /> 加载中…
             </div>
           ) : (
             <>
@@ -375,20 +376,20 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
         <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
           <CheckCircle2 size={11} /> 变量校验
         </summary>
-        <div className="mt-2 text-[11px] space-y-1.5">
+        <div className="mt-2 text-small space-y-1.5">
           <div className="text-book-text-muted">
             输入要传入的变量名（逗号或换行分隔），检查是否覆盖模板所有占位符。
           </div>
           <textarea
             value={varsInput}
             onChange={(e) => handleVarsInputChange(e.target.value)}
-            className="pyqt-input w-full text-[11px] h-16 resize-y font-mono"
+            className="pyqt-input w-full text-small h-16 resize-y font-mono"
             placeholder="如：title, chapter_number, character_name"
           />
           <div className="flex items-center gap-2">
             <BookButton variant="secondary" size="sm" onClick={handleValidate} disabled={validateBusy}>
               {validateBusy ? (
-                <Loader2 size={11} className="animate-spin" />
+                <LoadingSpinner size="sm" />
               ) : (
                 "校验"
               )}
@@ -409,7 +410,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
         <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
           <Play size={11} /> 渲染对照
         </summary>
-        <div className="mt-2 text-[11px] space-y-1.5">
+        <div className="mt-2 text-small space-y-1.5">
           <label className="grid gap-1">
             <span className="text-book-text-muted">项目上下文</span>
             <PromptProjectSelect
@@ -424,20 +425,20 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
           <textarea
             value={abVarsJson}
             onChange={(e) => handleRenderVariablesChange(e.target.value)}
-            className="pyqt-input w-full text-[11px] h-20 resize-y font-mono"
+            className="pyqt-input w-full text-small h-20 resize-y font-mono"
             placeholder='{"title": "示例", "chapter": 1}'
           />
           <div className="flex items-center gap-2 flex-wrap">
             <BookButton variant="secondary" size="sm" onClick={handleDirectRender} disabled={renderBusy}>
               {renderBusy ? (
-                <Loader2 size={11} className="animate-spin" />
+                <LoadingSpinner size="sm" />
               ) : (
                 "直接渲染"
               )}
             </BookButton>
             <BookButton variant="primary" size="sm" onClick={handleAbRender} disabled={abBusy}>
               {abBusy ? (
-                <Loader2 size={11} className="animate-spin" />
+                <LoadingSpinner size="sm" />
               ) : (
                 "当前/原始对照"
               )}
@@ -446,7 +447,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
           {renderResult !== null && (
             <div>
               <div className="text-book-text-muted">直接渲染结果</div>
-              <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-[10px] text-book-text-sub">
+              <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-caption text-book-text-sub">
                 {renderResult || "（空）"}
               </pre>
             </div>
@@ -454,11 +455,11 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
           {abResult !== null && (
             <div>
               <div className="text-book-text-muted">当前模板</div>
-              <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-[10px] text-book-text-sub">
+              <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-caption text-book-text-sub">
                 {abResult.version_a || "（空）"}
               </pre>
               <div className="text-book-text-muted mt-1.5">原始模板</div>
-              <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-[10px] text-book-text-sub">
+              <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-caption text-book-text-sub">
                 {abResult.version_b || "（空）"}
               </pre>
             </div>

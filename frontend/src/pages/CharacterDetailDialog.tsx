@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Loader2, LocateFixed, RotateCcw, Sparkles } from "lucide-react";
+import { Eye, LocateFixed, RotateCcw, Sparkles } from "lucide-react";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../components/ui/Dropdown";
@@ -106,8 +107,8 @@ const ConflictScopeControls: React.FC<{
 }) => (
   <div className="flex flex-col gap-2 border-b border-book-border/45 pb-3">
     <div className="flex flex-wrap items-end gap-2">
-      <span className="text-[11px] font-semibold text-book-text-muted">检查范围</span>
-      <label className="inline-flex items-center gap-1.5 text-[11px] text-book-text-muted">
+      <span className="text-small font-semibold text-book-text-muted">检查范围</span>
+      <label className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
         <span>起始章</span>
         <input
           type="number"
@@ -122,7 +123,7 @@ const ConflictScopeControls: React.FC<{
           className="pyqt-input h-7 w-20 !px-2 !py-1 text-xs"
         />
       </label>
-      <label className="inline-flex items-center gap-1.5 text-[11px] text-book-text-muted">
+      <label className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
         <span>结束章</span>
         <input
           type="number"
@@ -474,7 +475,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           startMessage: "正在准备角色同步",
           successMessage: "角色同步完成",
           errorMessage: "同步失败",
-          total: 7,
+          total: 10,
           cancelLabel: "停止同步",
           runningHint: "角色任务执行过程中已完成的数据会保留",
         },
@@ -486,6 +487,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
             requestProjectId,
             requestName,
             requestChapterNumber,
+            taskId,
           );
         },
       );
@@ -635,7 +637,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     tabActionItems.push({
       label: syncing ? "正在从章节同步" : "从当前章节同步",
       onClick: () => void handleSync(),
-      icon: syncing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />,
+      icon: syncing ? <LoadingSpinner size="sm" /> : <Sparkles size={12} />,
       disabled: syncing || syncingRef.current,
     });
   }
@@ -673,7 +675,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           >
             {syncing ? (
               <span className="inline-flex items-center gap-2">
-                <Loader2 size={14} className="animate-spin" /> 同步中…
+                <LoadingSpinner size="sm" /> 同步中…
               </span>
             ) : (
               <span className="inline-flex items-center gap-2">

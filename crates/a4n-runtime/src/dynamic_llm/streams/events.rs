@@ -45,19 +45,5 @@ pub(in crate::dynamic_llm) fn sidecar_failed_event(
     task_id: String,
     error: ServiceError,
 ) -> CapabilityTaskEvent {
-    CapabilityTaskEvent {
-        task_id,
-        event_kind: CapabilityTaskEventKind::Failed,
-        sequence: 0,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error: Some(error),
-        payload: None,
-    }
+    CapabilityTaskEvent::failed(task_id, 0, error)
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Eye, Loader2, MoreHorizontal } from "lucide-react";
-import { BookButton } from "../../../components/ui/BookButton";
-import { Dropdown } from "../../../components/ui/Dropdown";
+import { Eye, MoreHorizontal } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
 import { deleteChapterOutlinesFromAction } from "./outlineTabUtils";
@@ -61,7 +61,7 @@ export function ChapterOutlineSection({
     <section className="space-y-2.5">
       <header className="px-1">
         <h2 className="text-sm font-semibold text-book-text-main">章节大纲</h2>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+        <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
           {hasOutlines ? `共 ${outlines.length} 章，按顺序进入写作桌` : "把故事阶段拆成可写作的章节计划"}
         </p>
       </header>
@@ -74,10 +74,10 @@ export function ChapterOutlineSection({
         >
           <summary className="flex cursor-pointer items-center justify-between gap-3 py-1 text-xs font-medium text-book-text-sub">
             <span>{generationActionLabel}</span>
-            <span className="text-[10px] font-normal text-book-text-muted">从下一章开始追加</span>
+            <span className="text-caption font-normal text-book-text-muted">从下一章开始追加</span>
           </summary>
-          <div className="mt-3 border-t border-book-border/35 pt-3">
-            <label className="flex min-w-0 flex-col gap-1 text-[11px] text-book-text-muted">
+          <div className="mt-3 grid grid-cols-1 items-end gap-3 border-t border-book-border/35 pt-3 md:grid-cols-[minmax(12rem,20rem)_auto]">
+            <label className="flex min-w-0 flex-col gap-1 text-small text-book-text-muted">
               本次追加章数
               <input
                 type="number"
@@ -86,39 +86,39 @@ export function ChapterOutlineSection({
                 value={chapterCount}
                 disabled={disabled}
                 onChange={(event) => onChapterCountChange(Number(event.target.value))}
-                className="pyqt-input w-full sm:max-w-48"
+                className="pyqt-input h-10 w-full"
               />
             </label>
-          </div>
-          <div className="mt-3 flex items-center justify-end gap-2">
-            {!generating ? (
-              <Dropdown
-                items={[
-                  {
-                    label: hasOutlines ? "查看追加请求" : "查看生成请求",
-                    icon: <Eye size={12} />,
-                    onClick: onPreviewGenerate,
-                    disabled,
-                  },
-                ]}
-              />
-            ) : null}
-            <BookButton
-              variant="primary"
-              size="sm"
-              onClick={onGenerate}
-              disabled={disabled || generating}
-              className="min-w-0 flex-1 !text-xs sm:flex-none"
-            >
-              {generating ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={13} className="animate-spin" />
-                  {hasOutlines ? "追加中…" : "生成中…"}
-                </span>
-              ) : (
-                generationActionLabel
-              )}
-            </BookButton>
+            <div className="flex items-center justify-end gap-2 md:justify-start">
+              {!generating ? (
+                <BookIconButton
+                  label={hasOutlines ? "查看追加请求" : "查看生成请求"}
+                  variant="secondary"
+                  size="md"
+                  onClick={onPreviewGenerate}
+                  disabled={disabled}
+                  className="!h-10 !w-10"
+                >
+                  <Eye size={14} />
+                </BookIconButton>
+              ) : null}
+              <BookButton
+                variant="primary"
+                size="sm"
+                onClick={onGenerate}
+                disabled={disabled || generating}
+                className="h-10 min-w-0 flex-1 !min-h-10 !px-4 !text-xs md:flex-none"
+              >
+                {generating ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <LoadingSpinner size="sm" />
+                    {hasOutlines ? "追加中…" : "生成中…"}
+                  </span>
+                ) : (
+                  generationActionLabel
+                )}
+              </BookButton>
+            </div>
           </div>
         </details>
       ) : null}
@@ -177,7 +177,7 @@ export function ChapterOutlineSection({
                         type="button"
                         onClick={onCancelEdit}
                         disabled={disabled || savingId === outline.id}
-                        className="pyqt-btn-secondary !min-h-9 !px-2.5 text-[11px] sm:!min-h-[26px]"
+                        className="pyqt-btn-secondary !min-h-9 !px-2.5 text-small sm:!min-h-[26px]"
                       >
                         取消
                       </button>
@@ -185,10 +185,10 @@ export function ChapterOutlineSection({
                         type="button"
                         onClick={() => onSave(outline)}
                         disabled={disabled || savingId === outline.id}
-                        className="pyqt-btn-primary !min-h-9 !px-2.5 text-[11px] sm:!min-h-[26px]"
+                        className="pyqt-btn-primary !min-h-9 !px-2.5 text-small sm:!min-h-[26px]"
                       >
                         {savingId === outline.id ? (
-                          <Loader2 size={11} className="animate-spin" />
+                          <LoadingSpinner size="sm" />
                         ) : (
                           "保存"
                         )}
@@ -203,7 +203,7 @@ export function ChapterOutlineSection({
                         {nonEmptyText(outline.title) ? ` · ${nonEmptyText(outline.title)}` : ""}
                       </div>
                       {nonEmptyText(outline.summary) ? (
-                        <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-book-text-muted">
+                        <p className="mt-0.5 line-clamp-2 text-small leading-relaxed text-book-text-muted">
                           {nonEmptyText(outline.summary)}
                         </p>
                       ) : null}
@@ -221,7 +221,7 @@ export function ChapterOutlineSection({
                           className="pyqt-btn-icon !h-9 !w-9 sm:!h-8 sm:!w-8"
                         >
                           {regenId === outline.id || deleting ? (
-                            <Loader2 size={12} className="animate-spin" />
+                            <LoadingSpinner size="sm" />
                           ) : (
                             <MoreHorizontal size={13} />
                           )}

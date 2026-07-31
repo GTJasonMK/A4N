@@ -2,28 +2,25 @@ use crate::response::{ServiceError, ServiceErrorCode};
 use crate::sanitization::redact_sensitive_message;
 
 pub(super) fn version_mismatch_error(message: String) -> ServiceError {
-    ServiceError {
-        code: ServiceErrorCode::VersionMismatch,
-        message: redact_sensitive_message(message),
-        retryable: Some(false),
-    }
+    ServiceError::non_retryable(
+        ServiceErrorCode::VersionMismatch,
+        redact_sensitive_message(message),
+    )
 }
 
 pub(super) fn unauthorized_error(message: String) -> ServiceError {
-    ServiceError {
-        code: ServiceErrorCode::Unauthorized,
-        message: redact_sensitive_message(message),
-        retryable: Some(false),
-    }
+    ServiceError::non_retryable(
+        ServiceErrorCode::Unauthorized,
+        redact_sensitive_message(message),
+    )
 }
 
 pub(super) fn invalid_request_context_error(message: impl Into<String>) -> ServiceError {
-    ServiceError {
-        code: ServiceErrorCode::ConfigurationError,
-        message: redact_sensitive_message(format!(
+    ServiceError::non_retryable(
+        ServiceErrorCode::ConfigurationError,
+        redact_sensitive_message(format!(
             "invalid service request context: {}",
             message.into()
         )),
-        retryable: Some(false),
-    }
+    )
 }

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Eye, Images, Loader2, Upload } from "lucide-react";
+import { Check, Eye, Images, Upload } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import { listImagesByProject, type GeneratedImage, uploadImage } from "../../../api/image";
@@ -341,7 +342,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
             >
               {busy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" /> 生成中…
+                  <LoadingSpinner size="sm" /> 生成中…
                 </span>
               ) : (
                 "生成三视图"
@@ -393,7 +394,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
             <header className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-book-text-main">参考图</h3>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+                <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
                   {selectedReferenceImageIds.length > 0
                     ? `已选 ${selectedReferenceImageIds.length} 张，最多 ${MAX_REFERENCE_IMAGES} 张`
                     : `可选最多 ${MAX_REFERENCE_IMAGES} 张，用于保持角色外观一致`}
@@ -406,7 +407,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                 ].join(" ")}
               >
                 {uploadingReference ? (
-                  <Loader2 size={12} className="animate-spin" />
+                  <LoadingSpinner size="sm" />
                 ) : (
                   <Upload size={12} />
                 )}
@@ -426,7 +427,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
             </header>
             {referenceLoading ? (
               <div className="flex min-h-[96px] items-center justify-center text-xs text-book-text-muted">
-                <Loader2 size={14} className="mr-1.5 animate-spin" />
+                <LoadingSpinner size="sm" className="mr-1.5" />
                 正在加载项目图片…
               </div>
             ) : referenceImages.length === 0 ? (
@@ -454,7 +455,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                       ].join(" ")}
                       title={selected ? "取消选择参考图" : "选择参考图"}
                     >
-                      <span className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-book-bg-tertiary text-[10px] text-book-text-muted">
+                      <span className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-book-bg-tertiary text-caption text-book-text-muted">
                         {src ? (
                           <img src={src} alt="" className="h-full w-full object-cover" />
                         ) : (
@@ -466,7 +467,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                           </span>
                         )}
                       </span>
-                      <span className={`block truncate px-2 py-1.5 text-[10px] ${selected ? "text-book-primary" : "text-book-text-muted"}`}>
+                      <span className={`block truncate px-2 py-1.5 text-caption ${selected ? "text-book-primary" : "text-book-text-muted"}`}>
                         {imageTypeLabel(image.image_type)}
                       </span>
                     </button>

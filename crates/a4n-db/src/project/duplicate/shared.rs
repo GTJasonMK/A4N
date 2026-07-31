@@ -3,7 +3,17 @@ use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use std::collections::HashMap;
 
-use super::ProjectDuplicateError;
+use super::{ProjectDuplicateError, ProjectMediaCopyError};
+
+pub trait ProjectMediaFileCopier {
+    fn copy_media_file(
+        &mut self,
+        new_project_id: i64,
+        source_media_asset_id: i64,
+        field: &str,
+        relative_path: Option<&str>,
+    ) -> Result<Option<String>, ProjectMediaCopyError>;
+}
 
 #[derive(Debug, Clone)]
 pub(super) struct ProjectCopyInsert {

@@ -98,6 +98,7 @@ impl OrchestratorContext {
                 &prepared.baseline_state,
                 &prepared.profile.base_attributes,
                 &chapter_data_json,
+                progress.and_then(|progress| progress.active_task_id),
             )
             .await?;
         let result = self
@@ -109,28 +110,8 @@ impl OrchestratorContext {
                 trace_port,
             )
             .await;
-        let error_message = result.as_ref().err().map(ToString::to_string);
-        let finalized = self
-            .finalize_character_profile_sync_workflow_validated(
-                workflow_run.id,
-                result.is_ok(),
-                error_message.as_deref(),
-            )
-            .await;
-        match (result, finalized) {
-            (Ok(summary), Ok(_)) => Ok(summary),
-            (Err(error), Ok(_)) => Err(error),
-            (Ok(_), Err(finalize_error)) => Err(AppError::InvalidState {
-                current: "角色同步业务已完成".to_string(),
-                operation: format!("写入 workflow completed 终态失败: {finalize_error}"),
-            }),
-            (Err(error), Err(finalize_error)) => Err(AppError::InvalidState {
-                current: error.to_string(),
-                operation: format!(
-                    "角色同步主流程失败，且 workflow failed 终态写入失败: {finalize_error}"
-                ),
-            }),
-        }
+        self.finalize_workflow_result(workflow_run.id, result, Some("角色同步完成"))
+            .await
     }
 
     async fn execute_character_profile_sync(

@@ -4,11 +4,14 @@ tokio::task_local! {
     static RAG_OPERATION_TRACE_ID: String;
 }
 
-pub(crate) async fn scope_rag_operation_trace<F>(trace_id: String, future: F) -> F::Output
+pub(crate) fn scope_rag_operation_trace<F>(
+    trace_id: String,
+    future: F,
+) -> impl Future<Output = F::Output>
 where
     F: Future,
 {
-    RAG_OPERATION_TRACE_ID.scope(trace_id, future).await
+    RAG_OPERATION_TRACE_ID.scope(trace_id, Box::pin(future))
 }
 
 pub(in crate::sidecar_clients::rag) fn current_rag_operation_trace_id() -> Option<String> {

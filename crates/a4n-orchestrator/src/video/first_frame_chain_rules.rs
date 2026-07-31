@@ -1,12 +1,8 @@
 //! 首帧链提示词与尾帧图片匹配规则（无 DB、无 Host）。
 
-use a4n_core::models::ai::generated_image;
 use a4n_core::models::chapter::chapter_video_prompt;
 
-use super::{
-    image_generation_prompt_id, image_generation_shot_number, image_generation_source,
-    prompt_chain_matches, prompt_source_type_matches,
-};
+use super::{prompt_chain_matches, prompt_source_type_matches};
 
 pub fn first_frame_prompt_matches_video_prompt(
     video_prompt: &chapter_video_prompt::Model,
@@ -15,28 +11,6 @@ pub fn first_frame_prompt_matches_video_prompt(
     prompt_chain_matches("first_frame_chain", video_prompt, first_frame_prompt)
         && prompt_uses_shared_segment_source(video_prompt)
         && prompt_uses_shared_segment_source(first_frame_prompt)
-}
-
-pub fn previous_video_prompt_matches_current(
-    current_prompt: &chapter_video_prompt::Model,
-    previous_prompt: &chapter_video_prompt::Model,
-) -> bool {
-    prompt_chain_matches("first_frame_chain", current_prompt, previous_prompt)
-        && current_prompt.prompt_type == "video_prompt"
-        && previous_prompt.prompt_type == "video_prompt"
-        && previous_prompt.shot_number == current_prompt.shot_number - 1
-        && prompt_uses_shared_segment_source(current_prompt)
-        && prompt_uses_shared_segment_source(previous_prompt)
-}
-
-pub fn tail_frame_image_matches_prompt(
-    image: &generated_image::Model,
-    previous_prompt: &chapter_video_prompt::Model,
-) -> bool {
-    let metadata = image.metadata_json.as_ref();
-    image_generation_source(metadata) == Some("video_tail_frame_capture")
-        && image_generation_prompt_id(metadata) == Some(previous_prompt.id)
-        && image_generation_shot_number(metadata) == Some(previous_prompt.shot_number)
 }
 
 fn prompt_uses_shared_segment_source(prompt: &chapter_video_prompt::Model) -> bool {

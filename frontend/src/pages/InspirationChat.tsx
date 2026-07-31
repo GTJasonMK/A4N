@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { ListChecks, Loader2 } from "lucide-react";
+import { ListChecks } from "lucide-react";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { ProgressDialog } from "../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../components/feedback/RequestPreviewModal";
 import { Modal } from "../components/ui/Modal";
@@ -26,7 +27,7 @@ export const InspirationChat: React.FC = () => {
   if (!chat.project) {
     return (
       <div className="h-full flex items-center justify-center text-book-text-muted">
-        <Loader2 size={20} className="animate-spin mr-2" /> 加载项目…
+        <LoadingSpinner size="lg" className="mr-2" /> 加载项目…
       </div>
     );
   }
@@ -63,7 +64,6 @@ export const InspirationChat: React.FC = () => {
                   onInputFocus={chat.handleConversationFocus}
                   onInputBlur={chat.handleConversationBlur}
                   sending={chat.sending}
-                  showThinking={chat.sending}
                   messagesEndRef={chat.messagesEndRef}
                   placeholder={chat.inputPlaceholder}
                   inputActive={chat.inputActive}
@@ -106,7 +106,6 @@ export const InspirationChat: React.FC = () => {
         message={chat.blueprintProgress.message}
         error={chat.blueprintProgress.error}
         streamText={chat.blueprintStreamText}
-        streamVersion={chat.blueprintStreamVersion}
         onClose={() => chat.setBlueprintProgressOpen(false)}
         closeLabel={chat.blueprintProgress.status === "success" ? "查看蓝图" : "关闭"}
         onCancel={
@@ -150,5 +149,3 @@ export const InspirationChat: React.FC = () => {
     </div>
   );
 };
-
-export default InspirationChat;

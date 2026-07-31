@@ -34,16 +34,12 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     )?;
 
     let addr = a4n_sidecar_bootstrap::socket_addr("A4N_LLM_GATEWAY_ADDR", "127.0.0.1:47642")?;
-    let (shutdown_signal, shutdown) = a4n_sidecar_bootstrap::sidecar_shutdown();
-    let app = a4n_sidecar_bootstrap::with_runtime_metrics(
-        build_router().merge(a4n_sidecar_bootstrap::shutdown_router(shutdown_signal)),
-        a4n_service_protocol::LLM_SERVICE_NAME,
-    )?;
 
     tracing::info!(%addr, "starting llm gateway sidecar");
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await?;
-    Ok(())
+    a4n_sidecar_bootstrap::serve_sidecar(
+        build_router(),
+        addr,
+        a4n_service_protocol::LLM_SERVICE_NAME,
+    )
+    .await
 }

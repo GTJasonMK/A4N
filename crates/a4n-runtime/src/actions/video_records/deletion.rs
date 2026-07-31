@@ -1,4 +1,3 @@
-use super::contracts::DeleteChapterVideoAssetsResult;
 use crate::AppState;
 use crate::actions::access;
 use crate::actions::app_error_message;
@@ -37,25 +36,4 @@ pub async fn delete_video(state: &AppState, user_id: i64, video_id: i64) -> Resu
         .delete_video_record_validated(&VideoRecordLifecycleHost { state }, video_id)
         .await
         .map_err(app_error_message)
-}
-
-pub async fn delete_chapter_video_assets(
-    state: &AppState,
-    user_id: i64,
-    project_id: i64,
-    chapter_id: i64,
-) -> Result<DeleteChapterVideoAssetsResult, String> {
-    access::verify_project_editor_string(state, user_id, project_id).await?;
-    let deleted_video_count = state
-        .video()
-        .delete_chapter_video_records_validated(
-            &VideoRecordLifecycleHost { state },
-            project_id,
-            chapter_id,
-        )
-        .await
-        .map_err(app_error_message)?;
-    Ok(DeleteChapterVideoAssetsResult {
-        deleted_video_count,
-    })
 }

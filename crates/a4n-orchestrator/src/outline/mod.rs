@@ -7,7 +7,6 @@ mod chapter_contract;
 mod chapters;
 mod context;
 mod contracts;
-mod db_facade;
 mod generation;
 mod llm_stream;
 mod part_contract;

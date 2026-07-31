@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, GitCompare, Loader2, RefreshCw, Unplug } from "lucide-react";
+import { AlertTriangle, CheckCircle2, GitCompare, RefreshCw, Unplug } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { applySourceSyncDecisions, detachDerivedProject, previewSourceSync, type SourceSyncConflictSummary, type SourceSyncPlanSummary } from "../../api/sourceSync";
 import { extractErrorMessage } from "../../api";
 import { useToast } from "../../components/feedback/Toast";
@@ -535,7 +536,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
             disabled={busy}
             className="!min-h-8 !text-xs"
           >
-            {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            {loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={13} />}
             {plan ? "重新检查" : "检查更新"}
           </BookButton>
           {canApplyUnconflicted ? (
@@ -547,7 +548,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
               className="!min-h-8 !text-xs"
             >
               {applying ? (
-                <Loader2 size={13} className="animate-spin" />
+                <LoadingSpinner size="sm" />
               ) : (
                 <CheckCircle2 size={13} />
               )}
@@ -648,7 +649,7 @@ const ConflictRow: React.FC<{
               {SEVERITY_LABELS[conflict.severity] ?? "普通更新"}
             </span>
           </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+          <p className="mt-1 text-small leading-relaxed text-book-text-muted">
             {SOURCE_CHANGE_LABELS[conflict.source_change_kind] ?? "来源已变化"} · {LOCAL_STATE_LABELS[conflict.local_state_kind] ?? "当前项目有改动"} · {CONFLICT_STATUS_LABELS[conflict.status] ?? "状态未知"}
           </p>
         </div>
@@ -672,17 +673,17 @@ const ConflictRow: React.FC<{
               disabled={disabled}
               className="!text-xs"
             >
-              {applying ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+              {applying ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={13} />}
               保留当前
             </BookButton>
           ) : null}
         </div>
       </div>
-      <div className="grid border-t border-book-border/40 text-[11px] leading-relaxed text-book-text-muted md:grid-cols-2 md:divide-x md:divide-book-border/40">
+      <div className="grid border-t border-book-border/40 text-small leading-relaxed text-book-text-muted md:grid-cols-2 md:divide-x md:divide-book-border/40">
         <JsonSummary title="源文本变化" value={conflict.source_summary_json} />
         <JsonSummary title="当前项目" value={conflict.local_summary_json} />
       </div>
-      <details className="border-t border-book-border/40 px-3 py-2 text-[10px] text-book-text-muted">
+      <details className="border-t border-book-border/40 px-3 py-2 text-caption text-book-text-muted">
         <summary className="w-fit cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main">
           诊断信息
         </summary>
@@ -729,19 +730,19 @@ function isSameGalgameSceneConflict(conflict: SourceSyncConflictSummary, sceneId
 
 const JsonSummary: React.FC<{ title: string; value: Record<string, unknown> }> = ({ title, value }) => (
   <div className="min-w-0 px-3 py-2.5">
-    <div className="mb-1 text-[10px] font-medium text-book-text-sub">{title}</div>
+    <div className="mb-1 text-caption font-medium text-book-text-sub">{title}</div>
     <div className="break-words text-book-text-sub">{formatSummary(value)}</div>
   </div>
 );
 
 function severityClass(severity: string): string {
   if (severity === "blocking") {
-    return "text-[11px] font-semibold text-error";
+    return "text-small font-semibold text-error";
   }
   if (severity === "warning") {
-    return "text-[11px] font-semibold text-warning";
+    return "text-small font-semibold text-warning";
   }
-  return "text-[11px] font-semibold text-book-primary";
+  return "text-small font-semibold text-book-primary";
 }
 
 function formatSummary(value: Record<string, unknown>): string {

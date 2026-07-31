@@ -8,7 +8,9 @@ use a4n_db::{
         extend_generation_sequence_lease, load_generation_task, persist_generation_checkpoint,
     },
 };
-use a4n_service_protocol::{CheckpointEvent, GenerationEvent, GenerationTaskStatus};
+use a4n_service_protocol::{
+    CheckpointEvent, GenerationEvent, GenerationTaskStatus, MAX_TEXT_DELTA_BYTES,
+};
 use async_trait::async_trait;
 use serde_json::Value;
 
@@ -194,8 +196,19 @@ impl GenerationCheckpointWriter {
         checkpoint_key: String,
         resumable: bool,
         summary: Option<String>,
+        text_delta: Option<(String, String)>,
     ) -> Result<GenerationCheckpointWriteOutcome, GenerationCheckpointError> {
         let _guard = session.checkpoint_write_guard().await;
+        let text_delta = match text_delta {
+            Some((stream_id, delta)) if delta.is_empty() => {
+                return Err(GenerationSessionError::InvalidSession(format!(
+                    "generation checkpoint stream {stream_id} delta 不能为空"
+                ))
+                .into());
+            }
+            Some((stream_id, delta)) => Some((stream_id, split_text_delta(&delta))),
+            None => None,
+        };
         let checkpoint = CheckpointEvent {
             checkpoint_key,
             resumable,
@@ -204,8 +217,14 @@ impl GenerationCheckpointWriter {
         let mut expected_revision = None;
 
         loop {
-            let permit = session
-                .prepare_committed_events(vec![GenerationEvent::Checkpoint(checkpoint.clone())])?;
+            let mut events = text_delta
+                .as_ref()
+                .map(|(stream_id, deltas)| {
+                    session.next_committed_text_delta_events(stream_id, deltas)
+                })
+                .unwrap_or_default();
+            events.push(GenerationEvent::Checkpoint(checkpoint.clone()));
+            let permit = session.prepare_committed_events(events)?;
             if !ordinary_checkpoint_status(permit.snapshot().status) {
                 return Ok(GenerationCheckpointWriteOutcome::Superseded);
             }
@@ -267,6 +286,20 @@ impl GenerationCheckpointWriter {
             }
         }
     }
+}
+
+fn split_text_delta(text: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    while start < text.len() {
+        let mut end = (start + MAX_TEXT_DELTA_BYTES).min(text.len());
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        parts.push(text[start..end].to_string());
+        start = end;
+    }
+    parts
 }
 
 fn checkpoint_input(
@@ -420,5 +453,14 @@ mod tests {
             GenerationTaskStatus::Finalizing
         ));
         assert!(!ordinary_checkpoint_status(GenerationTaskStatus::Completed));
+    }
+
+    #[test]
+    fn checkpoint_text_delta_splits_without_breaking_utf8() {
+        let text = "镜".repeat(MAX_TEXT_DELTA_BYTES / "镜".len() + 2);
+        let parts = split_text_delta(&text);
+
+        assert!(parts.iter().all(|part| part.len() <= MAX_TEXT_DELTA_BYTES));
+        assert_eq!(parts.concat(), text);
     }
 }

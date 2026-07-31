@@ -1,7 +1,6 @@
 import { apiInvoke } from "../index";
 import { readCurrentUserId } from "../authStorage";
 import { idNum, integerNum, type ApiId as Id } from "../shared";
-import { assertRemoteBackendCanUsePaths } from "../remotePathGuard";
 import { generationClient } from "../generationTasks";
 import { generationTaskKey, useGenerationTasksStore } from "../../store/generationTasks";
 import { sha256Hex } from "../../utils/contentHash";
@@ -28,7 +27,6 @@ function normalizeVideoConfigId(configId?: Id | null): number | null {
 }
 
 export type VideoGenerationInput = Omit<StartVideoGenerationInput, "meta">;
-export type { VideoGenerationOperation };
 
 export async function startVideoGeneration(
   input: VideoGenerationInput,
@@ -146,23 +144,21 @@ function normalizeVideoGenerationOperation(
         config_id: normalizeVideoConfigId(operation.config_id),
       };
     case "reference_media": {
-      const imageFiles = operation.input.image_files ?? [];
-      const videoFiles = operation.input.video_files ?? [];
-      const audioFiles = operation.input.audio_files ?? [];
-      assertRemoteBackendCanUsePaths(imageFiles, "参考媒体图片");
-      assertRemoteBackendCanUsePaths(videoFiles, "参考媒体视频");
-      assertRemoteBackendCanUsePaths(audioFiles, "参考媒体音频");
       return {
         ...operation,
         chapter_id: idNum(operation.chapter_id, "章节 ID"),
         input: {
           ...operation.input,
-          image_files: imageFiles,
-          video_files: videoFiles,
-          audio_files: audioFiles,
           config_id: normalizeVideoConfigId(operation.input.config_id),
         },
       };
     }
+    case "prompt_segment_plan":
+    case "prompt_frames":
+    case "prompt_videos":
+      return {
+        ...operation,
+        chapter_id: idNum(operation.chapter_id, "章节 ID"),
+      };
   }
 }

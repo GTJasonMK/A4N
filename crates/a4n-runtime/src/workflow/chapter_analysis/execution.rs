@@ -53,6 +53,7 @@ pub(super) async fn run_chapter_analysis_application(
     let application_progress = ChapterAnalysisApplicationProgress {
         reporter: Some(&reporter),
         cancel_token: progress.and_then(|progress| progress.cancel_token),
+        active_task_id: progress.and_then(|progress| progress.task_id),
     };
     let result = if cleanup_before_analysis {
         state

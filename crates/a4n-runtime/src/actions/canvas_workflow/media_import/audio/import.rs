@@ -3,7 +3,7 @@ use super::source::CanvasAudioImportSource;
 use crate::AppState;
 use crate::{
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
-    file_utils::persist_created_media_file,
+    file_utils::{persist_created_media_file, probe_created_audio_duration},
 };
 use a4n_core::error::AppError;
 use a4n_core::files::paths::ProjectPaths;
@@ -78,10 +78,18 @@ impl CanvasAudioImportHostPort for RuntimeCanvasAudioImportHostPort<'_> {
             current: "canvas_audio_import".to_string(),
             operation: error,
         })?;
+        let duration_secs =
+            probe_created_audio_duration(&output, "画布音频文件").map_err(|error| {
+                AppError::InvalidState {
+                    current: "canvas_audio_import".to_string(),
+                    operation: error,
+                }
+            })?;
         Ok(PersistedCanvasAudioFile {
             relative_path,
             source_file_name: source.file_name().to_string(),
             mime_type: input.mime_type,
+            duration_secs,
         })
     }
 

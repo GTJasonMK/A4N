@@ -183,14 +183,12 @@ impl OrchestratorContext {
                 from: status_change.from.clone(),
                 to: status_change.to.clone(),
                 timestamp: status_change.changed_at,
-            })
-            .await?;
+            })?;
         }
         self.publish_internal_event(InternalEvent::BlueprintUpdated {
             project_id,
             version: result.version.clone(),
-        })
-        .await?;
+        })?;
         Ok(result)
     }
 

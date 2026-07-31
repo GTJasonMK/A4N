@@ -19,6 +19,16 @@ pub async fn user_from_access_token(
         .sub
         .parse::<i64>()
         .map_err(|_| AppError::Unauthorized("访问令牌 subject 不是有效用户 ID".into()))?;
+    let session_id = claims
+        .session_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::Unauthorized("访问令牌缺少会话绑定，请重新登录".into()))?;
+    state
+        .auth()
+        .verify_active_session(user_id, session_id)
+        .await?;
     state.auth().current_user(user_id).await
 }
 
@@ -37,8 +47,8 @@ pub async fn verify_media_token_for_path(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::Unauthorized("媒体令牌缺少绑定路径".into()))?;
-    let expected_path = crate::media_file::relative_media_path(expected)
-        .map_err(|error| AppError::Unauthorized(error.into()))?;
+    let expected_path =
+        crate::media_file::relative_media_path(expected).map_err(AppError::Unauthorized)?;
     if expected_path != path {
         return Err(AppError::Unauthorized("媒体令牌与请求文件不匹配".into()));
     }
@@ -56,7 +66,7 @@ pub async fn issue_auth_result(
     user_agent: Option<&str>,
 ) -> Result<AuthResult, AppError> {
     let secret = jwt_secret(state)?;
-    let pair = jwt::create_token_pair_with_role(
+    let mut pair = jwt::create_token_pair_with_role(
         &user.id.to_string(),
         Some(&user.username),
         &user.role,
@@ -67,6 +77,13 @@ pub async fn issue_auth_result(
         .create_session(user.id, &pair.refresh_token, user_agent)
         .await?;
     let session_id = session.id.clone();
+    pair.access_token = jwt::create_session_access_token_with_role(
+        &user.id.to_string(),
+        Some(&user.username),
+        &user.role,
+        &session_id,
+        secret,
+    )?;
 
     Ok(AuthResult {
         user: to_user_summary(&user),
@@ -106,6 +123,7 @@ pub async fn refresh_token(
         &input.refresh_token,
         Some(&user.username),
         &user.role,
+        &session_id,
         secret,
     )?;
     state

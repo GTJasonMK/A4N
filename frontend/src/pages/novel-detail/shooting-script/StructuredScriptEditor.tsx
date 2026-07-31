@@ -113,7 +113,7 @@ export const StructuredScriptEditor: React.FC<
       <section className="a4n-flat-surface overflow-hidden">
         <div className="border-b border-book-border/45 px-3 py-2.5 sm:px-4">
           <h3 className="text-sm font-semibold text-book-text-main">导演意图</h3>
-          <p className="mt-0.5 text-[11px] text-book-text-muted">
+          <p className="mt-0.5 text-small text-book-text-muted">
             统一整章的叙事视点、影像语言与节奏方向。
           </p>
         </div>
@@ -197,7 +197,7 @@ const SceneEditor: React.FC<{
         <h3 className="text-sm font-semibold text-book-text-main">
           场景 {scene.scene_index} · {scene.title || "未命名场景"}
         </h3>
-        <span className="text-[11px] text-book-text-muted">
+        <span className="text-small text-book-text-muted">
           {scene.shots.length} 个镜头
         </span>
       </div>
@@ -442,7 +442,7 @@ const SceneEditor: React.FC<{
         <section className="border-t border-book-border/45 pt-3">
           <div className="flex items-baseline justify-between gap-2">
             <h4 className="text-xs font-semibold text-book-text-main">镜头</h4>
-            <span className="text-[10px] text-book-text-muted">
+            <span className="text-caption text-book-text-muted">
               同一场景内按拍摄顺序排列
             </span>
           </div>
@@ -484,7 +484,7 @@ const ShotEditor: React.FC<{
         <div className="truncate text-xs font-semibold text-book-text-main">
           镜头 {shot.shot_index} · {shot.title || "未命名镜头"}
         </div>
-        <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-book-text-muted">
+        <div className="mt-0.5 flex flex-wrap gap-x-2 text-caption text-book-text-muted">
           <span>{shootingShotSizeLabel(shot.shot_size)}</span>
           <span>{shootingCameraMovementLabel(shot.camera_movement)}</span>
           <span>{shot.performance_beats.length} 个节拍</span>
@@ -647,10 +647,10 @@ const BeatEditor: React.FC<{
   <details className="group">
     <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2.5 [&::-webkit-details-marker]:hidden">
       <div className="min-w-0">
-        <div className="text-[11px] font-medium text-book-text-main">
+        <div className="text-small font-medium text-book-text-main">
           节拍 {beat.beat_index}{beat.actor ? ` · ${beat.actor}` : ""}
         </div>
-        <div className="mt-0.5 truncate text-[10px] text-book-text-muted">
+        <div className="mt-0.5 truncate text-caption text-book-text-muted">
           {beat.visible_action}
         </div>
       </div>
@@ -697,7 +697,7 @@ const TextField: React.FC<{
   compact?: boolean;
 }> = ({ label, value, path, onChange, nullable = false, compact = false }) => (
   <label className="block min-w-0">
-    <span className="mb-1 block text-[11px] text-book-text-muted">{label}</span>
+    <span className="mb-1 block text-small text-book-text-muted">{label}</span>
     <textarea
       value={value ?? ""}
       onChange={(event) =>
@@ -716,7 +716,7 @@ const NumberField: React.FC<{
   onChange: UpdateValue;
 }> = ({ label, value, path, onChange }) => (
   <label className="block min-w-0">
-    <span className="mb-1 block text-[11px] text-book-text-muted">{label}</span>
+    <span className="mb-1 block text-small text-book-text-muted">{label}</span>
     <input
       type="number"
       step="any"
@@ -735,7 +735,7 @@ const SelectField: React.FC<{
   onChange: UpdateValue;
 }> = ({ label, value, options, path, onChange }) => (
   <label className="block min-w-0">
-    <span className="mb-1 block text-[11px] text-book-text-muted">{label}</span>
+    <span className="mb-1 block text-small text-book-text-muted">{label}</span>
     <select
       value={value}
       onChange={(event) => onChange(path, event.target.value)}
@@ -774,7 +774,7 @@ const StringListField: React.FC<{
 
   return (
     <label className="block min-w-0">
-      <span className="mb-1 block text-[11px] text-book-text-muted">{label}</span>
+      <span className="mb-1 block text-small text-book-text-muted">{label}</span>
       <textarea
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
@@ -794,13 +794,13 @@ const SwitchField: React.FC<{
   onChange: UpdateValue;
 }> = ({ label, value, path, onChange }) => (
   <div className="min-w-0">
-    <span className="mb-1 block text-[11px] text-book-text-muted">{label}</span>
+    <span className="mb-1 block text-small text-book-text-muted">{label}</span>
     <button
       type="button"
       role="switch"
       aria-checked={value}
       onClick={() => onChange(path, !value)}
-      className="inline-flex min-h-9 items-center gap-2 text-[11px] text-book-text-sub"
+      className="inline-flex min-h-9 items-center gap-2 text-small text-book-text-sub"
     >
       <span>{value ? "是" : "否"}</span>
       <span className={`relative inline-flex h-[18px] w-8 rounded-full transition-colors ${value ? "bg-book-primary" : "bg-book-text-muted/25"}`}>
@@ -830,8 +830,8 @@ const DiagnosticDetails: React.FC<{
   <details
     className={
       nested
-        ? "text-[10px] text-book-text-muted"
-        : "border-t border-book-border/40 px-3 py-2 text-[10px] text-book-text-muted sm:px-4"
+        ? "text-caption text-book-text-muted"
+        : "border-t border-book-border/40 px-3 py-2 text-caption text-book-text-muted sm:px-4"
     }
   >
     <summary className="w-fit cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main">

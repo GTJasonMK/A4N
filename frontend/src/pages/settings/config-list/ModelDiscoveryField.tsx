@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
-import { Loader2, Radar } from "lucide-react";
+import { Radar } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { DiscoveredModel, ModelDiscoveryResult } from "../../../api/modelDiscovery";
 import { useToast } from "../../../components/feedback/Toast";
@@ -71,7 +72,7 @@ export function ModelDiscoveryField({
           disabled={disabled || detecting}
           title="检测模型列表"
         >
-          {detecting ? <Loader2 size={13} className="animate-spin" /> : <Radar size={13} />}
+          {detecting ? <LoadingSpinner size="sm" /> : <Radar size={13} />}
           <span>检测</span>
         </button>
       </div>
@@ -85,7 +86,7 @@ export function ModelDiscoveryField({
         </datalist>
       ) : null}
       {models.length > 0 ? (
-        <div className="text-[11px] text-book-text-muted">已加载 {models.length} 个模型</div>
+        <div className="text-small text-book-text-muted">已加载 {models.length} 个模型</div>
       ) : null}
     </div>
   );

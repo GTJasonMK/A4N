@@ -44,7 +44,8 @@ interface GenerationTransportSession {
   controller: AbortController;
   subscriptionId?: string;
   closed: boolean;
-  close: () => Promise<void>;
+  backendFinished: boolean;
+  close: (backendFinished?: boolean) => Promise<void>;
 }
 
 const sessions = new Map<string, GenerationTransportSession>();
@@ -62,6 +63,7 @@ export const generationClient = {
     return parseGenerationTaskSummary(
       await runtimeInvoke<unknown>("get_generation_task_summary", {
         userId: currentUserId(),
+        taskId,
         attempt,
       }),
     );
@@ -77,6 +79,7 @@ export const generationClient = {
     return parseGenerationTaskSnapshot(
       await runtimeInvoke<unknown>("get_generation_task_snapshot", {
         userId: currentUserId(),
+        taskId,
         attempt,
       }),
     );
@@ -320,8 +323,10 @@ async function attachTransport(
   const session: GenerationTransportSession = {
     controller,
     closed: false,
-    close: async () => {
+    backendFinished: false,
+    close: async (backendFinished = false) => {
       session.closed = true;
+      session.backendFinished ||= backendFinished;
       controller.abort();
     },
   };
@@ -434,20 +439,24 @@ async function runTauriTransport(
       console.warn("generation subscription unsubscribe failed", error);
     }
   };
-  session.close = async () => {
+  session.close = async (backendFinished = false) => {
     session.closed = true;
+    session.backendFinished ||= backendFinished;
     session.controller.abort();
     const close = unsubscribe;
     unsubscribe = undefined;
-    if (close) await close();
+    if (close && !session.backendFinished) await close();
   };
-  if (session.closed) await session.close();
+  if (session.closed) await session.close(session.backendFinished);
 }
 
 function handleEvent(
   handle: GenerationTaskHandle,
   event: GenerationTaskEvent,
 ): Promise<void> | undefined {
+  if (isTerminalEvent(event) && !shouldUseHttpBackend()) {
+    void closeTransport(generationTaskKey(handle.task_id, handle.attempt), true);
+  }
   if (event.event.kind === "completed") return handleCompletedEvent(handle, event);
   applyEvent(handle, event);
 }
@@ -481,6 +490,10 @@ function applyEvent(handle: GenerationTaskHandle, event: GenerationTaskEvent): v
   if (!next) return;
   if (next.recoveryState === "required") void generationClient.recover(handle);
   if (next.terminalReceived) void closeTransport(key);
+}
+
+function isTerminalEvent(event: GenerationTaskEvent): boolean {
+  return ["completed", "failed", "cancelled", "interrupted"].includes(event.event.kind);
 }
 
 async function snapshotTerminalIsConsistent(snapshot: GenerationTaskSnapshot): Promise<boolean> {
@@ -553,11 +566,11 @@ function isTerminal(handle: GenerationTaskHandle): boolean {
   return Boolean(getGenerationTaskViewState(handle.task_id, handle.attempt)?.terminalReceived);
 }
 
-async function closeTransport(key: string): Promise<void> {
+async function closeTransport(key: string, backendFinished = false): Promise<void> {
   const session = sessions.get(key);
   if (!session) return;
   sessions.delete(key);
-  await session.close();
+  await session.close(backendFinished);
 }
 
 async function rollbackOnAttachFailure(

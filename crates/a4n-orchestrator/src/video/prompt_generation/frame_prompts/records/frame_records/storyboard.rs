@@ -4,6 +4,7 @@ use a4n_core::error::AppError;
 
 use crate::video::{
     library::ensure_video_reference_ids_known,
+    prompt_generation::frame_prompts::VideoUnitPlan,
     prompt_json::{
         StoryboardPanel, VideoFramePrompt, VideoSegmentPlan, validate_reference_label_text,
     },
@@ -35,60 +36,102 @@ pub(in crate::video) fn validate_storyboard_prompts(
                 frame.frame_number
             )));
         }
-        let expected_segment_numbers =
-            storyboard_expected_segment_numbers(segment_plan, frame.frame_number)?;
-        let representative_segment_number =
-            expected_segment_numbers.first().copied().ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "分镜提示词 #{} 缺少对应片段规划",
-                    frame.frame_number
-                ))
-            })?;
-        let segment = segment_plan
-            .iter()
-            .find(|segment| segment.segment_number == representative_segment_number)
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "分镜提示词 #{} 缺少对应片段规划",
-                    frame.frame_number
-                ))
-            })?;
-        if frame.segment_numbers != expected_segment_numbers {
-            return Err(AppError::InvalidArgument(format!(
-                "分镜提示词 #{} segment_numbers 必须为 {:?}，实际为 {:?}",
-                frame.frame_number, expected_segment_numbers, frame.segment_numbers
-            )));
-        }
-        if frame.duration_secs < 1 {
-            return Err(AppError::InvalidArgument(format!(
-                "分镜提示词 #{} 时长必须大于 0，实际为 {}s",
-                frame.frame_number, frame.duration_secs
-            )));
-        }
-        if frame.aspect_ratio != segment.aspect_ratio {
-            return Err(AppError::InvalidArgument(format!(
-                "分镜提示词 #{} aspect_ratio 必须为 {}，实际为 {}",
-                frame.frame_number, segment.aspect_ratio, frame.aspect_ratio
-            )));
-        }
-        ensure_video_reference_ids_known(
-            &frame.reference_image_ids,
-            allowed_reference_ids,
-            &format!("视频分镜 #{}", frame.frame_number),
-        )?;
-        validate_reference_label_text(
-            &frame.frame_prompt,
-            &format!("视频分镜 #{} frame_prompt", frame.frame_number),
-            frame.reference_image_ids.len(),
-        )?;
-        validate_reference_label_text(
-            &frame.negative_prompt,
-            &format!("视频分镜 #{} negative_prompt", frame.frame_number),
-            frame.reference_image_ids.len(),
-        )?;
-        validate_storyboard_panels(frame)?;
+        validate_storyboard_prompt(frame, segment_plan, allowed_reference_ids)?;
     }
     Ok(())
+}
+
+pub(in crate::video) fn validate_storyboard_prompt(
+    frame: &VideoFramePrompt,
+    segment_plan: &[VideoSegmentPlan],
+    allowed_reference_ids: &HashSet<i64>,
+) -> Result<(), AppError> {
+    let expected_segment_numbers =
+        storyboard_expected_segment_numbers(segment_plan, frame.frame_number)?;
+    validate_storyboard_prompt_for_segment_numbers(
+        frame,
+        segment_plan,
+        &expected_segment_numbers,
+        allowed_reference_ids,
+    )
+}
+
+pub(in crate::video) fn validate_storyboard_prompt_for_unit(
+    frame: &VideoFramePrompt,
+    segment_plan: &[VideoSegmentPlan],
+    unit: &VideoUnitPlan,
+    allowed_reference_ids: &HashSet<i64>,
+) -> Result<(), AppError> {
+    if unit.storyboard_number != Some(frame.frame_number) {
+        return Err(AppError::InvalidArgument(format!(
+            "分镜提示词 #{} 与目标视频单元 #{} 不一致",
+            frame.frame_number, unit.unit_number
+        )));
+    }
+    validate_storyboard_prompt_for_segment_numbers(
+        frame,
+        segment_plan,
+        &unit.source_segment_numbers(),
+        allowed_reference_ids,
+    )
+}
+
+fn validate_storyboard_prompt_for_segment_numbers(
+    frame: &VideoFramePrompt,
+    segment_plan: &[VideoSegmentPlan],
+    expected_segment_numbers: &[i32],
+    allowed_reference_ids: &HashSet<i64>,
+) -> Result<(), AppError> {
+    let representative_segment_number =
+        expected_segment_numbers.first().copied().ok_or_else(|| {
+            AppError::InvalidArgument(format!(
+                "分镜提示词 #{} 缺少对应片段规划",
+                frame.frame_number
+            ))
+        })?;
+    let segment = segment_plan
+        .iter()
+        .find(|segment| segment.segment_number == representative_segment_number)
+        .ok_or_else(|| {
+            AppError::InvalidArgument(format!(
+                "分镜提示词 #{} 缺少对应片段规划",
+                frame.frame_number
+            ))
+        })?;
+    if frame.segment_numbers != expected_segment_numbers {
+        return Err(AppError::InvalidArgument(format!(
+            "分镜提示词 #{} segment_numbers 必须为 {:?}，实际为 {:?}",
+            frame.frame_number, expected_segment_numbers, frame.segment_numbers
+        )));
+    }
+    if frame.duration_secs < 1 {
+        return Err(AppError::InvalidArgument(format!(
+            "分镜提示词 #{} 时长必须大于 0，实际为 {}s",
+            frame.frame_number, frame.duration_secs
+        )));
+    }
+    if frame.aspect_ratio != segment.aspect_ratio {
+        return Err(AppError::InvalidArgument(format!(
+            "分镜提示词 #{} aspect_ratio 必须为 {}，实际为 {}",
+            frame.frame_number, segment.aspect_ratio, frame.aspect_ratio
+        )));
+    }
+    ensure_video_reference_ids_known(
+        &frame.reference_image_ids,
+        allowed_reference_ids,
+        &format!("视频分镜 #{}", frame.frame_number),
+    )?;
+    validate_reference_label_text(
+        &frame.frame_prompt,
+        &format!("视频分镜 #{} frame_prompt", frame.frame_number),
+        frame.reference_image_ids.len(),
+    )?;
+    validate_reference_label_text(
+        &frame.negative_prompt,
+        &format!("视频分镜 #{} negative_prompt", frame.frame_number),
+        frame.reference_image_ids.len(),
+    )?;
+    validate_storyboard_panels(frame)
 }
 
 fn validate_storyboard_panels(frame: &VideoFramePrompt) -> Result<(), AppError> {

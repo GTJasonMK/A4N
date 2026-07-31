@@ -15,10 +15,10 @@ pub async fn project_access_info(
     query: ProjectAccessInfoQuery,
     user_id: i64,
 ) -> Result<ProjectAccessInfo, CollaborationDbError> {
-    let mut infos = project_access_info_batch(db, &[query.clone()], user_id).await?;
-    Ok(infos.remove(&query.project_id).ok_or_else(|| {
+    let mut infos = project_access_info_batch(db, std::slice::from_ref(&query), user_id).await?;
+    infos.remove(&query.project_id).ok_or_else(|| {
         CollaborationDbError::Internal(format!("项目缺少协作访问信息: {}", query.project_id))
-    })?)
+    })
 }
 
 pub async fn project_access_info_batch(

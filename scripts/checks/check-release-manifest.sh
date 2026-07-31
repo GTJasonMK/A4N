@@ -16,6 +16,9 @@ trap cleanup EXIT
 
 mkdir -p "$tmp_dir/bin/services"
 printf 'host-binary\n' > "$tmp_dir/bin/a4n-tauri"
+for tool in a4n a4n-server a4n-migration; do
+    printf '%s\n' "$tool" > "$tmp_dir/bin/$tool"
+done
 printf 'onnx-runtime\n' > "$tmp_dir/bin/services/libonnxruntime.so.1"
 ruby -rjson -e 'JSON.parse(File.read("crates/a4n-service-protocol/service-catalog.json")).each { |entry| File.write(ARGV.fetch(0) + "/bin/services/" + entry.fetch("binary"), entry.fetch("name") + "\n") }' "$tmp_dir"
 
@@ -32,6 +35,9 @@ ruby scripts/release_manifest.rb verify \
     --catalog crates/a4n-service-protocol/service-catalog.json
 
 printf 'host-binary\n' > "$tmp_dir/bin/a4n-tauri.exe"
+for tool in a4n a4n-server a4n-migration; do
+    printf '%s\n' "$tool" > "$tmp_dir/bin/$tool.exe"
+done
 printf 'onnx-runtime\n' > "$tmp_dir/bin/services/onnxruntime.dll"
 ruby -rjson -e 'JSON.parse(File.read("crates/a4n-service-protocol/service-catalog.json")).each { |entry| File.write(ARGV.fetch(0) + "/bin/services/" + entry.fetch("binary") + ".exe", entry.fetch("name") + "\n") }' "$tmp_dir"
 ruby scripts/release_manifest.rb generate \
@@ -49,6 +55,9 @@ ruby scripts/release_manifest.rb verify \
 tauri_app="$tmp_dir/A4N.app"
 mkdir -p "$tauri_app/Contents/MacOS" "$tauri_app/Contents/Resources"
 printf 'signed-host\n' > "$tauri_app/Contents/MacOS/a4n-tauri"
+for tool in a4n a4n-server a4n-migration; do
+    printf '%s-signed\n' "$tool" > "$tauri_app/Contents/MacOS/$tool"
+done
 printf 'signed-runtime\n' > "$tauri_app/Contents/Resources/libonnxruntime.dylib"
 ruby -rjson -e 'JSON.parse(File.read("crates/a4n-service-protocol/service-catalog.json")).each { |entry| File.write(ARGV.fetch(0) + "/Contents/MacOS/" + entry.fetch("binary"), entry.fetch("name") + "-signed\n") }' "$tauri_app"
 ruby scripts/release_manifest.rb generate \
@@ -81,6 +90,26 @@ if ruby scripts/release_manifest.rb verify --package-root "$tmp_dir" --manifest 
     exit 1
 fi
 mv "$tmp_dir/release-manifest.valid.json" "$tmp_dir/release-manifest.json"
+
+cp "$tmp_dir/release-manifest.json" "$tmp_dir/release-manifest.valid.json"
+ruby -rjson -e '
+  path = ARGV.fetch(0)
+  data = JSON.parse(File.read(path))
+  data["version"] = "different-version"
+  File.write(path, JSON.pretty_generate(data) + "\n")
+' "$tmp_dir/release-manifest.json"
+if ruby scripts/release_manifest.rb verify --package-root "$tmp_dir" --manifest "$tmp_dir/release-manifest.json" >/dev/null 2>&1; then
+    echo "manifest/host version mismatch unexpectedly passed verification" >&2
+    exit 1
+fi
+mv "$tmp_dir/release-manifest.valid.json" "$tmp_dir/release-manifest.json"
+
+printf 'tampered\n' >> "$tmp_dir/bin/a4n-server"
+if ruby scripts/release_manifest.rb verify --package-root "$tmp_dir" --manifest "$tmp_dir/release-manifest.json" >/dev/null 2>&1; then
+    echo "tampered release tool unexpectedly passed manifest verification" >&2
+    exit 1
+fi
+printf 'a4n-server\n' > "$tmp_dir/bin/a4n-server"
 
 printf 'tampered\n' >> "$tmp_dir/bin/services/libonnxruntime.so.1"
 if ruby scripts/release_manifest.rb verify --package-root "$tmp_dir" --manifest "$tmp_dir/release-manifest.json" >/dev/null 2>&1; then

@@ -1,5 +1,6 @@
 import React from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import type { CharacterProfile } from "../../api/character";
 import { ArcView, ConflictView, VoiceView } from "./views";
@@ -37,7 +38,7 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
   if (loadingTab === tab) {
     return (
       <div className="py-10 flex flex-col items-center gap-2 text-book-text-muted">
-        <Loader2 size={20} className="animate-spin text-book-primary" />
+        <LoadingSpinner size="lg" />
         <span className="text-xs">加载中…</span>
       </div>
     );

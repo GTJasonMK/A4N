@@ -127,6 +127,16 @@ impl<'a> AuthRuntimeFacade<'a> {
             .await
     }
 
+    pub(crate) async fn verify_active_session(
+        &self,
+        user_id: i64,
+        session_id: &str,
+    ) -> Result<user_session::Model, AppError> {
+        self.orchestrator
+            .verify_active_session(user_id, session_id)
+            .await
+    }
+
     pub(crate) async fn rotate_session_refresh_token(
         &self,
         session: user_session::Model,

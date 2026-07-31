@@ -37,10 +37,11 @@ tags: scene, transition, extraction
 ## 规则
 
 - `from_scene_ref` 为章节开头无明确来源时可为 `null`。
-- `to_scene_ref` 必须来自输入 `scenes[].scene_ref`。
+- `to_scene_ref` 必须来自输入 `scenes[].scene_ref`，不得为 `null`。
+- 仅知道角色离开当前场景、但正文没有给出目标场景时，不要输出该条转场；离开状态保留在对应 `occurrences[].exit_state` 即可。
 - `occurrence_ref` 必须来自输入 `occurrences[].occurrence_ref`，不明确时为 `null`。
 - `movement_type` 只能从以下枚举中选择：`enter`、`leave`、`travel`、`chase`、`teleport`、`hidden_passage`、`cutaway`。
-- `movement_type` 语义：进入某场景用 `enter`，离开某场景用 `leave`，普通场景间移动或换地点用 `travel`，追逐用 `chase`，瞬移/传送用 `teleport`，暗道/秘密通道用 `hidden_passage`，叙事视角切到另一场景但没有人物实际移动用 `cutaway`。不要输出 `move`、`walk`、`go`、`switch` 或其他未列出的值。
+- `movement_type` 语义：进入某场景用 `enter`，离开当前场景且目标场景明确时用 `leave`，普通场景间移动或换地点用 `travel`，追逐用 `chase`，瞬移/传送用 `teleport`，暗道/秘密通道用 `hidden_passage`，叙事视角切到另一场景但没有人物实际移动用 `cutaway`。不要输出 `move`、`walk`、`go`、`switch` 或其他未列出的值。
 - `participants` 只能引用输入 `available_characters[].profile_id`。
 - `object_refs` 只能引用输入 `available_object_profiles[].object_profile_id`。
 - `source_anchor_ids` 必须来自输入 `text_anchors[].id`。

@@ -12,7 +12,7 @@ use a4n_api_contract::{
         CreateEmbeddingInput, CreateLlmInput, EmbeddingConfigSummary, ImageConfigInput,
         ImageConfigSummary, LlmConfigSummary, ModelDiscoveryInput, UpdateEmbeddingInput,
         UpdateImageConfigInput, UpdateLlmInput, UpdateVideoConfigInput, VideoConfigInput,
-        VideoConfigSummary, VideoGenerationCapabilities,
+        VideoConfigSummary,
     },
     embedding::{
         CancelEmbeddingModelDownloadInput, EmbeddingModelDownloadFileSummary,
@@ -78,10 +78,10 @@ use a4n_api_contract::{
     theme::{CreateThemeInput, ImportThemeInput, ThemeSummary, UpdateThemeInput},
     video::{
         ApplyAssemblyPostprocessEditInput, AssembledChapterVideoClipSummary,
-        AssembledChapterVideoPreview, AssemblyPushResult, DeleteChapterVideoAssetsResult,
-        GenerateChapterVideosBatchResult, GeneratedVideoSummary, ImportCanvasVideoInput,
-        PushAssembledChapterVideoInput, UploadAssemblyInsertVideoInput, UploadChapterVideoInput,
-        UploadReferenceMediaVideoInput, VideoPlaybackData,
+        AssembledChapterVideoPreview, AssemblyPushResult, GenerateChapterVideosBatchResult,
+        GeneratedVideoSummary, ImportCanvasVideoInput, PushAssembledChapterVideoInput,
+        UploadAssemblyInsertVideoInput, UploadChapterVideoInput, UploadReferenceMediaVideoInput,
+        VideoPlaybackData,
     },
 };
 use schemars::JsonSchema;
@@ -130,7 +130,6 @@ fn main() {
         &typescript_interface::<CreateLlmInput>("CreateLlmInput"),
         &typescript_interface::<UpdateLlmInput>("UpdateLlmInput"),
         &typescript_interface::<VideoConfigSummary>("VideoConfigSummary"),
-        &typescript_interface::<VideoGenerationCapabilities>("VideoGenerationCapabilities"),
         &typescript_interface::<VideoConfigInput>("VideoConfigInput"),
         &typescript_interface::<UpdateVideoConfigInput>("UpdateVideoConfigInput"),
     ]
@@ -270,7 +269,6 @@ fn main() {
             "GenerateChapterVideosBatchResult",
         ),
         &typescript_interface::<VideoPlaybackData>("VideoPlaybackData"),
-        &typescript_interface::<DeleteChapterVideoAssetsResult>("DeleteChapterVideoAssetsResult"),
         &typescript_interface::<AssembledChapterVideoClipSummary>(
             "AssembledChapterVideoClipSummary",
         ),
@@ -376,10 +374,10 @@ fn resolve_root<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
 }
 
 fn ts_type(schema: &Value, root: &Value) -> String {
-    if let Some(reference) = schema.get("$ref").and_then(Value::as_str) {
-        if let Some(name) = reference.strip_prefix("#/$defs/") {
-            return name.to_string();
-        }
+    if let Some(reference) = schema.get("$ref").and_then(Value::as_str)
+        && let Some(name) = reference.strip_prefix("#/$defs/")
+    {
+        return name.to_string();
     }
     let schema = resolve_root(schema, root);
     if let Some(types) = schema.get("type").and_then(Value::as_array) {

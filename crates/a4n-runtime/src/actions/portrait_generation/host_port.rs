@@ -3,7 +3,7 @@ use std::{io::Write, path::Path};
 use a4n_core::{error::AppError, files::paths::ProjectPaths, models::ai::image_gen_config};
 use a4n_image::{ImageGenerationRequest, ImageReference};
 use a4n_orchestrator::{
-    config::{configured_image_provider, image_backend_supports_reference_images},
+    config::image_backend_supports_reference_images,
     portrait::{
         DecodedPortraitImage, GeneratedPortraitImage, PersistPortraitFileInput,
         PersistedPortraitFile, PortraitArtifactFile, PortraitGenerationHostPort,
@@ -93,11 +93,16 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         input: PortraitImageProviderInput,
         cancel_token: CancellationToken,
     ) -> Result<GeneratedPortraitImage, AppError> {
+        let PortraitImageProviderInput {
+            project_id,
+            prompt,
+            reference_images,
+            workflow_run_id,
+        } = input;
         let config = resolve_image_config(self.state, None)
             .await
             .map_err(host_error)?;
-        let reference_images = input
-            .reference_images
+        let reference_images = reference_images
             .iter()
             .map(|source| read_reference_image(self.state, &source.label, &source.file_path))
             .collect::<Result<Vec<_>, _>>()?;
@@ -109,7 +114,7 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
             )));
         }
         let request = ImageGenerationRequest {
-            prompt: input.prompt,
+            prompt,
             width: config.default_width,
             height: config.default_height,
             model: config.model.clone(),
@@ -117,32 +122,41 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         };
         let provider_backend = config.backend.clone();
         let request_json = serde_json::to_value(&request)?;
-        let provider = configured_image_provider(&config)
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let root_project_id = crate::actions::sidecar_root_project_id(self.state, project_id)
+            .await
+            .map_err(host_error)?;
         let result = crate::actions::image_generation::run_queued_request_with_cancel_and_workflow(
             self.state,
             QueueTaskKind::ImageGeneration,
             TaskPriority::Medium,
-            Some(input.project_id),
-            input.workflow_run_id,
+            Some(project_id),
+            workflow_run_id,
             cancel_token,
             || async move {
-                provider
-                    .generate(request)
-                    .await
-                    .map_err(|error| error.to_string())
+                crate::sidecar_clients::generate_image(
+                    self.state.runtime_profile(),
+                    self.state.capabilities(),
+                    &config,
+                    request,
+                    Some(project_id),
+                    root_project_id,
+                    workflow_run_id,
+                    None,
+                )
+                .await
             },
         )
         .await
         .map_err(host_error)?;
+        let (width, height) = a4n_orchestrator::media::image_dimensions_from_bytes(&result.bytes)?;
         Ok(GeneratedPortraitImage {
             bytes: result.bytes,
             format: result.format,
             model: result.model,
             provider: provider_backend,
             request_json,
-            width: config.default_width,
-            height: config.default_height,
+            width,
+            height,
         })
     }
 

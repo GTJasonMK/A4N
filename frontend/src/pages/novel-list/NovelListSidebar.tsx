@@ -31,12 +31,14 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
       </div>
 
       {/* Logo 粒子效果（现网 canvas，勿替换为纯文字） */}
-      <div className="-mx-1 mb-3 max-w-[230px] sm:max-w-[260px] md:mb-6 md:max-w-none">
-        <ParticleLogoWithSubtitle />
+      <div className="mb-3 flex justify-center md:mb-6">
+        <div className="max-w-[230px] sm:max-w-[260px] md:max-w-none w-full">
+          <ParticleLogoWithSubtitle />
+        </div>
       </div>
 
       <figure className="hidden rounded-2xl bg-book-primary/[0.06] px-4 py-3.5 md:block">
-        <p className="text-[15px] text-book-text-main font-serif italic leading-relaxed">
+        <p className="text-body-lg text-book-text-main font-serif italic leading-relaxed">
           {quote.zh}
         </p>
         <p className="mt-1.5 hidden text-xs text-book-text-muted leading-relaxed sm:block">{quote.en}</p>
@@ -61,7 +63,7 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
           onClick={onImportProject}
           aria-label="导入项目"
           title="导入项目"
-          className="!min-h-10 !px-3 !text-sm md:w-full md:justify-center md:!min-h-11 md:!px-4 md:!text-[15px]"
+          className="!min-h-10 !px-3 !text-sm md:w-full md:justify-center md:!min-h-11 md:!px-4 md:!text-body-lg"
         >
           <span className="inline-flex items-center gap-2">
             <Upload size={17} />

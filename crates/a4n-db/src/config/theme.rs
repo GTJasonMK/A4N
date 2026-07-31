@@ -6,14 +6,6 @@ use sea_orm::{
 };
 use serde_json::Value;
 
-pub async fn list_themes(db: &DatabaseConnection) -> Result<Vec<theme_config::Model>, AppError> {
-    theme_config::Entity::find()
-        .order_by_asc(theme_config::Column::Name)
-        .all(db)
-        .await
-        .map_err(AppError::Database)
-}
-
 pub async fn list_user_themes(
     db: &DatabaseConnection,
     user_id: i64,
@@ -37,16 +29,6 @@ pub async fn list_themes_visible_to_user(
         )
         .order_by_asc(theme_config::Column::Name)
         .all(db)
-        .await
-        .map_err(AppError::Database)
-}
-
-pub async fn system_default_theme(
-    db: &DatabaseConnection,
-) -> Result<Option<theme_config::Model>, AppError> {
-    theme_config::Entity::find()
-        .filter(theme_config::Column::IsSystemDefault.eq(true))
-        .one(db)
         .await
         .map_err(AppError::Database)
 }

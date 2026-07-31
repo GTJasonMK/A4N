@@ -37,14 +37,18 @@ where
         tokio::select! {
             result = &mut future => {
                 while let Ok(message) = progress_rx.try_recv() {
-                    progress.progress(3, VIDEO_GENERATION_PROGRESS_TOTAL, &message)?;
+                    progress
+                        .progress(3, VIDEO_GENERATION_PROGRESS_TOTAL, &message)
+                        .map_err(|error| error.to_string())?;
                 }
                 return result;
             }
             message = progress_rx.recv(), if progress_open => {
                 match message {
                     Some(message) => {
-                        progress.progress(3, VIDEO_GENERATION_PROGRESS_TOTAL, &message)?;
+                        progress
+                            .progress(3, VIDEO_GENERATION_PROGRESS_TOTAL, &message)
+                            .map_err(|error| error.to_string())?;
                     }
                     None => progress_open = false,
                 }

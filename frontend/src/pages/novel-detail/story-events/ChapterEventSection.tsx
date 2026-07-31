@@ -25,7 +25,7 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
         <h3 className="truncate text-sm font-semibold text-book-text-main">
           {section.title}
         </h3>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-book-text-muted">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-small text-book-text-muted">
           <span>第 {section.chapter.chapter_number} 章</span>
           {!section.hasAnalysis ? <span>未分析</span> : null}
           {section.timelineMarker ? <span>{section.timelineMarker}</span> : null}
@@ -53,7 +53,7 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
     )}
 
     {(section.characters.length > 0 || section.keywords.length > 0) && (
-      <div className="mb-2 space-y-0.5 text-[11px] leading-relaxed text-book-text-muted">
+      <div className="mb-2 space-y-0.5 text-small leading-relaxed text-book-text-muted">
         {section.characters.length > 0 ? (
           <div>人物 · {section.characters.slice(0, 8).join("、")}</div>
         ) : null}
@@ -72,7 +72,7 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
               <div className="text-xs font-medium leading-relaxed text-book-text-main">
                 {event.description}
               </div>
-              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-book-text-muted">
+              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption text-book-text-muted">
                 <span>{event.type}</span>
                 <span aria-hidden="true">·</span>
                 <span className={importanceClass(event.importance)}>
@@ -94,7 +94,7 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
     )}
 
     {(section.plantedCount > 0 || section.resolvedCount > 0 || section.tensionCount > 0) && (
-      <div className="mt-2 text-[11px] text-book-text-muted">
+      <div className="mt-2 text-small text-book-text-muted">
         伏笔
         {section.plantedCount > 0 ? ` · 埋设 ${section.plantedCount}` : ""}
         {section.resolvedCount > 0 ? ` · 回收 ${section.resolvedCount}` : ""}

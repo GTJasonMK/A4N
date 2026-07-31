@@ -10,7 +10,7 @@ use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 
 use crate::OrchestratorContext;
-use crate::workflow::{workflow_checkpoint_contract_app_error, workflow_write_app_error};
+use crate::workflow::workflow_write_app_error;
 
 use super::contracts::PreparedBlueprintRefine;
 
@@ -81,14 +81,12 @@ pub(super) async fn prepare_blueprint_refine(
     .await
     .map_err(workflow_write_app_error)?;
     let workflow_run_id = workflow_run.id;
-    let input_fingerprint_sha256 =
-        workflow::llm_call_checkpoint_fingerprint_sha256(&input_fingerprint_json)
-            .map_err(workflow_checkpoint_contract_app_error)?;
-    if let Some(trace_context) = request.trace_context.as_mut() {
-        trace_context.workflow_run_id = Some(workflow_run_id);
-        trace_context.call_key = Some(call_key.clone());
-        trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
-    }
+    crate::workflow::attach_llm_call_checkpoint_trace(
+        &mut request,
+        workflow_run_id,
+        &call_key,
+        &input_fingerprint_json,
+    )?;
     workflow::mark_workflow_current_step(context.database.connection(), workflow_run_id, &call_key)
         .await
         .map_err(workflow_write_app_error)?;

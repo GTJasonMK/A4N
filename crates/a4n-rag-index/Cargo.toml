@@ -9,10 +9,8 @@ a4n-core = { path = "../a4n-core" }
 a4n-rag-core = { path = "../a4n-rag-core" }
 
 async-trait = { workspace = true }
-parking_lot = { workspace = true }
 qdrant-client = { version = "1.18", default-features = true, features = ["uuid", "serde"] }
 serde_json = { workspace = true }
-tokio = { workspace = true }
 uuid = { workspace = true, features = ["v5"] }
 
 [dev-dependencies]

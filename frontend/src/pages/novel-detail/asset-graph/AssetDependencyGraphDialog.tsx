@@ -6,15 +6,13 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  FileText,
-  Loader2,
+import { FileText,
   Maximize2,
   Network,
   RefreshCw,
   ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+  ZoomOut, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import {
   getProjectAssetDependencyGraph,
   getProjectAssetDependencyGraphNodeDetail,
@@ -313,7 +311,7 @@ export const AssetDependencyGraphDialog: React.FC<
             aria-label="刷新依赖图"
           >
             {loading ? (
-              <Loader2 size={14} className="animate-spin" />
+              <LoadingSpinner size="sm" />
             ) : (
               <RefreshCw size={14} />
             )}
@@ -341,7 +339,7 @@ export const AssetDependencyGraphDialog: React.FC<
             >
               {loading && !graph ? (
                 <div className="flex h-full items-center justify-center text-sm text-book-text-muted">
-                  <Loader2 size={18} className="mr-2 animate-spin" />
+                  <LoadingSpinner size="md" className="mr-2" />
                   正在加载依赖状态…
                 </div>
               ) : error ? (
@@ -382,7 +380,7 @@ export const AssetDependencyGraphDialog: React.FC<
             <aside
               className={`${mobilePane === "details" ? "block" : "hidden"} min-w-0 overflow-y-auto bg-book-bg-paper px-3 py-3 md:block md:px-4 md:py-4 custom-scrollbar`}
             >
-              <p className="text-[11px] leading-relaxed text-book-text-muted">
+              <p className="text-small leading-relaxed text-book-text-muted">
                 {summaryText || "尚无可展示资产"}
               </p>
 
@@ -439,7 +437,7 @@ const ZoomControls: React.FC<{
       <button
         type="button"
         onClick={onReset}
-        className="inline-flex h-9 min-w-14 items-center justify-center gap-1 rounded-xl px-2 text-[10px] font-medium tabular-nums text-book-text-muted transition hover:bg-book-bg-tertiary hover:text-book-text-main sm:h-8"
+        className="inline-flex h-9 min-w-14 items-center justify-center gap-1 rounded-xl px-2 text-caption font-medium tabular-nums text-book-text-muted transition hover:bg-book-bg-tertiary hover:text-book-text-main sm:h-8"
         title="恢复原始大小"
         aria-label={`恢复原始大小，当前 ${Math.round(zoom * 100)}%`}
       >
@@ -483,7 +481,7 @@ const AssetNodeIndex: React.FC<{
         <h3 className="text-xs font-semibold text-book-text-main">
           {videoNodes.length ? "视频链路" : "资产索引"}
         </h3>
-        <span className="text-[10px] tabular-nums text-book-text-subtle">
+        <span className="text-caption tabular-nums text-book-text-subtle">
           {primaryNodes.length} 个节点
         </span>
       </div>
@@ -502,10 +500,10 @@ const AssetNodeIndex: React.FC<{
               }`}
               title={node.label}
             >
-              <span className="min-w-0 truncate text-[11px] font-medium">
+              <span className="min-w-0 truncate text-small font-medium">
                 {node.label}
               </span>
-              <span className="shrink-0 text-[10px] tabular-nums text-book-text-subtle">
+              <span className="shrink-0 text-caption tabular-nums text-book-text-subtle">
                 {node.count} 项
               </span>
             </button>
@@ -551,7 +549,7 @@ const SelectedAssetDetails: React.FC<{
 }) => {
   if (!node) {
     return (
-      <div className="a4n-flat-surface mt-4 px-3 py-4 text-[11px] text-book-text-subtle">
+      <div className="a4n-flat-surface mt-4 px-3 py-4 text-small text-book-text-subtle">
         在画布中选择一个节点查看信息。
       </div>
     );
@@ -580,7 +578,7 @@ const SelectedAssetDetails: React.FC<{
         >
           {node.label}
         </h3>
-        <p className="mt-1 text-[11px] leading-relaxed text-book-text-muted">
+        <p className="mt-1 text-small leading-relaxed text-book-text-muted">
           {[
             kindLabel(node.kind),
             assetTypeLabel(node.asset_type),
@@ -591,24 +589,24 @@ const SelectedAssetDetails: React.FC<{
             .join(" · ")}
         </p>
         {node.summary ? (
-          <p className="mt-2 text-[11px] leading-relaxed text-book-text-muted">
+          <p className="mt-2 text-small leading-relaxed text-book-text-muted">
             {node.summary}
           </p>
         ) : null}
       </div>
 
       {loading ? (
-        <div className="flex items-center border-t border-book-border/35 px-3 py-3 text-[11px] text-book-text-muted">
-          <Loader2 size={13} className="mr-1.5 animate-spin" />
+        <div className="flex items-center border-t border-book-border/35 px-3 py-3 text-small text-book-text-muted">
+          <LoadingSpinner size="sm" className="mr-1.5" />
           正在加载来源记录…
         </div>
       ) : error ? (
-        <div className="border-t border-error/25 bg-error/5 px-3 py-3 text-[11px] leading-relaxed text-error">
+        <div className="border-t border-error/25 bg-error/5 px-3 py-3 text-small leading-relaxed text-error">
           {error}
         </div>
       ) : detail ? (
         <>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-book-border/35 px-3 py-2.5 text-[11px] text-book-text-muted">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-book-border/35 px-3 py-2.5 text-small text-book-text-muted">
             <span>来源 {records.length}</span>
             {inputCount > 0 ? <span>生成输入 {inputCount}</span> : null}
             {warningCount > 0 ? (
@@ -633,7 +631,7 @@ const SelectedAssetDetails: React.FC<{
           />
         </>
       ) : (
-        <div className="border-t border-book-border/35 px-3 py-3 text-[11px] leading-relaxed text-book-text-subtle">
+        <div className="border-t border-book-border/35 px-3 py-3 text-small leading-relaxed text-book-text-subtle">
           当前节点没有返回来源详情。
         </div>
       )}
@@ -649,7 +647,7 @@ const WarningsBlock: React.FC<{ warnings: string[] }> = ({ warnings }) => {
       {unique.map((warning) => (
         <div
           key={warning}
-          className="text-[11px] leading-relaxed text-book-text-muted"
+          className="text-small leading-relaxed text-book-text-muted"
         >
           {warning}
         </div>
@@ -665,7 +663,7 @@ const RecordPicker: React.FC<{
 }> = ({ records, selectedRecordId, onSelectRecord }) => {
   if (!records.length) {
     return (
-      <div className="border-t border-book-border/35 px-3 py-3 text-[11px] text-book-text-subtle">
+      <div className="border-t border-book-border/35 px-3 py-3 text-small text-book-text-subtle">
         没有可展示的具体记录。
       </div>
     );
@@ -673,7 +671,7 @@ const RecordPicker: React.FC<{
 
   return (
     <section className="border-t border-book-border/35 px-3 py-3">
-      <div className="text-[11px] font-semibold text-book-text-main">
+      <div className="text-small font-semibold text-book-text-main">
         来源记录
       </div>
       <div className="mt-2 divide-y divide-book-border/35 border-y border-book-border/35">
@@ -692,16 +690,16 @@ const RecordPicker: React.FC<{
               title={record.label}
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                <span className="min-w-0 truncate text-[11px] font-semibold">
+                <span className="min-w-0 truncate text-small font-semibold">
                   {record.label}
                 </span>
                 {record.generation_inputs.length > 0 ? (
-                  <span className="shrink-0 text-[10px] text-book-text-subtle">
+                  <span className="shrink-0 text-caption text-book-text-subtle">
                     输入 {record.generation_inputs.length}
                   </span>
                 ) : null}
               </div>
-              <div className="mt-0.5 truncate text-[10px] text-book-text-subtle">
+              <div className="mt-0.5 truncate text-caption text-book-text-subtle">
                 {[
                   originLabel(record.origin),
                   record.status ? getOperationStatusLabel(record.status) : null,
@@ -725,7 +723,7 @@ const LineageRecordDetails: React.FC<{
   if (!record) return null;
   return (
     <section className="border-t border-book-border/35 px-3 py-3">
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[11px]">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-small">
         <DetailTerm label="来源" value={originLabel(record.origin)} />
         <DetailTerm label="资产" value={assetTypeLabel(record.asset_kind)} />
         <DetailTerm
@@ -746,7 +744,7 @@ const LineageRecordDetails: React.FC<{
         refs={record.media_sources}
         emptyText="没有媒体引用。"
       />
-      <details className="mt-3 border-t border-book-border/35 pt-1 text-[10px] text-book-text-muted">
+      <details className="mt-3 border-t border-book-border/35 pt-1 text-caption text-book-text-muted">
         <summary className="cursor-pointer py-2 hover:text-book-text-main">
           诊断信息
         </summary>
@@ -812,13 +810,13 @@ const RefList: React.FC<{
   emptyText: string;
 }> = ({ title, refs, emptyText }) => (
   <section className="mt-3 border-t border-book-border/35 pt-3">
-    <div className="text-[11px] font-semibold text-book-text-main">{title}</div>
+    <div className="text-small font-semibold text-book-text-main">{title}</div>
     {refs.length ? (
       <div className="mt-1.5 divide-y divide-book-border/30">
         {refs.slice(0, 6).map((ref) => (
           <div
             key={ref.id}
-            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-[11px]"
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-small"
           >
             <span
               className="min-w-0 truncate text-book-text-main"
@@ -826,14 +824,14 @@ const RefList: React.FC<{
             >
               {ref.label}
             </span>
-            <span className="shrink-0 text-[10px] text-book-text-subtle">
+            <span className="shrink-0 text-caption text-book-text-subtle">
               {assetTypeLabel(ref.asset_type)}
             </span>
           </div>
         ))}
       </div>
     ) : (
-      <div className="mt-1 text-[11px] text-book-text-subtle">{emptyText}</div>
+      <div className="mt-1 text-small text-book-text-subtle">{emptyText}</div>
     )}
   </section>
 );
@@ -847,14 +845,14 @@ const GenerationInputAccess: React.FC<{
     <div className="border-t border-book-border/30 py-2">
       {inputs.length ? (
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 text-[10px] text-book-text-muted">
+          <div className="min-w-0 text-caption text-book-text-muted">
             生成输入 · {inputs.length} 项 ·{" "}
             {inputStatusLabel(record.input_status)}
           </div>
           <button
             type="button"
             onClick={() => onOpenInputs(record)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-medium text-book-primary transition hover:bg-book-primary/10"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-caption font-medium text-book-primary transition hover:bg-book-primary/10"
             title="查看生成该资产的完整输入包"
           >
             <FileText size={11} />
@@ -862,7 +860,7 @@ const GenerationInputAccess: React.FC<{
           </button>
         </div>
       ) : (
-        <div className="text-[10px] leading-relaxed text-book-text-subtle">
+        <div className="text-caption leading-relaxed text-book-text-subtle">
           {generationInputEmptyText(record.input_status)}
         </div>
       )}
@@ -893,7 +891,7 @@ const PromptViewerModal: React.FC<{
               <div className="text-xs font-semibold text-book-text-main">
                 {inputGroupLabel(group)}
               </div>
-              <div className="mt-0.5 text-[10px] tabular-nums text-book-text-subtle">
+              <div className="mt-0.5 text-caption tabular-nums text-book-text-subtle">
                 {inputs.length} 项
               </div>
             </div>
@@ -917,12 +915,12 @@ const GenerationInputCard: React.FC<{ input: GenerationInputSource }> = ({
     <article className="px-3 py-3">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <h4
-          className="min-w-0 truncate text-[11px] font-semibold text-book-text-main"
+          className="min-w-0 truncate text-small font-semibold text-book-text-main"
           title={title}
         >
           {title}
         </h4>
-        <span className="shrink-0 text-[10px] text-book-text-subtle">
+        <span className="shrink-0 text-caption text-book-text-subtle">
           {contentTypeLabel(input.content_type)}
         </span>
       </div>
@@ -958,7 +956,7 @@ const RenderedMessagesView: React.FC<{ value: unknown }> = ({ value }) => {
             key={`${String(stage.stage ?? index)}-${index}`}
             className="space-y-2"
           >
-            <div className="text-[11px] font-semibold text-book-text-main">
+            <div className="text-small font-semibold text-book-text-main">
               第 {index + 1} 阶段
             </div>
             <MessageList value={stage.messages} />
@@ -976,7 +974,7 @@ const MessageList: React.FC<{ value: unknown }> = ({ value }) => {
   }
   if (!value.length) {
     return (
-      <span className="text-[12px] text-book-text-subtle">空消息列表</span>
+      <span className="text-body-sm text-book-text-subtle">空消息列表</span>
     );
   }
   return (
@@ -1007,10 +1005,10 @@ const MessageBlock: React.FC<{
   return (
     <article className="py-2.5">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-semibold text-book-text-main">
+        <span className="text-small font-semibold text-book-text-main">
           {messageRoleLabel(role)}
         </span>
-        <span className="text-[10px] tabular-nums text-book-text-subtle">
+        <span className="text-caption tabular-nums text-book-text-subtle">
           消息 {index + 1}
         </span>
       </div>
@@ -1068,7 +1066,7 @@ const PromptValueBlock: React.FC<{ title: string; value: unknown }> = ({
   value,
 }) => (
   <section className="py-2.5">
-    <div className="text-[11px] font-semibold text-book-text-main">
+    <div className="text-small font-semibold text-book-text-main">
       {title}
     </div>
     <div className="mt-1.5">
@@ -1086,21 +1084,21 @@ const StructuredValueView: React.FC<{ value: unknown; depth?: number }> = ({
   depth = 0,
 }) => {
   if (value == null) {
-    return <span className="text-[12px] text-book-text-subtle">null</span>;
+    return <span className="text-body-sm text-book-text-subtle">null</span>;
   }
   if (typeof value === "string") {
     return <TextBlock text={value} />;
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return (
-      <span className="font-mono text-[12px] text-book-text-main">
+      <span className="font-mono text-body-sm text-book-text-main">
         {String(value)}
       </span>
     );
   }
   if (Array.isArray(value)) {
     if (!value.length) {
-      return <span className="text-[12px] text-book-text-subtle">空数组</span>;
+      return <span className="text-body-sm text-book-text-subtle">空数组</span>;
     }
     if (value.every(isChatMessageLike)) {
       return <MessageList value={value} />;
@@ -1131,7 +1129,7 @@ const StructuredEntriesView: React.FC<{
   depth: number;
 }> = ({ entries, depth }) => {
   if (!entries.length) {
-    return <span className="text-[12px] text-book-text-subtle">空对象</span>;
+    return <span className="text-body-sm text-book-text-subtle">空对象</span>;
   }
   return (
     <div className="divide-y divide-book-border/25 border-y border-book-border/30">
@@ -1160,10 +1158,10 @@ const StructuredValueItem: React.FC<{
         <details
           open={shouldAutoOpenStructuredValue(parsed, depth)}
         >
-          <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-muted hover:text-book-text-main">
+          <summary className="cursor-pointer py-2 text-small font-semibold text-book-text-muted hover:text-book-text-main">
             <span>{title}</span>
             {parsedSummary ? (
-              <span className="ml-2 font-mono text-[10px] font-normal text-book-text-subtle">
+              <span className="ml-2 font-mono text-caption font-normal text-book-text-subtle">
                 {parsedSummary}
               </span>
             ) : null}
@@ -1178,7 +1176,7 @@ const StructuredValueItem: React.FC<{
     const compact =
       !text.includes("\n") && text.length <= INLINE_TEXT_MAX_CHARS;
     return compact ? (
-      <div className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] gap-2 py-2 text-[11px]">
+      <div className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] gap-2 py-2 text-small">
         <div
           className="truncate font-semibold text-book-text-muted"
           title={title}
@@ -1191,9 +1189,9 @@ const StructuredValueItem: React.FC<{
       <details
         open={text.length <= AUTO_OPEN_TEXT_MAX_CHARS && depth === 0}
       >
-        <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-muted hover:text-book-text-main">
+        <summary className="cursor-pointer py-2 text-small font-semibold text-book-text-muted hover:text-book-text-main">
           <span>{title}</span>
-          <span className="ml-2 font-mono text-[10px] font-normal text-book-text-subtle">
+          <span className="ml-2 font-mono text-caption font-normal text-book-text-subtle">
             {textSummary(text)}
           </span>
         </summary>
@@ -1209,7 +1207,7 @@ const StructuredValueItem: React.FC<{
     typeof value === "boolean"
   ) {
     return (
-      <div className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] gap-2 py-2 text-[11px]">
+      <div className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] gap-2 py-2 text-small">
         <div
           className="truncate font-semibold text-book-text-muted"
           title={title}
@@ -1231,9 +1229,9 @@ const StructuredValueItem: React.FC<{
       <details
         open={value.length <= AUTO_OPEN_ARRAY_MAX_ITEMS && depth === 0}
       >
-        <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-muted hover:text-book-text-main">
+        <summary className="cursor-pointer py-2 text-small font-semibold text-book-text-muted hover:text-book-text-main">
           <span>{title}</span>
-          <span className="ml-2 font-mono text-[10px] font-normal text-book-text-subtle">
+          <span className="ml-2 font-mono text-caption font-normal text-book-text-subtle">
             {value.length} 条消息
           </span>
         </summary>
@@ -1248,10 +1246,10 @@ const StructuredValueItem: React.FC<{
     <details
       open={shouldAutoOpenStructuredValue(value, depth)}
     >
-      <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-muted hover:text-book-text-main">
+      <summary className="cursor-pointer py-2 text-small font-semibold text-book-text-muted hover:text-book-text-main">
         <span>{title}</span>
         {summary ? (
-          <span className="ml-2 font-mono text-[10px] font-normal text-book-text-subtle">
+          <span className="ml-2 font-mono text-caption font-normal text-book-text-subtle">
             {summary}
           </span>
         ) : null}
@@ -1285,7 +1283,7 @@ function textSummary(text: string): string {
 }
 
 const TextBlock: React.FC<{ text: string }> = ({ text }) => (
-  <pre className="m-0 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-book-text-main">
+  <pre className="m-0 whitespace-pre-wrap break-words text-body-sm leading-relaxed text-book-text-main">
     {normalizeDisplayText(text)}
   </pre>
 );
@@ -1295,7 +1293,7 @@ const JsonBlock: React.FC<{ title: string; value: unknown }> = ({
   value,
 }) => (
   <details className="border-t border-book-border/30 py-1">
-    <summary className="cursor-pointer py-2 text-[11px] font-semibold text-book-text-main">
+    <summary className="cursor-pointer py-2 text-small font-semibold text-book-text-main">
       {title}
     </summary>
     <div className="border-l border-book-border/35 pb-2 pl-3">

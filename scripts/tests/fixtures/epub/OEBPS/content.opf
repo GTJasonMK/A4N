@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="book-id">urn:uuid:a4n-cli-user-flow-story</dc:identifier>
+    <dc:title>逆行时钟</dc:title>
+    <dc:language>zh-CN</dc:language>
+    <meta property="dcterms:modified">2026-07-30T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter-1" href="chapter-1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter-2" href="chapter-2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter-1"/>
+    <itemref idref="chapter-2"/>
+  </spine>
+</package>

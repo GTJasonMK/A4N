@@ -1,46 +1,6 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-pub(super) async fn parse_gemini_veo_json_response(
-    resp: reqwest::Response,
-    label: &str,
-) -> Result<Value, AppError> {
-    parse_gemini_veo_json_response_inner(resp, label, false)
-        .await
-        .map(|value| value.expect("not-found responses are disabled"))
-}
-
-pub(super) async fn parse_gemini_veo_json_response_allow_not_found(
-    resp: reqwest::Response,
-    label: &str,
-) -> Result<Option<Value>, AppError> {
-    parse_gemini_veo_json_response_inner(resp, label, true).await
-}
-
-async fn parse_gemini_veo_json_response_inner(
-    resp: reqwest::Response,
-    label: &str,
-    allow_not_found: bool,
-) -> Result<Option<Value>, AppError> {
-    let status = resp.status();
-    let text = resp
-        .text()
-        .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("读取{label}响应失败：{e}")))?;
-    if allow_not_found && status == reqwest::StatusCode::NOT_FOUND {
-        return Ok(None);
-    }
-    if !status.is_success() {
-        return Err(AppError::Internal(anyhow::anyhow!(
-            "{label}返回 {status}：{}",
-            text.chars().take(500).collect::<String>()
-        )));
-    }
-    serde_json::from_str(&text)
-        .map(Some)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("{label}响应解析失败：{e}")))
-}
-
 pub(super) fn required_operation_name(v: &Value) -> Result<&str, AppError> {
     v.get("name")
         .and_then(Value::as_str)

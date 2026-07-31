@@ -103,6 +103,13 @@ pub fn imported_chapter_video_metadata(
         }
     });
     insert_source_context(&mut metadata, source_metadata);
+    if let Some(identity) = source_metadata
+        .and_then(|source| source.get("video_execution_identity"))
+        .cloned()
+        && let Some(object) = metadata.as_object_mut()
+    {
+        object.insert("video_execution_identity".to_string(), identity);
+    }
     metadata
 }
 
@@ -196,10 +203,14 @@ mod tests {
             "a.mp4",
             "mp4",
             "t0",
-            Some(&json!({ "source": { "content_sha256": "abc" } })),
+            Some(&json!({
+                "source": { "content_sha256": "abc" },
+                "video_execution_identity": { "segment_number": 2 }
+            })),
         );
         assert_eq!(meta["prompt_id"], json!(9));
         assert_eq!(meta["source"]["content_sha256"], json!("abc"));
+        assert_eq!(meta["video_execution_identity"]["segment_number"], json!(2));
 
         let trim = trimmed_video_metadata(Some(&json!({ "source": { "k": 1 } })), 1.0, 2.0);
         assert_eq!(trim["trim"]["start_secs"], json!(1.0));

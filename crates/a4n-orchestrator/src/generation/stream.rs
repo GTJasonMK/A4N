@@ -6,8 +6,7 @@ use a4n_llm::provider::{
 };
 use a4n_service_protocol::{
     GenerationError, GenerationErrorCode, GenerationFinishReason, GenerationUsage,
-    JS_SAFE_INTEGER_U64, MAX_TEXT_DELTA_BYTES, ProgressEvent, ProgressPhaseKind, ProgressSeverity,
-    UsageEvent,
+    JS_SAFE_INTEGER_U64, MAX_TEXT_DELTA_BYTES, ProgressEvent, ProgressPhaseKind, UsageEvent,
 };
 use async_trait::async_trait;
 use futures::{StreamExt, future::pending};
@@ -17,13 +16,15 @@ use tokio_util::sync::CancellationToken;
 
 use super::{
     checkpoint::{GenerationCheckpointMetadata, GenerationCheckpointWriter},
-    events::{GenerationEventPublisher, GenerationSessionError, GenerationTaskSession},
-    generation_finish_reason_text,
+    events::{
+        GenerationEventPublisher, GenerationSessionError, GenerationTaskSession,
+        SessionGenerationEventPublisher,
+    },
+    generation_finish_reason_text, generation_progress,
 };
+use crate::OrchestratorContext;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
-const FIRST_CONTENT_TIMEOUT: Duration = Duration::from_secs(120);
-const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const BATCH_DELAY: Duration = Duration::from_millis(50);
 const BATCH_BYTES: usize = MAX_TEXT_DELTA_BYTES;
@@ -40,6 +41,14 @@ pub struct LlmGenerationRequest<'a> {
     pub cancellation: CancellationToken,
     pub checkpoint: Option<LlmGenerationCheckpoint<'a>>,
     pub usage_base: Option<GenerationUsage>,
+}
+
+#[derive(Clone)]
+pub(crate) struct TaskLlmStreamContext {
+    pub(crate) publisher: SessionGenerationEventPublisher,
+    pub(crate) session: Arc<GenerationTaskSession>,
+    pub(crate) checkpoint_writer: GenerationCheckpointWriter,
+    pub(crate) cancellation: CancellationToken,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +101,50 @@ pub async fn execute_llm_chat_response(
             cancellation,
             checkpoint: None,
             usage_base: None,
+        },
+    )
+    .await
+    .map_err(map_generation_error_to_app)?;
+    Ok(ChatResponse {
+        message: ChatMessage::assistant(output.content),
+        usage: match output.usage.as_ref() {
+            Some(usage) => {
+                Some(provider_usage(usage).map_err(|error| AppError::LlmError(error.message))?)
+            }
+            None => None,
+        },
+        finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
+    })
+}
+
+pub(crate) async fn execute_task_llm_chat_response(
+    context: &OrchestratorContext,
+    stream: &TaskLlmStreamContext,
+    request: ChatRequest,
+    call_key: &str,
+    step_key: &str,
+) -> Result<ChatResponse, AppError> {
+    if stream.cancellation.is_cancelled() {
+        return Err(AppError::Cancelled);
+    }
+    let output = execute_llm_generation(
+        context.llm_backend(),
+        &stream.publisher,
+        LlmGenerationRequest {
+            request,
+            stream_id: "raw_json".to_string(),
+            cancellation: stream.cancellation.clone(),
+            checkpoint: Some(LlmGenerationCheckpoint {
+                writer: &stream.checkpoint_writer,
+                session: &stream.session,
+                metadata: GenerationCheckpointMetadata {
+                    step_key: Some(step_key.to_string()),
+                    call_key: Some(call_key.to_string()),
+                    provider_model: Some(context.llm_model_name()),
+                    ..Default::default()
+                },
+            }),
+            usage_base: stream.session.snapshot().usage,
         },
     )
     .await
@@ -167,8 +220,6 @@ pub async fn execute_llm_generation(
     checkpoint_if_due(checkpoint.as_ref()).await?;
 
     let total_deadline = started + TOTAL_TIMEOUT;
-    let first_content_deadline = Instant::now() + FIRST_CONTENT_TIMEOUT;
-    let mut idle_deadline = None;
     let mut flush_deadline = None;
     let mut saw_content = false;
     let mut content = String::new();
@@ -187,15 +238,11 @@ pub async fn execute_llm_generation(
             Item(T),
             Flush,
             Cancelled,
-            FirstContentTimeout,
-            IdleTimeout,
             TotalTimeout,
         }
         let next = tokio::select! {
             _ = cancellation.cancelled() => Next::Cancelled,
             _ = tokio::time::sleep_until(total_deadline) => Next::TotalTimeout,
-            _ = wait_until((!saw_content).then_some(first_content_deadline)) => Next::FirstContentTimeout,
-            _ = wait_until(idle_deadline) => Next::IdleTimeout,
             _ = wait_until(flush_deadline) => Next::Flush,
             item = stream.next() => Next::Item(item),
         };
@@ -208,23 +255,6 @@ pub async fn execute_llm_generation(
             Next::Cancelled => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
                 return Err(cancelled_error());
-            }
-            Next::FirstContentTimeout => {
-                return Err(public_error(
-                    "llm_stream_first_content_timeout",
-                    "模型在限定时间内没有返回正文",
-                    true,
-                    "provider_wait",
-                ));
-            }
-            Next::IdleTimeout => {
-                flush_text(publisher, &stream_id, &mut pending_text).await?;
-                return Err(public_error(
-                    "llm_stream_idle_timeout",
-                    "模型流长时间没有新数据",
-                    true,
-                    "provider_stream",
-                ));
             }
             Next::TotalTimeout => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
@@ -263,13 +293,9 @@ pub async fn execute_llm_generation(
                 ));
             }
             Next::Item(Some(Ok(chunk))) => {
-                if saw_content {
-                    idle_deadline = Some(Instant::now() + IDLE_TIMEOUT);
-                }
                 if let Some(delta) = chunk.content.as_deref().filter(|delta| !delta.is_empty()) {
                     if !saw_content {
                         saw_content = true;
-                        idle_deadline = Some(Instant::now() + IDLE_TIMEOUT);
                         publish_progress(
                             publisher,
                             "provider_stream",
@@ -399,19 +425,7 @@ async fn publish_progress(
     message: &str,
 ) -> Result<(), GenerationError> {
     publisher
-        .progress(ProgressEvent {
-            stage_code: stage_code.to_string(),
-            phase_kind,
-            message: message.to_string(),
-            current: None,
-            total: None,
-            unit_label: None,
-            item_key: None,
-            item_index: None,
-            item_total: None,
-            severity: ProgressSeverity::Info,
-            estimated: false,
-        })
+        .progress(generation_progress(stage_code, phase_kind, message))
         .await
         .map_err(session_error)
 }

@@ -127,9 +127,36 @@ fn task_manager_cancels_the_registered_task_identity() {
     assert!(manager.list_active_snapshots().is_empty());
 }
 
+#[test]
+fn cancelled_task_ignores_late_progress_updates() {
+    let handle = test_handle();
+    handle.update_progress(3, 10, "生成中");
+    handle.cancel();
+    handle.update_progress(8, 10, "迟到进度");
+
+    assert_eq!(handle.progress.read().current, 3);
+    assert_eq!(handle.progress_events.read().len(), 1);
+}
+
+#[test]
+fn task_manager_applies_only_the_owners_pre_registration_cancel() {
+    let manager = TaskManager::new();
+    assert!(!manager.cancel_or_remember("task-1", 7));
+
+    let handle = manager.register(test_handle());
+    assert!(handle.is_cancelled());
+
+    assert!(!manager.cancel_or_remember("task-2", 8));
+    let mut other = test_handle();
+    other.task_id = "task-2".to_string();
+    let other = manager.register(other);
+    assert!(!other.is_cancelled());
+}
+
 fn test_handle() -> TaskHandle {
     TaskHandle {
         task_id: "task-1".to_string(),
+        owner_user_id: Some(7),
         cancel_token: CancellationToken::new(),
         progress: Arc::new(RwLock::new(TaskProgress::with_meta(0, 10, "准备", None))),
         progress_events: Arc::new(RwLock::new(VecDeque::new())),

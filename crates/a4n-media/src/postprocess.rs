@@ -22,6 +22,9 @@ pub struct VideoPostprocessRequest<'a> {
     pub start_secs: f32,
     pub end_secs: f32,
     pub base_duration_secs: f32,
+    pub base_has_audio: bool,
+    pub source_duration_secs: Option<f32>,
+    pub source_has_audio: bool,
     pub width: i32,
     pub height: i32,
     pub fps: i32,
@@ -35,6 +38,8 @@ pub enum VideoPostprocessError {
     SourceNotFile,
     #[error("video postprocess result would be empty")]
     EmptyResult,
+    #[error("insert or replace video postprocess requires a valid source duration")]
+    InvalidSourceDuration,
     #[error("failed to start ffmpeg video postprocess: {source}")]
     Unavailable {
         #[source]
@@ -53,6 +58,20 @@ pub fn build_video_postprocess_filter(
     let base_duration_secs = request.base_duration_secs.max(0.1);
     let start_secs = request.start_secs.clamp(0.0, base_duration_secs);
     let end_secs = request.end_secs.clamp(start_secs, base_duration_secs);
+    let uses_source = matches!(
+        request.operation,
+        VideoPostprocessOperation::Insert | VideoPostprocessOperation::Replace
+    );
+    if uses_source && request.source_path.is_none() {
+        return Err(VideoPostprocessError::MissingSource);
+    }
+    let audio_enabled = request.base_has_audio || (uses_source && request.source_has_audio);
+    let source_duration_secs = request
+        .source_duration_secs
+        .filter(|value| value.is_finite() && *value > 0.0);
+    if uses_source && audio_enabled && source_duration_secs.is_none() {
+        return Err(VideoPostprocessError::InvalidSourceDuration);
+    }
     let mut filter = String::new();
     let mut labels = Vec::new();
 
@@ -61,20 +80,34 @@ pub fn build_video_postprocess_filter(
             "[0:v:0]trim=start=0:end={},setpts=PTS-STARTPTS,scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[v0];",
             ffmpeg_duration_literal(start_secs)
         ));
-        labels.push("[v0]");
+        if audio_enabled {
+            append_audio_segment(
+                &mut filter,
+                0,
+                request.base_has_audio,
+                0.0,
+                start_secs,
+                "a0",
+            );
+        }
+        labels.push(("v0", "a0"));
     }
 
-    if matches!(
-        request.operation,
-        VideoPostprocessOperation::Insert | VideoPostprocessOperation::Replace
-    ) {
-        if request.source_path.is_none() {
-            return Err(VideoPostprocessError::MissingSource);
-        }
+    if uses_source {
         filter.push_str(&format!(
             "[1:v:0]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[vsrc];"
         ));
-        labels.push("[vsrc]");
+        if audio_enabled {
+            append_audio_segment(
+                &mut filter,
+                1,
+                request.source_has_audio,
+                0.0,
+                source_duration_secs.expect("audio source duration was validated"),
+                "asrc",
+            );
+        }
+        labels.push(("vsrc", "asrc"));
     }
 
     let tail_start = if request.operation == VideoPostprocessOperation::Insert {
@@ -88,16 +121,33 @@ pub fn build_video_postprocess_filter(
             ffmpeg_duration_literal(tail_start),
             ffmpeg_duration_literal(base_duration_secs)
         ));
-        labels.push("[vtail]");
+        if audio_enabled {
+            append_audio_segment(
+                &mut filter,
+                0,
+                request.base_has_audio,
+                tail_start,
+                base_duration_secs,
+                "atail",
+            );
+        }
+        labels.push(("vtail", "atail"));
     }
 
     if labels.is_empty() {
         return Err(VideoPostprocessError::EmptyResult);
     }
-    for label in &labels {
-        filter.push_str(label);
+    for (video_label, audio_label) in &labels {
+        filter.push_str(&format!("[{video_label}]"));
+        if audio_enabled {
+            filter.push_str(&format!("[{audio_label}]"));
+        }
     }
-    filter.push_str(&format!("concat=n={}:v=1:a=0[outv]", labels.len()));
+    if audio_enabled {
+        filter.push_str(&format!("concat=n={}:v=1:a=1[outv][outa]", labels.len()));
+    } else {
+        filter.push_str(&format!("concat=n={}:v=1:a=0[outv]", labels.len()));
+    }
     Ok(filter)
 }
 
@@ -132,7 +182,7 @@ pub fn postprocess_video(
     if let Some(source_path) = source_path {
         command.arg("-i").arg(source_path);
     }
-    let output = command
+    command
         .arg("-filter_complex")
         .arg(filter)
         .arg("-map")
@@ -144,8 +194,20 @@ pub fn postprocess_video(
         .arg("-crf")
         .arg("20")
         .arg("-pix_fmt")
-        .arg("yuv420p")
-        .arg("-an")
+        .arg("yuv420p");
+    let audio_enabled = request.base_has_audio || (uses_source && request.source_has_audio);
+    if audio_enabled {
+        command
+            .arg("-map")
+            .arg("[outa]")
+            .arg("-c:a")
+            .arg("aac")
+            .arg("-b:a")
+            .arg("192k");
+    } else {
+        command.arg("-an");
+    }
+    let output = command
         .arg("-movflags")
         .arg("+faststart")
         .arg(request.output_path)
@@ -158,6 +220,38 @@ pub fn postprocess_video(
             stderr: stderr_preview(&output, POSTPROCESS_STDERR_PREVIEW_CHARS),
         })
     }
+}
+
+fn append_audio_segment(
+    filter: &mut String,
+    input_index: usize,
+    has_audio: bool,
+    start_secs: f32,
+    end_secs: f32,
+    label: &str,
+) {
+    let duration_secs = (end_secs - start_secs).max(0.1);
+    let duration = ffmpeg_duration_literal(duration_secs);
+    if has_audio {
+        filter.push_str(&format!(
+            "[{input_index}:a:0]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=async=1:first_pts=0,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad,atrim=duration={duration},asetpts=N/SR/TB[{label}];",
+            ffmpeg_timestamp_literal(start_secs),
+            ffmpeg_duration_literal(end_secs),
+        ));
+    } else {
+        filter.push_str(&format!(
+            "anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration={duration},asetpts=N/SR/TB[{label}];"
+        ));
+    }
+}
+
+fn ffmpeg_timestamp_literal(value: f32) -> String {
+    let value = if value.is_finite() && value >= 0.0 {
+        value
+    } else {
+        0.0
+    };
+    format!("{value:.3}")
 }
 
 fn even_positive_dimension(value: i32, default_value: i32) -> i32 {

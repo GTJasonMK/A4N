@@ -111,6 +111,7 @@ async fn insert_project_row(
             active.root_project_id = Set(root_project_id);
             active.parent_project_id = Set(parent_project_id);
             active.source_snapshot_id = Set(source_snapshot_id);
+            active.lifecycle_gate = Set("active".to_string());
         }
     ))
 }

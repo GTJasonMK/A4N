@@ -5,6 +5,7 @@ mod frames;
 use std::collections::{HashMap, HashSet};
 
 use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_core::video_execution::{VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1};
 use serde_json::Value;
 
 use self::assets::finalize_video_chain_assets;
@@ -12,9 +13,9 @@ use self::contracts::{VideoChainAssetFinalizationInput, VideoChainFrameSelection
 use self::frames::select_video_chain_frames;
 use super::super::{
     AppError, ChapterVideoPromptOptions, ChapterVideoSourceContext, FramePromptGenerationSpec,
-    OrchestratorContext, PreparedVideoPromptInputs, PromptOutputLanguage,
-    ReusableSegmentPlanForSpecQuery, VideoFramePrompt, VideoPromptProgress, VideoSegmentPlan,
-    VideoUnitPlan, report_video_prompt_progress, reusable_segment_plan_for_spec,
+    OrchestratorContext, PreparedVideoPromptInputs, PromptOutputLanguage, VideoFramePrompt,
+    VideoPromptProgress, VideoSegmentPlan, VideoUnitPlan, load_shared_segment_plan_for_execution,
+    report_video_prompt_progress,
 };
 
 pub(super) struct VideoChainPreparationInput<'a, 'source> {
@@ -32,6 +33,8 @@ pub(super) struct PreparedVideoChainInputs {
     pub regenerate_existing: bool,
     pub prompt_batch_size: usize,
     pub target_shot_number: Option<i32>,
+    pub segment_plan_prompt_id: i64,
+    pub segment_recipe: VideoSegmentExecutionRecipeV1,
     pub style: String,
     pub prompt_output_language: PromptOutputLanguage,
     pub duration_secs: i32,
@@ -66,10 +69,11 @@ pub(super) async fn prepare_video_chain_inputs(
     } = input;
     let PreparedVideoPromptInputs {
         source_metadata,
-        source_spans,
         regenerate_existing,
         prompt_batch_size,
+        segment_plan_prompt_id,
         target_shot_number,
+        segment_recipe,
         style,
         prompt_output_language,
         duration_secs,
@@ -85,30 +89,42 @@ pub(super) async fn prepare_video_chain_inputs(
     let segment_storage_prompt_type = spec.segment_storage_prompt_type();
 
     report_video_prompt_progress(progress, 20, 100, spec.read_video_inputs_progress)?;
-    let reusable_segment = reusable_segment_plan_for_spec(ReusableSegmentPlanForSpecQuery {
+    let segment_plan_prompt_id = segment_plan_prompt_id.ok_or_else(|| {
+        AppError::InvalidArgument("片段执行缺少 segment_plan_prompt_id".to_string())
+    })?;
+    let segment_recipe = segment_recipe
+        .ok_or_else(|| AppError::InvalidArgument("片段执行缺少 segment_recipe".to_string()))?;
+    let loaded_plan = load_shared_segment_plan_for_execution(
         service,
         project_id,
         chapter_id,
-        spec,
-        source_metadata: &source_metadata,
-        source_spans: &source_spans,
-        style: &style,
-        duration_secs,
-        aspect_ratio: &aspect_ratio,
-    })
-    .await?
-    .ok_or_else(|| AppError::InvalidArgument(spec.missing_video_inputs_message.to_string()))?;
+        segment_plan_prompt_id,
+    )
+    .await?;
+    let frame_execution_identity = super::super::video_segment_frame_execution_identity(
+        loaded_plan.execution_identity.clone(),
+        Some(segment_plan_prompt_id),
+        Some(&segment_recipe),
+    )?;
+    let execution_identity = super::super::video_segment_execution_identity(
+        loaded_plan.execution_identity,
+        Some(segment_plan_prompt_id),
+        Some(&segment_recipe),
+    )?;
     let selected_frames = select_video_chain_frames(VideoChainFrameSelectionInput {
         service,
         spec,
         project_id,
         chapter_id,
-        segment_plan: &reusable_segment.segment_plan,
+        segment_plan: &loaded_plan.segment_plan,
+        target_shot_number,
         duration_secs,
-        execution_identity: &reusable_segment.execution_identity,
+        execution_identity: &frame_execution_identity,
         prompt_output_language,
         available_assets: &available_assets,
         reference_image_ids: &reference_image_ids,
+        include_system_frame_images: segment_recipe.guidance_mode
+            == VideoSegmentGuidanceModeV1::SystemFrames,
     })
     .await?;
     let finalized_assets = finalize_video_chain_assets(VideoChainAssetFinalizationInput {
@@ -125,7 +141,7 @@ pub(super) async fn prepare_video_chain_inputs(
     })
     .await?;
 
-    let mut execution_identity = reusable_segment.execution_identity;
+    let mut execution_identity = execution_identity;
     let identity = execution_identity
         .as_object_mut()
         .ok_or_else(|| AppError::InvalidArgument("视频执行身份必须是 JSON 对象".to_string()))?;
@@ -149,6 +165,8 @@ pub(super) async fn prepare_video_chain_inputs(
         regenerate_existing,
         prompt_batch_size,
         target_shot_number,
+        segment_plan_prompt_id,
+        segment_recipe,
         style,
         prompt_output_language,
         duration_secs,

@@ -175,7 +175,6 @@ pub fn truncate_error_body(value: &str) -> String {
 }
 
 #[cfg(test)]
-
 mod tests {
     use super::*;
     use std::path::PathBuf;

@@ -45,6 +45,7 @@ pub enum ProjectDuplicateError {
     Serialization(#[from] serde_json::Error),
 }
 
-pub use derived::{DerivedProjectMediaFileCopier, duplicate_derived_project_record};
-pub use freeform::{FreeformProjectMediaFileCopier, duplicate_freeform_project_record};
+pub use derived::duplicate_derived_project_record;
+pub use freeform::duplicate_freeform_project_record;
+pub use shared::ProjectMediaFileCopier;
 pub use text::{branch_text_project_record, duplicate_text_project_record};

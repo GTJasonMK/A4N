@@ -29,10 +29,7 @@ pub async fn upload_reference_media_video(
         user_id,
         project_id,
         chapter_id,
-        input.prompt,
-        input.duration_secs,
-        input.aspect_ratio,
-        input.segment_prompt_id,
+        input.segment_plan_prompt_id,
         input.shot_number,
         source,
     )
@@ -44,9 +41,6 @@ async fn create_imported_reference_media_video(
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
-    prompt: String,
-    duration_secs: i32,
-    aspect_ratio: String,
     segment_prompt_id: i64,
     shot_number: i32,
     source: ImportedVideoSource,
@@ -59,9 +53,6 @@ async fn create_imported_reference_media_video(
         .create_imported_reference_media_video_record_validated(
             project_id,
             chapter_id,
-            &prompt,
-            duration_secs,
-            &aspect_ratio,
             ImportedVideoProperties {
                 width: properties.width,
                 height: properties.height,

@@ -134,7 +134,9 @@ fn workflow_and_call_fingerprints_validate_input_contracts() {
         None,
         None,
     );
-    assert!(character_discovery_workflow_run_input(0, None, &[], &[], &request).is_err());
+    assert!(
+        character_discovery_workflow_run_input(0, None, &[], &[], &request, None).is_err()
+    );
 
     let fingerprint = character_discovery_call_fingerprint_json(1, Some(2), &request)
         .expect("call fingerprint should build");

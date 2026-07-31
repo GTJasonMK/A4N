@@ -36,7 +36,113 @@ SERVICE_LOG_DIR="$APP_LOG_DIR/services"
 WAIT_FOR_HEALTH=true
 HEALTH_TIMEOUT_SECONDS="${A4N_SERVICE_HEALTH_TIMEOUT_SECONDS:-30}"
 STATUS_ONLY=false
+BUILD_CACHE_GUARDED=false
 SERVICE_MODULES=(prompt llm embedding rag image video import export)
+QDRANT_ENDPOINT_HOST=""
+QDRANT_ENDPOINT_PORT=""
+
+resolve_qdrant_endpoint() {
+    local url="${A4N_QDRANT_URL:-}"
+    local scheme authority
+    case "$url" in
+        http://*) scheme="http" ;;
+        https://*) scheme="https" ;;
+        *) return 1 ;;
+    esac
+
+    authority="${url#*://}"
+    authority="${authority%%/*}"
+    case "$authority" in
+        \[*\]:*)
+            QDRANT_ENDPOINT_HOST="${authority%%]*}"
+            QDRANT_ENDPOINT_HOST="${QDRANT_ENDPOINT_HOST#[}"
+            QDRANT_ENDPOINT_PORT="${authority##*:}"
+            ;;
+        *:*)
+            QDRANT_ENDPOINT_HOST="${authority%:*}"
+            QDRANT_ENDPOINT_PORT="${authority##*:}"
+            ;;
+        *)
+            QDRANT_ENDPOINT_HOST="$authority"
+            [[ "$scheme" == "https" ]] && QDRANT_ENDPOINT_PORT=443 || QDRANT_ENDPOINT_PORT=80
+            ;;
+    esac
+    [[ -n "$QDRANT_ENDPOINT_HOST" && "$QDRANT_ENDPOINT_PORT" =~ ^[0-9]+$ ]]
+    [[ "$QDRANT_ENDPOINT_PORT" -ge 1 && "$QDRANT_ENDPOINT_PORT" -le 65535 ]]
+}
+
+tcp_reachable() {
+    local host="$1"
+    local port="$2"
+    if command -v nc >/dev/null 2>&1; then
+        nc -z -w 1 "$host" "$port" >/dev/null 2>&1
+    elif command -v timeout >/dev/null 2>&1; then
+        timeout 1 bash -c '</dev/tcp/$1/$2' _ "$host" "$port" >/dev/null 2>&1
+    else
+        bash -c '</dev/tcp/$1/$2' _ "$host" "$port" >/dev/null 2>&1
+    fi
+}
+
+qdrant_reachable() {
+    resolve_qdrant_endpoint && tcp_reachable "$QDRANT_ENDPOINT_HOST" "$QDRANT_ENDPOINT_PORT"
+}
+
+wait_for_qdrant() {
+    local pid="$1"
+    local log_file="$2"
+    local attempt
+    log_info "等待 Qdrant: ${QDRANT_ENDPOINT_HOST}:${QDRANT_ENDPOINT_PORT}"
+    for ((attempt = 1; attempt <= HEALTH_TIMEOUT_SECONDS; attempt++)); do
+        if qdrant_reachable; then
+            log_ok "Qdrant 已就绪"
+            return 0
+        fi
+        if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
+            die "Qdrant 在就绪前已退出；请查看日志: $log_file"
+        fi
+        sleep 1
+    done
+    die "Qdrant 未在 ${HEALTH_TIMEOUT_SECONDS}s 内就绪: ${QDRANT_ENDPOINT_HOST}:${QDRANT_ENDPOINT_PORT}"
+}
+
+ensure_qdrant() {
+    resolve_qdrant_endpoint || die "A4N_QDRANT_URL 必须是有效的 http(s) URL"
+    if qdrant_reachable; then
+        log_ok "Qdrant 已在运行: ${QDRANT_ENDPOINT_HOST}:${QDRANT_ENDPOINT_PORT}"
+        return 0
+    fi
+    case "$A4N_QDRANT_URL:$QDRANT_ENDPOINT_HOST" in
+        http://*:127.0.0.1|http://*:localhost) ;;
+        *) die "Qdrant 不可达: ${QDRANT_ENDPOINT_HOST}:${QDRANT_ENDPOINT_PORT}" ;;
+    esac
+
+    local binary="$PROJECT_ROOT/tools/qdrant/bin/qdrant"
+    local pid_file="$SERVICE_DIR/qdrant.pid"
+    local log_file="$SERVICE_LOG_DIR/qdrant.log"
+    [[ -x "$binary" ]] || die "未找到本地 Qdrant；请先运行 ./scripts/dev/setup-qdrant.sh"
+    mkdir -p "$SERVICE_DIR" "$SERVICE_LOG_DIR"
+
+    local pid=""
+    if [[ -f "$pid_file" ]]; then
+        pid="$(cat "$pid_file" 2>/dev/null || true)"
+    fi
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+        log_warn "Qdrant 进程已存在但尚未就绪，PID: $pid"
+        wait_for_qdrant "$pid" "$log_file"
+        return 0
+    fi
+
+    log_section "启动 Qdrant"
+    (
+        export QDRANT__SERVICE__HOST="127.0.0.1"
+        export QDRANT__SERVICE__GRPC_PORT="$QDRANT_ENDPOINT_PORT"
+        exec nohup setsid "$PROJECT_ROOT/scripts/dev/run-qdrant.sh"
+    ) </dev/null >>"$log_file" 2>&1 &
+    pid=$!
+    printf '%s\n' "$pid" >"$pid_file"
+    log_ok "Qdrant 已启动，PID: $pid，日志: $log_file"
+    wait_for_qdrant "$pid" "$log_file"
+}
 
 ensure_sidecar_auth_token() {
     local token_file="$SERVICE_DIR/auth-token"
@@ -140,18 +246,14 @@ EOF
 }
 
 health_check() {
-    local addr="$1"
-    local host="${addr%:*}"
-    local port="${addr##*:}"
-    if [[ -z "$host" || -z "$port" || "$host" == "$port" ]]; then
-        return 1
-    fi
-
-    if command -v curl >/dev/null 2>&1; then
-        curl -fsS --max-time 1 "http://${addr}/healthz" >/dev/null 2>&1
-    else
-        timeout 1 bash -c "</dev/tcp/${host}/${port}" >/dev/null 2>&1
-    fi
+    local module="$1"
+    local addr="$2"
+    local payload
+    command -v curl >/dev/null 2>&1 || return 1
+    payload="$(curl -fsS --max-time 1 "http://${addr}/healthz" 2>/dev/null)" || return 1
+    [[ "$(json_string_field "$payload" service)" == "$module" ]] && \
+        [[ "$(json_string_field "$payload" status)" == "healthy" ]] && \
+        { [[ "$module" != "rag" ]] || qdrant_reachable; }
 }
 
 json_string_field() {
@@ -169,7 +271,7 @@ json_number_field() {
 service_status() {
     local module="$1"
     local package addr pid_file pid process_state payload health_state
-    local service_version protocol_version capability_version
+    local reported_service service_version protocol_version capability_version
 
     package="$(module_package "$module")" || die "未知服务: $module；使用 --list 查看可用服务"
     addr="$(module_addr "$module")"
@@ -197,6 +299,7 @@ service_status() {
         return 1
     fi
 
+    reported_service="$(json_string_field "$payload" service)"
     health_state="$(json_string_field "$payload" status)"
     service_version="$(json_string_field "$payload" service_version)"
     protocol_version="$(json_number_field "$payload" protocol_version)"
@@ -205,6 +308,11 @@ service_status() {
     [[ -n "$service_version" ]] || service_version="unknown"
     [[ -n "$protocol_version" ]] || protocol_version="unknown"
     [[ -n "$capability_version" ]] || capability_version="unknown"
+    if [[ "$reported_service" != "$module" ]]; then
+        health_state="wrong-service"
+    elif [[ "$module" == "rag" && "$health_state" == "healthy" ]] && ! qdrant_reachable; then
+        health_state="dependency-unreachable"
+    fi
     printf '%-10s package=%-24s pid=%-8s process=%-11s addr=%s health=%s version=%s protocol=%s capability=%s\n' \
         "$module" "$package" "$pid" "$process_state" "$addr" "$health_state" \
         "$service_version" "$protocol_version" "$capability_version"
@@ -219,7 +327,7 @@ wait_for_health() {
 
     log_info "等待 $module 健康检查: http://${addr}/healthz"
     for ((attempt = 1; attempt <= HEALTH_TIMEOUT_SECONDS; attempt++)); do
-        if health_check "$addr"; then
+        if health_check "$module" "$addr"; then
             log_ok "$module 健康检查通过"
             return 0
         fi
@@ -240,7 +348,8 @@ validate_wait_timeout() {
 
 start_service() {
     local module="$1"
-    local package pid_file log_file addr_env addr
+    local package pid_file log_file addr_env addr qdrant_url
+    qdrant_url="${A4N_QDRANT_URL:-}"
 
     if ! package="$(module_package "$module")"; then
         die "未知服务: $module；使用 --list 查看可用服务"
@@ -255,6 +364,12 @@ start_service() {
     addr_env="$(module_addr_env "$module")"
     addr="$(module_addr "$module")"
 
+    if [[ "$module" == "rag" ]]; then
+        [[ -n "${qdrant_url//[[:space:]]/}" ]] || \
+            die "启动 rag 需要 A4N_QDRANT_URL；请在 .env 设置，例如 http://127.0.0.1:6334"
+        ensure_qdrant
+    fi
+
     if [[ -f "$pid_file" ]]; then
         local old_pid
         old_pid="$(cat "$pid_file" 2>/dev/null || true)"
@@ -265,11 +380,25 @@ start_service() {
             fi
             return 0
         fi
+        rm -f "$pid_file"
+    fi
+
+    if health_check "$module" "$addr"; then
+        log_warn "$module 已在运行但非本脚本管理: $addr"
+        return 0
+    fi
+    if tcp_reachable "${addr%:*}" "${addr##*:}"; then
+        die "$module 地址已被占用，但未返回匹配的健康响应: http://${addr}/healthz"
     fi
 
     if [[ "$module" == "embedding" ]]; then
         require_onnxruntime
         log_ok "ONNX Runtime 1.24.2: $A4N_ONNXRUNTIME_ROOT"
+    fi
+
+    if ! $BUILD_CACHE_GUARDED; then
+        guard_build_cache
+        BUILD_CACHE_GUARDED=true
     fi
 
     log_section "构建 $module ($package)"
@@ -369,7 +498,6 @@ if [[ -z "$modules_arg" ]]; then
 fi
 
 validate_wait_timeout
-guard_build_cache
 ensure_sidecar_auth_token
 
 IFS=',' read -r -a modules <<<"$modules_arg"

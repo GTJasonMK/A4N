@@ -46,6 +46,9 @@ pub(in crate::video::prompt_generation::frame_prompts) fn reusable_generated_vid
     rows: &[chapter_video_prompt::Model],
 ) -> Result<BTreeMap<i32, GeneratedVideoPromptShot>, AppError> {
     match spec.workflow_mode {
+        PromptWorkflowMode::SharedSegmentPlan => Err(AppError::InvalidArgument(
+            "共享片段规划不能读取卡片视频提示词".to_string(),
+        )),
         PromptWorkflowMode::BoundaryFrames => Ok(reusable_boundary_video_prompts_from_rows(rows)?
             .into_iter()
             .map(|(shot_number, prompt)| {
@@ -131,6 +134,9 @@ pub(in crate::video::prompt_generation::frame_prompts) fn parse_single_generated
     context: &str,
 ) -> Result<GeneratedVideoPromptShot, AppError> {
     match spec.workflow_mode {
+        PromptWorkflowMode::SharedSegmentPlan => Err(AppError::InvalidArgument(
+            "共享片段规划不能解析卡片视频提示词".to_string(),
+        )),
         PromptWorkflowMode::BoundaryFrames
         | PromptWorkflowMode::FirstFrameChain
         | PromptWorkflowMode::Storyboard => parse_single_video_prompt_shot(
@@ -166,6 +172,9 @@ pub(in crate::video::prompt_generation::frame_prompts) fn validate_generated_vid
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<(), AppError> {
     match spec.workflow_mode {
+        PromptWorkflowMode::SharedSegmentPlan => Err(AppError::InvalidArgument(
+            "共享片段规划不能校验卡片视频提示词".to_string(),
+        )),
         PromptWorkflowMode::BoundaryFrames
         | PromptWorkflowMode::FirstFrameChain
         | PromptWorkflowMode::Storyboard => validate_video_prompts(
@@ -188,6 +197,9 @@ pub(in crate::video::prompt_generation::frame_prompts) fn validate_partial_gener
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<(), AppError> {
     match spec.workflow_mode {
+        PromptWorkflowMode::SharedSegmentPlan => Err(AppError::InvalidArgument(
+            "共享片段规划不能校验卡片视频提示词".to_string(),
+        )),
         PromptWorkflowMode::BoundaryFrames
         | PromptWorkflowMode::FirstFrameChain
         | PromptWorkflowMode::Storyboard => validate_partial_video_prompts(

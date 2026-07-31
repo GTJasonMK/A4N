@@ -54,16 +54,16 @@ export interface SourceSnapshotChapter {
 }
 
 export type ProjectKind = "text" | "comic" | "video" | "galgame";
-export type ProjectSourceMode = "self" | "derived" | "freeform";
+type ProjectSourceMode = "self" | "derived" | "freeform";
 
 type SourceSyncStatus = "current" | "root_updated" | "conflict" | "detached";
 
-export type ProjectAccessRole = "owner" | "manager" | "editor" | "viewer";
+type ProjectAccessRole = "owner" | "manager" | "editor" | "viewer";
 export type ProjectMemberRole = "manager" | "editor" | "viewer";
 export type ProjectAccessScope = "all" | "owned" | "collaborating";
-export type ProjectProgressStatus = "idle" | "running" | "blocked" | "failed" | "completed";
+type ProjectProgressStatus = "idle" | "running" | "blocked" | "failed" | "completed";
 
-export type ProjectProgressSummary = Omit<ApiProjectProgressSummary, "status"> & {
+type ProjectProgressSummary = Omit<ApiProjectProgressSummary, "status"> & {
   status: ProjectProgressStatus;
 };
 
@@ -168,7 +168,7 @@ export interface AssetGraphEdge {
   count: number;
 }
 
-export interface AssetGraphLayer {
+interface AssetGraphLayer {
   index: number;
   label: string;
   node_ids: string[];
@@ -231,7 +231,7 @@ export interface AssetLineageRef {
   record_id: number | null;
 }
 
-export interface PromptSource {
+interface PromptSource {
   id: string;
   kind: string;
   text: string;
@@ -239,7 +239,7 @@ export interface PromptSource {
   edited_by_user: boolean | null;
 }
 
-export interface GenerationRunSnapshot {
+interface GenerationRunSnapshot {
   id: number | null;
   workflow: string;
   step_key: string;

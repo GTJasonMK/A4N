@@ -376,8 +376,9 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         video: &generated_video::Model,
         prompt_id: Option<i64>,
-        result: VideoGenerationResult,
+        mut result: VideoGenerationResult,
     ) -> Result<PersistedVideoResult, AppError> {
+        result.metadata = completed_video_artifact_metadata(&result);
         if is_canvas_video_record(video) {
             let (file_path, file_size) = persist_canvas_video_bytes(
                 self.state.data_dir(),
@@ -430,6 +431,17 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
         }
         Ok(())
     }
+}
+
+pub(super) fn completed_video_artifact_metadata(result: &VideoGenerationResult) -> Value {
+    json!({
+        "provider_job_id": result.provider_job_id,
+        "artifact": {
+            "format": result.format,
+            "byte_size": result.bytes.len(),
+            "sha256": format!("{:x}", Sha256::digest(&result.bytes)),
+        },
+    })
 }
 
 #[async_trait]

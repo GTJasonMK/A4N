@@ -8,7 +8,7 @@ import type {
   UpdateThemeInput,
 } from "./generated/theme";
 
-export type { CreateThemeInput, ImportThemeInput, Theme, ThemeSummary, UpdateThemeInput } from "./generated/theme";
+export type { CreateThemeInput, Theme, UpdateThemeInput } from "./generated/theme";
 
 /**
  * Theme API wrapper —— 对齐 crates/a4n-tauri/src/commands/theme.rs
@@ -42,10 +42,6 @@ export async function listThemes(userId?: Id | null): Promise<Theme[]> {
 /** 后端 list_user_themes(user_id) —— 必须传 user_id */
 export async function listUserThemes(userId: Id): Promise<Theme[]> {
   return apiInvoke<Theme[]>("list_user_themes", { userId: idNum(userId) });
-}
-
-export async function getSystemDefaultTheme(): Promise<Theme | null> {
-  return apiInvoke<Theme | null>("get_system_default_theme");
 }
 
 /** 后端 get_theme_css_variables(theme_id) —— 返回 CSS 文本 */

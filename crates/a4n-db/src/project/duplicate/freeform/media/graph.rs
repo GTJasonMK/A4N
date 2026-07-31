@@ -3,9 +3,8 @@ use super::segments::copy_freeform_video_segments_record;
 use super::timelines::copy_freeform_assembly_timelines_record;
 use crate::project::duplicate::ProjectDuplicateError;
 use crate::project::duplicate::derived::copy_derived_assembly_clips;
-use crate::project::duplicate::freeform::{
-    FreeformProjectMediaFileCopier, FreeformProjectMediaGraphCopyResult,
-};
+use crate::project::duplicate::freeform::FreeformProjectMediaGraphCopyResult;
+use crate::project::duplicate::shared::ProjectMediaFileCopier;
 use chrono::NaiveDateTime;
 use sea_orm::ConnectionTrait;
 use std::collections::HashMap;
@@ -23,7 +22,7 @@ pub(in crate::project::duplicate::freeform) async fn copy_freeform_project_media
 ) -> Result<FreeformProjectMediaGraphCopyResult, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: FreeformProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier,
 {
     let media_asset_ids = copy_freeform_media_assets_record(
         db,

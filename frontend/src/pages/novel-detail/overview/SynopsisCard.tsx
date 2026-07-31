@@ -1,5 +1,6 @@
 import React from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookCard } from "../../../components/ui/BookCard";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -29,7 +30,7 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
     <header className="flex flex-col gap-2 px-4 pb-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <h2 className="text-sm font-semibold text-book-text-main">故事摘要</h2>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-book-text-muted">
+        <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
           {blueprint
             ? [blueprint.genre, blueprint.tone].filter(Boolean).join(" · ") || "蓝图核心叙事摘要"
             : "从灵感对话建立故事蓝图"}
@@ -43,7 +44,7 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
                 {
                   label: refining ? "正在优化蓝图…" : "优化蓝图",
                   icon: refining ? (
-                    <Loader2 size={12} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   ) : (
                     <Sparkles size={12} />
                   ),
@@ -68,7 +69,7 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
     <div className="min-h-0 flex-1 border-t border-book-border/40 px-4 py-3">
       {loading ? (
         <div className="flex items-center gap-2 text-xs text-book-text-muted">
-          <Loader2 size={12} className="animate-spin" /> 加载蓝图…
+          <LoadingSpinner size="sm" /> 加载蓝图…
         </div>
       ) : !blueprint ? (
         <EmptyHint

@@ -9,7 +9,7 @@ use a4n_sidecar_bootstrap::service_event_line;
 use a4n_video_providers::pick_video_provider;
 use axum::body::Bytes;
 use futures::{Stream, stream};
-use serde_json::{Value, json};
+use serde_json::json;
 use std::convert::Infallible;
 
 pub(crate) fn video_generation_event_stream(
@@ -54,17 +54,15 @@ pub(crate) fn video_generation_event_stream(
                     Err(error) => failed_generation_event(
                         task_id,
                         2,
-                        ServiceError {
-                            code: ServiceErrorCode::Internal,
-                            message: redact_sensitive_message(format!(
+                        ServiceError::non_retryable(
+                            ServiceErrorCode::Internal,
+                            redact_sensitive_message(format!(
                                 "video generation task failed: {error}"
                             )),
-                            retryable: Some(false),
-                        },
+                        ),
                     ),
                 };
                 if event_tx.send(event).await.is_err() {
-                    return;
                 }
             }
         }
@@ -78,16 +76,12 @@ pub(crate) fn video_generation_event_stream(
 }
 
 pub(crate) fn progress_generation_event(task_id: String, sequence: u64) -> CapabilityTaskEvent {
-    video_generation_event(
-        task_id,
-        CapabilityTaskEventKind::Progress,
-        sequence,
-        None,
-        Some(json!({
+    CapabilityTaskEvent::new(task_id, CapabilityTaskEventKind::Progress, sequence).with_payload(
+        json!({
             "current": 1,
             "total": 2,
             "message": "video sidecar 正在提交 provider 请求"
-        })),
+        }),
     )
 }
 
@@ -96,20 +90,8 @@ pub(crate) fn completed_generation_event(
     sequence: u64,
     output: VideoGenerationOutput,
 ) -> Result<CapabilityTaskEvent, ServiceError> {
-    let payload = serde_json::to_value(output).map_err(|error| ServiceError {
-        code: ServiceErrorCode::Internal,
-        message: redact_sensitive_message(format!(
-            "video generation output serialization failed: {error}"
-        )),
-        retryable: Some(false),
-    })?;
-    Ok(video_generation_event(
-        task_id,
-        CapabilityTaskEventKind::Completed,
-        sequence,
-        None,
-        Some(payload),
-    ))
+    CapabilityTaskEvent::new(task_id, CapabilityTaskEventKind::Completed, sequence)
+        .with_serialized_payload(output, "video generation output serialization failed")
 }
 
 pub(crate) fn failed_generation_event(
@@ -117,35 +99,5 @@ pub(crate) fn failed_generation_event(
     sequence: u64,
     error: ServiceError,
 ) -> CapabilityTaskEvent {
-    video_generation_event(
-        task_id,
-        CapabilityTaskEventKind::Failed,
-        sequence,
-        Some(error),
-        None,
-    )
-}
-
-pub(crate) fn video_generation_event(
-    task_id: String,
-    event_kind: CapabilityTaskEventKind,
-    sequence: u64,
-    error: Option<ServiceError>,
-    payload: Option<Value>,
-) -> CapabilityTaskEvent {
-    CapabilityTaskEvent {
-        task_id,
-        event_kind,
-        sequence,
-        chunk_index: None,
-        chunk_delta: None,
-        usage_delta: None,
-        final_usage: None,
-        finish_reason: None,
-        is_truncated_finish_reason: None,
-        checkpoint_key: None,
-        artifact_refs: Vec::new(),
-        error,
-        payload,
-    }
+    CapabilityTaskEvent::failed(task_id, sequence, error)
 }

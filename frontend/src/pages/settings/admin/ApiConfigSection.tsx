@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Bot,
+import { Bot,
   Brain,
   Film,
   Image as ImageIcon,
-  Loader2,
   RefreshCw,
-  ServerCog,
-} from "lucide-react";
+  ServerCog, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   listEmbeddingConfig,
@@ -155,7 +153,7 @@ const ApiConfigOverview: React.FC = () => {
 
       {loading && snapshot == null ? (
         <div className="inline-flex items-center gap-2 py-10 text-xs text-book-text-muted">
-          <Loader2 size={14} className="animate-spin" />
+          <LoadingSpinner size="sm" />
           正在加载配置
         </div>
       ) : (
@@ -318,13 +316,13 @@ const ApiSummaryCard: React.FC<{
         <ConfigRows rows={primaryRows} />
         {(diagnosticRows.length > 0 || diagnosticFooter) && (
           <details className="border-t border-book-border/35">
-            <summary className="cursor-pointer px-3 py-2.5 text-[11px] text-book-text-muted transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-text-sub">
+            <summary className="cursor-pointer px-3 py-2.5 text-small text-book-text-muted transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-text-sub">
               诊断信息
             </summary>
             <div className="border-t border-book-border/25 bg-book-bg-soft/35">
               <ConfigRows rows={diagnosticRows} />
               {diagnosticFooter && (
-                <div className="border-t border-book-border/30 px-3 py-2 text-[11px] leading-relaxed text-book-text-muted">
+                <div className="border-t border-book-border/30 px-3 py-2 text-small leading-relaxed text-book-text-muted">
                   {diagnosticFooter}
                 </div>
               )}

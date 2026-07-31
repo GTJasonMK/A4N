@@ -118,13 +118,13 @@ async fn verify_session_refresh_token_rejects_disabled_user() {
         .await
         .unwrap();
     let refresh_token = "refresh-disabled-user";
-    let session = create_session(db.as_ref(), user.id, &refresh_token, Some("test-agent"))
+    let session = create_session(db.as_ref(), user.id, refresh_token, Some("test-agent"))
         .await
         .unwrap();
 
     deactivate_user(&db, user.id).await;
 
-    let err = verify_session_refresh_token(db.as_ref(), user.id, &session.id, &refresh_token)
+    let err = verify_session_refresh_token(db.as_ref(), user.id, &session.id, refresh_token)
         .await
         .expect_err("disabled user must not refresh session");
 
@@ -138,11 +138,11 @@ async fn refresh_rotation_rejects_stale_old_refresh_after_concurrent_rotation() 
         .await
         .unwrap();
     let old_refresh_token = "refresh-old";
-    let session = create_session(db.as_ref(), user.id, &old_refresh_token, Some("test-agent"))
+    let session = create_session(db.as_ref(), user.id, old_refresh_token, Some("test-agent"))
         .await
         .unwrap();
     let stale_session =
-        verify_session_refresh_token(db.as_ref(), user.id, &session.id, &old_refresh_token)
+        verify_session_refresh_token(db.as_ref(), user.id, &session.id, old_refresh_token)
             .await
             .unwrap();
     let first_refresh_token = "refresh-first";
@@ -151,8 +151,8 @@ async fn refresh_rotation_rejects_stale_old_refresh_after_concurrent_rotation() 
     rotate_session_refresh_token(
         db.as_ref(),
         stale_session.clone(),
-        &old_refresh_token,
-        &first_refresh_token,
+        old_refresh_token,
+        first_refresh_token,
     )
     .await
     .unwrap();
@@ -160,20 +160,20 @@ async fn refresh_rotation_rejects_stale_old_refresh_after_concurrent_rotation() 
     let err = rotate_session_refresh_token(
         db.as_ref(),
         stale_session,
-        &old_refresh_token,
-        &second_refresh_token,
+        old_refresh_token,
+        second_refresh_token,
     )
     .await
     .expect_err("stale refresh rotation must not overwrite the first rotation");
 
     assert!(matches!(err, AppError::Unauthorized(_)));
     let after =
-        verify_session_refresh_token(db.as_ref(), user.id, &session.id, &first_refresh_token)
+        verify_session_refresh_token(db.as_ref(), user.id, &session.id, first_refresh_token)
             .await
             .expect("first returned refresh token must remain valid");
     assert_eq!(after.id, session.id);
     let old_result =
-        verify_session_refresh_token(db.as_ref(), user.id, &session.id, &old_refresh_token).await;
+        verify_session_refresh_token(db.as_ref(), user.id, &session.id, old_refresh_token).await;
     assert!(matches!(old_result, Err(AppError::Unauthorized(_))));
 }
 
@@ -259,7 +259,7 @@ async fn create_session_rejects_disabled_user_before_insert() {
 
     deactivate_user(&db, user.id).await;
 
-    let err = create_session(db.as_ref(), user.id, &refresh_token, Some("test-agent"))
+    let err = create_session(db.as_ref(), user.id, refresh_token, Some("test-agent"))
         .await
         .expect_err("disabled user must not create a new session");
 
@@ -274,7 +274,7 @@ async fn list_sessions_rejects_disabled_user() {
         .await
         .unwrap();
     let refresh_token = "refresh-list-sessions";
-    create_session(db.as_ref(), user.id, &refresh_token, Some("test-agent"))
+    create_session(db.as_ref(), user.id, refresh_token, Some("test-agent"))
         .await
         .unwrap();
 

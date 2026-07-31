@@ -1,0 +1,1344 @@
+# 当前核验与修复状态（2026-07-31）
+
+> 本节以当前工作区为准。下面保留原始静态审查全文作为历史依据；原始行号已经随重构变化，不能再直接当作当前证据。
+
+## 结论
+
+原审查的 27 条问题中，绝大多数已经由后续的 `segment_recipes`、稳定执行身份和卡片目标重构解决。本轮重新逐条核验后：
+
+- 24 条在当前代码中已经不存在或已有等价根因修复；
+- 第 6、15、24 条仍有真实残口，本轮已继续修复；
+- 前端测试缺口与真实浏览器缺口均已关闭：卡片来源、片段独立 recipe、正文 freshness、参考媒体卡片内工作区，以及模式切换、取消/恢复、跨模式续接、旧规划采用拒绝、mixed assembly 完整覆盖的 Chromium 交互均已补齐。
+
+## 逐条状态
+
+1. ✅ 已修复：卡片由共享片段规划构建；没有最终提示词时也可准备帧提示词、帧图片和最终提示词，不再存在循环依赖。
+2. ✅ 已修复：卡片直接读取当前 `frame_segment_plan.metadata.segments`；增量生成与刷新恢复也统一读取后端已校验并补齐 `segment_number`、`duration_secs`、`aspect_ratio` 的 canonical checkpoint，不再把模型原始 segment 当作卡片合同。
+3. ✅ 已修复：每个片段持久化独立 `VideoSegmentExecutionRecipeV1.workflow_mode`，不再共享章节级模式。
+4. ✅ 已修复：帧链完整消费 `segment_plan_prompt_id + target_shot_number + segment_recipe`；首尾帧使用目标卡片的本地两帧，分镜和最终提示词按目标内容片段选择单元，动作桥不会冒充目标片段。
+5. ✅ 已修复：共享规划参数按章节保存，模式执行参数进入每片段 recipe；后端执行从 recipe 读取 style、时长、画幅、语言和参考素材。
+6. 🔧 本轮补齐：当前卡片和提示词已按规划、片段、recipe fingerprint、合同及语言过滤；本轮又将正文 freshness 改为前后端 fail-closed，hash 未知或正文变化时不再暴露/接受旧规划。
+7. ✅ 已修复：采用视频必须精确匹配当前规划、片段、workflow mode 和 execution identity。
+8. ✅ 已修复：mixed assembly 会逐片段读取 recipe，要求每段恰好有一个有效 adopted video，并拒绝重复或旧规划视频。
+9. ✅ 已修复：参考媒体 prompt、媒体槽、plan、segment 和 recipe 已绑定；本地文件刷新后必须重新选择，UI 会明确提示而不会静默复用其他片段草稿。
+10. ✅ 已修复：action scope 只随章节数据范围变化，不再随卡片模式变化清空 busy；切换模式不会把后端任务误当成已结束。
+11. ✅ 已修复：旧的“生成全部模式/全部历史提示词”入口已删除，当前只从目标卡片生成。
+12. ✅ 已修复：selected segment、prompt、video 和 pending video 均按片段 storage key 保存。
+13. ✅ 已修复：首帧续接来源必须是当前规划更早片段的 adopted video，provider 使用被冻结来源视频的真实尾帧。
+14. ✅ 已修复：参考图、素材库、style、时长、画幅和语言均属于片段 recipe；共享规划表单只负责规划本身。
+15. 🔧 本轮补齐：参考媒体已是 recipe 的平级 workflow；本轮进一步删除右侧 `workspaceOverride` 特殊入口，将完整参考媒体配置、候选和采用工作区展开到当前片段卡片内。
+16. ✅ 已修复：旧章节级“生成下一批”主入口已删除。
+17. ✅ 已修复：reference_media 不再显示必然失败的最终提示词生成入口。
+18. ✅ 已修复：guidance mode 及关键帧、续接来源均由片段 recipe 持有；切换 guidance 会清理不属于当前合同的 provider 输入。
+19. ✅ 已修复：片段模式切换只更新目标 recipe；未保存草稿、生成任务和其他片段状态不受影响，只关闭当前旧 recipe 的失效预览。
+20. ✅ 已修复：`workflowTargetShotRef` 已删除，目标片段作为显式请求参数传递。
+21. ✅ 已修复：删除依赖图使用 execution identity、plan ID、segment number 和 recipe fingerprint 收窄同一生成链。
+22. ✅ 原结论已过时：当前已建立 `segment_recipes` 持久化模型，并有 `segment_execution_recipe_identity`、`segment_recipe_adoption_repair` 等迁移；不要求额外创建一张单独表才能构成持久化关系。
+23. ✅ 已修复：共享规划统一使用 `shared_segment_plan`，应用层明确拒绝规划阶段携带卡片模式，也拒绝卡片阶段使用共享模式。
+24. 🔧 本轮补齐：workflow fingerprint 已含 plan/target；本轮进一步把 workflow business key 和 generation reservation business key 都绑定 canonical target，参考媒体 target 也增加 plan/segment。片段规划续跑现在从 `workflow_run.input_fingerprint_json` 严格恢复首次运行的 style、语言、时长、画幅及重新规划标记，不再读取当前表单；损坏的原始输入会明确报错。已保存草稿同时直接展示 workflow 的真实持久化进度，实时任务启动后仍以 generation task 进度为唯一权威。
+25. ✅ 已修复：PromptFrames 的目标数、实际帧链处理范围和结果身份均使用同一个 target。
+26. ✅ 已修复：危险且无调用方的 `handleDeleteAllFramePrompts` 已删除。
+27. ✅ 已修复：原列出的无人消费派生状态已经删除。
+
+## 当前测试状态
+
+本轮新增：
+
+- `VideoPromptSetupPanel.test.tsx`：验证参考媒体完整工作区只展开在当前选中片段卡片内；
+- `videoTabUtils.test.ts`：验证没有最终提示词时仍从共享规划构建卡片、两张卡片恢复不同 recipe、正文 hash 未知或不匹配时不暴露旧规划；并验证实时 draft 与刷新 checkpoint 都能按镜头顺序重建连续片段编号并直接构建卡片；
+- `loadVideoTabData.test.ts`、`useVideoPromptGenerationActions.test.ts`、`VideoPlanningWorkspace.test.tsx`：验证续跑恢复原 workflow 参数、拒绝损坏输入、不使用当前表单兜底，并展示持久化 workflow 进度；
+- Rust 单测：验证 generation/workflow business key 使用 canonical card target、参考媒体 target 包含 plan/segment、共享规划 source hash 只认 execution identity；并验证每镜头 checkpoint 保存后端推导出的卡片必需字段。
+- Rust workflow 单测：验证运行摘要保留 `input_fingerprint_json`，供恢复链路读取唯一持久化输入。
+- `npm run test:browser-video-mode`：在真实 Chromium 中挂载 `VideoTab`，点击两个片段的模式按钮，并验证每次只持久化目标片段 recipe、另一片段模式保持不变。[已解决 2026-07-30]
+- `npm run test:browser-video-mode`：在真实 Chromium 中启动片段规划，验证首个 checkpoint 片段即时显示；取消后保留已保存片段和 50% / 1-of-2 持久化进度；修改当前表单后继续生成仍使用原 workflow 输入，并从镜头 2 续跑。[已解决真实浏览器缺口 2：取消/恢复，2026-07-30]
+- `npm run test:browser-video-mode`：在真实 Chromium 中保留片段 1 的首尾帧 adopted video，再把片段 2 从分镜切换为首帧续接；验证片段 2 recipe 自动持久化 `first_frame_chain + continuity + continuity_source_video_id`，片段 1 模式不变，续接来源下拉框实际选中该跨模式视频。[已解决真实浏览器缺口 3：跨模式续接，2026-07-30]
+- `npm run test:browser-video-mode`：在真实 Chromium 中同时挂载当前规划候选视频与旧规划遗留视频；验证结果区只显示当前规划视频，点击“采用”只写回当前视频 ID，并绕过 UI 直接调用采用 API 时旧规划视频被拒绝且不改写 adopted 状态。[已解决真实浏览器缺口 4：旧规划采用拒绝，2026-07-31]
+- `npm run test:browser-video-mode`：在真实 Chromium 中打开成片合成页；片段 2 仅有旧规划 adopted 时显示“尚缺片段 2”并禁用生成预览；两段均为当前规划有效 adopted 后才允许点击生成预览并调用 `assemble_chapter_videos(mixed)`。[已解决真实浏览器缺口 5：mixed assembly 完整覆盖，2026-07-31]
+
+当前审查目标中的真实浏览器缺口已全部关闭。
+
+---
+
+## 原始审查记录（历史）
+
+ ## P0：会直接造成流程不可用、错误数据或错误成片
+
+  ### 1. [已解决 2026-07-30] 全新流程存在“最终提示词—前置帧”的循环依赖
+
+  当前状态：该问题已经不存在，以下内容保留为原始审查记录。
+
+  - 片段卡直接由共享片段规划及增量 checkpoint 构建，不再依赖最终 `video_prompt`。
+  - 没有最终提示词时，卡片和准备工作区已经提供首尾帧、首段首帧、分镜提示词及图片
+    生成入口；最终提示词按钮只在对应 recipe 的前置条件完成后解锁。
+  - 首帧续接的后续片段不再要求生成新的系统首帧，可明确选择续接视频、关键帧或纯文本。
+  - Chat 最终提示词链路不读取或校验系统帧；Chat 帧提示词入口会被明确拒绝，后端无进展
+    错误也不再提示补齐首尾帧。
+  - 旧的 `runUntilComplete` 分支已经删除，目标片段通过 `target_shot_number` 明确传递。
+  - 回归测试覆盖了 `prompts=[]` 时首尾帧、首帧续接、分镜和 Chat 入口仍然可见；后端
+    Chat 集成测试同时断言不会落库任何帧提示词。
+
+  卡片只由已经生成的最终 video_prompt 构建：
+
+  - frontend/src/pages/novel-detail/VideoTab.tsx:596
+  - frontend/src/pages/novel-detail/video/VideoPromptSetupPanel.tsx:169
+
+  而准备首尾帧、分镜板等按钮只存在于“已经选中最终视频提示词”的编辑器内部：
+
+  - frontend/src/pages/novel-detail/video/VideoGenerationWorkspace.tsx:1076
+  - frontend/src/pages/novel-detail/video/VideoGenerationWorkspace.tsx:1120
+  - frontend/src/pages/novel-detail/video/VideoGenerationWorkspace.tsx:1155
+
+  但是后端生成最终 video_prompt 时，又要求相应的帧提示词、帧图片或分镜板已经完整存在：
+
+  - crates/a4n-orchestrator/src/video/prompt_generation/frame_prompts/video_chain/
+    preparation/frames.rs:35
+
+  - crates/a4n-orchestrator/src/video/prompt_generation/frame_prompts/video_chain/
+    preparation/frames.rs:63
+
+  - crates/a4n-orchestrator/src/video/prompt_generation/frame_prompts/video_chain/
+    preparation/frames.rs:79
+
+  形成了：
+
+  没有最终 video_prompt
+      → 看不到卡片中的帧准备入口
+      → 无法生成前置帧提示词/图片
+      → 后端拒绝生成最终 video_prompt
+      → 永远没有最终 video_prompt
+
+  各模式的具体断点不同：
+
+  - 首尾帧：卡片按钮统一传入 runUntilComplete: true，但 handler 明确拒绝首尾帧模式的一
+    键续跑：
+    frontend/src/pages/novel-detail/video/useVideoPromptGenerationActions.ts:615
+
+  - 首帧续接：编辑器分支没有“准备首帧提示词”按钮。
+  - 分镜：准备分镜提示词入口也只有最终提示词存在后才能看见。
+  - Chat：前端主动隐藏帧区域，但后端仍将 Chat 当作边界帧输入链处理：
+    frontend/src/pages/novel-detail/video/VideoGenerationWorkspace.tsx:1076、
+    crates/a4n-orchestrator/src/video/prompt_generation/frame_prompts/video_chain/
+    preparation/frames.rs:51
+
+  因此，只有历史数据里已经有旧帧提示词的章节可能“看起来能用”；全新章节并没有完整可达的
+  操作链。
+
+  ———
+
+  ### 2. [已解决 2026-07-30] 片段卡片不是由片段规划构建，而是由最终提示词构建
+
+  当前状态：该问题已经不存在，以下内容保留为原始审查记录。
+
+  - 正式卡片只由当前 `frame_segment_plan.metadata.segments` 构建；生成中的卡片只由已校验
+    checkpoint segments 构建。
+  - 最终 `video_prompt` 仅作为对应片段卡中的下游 variant 展示，不参与卡片集合或编号生成。
+  - 当前选择不存在时，会直接选择规划中的第一张卡，不需要先存在最终提示词。
+  - 页面不再保存章节级默认 `workflowMode`；当前模式只从所选片段的持久化 recipe 派生。
+  - 参考媒体可以作为片段的第一个执行方案，`prompts=[]` 时仍可打开片段内参考媒体工作区。
+  - `videoTabUtils.test.ts` 已覆盖“没有最终提示词也从正式/增量规划构建卡片”；
+    `VideoPromptSetupPanel.test.tsx` 已覆盖无最终提示词时模式入口和参考媒体工作区仍然存在。
+
+  当前卡片数据来源是：
+
+  prompts.filter((prompt) => prompt.prompt_type === "video_prompt")
+
+  位置：
+
+  - frontend/src/pages/novel-detail/VideoTab.tsx:596
+  - frontend/src/pages/novel-detail/VideoTab.tsx:1852
+
+  这意味着：
+
+  1. 片段规划已经成功生成。
+  2. 规划里已经有片段 1、2、3。
+  3. 只要最终 video_prompt 尚未生成，提示词卡片区域仍然是空的。
+  4. 用户无法在“片段规划完成后”为每个片段选择执行模式。
+
+  这与目标流程正好相反。正确的卡片来源应该是当前共享片段规划中的稳定 segment identity，
+  而不是下游最终提示词。
+
+  默认全局模式还是 chat_video：
+
+  - frontend/src/pages/novel-detail/video/videoTabUtils.ts:159
+
+  因此当前用户实际上要先按全局 Chat 模式生成出某种最终提示词，卡片才出现，再去卡片里“选
+  择模式”。这不是片段级方案选择，只是对已经生成的结果进行模式切换。
+
+  参考媒体因此也无法成为片段的第一个方案，因为它要求先找到一个其他模式的 video_prompt
+  作为锚点。
+
+  ———
+
+  ### 3. [已解决 2026-07-30] 所有片段卡片仍共享同一个模式
+
+  当前状态：该问题已经不存在，以下内容保留为原始审查记录。
+
+  - 页面以 `Map<segment_number, VideoSegmentExecutionRecipe>` 保存和渲染每个片段的独立
+    recipe；不存在章节级 `workflowMode` state 或 `setWorkflowMode`。
+  - 每张卡的 selector 读取自己的 `recipe.workflow_mode`，切换时显式传入该卡片的
+    `shotNumber`，不会读取其他卡片或全局模式。
+  - 正式规划通过 `segment_recipe` 只更新目标 segment；生成中的规划通过稳定
+    `source_shot_id + segment_index_in_shot` 更新目标 checkpoint recipe。
+  - 取消、刷新和最终规划合并都会恢复每个片段各自的模式，不会只保留最后一次章节选择。
+  - 前端回归测试同时渲染四张不同模式的卡并断言各自 active selector；后端已有
+    `recipe_upsert_is_scoped_to_current_plan_segment` 测试保护目标片段更新边界。
+
+  章节只保存一个全局 workflowMode：
+
+  - frontend/src/pages/novel-detail/VideoTab.tsx:321
+  - frontend/src/pages/novel-detail/VideoTab.tsx:325
+
+  每张卡片都绑定：
+
+  value={workflowMode}
+
+  位置：
+
+  - frontend/src/pages/novel-detail/video/VideoPromptSetupPanel.tsx:727
+
+  任一卡片切换模式，最终调用的是章节级：
+
+  setWorkflowMode(mode)
+
+  位置：
+
+  - frontend/src/pages/novel-detail/VideoTab.tsx:1138
+  - frontend/src/pages/novel-detail/VideoTab.tsx:1162
+
+  可稳定复现：
+
+  1. 片段 1 选择“首尾帧”。
+  2. 片段 2 选择“分镜”。
+  3. 片段 1、片段 2 的选择器都会一起变成“分镜”。
+  4. 刷新后只会恢复最后一次章节级选择。
+
+  数据库和 API 中不存在 segment -> selected workflow 的持久化关系。
+
+  所以现在不是“每个卡片有一个模式选择器”，而是“同一个章节选择器在每张卡片里重复显示”。
+
+  ———
+
+  ### 4. [已解决 2026-07-30] target_shot_number 只接通了最终提示词，帧链路仍然丢弃目标片段
+
+  当前状态：该问题已经彻底收敛，以下内容保留为原始审查记录。
+
+  - 卡片按钮把自己的 `segment_number` 显式写入 `target_shot_number`；API 合同、generation
+    operation、`PreparedVideoPromptInputs`、frame orchestration 和 layout dispatch 全程保留该值。
+  - 帧链现在强制要求 `segment_plan_prompt_id + target_shot_number + segment_recipe`，缺少任何
+    一项都会显式失败，不再退回整章前缀生成。
+  - 目标视频单元按内容单元的 `source_segment_number` 选择并恢复为卡片片段编号；即使目标前
+    插入了动作桥，也不会把动作桥的顺序编号误当成目标片段。
+  - 首尾帧模式只读取目标片段规划并生成两条本地边界帧 `1/2`；构造最终提示词时仅把内存
+    副本和图片索引映射为 `target/target+1`，数据库中的卡片局部编号不变，最终提示词仍以
+    原卡片片段编号持久化。片段 2 以后不再因局部重编号被过滤，也不会把本地尾帧误当首帧。
+  - 分镜模式只生成目标内容片段的一条分镜，校验直接使用目标视频单元的来源片段，不再要求
+    整章分镜完整，也不会因动作桥改变全章单元序号而校验错片段。
+  - 首帧续接仅允许片段 1 生成系统首帧；片段 2 以后生成最终提示词时不再错误要求章节初始
+    系统首帧，继续使用显式续接来源、关键帧或纯文本引导。
+  - 目标帧任务的预计数量、实际循环范围、落库草稿和最终进度均来自同一个目标单元：首尾帧
+    为 2 条，分镜为 1 条，首帧续接首段为 1 条、后续段为 0 条系统帧。
+
+  定向验证：
+
+  - 前端 `useVideoPromptGenerationActions.test.ts` 断言点击片段 2 会提交
+    `segment_plan_prompt_id=44 + target_shot_number=2 + prompt_batch_size=2`。
+  - 后端 `targeted_boundary_inputs_keep_target_segment_identity` 断言片段 2 只消费数据库中的
+    本地边界帧 `1/2`，进入最终提示词上下文时映射为 `2/3`，且视频单元和提示词片段身份
+    仍为 2。
+  - 后端 `target_segment_selects_content_unit_even_when_a_bridge_precedes_it` 和
+    `targeted_storyboard_prompt_uses_target_content_segment_after_action_bridge` 断言动作桥不会
+    抢占片段 2 的目标身份。
+  - 后端 `first_frame_video_prompt_drafts_allow_later_target_without_initial_first_frame` 断言后续
+    首帧续接片段无需隐藏系统首帧。
+
+  API 合同已经有 target_shot_number：
+
+  - crates/a4n-api-contract/src/video.rs:83
+
+  最终视频提示词链确实会消费它：
+
+  - crates/a4n-orchestrator/src/video/prompt_generation/frame_prompts/video_chain.rs:47
+  - crates/a4n-orchestrator/src/video/prompt_generation/frame_prompts/video_chain/
+    unit_workflow.rs:101
+
+  但帧提示词链在解构 PreparedVideoPromptInputs 时使用 .. 丢掉了 target_shot_number：
+
+  - crates/a4n-orchestrator/src/video/prompt_generation/frame_prompts/frame_chain/
+    orchestration.rs:33
+
+  下游 dispatch 结构也完全没有 target 字段：
+
+  - crates/a4n-orchestrator/src/video/prompt_generation/frame_prompts/frame_chain/
+    layout_dispatch.rs:24
+
+  所以即使卡片以后传入目标片段：
+
+  - 首尾帧仍会从整章前缀开始处理。
+  - 分镜仍会按整章批次处理。
+  - 首帧续接仍是整章链。
+  - 进度摘要可能声称目标数量是 1，但实际帧链可能处理多条。
+
+  并且分镜最终提示词即使指定了单个 target，后端仍要求整章所有分镜板完整：
+
+  - crates/a4n-orchestrator/src/video/prompt_generation/frame_prompts/video_chain/
+    preparation/frames.rs:63
+
+  因此“生成此片段方案”目前没有真正的后端执行语义。
+
+  ———
+
+  ### 5. [已解决 2026-07-30] 共享片段规划与模式级参数互相冲突
+
+  当前共享规划参数只有章节级存储键 `chapterStorageKey:segment-plan-options`；不存在按
+  `workflowMode` 分叉的生成参数或参考图本地状态。每个片段的模式、参考图、媒体和生成参数
+  统一保存在其 `VideoSegmentExecutionRecipe` 中，切换模式只更新目标片段 recipe。
+
+  片段生成时，后端以当前正式共享规划中的 recipe 覆盖客户端传入的 workflow mode、style、
+  language、duration、aspect ratio 和引用图片 ID。recipe 写入数据库时也统一经过
+  `metadata_with_video_segment_recipe` 与 `validate_for_plan`，任何与共享规划 style、duration
+  或 aspect ratio 冲突的旧客户端/API 请求都会显式失败，不能再写入损坏状态。
+
+  当前约束收敛为一个来源：共享规划拥有 style、duration 和 aspect ratio；片段 recipe 只保存
+  模式及其媒体配置，并必须与共享规划一致。
+
+  ———
+
+  ### 6. [已解决 2026-07-30] 旧提示词、旧合同、旧规划和其他语言记录会混入卡片
+
+  卡片列表与当前选中提示词现在共用 `currentFinalVideoPromptMatchesSegment`，统一检查：
+
+  - 最终提示词类型和当前 workflow mode；
+  - 当前模式的正式合同版本；
+  - `source_prompt_type=frame_segment_plan`；
+  - 当前共享规划、片段编号和 recipe fingerprint；
+  - 当前正文、拍摄剧本和规划的 execution base identity；
+  - metadata 与 execution identity 中一致的输出语言；
+  - 完整的 frame set 和 generation asset execution identity。
+
+  `VideoPromptSetupPanel` 接收的已是这组当前有效记录，因此旧合同、旧规划、旧正文、错误语言和
+  identity 不完整的记录不会出现在 variants 中，也不会让生成按钮误判为“方案已存在”。持久化的
+  旧 selected prompt ID 不在有效集合时会直接重置到当前片段最新有效提示词，不再先显示旧记录再
+  回退到另一条记录。
+
+  后端 target 预检同样复用正式合同映射、完整 execution identity 校验和片段 identity 匹配；
+  只有当前规划、当前 recipe、当前合同和当前语言的完整最终提示词才算“已存在”。旧同编号记录
+  不会再阻止当前片段生成或重新生成。
+
+  ———
+
+  ### 7. [已解决 2026-07-30] 旧规划视频可以被当前规划采用并进入混合成片
+
+  前端候选视频现在由 `videoExecutionSegmentIdentityMatchesVideo` 过滤，必须同时匹配当前共享
+  规划 execution base identity、规划 ID、片段编号和 recipe fingerprint；工作区不再按
+  `shot_number` 展示全部历史视频。采用操作还会在请求前重复校验当前片段身份。
+
+  后端采用入口要求客户端明确提交当前 `segment_plan_prompt_id + shot_number`，随后重新读取当前
+  正式规划和 recipe，并校验视频的项目、章节、状态、文件、workflow mode、片段编号及完整
+  execution identity。采用状态只写入当前规划片段 recipe 的 `adopted_video_id`；运行时代码已不再
+  使用 `selected_for_segment` 双重状态。
+
+  mixed 成片会逐片段读取当前规划 recipe，并再次校验每个 adopted video 的当前规划和 recipe
+  identity；缺失、重复、旧规划或已失效视频都会显式阻止合成。迁移修复也会先清除弱匹配遗留的
+  `adopted_video_id`，只保留或恢复完整 identity 精确匹配的视频。
+
+  ———
+
+  ### 8. [已解决 2026-07-30] 混合成片不验证当前规划，也不验证完整覆盖
+
+  mixed 成片已不再依赖 `selected_for_segment`。前端从当前共享片段规划的全部卡片
+  计算 adopted video 和缺失片段；任一片段未采用视频时，生成按钮禁用，处理函数也会明确拒绝。
+
+  后端在成片列表、缓存加载、插入与推送路径统一调用
+  `current_mixed_adopted_video_ids`，并验证：
+
+  - 当前章节正文对应的当前共享片段规划。
+  - 规划中每个 segment 都恰好有一个 recipe 和一个 adopted video。
+  - adopted video ID 不重复，视频已完成且文件可用。
+  - 视频的项目、章节、片段号、模式与完整 execution identity 均匹配当前规划和 recipe。
+
+  本轮又修复了一个当前规划选择残口：原逻辑先选所有已完成规划中 ID 最大的记录，
+  再校验正文 identity，会让较新但已失效的规划挡住与当前正文匹配的较早规划。
+  现在通过唯一的 `current_shared_segment_plan` 先按当前正文 hash 过滤有效规划，再取其中 ID
+  最大的一条；显式规划校验与 mixed 成片共用这一条规则。
+
+  因此，缺失中间片段、重复采用、旧规划视频或失效 identity 都会明确阻止 mixed 成片。
+
+  ———
+
+  ### 9. [已解决 2026-07-30] 参考媒体草稿、目标片段和锚点都没有绑定稳定片段身份
+
+  参考媒体目标已不再使用章节级共享指针。选中片段、选中提示词、选中视频和待恢复视频任务
+  的存储 key 现在都包含当前规划身份：生成中草稿使用 workflow run ID，正式规划使用
+  segment plan prompt ID。规划切换后不会复用上一份规划的目标指针。
+
+  参考媒体草稿使用以下组合身份：
+
+  - 当前规划身份（workflow run ID 或 segment plan prompt ID）。
+  - `segment_number`。
+  - `source_shot_id`。
+  - `segment_index_in_shot`。
+
+  切换片段会先保存当前身份下的草稿；规划或稳定片段身份变化时，界面从新 recipe
+  重新加载，旧脏草稿不能写入新规划。生成中草稿缺少 workflow run ID 时会明确失败，
+  不再 fallback 到旧正式规划。
+
+  本地文件对象本身不能跨刷新序列化；现在 recipe 会保留文件 hash、文件名和 MIME 类型，
+  界面明确标注“刷新后需重新选择该文件”，生成和导入也会拒绝缺失本地文件的不完整输入，
+  不再伪装成已完整恢复。
+
+  参考媒体预览、生成和外部视频导入都要求 `segment_plan_prompt_id` 对应当前共享规划，
+  再从该规划读取目标片段 recipe，校验 reference_media 模式并写入完整 execution identity。
+  前端提示词列表也只保留当前规划和当前 recipe fingerprint 匹配的记录，不存在旧提示词
+  fallback。
+
+  ———
+
+  ### 10. [已解决 2026-07-30] 切换卡片模式会让 UI 解除 busy，但不会取消后端任务
+
+  该问题描述对应的旧实现已不存在。当前 `videoActionScopeKey` 只使用稳定的章节数据 scope，
+  不再包含当前卡片的 workflow mode；切换首尾帧、首帧续接、分镜、参考媒体或 Chat 模式
+  不会改变正在运行任务的 action scope。
+
+  busy 状态已收敛到 `VideoTab` 的单一 `actionBusyRef`。
+  `useVideoPromptGenerationActions` 和 `useVideoRecordActions` 不再拥有“scope 变化就清空
+  busy/task ID”的 effect，也不会因卡片模式变化调用 `setActing(null)`。
+
+  卡片的模式和媒体引导控件统一使用：
+
+  `acting != null || chapterGenerating || savingRecipe`
+
+  作为 busy 条件。任何生成或记录操作进行中，卡片模式选项都会禁用，用户不能通过
+  切换模式制造第二个前端任务。
+
+  generation 进度统一由 `runGenerationProgressTaskThen` 保持真实 `GenerationTaskHandle`，
+  `waitForTerminal` 持续更新进度和模型实时文本；点击停止时唯一调用
+  `generationClient.cancel(handle)`。卡片视图变化不会关闭进度对话框或伪装成任务已结束。
+
+  ———
+
+  ### 11. [已解决 2026-07-30] “生成全部”实际上会提交所有模式、所有规划、包括已有视频的提示词
+
+  该问题描述对应的“生成全部”入口已在当前版本中移除，现在没有批量提交本章所有视频提示词的 UI 或 handler。
+
+  当前流程是“从片段卡片选中当前片段，再生成该片段的提示词”：
+
+  - `VideoPromptSetupPanel` 只提供卡片级的帧提示词或最终提示词操作，不再显示“生成全部”。
+  - `useVideoPromptGenerationActions` 接收的 `allFinalVideoPrompts` 只用于当前片段的运行中状态检查和变体汇总，并不作为批量提交集合。
+  - 目标提示词按当前卡片的 `shot_number`、workflow mode 和 recipe 语言筛选，只能影响当前所选方案。
+  - 已有视频的提示词在重新生成时会被明确拒绝，不会静默重复提交。
+
+  前端目前只能生成当前片段的批次提示词，这与“生成全部片段”是两个不同的语义；后者已被移除，不再存在所述重复成本风险。
+
+  ———
+
+  ## P1：会造成操作错位、状态串用或功能名实不符
+
+  ### 12. [已解决 2026-07-30] 选中提示词和选中视频仍按模式持久化，不按片段持久化
+
+  该问题描述的模式级持久化已不存在。当前 `segmentStorageKey` 同时包含：
+
+  - 项目与章节身份。
+  - 当前片段规划身份（草稿 workflow run ID 或正式 segment plan prompt ID）。
+  - 当前 `segment_number`。
+
+  `selected-prompt`、`selected-video` 和 `pending-video` 都使用该片段 key 的独立后缀，不再使用
+  `chapter + workflowMode`。切换规划或片段后会加载对应身份的选中状态。
+
+  候选列表与预览也已使用同一过滤链：
+
+  - 最终提示词必须匹配当前规划、当前片段、当前 recipe fingerprint、模式和语言。
+  - `workflowVideos` 必须匹配当前模式和当前完整片段 execution identity。
+  - `VideoGenerationWorkspace` 的候选列表直接接收 `workflowVideos`，预览也从同一列表选择；不会出现“候选是片段 2、预览是片段 1”。
+  - 参考媒体候选视频从同一 `workflowVideos` 再按当前片段确认，不再与全局模式选中状态混用。
+
+  采用视频时，前端从视频自身 execution identity 读取 `segment_number`，再校验它与当前片段、当前规划和 recipe fingerprint 一致；不再从 `selectedPrompt` 猜测片段号。
+
+  ———
+
+  ### 13. [已解决 2026-07-30] 首帧续接无法真正与其他片段模式混用
+
+  - 前端不再按上一段提示词或当前模式猜测续接来源；可选来源是当前规划中更早片段已
+    采用、已完成且 execution identity 匹配的视频。
+  - 首帧续接 recipe 显式持久化 `continuity_source_video_id`；提示词 metadata 同时冻结
+    `continuity_source.video_id`，recipe 指纹也包含该来源，不会跨规划或跨执行方案误复用。
+  - 前端按来源视频 ID 索引真实尾帧；后端 provider 生成入口也只接受该视频的
+    `video_tail_frame_capture` 产物作为起始图。
+  - 首尾帧、首帧续接和 Chat 片段的已完成视频均会采集真实尾帧；因此“片段 1 用首尾帧，
+    片段 2 续接片段 1 已采用视频”已是受支持的正常链路。
+  - `previous_completed_shot` 仅是可选的 LLM 文字叙事上下文，混合模式下缺少该文字上下文不会阻止
+    定向提示词生成，也不参与 provider 起始帧选择。
+
+  ———
+
+  ### 14. [已解决 2026-07-30] 参考图和生成参数仍是章节/模式级，却显示“当前片段”
+
+  - 当前参考图、素材库图片、媒体引导、语言和模式均从当前选中片段的
+    `VideoSegmentExecutionRecipe` 读取。
+  - 参考图和素材库的修改通过 `updateSegmentRecipe(segmentNumber, ...)` 只写回目标片段，
+    片段 1 的选择不会再自动污染片段 2。
+  - 视频提示词和 provider 请求从目标片段 recipe 构造生成选项，不再读取“项目 + 模式”
+    的旧持久化状态。
+  - 仍然存在的 `segment-plan-options` 只服务于共享片段规划表单，存储键是“项目 + 章节”；
+    style、时长和画幅作为规划不变量在重新生成规划时统一修改，不是卡片级隐式参数。
+  - 视频工作区 header 显示“当前片段”与真实作用域一致；共享规划参数仅在“片段规划”
+    工作区编辑。
+
+  ———
+
+  ### 15. [已解决 2026-07-30] 参考媒体并不是与其他模式平级的片段方案
+
+  - 卡片的当前模式直接来自片段 recipe 的 `workflow_mode`，不再由 video prompt variant 反推；
+    `reference_media` 与首尾帧、首帧续接、分镜和 Chat 使用同一个模式选择合同。
+  - 刷新后会从当前规划的片段 recipe 恢复 `reference_media` 模式及其 prompt、image/video/audio rows
+    和 adopted video，不依赖章节级选中指针。
+  - 参考媒体方案明确不生成最终提示词记录；这是该 provider 的执行合同，不会影响它作为
+    独立片段方案。卡片在 `prompts=[]` 时仍可选参考媒体。
+  - 旧的“执行方案数量 = 提示词 variant 数量”、`currentVariant`、章节级 `referenceMediaSegment`
+    和右侧 `workspaceOverride` 特殊入口均已退出当前实现。
+  - 完整的参考媒体配置、候选视频、采用和导入/生成操作直接展开在当前片段卡片内，
+    不再借用其他 prompt 或独立章节工作区。
+
+  ———
+
+  ### 16. [已解决 2026-07-30] 旧的章节级“生成下一批”仍然是主入口
+
+  - `VideoPromptSetupPanel` 已没有 generate tab、全局 mode、整章剩余计数或“生成下一批”按钮；
+    它只渲染共享片段规划产生的卡片及各卡片 recipe。
+  - 生成最终提示词的唯一 UI 入口位于当前选中片段的“准备执行方案”工作区，请求显式
+    传递 `targetShotNumber: selectedSegmentNumber`。
+  - 后续 action 从目标片段 recipe 构造参数，并将 `target_shot_number` 传入后端；不再按全局
+    mode 或整章进度发起批量生成。
+  - 本轮进一步删除了 `VideoPromptSetupPanel` 未使用的 `onGeneratePrompts` 属性，以及
+    `VideoGenerationWorkspace` 和组件测试中的传参残留，旧章节级入口合同已完全退出。
+
+  ———
+
+  ### 17. [已解决 2026-07-30] reference_media 模式仍会显示一个后端必定拒绝的提示词生成入口
+
+  - `VideoPromptSetupPanel` 已不再渲染任何章节级“生成下一批”入口；参考媒体卡片只显示
+    其独立媒体工作区。
+  - `VideoGenerationWorkspace` 仅在 `mode !== "reference_media"` 时渲染“生成最终提示词”按钮；
+    参考媒体模式不存在可点击的无效入口。
+  - 页面 action 在调用生成 hook 前还会通过 `finalPromptBlockedReasonForSegment` 拒绝参考媒体方案，
+    避免程序化或过期调用越过 UI。
+  - `useVideoPromptGenerationActions` 中“当前模式的视频提示词链路尚未接入”的拒绝仍保留，
+    它是 action 入口的边界校验，不是用户可见的旧工作流入口。
+  - 本轮为现有卡片测试补充回归断言：`reference_media` 显示为当前模式时，不得渲染
+    “生成最终提示词”。
+
+  ———
+
+  ### 18. [已解决 2026-07-30] 卡片模式和“媒体引导”形成两套互相覆盖的生成方式
+
+  - 片段 `workflow_mode` 定义提示词/视频工作流；`guidance_mode` 只定义该工作流生成最终视频时的
+    provider 媒体输入，两者的可用组合由 `videoGuidanceCapabilityError` 和后端 recipe 校验共同约束。
+  - 普通参考素材、关键帧和续接来源分别存储在 `reference_image_ids`、
+    `guidance_reference_image_ids` 和 `continuity_source_video_id`，不再从同一份
+    `reference_image_ids_json` 反推编辑状态。
+  - recipe 可保留非激活 guidance 的草稿选择，便于用户切回时恢复；但生成指纹、冻结提示词
+    metadata 和 provider 请求只接收当前 guidance 合同的活跃输入。
+  - `provider_reference_image_ids()` 在关键帧模式只返回 `guidance_reference_image_ids`，在续接或纯文本
+    模式返回空列表；系统帧模式不会提交旧关键帧。
+  - 本轮修复最后一个冻结状态残留：`with_segment_recipe_metadata` 现在仅在
+    `guidance_mode == continuity` 时写入 `continuity_source`，切回系统帧、关键帧或纯文本后写入
+    `null`。
+
+  ———
+
+  ### 19. [已解决 2026-07-30] 卡片模式切换会重置整页不相关状态
+
+  - 当前卡片面板只展开选中片段的模式和媒体引导控件；其他片段只显示方案摘要，不会在
+    未切换选中片段时修改其 recipe。
+  - `handleSegmentWorkflowModeChange` 先通过 `handleSelectSegment`；当前提示词有未保存编辑时，必须由用户
+    确认放弃后才能切换，不会静默清空草稿。
+  - 离开参考媒体模式前，当前片段的脏媒体草稿会先保存；草稿 scope 包含规划身份、片段号和
+    稳定片段锚点，不会改写其他片段。
+  - 选中提示词、选中视频和 pending video 按“规划身份 + 片段号”持久化；模式切换不再更换
+    这些状态的存储 scope。
+  - 任务 action scope 只由 `videoDataKey`（项目、章节和可用图片项目）构成，不包含 workflow mode；
+    切换模式不会丢失 busy、generation handle 或取消能力。
+  - 提示词文字草稿只在 `selectedPrompt.id` 改变时重建，参考图和生成选项直接来自目标片段
+    recipe，不存在 workflow mode effect 全页清空。
+  - 仅有提示词/图片请求预览会在选中片段或 workflow mode 改变时关闭；这些预览绑定旧片段
+    recipe，关闭是防止展示失效 provider 请求，不是重置其他片段状态。
+
+  ———
+
+  ### 20. [已解决 2026-07-30] 隐藏的 workflowTargetShotRef 会在失败后残留并污染后续请求
+
+  - `workflowTargetShotRef` 和它的写入/成功后清理 effect 已完全删除；当前前端不存在任何跨请求保存
+    目标片段的 ref。
+  - 片段工作区的“准备帧提示词”和“生成最终提示词”按钮都显式传入
+    `targetShotNumber: selectedSegmentNumber`。
+  - 页面 handler 立即将本次参数解析为局部 `segmentNumber`，等待该片段 recipe 保存后读取同号
+    recipe，再把同一目标传给生成 hook。
+  - 生成 hook 的 `targetShotNumber` 也是单次函数调用的局部常量，最终写入 API 的
+    `target_shot_number`；失败、取消、preflight 返回或切换章节都不会修改下一次调用。
+  - 旧顶部“生成下一批”入口已删除；用户只能从当前可见片段工作区发起定向生成。
+
+  ———
+
+  ### 21. [已解决 2026-07-30] 删除依赖图没有使用 execution identity，可能扩大删除范围
+
+  - 后端 `prompt_same_generation_chain` 现在要求 project/chapter、style/aspect、source hash 和
+    `video_execution_identity` 的基础链身份同时匹配。
+  - 基础链身份覆盖 contract epoch、拍摄剧本身份、projection/segment plan/unit plan hash、正文 hash、
+    style hash、时长和画幅；任一字段不同即不属于同一生成链。
+  - 共享片段规划作为上游时，下游必须显式指向该规划 prompt ID；非共享节点之间则还必须同时
+    匹配 `segment_plan_prompt_id`、`segment_number` 和 `segment_recipe_fingerprint`。
+  - 缺少完整 execution identity 的旧记录会 fail closed，不会回退到章节级弱匹配并被自动级联删除。
+  - 帧图按直接 generation prompt ID 归属，视频按最终提示词的 `generated_video_id` 归属；后端
+    `prompt_downstream_dependencies` 是删除预案和实际删除使用的权威依赖图。
+  - 前端的下游数量仅用于确认对话框提示，但同样通过 `videoExecutionPromptsShareGenerationChain`
+    校验规划、片段和 recipe 身份，不会把其他片段 variant 计入当前链。
+  - 本轮补充后端纯规则回归断言：同规划下的不同片段、同片段下的不同 recipe 必须被判定为
+    不同生成链。
+
+  ———
+
+  ## P2：合同不一致、迁移残留和死代码
+
+  ### 22. [已解决 2026-07-30] 卡片级执行方案已有单一持久化模型和身份约束
+
+  原审查只查看了兼容历史数据的 `segment_card_video_workflow` 回填迁移，遗漏了后续完整实现：
+
+  - `VideoSegmentExecutionRecipeV1` 是卡片级方案的强类型合同，`workflow_mode`、引导方式、参考图、参考媒体和采用视频均按片段保存。
+  - `segment_execution_recipe_identity` 为每个已完成规划回填一一对应的 `segment_recipes`，并删除旧 `selected_for_segment` 双重状态；`segment_recipe_adoption_repair` 只恢复身份完全匹配的采用视频。
+  - 方案直接存放在所属共享规划记录中，规划记录主键就是 plan identity；`segment_number` 必须与同一记录内的规划片段完整一一对应，因此无需再创建重复的规划表和片段表制造双写。
+  - 下游提示词和视频冻结 `segment_plan_prompt_id`、`segment_number` 与 `segment_recipe_fingerprint`，数据库唯一索引和依赖规则均使用该执行身份。
+  - 正式规划通过 `update_chapter_video_prompt.segment_recipe` 原子更新单个片段；生成中的增量规划通过 `update_video_segment_plan_draft_recipe` 更新对应 checkpoint。Tauri 与 Web 共用同一 runtime/orchestrator 入口。
+
+  当前数据库不再依赖章节级模式或任意 metadata patch 修改卡片方案；新增独立表只会形成第二持久化来源，故不采用。
+
+  ———
+
+  ### 23. [已解决 2026-07-30] 共享片段规划统一使用单一模式身份
+
+  原审查引用的“规划请求强制改成 `boundary_frames`”代码已经删除。当前规则为：
+
+  - 前端规划入口明确提交 `shared_segment_plan`，不再复用卡片当前选择的执行模式。
+  - generation 启动边界在任务预留和输入指纹持久化之前调用规划阶段校验；规划操作携带任何卡片模式都会直接失败，不会产生错误身份的 task。
+  - 应用层不再改写模式，workflow run 的 mode 与 input fingerprint 均使用已经校验的 `shared_segment_plan`。
+  - `frame_segment_plan` 持久化合同同样只接受 `shared_segment_plan`；帧提示词和最终提示词反向禁止使用共享规划模式。
+
+  因此 task input、workflow run 与 persisted prompt 不再是三套可独立变化的身份，而是同一个经过启动边界校验的共享规划模式。同步修正了仍以 `boundary_frames` 调用规划入口的过期前端 API 测试，并新增后端回归测试。
+
+  ———
+
+  ### 24. [已解决 2026-07-30] 工作流身份完整绑定规划与目标片段
+
+  当前 workflow 身份已经同时覆盖：
+
+  - fingerprint 的 options 包含 `segment_plan_prompt_id`、`target_shot_number` 和 `segment_recipe_fingerprint`。
+  - business key 在章节和模式基础上追加 `plan:{plan_id}:segment:{segment_number}`。
+  - generation reservation 的 canonical target 同样包含规划 ID 和片段号，参考媒体任务也使用相同目标粒度。
+  - 卡片生成入口要求 plan ID 与 target 同时存在，不能产生只有 plan 或只有 segment 的正常运行。
+
+  因此同章节、同模式但不同规划或不同片段的任务不会再复用同一 workflow run；输入变化时，数据库会 supersede 旧运行而不是把新 active task 写入旧片段历史。新增回归测试直接验证同规划不同目标片段的 fingerprint 不相等。
+
+  ———
+
+  ### 25. [已解决 2026-07-30] PromptFrames 目标范围与进度语义一致
+
+  当前帧链已经完整消费 `target_shot_number`：
+
+  - 帧生成入口要求明确目标片段，不再允许隐式整章执行。
+  - 边界帧只投影目标片段并生成该片段的两张边界帧。
+  - 分镜只选择目标片段对应的视频单元，期望数量固定为 1。
+  - 首帧续接只允许片段 1 生成初始首帧；后续片段明确要求采用上一片段视频，不会重跑前缀。
+
+  本轮进一步清理了进度统计中的单位混用：`committed_records` 只用于确认本次确实产生了持久化记录，不再直接作为 batch 的成功目标数。任务完整成功后才把单个目标记为 1/1；任何中途失败或取消都记为目标未完成，即使已经持久化了部分边界帧记录，也不会错误显示目标成功。逐帧进度仍使用帧级 `item_index/item_total`，与目标级 batch summary 各自表达单一语义。
+
+  ———
+
+  ### 26. [已解决 2026-07-30] 危险的批量删除死代码已彻底移除
+
+  `handleDeleteAllFramePrompts` 的定义、hook 返回字段和所有相关分支均已删除。当前全仓不存在该名称，也不存在用 `videoPromptStage(prompt) === 3` 筛选“帧提示词”的错误逻辑，因此不能再被误接回 UI 后删除最终视频提示词。
+
+  `videoPromptStage` 本身仍由单条提示词删除的下游依赖计数使用；该有效逻辑明确区分 stage 2 帧提示词与 stage 3 最终提示词，未作为死代码连带删除。
+
+  ———
+
+  ### 27. [已解决 2026-07-30] 无人消费的派生状态迁移残留已删除
+
+  原审查列出的以下六个派生值已经从 `useVideoTabDerivedState` 的计算和返回合同中彻底移除：
+
+  - `workflowAssemblyVideos`
+  - `framePromptStageReady`
+  - `framePromptStageMessage`
+  - `chapterAnalysisSummary`
+  - `videoLibraryImages`
+  - `staleSavedReferenceIds`
+
+  全仓不存在这些名称的定义或消费方。当前 hook 只保留页面真实使用的提示词、候选视频、参考图、帧图片、陈旧状态和时长限制等派生值，不再暴露看似已接通但实际无 UI/业务语义的迁移残留。
+
+  ———
+
+  ## 前端测试缺口
+
+  我搜索了当前前端测试，没有找到覆盖以下关键行为的测试：
+
+  - [已覆盖 2026-07-30] 两张片段卡选择不同模式，互不影响。`VideoPromptSetupPanel.test.tsx` 现在以同一组 per-segment recipes 分别选中片段 1 和片段 2 重渲染，验证两个片段保持各自模式摘要，且只展开当前卡片的模式控件；持久化恢复测试另行验证不同 recipe 模式不会合并。
+  - [已覆盖 2026-07-30] 只有片段规划、没有最终提示词时也能显示全部片段卡。`videoTabUtils.test.ts` 验证卡片直接由共享规划 segments 构建，`VideoPromptSetupPanel.test.tsx` 在 `prompts=[]` 时渲染全部四张规划卡及其独立方案，不依赖任何 `video_prompt` 创建卡片。
+  - [已覆盖 2026-07-30] 刷新后恢复每个片段独立模式。`loadVideoTabData.test.ts` 从最新持久化 workflow checkpoint 加载同一镜头内两个片段的 Chat/Storyboard recipes，并断言恢复后的 recipe map 分别保持两种模式；正式规划解析测试也覆盖 Boundary/Storyboard 独立恢复。
+  - [已覆盖 2026-07-30] 全新章节能完成首尾帧、首帧、分镜、Chat 的完整链路。`useVideoPromptGenerationActions.test.ts` 先从无规划状态创建共享片段规划，再基于已保存规划分别验证首尾帧、首帧和分镜的帧提示词→最终提示词请求，以及 Chat 跳过帧阶段直接生成最终提示词；所有请求均断言绑定正确的规划 ID、目标片段和该片段独立 recipe。
+  - [已覆盖 2026-07-30] target 帧生成只处理目标片段。前端生成 action 测试断言卡片请求携带其 `target_shot_number`；后端 `video_unit_for_target_segment` 只从完整规划选出目标内容片段并构造单个视频单元，首尾帧和分镜回归测试进一步验证不会误用相邻片段或动作桥。
+  - [已覆盖 2026-07-30] reference media 草稿不会跨片段串用。草稿 scope 同时绑定规划身份、片段号、来源镜头和镜头内片段序号；切换 scope 会从目标片段 recipe 重建草稿，保存前再次校验当前 scope。`referenceMediaWorkspace.test.ts` 现已直接验证同规划、同来源身份下仅改变片段号也会产生不同 scope。
+  - [已覆盖 2026-07-30] stale variant 不会阻止当前规划 variant。最终提示词进入当前卡片和生成 action 前必须匹配当前规划 ID、片段号和 recipe 指纹；`videoTabUtils.test.ts` 现已直接验证旧规划及旧 recipe 的 stale variant 即使已有 `generated_video_id` 也不会匹配当前 variant。
+  - [已覆盖 2026-07-30] 切模式不会丢失任务 busy、进度和取消控制。任务 busy 位于 `VideoTab` 顶层且会禁用片段模式控件，运行中不能并发切换 recipe；进度和取消由 App 级 `ProgressTaskProvider` 持有并绑定已启动 generation handle，不依赖模式子视图。测试现已验证 busy 时五种模式入口全部锁定、实时进度继续更新且取消调用原任务 handle。
+  - [不适用 2026-07-30] “生成全部”只处理当前规划、每片段所选且未成片的 prompt。该项与已解决审查项 11 重复：旧“生成全部”按钮和批量 handler 已删除，当前前端只从目标片段卡生成帧提示词、最终提示词或视频；页面没有 `chapter_batch` 调用方，因此不存在需要覆盖的自动批量选择行为。
+  - [已覆盖 2026-07-30] 旧规划视频不能被当前规划采用。前端采用 handler 要求视频完整匹配当前规划 ID、片段号和 recipe 指纹，`videoTabUtils.test.ts` 已直接验证旧规划 ID 的视频匹配失败；后端 `select_segment_video_validated` 再次强制当前共享规划、当前 recipe、完成状态、文件和完整执行身份，不能绕过前端采用旧视频。
+  - [已覆盖 2026-07-30] mixed assembly 必须完整覆盖当前规划。前端逐一遍历当前规划片段卡，只接受各片段当前 recipe 已采用且完整身份匹配的视频，并把缺失片段传给成片工作区禁用预览；后端 `current_mixed_adopted_video_ids` 再次遍历当前规划全部 segments，缺少、重复、失效或身份不符均显式失败。新增 UI 回归验证缺少片段时显示缺口并禁用生成预览。
+  - [已覆盖 2026-07-30] 跨模式候选视频可以正确预览和采用。候选集合按当前卡片模式、当前规划、目标片段和 recipe 指纹重新派生；切换到另一模式卡片后，旧模式的持久化选中 ID 不会污染新集合，而是回落到新模式首个有效候选。新增 hook 回归验证 Chat 与分镜卡切换后分别选中正确视频和本地预览路径，同一候选继续传给采用入口的完整身份校验。
+  - keyframes 与 system frames 的引用图状态互不污染。[已解决 2026-07-30]
+
+  当前甚至没有直接引用 VideoPromptSetupPanel、onWorkflowModeChange、targetShotNumber、
+  selected_for_segment 或 guidanceMode 的前端行为测试。
+
+  这也是“所有卡片共享一个 workflowMode”这种基础错误能够通过的主要原因。
+
+  ———
+
+  ## 应该收敛成的唯一状态模型
+
+  不要继续在现有全局 workflowMode 外面加 ref、fallback 或兼容判断。最小正确模型应该是：
+
+  当前共享片段规划
+  └── stable segment identity
+      └── segment execution recipe
+          ├── selected workflow mode
+          ├── style / duration / aspect / language
+          ├── reference images
+          ├── frame prerequisites
+          ├── final video prompt
+          ├── media guidance
+          ├── reference media bindings / draft
+          ├── candidate videos
+          ├── adopted video
+          └── active generation task
+
+  必须满足以下不变量：
+
+  1. 卡片由当前片段规划的 segments 构建，不由 video_prompt 构建。
+  2. 每个 segment 只有一个持久化的当前 execution recipe。
+  3. workflowMode 不再是章节业务状态，最多只作为页面过滤器或新片段默认值。
+  4. 所有目标操作使用稳定的 plan identity + segment identity，不能只用 shot_number。
+  5. 帧提示词、帧图片、最终提示词、媒体引导和参考媒体都归属于同一 recipe。
+  6. generation task 归属于 recipe，切换 UI 不得清除或脱离正在运行的任务。
+  7. adopted video 必须验证当前 plan/segment identity。
+  8. mixed assembly 必须验证当前规划每个 segment 恰好有一个 adopted result。
+  9. 旧规划数据只能作为历史记录展示，不能自动参与当前生成、采用和成片。
+  10. 删除旧的章节级“生成下一批”入口、隐藏 target ref、无效 reference-media 入口和未使
+     用派生状态。
+
+  ———
+
+  ## 审查说明
+
+  这次只做了静态审查，没有修改任何代码，也没有覆盖或整理工作区中已有的大量未提交改动。
+
+  验证方式包括：
+
+  - 前端状态和持久化 key 调用链审查。
+  - 帧提示词、最终提示词和 target 参数的前后端合同审查。
+  - 参考媒体生成、导入、采用视频和 mixed assembly 数据边界审查。
+  - migration、workflow fingerprint、依赖删除图和死代码搜索。
+  - 前端测试覆盖搜索。
+
+———
+
+## 逐项修复记录（2026-07-30）
+
+### 已解决：增量片段规划卡片缺少可持久化执行方案
+
+本次只收尾这一项，没有继续扩展审查范围。
+
+- 每个 `video_segment_plan.shot.{source_shot_id}` 完成断点现在会在
+  `artifacts_json.segment_recipes` 中保存对应片段的完整 execution recipe。
+- 已生成的第一张片段卡加载后即可选择首尾帧、首帧续接、分镜、参考媒体或 Chat，
+  不再等整章片段规划正式落库。
+- 草稿 recipe 更新使用 `source_shot_id + segment_index_in_shot` 作为稳定身份；
+  前端显示编号变化时不会把模式保存到别的片段。
+- 取消、刷新和续跑统一从 workflow checkpoint 恢复已生成片段及其 recipe；没有增加
+  localStorage 默认值、前端临时 recipe 或其他第二状态源。
+- 历史断点缺少 recipe 时，由后端按正式默认规则显式补齐并写回；损坏 recipe 会明确报错，
+  前端不会静默猜测。
+- 正式片段规划落库前会按稳定片段身份消费草稿 recipe，因此生成过程中选择的模式会进入
+  `frame_segment_plan.metadata.segment_recipes`。
+- 新增草稿加载、草稿 recipe 更新的 Tauri、Web、runtime、CLI 命令链，API parity 已通过。
+
+定向验证：
+
+- `cargo test -p a4n-orchestrator final_plan_keeps_draft_recipe_by_stable_segment_anchor --lib`：
+  1 passed。
+- `cargo check -p a4n-orchestrator`、`a4n-runtime --lib`、`a4n-server`、
+  `a4n-tauri --bin a4n-tauri`、`a4n-cli`：通过。
+- 前端相关 Vitest：5 个文件、25 个测试通过。
+- `npx tsc --noEmit`：通过。
+- `npm run check:web-api-parity`：通过，新增命令无缺失映射。
+- 本项相关文件 `rustfmt --check` 与 `git diff --check`：通过。
+
+### 已解决审查项 1：最终提示词与前置帧循环依赖
+
+- 片段卡和执行方案现在来自共享片段规划，不再等待最终提示词。
+- 无最终提示词时即可准备首尾帧、首段首帧、分镜提示词和对应图片。
+- Chat 方案直接跳过系统帧输入；后端不再进入边界帧选择分支，也不会在无进展错误中要求
+  补齐 Chat 首尾帧。
+- 首帧续接后续片段只消费显式续接视频、关键帧或纯文本，不生成隐藏首帧。
+
+定向验证：
+
+- `VideoPromptSetupPanel.test.tsx`：`prompts=[]` 时四种可执行模式入口均存在，2 tests passed。
+- `chat_video_never_requires_system_frame_prompt_inputs`：1 passed。
+- `cargo check -p a4n-orchestrator --lib`：通过。
+- 既有 PostgreSQL Chat 集成测试已完成编译，但当前环境缺少 `A4N_TEST_DATABASE_URL`，
+  按测试基线明确失败，未使用 SQLite 或静默跳过替代。
+- `npx tsc --noEmit`、目标文件 `rustfmt --check` 和 `git diff --check`：通过。
+
+### 已解决审查项 2：片段卡片数据来源错误
+
+- 卡片集合与顺序由当前正式片段规划或增量 checkpoint segments 唯一决定。
+- 最终提示词只作为片段 variant，不能创建、删除或重编号片段卡。
+- 页面首次进入时会从规划卡片中选择第一项；参考媒体无需其他模式的最终提示词作为锚点。
+
+定向验证：
+
+- `videoTabUtils.test.ts` 的正式规划与增量规划卡片测试：通过。
+- `VideoPromptSetupPanel.test.tsx` 的 `prompts=[]` 与参考媒体工作区测试：通过。
+- `npx tsc --noEmit` 与 `git diff --check`：通过。
+
+### 已解决审查项 3：片段卡片共享章节模式
+
+- 每个片段持久化并渲染自己的 execution recipe，模式切换只修改目标片段。
+- 草稿 checkpoint 与正式规划使用同一套 per-segment recipe 合同；刷新和续跑不会收敛成
+  最后一次章节级选择。
+
+定向验证：
+
+- `VideoPromptSetupPanel.test.tsx`：四张卡分别激活首帧续接、首尾帧、分镜和 Chat。
+- `videoTabUtils.test.ts`：恢复后的片段 1/2 分别保持 Chat/Storyboard。
+- `recipe_upsert_is_scoped_to_current_plan_segment`：只更新目标 recipe。
+- `final_plan_keeps_draft_recipe_by_stable_segment_anchor`：最终规划按稳定片段身份保留模式。
+- `npx tsc --noEmit` 与 `git diff --check`：通过。
+
+### 已解决审查项 4：帧链丢失目标片段
+
+- `target_shot_number` 已从卡片请求贯通到 frame orchestration、layout dispatch、帧选择、分镜
+  校验、最终提示词输入和进度计数。
+- 目标单元按片段来源身份选择；动作桥只保留在整章执行单元序列中，不会成为卡片目标。
+- 首尾帧片段在卡片记录中使用本地帧 `1/2`，进入最终提示词时映射为
+  `target/target+1`；视频单元及最终提示词继续使用原片段编号，片段 2 以后不再因局部重编号
+  被过滤或错用尾帧。
+- 分镜只生成目标片段的一条；首帧续接后续片段不生成、也不读取隐藏系统首帧。
+
+定向验证：
+
+- `cargo test -p a4n-orchestrator target_segment --lib -- --nocapture`：2 passed。
+- `first_frame_video_prompt_drafts_allow_later_target_without_initial_first_frame`：1 passed。
+- `targeted_storyboard_prompt_uses_target_content_segment_after_action_bridge`：1 passed。
+- `useVideoPromptGenerationActions.test.ts`：2 tests passed。
+- `cargo check -p a4n-orchestrator --lib`、`npx tsc --noEmit`：通过。
+- 当前环境没有浏览器自动化工具，因此本项未声称完成真实页面点击 smoke test；前端请求边界由
+  Vitest 直接执行 handler 验证。
+
+### 已解决审查项 5：共享片段规划与模式级参数互相冲突
+
+- 共享规划生成参数只使用章节级存储键，不再按模式保存另一套 style、duration、aspect ratio
+  或参考图状态。
+- 每个片段的模式和媒体配置由持久化 execution recipe 唯一承载；生成参数从当前 recipe 派生。
+- 后端生成入口以正式规划 recipe 覆盖客户端参数，避免旧客户端重新引入模式级参数分叉。
+- 数据库 recipe 更新改为复用 `metadata_with_video_segment_recipe`，统一执行
+  `validate_for_plan`；与共享规划风格、时长或画幅冲突的写入现在会明确失败。
+- 保留原有 adopted video 校验和连续性依赖传播，没有增加第二套校验逻辑或隐藏 fallback。
+
+定向验证：
+
+- `recipe_upsert_is_scoped_to_current_plan_segment`：1 passed，并覆盖 style、duration、
+  aspect ratio 三类冲突写入。
+- `cargo check -p a4n-db --lib`：通过。
+- `VideoPromptSetupPanel.test.tsx` 与 `videoTabUtils.test.ts`：2 个文件、17 tests passed。
+- `npx tsc --noEmit` 与 `git diff --check`：通过。
+
+### 已解决审查项 6：旧提示词、旧合同、旧规划和其他语言记录混入卡片
+
+- 卡片 variants 与当前选中提示词共用 `currentFinalVideoPromptMatchesSegment`，删除了列表和
+  执行状态之间两套宽严不同的过滤逻辑。
+- 当前记录必须同时匹配提示词类型、模式合同、来源类型、共享规划、片段、recipe fingerprint、
+  输出语言和完整 execution identity。
+- 卡片只接收当前有效提示词；旧 selected prompt ID 会在同一有效集合内重置，不再显示旧记录
+  后回退到另一条提示词。
+- 后端“已存在/重新生成”预检复用 `expected_contract_version`、
+  `required_video_execution_identity` 和片段 execution identity 匹配；旧合同、旧规划、其他
+  语言及 identity 不完整的同编号记录不再阻止生成。
+
+定向验证：
+
+- `videoTabUtils.test.ts` 新增旧合同、错误来源、其他语言和旧规划身份过滤测试；相关前端
+  2 个文件、18 tests passed。
+- `video_prompt_targets_reject_invalid_regeneration`：1 passed，覆盖旧合同、旧规划、其他语言和
+  不完整 identity 不参与“已存在”判断。
+- `video_prompt_commit_requires_a_new_or_updated_row`：1 passed。
+- `npx tsc --noEmit` 与 `git diff --check`：通过。
+
+### 已解决审查项 7：旧规划视频被当前规划采用并进入混合成片
+
+- 当前片段候选视频按共享规划 base identity、规划 ID、片段编号和 recipe fingerprint 过滤，
+  不再只看 `shot_number`。
+- 采用接口重新读取当前正式规划和 recipe，完整校验视频归属、状态、文件、模式和 execution
+  identity 后，才更新 recipe 的 `adopted_video_id`。
+- mixed 成片逐片段验证当前 adopted video；旧规划、重复、缺失或失效视频会明确阻止合成。
+- `selected_for_segment` 已退出运行时状态模型；迁移会移除旧标记。
+- `segment_recipe_adoption_repair` 现在不会跳过非空但无效的旧采用状态：它会清除旧 ID，并且只
+  恢复当前规划与 recipe identity 精确匹配的视频。
+
+定向验证：
+
+- `videoTabUtils.test.ts`：1 个文件、17 tests passed，新增当前规划候选视频接受、旧规划视频
+  拒绝测试。
+- `adoption_identity_rejects_other_plan`：1 passed。
+- PostgreSQL 迁移集成测试已完成编译，但当前环境缺少 `A4N_TEST_DATABASE_URL`，按测试基线
+  明确失败；未使用 SQLite 或静默跳过替代。
+- `cargo check -p a4n-migration --lib`、`npx tsc --noEmit`、目标文件 `rustfmt --check` 和
+  `git diff --check`：通过。
+
+### 已解决审查项 8：混合成片当前规划与完整覆盖校验
+
+- mixed 成片只使用当前共享片段规划中每个 recipe 的 `adopted_video_id`，并对全部
+  segment 做完整覆盖、唯一性、文件状态和 execution identity 校验。
+- 列表、缓存、插入和推送共用同一个后端校验入口；`selected_for_segment` 不再参与
+  运行时 mixed 成片。
+- `current_shared_segment_plan` 现在只从正文 hash 匹配的有效规划中选择最新记录，
+  避免 ID 更大但已失效的规划挡住真正的当前规划。
+
+定向验证：
+
+- `current_shared_plan_ignores_newer_stale_content`：1 passed。
+- `npx tsc --noEmit`、目标文件 `rustfmt --check` 和 `git diff --check`：通过。
+- `video_records_runtime_uses_application_owner` 在 60 秒测试基线内完成 `a4n-runtime`
+  编译前置阶段后超时（退出码 124），没有产生测试失败输出，未将超时记为通过。
+
+### 已解决审查项 9：参考媒体草稿、目标片段和锚点身份
+
+- 所有片段选中状态按当前草稿 workflow 或正式片段规划隔离，不再跨规划复用章节级
+  指针。
+- 参考媒体草稿同时绑定规划身份、片段号、`source_shot_id` 和
+  `segment_index_in_shot`；旧规划脏草稿不能写入新规划。
+- 删除了“草稿可见但缺少 workflow run ID 时改写正式规划”的隐藏 fallback，现在明确
+  报错。
+- 本地文件刷新后保留 hash/文件名/MIME 用于身份校验，界面要求重新选择文件；
+  后端预览、生成和导入统一验证当前规划、recipe 和 execution identity。
+
+定向验证：
+
+- `referenceMediaWorkspace.test.ts` 和 `videoTabUtils.test.ts`：2 个文件、19 tests passed，
+  包含跨规划/跨稳定片段草稿隔离、本地文件刷新后必须重选与当前规划身份过滤测试。
+- `npm run build`、`npx tsc --noEmit` 和 `git diff --check`：通过。
+
+### 已解决审查项 10：卡片模式与生成任务生命周期解耦
+
+- action scope 只绑定稳定章节数据，不再包含卡片 workflow mode。
+- 提示词和视频 action hook 中“scope 变化即清空 busy/task ID”的 effect 已删除；
+  busy 只由共享 `actionBusyRef` 在真实操作结束时释放。
+- 生成期间所有卡片模式选项均禁用；进度、实时文本和取消继续跟随真实
+  generation handle，取消唯一调用 `generationClient.cancel`。
+- 本轮核实时问题已不存在，未新增重复任务状态或兼容层。
+
+定向验证：
+
+- `runGenerationProgressTask.test.ts` 和 `useVideoPromptGenerationActions.test.ts`：2 个文件、4 tests passed。
+- `npx tsc --noEmit` 和 `git diff --check`：通过。
+
+### 已解决审查项 11：生成全部提示词的跨模式批量提交
+
+- 旧的“生成全部视频提示词”按钮和批量 handler 已不在当前版本中。
+- 现有卡片级提示词生成按当前规划、片段号、workflow mode 和 recipe 语言过滤，不会提交旧规划或其他模式。
+- 重新生成前会检查已存在的视频提示词，已绑定视频的提示词不会被静默覆盖。
+- 本轮核实时问题已不存在，未新增批量兼容逻辑。
+
+定向验证：
+
+- `videoTabUtils.test.ts` 和 `useVideoPromptGenerationActions.test.ts`：2 个文件、19 tests passed。
+- `npx tsc --noEmit` 和 `git diff --check`：通过。
+
+### 已解决审查项 12：片段级提示词和视频选中状态
+
+- 选中提示词、选中视频和待恢复视频状态已按“规划身份 + 片段号”持久化，
+  不再按 workflow mode 共享。
+- 候选列表、当前预览和参考媒体工作区共用当前规划/recipe/segment identity 过滤后的
+  `workflowVideos`。
+- 采用视频从视频 execution identity 读取片段号，并同时校验当前规划和 recipe fingerprint，
+  不依赖当前选中提示词猜测。
+- 本轮核实时问题已不存在，未新增双重选中状态。
+
+定向验证：
+
+- `videoTabUtils.test.ts` 和 `referenceMediaWorkspace.test.ts`：2 个文件、19 tests passed。
+- `npx tsc --noEmit` 和 `git diff --check`：通过。
+
+### 已解决审查项 13：首帧续接跨片段模式承接
+
+- 续接来源收敛为当前规划更早片段的 adopted video，并由 recipe 持久化、提示词
+  metadata 冻结和 execution identity 指纹共同约束。
+- 前端和后端都按 `continuity_source_video_id` 精确选择来源视频的真实尾帧；不再依赖
+  上一段提示词或全局模式。
+- 首尾帧视频会正常采集尾帧，可直接作为后续首帧续接片段的来源。
+
+定向验证：
+
+- `cargo test -p a4n-core later_first_frame_segment_rejects_hidden_system_frame_fallback --lib -- --nocapture`：通过。
+- `cargo test -p a4n-orchestrator tail_frame_rules --lib -- --nocapture`：通过。
+- `videoTabUtils.test.ts` 和 `VideoPromptSetupPanel.test.tsx`：通过。
+- `npx tsc --noEmit` 和 `git diff --check`：通过。
+
+### 已解决审查项 14：片段参考素材和生成参数作用域
+
+- 参考图、素材库图片和媒体引导保存在目标片段 recipe，切换卡片时直接读取对应 recipe。
+- 最终提示词和视频生成选项从当前 recipe 派生；旧的项目/模式级生成参数不再参与卡片执行。
+- 共享规划表单只保留章节级规划选项，卡片 header 的“当前片段”与实际作用域一致。
+
+定向验证：
+
+- `cargo test -p a4n-core video_execution::segment_recipe::tests --lib -- --nocapture`：4 tests passed。
+- `videoTabUtils.test.ts` 和 `VideoPromptSetupPanel.test.tsx`：通过。
+- `npx tsc --noEmit` 和 `git diff --check`：通过。
+
+### 已解决审查项 15：参考媒体平级片段方案
+
+- 片段 recipe 直接保存 `reference_media` 模式、媒体配置和采用视频，刷新不依赖提示词 variant
+  或章节级指针。
+- 参考媒体工作区已嵌入当前片段卡片，可在没有任何最终提示词时独立配置和执行。
+- 旧 `currentVariant`、`referenceMediaSegment` 状态指针和 `workspaceOverride` 特殊入口已删除。
+
+定向验证：
+
+- `VideoPromptSetupPanel.test.tsx`：覆盖 `prompts=[]` 时模式显示以及参考媒体工作区只嵌入当前卡片。
+- `referenceMediaWorkspace.test.ts` 和 `videoTabUtils.test.ts`：通过。
+- `npx tsc --noEmit` 和 `git diff --check`：通过。
+
+### 已解决审查项 16：删除章节级“生成下一批”入口
+
+- 提示词面板只保留片段卡片和 recipe 操作，不再存在 generate tab、全局模式或整章批量计数。
+- 最终提示词生成按钮只作用于当前选中片段，并显式提交 `targetShotNumber`。
+- 删除未使用的 `VideoPromptSetupPanel.onGeneratePrompts` 及其上游传参和测试假实现。
+
+定向验证：
+
+- `VideoPromptSetupPanel.test.tsx` 和 `useVideoPromptGenerationActions.test.ts`：通过。
+- `npx tsc --noEmit`、`npm run build` 和 `git diff --check`：通过。
+
+### 已解决审查项 17：参考媒体无效提示词生成入口
+
+- 参考媒体片段只显示媒体配置、预览、生成/导入、候选和采用工作区。
+- “生成最终提示词”按钮明确排除 `reference_media`，页面 action 和生成 hook 仍保留边界拒绝。
+- `VideoPromptSetupPanel.test.tsx` 新增参考媒体当前模式和无提示词生成按钮回归断言。
+
+定向验证：
+
+- `VideoPromptSetupPanel.test.tsx` 和 `useVideoPromptGenerationActions.test.ts`：通过。
+- `npx tsc --noEmit`、`npm run build` 和 `git diff --check`：通过。
+
+### 已解决审查项 18：片段模式与媒体引导合同隔离
+
+- `workflow_mode` 决定片段工作流，`guidance_mode` 只决定 provider 媒体输入；无效组合会被前后端拒绝。
+- 普通参考图、关键帧和续接视频分字段存储，生成指纹、提示词 metadata 和 provider 请求只冻结当前
+  guidance 的活跃输入。
+- 修复非续接 guidance 仍向提示词 metadata 写入旧 `continuity_source` 的残留。
+- 构建复验同步清理了已从左侧卡片迁出的 `onGenerateFramePrompts` 传参、3 个未使用导入，并将
+  过时卡片测试改为校验当前“选中卡展开、其他卡显示方案摘要”行为。
+
+定向验证：
+
+- `system_frames_do_not_freeze_inactive_guidance_inputs`：通过，验证系统帧只冻结普通参考图，关键帧和续接来源为空。
+- `guidance_mode_selects_provider_media_contract`：通过。
+- `npx tsc --noEmit`、`npm run build`、目标 Rust 文件 `rustfmt --check` 和 `git diff --check`：通过。
+
+### 已解决审查项 19：片段模式切换状态边界
+
+- 模式控件只在选中卡展开，更新只写入目标片段 recipe。
+- 提示词脏草稿必须确认才能放弃；离开参考媒体时会先保存当前片段草稿。
+- 提示词、视频、pending video 和任务 scope 不再依赖 workflow mode；模式切换不影响其他片段或正在运行的任务。
+- 只关闭绑定旧 recipe 的当前请求预览，避免展示已失效请求。
+
+定向验证：
+
+- `VideoPromptSetupPanel.test.tsx`：覆盖只展开选中卡及其独立模式摘要。
+- `runGenerationProgressTask.test.ts` 和 `useVideoPromptGenerationActions.test.ts`：通过。
+- `npx tsc --noEmit`、`npm run build` 和 `git diff --check`：通过。
+
+### 已解决审查项 20：目标片段无隐藏跨请求状态
+
+- 删除 `workflowTargetShotRef` 及其清理 effect，不再保存一个不可见的“下次生成目标”。
+- 卡片按钮 → 页面 handler → 片段 recipe → 生成 hook → API 均显式传递同一个 `targetShotNumber`。
+- 目标仅存在于当次函数调用，失败、取消和提前返回不可能污染后续请求。
+
+定向验证：
+
+- 全前端搜索无 `workflowTargetShotRef`、`targetShotRef` 或“生成下一批”残留。
+- `useVideoPromptGenerationActions.test.ts`：通过，覆盖点击片段目标写入 `target_shot_number`。
+- `npx tsc --noEmit`、`npm run build` 和 `git diff --check`：通过。
+
+### 已解决审查项 21：删除依赖图精确执行身份
+
+- 后端依赖图使用完整 execution base identity，并用规划 prompt ID、片段号和 recipe 指纹精确限定非共享节点。
+- 缺少身份或任一身份字段不同时 fail closed，不会回退到章节/模式弱匹配。
+- 前端提示计数使用同样身份规则，实际删除范围仍由后端依赖图唯一决定。
+- 新增后端测试覆盖同规划不同片段和同片段不同 recipe 的删除链隔离。
+
+定向验证：
+
+- `generation_chain_requires_scope_style_and_source_identity`：通过。
+- `videoTabUtils.test.ts` 的 `video execution generation chain`：通过。
+- `cargo fmt --check`、`npx tsc --noEmit` 和 `git diff --check`：通过。
+
+### 已解决审查项 22：卡片级方案持久化与身份约束
+
+- 确认 `segment_recipes` 是共享规划内唯一的卡片方案来源，强类型校验要求每个规划片段必须且只能对应一个方案。
+- `segment_execution_recipe_identity` 完成历史方案回填并删除旧采用标记，`segment_recipe_adoption_repair` 按完整执行身份修复采用状态。
+- 正式规划和增量草稿均已有服务端校验的单片段更新 API，Tauri/Web 通过 runtime 共用业务实现。
+- 规划 ID、片段号和 recipe 指纹已进入下游执行身份及数据库唯一索引；不新增重复关系表和双写路径。
+
+定向验证：
+
+- `recipe_upsert_is_scoped_to_current_plan_segment`：通过。
+- `migration_backfills_complete_recipes_and_removes_legacy_selection`：通过。
+- `identity_index_separates_segment_recipe_chains`：通过。
+- `check:web-api-parity`、`cargo fmt --check` 和 `git diff --check`：通过。
+
+### 已解决审查项 23：共享片段规划单一模式身份
+
+- 共享规划从前端启动、generation task 校验、workflow run 到持久化 prompt 全程统一为 `shared_segment_plan`。
+- 规划阶段携带卡片模式会在 generation task 预留和输入指纹落库之前显式失败；应用层不再做模式替换。
+- 修正前端 API 单测中以 `boundary_frames` 启动共享规划的过期用例，并增加后端阶段模式回归测试。
+
+定向验证：
+
+- `segment_plan_accepts_only_shared_mode_before_task_creation`：通过。
+- `frontend/src/api/video/prompts.test.ts`：通过。
+- `npx tsc --noEmit`、`npm run build`、`cargo fmt --check` 和 `git diff --check`：通过。
+
+### 已解决审查项 24：工作流目标身份完整
+
+- workflow fingerprint 已包含规划 ID、目标片段号和片段 recipe 指纹。
+- workflow business key 与 generation reservation canonical target 均绑定规划 ID 和片段号，参考媒体使用相同粒度。
+- 同章节同模式下，不同规划或不同片段不会复用 workflow run、进度、恢复历史或 active task 归属。
+- 新增回归测试验证同规划不同片段的 fingerprint 必然不同。
+
+定向验证：
+
+- `business_key_includes_mode_and_card_target`：通过。
+- `fingerprint_separates_card_targets`：通过。
+- `cargo fmt --check` 和 `git diff --check`：通过。
+
+### 已解决审查项 25：PromptFrames 目标与进度一致
+
+- 帧链入口强制消费目标片段；边界帧、分镜和首帧续接均按各自合同只处理该目标所需内容。
+- 目标级 batch summary 与帧记录级 committed 事件分离：任务完整完成才记目标成功，部分帧落库后失败不会被算作 1/1 成功。
+- 帧级实时进度继续使用真实 `item_index/item_total`，边界帧显示 2 张、分镜显示 1 张，不再与目标数量混用。
+
+定向验证：
+
+- `cargo check -p a4n-orchestrator --lib`：通过。
+- 已新增 `completed_batch_summary_counts_targets_not_prompt_records`，并保留 `targeted_boundary_inputs_keep_target_segment_identity` 覆盖目标边界帧身份；当前 `a4n-orchestrator` 单测编译被无关的 `provider_request_rules` 过期测试引用阻断，尚不能执行这两条测试。
+- 本项文件 `rustfmt --check`、尾随空白检查和 `git diff --check`：通过；全工作区 `cargo fmt --all --check` 被同期修改的无关视频 provider 文件格式差异阻断。
+
+### 已解决审查项 26：危险批量删除死代码清理
+
+- 删除 `handleDeleteAllFramePrompts` 的实现、hook 返回合同及其错误的 stage 3 筛选分支。
+- 全仓已无该函数或同名调用方，最终视频提示词不会再被误当成帧提示词批量处理。
+- 保留仍被单条删除依赖计数使用的 `videoPromptStage`，没有扩大删除范围。
+
+定向验证：
+
+- 全仓死代码及错误筛选模式搜索：无结果。
+- `npx tsc --noEmit` 和 `npm run build`：通过。
+- `git diff --check`：通过。
+
+### 已解决审查项 27：派生状态迁移残留清理
+
+- 删除 `workflowAssemblyVideos`、`framePromptStageReady`、`framePromptStageMessage`、`chapterAnalysisSummary`、`videoLibraryImages` 和 `staleSavedReferenceIds` 的计算与返回合同。
+- 全仓已无这些名称的定义或调用方；`useVideoTabDerivedState` 只返回当前页面实际消费的状态。
+- 本轮核实时问题已不存在，未重新引入兼容字段或占位派生状态。
+
+定向验证：
+
+- 六个迁移残留名称全仓搜索：无结果。
+- `npx tsc --noEmit` 和 `npm run build`：通过。
+- `git diff --check`：通过。
+
+### 已解决前端测试缺口 1：片段模式互不影响
+
+- UI 测试使用同一组片段 recipe 在片段 1/2 之间切换选中状态，验证各卡模式摘要保持独立。
+- 每次只展开当前片段的模式控件，并断言其 active 模式与该片段 recipe 一致。
+- 既有规划恢复测试继续验证多个片段的不同持久化模式不会互相覆盖。
+
+定向验证：
+
+- `VideoPromptSetupPanel.test.tsx`：通过。
+- `npx tsc --noEmit`、`npm run build` 和 `git diff --check`：通过。
+
+### 已解决前端测试缺口 2：无最终提示词时显示全部规划卡片
+
+- `videoTabUtils.test.ts` 直接验证共享规划的 segments 在没有最终提示词参与时仍构建完整卡片集合。
+- `VideoPromptSetupPanel.test.tsx` 使用 `prompts=[]` 渲染四张规划卡，并验证各片段标题和方案入口均存在。
+- 本轮核实时覆盖已存在，没有新增重复测试或测试专用生产代码。
+
+定向验证：
+
+- `videoTabUtils.test.ts` 和 `VideoPromptSetupPanel.test.tsx`：通过。
+- `npx tsc --noEmit`、`npm run build` 和 `git diff --check`：通过。
+
+### 已解决前端测试缺口 3：刷新后恢复片段独立模式
+
+- 扩展真实草稿刷新加载测试：最新 workflow checkpoint 同时保存两个片段的不同 execution recipes。
+- `loadVideoSegmentPlanDraft` 恢复后直接断言片段 1 为 Chat、片段 2 为 Storyboard，没有合并成章节级模式。
+- 正式共享规划的既有解析测试继续覆盖 Boundary/Storyboard 两种模式独立恢复。
+
+定向验证：
+
+- `loadVideoTabData.test.ts` 和 `videoTabUtils.test.ts`：通过。
+- `npx tsc --noEmit`、`npm run build` 和 `git diff --check`：通过。
+
+### 已解决前端测试缺口 4：全新章节四种生成链路
+
+- 扩展真实生成 action 测试，先从无规划状态调用共享片段规划入口，确认新章节不依赖已有最终提示词或章节级模式。
+- 首尾帧、首帧和分镜分别验证帧提示词与最终提示词两段请求；Chat 只调用最终提示词入口，不产生帧提示词请求。
+- 每段请求均校验已保存规划 ID、目标片段号、模式、批量数，以及目标片段 recipe 自己的参考图和素材库输入，防止退回章节级公共表单。
+
+定向验证：
+
+- `useVideoPromptGenerationActions.test.ts`：2 条测试通过。
+- `npx tsc --noEmit` 和 `npm run build`：通过，Vite 完成 2364 个模块转换。
+
+### 已解决前端测试缺口 5：target 帧生成仅处理目标片段
+
+- 本轮核实时生产链路已经收敛：前端卡片 action 必须发送目标片段号，后端帧链入口必须取得该目标，并通过共享 `video_unit_for_target_segment` 只构造一个目标内容单元。
+- 首尾帧目标输入保持目标片段及其两张局部边界帧身份；分镜目标即使前方存在动作桥，也只绑定目标内容片段，不会生成其他片段的帧提示词。
+- 现有实现和测试已完整覆盖本项，因此没有新增重复筛选、兼容分支或测试专用生产代码。
+
+定向验证：
+
+- `useVideoPromptGenerationActions.test.ts`：2 条测试通过。
+- `target_segment_selects_content_unit_even_when_a_bridge_precedes_it`：1 条测试通过。
+- `targeted_boundary_inputs_keep_target_segment_identity`：1 条测试通过。
+- `targeted_storyboard_prompt_uses_target_content_segment_after_action_bridge`：1 条测试通过。
+
+### 已解决前端测试缺口 6：参考媒体草稿按片段隔离
+
+- 生产逻辑已使用规划身份、片段号、来源镜头 ID 和镜头内片段序号共同构成草稿 scope；切换片段时从目标片段持久化 recipe 重建草稿。
+- 保存参考媒体方案前会重新计算目标片段 scope 并与当前草稿 scope 比较，不匹配时显式拒绝保存，因此旧片段草稿不能写入新片段。
+- 补充最小回归断言：规划和来源身份完全相同、只把片段号从 1 改为 2 时，scope 必须不同。
+
+定向验证：
+
+- `referenceMediaWorkspace.test.ts`：2 条测试通过。
+- `npx tsc --noEmit` 和 `npm run build`：通过，Vite 完成 2364 个模块转换。
+
+### 已解决前端测试缺口 7：stale variant 不阻止当前规划
+
+- 当前卡片的最终提示词集合在进入生成 action 前，统一通过 `videoExecutionSegmentIdentityMatchesPrompt` 校验当前规划、目标片段和 recipe 指纹。
+- 旧规划 ID 或旧 recipe 指纹的 variant 不会进入当前集合，因此其运行状态、已有提示词和已生成视频都不会触发当前规划的重新生成阻塞。
+- 扩展既有身份匹配测试，明确构造两个带 `generated_video_id` 的 stale variant，并验证它们均不匹配当前规划 variant。
+
+定向验证：
+
+- `videoTabUtils.test.ts`：15 条测试通过。
+- `npx tsc --noEmit` 和 `npm run build`：通过，Vite 完成 2364 个模块转换。
+
+### 已解决前端测试缺口 8：模式切换不丢任务控制
+
+- `acting` 和 action busy ref 由 `VideoTab` 顶层持有，片段 recipe 只决定子视图内容；任一任务运行时，当前卡片的五种模式按钮全部禁用，避免生成中并发改写 recipe。
+- 进度状态、实时文本、活动任务 ID 和取消回调由 App 级 `ProgressTaskProvider` 持有，不会因片段模式视图变化而卸载。
+- 扩展 UI 测试验证 busy 时五个模式入口全部锁定；扩展 generation progress 测试验证进度仍更新，取消始终调用启动任务的完整 handle。
+
+定向验证：
+
+- `VideoPromptSetupPanel.test.tsx` 与 `runGenerationProgressTask.test.ts`：4 条测试通过。
+- `npx tsc --noEmit` 和 `npm run build`：通过，Vite 完成 2364 个模块转换。
+
+### 已关闭前端测试缺口 9：已删除的“生成全部”入口
+
+- 本项与审查项 11 描述的是同一个旧入口；当前 `VideoPromptSetupPanel` 和 `VideoTab` 均不存在“生成全部”按钮或批量 handler。
+- 页面只把目标片段及其当前 recipe 传给卡片级生成 action；不会自动收集全章、历史规划或其他模式的提示词。
+- `chapter_batch` 仍是接受调用方显式 `prompt_ids` 的底层 API 合同，但 `frontend/src/pages` 没有调用方，不能把它误记为当前页面的“生成全部”功能。
+- 因功能已删除，本项无需新增测试或恢复批量入口。
+
+定向验证：
+
+- 视频页源码搜索“生成全部”、`chapter_batch` 页面调用和批量 handler：均无结果。
+- `git diff --check`：通过。
+
+### 已解决前端测试缺口 10：旧规划视频不能被当前规划采用
+
+- 前端采用动作在调用 API 前，通过 `videoExecutionSegmentIdentityMatchesVideo` 校验当前规划 ID、目标片段号和当前 recipe 指纹。
+- 后端 `select_segment_video_validated` 重新加载并强制当前共享规划，按当前 recipe 构造预期身份；旧规划视频即使属于同一章节和片段也会显式失败。
+- 既有测试已构造当前规划 #30 与旧规划 #29 的视频并断言身份不匹配，本轮无需新增重复门禁或测试。
+
+定向验证：
+
+- `videoTabUtils.test.ts`：15 条测试通过。
+- `cargo check -p a4n-orchestrator --lib` 两次按 60 秒上限执行，均被工作区内另一条 `cargo rustc -Zprint-type-sizes` 持有构建目录锁而超时，未取得后端编译结论；本轮未修改后端代码。
+
+### 已解决前端测试缺口 11：mixed assembly 完整覆盖当前规划
+
+- `VideoTab` 以当前规划的片段卡为全集逐段核对 recipe、采用视频、完成状态、文件路径和完整执行身份，生成缺失片段号集合。
+- `VideoAssemblyWorkspace` 在缺失集合非空时展示具体片段号并禁用“生成预览”；即使绕过 UI，后端仍会遍历当前规划全部 segments 并拒绝缺失、重复、失效或旧身份视频。
+- 新增最小 SSR 回归：片段 1 已采用但当前规划仍缺片段 2 时，必须显示“尚缺片段 2”，且生成预览按钮保持禁用。
+
+定向验证：
+
+- `VideoAssemblyWorkspace.test.tsx`：1 条测试通过。
+- `npx tsc --noEmit` 和 `npm run build`：通过，Vite 完成 2364 个模块转换。
+
+### 已解决前端测试缺口 12：跨模式候选视频预览与采用
+
+- `useVideoTabDerivedState` 按当前片段的 workflow mode、当前共享规划、片段号和 recipe 指纹筛选候选，不把章节内其他模式视频混入当前卡片。
+- 持久化选中视频 ID 若属于另一模式或片段，会自动回落到当前候选集合第一条；预览路径和采用按钮都消费这条重新选中的有效候选。
+- 新增 SSR hook 回归：从分镜候选 ID 切到 Chat 卡时选中 Chat 视频，从 Chat 候选 ID 切到分镜卡时选中分镜视频，并分别恢复正确本地文件路径。
+
+定向验证：
+
+- `useVideoTabDerivedState.test.tsx`：1 条测试通过。
+- `npx tsc --noEmit` 和 `npm run build`：通过，Vite 完成 2364 个模块转换。
+
+### 已解决前端测试缺口 13：keyframes 与 system frames 引用状态隔离
+
+- `useVideoTabDerivedState` 现在显式接收当前片段的 `guidance_mode`；系统生成帧只在 `system_frames` 下进入系统引用集合，续接模式只接收尾帧采集，`keyframes` 不再继承旧系统帧的有效状态。
+- `videoFrameImages` 仍保留可复用的当前片段帧产物，模式切换只隔离“当前有效引用”判定，不会删除或隐藏已生成帧。
+- 新增 SSR hook 回归：同一系统帧在 `system_frames` 下有效，切换至 `keyframes` 后退出系统与有效引用集合，冻结引用失效计数从 0 正确变为 1；普通关键帧参考图保持有效。
+
+定向验证：
+
+- `useVideoTabDerivedState.test.tsx`：2 条测试通过。
+- `npx tsc --noEmit` 和 `npm run build`：通过，Vite 完成 2364 个模块转换。
+
+### 已解决真实浏览器缺口 1：片段模式切换
+
+- 新增独立 WebdriverIO + Chromium 测试页，直接挂载生产 `VideoTab`，只在 Tauri `invoke` 边界提供确定性数据，不复制片段模式切换业务逻辑。
+- 浏览器先把片段 1 从首尾帧切换为 Chat，再把片段 2 从分镜切换为首尾帧；两次真实点击分别验证卡片即时状态与后端持久化快照，证明每次仅修改目标 `segment_recipe`。
+- WebdriverIO 默认使用系统 Chromium 与 chromedriver，并允许通过 `A4N_WDIO_CHROMIUM_BINARY`、`A4N_WDIO_CHROMEDRIVER_BINARY` 覆盖路径；测试不依赖在线下载驱动，Vite 会自动启动并在结束后关闭。
+
+定向验证：
+
+- `npm run test:browser-video-mode`：Chromium 1 条真实浏览器交互测试通过。
+- `npx tsc --noEmit` 和 `npm run build`：通过，Vite 完成 2364 个模块转换。
+
+### 已解决真实浏览器缺口 4：旧规划采用拒绝
+
+- 扩展现有 Chromium harness，构造当前规划最终提示词、匹配当前 plan/recipe 的候选视频 #502，以及旧规划 ID 的遗留视频 #503。
+- 真实浏览器验证结果区只渲染当前规划候选，不出现“旧规划遗留视频”；点击“采用”只调用 `select_segment_video` 写回 #502，并显示“已采用”。
+- 第二层边界：绕过 UI 直接调用 `select_segment_video(503)` 时被拒绝，且 `adopted_video_id` 不回写为旧视频。生产过滤与采用 handler 本身已完整，本轮仅补真实交互证据，未改生产逻辑。
+
+定向验证：
+
+- `npm run test:browser-video-mode`：Chromium 4/4 通过。
+- `npx tsc --noEmit`：通过。
+
+### 已解决真实浏览器缺口 5：mixed assembly 完整覆盖
+
+- 扩展 harness 增加 `mixed-assembly-gap` 与 `mixed-assembly-ready` 两个场景，直接打开生产 `VideoTab` 的成片合成工作区。
+- 缺口场景：片段 1 已采用当前规划有效视频，片段 2 的 `adopted_video_id` 指向旧规划视频；真实 UI 显示“尚缺片段 2 的有效采用视频”，并禁用“生成预览”，且不会调用 `assemble_chapter_videos`。
+- 完整场景：两个片段均采用当前规划、当前 recipe 身份匹配的视频后，“生成预览”可点击；点击后只以 `workflowMode=mixed` 调用 `assemble_chapter_videos`，按钮文案切到“更新预览”。生产覆盖校验逻辑本身已完整，本轮仅补真实交互证据。
+
+定向验证：
+
+- `npm run test:browser-video-mode`：Chromium 6/6 通过。

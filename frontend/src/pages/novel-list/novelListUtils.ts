@@ -104,7 +104,7 @@ const compareFamilyProjects = (a: NovelProject, b: NovelProject): number => {
   return a.title.localeCompare(b.title, "zh-Hans-u-co-pinyin");
 };
 
-export const buildProjectFamilies = (projects: NovelProject[]): ProjectFamily[] => {
+const buildProjectFamilies = (projects: NovelProject[]): ProjectFamily[] => {
   const familyProjects = new Map<string, NovelProject[]>();
   projects.forEach((project) => {
     const familyId = project.root_project_id ?? project.id;

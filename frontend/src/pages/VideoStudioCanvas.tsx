@@ -21,17 +21,15 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import {
-  Eye,
+import { Eye,
   Film,
   ListPlus,
-  Loader2,
   Play,
   Save,
   SlidersHorizontal,
   Trash2,
-  Upload,
-} from "lucide-react";
+  Upload, } from "lucide-react";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../api";
 import { listLlmConfig } from "../api/config/llm";
 import {
@@ -1486,13 +1484,13 @@ export const VideoStudioCanvas: React.FC = () => {
   const renderNodeLibraryPanel = (mobile: boolean) => (
     <div className={mobile ? "space-y-3" : "flex h-full min-h-0 flex-col"}>
       {mobile ? (
-        <p className="text-[11px] text-book-text-muted">
+        <p className="text-small text-book-text-muted">
           点击节点即可添加到当前画布视图中心
         </p>
       ) : (
         <div className="mb-3">
           <h2 className="text-sm font-semibold text-book-text-main">节点库</h2>
-          <p className="mt-0.5 text-[11px] text-book-text-muted">
+          <p className="mt-0.5 text-small text-book-text-muted">
             拖入画布编排 · {nodeTemplateCount} 种节点
           </p>
         </div>
@@ -1545,7 +1543,7 @@ export const VideoStudioCanvas: React.FC = () => {
           <h2 className="text-sm font-semibold text-book-text-main">
             {selectedEdge ? "连线属性" : "节点属性"}
           </h2>
-          <p className="mt-0.5 truncate text-[11px] text-book-text-muted">
+          <p className="mt-0.5 truncate text-small text-book-text-muted">
             {selectedNode
               ? `${selectedNode.data.label || nodeDisplayTitle(selectedNode.data)} · ${stateLabel(selectedNode.data.state)}`
               : selectedEdge
@@ -1554,7 +1552,7 @@ export const VideoStudioCanvas: React.FC = () => {
           </p>
         </div>
       ) : selectedNode ? (
-        <p className="text-[11px] text-book-text-muted">
+        <p className="text-small text-book-text-muted">
           {selectedNode.data.label || nodeDisplayTitle(selectedNode.data)} · {stateLabel(selectedNode.data.state)}
         </p>
       ) : null}
@@ -1612,7 +1610,7 @@ export const VideoStudioCanvas: React.FC = () => {
                 : "基于派生项目编排视频生成流程"
           }
           meta={
-            <span className="text-[11px] text-book-text-muted">
+            <span className="text-small text-book-text-muted">
               {saving
                 ? "正在保存画布…"
                 : importing
@@ -1655,7 +1653,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   disabled={canvasWriteBusy || !canEdit}
                 >
                   {saving ? (
-                    <Loader2 size={14} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   ) : (
                     <Save size={14} />
                   )}
@@ -1675,7 +1673,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   title="运行完整画布工作流"
                 >
                   {workflowSubmitting ? (
-                    <Loader2 size={14} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   ) : (
                     <Play size={14} />
                   )}
@@ -1712,7 +1710,7 @@ export const VideoStudioCanvas: React.FC = () => {
           <section ref={canvasSectionRef} className="relative min-h-0 bg-book-bg">
             {loading ? (
               <div className="flex h-full items-center justify-center text-xs text-book-text-muted">
-                <Loader2 size={14} className="mr-2 animate-spin" />
+                <LoadingSpinner size="sm" className="mr-2" />
                 加载画布
               </div>
             ) : (

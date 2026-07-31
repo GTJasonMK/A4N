@@ -98,8 +98,8 @@ async fn frame_prompt_generation_reuses_complete_boundary_frames_without_llm_cal
 
     let no_llm_calls = SequenceLlmProvider::new(Vec::new());
     let mut progress_events = Vec::new();
-    let mut progress = |current: u32, total: u32, message: &str| -> Result<(), AppError> {
-        progress_events.push((current, total, message.to_string()));
+    let mut progress = |update: VideoPromptProgressUpdate| -> Result<(), AppError> {
+        progress_events.push((update.current, update.total, update.message));
         Ok(())
     };
     let rows = service

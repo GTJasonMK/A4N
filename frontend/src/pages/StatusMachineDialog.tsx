@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/feedback/Toast";
 import { extractErrorMessage } from "../api";
@@ -336,7 +336,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
 
         {loadingForwardArtifacts && (
           <div className="a4n-flat-surface inline-flex items-center gap-2 p-3 text-xs text-book-text-muted">
-            <Loader2 size={12} className="animate-spin" /> 正在检查下一阶段条件…
+            <LoadingSpinner size="sm" /> 正在检查下一阶段条件…
           </div>
         )}
 

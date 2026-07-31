@@ -2,14 +2,19 @@
 //!
 //! `Generate` 模式硬失败；`Preview` 模式返回占位与提示 note。
 
-use a4n_core::models::ai::video_gen_config;
+use a4n_core::{
+    models::ai::video_gen_config,
+    video_execution::{VideoReferenceMediaBindingV1, VideoReferenceMediaRecipeV1},
+};
 use a4n_video::{VideoGenerationRequest, VideoReferenceMediaRequest};
+use base64::Engine as _;
+use sha2::{Digest, Sha256};
 
 use super::{SEEDANCE2_VIDEO_BACKEND, validate_video_duration_for_config_secs};
 
-const MAX_SEEDANCE2_IMAGE_FILES: usize = 9;
-const MAX_SEEDANCE2_VIDEO_FILES: usize = 3;
-const MAX_SEEDANCE2_AUDIO_FILES: usize = 3;
+pub(crate) const MAX_SEEDANCE2_IMAGE_FILES: usize = 9;
+pub(crate) const MAX_SEEDANCE2_VIDEO_FILES: usize = 3;
+pub(crate) const MAX_SEEDANCE2_AUDIO_FILES: usize = 3;
 
 pub use a4n_api_contract::video::ReferenceMediaVideoInput;
 
@@ -17,73 +22,37 @@ pub use a4n_api_contract::video::ReferenceMediaVideoInput;
 pub fn validate_reference_media_start_input(
     input: &ReferenceMediaVideoInput,
 ) -> Result<(), String> {
-    reference_media_prompt(&input.prompt, VideoProviderValidationMode::Generate)?;
-    reference_media_urls(
-        input.image_files.clone(),
-        "image_files",
-        MAX_SEEDANCE2_IMAGE_FILES,
-        VideoProviderValidationMode::Generate,
-    )?;
-    for (kind, upload_count, url_count, max_count) in [
-        (
-            "图片",
-            input.image_uploads.len(),
-            input.image_files.len(),
-            MAX_SEEDANCE2_IMAGE_FILES,
-        ),
-        (
-            "视频",
-            input.video_uploads.len(),
-            input.video_files.len(),
-            MAX_SEEDANCE2_VIDEO_FILES,
-        ),
-        (
-            "音频",
-            input.audio_uploads.len(),
-            input.audio_files.len(),
-            MAX_SEEDANCE2_AUDIO_FILES,
-        ),
-    ] {
-        if upload_count + url_count > max_count {
-            return Err(format!("{kind}参考媒体最多允许 {max_count} 个输入"));
-        }
+    validate_reference_media_uploads(&input.image_uploads, "image", MAX_SEEDANCE2_IMAGE_FILES)?;
+    validate_reference_media_uploads(&input.video_uploads, "video", MAX_SEEDANCE2_VIDEO_FILES)?;
+    validate_reference_media_uploads(&input.audio_uploads, "audio", MAX_SEEDANCE2_AUDIO_FILES)?;
+    Ok(())
+}
+
+fn validate_reference_media_uploads(
+    uploads: &[a4n_api_contract::video::ReferenceMediaUploadInput],
+    kind: &str,
+    max_count: usize,
+) -> Result<(), String> {
+    if uploads.len() > max_count {
+        return Err(format!("{kind}_uploads 最多允许 {max_count} 个文件"));
     }
-    for upload in input
-        .image_uploads
-        .iter()
-        .chain(&input.video_uploads)
-        .chain(&input.audio_uploads)
-    {
+    for upload in uploads {
         if upload.file_name.trim().is_empty()
             || upload.mime_type.trim().is_empty()
             || upload.data_base64.trim().is_empty()
         {
-            return Err("本地参考媒体的 file_name、mime_type 和 data_base64 不能为空".to_string());
+            return Err(format!(
+                "{kind}_uploads 的 file_name、mime_type 和 data_base64 不能为空"
+            ));
         }
-    }
-    reference_media_urls(
-        input.video_files.clone(),
-        "video_files",
-        MAX_SEEDANCE2_VIDEO_FILES,
-        VideoProviderValidationMode::Generate,
-    )?;
-    reference_media_urls(
-        input.audio_files.clone(),
-        "audio_files",
-        MAX_SEEDANCE2_AUDIO_FILES,
-        VideoProviderValidationMode::Generate,
-    )?;
-    validate_reference_media_import_options(input.duration_secs, &input.aspect_ratio)?;
-    if input.image_files.is_empty()
-        && input.image_uploads.is_empty()
-        && input.video_files.is_empty()
-        && input.video_uploads.is_empty()
-        && input.audio_files.is_empty()
-        && input.audio_uploads.is_empty()
-    {
-        return Err(
-            "参考媒体模式至少需要一个 image_files、video_files 或 audio_files URL".to_string(),
-        );
+        if !upload
+            .mime_type
+            .trim()
+            .to_ascii_lowercase()
+            .starts_with(&format!("{kind}/"))
+        {
+            return Err(format!("{kind}_uploads 的 MIME 必须以 {kind}/ 开头"));
+        }
     }
     Ok(())
 }
@@ -91,6 +60,15 @@ pub fn validate_reference_media_start_input(
 pub(crate) struct PreparedReferenceMediaVideoRequest {
     pub(crate) request: VideoGenerationRequest,
     pub(crate) provider_input_note: Option<String>,
+}
+
+pub(crate) struct ResolvedReferenceMediaVideoInput {
+    pub(crate) prompt: String,
+    pub(crate) image_files: Vec<String>,
+    pub(crate) video_files: Vec<String>,
+    pub(crate) audio_files: Vec<String>,
+    pub(crate) duration_secs: i32,
+    pub(crate) aspect_ratio: String,
 }
 
 /// 请求校验模式：生成硬失败 / 预览软化。
@@ -283,24 +261,136 @@ pub fn ensure_reference_media_tokens(
     }
 }
 
+pub(crate) fn reference_media_prompt_from_recipe(recipe: &VideoReferenceMediaRecipeV1) -> String {
+    let mut lines = Vec::new();
+    for (prefix, rows) in [
+        ("image_file", recipe.image_rows.as_slice()),
+        ("video_file", recipe.video_rows.as_slice()),
+        ("audio_file", recipe.audio_rows.as_slice()),
+    ] {
+        lines.extend(
+            rows.iter()
+                .enumerate()
+                .map(|(index, row)| format!("- @{prefix}_{}：{}", index + 1, row.usage.trim())),
+        );
+    }
+    let base = recipe.prompt.trim();
+    if lines.is_empty() {
+        return base.to_string();
+    }
+    if base.is_empty() {
+        format!("参考媒体绑定：\n{}", lines.join("\n"))
+    } else {
+        format!("{base}\n\n参考媒体绑定：\n{}", lines.join("\n"))
+    }
+}
+
+pub(crate) fn reference_media_upload_slot_count(rows: &[VideoReferenceMediaBindingV1]) -> usize {
+    rows.iter().filter(|row| row.url.trim().is_empty()).count()
+}
+
+pub(crate) fn validate_reference_media_upload_identity(
+    rows: &[VideoReferenceMediaBindingV1],
+    uploads: &[a4n_api_contract::video::ReferenceMediaUploadInput],
+    field: &str,
+) -> Result<(), String> {
+    let local_rows = rows
+        .iter()
+        .filter(|row| row.url.trim().is_empty())
+        .collect::<Vec<_>>();
+    if local_rows.len() != uploads.len() {
+        return Err(format!(
+            "{field} 需要 {} 个本地文件，实际提交 {} 个",
+            local_rows.len(),
+            uploads.len()
+        ));
+    }
+    for (index, (row, upload)) in local_rows.into_iter().zip(uploads).enumerate() {
+        let expected_sha256 = row
+            .upload_sha256
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| value.len() == 64)
+            .ok_or_else(|| format!("{field}[{index}] 缺少本地文件 SHA-256，请重新选择文件"))?;
+        let expected_file_name = row
+            .upload_file_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| format!("{field}[{index}] 缺少本地文件名，请重新选择文件"))?;
+        let expected_mime = row
+            .upload_mime_type
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| format!("{field}[{index}] 缺少本地文件 MIME，请重新选择文件"))?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(upload.data_base64.trim())
+            .map_err(|error| format!("{field}[{index}] data_base64 无效：{error}"))?;
+        let actual_sha256 = format!("{:x}", Sha256::digest(bytes));
+        if upload.file_name.trim() != expected_file_name
+            || upload.mime_type.trim() != expected_mime
+            || actual_sha256 != expected_sha256
+        {
+            return Err(format!(
+                "{field}[{index}] 本地文件与保存片段方案时选择的文件不一致，请重新保存方案"
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn resolve_reference_media_urls(
+    rows: &[VideoReferenceMediaBindingV1],
+    uploaded_urls: Vec<String>,
+    field: &str,
+    max_count: usize,
+) -> Result<Vec<String>, String> {
+    if rows.len() > max_count {
+        return Err(format!("{field} 最多允许 {max_count} 个输入"));
+    }
+    if rows.is_empty() && !uploaded_urls.is_empty() {
+        return Err(format!("{field} 没有本地上传槽，不能提交上传文件"));
+    }
+    let expected_uploads = reference_media_upload_slot_count(rows);
+    if uploaded_urls.len() != expected_uploads {
+        return Err(format!(
+            "{field} 需要 {expected_uploads} 个本地文件，实际提交 {} 个；刷新页面后请重新选择本地文件",
+            uploaded_urls.len()
+        ));
+    }
+    let mut uploaded = uploaded_urls.into_iter();
+    let mut urls = Vec::with_capacity(rows.len());
+    for (index, row) in rows.iter().enumerate() {
+        if row.usage.trim().is_empty() {
+            return Err(format!("{field}[{index}] 缺少用途描述"));
+        }
+        let url = row.url.trim();
+        if url.is_empty() {
+            urls.push(
+                uploaded
+                    .next()
+                    .expect("upload count was validated before resolving slots"),
+            );
+        } else {
+            urls.push(url.to_string());
+        }
+    }
+    Ok(urls)
+}
+
 pub(crate) fn build_reference_media_video_request(
     config: &video_gen_config::Model,
-    input: ReferenceMediaVideoInput,
+    input: ResolvedReferenceMediaVideoInput,
     mode: VideoProviderValidationMode,
 ) -> Result<PreparedReferenceMediaVideoRequest, String> {
-    let ReferenceMediaVideoInput {
-        segment_prompt_id: _,
-        shot_number: _,
+    let ResolvedReferenceMediaVideoInput {
         prompt,
         image_files,
-        image_uploads: _,
         video_files,
-        video_uploads: _,
         audio_files,
-        audio_uploads: _,
         duration_secs,
         aspect_ratio,
-        config_id: _,
     } = input;
     let mut provider_input_note = None;
     if config.backend != SEEDANCE2_VIDEO_BACKEND {
@@ -529,19 +619,13 @@ mod tests {
         );
         let prepared = build_reference_media_video_request(
             &video_config(SEEDANCE2_VIDEO_BACKEND),
-            ReferenceMediaVideoInput {
-                segment_prompt_id: 1,
-                shot_number: 1,
+            ResolvedReferenceMediaVideoInput {
                 prompt,
                 image_files: vec!["https://example.test/ref.png".to_string()],
-                image_uploads: Vec::new(),
                 video_files: Vec::new(),
-                video_uploads: Vec::new(),
                 audio_files: Vec::new(),
-                audio_uploads: Vec::new(),
                 duration_secs: 8,
                 aspect_ratio: "16:9".to_string(),
-                config_id: Some(9),
             },
             VideoProviderValidationMode::Generate,
         )

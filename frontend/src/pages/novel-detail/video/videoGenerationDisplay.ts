@@ -8,13 +8,6 @@ export const promptTitle = (prompt: ChapterVideoPrompt): string => {
   return title ? title : `镜头 ${prompt.shot_number}`;
 };
 
-export const statusClass = (status: string): string => {
-  if (status === "completed") return "!text-success";
-  if (status === "failed" || status === "cancelled") return "!text-error";
-  if (status === "running" || status === "pending") return "!text-book-primary";
-  return "";
-};
-
 export const isVideoTailFrameImage = (image: GeneratedImage): boolean =>
   videoImageGenerationSource(image) === "video_tail_frame_capture" ||
   image.image_type === "video_tail_frame";

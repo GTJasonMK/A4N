@@ -7,5 +7,65 @@ mod queries;
 mod regeneration;
 mod requests;
 
+use a4n_core::{
+    error::AppError,
+    models::chapter::{chapter_outline, part_outline},
+};
+use a4n_db::project as project_db;
+
+use crate::outline::{
+    OrchestratorContext,
+    chapter_contract::{ensure_focus_part_in_context, validate_requested_part_context},
+    context::{ChapterOutlineGenerationContext, load_chapter_outline_generation_context},
+};
+
+pub(super) struct PreparedChapterOutlineRegeneration {
+    pub(super) old: chapter_outline::Model,
+    pub(super) context: ChapterOutlineGenerationContext,
+    pub(super) focus_part: Option<part_outline::Model>,
+}
+
+impl OrchestratorContext {
+    pub(super) async fn prepare_chapter_outline_regeneration(
+        &self,
+        project_id: i64,
+        outline_id: i64,
+    ) -> Result<PreparedChapterOutlineRegeneration, AppError> {
+        let old = project_db::chapter_outline_by_id(self.database.connection(), outline_id)
+            .await
+            .map_err(crate::project::project_outline_record_error_to_app_error)?
+            .ok_or_else(|| AppError::NotFound(format!("章节大纲不存在: {outline_id}")))?;
+        if old.project_id != project_id {
+            return Err(AppError::InvalidArgument(format!(
+                "章节大纲 {outline_id} 不属于项目 {project_id}"
+            )));
+        }
+        let chapter_number = old.chapter_number;
+        let context =
+            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
+        validate_requested_part_context(&context.parts, chapter_number, chapter_number)?;
+        let focus_part = match old.part_id {
+            Some(part_id) => {
+                let part = self.get_part(part_id).await?;
+                if part.project_id != project_id {
+                    return Err(AppError::InvalidArgument(format!(
+                        "章节大纲关联的分部 {part_id} 不属于项目 {project_id}"
+                    )));
+                }
+                Some(part)
+            }
+            None => None,
+        };
+        ensure_focus_part_in_context(focus_part.as_ref(), &context.parts)?;
+        self.ensure_no_other_outline_for_chapter(project_id, chapter_number, outline_id)
+            .await?;
+        Ok(PreparedChapterOutlineRegeneration {
+            old,
+            context,
+            focus_part,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests;

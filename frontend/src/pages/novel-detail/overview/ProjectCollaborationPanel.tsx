@@ -226,7 +226,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] leading-relaxed text-book-text-muted">
+        <p className="text-small leading-relaxed text-book-text-muted">
           {loading ? "正在加载成员…" : `共 ${members.length} 位成员`}
         </p>
         {canLeave ? (
@@ -285,7 +285,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
               <div className="truncate text-xs font-semibold text-book-text-main">
                 {member.username}
               </div>
-              <div className="truncate text-[11px] text-book-text-muted">{member.email}</div>
+              <div className="truncate text-small text-book-text-muted">{member.email}</div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {canManage && !member.is_owner ? (
@@ -296,7 +296,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                   onChange={(event) =>
                     void handleRoleChange(member, event.target.value as ProjectMemberRole)
                   }
-                  className="pyqt-input h-8 w-24 text-[11px] sm:w-28"
+                  className="pyqt-input h-8 w-24 text-small sm:w-28"
                 >
                   {MEMBER_ROLE_OPTIONS.map((item) => (
                     <option key={item.value} value={item.value}>
@@ -305,7 +305,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                   ))}
                 </select>
               ) : (
-                <span className="text-[11px] text-book-text-muted">
+                <span className="text-small text-book-text-muted">
                   {PROJECT_ACCESS_ROLE_LABELS[member.role] || member.role}
                 </span>
               )}
@@ -328,12 +328,12 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
 
       {canManage && visibleInvites.length > 0 && (
         <section className="mt-4">
-          <div className="text-[11px] font-semibold text-book-text-muted">待处理邀请</div>
+          <div className="text-small font-semibold text-book-text-muted">待处理邀请</div>
           <ul aria-label="待处理邀请" className="mt-2 space-y-2">
             {visibleInvites.map((invite) => (
               <li
                 key={invite.id}
-                className="a4n-flat-surface grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-[11px] text-book-text-sub"
+                className="a4n-flat-surface grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-small text-book-text-sub"
               >
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-book-text-main">

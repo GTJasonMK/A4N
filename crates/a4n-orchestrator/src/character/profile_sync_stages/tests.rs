@@ -676,7 +676,11 @@ fn stage_contract_rejects_non_json_objects_markdown_and_size_overflow() {
         &input,
         "最多 5 项",
     );
+}
 
+#[test]
+fn stage_contract_does_not_impose_arbitrary_per_chapter_item_caps() {
+    let input = stage_input(Some(1));
     let changes = (0..7)
         .map(|index| {
             let mut change = canonical_attribute_change();
@@ -684,10 +688,55 @@ fn stage_contract_rejects_non_json_objects_markdown_and_size_overflow() {
             change
         })
         .collect::<Vec<_>>();
-    assert_stage_error_contains(
-        CharacterProfileSyncStage::AttributeChanges,
-        json!({"attribute_changes": changes}),
-        &input,
-        "最多 6 条",
+    let behaviors = (0..7)
+        .map(|index| {
+            let mut behavior = canonical_behavior();
+            behavior["behavior_description"] = json!(format!("关键行为{index}"));
+            behavior
+        })
+        .collect::<Vec<_>>();
+    let deletion_candidates = (0..4)
+        .map(|index| {
+            let mut candidate = canonical_deletion_candidate();
+            candidate["key"] = json!(format!("旧属性{index}"));
+            candidate
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        parse_stage_value(
+            CharacterProfileSyncStage::AttributeChanges,
+            json!({"attribute_changes": changes}),
+            &input,
+        )
+        .expect("valid attribute changes should not be count-limited")["attribute_changes"]
+            .as_array()
+            .expect("attribute_changes should be an array")
+            .len(),
+        7
+    );
+    assert_eq!(
+        parse_stage_value(
+            CharacterProfileSyncStage::BehaviorRecords,
+            json!({"behaviors": behaviors}),
+            &input,
+        )
+        .expect("valid behaviors should not be count-limited")["behaviors"]
+            .as_array()
+            .expect("behaviors should be an array")
+            .len(),
+        7
+    );
+    assert_eq!(
+        parse_stage_value(
+            CharacterProfileSyncStage::DeletionCandidates,
+            json!({"deletion_candidates": deletion_candidates}),
+            &input,
+        )
+        .expect("valid deletion candidates should not be count-limited")["deletion_candidates"]
+            .as_array()
+            .expect("deletion_candidates should be an array")
+            .len(),
+        4
     );
 }

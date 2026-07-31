@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::super::{ParseResult, ParsedChapter};
 use super::trim_imported_text;
 
@@ -40,4 +42,3 @@ mod tests {
         );
     }
 }
-use std::collections::HashMap;

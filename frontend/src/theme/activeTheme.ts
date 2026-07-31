@@ -27,7 +27,7 @@ function dispatchThemeApplied(detail: {
   );
 }
 
-export function clearAppliedThemeVariables(): void {
+function clearAppliedThemeVariables(): void {
   if (appliedThemeVariables.size === 0) return;
 
   const root = document.documentElement;

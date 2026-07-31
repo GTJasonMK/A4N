@@ -44,6 +44,23 @@ struct GenerationExecutionOwner {
     workers: std::sync::Mutex<BTreeMap<String, tokio::task::JoinHandle<()>>>,
 }
 
+fn inherit_generation_runtime_context<F>(future: F) -> impl Future<Output = F::Output>
+where
+    F: Future,
+{
+    let user_id = crate::runtime_config::current_user_id();
+    let snapshot = crate::runtime_config::current_snapshot();
+    async move {
+        match (user_id, snapshot) {
+            (Some(user_id), snapshot) => {
+                crate::runtime_config::request_scope(user_id, snapshot, future).await
+            }
+            (None, Some(snapshot)) => crate::runtime_config::scope(snapshot, future).await,
+            (None, None) => future.await,
+        }
+    }
+}
+
 impl Drop for GenerationExecutionOwner {
     fn drop(&mut self) {
         for worker in self
@@ -149,14 +166,19 @@ impl AppState {
         self.orchestrator.cancel_task_handle(task_id)
     }
 
+    pub(crate) fn cancel_or_remember_task_handle(&self, task_id: &str, user_id: i64) -> bool {
+        self.orchestrator
+            .cancel_or_remember_task_handle(task_id, user_id)
+    }
+
     pub(crate) fn active_task_snapshots(&self) -> Vec<a4n_core::event::channel::TaskSnapshot> {
         self.orchestrator.active_task_snapshots()
     }
 
-    pub async fn subscribe_internal_events(
+    pub fn subscribe_internal_events(
         &self,
     ) -> tokio::sync::broadcast::Receiver<a4n_core::event::bridge::InternalEvent> {
-        self.orchestrator.subscribe_internal_events().await
+        self.orchestrator.subscribe_internal_events()
     }
 
     pub(crate) fn prompt_records(&self) -> super::prompt_records::PromptRecordsRuntimeFacade<'_> {
@@ -335,7 +357,10 @@ impl AppState {
             !workers.contains_key(&task_id),
             "generation execution owner 已存在: {task_id}"
         );
-        workers.insert(task_id, tokio::spawn(future));
+        workers.insert(
+            task_id,
+            tokio::spawn(inherit_generation_runtime_context(future)),
+        );
     }
 
     pub(crate) fn destructive_lifecycle(
@@ -546,6 +571,7 @@ fn acquire_data_dir_lock(data_dir: &Path) -> Result<File, a4n_core::error::AppEr
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(&path)
         .map_err(|error| {
             a4n_core::error::AppError::ConfigError(format!(
@@ -576,7 +602,9 @@ impl std::fmt::Debug for AppState {
 
 #[cfg(test)]
 mod tests {
-    use super::acquire_data_dir_lock;
+    use serde_json::json;
+
+    use super::{acquire_data_dir_lock, inherit_generation_runtime_context};
 
     #[test]
     fn data_dir_lock_rejects_second_owner_and_releases_on_drop() {
@@ -587,5 +615,41 @@ mod tests {
 
         drop(first);
         acquire_data_dir_lock(temp.path()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn generation_worker_inherits_runtime_context() {
+        let snapshot = serde_json::from_value(json!({
+            "schema_version": 1,
+            "image": {
+                "id": null,
+                "name": "request image config",
+                "backend": "openai-compatible-image",
+                "base_url": "https://example.test/v1",
+                "api_key_encrypted": "sk-test",
+                "model": "image-test",
+                "max_concurrent": 1,
+                "default_width": 512,
+                "default_height": 512,
+                "is_default": true
+            }
+        }))
+        .unwrap();
+
+        crate::runtime_config::request_scope(42, Some(snapshot), async {
+            let worker = tokio::spawn(inherit_generation_runtime_context(async {
+                let snapshot = crate::runtime_config::current_snapshot().unwrap();
+                (
+                    crate::runtime_config::current_user_id(),
+                    snapshot.image.unwrap().name,
+                )
+            }));
+
+            assert_eq!(
+                worker.await.unwrap(),
+                (Some(42), "request image config".to_string())
+            );
+        })
+        .await;
     }
 }

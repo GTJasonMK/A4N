@@ -2,7 +2,6 @@
  * 把 ProgressDialog 接到唯一 generation client。
  *
  * 规则：
- * - 不传 `taskId`，禁止订阅旧 Host 进度通道
  * - 取消只走 generationClient.cancel
  * - 进度只来自 generation store / waitForTerminal
  */
@@ -13,41 +12,15 @@ import type { ProgressTaskOptions, RunProgressTask } from "./useProgressTask";
 
 export type GenerationProgressUiOptions = Omit<
   ProgressTaskOptions,
-  "taskId" | "cancelTaskId" | "cancelTask" | "eventSource"
+  "cancelTaskId" | "cancelTask"
 >;
-
-export async function runGenerationProgressTask(
-  runProgressTask: RunProgressTask,
-  handle: GenerationTaskHandle,
-  options: GenerationProgressUiOptions,
-): Promise<GenerationTaskViewState> {
-  return runProgressTask(
-    {
-      ...options,
-      cancelTaskId: handle.task_id,
-      cancelTask: async () => {
-        await generationClient.cancel(handle);
-      },
-    },
-    async ({ setProgress }) => {
-      return generationClient.waitForTerminal(handle, (current) => {
-        if (current?.progress) {
-          setProgress(
-            current.progress.message,
-            current.progress.current ?? undefined,
-            current.progress.total ?? undefined,
-          );
-        }
-      });
-    },
-  );
-}
 
 export async function runGenerationProgressTaskThen<T>(
   runProgressTask: RunProgressTask,
   handle: GenerationTaskHandle,
   options: GenerationProgressUiOptions,
   afterTerminal: (task: GenerationTaskViewState) => Promise<T> | T,
+  onUpdate?: (task: GenerationTaskViewState | null) => void,
 ): Promise<T> {
   return runProgressTask(
     {
@@ -57,17 +30,28 @@ export async function runGenerationProgressTaskThen<T>(
         await generationClient.cancel(handle);
       },
     },
-    async ({ setProgress }) => {
+    async ({ setProgress, setStreamText }) => {
       const task = await generationClient.waitForTerminal(handle, (current) => {
-        if (current?.progress) {
-          setProgress(
-            current.progress.message,
-            current.progress.current ?? undefined,
-            current.progress.total ?? undefined,
-          );
-        }
+        applyGenerationProgress(current, setProgress, setStreamText);
+        onUpdate?.(current);
       });
       return afterTerminal(task);
     },
   );
+}
+
+function applyGenerationProgress(
+  task: GenerationTaskViewState | null,
+  setProgress: (message: string, current?: number, total?: number) => void,
+  setStreamText: (text: string) => void,
+): void {
+  if (task?.progress) {
+    setProgress(
+      task.progress.message,
+      task.progress.current ?? undefined,
+      task.progress.total ?? undefined,
+    );
+  }
+  const stream = task?.streams.raw_json;
+  if (stream) setStreamText(stream.text);
 }

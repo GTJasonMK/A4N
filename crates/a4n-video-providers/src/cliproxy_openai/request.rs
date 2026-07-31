@@ -85,12 +85,6 @@ pub(super) fn request_body_with_mode(
             "CLIProxy Grok 视频使用素材参考图时最大时长为 10 秒，请降低时长或移除素材参考图".into(),
         ));
     }
-    if !reference_image_urls.is_empty() && !grok_video_model_supports_reference_images(&req.model) {
-        return Err(AppError::InvalidArgument(format!(
-            "CLIProxy Grok 视频模型 {} 不支持 reference_images；请改用 grok-imagine-video，或切换为首帧模式 input_reference",
-            req.model
-        )));
-    }
     let mut refs = Vec::with_capacity(reference_image_urls.len());
     for (index, url) in reference_image_urls.iter().enumerate() {
         ensure_http_media_url(url, &format!("素材参考图 #{}", index + 1))?;
@@ -101,34 +95,6 @@ pub(super) fn request_body_with_mode(
     }
 
     Ok(Value::Object(body))
-}
-
-pub(super) fn grok_video_model_supports_reference_images(model: &str) -> bool {
-    !grok_video_model_is_image_to_video_only(model)
-}
-
-pub(super) fn grok_video_model_is_image_to_video_only(model: &str) -> bool {
-    matches!(
-        grok_video_model_base(model).as_deref(),
-        Some("grok-imagine-video-1.5")
-            | Some("grok-imagine-video-1.5-preview")
-            | Some("grok-imagine-video-1.5-2026-05-30")
-    )
-}
-
-pub(super) fn grok_video_model_base(model: &str) -> Option<String> {
-    let model = model.trim().to_ascii_lowercase();
-    if model.is_empty() {
-        return None;
-    }
-    Some(
-        model
-            .rsplit('/')
-            .next()
-            .unwrap_or(model.as_str())
-            .trim()
-            .to_string(),
-    )
 }
 
 pub(super) fn grok_reference_mode(value: Option<&Value>) -> Result<GrokReferenceMode, AppError> {

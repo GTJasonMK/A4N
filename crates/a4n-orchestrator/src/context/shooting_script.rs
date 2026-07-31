@@ -241,11 +241,13 @@ impl OrchestratorContext {
         project_id: i64,
         source_chapter_id: i64,
         target_revision: i32,
+        active_task_id: Option<&str>,
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
         let input = crate::shooting_script::chapter_shooting_script_workflow_run_input(
             project_id,
             source_chapter_id,
             target_revision,
+            active_task_id,
         )
         .map_err(AppError::InvalidArgument)?;
         self.begin_workflow_run_validated(input).await

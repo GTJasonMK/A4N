@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { useToast } from "../../../components/feedback/Toast";
@@ -231,7 +232,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-[11px] leading-relaxed text-book-text-muted">
+        <p className="text-small leading-relaxed text-book-text-muted">
           {versions.length > 0
             ? `共 ${versions.length} 个版本；选择两个版本可查看差异`
             : "每次保存或优化蓝图都会生成版本记录"}
@@ -241,7 +242,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
             items={[
               {
                 label: loading ? "正在刷新…" : "刷新版本",
-                icon: loading ? <Loader2 size={12} className="animate-spin" /> : undefined,
+                icon: loading ? <LoadingSpinner size="sm" /> : undefined,
                 onClick: load,
                 disabled: loading || restoring != null,
               },
@@ -257,7 +258,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
             >
               {diffing ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 size={12} className="animate-spin" /> 对比中…
+                  <LoadingSpinner size="sm" /> 对比中…
                 </span>
               ) : (
                 "对比已选版本"
@@ -269,7 +270,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
 
       {loading && versions.length === 0 ? (
         <div className="text-xs text-book-text-muted inline-flex items-center gap-2">
-          <Loader2 size={12} className="animate-spin" /> 加载版本…
+          <LoadingSpinner size="sm" /> 加载版本…
         </div>
       ) : versions.length === 0 ? (
         <div className="text-xs text-book-text-muted py-3">
@@ -304,23 +305,23 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
                   <span className="min-w-0 flex-1" title={version.version}>
                     <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-medium text-book-text-main">{versionLabel}</span>
-                      <time className="text-[10px] tabular-nums text-book-text-muted">
+                      <time className="text-caption tabular-nums text-book-text-muted">
                         {formatUiDateTime(version.created_at)}
                       </time>
                       {version.created_by ? (
-                        <span className="text-[10px] text-book-text-muted">
+                        <span className="text-caption text-book-text-muted">
                           {version.created_by}
                         </span>
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-book-text-sub">
+                    <span className="mt-0.5 block truncate text-small text-book-text-sub">
                       {version.change_description || "保存蓝图"}
                     </span>
                   </span>
                   {restoring != null ? (
                     restoring === version.version ? (
                       <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-book-text-muted">
-                        <Loader2 size={11} className="animate-spin" />
+                        <LoadingSpinner size="sm" />
                       </span>
                     ) : (
                       <span className="h-8 w-8 shrink-0" />
@@ -373,19 +374,19 @@ const BLUEPRINT_DIFF_LABELS: Record<string, string> = {
 
 const BlueprintDiffSummary: React.FC<{ diff: unknown }> = ({ diff }) => {
   if (typeof diff === "string") {
-    return <div className="a4n-flat-surface whitespace-pre-wrap break-words p-3 text-[11px] leading-relaxed text-book-text-sub">{diff}</div>;
+    return <div className="a4n-flat-surface whitespace-pre-wrap break-words p-3 text-small leading-relaxed text-book-text-sub">{diff}</div>;
   }
   const entries =
     diff && typeof diff === "object" && !Array.isArray(diff)
       ? Object.entries(diff as Record<string, unknown>)
       : [];
   if (entries.length === 0) {
-    return <div className="text-[11px] text-book-text-muted">没有可展示的差异</div>;
+    return <div className="text-small text-book-text-muted">没有可展示的差异</div>;
   }
   return (
     <div className="a4n-flat-surface divide-y divide-book-border/40">
         {entries.slice(0, 16).map(([key, value], index) => (
-          <div key={key} className="grid gap-1 px-3 py-2 text-[11px] sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3">
+          <div key={key} className="grid gap-1 px-3 py-2 text-small sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3">
             <span className="font-medium text-book-text-muted">
               {BLUEPRINT_DIFF_LABELS[key] ?? `变化 ${index + 1}`}
             </span>

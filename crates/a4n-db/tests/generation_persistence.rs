@@ -1,4 +1,5 @@
 use a4n_core::models::{
+    chapter::chapter,
     generation::generation_start_request,
     project::project_member,
     task::{task_dependency, task_queue},
@@ -14,6 +15,10 @@ use a4n_db::generation::{
     list_active_generation_task_checkpoints, list_generation_task_history_checkpoints,
     load_generation_task, persist_generation_checkpoint, persist_generation_terminal,
     purge_expired_generation_task_trees, reserve_generation_task, restore_project_lifecycle_gate,
+};
+use a4n_db::workflow::{
+    ClaimExclusiveWorkflowRunInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
+    claim_exclusive_workflow_run, mark_workflow_status,
 };
 use a4n_migration::test_support::connect_test_database;
 use a4n_queue::priority::{TaskKind, TaskPriority};
@@ -122,6 +127,145 @@ async fn set_generation_task_requester(
     ))
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn generation_reservation_resolves_derived_project_root() {
+    let db = connect_test_database().await;
+    let suffix = Uuid::new_v4().simple().to_string();
+    let user = a4n_db::auth::create_user(
+        &db,
+        &format!("generation_derived_{suffix}"),
+        &format!("generation_derived_{suffix}@example.invalid"),
+        "generation-test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let root = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: user.id,
+            title: format!("generation derived root {suffix}"),
+            description: String::new(),
+            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    let chapter = chapter::ActiveModel {
+        project_id: Set(root.id),
+        chapter_number: Set(1),
+        title: Set(Some("第一章".to_string())),
+        content: Set("章节正文".to_string()),
+        word_count: Set(4),
+        status: Set(chapter::STATUS_IMPORTED.to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let derived = a4n_db::project::create_derived_project_record(
+        &db,
+        user.id,
+        a4n_db::project::CreateDerivedProjectParams {
+            root_project_id: root.id,
+            derived_kind: a4n_db::project::PROJECT_KIND_VIDEO.to_string(),
+            title: format!("generation derived video {suffix}"),
+            description: String::new(),
+            chapter_scope: a4n_db::project::DerivedChapterScope {
+                start_chapter: 1,
+                end_chapter: 1,
+            },
+            creation_options_json: json!({}),
+        },
+    )
+    .await
+    .unwrap();
+
+    let reserved = reserve_generation_task(
+        &db,
+        reservation_input(user.id, derived.id, Uuid::new_v4().to_string()),
+    )
+    .await
+    .unwrap();
+    let task_id = reserved.task.checkpoint.task_id.clone();
+    assert_eq!(reserved.task.checkpoint.project_id, Some(derived.id));
+    assert_eq!(reserved.task.checkpoint.root_project_id, Some(root.id));
+    let snapshot = reserved.task.public_snapshot.unwrap();
+    assert_eq!(snapshot.started.project_id, Some(derived.id));
+    assert_eq!(snapshot.started.root_project_id, Some(root.id));
+
+    let workflow_input = UpsertWorkflowRunInput {
+        business_key: format!(
+            "video_prompt:video_prompts:{}:{}:storyboard",
+            derived.id, chapter.id
+        ),
+        workflow_kind: "video_prompts".to_string(),
+        project_id: Some(derived.id),
+        root_project_id: Some(root.id),
+        source_snapshot_id: None,
+        scope_table: Some("chapter".to_string()),
+        scope_id: Some(chapter.id),
+        chapter_id: Some(chapter.id),
+        mode: Some("storyboard".to_string()),
+        input_fingerprint_json: Some(json!({ "version": 1 })),
+        status: "running".to_string(),
+        current_step_key: Some("video_prompts".to_string()),
+        active_task_id: Some(task_id.clone()),
+        can_resume: false,
+        resume_block_reason: None,
+        error_message: None,
+    };
+    let workflow = claim_exclusive_workflow_run(
+        &db,
+        ClaimExclusiveWorkflowRunInput {
+            run: workflow_input.clone(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(workflow.root_project_id, Some(root.id));
+    assert_eq!(workflow.active_task_id.as_deref(), Some(task_id.as_str()));
+    let queue_task = task_queue::Entity::find_by_id(task_id.clone())
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(queue_task.root_project_id, Some(root.id));
+    assert_eq!(queue_task.workflow_run_id, Some(workflow.id));
+
+    mark_workflow_status(&db, workflow.id, WORKFLOW_STATUS_COMPLETED, false, None)
+        .await
+        .unwrap();
+    let next_workflow = claim_exclusive_workflow_run(
+        &db,
+        ClaimExclusiveWorkflowRunInput {
+            run: workflow_input,
+        },
+    )
+    .await
+    .unwrap();
+    assert_ne!(next_workflow.id, workflow.id);
+    let queue_task = task_queue::Entity::find_by_id(task_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(queue_task.root_project_id, Some(root.id));
+    assert_eq!(queue_task.workflow_run_id, Some(next_workflow.id));
+
+    let mut mismatched = reservation_input(user.id, derived.id, Uuid::new_v4().to_string());
+    mismatched.root_project_id = Some(derived.id);
+    let error = reserve_generation_task(&db, mismatched).await.unwrap_err();
+    assert!(matches!(
+        error,
+        GenerationTaskPersistenceError::InvalidArgument(message)
+            if message.contains("规范 root")
+    ));
 }
 
 #[tokio::test]

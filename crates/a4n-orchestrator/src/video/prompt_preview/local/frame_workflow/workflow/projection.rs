@@ -1,50 +1,41 @@
 use crate::video::prompt_preview::preview_steps::{
-    preview_boundary_from_steps, preview_chat_boundary_from_steps, preview_first_frame_from_steps,
-    preview_storyboard_from_steps,
+    preview_boundary_from_steps, preview_first_frame_from_steps, preview_storyboard_from_steps,
 };
 use crate::video::prompt_preview::{VideoPromptRequestPreview, VideoPromptRequestPreviewStep};
 
-use super::super::super::spec::LocalVideoPromptPreviewMode;
+use super::super::super::spec::LocalFramePromptPreviewMode;
 
 pub(super) fn preview_from_frame_steps(
-    mode: LocalVideoPromptPreviewMode,
+    mode: LocalFramePromptPreviewMode,
     steps: Vec<VideoPromptRequestPreviewStep>,
 ) -> VideoPromptRequestPreview {
     match mode {
-        LocalVideoPromptPreviewMode::BoundaryFrames => preview_boundary_from_steps(steps),
-        LocalVideoPromptPreviewMode::FirstFrameChain => preview_first_frame_from_steps(steps),
-        LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames => {
-            preview_chat_boundary_from_steps(steps)
-        }
-        LocalVideoPromptPreviewMode::Storyboard => preview_storyboard_from_steps(steps),
+        LocalFramePromptPreviewMode::BoundaryFrames => preview_boundary_from_steps(steps),
+        LocalFramePromptPreviewMode::FirstFrameChain => preview_first_frame_from_steps(steps),
+        LocalFramePromptPreviewMode::Storyboard => preview_storyboard_from_steps(steps),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::preview_from_frame_steps;
-    use crate::video::prompt_preview::local::spec::LocalVideoPromptPreviewMode;
+    use crate::video::prompt_preview::local::spec::LocalFramePromptPreviewMode;
 
     #[test]
     fn projects_frame_preview_modes_to_stable_workflows() {
         let cases = [
             (
-                LocalVideoPromptPreviewMode::BoundaryFrames,
+                LocalFramePromptPreviewMode::BoundaryFrames,
                 "chapter_video_boundary_frame_generation",
                 "边界帧完整提示词与模型请求",
             ),
             (
-                LocalVideoPromptPreviewMode::FirstFrameChain,
+                LocalFramePromptPreviewMode::FirstFrameChain,
                 "chapter_video_first_frame_generation",
                 "首帧完整提示词与模型请求",
             ),
             (
-                LocalVideoPromptPreviewMode::ChatVideoBoundaryFrames,
-                "chapter_video_chat_boundary_frame_generation",
-                "Chat 首尾帧完整提示词与模型请求",
-            ),
-            (
-                LocalVideoPromptPreviewMode::Storyboard,
+                LocalFramePromptPreviewMode::Storyboard,
                 "chapter_video_storyboard_generation",
                 "分镜完整提示词与模型请求",
             ),

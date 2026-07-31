@@ -147,29 +147,8 @@ impl OrchestratorContext {
     ) -> Result<super::GeneratedImageSummary, AppError> {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
-        progress.progress(0, 3, "正在准备图片生成配置");
-        check_progress_cancelled(progress)?;
-        let prepared = self
-            .prepare_direct_image(
-                host,
-                scene_image_plan(input),
-                ImageChapterBindingAccess::Writable,
-            )
-            .await?;
-        progress.progress(1, 3, "正在调用图片模型");
-        let outcome = self
-            .execute_prepared_direct_image(host, prepared, progress)
-            .await?;
-        progress.progress(
-            3,
-            3,
-            if outcome.restored {
-                "图片已从断点恢复"
-            } else {
-                "图片已保存"
-            },
-        );
-        Ok(outcome.summary)
+        self.generate_direct_image(host, scene_image_plan(input), progress)
+            .await
     }
 
     pub async fn prepare_canvas_image_request_validated(
@@ -203,29 +182,8 @@ impl OrchestratorContext {
         }
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
-        progress.progress(0, 3, "正在准备图片生成配置");
-        check_progress_cancelled(progress)?;
-        let prepared = self
-            .prepare_direct_image(
-                host,
-                galgame_image_plan(input),
-                ImageChapterBindingAccess::Writable,
-            )
-            .await?;
-        progress.progress(1, 3, "正在调用图片模型");
-        let outcome = self
-            .execute_prepared_direct_image(host, prepared, progress)
-            .await?;
-        progress.progress(
-            3,
-            3,
-            if outcome.restored {
-                "图片已从断点恢复"
-            } else {
-                "图片已保存"
-            },
-        );
-        Ok(outcome.summary)
+        self.generate_direct_image(host, galgame_image_plan(input), progress)
+            .await
     }
 
     pub async fn generate_object_profile_image_prompt_validated(
@@ -457,14 +415,24 @@ impl OrchestratorContext {
         chapter_id: Option<i64>,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<super::GeneratedImageSummary, AppError> {
+        self.generate_direct_image(
+            host,
+            profile_image_plan(material, config_id, chapter_id),
+            progress,
+        )
+        .await
+    }
+
+    async fn generate_direct_image(
+        &self,
+        host: &dyn ImageGenerationHostPort,
+        plan: DirectImagePlan,
+        progress: &ImageGenerationProgress<'_>,
+    ) -> Result<super::GeneratedImageSummary, AppError> {
         progress.progress(0, 3, "正在准备图片生成配置");
         check_progress_cancelled(progress)?;
         let prepared = self
-            .prepare_direct_image(
-                host,
-                profile_image_plan(material, config_id, chapter_id),
-                ImageChapterBindingAccess::Writable,
-            )
+            .prepare_direct_image(host, plan, ImageChapterBindingAccess::Writable)
             .await?;
         progress.progress(1, 3, "正在调用图片模型");
         let outcome = self
@@ -1340,13 +1308,10 @@ fn merge_direct_image_metadata(base: Option<Value>, extra: Option<Value>) -> Opt
     }
 }
 
-fn check_progress_cancelled(progress: &ImageGenerationProgress<'_>) -> Result<(), AppError> {
-    progress
-        .check_cancelled()
-        .map_err(|message| AppError::InvalidState {
-            current: "running".to_string(),
-            operation: message,
-        })
+pub(super) fn check_progress_cancelled(
+    progress: &ImageGenerationProgress<'_>,
+) -> Result<(), AppError> {
+    progress.check_cancelled().map_err(|_| AppError::Cancelled)
 }
 
 fn require_positive(value: i64, label: &str) -> Result<(), AppError> {

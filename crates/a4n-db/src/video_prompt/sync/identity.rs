@@ -31,6 +31,7 @@ fn prompt_sync_identity(
         prompt_type.to_string(),
         shot_number,
         prompt_sync_output_language_identity(prompt_type, metadata),
+        prompt_execution_identity(metadata),
     )
 }
 
@@ -59,6 +60,7 @@ fn prompt_sync_scope(
         workflow_mode.to_string(),
         prompt_type.to_string(),
         prompt_sync_output_language_identity(prompt_type, metadata),
+        prompt_execution_identity(metadata),
     )
 }
 
@@ -95,4 +97,40 @@ pub(super) fn should_keep_unmatched_prompt(
     row.prompt_type == "video_prompt"
         && (row.generated_video_id.is_some()
             || matches!(row.status.as_str(), "running" | "completed"))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn prompt_sync_identity_separates_card_execution_chains() {
+        let first = json!({
+            "prompt_output_language": "zh_cn",
+            "video_execution_identity": {
+                "segment_plan_prompt_id": 10,
+                "segment_number": 1,
+                "segment_recipe_fingerprint": "recipe-1"
+            }
+        });
+        let second = json!({
+            "prompt_output_language": "zh_cn",
+            "video_execution_identity": {
+                "segment_plan_prompt_id": 10,
+                "segment_number": 2,
+                "segment_recipe_fingerprint": "recipe-2"
+            }
+        });
+
+        assert_ne!(
+            prompt_sync_identity("boundary_frames", "frame_prompt", 2, Some(&first)),
+            prompt_sync_identity("boundary_frames", "frame_prompt", 2, Some(&second)),
+        );
+        assert_ne!(
+            prompt_sync_scope("boundary_frames", "frame_prompt", Some(&first)),
+            prompt_sync_scope("boundary_frames", "frame_prompt", Some(&second)),
+        );
+    }
 }

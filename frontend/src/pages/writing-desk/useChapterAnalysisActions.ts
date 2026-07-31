@@ -16,14 +16,13 @@ import {
 } from "../../api/chapter";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { ToastType } from "../../components/feedback/Toast";
-import {
-  allocateHostTaskId,
-  useProgressTask,
-} from "../../hooks/useProgressTask";
+import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
+import { isCancelledOperation } from "../../utils/cancellation";
 
 type AddToast = (message: unknown, type: ToastType) => void;
 
 const CHAPTER_ANALYSIS_MODEL_FAILURE_PREFIX = "章节结构化分析失败:";
+const CHAPTER_ANALYSIS_PROGRESS_TOTAL = 100;
 
 const isChapterAnalysisModelFailure = (message: string): boolean =>
   message.startsWith(CHAPTER_ANALYSIS_MODEL_FAILURE_PREFIX);
@@ -181,7 +180,7 @@ export function useChapterAnalysisActions({
           startMessage: "正在准备章节分析",
           successMessage: "结构化分析和项目状态已同步",
           errorMessage: "结构化分析失败",
-          total: 11,
+          total: CHAPTER_ANALYSIS_PROGRESS_TOTAL,
           cancelLabel: "停止分析",
           runningHint: "结构化分析过程中已写入的数据会保留",
         },
@@ -190,6 +189,7 @@ export function useChapterAnalysisActions({
             {
               chapter_id: chapter.id,
             },
+            taskId,
           ),
       );
       setChapters((prev) =>
@@ -204,6 +204,10 @@ export function useChapterAnalysisActions({
       refreshProfiles();
       const refreshedChapter =
         refreshed?.find((item) => item.id === activeChapterIdRef.current) ?? null;
+      if (isCancelledOperation(errorMessage)) {
+        addToast("章节结构化分析已停止", "info");
+        return;
+      }
       if (
         refreshedChapter?.analysis_data != null &&
         !isChapterAnalysisModelFailure(errorMessage)
@@ -248,7 +252,7 @@ export function useChapterAnalysisActions({
           startMessage: "正在准备继续同步",
           successMessage: "结构化分析派生数据已同步",
           errorMessage: "继续同步失败",
-          total: 11,
+          total: CHAPTER_ANALYSIS_PROGRESS_TOTAL,
           cancelLabel: "停止分析",
           runningHint: "结构化分析过程中已写入的数据会保留",
         },
@@ -257,6 +261,7 @@ export function useChapterAnalysisActions({
             {
               chapter_id: chapter.id,
             },
+            taskId,
           ),
       );
       setChapters((prev) =>
@@ -266,9 +271,13 @@ export function useChapterAnalysisActions({
       refreshProfiles();
       addToast("结构化分析派生数据已继续同步", "success");
     } catch (err) {
+      const errorMessage = extractErrorMessage(err, "继续同步失败");
       void reloadChapters({ force: true });
       refreshProfiles();
-      addToast(extractErrorMessage(err, "继续同步失败"), "error");
+      addToast(
+        isCancelledOperation(errorMessage) ? "章节分析继续同步已停止" : errorMessage,
+        isCancelledOperation(errorMessage) ? "info" : "error",
+      );
     } finally {
       analysisActionRef.current = null;
       setAnalysisBusy(false);

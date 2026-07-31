@@ -15,11 +15,11 @@ export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus })
   return (
     <section className="a4n-context-bar !block">
       <div className="flex min-w-0 items-baseline gap-2">
-        <span className="text-[10px] text-book-text-muted">当前阶段</span>
+        <span className="text-caption text-book-text-muted">当前阶段</span>
         <strong className="truncate text-sm font-semibold text-book-text-main">
           {currentStep?.label ?? "未知阶段"}
         </strong>
-        <span className="ml-auto shrink-0 text-[10px] tabular-nums text-book-text-muted">
+        <span className="ml-auto shrink-0 text-caption tabular-nums text-book-text-muted">
           {completedSteps} / {STATUS_FLOW.length}
         </span>
       </div>
@@ -29,7 +29,7 @@ export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus })
           style={{ width: `${progress}%` }}
         />
       </div>
-      <details className="group mt-2 text-[10px] text-book-text-muted">
+      <details className="group mt-2 text-caption text-book-text-muted">
         <summary className="flex w-fit cursor-pointer list-none items-center gap-1 transition-colors hover:text-book-text-main [&::-webkit-details-marker]:hidden">
           <span>查看完整流程</span>
           <ChevronRight

@@ -90,7 +90,11 @@ function shouldFlushImmediately(
   next: GenerationTaskViewState,
   action: GenerationTaskReducerAction,
 ): boolean {
-  return action.type === "snapshot"
+  return (action.type === "event"
+      && action.event.event.kind === "progress"
+      && action.event.event.data.phase_kind === "persist"
+      && action.event.event.data.item_key != null)
+    || action.type === "snapshot"
     || action.type === "summary"
     || action.type === "client_state"
     || action.type === "consistency_error"

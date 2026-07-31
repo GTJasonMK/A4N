@@ -1,8 +1,47 @@
 use super::{
-    normalize_movement_type_value, normalize_scene_entity_state_key_value,
-    normalize_scene_entity_type_value, normalize_scene_type_value,
+    SceneProfileDraft, normalize_movement_type_value, normalize_scene_entity_state_key_value,
+    normalize_scene_entity_type_value, normalize_scene_profile_record_input,
+    normalize_scene_type_value,
 };
 use a4n_core::error::AppError;
+use serde_json::json;
+
+fn valid_scene_profile_draft() -> SceneProfileDraft {
+    SceneProfileDraft {
+        scene_ref: "station".to_string(),
+        scene_profile_id: None,
+        name: "旧车站".to_string(),
+        aliases: vec![],
+        scene_type: "building".to_string(),
+        importance: "primary".to_string(),
+        parent_scene_id: None,
+        base_description: "停运车站".to_string(),
+        visual_description: "昏暗站厅".to_string(),
+        spatial_layout: "站厅连接通道".to_string(),
+        atmosphere: "紧张".to_string(),
+        entry_points: json!(["正门"]),
+        rules: json!(["午夜关闭"]),
+        first_seen_chapter: 1,
+        last_seen_chapter: 1,
+        evidence: vec!["林岚进入旧车站".to_string()],
+        image_prompt_seed: "雨夜旧车站".to_string(),
+    }
+}
+
+#[test]
+fn scene_profile_rejects_non_array_entry_points_and_rules() {
+    let mut invalid_entry_points = valid_scene_profile_draft();
+    invalid_entry_points.entry_points = json!({"name": "正门"});
+    let error = normalize_scene_profile_record_input(invalid_entry_points)
+        .expect_err("non-array entry points must remain visible");
+    assert!(matches!(error, AppError::InvalidArgument(message) if message.contains("场景出入口")));
+
+    let mut invalid_rules = valid_scene_profile_draft();
+    invalid_rules.rules = json!({"access": "需机械钥匙"});
+    let error = normalize_scene_profile_record_input(invalid_rules)
+        .expect_err("non-array rules must remain visible");
+    assert!(matches!(error, AppError::InvalidArgument(message) if message.contains("场景规则")));
+}
 
 #[test]
 fn normalize_scene_type_accepts_canonical_values_only() {

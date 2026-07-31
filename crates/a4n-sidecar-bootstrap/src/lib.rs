@@ -90,6 +90,16 @@ pub fn shutdown_router(signal: SidecarShutdownSignal) -> Router {
         .layer(Extension(signal))
 }
 
+pub async fn serve_sidecar(router: Router, addr: SocketAddr, service: &str) -> anyhow::Result<()> {
+    let (shutdown_signal, shutdown) = sidecar_shutdown();
+    let app = with_runtime_metrics(router.merge(shutdown_router(shutdown_signal)), service)?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown)
+        .await?;
+    Ok(())
+}
+
 pub fn init_tracing(log_env: &str, default_filter: &str) -> anyhow::Result<()> {
     let filter_text = env_value_or_default(log_env, default_filter)?;
     logging::init(log_env, &filter_text)

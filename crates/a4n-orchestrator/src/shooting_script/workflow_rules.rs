@@ -40,6 +40,7 @@ pub fn chapter_shooting_script_workflow_run_input(
     project_id: i64,
     source_chapter_id: i64,
     target_revision: i32,
+    active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
     Ok(UpsertWorkflowRunInput {
         business_key: chapter_shooting_script_business_key(
@@ -61,7 +62,7 @@ pub fn chapter_shooting_script_workflow_run_input(
         )),
         status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some("screenplay_layout".to_string()),
-        active_task_id: None,
+        active_task_id: active_task_id.map(str::to_string),
         can_resume: true,
         resume_block_reason: None,
         error_message: None,
@@ -81,9 +82,11 @@ mod tests {
 
     #[test]
     fn builds_running_input() {
-        let input = chapter_shooting_script_workflow_run_input(2, 3, 4).unwrap();
+        let input =
+            chapter_shooting_script_workflow_run_input(2, 3, 4, Some("shooting-task")).unwrap();
         assert_eq!(input.business_key, "chapter_shooting_script:2:3:4");
         assert_eq!(input.workflow_kind, "chapter_shooting_script");
         assert_eq!(input.status, WORKFLOW_STATUS_RUNNING);
+        assert_eq!(input.active_task_id.as_deref(), Some("shooting-task"));
     }
 }

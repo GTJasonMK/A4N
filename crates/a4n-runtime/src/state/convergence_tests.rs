@@ -796,12 +796,10 @@ fn video_studio_transfer_runtime_uses_application_owner() {
             && host_src.contains("write_new_data_file(")
             && host_src.contains("enqueue_file_artifact_cleanup_by_project(")
     );
-    for forbidden in ["import_video_studio_package_validated"] {
-        assert!(
-            !state_canvas_src.contains(&format!("fn {forbidden}")),
-            "CanvasRuntimeFacade 不得保留 Video Studio 低层旁路: {forbidden}"
-        );
-    }
+    assert!(
+        !state_canvas_src.contains("fn import_video_studio_package_validated"),
+        "CanvasRuntimeFacade 不得保留 Video Studio 低层旁路: import_video_studio_package_validated"
+    );
     for required in [
         "pub async fn export_video_studio_project_validated",
         "pub async fn import_video_studio_project_validated",
@@ -1273,10 +1271,8 @@ fn settings_runtime_uses_narrow_facade() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let facade_path = manifest_dir.join("src/state/settings.rs");
     let settings_methods = [
-        "list_themes",
         "list_user_themes",
         "list_themes_visible_to_user",
-        "system_default_theme",
         "theme_by_id",
         "create_theme",
         "update_theme",
@@ -2137,7 +2133,6 @@ fn portrait_generation_runtime_uses_application_owner() {
         ".start_portrait_generation_task(",
         ".run_portrait_generation_task(",
         ".generate_portrait_prompt_validated(",
-        ".generate_portrait_validated(",
         ".upload_portrait_validated(",
         ".prepare_generate_portrait_request_preview_validated(",
         ".prepare_generate_portrait_prompt_request_preview_validated(",
@@ -2460,7 +2455,7 @@ fn character_profile_sync_stages_runtime_uses_application_owner() {
         "decide_implicit_reviews_for_sync_validated(",
         "apply_character_sync_persistence_record(",
         "sync_character_continuity_rag(",
-        "finalize_character_profile_sync_workflow_validated(",
+        "finalize_workflow_result(",
     ] {
         assert!(
             application_src.contains(required),
@@ -2840,7 +2835,6 @@ fn video_runtime_uses_narrow_facade() {
         "chapter_video_prompt_for_import",
         "chapter_video_prompts_for_batch_generation",
         "chapter_video_prompts_for_chapter",
-        "chapter_video_prompts_for_chapter_by_id",
         "create_generated_image_record",
         "create_prompt_video_record_with_generation_run_validated",
         "create_video_record",
@@ -2867,7 +2861,6 @@ fn video_runtime_uses_narrow_facade() {
         "video_reference_candidate_images",
         "delete_manga_page_image_records",
         "generated_video_by_id",
-        "generated_video_ids_for_chapter",
         "generated_videos_for_chapter",
         "mark_generated_video_completed_and_link_prompt",
         "mark_generated_video_error_status_and_prompt",
@@ -2875,10 +2868,6 @@ fn video_runtime_uses_narrow_facade() {
         "mark_generated_video_interrupted_validated",
         "mark_generated_video_job_and_prompt_validated",
         "missing_video_reference_project_ids",
-        "preview_chapter_frame_prompts_for_mode",
-        "preview_chapter_video_prompts_for_mode",
-        "preview_chapter_video_frame_prompt_requests_validated",
-        "preview_chapter_video_prompt_requests_validated",
         "project_chapter_video_source",
         "prompt_downstream_dependencies",
         "toggle_generated_video_favorite",
@@ -2895,8 +2884,6 @@ fn video_runtime_uses_narrow_facade() {
         "list_chapter_video_prompts_validated",
         "update_chapter_video_prompt_validated",
         "delete_chapter_video_prompt_validated",
-        "delete_chapter_video_prompt_group_validated",
-        "video_prompt_task_scope_validated",
         "begin_video_provider_workflow_validated",
         "begin_video_provider_progress_workflow_validated",
     ];
@@ -2946,6 +2933,7 @@ fn video_generation_runtime_uses_application_owner() {
     for file in [
         "chapter_video_generation.rs",
         "generation.rs",
+        "prompt_generation_task.rs",
         "reference_media_generation.rs",
         "provider_execution.rs",
         "records.rs",
@@ -2957,6 +2945,7 @@ fn video_generation_runtime_uses_application_owner() {
     }
     for required in [
         "run_video_generation_task",
+        "run_video_prompt_generation_task",
         "run_chapter_video_generation_validated",
         "preview_chapter_video_request_validated",
         "run_reference_media_video_generation_validated",
@@ -3003,7 +2992,9 @@ fn video_generation_runtime_uses_application_owner() {
     for required in [
         ".start_video_generation_task(",
         ".run_video_generation_task(",
+        ".run_video_prompt_generation_task(",
         "start_video_generation_typed(",
+        "spawn_generation_execution(",
         "spawn_video_generation_execution(",
     ] {
         assert!(
@@ -3076,9 +3067,7 @@ fn video_prompts_runtime_uses_application_owner() {
         "generate_chapter_video_frame_prompts_validated",
         "generate_chapter_video_segment_plan_validated",
         "generate_chapter_video_prompts_validated",
-        "preview_chapter_video_prompt_requests_validated",
         "update_chapter_video_prompt_validated",
-        "delete_chapter_video_prompt_group_validated",
         "optimize_chapter_video_prompt_validated",
     ] {
         assert!(
@@ -3155,7 +3144,6 @@ fn video_records_runtime_uses_application_owner() {
         .expect("read video runtime facade");
     for removed in [
         "pub(crate) async fn generated_videos_for_chapter(",
-        "pub(crate) async fn generated_video_ids_for_chapter(",
         "pub(crate) async fn create_video_record(",
         "pub(crate) async fn update_generated_video_record(",
         "pub(crate) async fn toggle_generated_video_favorite(",

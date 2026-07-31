@@ -20,16 +20,6 @@ pub(in crate::video::prompt_preview) fn preview_first_frame_from_steps(
     )
 }
 
-pub(in crate::video::prompt_preview) fn preview_chat_boundary_from_steps(
-    steps: Vec<VideoPromptRequestPreviewStep>,
-) -> VideoPromptRequestPreview {
-    preview_from_steps_named(
-        "chapter_video_chat_boundary_frame_generation",
-        "Chat 首尾帧完整提示词与模型请求",
-        steps,
-    )
-}
-
 pub(in crate::video::prompt_preview) fn preview_storyboard_from_steps(
     steps: Vec<VideoPromptRequestPreviewStep>,
 ) -> VideoPromptRequestPreview {

@@ -1053,6 +1053,7 @@ impl OrchestratorContext {
         baseline_state: &Value,
         base_attributes: &Value,
         chapter_data: &Value,
+        active_task_id: Option<&str>,
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
@@ -1099,7 +1100,7 @@ impl OrchestratorContext {
             input_fingerprint_json: Some(fingerprint),
             status: crate::workflow::WORKFLOW_STATUS_RUNNING.to_string(),
             current_step_key: Some("character_sync.start".to_string()),
-            active_task_id: None,
+            active_task_id: active_task_id.map(str::to_string),
             can_resume: true,
             resume_block_reason: None,
             error_message: None,
@@ -1107,31 +1108,4 @@ impl OrchestratorContext {
         .await
     }
 
-    /// 角色档案同步：按成败将 workflow 标为 completed/failed。
-    pub(crate) async fn finalize_character_profile_sync_workflow_validated(
-        &self,
-        workflow_run_id: i64,
-        success: bool,
-        error_message: Option<&str>,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
-        if workflow_run_id <= 0 {
-            return Err(AppError::InvalidArgument(
-                "workflow_run_id 必须大于 0".to_string(),
-            ));
-        }
-        let (status, can_resume) =
-            crate::character::character_profile_sync_finalize_status(success);
-        let message = if success {
-            None
-        } else {
-            let msg = error_message.unwrap_or("角色同步失败").trim();
-            if msg.is_empty() {
-                Some("角色同步失败")
-            } else {
-                Some(msg)
-            }
-        };
-        self.mark_workflow_status(workflow_run_id, status, can_resume, message)
-            .await
-    }
 }

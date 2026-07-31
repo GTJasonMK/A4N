@@ -8,8 +8,7 @@ use crate::{
     portrait::{normalize_portrait_prompt_response, portrait_prompt_checkpoint_fingerprint},
     workflow::{
         CompletedLlmCallCheckpointInput, CompletedWorkflowCheckpointInput,
-        llm_call_checkpoint_fingerprint_sha256, required_checkpoint_field,
-        required_checkpoint_json, required_llm_call_checkpoint_json,
+        required_checkpoint_field, required_checkpoint_json, required_llm_call_checkpoint_json,
     },
 };
 
@@ -49,22 +48,38 @@ pub(super) async fn finalize_portrait_application<T>(
     result: &Result<T, AppError>,
     success_message: &str,
 ) -> Result<(), AppError> {
-    let (success, error_message) = match result {
-        Ok(_) => (true, None),
-        Err(error) => (false, Some(error.to_string())),
+    let (outcome, error_message) = match result {
+        Ok(_) => (crate::workflow::WorkflowRunFinalizeOutcome::Completed, None),
+        Err(AppError::Cancelled) => (
+            crate::workflow::WorkflowRunFinalizeOutcome::Cancelled,
+            Some(AppError::Cancelled.to_string()),
+        ),
+        Err(error) => (
+            crate::workflow::WorkflowRunFinalizeOutcome::Failed,
+            Some(error.to_string()),
+        ),
     };
     context
-        .finalize_workflow_run_validated(workflow_run_id, success, error_message.as_deref())
+        .finalize_workflow_run_outcome_validated(
+            workflow_run_id,
+            outcome,
+            error_message.as_deref(),
+        )
         .await
-        .map_err(|status_error| match result {
-            Ok(_) => AppError::InvalidState {
-                current: "portrait_application_completed".to_string(),
-                operation: format!("{success_message}，但工作流状态写入失败: {status_error}"),
-            },
-            Err(error) => AppError::InvalidState {
-                current: error.to_string(),
-                operation: format!("工作流失败状态写入失败: {status_error}"),
-            },
+        .map_err(|status_error| {
+            if matches!(&status_error, AppError::Cancelled) {
+                return AppError::Cancelled;
+            }
+            match result {
+                Ok(_) => AppError::InvalidState {
+                    current: "portrait_application_completed".to_string(),
+                    operation: format!("{success_message}，但工作流状态写入失败: {status_error}"),
+                },
+                Err(error) => AppError::InvalidState {
+                    current: error.to_string(),
+                    operation: format!("工作流失败状态写入失败: {status_error}"),
+                },
+            }
         })?;
     Ok(())
 }
@@ -83,13 +98,12 @@ pub(super) async fn resolve_initial_portrait_prompt(
     let call_key = "portrait_generation.prompt".to_string();
     let prompt_fingerprint = portrait_prompt_checkpoint_fingerprint(workflow_fingerprint, &request)
         .map_err(AppError::InvalidArgument)?;
-    let input_fingerprint_sha256 = llm_call_checkpoint_fingerprint_sha256(&prompt_fingerprint)
-        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-    if let Some(trace_context) = request.trace_context.as_mut() {
-        trace_context.workflow_run_id = Some(workflow_run_id);
-        trace_context.call_key = Some(call_key.clone());
-        trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
-    }
+    crate::workflow::attach_llm_call_checkpoint_trace(
+        &mut request,
+        workflow_run_id,
+        &call_key,
+        &prompt_fingerprint,
+    )?;
     context
         .mark_workflow_current_step(workflow_run_id, &call_key)
         .await?;

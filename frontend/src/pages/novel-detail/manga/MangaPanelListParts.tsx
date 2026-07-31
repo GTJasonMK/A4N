@@ -35,7 +35,7 @@ export const LayoutSummaryGrid: React.FC<{ items: LayoutSummaryItem[] }> = ({ it
           key={item.key}
           className="grid min-w-0 gap-1 px-3 py-2 md:grid-cols-[100px_minmax(0,1fr)] md:gap-3"
         >
-          <dt className="text-[11px] font-medium text-book-text-muted">{item.label}</dt>
+          <dt className="text-small font-medium text-book-text-muted">{item.label}</dt>
           <dd className="line-clamp-3 text-xs leading-relaxed text-book-text-main">
             {item.value}
           </dd>

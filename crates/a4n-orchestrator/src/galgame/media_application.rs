@@ -55,6 +55,7 @@ pub struct ImportGalgameAudioInput {
 pub struct PersistedGalgameAudioFile {
     pub relative_path: String,
     pub file_size: i64,
+    pub duration_secs: f32,
 }
 
 #[async_trait]
@@ -168,7 +169,7 @@ impl OrchestratorContext {
                 thumbnail_path: None,
                 width: None,
                 height: None,
-                duration_secs: None,
+                duration_secs: Some(persisted.duration_secs),
                 fps: None,
                 status: MEDIA_STATUS_COMPLETED.to_string(),
                 error_message: None,
@@ -187,6 +188,7 @@ impl OrchestratorContext {
                         "file_name": source.file_name,
                         "mime_type": source.mime_type,
                         "file_size": persisted.file_size,
+                        "duration_secs": persisted.duration_secs,
                         "imported_at": Utc::now().to_rfc3339(),
                     })),
                 },

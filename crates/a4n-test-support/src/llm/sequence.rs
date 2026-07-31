@@ -81,9 +81,13 @@ impl LlmProvider for CapturingSequenceLlmProvider {
         self.user_messages
             .lock()
             .expect("captured LLM user-message lock should not be poisoned")
-            .extend(request.messages.iter().filter_map(|message| {
-                matches!(&message.role, MessageRole::User).then(|| message.content.clone())
-            }));
+            .extend(
+                request
+                    .messages
+                    .iter()
+                    .filter(|message| matches!(&message.role, MessageRole::User))
+                    .map(|message| message.content.clone()),
+            );
         Ok(reply_stream(pop_reply(&self.replies)?))
     }
 

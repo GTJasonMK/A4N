@@ -150,8 +150,7 @@ impl OrchestratorContext {
             from: transition.from,
             to: transition.to,
             timestamp: transition.changed_at,
-        })
-        .await?;
+        })?;
         Ok(transition.project)
     }
 
@@ -166,8 +165,7 @@ impl OrchestratorContext {
             from: rollback.from,
             to: rollback.to,
             timestamp: rollback.changed_at,
-        })
-        .await?;
+        })?;
         Ok(rollback.outcome)
     }
 

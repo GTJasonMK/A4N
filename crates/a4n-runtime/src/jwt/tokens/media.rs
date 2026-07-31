@@ -29,6 +29,7 @@ pub fn create_media_token(
         exp: now + (exp_minutes as usize * 60),
         token_type: "media".to_string(),
         jti: Some(Uuid::new_v4().to_string()),
+        session_id: None,
         media_path: Some(media_path.to_string()),
     };
     let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);

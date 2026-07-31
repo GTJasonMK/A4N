@@ -17,8 +17,8 @@ use super::{
     part_contract::{
         PartGenerationPlan, PartOutlineDraft, chapter_outline_ids_in_part_range,
         chapter_outline_ids_in_part_ranges, ensure_continue_part_request,
-        parse_part_outline_single_response, resolve_part_generation_plan,
-        sync_chapter_outline_part_assignments, sync_part_outlines,
+        infer_chapters_per_part_from_existing, parse_part_outline_single_response,
+        resolve_part_generation_plan, sync_chapter_outline_part_assignments, sync_part_outlines,
         validate_existing_parts_for_plan, validate_part_generation_inputs,
     },
     report_progress, validate_existing_chapter_outline_for_request,

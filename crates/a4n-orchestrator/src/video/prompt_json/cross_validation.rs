@@ -90,23 +90,33 @@ pub(in crate::video) fn validate_segment_plan_against_shooting_script_projection
                 shot.source_shot_id, shot.minimum_readable_segment_count, actual_segment_count
             )));
         }
+        let allows_split_beat_coverage = usize::try_from(actual_segment_count)
+            .is_ok_and(|segment_count| segment_count > shot.action_beats.len());
         let counts = covered_by_shot.get(&shot.source_shot_id);
         for beat in &shot.action_beats {
             let count = counts
                 .and_then(|items| items.get(&beat.beat_id))
                 .copied()
                 .unwrap_or(0);
-            if beat.required && count != 1 {
+            if beat.required && count == 0 {
                 return Err(AppError::InvalidArgument(format!(
-                    "视频分段规划必须且只能覆盖镜头 {} 的必需动作节拍 beat_id {} 一次，实际覆盖 {} 次",
+                    "视频分段规划必须至少覆盖镜头 {} 的必需动作节拍 beat_id {} 一次，实际覆盖 {} 次",
                     shot.source_shot_id, beat.beat_id, count
                 )));
             }
-            if count > 1 {
-                return Err(AppError::InvalidArgument(format!(
-                    "视频分段规划重复覆盖镜头 {} 的动作节拍 beat_id {}，实际覆盖 {} 次",
-                    shot.source_shot_id, beat.beat_id, count
-                )));
+            if count > 1 && !allows_split_beat_coverage {
+                let message = if beat.required {
+                    format!(
+                        "视频分段规划必须且只能覆盖镜头 {} 的必需动作节拍 beat_id {} 一次，实际覆盖 {} 次",
+                        shot.source_shot_id, beat.beat_id, count
+                    )
+                } else {
+                    format!(
+                        "视频分段规划重复覆盖镜头 {} 的动作节拍 beat_id {}，实际覆盖 {} 次",
+                        shot.source_shot_id, beat.beat_id, count
+                    )
+                };
+                return Err(AppError::InvalidArgument(message));
             }
         }
         validate_segment_characters(segment_plan, shot)?;

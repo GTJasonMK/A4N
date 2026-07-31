@@ -104,6 +104,13 @@ impl OrchestratorContext {
                 .finalize_workflow_run_validated(workflow_run_id, true, None)
                 .await
                 .map(|_| ()),
+            Err(AppError::Cancelled) => self
+                .cancel_workflow_run_status_validated(
+                    workflow_run_id,
+                    Some("操作已取消"),
+                )
+                .await
+                .map(|_| ()),
             Err(error) => self
                 .finalize_workflow_run_validated(workflow_run_id, false, Some(&error.to_string()))
                 .await
@@ -111,6 +118,9 @@ impl OrchestratorContext {
         };
 
         if let Err(finalize_error) = finalize_result {
+            if matches!(&finalize_error, AppError::Cancelled) {
+                return Err(AppError::Cancelled);
+            }
             return match result {
                 Ok(_) => Err(AppError::InvalidState {
                     current: "batch_images_generated".to_string(),

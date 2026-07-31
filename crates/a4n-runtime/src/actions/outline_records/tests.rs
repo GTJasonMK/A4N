@@ -28,27 +28,6 @@ fn sample_outline(project_id: i64, pacing_score: Option<f32>) -> chapter_outline
     }
 }
 
-fn sample_part(id: i64, part_number: i32) -> part_outline::Model {
-    let now = NaiveDate::from_ymd_opt(2026, 6, 6)
-        .unwrap()
-        .and_hms_opt(10, 0, 0)
-        .unwrap();
-    part_outline::Model {
-        id,
-        project_id: 1,
-        part_number,
-        title: format!("第 {part_number} 部"),
-        start_chapter: (part_number - 1) * 10 + 1,
-        end_chapter: part_number * 10,
-        summary: Some("概要".to_string()),
-        theme: None,
-        key_events: None,
-        character_focus: None,
-        created_at: now,
-        updated_at: now,
-    }
-}
-
 #[test]
 fn update_chapter_outline_input_requires_project_id() {
     let err = serde_json::from_value::<UpdateChapterOutlineInput>(json!({

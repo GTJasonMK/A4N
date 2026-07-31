@@ -7,7 +7,6 @@ license.workspace = true
 [dependencies]
 # 异步运行时
 tokio = { workspace = true }
-async-trait = { workspace = true }
 
 # 序列化
 serde = { workspace = true }

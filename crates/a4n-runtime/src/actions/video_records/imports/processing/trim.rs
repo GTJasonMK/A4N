@@ -4,6 +4,7 @@ use super::super::prelude::{
     ensure_ffmpeg, remove_created_file_on_error_sync, run_ffmpeg_trim, trimmed_video_path,
     video_to_summary,
 };
+use crate::actions::video_records::imports::source::enqueue_unadopted_video_file_cleanup;
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
 
 pub async fn trim_video(
@@ -31,7 +32,7 @@ pub async fn trim_video(
     )?;
     ensure_ffmpeg()?;
 
-    let output = trimmed_video_path(state.data_dir(), &source, start_secs, end_secs)?;
+    let output = trimmed_video_path(state.data_dir(), source, start_secs, end_secs)?;
     let (size, output_path_str) = persist_trimmed_video_output(state.data_dir(), &output, || {
         run_ffmpeg_trim(&source_path, &output, start_secs, end_secs)
     })?;
@@ -79,7 +80,43 @@ pub async fn trim_video(
     {
         Ok(updated) => updated,
         Err(err) => {
+            let can_adopt = a4n_orchestrator::video::can_adopt_authoritative_video_completion(&err);
             let primary_error = format!("裁剪文件已生成但记录完成状态失败：{err}");
+            let authoritative = match state.video().generated_video_by_id(record.id).await {
+                Ok(authoritative) => authoritative,
+                Err(lookup_error) => {
+                    return Err(append_secondary_error(
+                        primary_error,
+                        Some(format!(
+                            "无法确认视频完成事务是否已提交，已保留文件等待重试：{}",
+                            crate::actions::app_error_message(lookup_error)
+                        )),
+                    ));
+                }
+            };
+            if let Some(authoritative) = authoritative.as_ref()
+                && authoritative.status == a4n_orchestrator::video::GENERATED_VIDEO_STATUS_COMPLETED
+            {
+                let cleanup_error = enqueue_unadopted_video_file_cleanup(
+                    state,
+                    &format!("video-trim-duplicate:{}", record.id),
+                    &output_path_str,
+                    thumbnail_path.as_deref(),
+                    Some(authoritative),
+                )
+                .await;
+                if can_adopt {
+                    if let Some(cleanup_error) = cleanup_error {
+                        tracing::error!(
+                            video_id = record.id,
+                            error = %cleanup_error,
+                            "清理未采用的裁剪视频文件失败"
+                        );
+                    }
+                    return Ok(video_to_summary(authoritative));
+                }
+                return Err(append_secondary_error(primary_error, cleanup_error));
+            }
             let cleanup_error = crate::actions::video_generation::cleanup_saved_video_outputs(
                 state,
                 record.id,
@@ -88,6 +125,16 @@ pub async fn trim_video(
             )
             .await;
             let failure_message = append_secondary_error(primary_error, cleanup_error);
+            if authoritative.as_ref().is_some_and(|video| {
+                matches!(
+                    video.status.as_str(),
+                    a4n_orchestrator::video::GENERATED_VIDEO_ERROR_STATUS_FAILED
+                        | a4n_orchestrator::video::GENERATED_VIDEO_ERROR_STATUS_INTERRUPTED
+                        | a4n_orchestrator::video::GENERATED_VIDEO_STATUS_CANCELLED
+                )
+            }) {
+                return Err(failure_message);
+            }
             let mark_failed_error = state
                 .video()
                 .mark_generated_video_error_status_and_prompt(

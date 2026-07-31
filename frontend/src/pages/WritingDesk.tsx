@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { useToast } from "../components/feedback/Toast";
 import { extractErrorMessage } from "../api";
@@ -712,11 +712,42 @@ export const WritingDesk: React.FC = () => {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center text-book-text-muted">
-        <Loader2 size={20} className="animate-spin mr-2" /> 加载写作桌…
+        <LoadingSpinner size="lg" className="mr-2" /> 加载写作桌…
       </div>
     );
   }
   if (!project) return null;
+
+  const writingAssistantPanelProps = {
+    projectId,
+    writingNotes,
+    minWordCount,
+    maxWordCount,
+    wordCountRangeError: generationWordCountError,
+    activeNumber,
+    activeChapter,
+    activeChapterBusy,
+    canGenerateChapter,
+    generationBlockReason,
+    streamTaskId,
+    streamBusy,
+    streamMessage,
+    resetBusy: resetGeneratedDataBusy,
+    canResetGeneratedData,
+    previewing,
+    chapters,
+    outlines,
+    onWritingNotesChange: setWritingNotes,
+    onMinWordCountChange: setMinWordCount,
+    onMaxWordCountChange: setMaxWordCount,
+    onStreamStart: handleStreamStart,
+    onStreamCancel: handleStreamCancel,
+    onResetGeneratedData: handleResetGeneratedData,
+    onPreviewPrompt: handlePreviewPrompt,
+    onOpenScenes: handleOpenScenes,
+    onChapterContentChanged: handleOptimizedChapterContentChanged,
+    onPatchPreviewChange: setOptimizationPatchPreview,
+  };
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
@@ -818,36 +849,7 @@ export const WritingDesk: React.FC = () => {
         )}
 
         {!isMobileLayout && assistantOpen && (
-          <WritingAssistantPanel
-            projectId={projectId}
-            writingNotes={writingNotes}
-            minWordCount={minWordCount}
-            maxWordCount={maxWordCount}
-            wordCountRangeError={generationWordCountError}
-            activeNumber={activeNumber}
-            activeChapter={activeChapter}
-            activeChapterBusy={activeChapterBusy}
-            canGenerateChapter={canGenerateChapter}
-            generationBlockReason={generationBlockReason}
-            streamTaskId={streamTaskId}
-            streamBusy={streamBusy}
-            streamMessage={streamMessage}
-            resetBusy={resetGeneratedDataBusy}
-            canResetGeneratedData={canResetGeneratedData}
-            previewing={previewing}
-            chapters={chapters}
-            outlines={outlines}
-            onWritingNotesChange={setWritingNotes}
-            onMinWordCountChange={setMinWordCount}
-            onMaxWordCountChange={setMaxWordCount}
-            onStreamStart={handleStreamStart}
-            onStreamCancel={handleStreamCancel}
-            onResetGeneratedData={handleResetGeneratedData}
-            onPreviewPrompt={handlePreviewPrompt}
-            onOpenScenes={handleOpenScenes}
-            onChapterContentChanged={handleOptimizedChapterContentChanged}
-            onPatchPreviewChange={setOptimizationPatchPreview}
-          />
+          <WritingAssistantPanel {...writingAssistantPanelProps} />
         )}
       </div>
 
@@ -866,37 +868,7 @@ export const WritingDesk: React.FC = () => {
               embeddedInModal
             />
           ) : (
-            <WritingAssistantPanel
-              embeddedInModal
-              projectId={projectId}
-              writingNotes={writingNotes}
-              minWordCount={minWordCount}
-              maxWordCount={maxWordCount}
-              wordCountRangeError={generationWordCountError}
-              activeNumber={activeNumber}
-              activeChapter={activeChapter}
-              activeChapterBusy={activeChapterBusy}
-              canGenerateChapter={canGenerateChapter}
-              generationBlockReason={generationBlockReason}
-              streamTaskId={streamTaskId}
-              streamBusy={streamBusy}
-              streamMessage={streamMessage}
-              resetBusy={resetGeneratedDataBusy}
-              canResetGeneratedData={canResetGeneratedData}
-              previewing={previewing}
-              chapters={chapters}
-              outlines={outlines}
-              onWritingNotesChange={setWritingNotes}
-              onMinWordCountChange={setMinWordCount}
-              onMaxWordCountChange={setMaxWordCount}
-              onStreamStart={handleStreamStart}
-              onStreamCancel={handleStreamCancel}
-              onResetGeneratedData={handleResetGeneratedData}
-              onPreviewPrompt={handlePreviewPrompt}
-              onOpenScenes={handleOpenScenes}
-              onChapterContentChanged={handleOptimizedChapterContentChanged}
-              onPatchPreviewChange={setOptimizationPatchPreview}
-            />
+            <WritingAssistantPanel {...writingAssistantPanelProps} embeddedInModal />
           )}
         </Modal>
       )}
@@ -928,5 +900,3 @@ export const WritingDesk: React.FC = () => {
     </div>
   );
 };
-
-export default WritingDesk;

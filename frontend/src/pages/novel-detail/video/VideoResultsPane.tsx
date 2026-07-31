@@ -1,18 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ArrowLeft,
+import { ArrowLeft,
   Check,
   Copy,
   Eye,
   Film,
-  Loader2,
   Pencil,
   RefreshCw,
   Save,
   Scissors,
   Star,
-  Trash2,
-} from "lucide-react";
+  Trash2, } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { GeneratedVideo, UpdateVideoInput } from "../../../api/video";
 import { useToast } from "../../../components/feedback/Toast";
@@ -34,7 +32,7 @@ interface VideoResultsPaneProps {
   videos: GeneratedVideo[];
   selectedVideo: GeneratedVideo | null;
   selectedVideoId: number | null;
-  totalVideoAssetCount: number;
+  adoptedVideoId?: number | null;
   selectedVideoPath: string;
   trimStart: string;
   trimEnd: string;
@@ -45,7 +43,6 @@ interface VideoResultsPaneProps {
   onToggleVideoFavorite: (video: GeneratedVideo) => void | Promise<void>;
   onUpdateVideo?: (video: GeneratedVideo, input: UpdateVideoInput) => void | Promise<void>;
   onDeleteVideo: (video: GeneratedVideo) => void | Promise<void>;
-  onDeleteAllVideoAssets: () => void | Promise<void>;
   onTrimStartChange: (value: string) => void;
   onTrimEndChange: (value: string) => void;
   onTrim: () => void | Promise<void>;
@@ -76,7 +73,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   videos,
   selectedVideo,
   selectedVideoId,
-  totalVideoAssetCount,
+  adoptedVideoId = null,
   selectedVideoPath,
   trimStart,
   trimEnd,
@@ -87,7 +84,6 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   onToggleVideoFavorite,
   onUpdateVideo,
   onDeleteVideo,
-  onDeleteAllVideoAssets,
   onTrimStartChange,
   onTrimEndChange,
   onTrim,
@@ -176,12 +172,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       negativePromptDraft.trim() !== (selectedVideoRecord.negative_prompt ?? "").trim());
   const promptActionBusy = promptSaving || acting != null;
   const selectedPromptChars = promptCharCount(selectedVideoRecord?.prompt);
-  const selectedVideoAdopted = Boolean(
-    selectedVideoRecord?.metadata_json &&
-      typeof selectedVideoRecord.metadata_json === "object" &&
-      !Array.isArray(selectedVideoRecord.metadata_json) &&
-      (selectedVideoRecord.metadata_json as Record<string, unknown>).selected_for_segment === true,
-  );
+  const selectedVideoAdopted = selectedVideoRecord?.id === adoptedVideoId;
 
   const handleSavePromptRecord = async () => {
     if (!selectedVideoRecord || !onUpdateVideo) return;
@@ -262,7 +253,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             <div className="truncate text-xs font-medium text-book-text-main">
               {videoRecordTitle(selectedVideoRecord)}
             </div>
-            <div className="mt-0.5 truncate text-[10px] text-book-text-muted">
+            <div className="mt-0.5 truncate text-caption text-book-text-muted">
               {getOperationStatusLabel(selectedVideoRecord.status)} · {Math.round(selectedVideoRecord.duration_secs)} 秒
               {selectedVideoRecord.is_favorite ? " · 已收藏" : ""}
               {selectedVideoRecord.created_at ? ` · ${formatVideoCreatedAt(selectedVideoRecord.created_at)}` : ""}
@@ -271,7 +262,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           <button
             type="button"
             onClick={openPromptModal}
-            className="pyqt-btn-secondary inline-flex !min-h-9 items-center gap-1 !px-2.5 text-[11px] sm:!min-h-7"
+            className="pyqt-btn-secondary inline-flex !min-h-9 items-center gap-1 !px-2.5 text-small sm:!min-h-7"
             title="查看完整视频提示词"
           >
             <Eye size={11} />
@@ -287,7 +278,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
               title={selectedVideoAdopted ? "当前片段已采用此视频" : "设为当前片段的合成结果"}
             >
               {acting === `adopt-video-${selectedVideoRecord.id}` ? (
-                <Loader2 size={11} className="animate-spin" />
+                <LoadingSpinner size="sm" />
               ) : (
                 <Check size={11} />
               )}
@@ -298,7 +289,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           acting === `favorite-${selectedVideoRecord.id}` ||
           acting === `delete-video-${selectedVideoRecord.id}` ? (
             <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
-              <Loader2 size={11} className="animate-spin" />
+              <LoadingSpinner size="sm" />
             </span>
           ) : (
             <Dropdown items={selectedActions} />
@@ -328,7 +319,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             {videoLoading && !videoLoadError && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white">
                 <span className="inline-flex items-center gap-1.5 rounded bg-black/55 px-2 py-1">
-                  <Loader2 size={12} className="animate-spin" />
+                  <LoadingSpinner size="sm" />
                   正在加载视频
                 </span>
               </div>
@@ -340,29 +331,29 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           </div>
         )}
         {videoLoadError && (
-          <div className="border-t border-book-border/40 px-2 py-1.5 text-[11px] text-error">
+          <div className="border-t border-book-border/40 px-2 py-1.5 text-small text-error">
             {videoLoadError}
           </div>
         )}
         {selectedVideoRecord.error_message && (
-          <div className="border-t border-book-border/40 px-2 py-1.5 text-[11px] text-error">
+          <div className="border-t border-book-border/40 px-2 py-1.5 text-small text-error">
             {selectedVideoRecord.error_message}
           </div>
         )}
         <div className="border-t border-book-border/40 px-2 py-2">
-          <div className="mb-1 text-[10px] text-book-text-muted">
+          <div className="mb-1 text-caption text-book-text-muted">
             提示词 · {selectedPromptChars.toLocaleString()} 字
           </div>
-          <div className="line-clamp-3 text-[11px] leading-relaxed text-book-text-sub">
+          <div className="line-clamp-3 text-small leading-relaxed text-book-text-sub">
             {selectedVideoRecord.prompt}
           </div>
           {selectedVideoPath ? (
             <details className="mt-2 border-t border-book-border/35 pt-2 text-xs">
-              <summary className="w-fit cursor-pointer text-[10px] text-book-text-muted transition-colors hover:text-book-text-main">
+              <summary className="w-fit cursor-pointer text-caption text-book-text-muted transition-colors hover:text-book-text-main">
                 裁剪视频
               </summary>
               <div className="mt-2 grid gap-2 sm:grid-cols-[90px_90px_auto]">
-                <label className="grid gap-1 text-[10px] text-book-text-muted">
+                <label className="grid gap-1 text-caption text-book-text-muted">
                   开始时间
                   <input
                     value={trimStart}
@@ -371,7 +362,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                     placeholder="秒"
                   />
                 </label>
-                <label className="grid gap-1 text-[10px] text-book-text-muted">
+                <label className="grid gap-1 text-caption text-book-text-muted">
                   结束时间
                   <input
                     value={trimEnd}
@@ -388,7 +379,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                   title="裁剪选中视频"
                 >
                   {acting === `trim-${selectedVideoRecord.id}` ? (
-                    <Loader2 size={12} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   ) : (
                     <Scissors size={12} />
                   )}
@@ -411,12 +402,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       <ul className="space-y-2">
         {videos.map((video) => {
           const selected = selectedVideoId === video.id;
-          const adopted = Boolean(
-            video.metadata_json &&
-              typeof video.metadata_json === "object" &&
-              !Array.isArray(video.metadata_json) &&
-              (video.metadata_json as Record<string, unknown>).selected_for_segment === true,
-          );
+          const adopted = video.id === adoptedVideoId;
           return (
             <li
               key={video.id}
@@ -440,20 +426,20 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                     <Star size={11} className="fill-book-primary text-book-primary" />
                   )}
                   {adopted && (
-                    <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-success">
+                    <span className="inline-flex shrink-0 items-center gap-0.5 text-caption text-success">
                       <Check size={10} />
                       已采用
                     </span>
                   )}
                 </div>
-                <div className="mb-1.5 text-[10px] text-book-text-muted">
+                <div className="mb-1.5 text-caption text-book-text-muted">
                   {getOperationStatusLabel(video.status)} · {Math.round(video.duration_secs)} 秒 · {formatVideoCreatedAt(video.created_at)}
                 </div>
-                <div className="line-clamp-2 text-[11px] leading-relaxed text-book-text-sub">
+                <div className="line-clamp-2 text-small leading-relaxed text-book-text-sub">
                   {video.prompt}
                 </div>
                 {video.error_message && (
-                  <div className="mt-1 line-clamp-2 text-[10px] text-error">
+                  <div className="mt-1 line-clamp-2 text-caption text-error">
                     {video.error_message}
                   </div>
                 )}
@@ -461,7 +447,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
               <div className="flex shrink-0 items-start p-1.5">
                 {acting === `delete-video-${video.id}` ? (
                   <span className="inline-flex h-9 w-9 items-center justify-center text-book-text-muted sm:h-7 sm:w-7">
-                    <Loader2 size={12} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                   </span>
                 ) : (
                   <Dropdown
@@ -523,27 +509,10 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           <div className="mb-2 flex min-w-0 items-center gap-2 px-1">
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium text-book-text-main">成片记录</div>
-              <div className="mt-0.5 text-[10px] text-book-text-muted">
+              <div className="mt-0.5 text-caption text-book-text-muted">
                 {videos.length} 条
               </div>
             </div>
-            {acting === "delete-video-assets" ? (
-              <span className="inline-flex items-center gap-1 text-[10px] text-book-text-muted">
-                <Loader2 size={11} className="animate-spin" />
-                正在清理
-              </span>
-            ) : totalVideoAssetCount > 0 ? (
-              <Dropdown
-                items={[
-                  {
-                    label: `删除全部视频资产（${totalVideoAssetCount}）`,
-                    icon: <Trash2 size={13} />,
-                    danger: true,
-                    onClick: () => void onDeleteAllVideoAssets(),
-                  },
-                ]}
-              />
-            ) : null}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
             {renderVideoHistory()}
@@ -571,7 +540,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             >
               <span className="inline-flex items-center gap-1.5">
                 {promptSaving ? (
-                  <Loader2 size={12} className="animate-spin" />
+                  <LoadingSpinner size="sm" />
                 ) : (
                   <Save size={12} />
                 )}
@@ -632,7 +601,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                     value={promptDraft}
                     onChange={(event) => setPromptDraft(event.target.value)}
                     disabled={promptActionBusy}
-                    className="book-control custom-scrollbar min-h-[260px] max-h-[48vh] w-full resize-y px-3 py-2 text-[11px] leading-relaxed"
+                    className="book-control custom-scrollbar min-h-[260px] max-h-[48vh] w-full resize-y px-3 py-2 text-small leading-relaxed"
                   />
                 </label>
                 <label className="block">
@@ -643,7 +612,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                     value={negativePromptDraft}
                     onChange={(event) => setNegativePromptDraft(event.target.value)}
                     disabled={promptActionBusy}
-                    className="book-control custom-scrollbar min-h-[120px] max-h-56 w-full resize-y px-3 py-2 text-[11px] leading-relaxed"
+                    className="book-control custom-scrollbar min-h-[120px] max-h-56 w-full resize-y px-3 py-2 text-small leading-relaxed"
                   />
                 </label>
               </>
@@ -653,7 +622,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                   <div className="px-3 pt-3 text-xs font-medium text-book-text-main">
                     视频提示词
                   </div>
-                  <div className="whitespace-pre-wrap break-words px-3 pb-3 pt-2 text-[11px] leading-relaxed text-book-text-main">
+                  <div className="whitespace-pre-wrap break-words px-3 pb-3 pt-2 text-small leading-relaxed text-book-text-main">
                     {selectedVideoRecord.prompt || "（空）"}
                   </div>
                 </div>
@@ -662,7 +631,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                     <div className="px-3 pt-3 text-xs font-medium text-book-text-main">
                       负面提示词
                     </div>
-                    <div className="whitespace-pre-wrap break-words px-3 pb-3 pt-2 text-[11px] leading-relaxed text-book-text-main">
+                    <div className="whitespace-pre-wrap break-words px-3 pb-3 pt-2 text-small leading-relaxed text-book-text-main">
                       {selectedVideoRecord.negative_prompt}
                     </div>
                   </div>
@@ -675,7 +644,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                   诊断信息
                 </summary>
                 <div className="border-t border-book-border/40">
-                  <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 px-3 py-2 text-[10px]">
+                  <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 px-3 py-2 text-caption">
                     <dt className="text-book-text-muted">模型</dt>
                     <dd className="break-all font-mono text-book-text-sub">
                       {selectedVideoRecord.model || "未记录"}
@@ -696,7 +665,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                             providerRequestSnapshotText(selectedVideoRecord),
                           )
                         }
-                        className="!min-h-7 !text-[11px]"
+                        className="!min-h-7 !text-small"
                       >
                         <Copy size={11} />
                         复制模型请求
@@ -704,7 +673,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                     </div>
                   ) : null}
                   {selectedVideoRecord.metadata_json ? (
-                    <pre className="whitespace-pre-wrap break-words px-3 py-2 font-mono text-[11px] leading-relaxed text-book-text-sub">
+                    <pre className="whitespace-pre-wrap break-words px-3 py-2 font-mono text-small leading-relaxed text-book-text-sub">
                       {JSON.stringify(selectedVideoRecord.metadata_json, null, 2)}
                     </pre>
                   ) : null}

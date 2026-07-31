@@ -1,11 +1,12 @@
 import React from "react";
-import { Check, Eye, Loader2, Trash2, X } from "lucide-react";
+import { Check, CheckCheck, Eye, Sparkles, Square, Trash2, X } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type {
   ImportAnalysisStatus,
   ImportReview,
   ProjectImportAnalysisProgress,
 } from "../../../api/import";
-import { BookButton } from "../../../components/ui/BookButton";
+import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { progressDisplayText } from "../../../utils/progressDisplay";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
@@ -80,7 +81,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-book-text-main">审核队列</h3>
           {reviews.length > 0 ? (
-            <p className="mt-0.5 text-[11px] text-book-text-muted">
+            <p className="mt-0.5 text-small text-book-text-muted">
               {reviews.length} 条记录
               {selected.size > 0 ? ` · 已选 ${selected.size} 条` : ""}
             </p>
@@ -98,10 +99,12 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
               >
                 {cancelBusy ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <Loader2 size={11} className="animate-spin" /> 停止中…
+                    <LoadingSpinner size="sm" /> 停止中…
                   </span>
                 ) : (
-                  "停止分析"
+                  <>
+                    <Square size={12} /> 停止分析
+                  </>
                 )}
               </BookButton>
             ) : null
@@ -115,24 +118,25 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
             >
               {batchBusy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Loader2 size={11} className="animate-spin" /> 接受中（{selected.size}）…
+                  <LoadingSpinner size="sm" /> 接受中（{selected.size}）…
                 </span>
               ) : (
-                `接受所选（${selected.size}）`
+                <>
+                  <CheckCheck size={13} /> 接受所选（{selected.size}）
+                </>
               )}
             </BookButton>
           ) : (
             <>
               {!analyzeBusy && !cancelBusy && !externalBusy ? (
-                <Dropdown
-                  items={[
-                    {
-                      label: "查看分析模型请求",
-                      icon: <Eye size={12} />,
-                      onClick: () => void onPreviewAnalysisRequest(),
-                    },
-                  ]}
-                />
+                <BookIconButton
+                  label="查看分析模型请求"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void onPreviewAnalysisRequest()}
+                >
+                  <Eye size={14} />
+                </BookIconButton>
               ) : null}
               <BookButton
                 variant={selected.size > 0 ? "secondary" : "primary"}
@@ -143,11 +147,13 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
               >
                 {analyzeBusy ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <Loader2 size={11} className="animate-spin" />
+                    <LoadingSpinner size="sm" />
                     {analyzeActionLabel === "继续分析" ? "继续分析中…" : "分析中…"}
                   </span>
                 ) : (
-                  analyzeActionLabel
+                  <>
+                    <Sparkles size={13} /> {analyzeActionLabel}
+                  </>
                 )}
               </BookButton>
             </>
@@ -156,7 +162,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
       </div>
 
       {(visibleAnalysis.length > 0 || projectProgress) && (
-        <div className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden px-3 text-[11px]">
+        <div className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden px-3 text-small">
           {visibleAnalysis.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 py-2">
               <div className="shrink-0 text-book-text-muted">审核状态</div>
@@ -183,7 +189,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                   className="h-full bg-book-primary/35"
                   style={{ width: progressPercent == null ? "0%" : `${progressPercent}%` }}
                 />
-                <div className="pointer-events-none absolute inset-x-1.5 top-1/2 -translate-y-1/2 truncate text-[10px] leading-3 text-book-text-main">
+                <div className="pointer-events-none absolute inset-x-1.5 top-1/2 -translate-y-1/2 truncate text-caption leading-3 text-book-text-main">
                   {progressDisplay?.detail ?? "等待子阶段更新…"}
                 </div>
               </div>
@@ -191,7 +197,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                 <div className="mt-1 text-book-text-muted">等待进度更新…</div>
               ) : null}
               {projectProgress.error ? (
-                <div role="alert" className="mt-1 truncate text-[11px] leading-4 text-error">
+                <div role="alert" className="mt-1 truncate text-small leading-4 text-error">
                   {projectProgress.error}
                 </div>
               ) : null}
@@ -235,7 +241,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                     <span className="block truncate font-medium text-book-text-main">
                       {review.filename}
                     </span>
-                    <span className="mt-1 block text-[11px] text-book-text-muted">
+                    <span className="mt-1 block text-small text-book-text-muted">
                       {review.file_type.toUpperCase()} · {getOperationStatusLabel(review.review_status)} ·{" "}
                       {review.parsed_chapters} 章
                       {review.dedup_rate != null

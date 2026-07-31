@@ -49,7 +49,7 @@ export function buildNodeTemplateGroups(contracts: StudioNodeContract[]): Array<
   })).filter((group) => group.items.length > 0);
 }
 
-export const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, selected, isConnectable }) => {
+const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, selected, isConnectable }) => {
   const meta = nodeKindMeta(data.nodeKind);
   const contract = useStudioNodeContract(data.nodeKind);
   const Icon = meta.icon;
@@ -106,7 +106,7 @@ export const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, select
           <div className="truncate text-xs font-semibold text-book-text-main" title={nodeDisplayTitle(data)}>
             {nodeDisplayTitle(data)}
           </div>
-          <div className="truncate text-[10px] text-book-text-muted">
+          <div className="truncate text-caption text-book-text-muted">
             {contract ? studioCategoryLabel(contract.category) : "未知节点"}
           </div>
         </div>
@@ -131,10 +131,10 @@ export const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, select
         <StudioNodeVideoPreview preview={videoPreview} />
       ) : (
         <div className="flex min-h-[58px] flex-col gap-2 px-2 py-2">
-          <p className="line-clamp-2 flex-1 text-[11px] leading-4 text-book-text-sub">
+          <p className="line-clamp-2 flex-1 text-small leading-4 text-book-text-sub">
             {nodeBodyPreview(data)}
           </p>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-[10px] text-book-text-muted">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-caption text-book-text-muted">
             <span className="min-w-0 truncate">{nodeSubtitle(data)}</span>
             <span className="font-mono">{nodeDimensionLabel(data)}</span>
           </div>
@@ -142,7 +142,7 @@ export const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, select
       )}
 
       {issues.length > 0 ? (
-        <div className="border-t border-warning/45 bg-warning-bg px-2 py-1 text-[10px] text-warning">
+        <div className="border-t border-warning/45 bg-warning-bg px-2 py-1 text-caption text-warning">
           <div className="flex items-center gap-1">
             <AlertTriangle size={10} />
             <span className="truncate" title={issues.join("；")}>
@@ -224,12 +224,12 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
         />
       ) : null}
       {loading ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[10px] text-book-text-muted">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-caption text-book-text-muted">
           加载视频预览
         </div>
       ) : null}
       {failed || (!src && !loading) ? (
-        <div className="flex h-full flex-col justify-center gap-1 px-2 text-[10px] text-book-text-muted">
+        <div className="flex h-full flex-col justify-center gap-1 px-2 text-caption text-book-text-muted">
           <span className="truncate">视频已生成</span>
           <span className="truncate font-mono" title={preview.filePath}>
             {preview.filePath.split("/").pop() || preview.filePath}
@@ -463,7 +463,7 @@ function operationNodeBodyPreview(data: StudioNodeData): string | null {
   }
 }
 
-export function nodeDimensionLabel(data: StudioNodeData): string {
+function nodeDimensionLabel(data: StudioNodeData): string {
   const width = configNumber(data.config, "width");
   const height = configNumber(data.config, "height");
   const duration = configNumber(data.config, "duration_secs");

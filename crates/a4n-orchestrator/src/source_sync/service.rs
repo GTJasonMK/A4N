@@ -55,6 +55,9 @@ impl OrchestratorContext {
                 error_message.as_deref(),
             )
             .await;
+        if matches!(&finalized, Err(AppError::Cancelled)) {
+            return Err(AppError::Cancelled);
+        }
         match (result, finalized) {
             (Ok(run), Ok(_)) => Ok(run),
             (Ok(_), Err(status_error)) => Err(status_error),

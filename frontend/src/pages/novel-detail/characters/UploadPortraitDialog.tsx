@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import { uploadPortrait } from "../../../api/portrait";
@@ -179,7 +180,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         >
           {busy ? (
             <span className="inline-flex items-center gap-1.5">
-              <Loader2 size={12} className="animate-spin" />
+              <LoadingSpinner size="sm" />
               上传中…
             </span>
           ) : (
@@ -246,7 +247,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
             </>
           )}
           {file ? (
-            <span className="max-w-full truncate text-[11px] text-book-text-sub">
+            <span className="max-w-full truncate text-small text-book-text-sub">
               已选择：{file.name}
             </span>
           ) : null}
@@ -299,7 +300,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         >
           <span className="min-w-0">
             <span className="block text-xs font-medium text-book-text-main">设为角色主图</span>
-            <span className="mt-0.5 block text-[11px] leading-relaxed text-book-text-muted">
+            <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
               在立绘列表和角色详情中优先展示
             </span>
           </span>

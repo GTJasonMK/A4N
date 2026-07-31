@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import React, { useCallback, useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { getUsageTrends, type DailyUsagePoint } from "../../../api/admin";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
@@ -9,40 +10,23 @@ export const TrendsSection: React.FC<{ callerUserId: number }> = ({ callerUserId
   const [days, setDays] = useState(30);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const activeKey = `${callerUserId}:${days}`;
-  const activeKeyRef = useRef(activeKey);
-  const mountedRef = useRef(true);
-  const loadSeqRef = useRef(0);
-
-  activeKeyRef.current = activeKey;
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const isCurrentLoad = useCallback((requestKey: string, seq: number) => {
-    return mountedRef.current && activeKeyRef.current === requestKey && loadSeqRef.current === seq;
-  }, []);
-
-  const loadTrends = useCallback(async () => {
-    const requestCallerUserId = callerUserId;
-    const requestDays = days;
-    const requestKey = `${requestCallerUserId}:${requestDays}`;
-    const requestSeq = loadSeqRef.current + 1;
-    loadSeqRef.current = requestSeq;
-    try {
-      const nextTrends = await getUsageTrends(requestCallerUserId, requestDays);
-      if (!isCurrentLoad(requestKey, requestSeq)) return;
+  const loadTrends = useCallback(
+    () => getUsageTrends(callerUserId, days),
+    [callerUserId, days],
+  );
+  const applyTrends = useCallback(
+    (nextTrends: DailyUsagePoint[]) => {
       setTrends(nextTrends);
-      setLoadedKey(requestKey);
-    } catch (err) {
-      if (!isCurrentLoad(requestKey, requestSeq)) return;
-      throw err;
-    }
-  }, [callerUserId, days, isCurrentLoad]);
-  const { loading, load } = useAdminSectionLoader(loadTrends, "加载失败");
+      setLoadedKey(activeKey);
+    },
+    [activeKey],
+  );
+  const { loading, load } = useAdminSectionLoader(
+    activeKey,
+    loadTrends,
+    applyTrends,
+    "加载失败",
+  );
 
   const displayTrends = loadedKey === activeKey ? trends : [];
   const displayLoading = loading || loadedKey !== activeKey;
@@ -73,7 +57,7 @@ export const TrendsSection: React.FC<{ callerUserId: number }> = ({ callerUserId
       </div>
       {displayLoading ? (
         <div className="a4n-empty-state a4n-empty-state--compact inline-flex items-center justify-center gap-2 text-xs">
-          <Loader2 size={14} className="animate-spin" />
+          <LoadingSpinner size="sm" />
           加载用量趋势…
         </div>
       ) : displayTrends.length === 0 ? (
@@ -85,7 +69,7 @@ export const TrendsSection: React.FC<{ callerUserId: number }> = ({ callerUserId
           <ul className="divide-y divide-book-border/30">
             {displayTrends.map((t) => (
               <li key={t.date} className="grid gap-1.5 px-3 py-2.5 text-xs sm:grid-cols-[82px_minmax(0,1fr)_auto] sm:items-center sm:gap-3">
-                <span className="font-mono text-[11px] text-book-text-muted">{t.date}</span>
+                <span className="font-mono text-small text-book-text-muted">{t.date}</span>
                 <div className="min-w-0">
                   <div className="h-2 overflow-hidden rounded-full bg-book-bg-tertiary">
                     <div
@@ -93,7 +77,7 @@ export const TrendsSection: React.FC<{ callerUserId: number }> = ({ callerUserId
                       style={{ width: `${(t.total_calls / callScaleMax) * 100}%` }}
                     />
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-book-text-muted">
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-caption text-book-text-muted">
                     <span>令牌 {t.total_tokens.toLocaleString()}</span>
                     {t.success_count > 0 ? <span className="text-success">成功 {t.success_count}</span> : null}
                     {t.fail_count > 0 ? <span className="text-error">失败 {t.fail_count}</span> : null}
@@ -101,7 +85,7 @@ export const TrendsSection: React.FC<{ callerUserId: number }> = ({ callerUserId
                 </div>
                 <span className="text-book-text-sub sm:text-right">
                   <b className="font-mono text-sm font-semibold text-book-text-main">{t.total_calls}</b>
-                  <span className="ml-1 text-[10px] text-book-text-muted">次调用</span>
+                  <span className="ml-1 text-caption text-book-text-muted">次调用</span>
                 </span>
               </li>
             ))}

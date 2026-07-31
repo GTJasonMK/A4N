@@ -1,4 +1,5 @@
-import { AlertCircle, Bot, CheckCircle2, Loader2, User, Wrench } from "lucide-react";
+import { AlertCircle, Bot, CheckCircle2, User, Wrench } from "lucide-react";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ReactNode } from "react";
 
 import {
@@ -44,7 +45,7 @@ export function StreamMessage({ item }: { item: StreamItem }) {
           <div className="mb-1 flex min-w-0 flex-wrap items-center gap-2">
             <span className="min-w-0 break-words font-semibold">{title}</span>
             {meta ? (
-              <span className="min-w-0 break-all font-mono text-[11px] opacity-70">
+              <span className="min-w-0 break-all font-mono text-small opacity-70">
                 {meta}
               </span>
             ) : null}
@@ -61,10 +62,10 @@ export function StreamMessage({ item }: { item: StreamItem }) {
         )}
         {item.detail && !item.steps?.length ? (
           <details className="mt-2 min-w-0 overflow-hidden rounded-xl border border-book-border/70 bg-book-bg-paper/60">
-            <summary className="cursor-pointer select-none px-2 py-1 text-[11px] font-semibold text-book-text-sub hover:text-book-text-main">
+            <summary className="cursor-pointer select-none px-2 py-1 text-small font-semibold text-book-text-sub hover:text-book-text-main">
               {item.detailLabel ?? "查看详情"}
             </summary>
-            <pre className="whitespace-pre-wrap break-words border-t border-book-border/70 px-2 py-2 font-mono text-[11px] leading-relaxed text-book-text-sub">
+            <pre className="whitespace-pre-wrap break-words border-t border-book-border/70 px-2 py-2 font-mono text-small leading-relaxed text-book-text-sub">
               {item.detail}
             </pre>
           </details>
@@ -257,7 +258,7 @@ function TimelineRowView({ row }: { row: TimelineRow }) {
   if (isActiveThinkingRow(row)) {
     return (
       <div className="flex min-w-0 items-center gap-1.5 text-book-text-sub">
-        <Loader2 size={12} className="animate-spin text-book-primary" />
+        <LoadingSpinner size="sm" />
         <span className="min-w-0 break-words">{row.title}</span>
       </div>
     );
@@ -601,7 +602,7 @@ function StreamIcon({
       ) : status === "success" ? (
         <CheckCircle2 size={13} />
       ) : status === "running" ? (
-        <Loader2 size={13} className="animate-spin" />
+        <LoadingSpinner size="sm" />
       ) : (
         <Bot size={13} />
       )}

@@ -1,10 +1,10 @@
 use a4n_core::error::AppError;
 
+use crate::structured_llm::llm_response_preview;
+
 use self::gates::looks_like_structured_or_fenced_response;
-use self::preview::response_preview;
 
 mod gates;
-mod preview;
 
 #[cfg(test)]
 mod tests;
@@ -35,7 +35,7 @@ pub(in crate::chapter_generation::service) fn normalize_generated_chapter_respon
     if looks_like_structured_or_fenced_response(trimmed) {
         return Err(AppError::InvalidArgument(format!(
             "章节正文 LLM 响应必须是纯文本正文，不能返回 JSON、Markdown 代码块或思考标签；输出预览：{}",
-            response_preview(trimmed)
+            llm_response_preview(trimmed)
         )));
     }
 

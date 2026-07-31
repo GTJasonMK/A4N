@@ -30,9 +30,11 @@ impl<'a> TaskQueueRuntimeFacade<'a> {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<T, AppError>>,
     {
-        self.orchestrator
-            .queue_run_tracked(task_type, priority, project_id, operation)
-            .await
+        Box::pin(
+            self.orchestrator
+                .queue_run_tracked(task_type, priority, project_id, operation),
+        )
+        .await
     }
 
     pub(crate) async fn queue_run_tracked_with_cancel<F, Fut, T>(
@@ -47,9 +49,14 @@ impl<'a> TaskQueueRuntimeFacade<'a> {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<T, AppError>>,
     {
-        self.orchestrator
-            .queue_run_tracked_with_cancel(task_type, priority, project_id, cancel_token, operation)
-            .await
+        Box::pin(self.orchestrator.queue_run_tracked_with_cancel(
+            task_type,
+            priority,
+            project_id,
+            cancel_token,
+            operation,
+        ))
+        .await
     }
 
     pub(crate) async fn queue_run_tracked_with_family_context<F, Fut, T>(
@@ -63,9 +70,11 @@ impl<'a> TaskQueueRuntimeFacade<'a> {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<T, AppError>>,
     {
-        self.orchestrator
-            .queue_run_tracked_with_family_context(task_type, priority, context, operation)
-            .await
+        Box::pin(
+            self.orchestrator
+                .queue_run_tracked_with_family_context(task_type, priority, context, operation),
+        )
+        .await
     }
 
     pub(crate) async fn queue_run_tracked_with_workflow_context<F, Fut, T>(
@@ -80,11 +89,10 @@ impl<'a> TaskQueueRuntimeFacade<'a> {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<T, AppError>>,
     {
-        self.orchestrator
-            .queue_run_tracked_with_workflow_context(
-                task_type, priority, project_id, workflow, operation,
-            )
-            .await
+        Box::pin(self.orchestrator.queue_run_tracked_with_workflow_context(
+            task_type, priority, project_id, workflow, operation,
+        ))
+        .await
     }
 
     pub(crate) async fn queue_submit(

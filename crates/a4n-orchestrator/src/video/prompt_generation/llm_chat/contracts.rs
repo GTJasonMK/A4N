@@ -14,7 +14,7 @@ use a4n_core::structured_progress::{ProgressSpan, StructuredJsonProgressSpec};
 use a4n_llm::context::LlmContextManifest;
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::super::{VideoPromptChunk, VideoPromptProgress};
+use super::super::super::{VideoPromptChunk, VideoPromptProgress, VideoPromptProgressUpdate};
 use crate::OrchestratorContext;
 
 #[derive(Clone, Copy)]
@@ -86,7 +86,55 @@ pub(in crate::video::prompt_generation) fn report_video_prompt_progress(
     message: &str,
 ) -> Result<(), AppError> {
     if let Some(report) = progress.as_deref_mut() {
-        report(current, total.max(1), message)?;
+        report(VideoPromptProgressUpdate::progress(current, total, message))?;
+    }
+    Ok(())
+}
+
+pub(in crate::video::prompt_generation) fn report_video_prompt_item_committed(
+    progress: &mut Option<VideoPromptProgress<'_>>,
+    current: u32,
+    total: u32,
+    item_kind: &str,
+    item_number: i32,
+    item_position: usize,
+    item_total: usize,
+    message: &str,
+) -> Result<(), AppError> {
+    if let Some(report) = progress.as_deref_mut() {
+        report(VideoPromptProgressUpdate::committed(
+            current,
+            total,
+            item_kind,
+            item_number,
+            item_position,
+            item_total,
+            message,
+        ))?;
+    }
+    Ok(())
+}
+
+pub(in crate::video::prompt_generation) fn report_video_prompt_checkpoint(
+    progress: &mut Option<VideoPromptProgress<'_>>,
+    current: u32,
+    total: u32,
+    checkpoint_key: impl Into<String>,
+    item_index: usize,
+    item_total: usize,
+    draft_text: impl Into<String>,
+    message: impl Into<String>,
+) -> Result<(), AppError> {
+    if let Some(report) = progress.as_deref_mut() {
+        report(VideoPromptProgressUpdate::checkpoint(
+            current,
+            total,
+            checkpoint_key,
+            item_index,
+            item_total,
+            draft_text,
+            message,
+        ))?;
     }
     Ok(())
 }
@@ -119,19 +167,18 @@ pub(super) fn report_video_prompt_usage(
 #[cfg(test)]
 mod tests {
     use super::{
-        AppError, Duration, VideoPromptProgress, VideoPromptStepProgress,
-        report_video_prompt_waiting,
+        AppError, Duration, VideoPromptProgress, VideoPromptProgressUpdate,
+        VideoPromptStepProgress, report_video_prompt_item_committed, report_video_prompt_waiting,
     };
 
     #[test]
     fn reports_waiting_progress_at_current_floor() {
         let mut calls = Vec::<(u32, u32, String)>::new();
         {
-            let mut progress_fn =
-                |current: u32, total: u32, message: &str| -> Result<(), AppError> {
-                    calls.push((current, total, message.to_string()));
-                    Ok(())
-                };
+            let mut progress_fn = |update: VideoPromptProgressUpdate| -> Result<(), AppError> {
+                calls.push((update.current, update.total, update.message));
+                Ok(())
+            };
             let mut progress: Option<VideoPromptProgress<'_>> =
                 Some(&mut progress_fn as VideoPromptProgress<'_>);
 
@@ -149,5 +196,43 @@ mod tests {
         assert_eq!(calls[0].0, 57);
         assert_eq!(calls[0].1, 100);
         assert!(calls[0].2.contains("等待模型继续输出：生成中"));
+    }
+
+    #[test]
+    fn committed_progress_has_stable_item_identity() {
+        let mut calls = Vec::new();
+        {
+            let mut progress_fn = |update: VideoPromptProgressUpdate| -> Result<(), AppError> {
+                calls.push(update);
+                Ok(())
+            };
+            let mut progress: Option<VideoPromptProgress<'_>> = Some(&mut progress_fn);
+
+            report_video_prompt_item_committed(
+                &mut progress,
+                75,
+                100,
+                "storyboard_prompt",
+                2,
+                2,
+                4,
+                "第 2 条已保存",
+            )
+            .expect("committed progress should report");
+        }
+
+        let update = calls.pop().expect("one update");
+        assert_eq!(update.stage_code, "video_prompt_item_committed");
+        assert_eq!(update.item_key.as_deref(), Some("storyboard_prompt:2"));
+        assert_eq!(update.item_index, Some(1));
+        assert_eq!(update.item_total, Some(4));
+        assert_eq!(
+            update.phase_kind,
+            a4n_service_protocol::ProgressPhaseKind::Persist
+        );
+
+        let single =
+            VideoPromptProgressUpdate::committed(100, 100, "frame_segment_plan", 0, 1, 1, "已保存");
+        assert_eq!(single.item_index, Some(0));
     }
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
 use a4n_core::error::AppError;
-use a4n_core::event::bridge::{EventBus, InternalEvent};
+use a4n_core::event::bridge::InternalEvent;
 use a4n_db::DbHandle;
 use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
@@ -158,15 +158,13 @@ impl OrchestratorContext {
     }
 
     /// 发布内部事件（状态/蓝图等），统一经 EventBus，避免旁路直连。
-    pub async fn publish_internal_event(&self, event: InternalEvent) -> Result<usize, AppError> {
-        self.event_bus.publish(event).await
+    pub fn publish_internal_event(&self, event: InternalEvent) -> Result<usize, AppError> {
+        self.event_bus.publish(event)
     }
 
     /// 订阅内部事件流（Host/Tauri 桥接用）。
-    pub async fn subscribe_internal_events(
-        &self,
-    ) -> tokio::sync::broadcast::Receiver<InternalEvent> {
-        self.event_bus.subscribe().await
+    pub fn subscribe_internal_events(&self) -> tokio::sync::broadcast::Receiver<InternalEvent> {
+        self.event_bus.subscribe()
     }
 }
 
@@ -272,6 +270,11 @@ impl OrchestratorContext {
         self.task_manager.cancel(task_id)
     }
 
+    /// 取消任务；任务尚未注册时保留短期取消意图。
+    pub fn cancel_or_remember_task_handle(&self, task_id: &str, user_id: i64) -> bool {
+        self.task_manager.cancel_or_remember(task_id, user_id)
+    }
+
     /// 当前活跃任务快照。
     pub fn active_task_snapshots(&self) -> Vec<a4n_core::event::channel::TaskSnapshot> {
         self.task_manager.list_active_snapshots()
@@ -282,7 +285,6 @@ impl OrchestratorContext {
         &self,
         content_hash: &str,
     ) -> Result<Option<a4n_core::event::snapshot::Snapshot>, AppError> {
-        use a4n_core::event::snapshot::SnapshotStore;
         self.snapshot_store.load_snapshot(content_hash).await
     }
 }

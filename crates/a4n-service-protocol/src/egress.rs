@@ -71,14 +71,13 @@ pub fn validate_egress_scope(
     if allowed {
         return Ok(event);
     }
-    Err(ServiceError {
-        code: ServiceErrorCode::Unauthorized,
-        message: redact_sensitive_message(format!(
+    Err(ServiceError::non_retryable(
+        ServiceErrorCode::Unauthorized,
+        redact_sensitive_message(format!(
             "{}: service={} data_type={data_type:?}",
             reason, service
         )),
-        retryable: Some(false),
-    })
+    ))
 }
 
 #[cfg(test)]

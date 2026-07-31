@@ -11,7 +11,6 @@ a4n-service-protocol = { path = "../a4n-service-protocol" }
 
 anyhow = { workspace = true }
 argon2 = { workspace = true }
-async-trait = { workspace = true }
 chrono = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }

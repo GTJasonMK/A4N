@@ -1,5 +1,6 @@
 import React from "react";
-import { Loader2, Play, Square } from "lucide-react";
+import { Play, Square } from "lucide-react";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 
 interface StreamControlBarProps {
@@ -30,20 +31,20 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
 }) => (
   <div className="min-w-0 space-y-2 text-xs">
     {resetBusy ? (
-      <div className="flex min-w-0 items-center gap-2 text-[11px] text-book-text-muted">
-        <Loader2 size={11} className="shrink-0 animate-spin text-book-primary" />
+      <div className="flex min-w-0 items-center gap-2 text-small text-book-text-muted">
+        <LoadingSpinner size="sm" className="shrink-0" />
         <span className="truncate">正在重置生成数据…</span>
       </div>
     ) : streamTaskId ? (
-      <div className="flex min-w-0 items-center gap-2 text-[11px] text-book-text-muted">
-        <Loader2 size={11} className="shrink-0 animate-spin text-book-primary" />
+      <div className="flex min-w-0 items-center gap-2 text-small text-book-text-muted">
+        <LoadingSpinner size="sm" className="shrink-0" />
         <span className="truncate">
           {activeNumber != null ? `正在生成第 ${activeNumber} 章…` : "正在生成正文…"}
         </span>
       </div>
     ) : null}
     {streamTaskId && (
-      <details className="text-[10px] text-book-text-muted">
+      <details className="text-caption text-book-text-muted">
         <summary className="w-fit cursor-pointer transition-colors hover:text-book-text-main">
           诊断信息
         </summary>
@@ -53,7 +54,7 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
       </details>
     )}
     {streamMessage ? (
-      <div className="flex min-w-0 items-center gap-1.5 rounded-lg bg-book-bg-tertiary/55 px-2.5 py-2 text-[11px] text-book-text-muted">
+      <div className="flex min-w-0 items-center gap-1.5 rounded-lg bg-book-bg-tertiary/55 px-2.5 py-2 text-small text-book-text-muted">
         <span className="min-w-0 break-words">{streamMessage}</span>
       </div>
     ) : null}
@@ -67,7 +68,7 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
           title={startDisabledReason === null ? undefined : startDisabledReason}
         >
           {streamBusy ? (
-            <Loader2 size={11} className="animate-spin" />
+            <LoadingSpinner size="sm" />
           ) : (
             <span className="inline-flex min-w-0 items-center gap-1">
               <Play size={11} className="shrink-0" />
@@ -80,11 +81,11 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
           type="button"
           onClick={onCancel}
           disabled={streamBusy}
-          className="pyqt-btn-secondary inline-flex min-w-0 flex-1 items-center justify-center gap-1 !min-h-9 !border-error/50 !px-2 text-[11px] !text-error sm:!min-h-[28px]"
+          className="pyqt-btn-secondary inline-flex min-w-0 flex-1 items-center justify-center gap-1 !min-h-9 !border-error/50 !px-2 text-small !text-error sm:!min-h-[28px]"
           title="取消当前章节生成任务"
         >
           {streamBusy ? (
-            <Loader2 size={11} className="shrink-0 animate-spin" />
+            <LoadingSpinner size="sm" className="shrink-0" />
           ) : (
             <Square size={11} className="shrink-0" />
           )}

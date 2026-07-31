@@ -47,15 +47,15 @@ const RollbackImpactRow: React.FC<{ impact: RollbackImpact }> = ({ impact }) => 
       <div className="flex min-w-0 items-baseline gap-2">
         <div className="min-w-0 flex-1 truncate font-medium text-book-text-main">{impact.title}</div>
         {impact.count != null ? (
-          <div className="shrink-0 tabular-nums text-[10px] text-book-text-muted">
+          <div className="shrink-0 tabular-nums text-caption text-book-text-muted">
             {impact.count.toLocaleString()} 项
           </div>
         ) : null}
       </div>
-      {scope ? <div className="mt-1 text-[10px] text-book-text-muted">{scope}</div> : null}
-      {impact.note && <div className="mt-1 text-[10px]">{impact.note}</div>}
+      {scope ? <div className="mt-1 text-caption text-book-text-muted">{scope}</div> : null}
+      {impact.note && <div className="mt-1 text-caption">{impact.note}</div>}
       {impact.tables.length > 0 ? (
-        <details className="mt-1 text-[10px] text-book-text-muted">
+        <details className="mt-1 text-caption text-book-text-muted">
           <summary className="w-fit cursor-pointer hover:text-book-text-main">技术范围</summary>
           <div className="mt-1 break-words font-mono">{impact.tables.join("、")}</div>
         </details>

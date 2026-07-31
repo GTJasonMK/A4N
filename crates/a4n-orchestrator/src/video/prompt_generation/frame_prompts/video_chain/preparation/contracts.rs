@@ -13,11 +13,13 @@ pub(super) struct VideoChainFrameSelectionInput<'a> {
     pub(super) project_id: i64,
     pub(super) chapter_id: i64,
     pub(super) segment_plan: &'a [VideoSegmentPlan],
+    pub(super) target_shot_number: Option<i32>,
     pub(super) duration_secs: i32,
     pub(super) execution_identity: &'a Value,
     pub(super) prompt_output_language: PromptOutputLanguage,
     pub(super) available_assets: &'a Value,
     pub(super) reference_image_ids: &'a [i64],
+    pub(super) include_system_frame_images: bool,
 }
 
 pub(super) struct SelectedVideoChainFrames {

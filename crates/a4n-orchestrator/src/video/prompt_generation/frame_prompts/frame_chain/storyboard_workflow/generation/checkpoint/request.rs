@@ -12,8 +12,7 @@ use crate::video::ChapterVideoSourceContext;
 use crate::video::prompt_generation::frame_prompts::{
     FramePromptContext, FramePromptGenerationSpec, VIDEO_PREVIOUS_OUTPUT_SEGMENT_PLAN,
     VideoContextManifestInput, VideoContextPreviousOutput, VideoUnitPlan,
-    build_storyboard_prompt_user, build_video_context_manifest,
-    storyboard_expected_segment_numbers, video_stage_fingerprint,
+    build_storyboard_prompt_user, build_video_context_manifest, video_stage_fingerprint,
 };
 use crate::video::prompt_json::VideoSegmentPlan;
 
@@ -94,7 +93,7 @@ pub(super) async fn prepare_storyboard_frame_request(
                 "这是拍摄剧本明确要求的动作桥分镜板，只表达 preserved_action 对应的动作接点；不得新增关键剧情、不得重复前后内容单元主动作。",
             ),
         };
-    let expected_segment_numbers = storyboard_expected_segment_numbers(segment_plan, frame_number)?;
+    let expected_segment_numbers = unit.source_segment_numbers();
     let current_frame = json!({
         "frame_number": frame_number,
         "total_frame_count": expected_frame_count,
