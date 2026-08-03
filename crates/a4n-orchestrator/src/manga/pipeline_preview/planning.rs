@@ -33,7 +33,7 @@ pub(super) async fn preview_planning(
         "items": items_json.get("items").cloned().unwrap_or_else(|| json!([])),
         "comic_synthesis": comic_synthesis_json
     });
-    let Some((plan_out, plan_json)) =
+    let Some(plan_json) =
         preview_page_plan(context, steps, &extraction_summary, &reference_assets).await?
     else {
         return Ok(());
@@ -41,7 +41,6 @@ pub(super) async fn preview_planning(
     preview_page_drawing_prompts(
         context,
         steps,
-        &plan_out,
         &plan_json,
         &extraction_summary,
         &reference_assets,

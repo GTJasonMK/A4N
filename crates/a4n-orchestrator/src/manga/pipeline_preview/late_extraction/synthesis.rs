@@ -89,7 +89,7 @@ pub(super) async fn preview_synthesis(
     })
     .await?;
     let comic_synthesis_json = match call {
-        MangaPreviewCall::Restored { parsed_output } => {
+        MangaPreviewCall::Restored { parsed_output, .. } => {
             steps.push(MangaPipelineRequestPreviewStep::reused_checkpoint(
                 "manga_chapter_comic_synthesis",
                 "漫画 Step 5：章节节奏综合",

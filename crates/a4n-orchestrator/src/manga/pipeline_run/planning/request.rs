@@ -1,11 +1,10 @@
 use a4n_core::error::AppError;
-use serde_json::json;
 
 use super::super::super::pipeline_prompt::{
-    MANGA_PREVIOUS_OUTPUT_EXTRACTION_SUMMARY, MangaContextManifestInput,
-    MangaContextPreviousOutput, MangaPromptGenerationTrace, MangaRenderTraceInput,
+    MangaContextManifestInput, MangaPromptGenerationTrace, MangaRenderTraceInput,
     build_manga_context_manifest, manga_page_planning_user_message,
 };
+use super::super::super::shooting_script_projection::manga_page_planning_source;
 use super::super::contracts::{MangaExtractionRun, MangaRunContext};
 
 pub(super) async fn generate_planning_trace(
@@ -14,11 +13,11 @@ pub(super) async fn generate_planning_trace(
 ) -> Result<MangaPromptGenerationTrace, AppError> {
     let extraction_summary = &extraction.extraction_summary;
     let reference_assets = context.reference_assets.clone();
-    let shooting_script = json!({
-        "shooting_script_id": context.shooting_script.record.id,
-        "shooting_script_revision": context.shooting_script.record.revision,
-        "script": context.shooting_script.script,
-    });
+    let shooting_script = manga_page_planning_source(
+        context.shooting_script.record.id,
+        context.shooting_script.record.revision,
+        &context.shooting_script.script,
+    );
     let plan_user = manga_page_planning_user_message(extraction_summary.clone(), shooting_script)?;
     let planning_manifest = build_manga_context_manifest(MangaContextManifestInput {
         prompt_renderer: context.prompt_renderer,
@@ -26,20 +25,8 @@ pub(super) async fn generate_planning_trace(
         variables: &context.variables,
         chapter_content: &context.chapter_content,
         source_spans: &context.source_spans,
-        prompt_names: &[
-            "manga_character_binding",
-            "manga_speech_selection",
-            "manga_visual_anchor_extraction",
-            "manga_item_extraction",
-            "manga_chapter_comic_synthesis",
-            "manga_page_planning",
-        ],
-        previous_outputs: &[MangaContextPreviousOutput {
-            pack_kind: MANGA_PREVIOUS_OUTPUT_EXTRACTION_SUMMARY,
-            prompt_name: "manga_extraction_summary",
-            parsed_output: extraction_summary,
-            raw_output: None,
-        }],
+        prompt_names: &["manga_page_planning"],
+        previous_outputs: &[],
         reference_assets: Some(&reference_assets),
         dynamic_user_content: plan_user,
     })

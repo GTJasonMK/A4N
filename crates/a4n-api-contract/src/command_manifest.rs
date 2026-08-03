@@ -360,6 +360,7 @@ pub const API_COMMANDS: &[&str] = &[
     "update_chapter_outline",
     "update_chapter_scene",
     "update_chapter_video_prompt",
+    "update_chapter_video_segment_recipe",
     "update_embedding_config",
     "update_galgame_choices",
     "update_galgame_line",

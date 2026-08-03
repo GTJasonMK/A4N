@@ -57,6 +57,19 @@ fn validates_structured_page_and_panel_plan() {
 }
 
 #[test]
+fn accepts_page_state_paraphrases() {
+    let mut plan = valid_plan();
+    let mut next_page = plan.pages[0].clone();
+    next_page.page_number = 2;
+    next_page.entry_state = "门已经打开，角色停在门口".to_string();
+    next_page.exit_state = "角色进入门内".to_string();
+    plan.pages.push(next_page);
+
+    plan.validate()
+        .expect("natural-language continuity must not require textual identity");
+}
+
+#[test]
 fn rejects_missing_single_dominant_panel() {
     let mut plan = valid_plan();
     plan.pages[0].panels[0].size = MangaPanelSizeV2::Large;

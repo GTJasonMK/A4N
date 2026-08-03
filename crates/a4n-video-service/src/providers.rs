@@ -21,6 +21,7 @@ pub(crate) fn video_request_preview(payload: &VideoProviderPayload) -> Result<Va
         "seedance2-video" => Seedance2VideoProvider::request_body_preview(req)?,
         "cliproxy-openai-video" => CliProxyOpenAiVideoProvider::request_body_preview_with_options(
             req,
+            &payload.base_url,
             payload.provider_options_json.as_ref(),
         )?,
         "openai-chat-video" => ChatCompletionsVideoProvider::request_body_preview(req),

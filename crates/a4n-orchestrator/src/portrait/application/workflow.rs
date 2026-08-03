@@ -60,11 +60,7 @@ pub(super) async fn finalize_portrait_application<T>(
         ),
     };
     context
-        .finalize_workflow_run_outcome_validated(
-            workflow_run_id,
-            outcome,
-            error_message.as_deref(),
-        )
+        .finalize_workflow_run_outcome_validated(workflow_run_id, outcome, error_message.as_deref())
         .await
         .map_err(|status_error| {
             if matches!(&status_error, AppError::Cancelled) {

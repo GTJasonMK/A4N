@@ -41,7 +41,6 @@ describe("VideoPlanningWorkspace", () => {
         draft={{
           workflowRunId: 9,
           workflowStatus: "cancelled",
-          resumable: true,
           resumeOptions: {
             workflow_mode: "shared_segment_plan",
             style: "原始规划风格",

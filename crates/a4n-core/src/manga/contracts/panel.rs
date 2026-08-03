@@ -51,9 +51,12 @@ pub enum MangaPanelSizeV2 {
 pub enum MangaShotScaleV2 {
     ExtremeWide,
     Wide,
+    MediumWide,
     Medium,
+    MediumCloseUp,
     CloseUp,
     ExtremeCloseUp,
+    Insert,
     Detail,
 }
 
@@ -64,7 +67,9 @@ pub enum MangaCameraAngleV2 {
     High,
     Low,
     TopDown,
+    Overhead,
     Dutch,
+    Subjective,
     OverShoulder,
     Profile,
 }

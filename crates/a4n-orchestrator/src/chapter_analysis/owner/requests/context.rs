@@ -19,6 +19,8 @@ use source::{add_chapter_analysis_source_pack, chapter_analysis_dynamic_input};
 mod trace;
 use trace::chapter_analysis_trace_context;
 
+const CHAPTER_ANALYSIS_SESSION_PROMPT: &str = "chapter_analysis_session";
+
 pub(super) async fn build_chapter_analysis_stage_request(
     ch: &chapter::Model,
     prompt_renderer: &dyn PromptRenderer,
@@ -28,8 +30,15 @@ pub(super) async fn build_chapter_analysis_stage_request(
     output_contract: Value,
 ) -> Result<ChatRequest, AppError> {
     let variables = HashMap::new();
-    let system_prompt = prompt_renderer
+    let stage_prompt = prompt_renderer
         .render_prompt(prompt_name, &variables, Some(ch.project_id))
+        .await?;
+    let system_prompt = prompt_renderer
+        .render_prompt(
+            CHAPTER_ANALYSIS_SESSION_PROMPT,
+            &variables,
+            Some(ch.project_id),
+        )
         .await?;
     let source_spans = source_spans_for_chapters(std::slice::from_ref(ch));
     let dynamic_input = chapter_analysis_dynamic_input(input);
@@ -39,6 +48,7 @@ pub(super) async fn build_chapter_analysis_stage_request(
         dynamic_input,
         output_contract,
     )?;
+    let user_prompt = format!("[阶段指令]\n{}\n\n{user_prompt}", stage_prompt.trim());
     let mut ledger = LlmContextLedger::new();
     add_chapter_analysis_source_pack(&mut ledger, ch, &source_spans)?;
     let manifest = ledger.into_manifest(user_prompt, None);

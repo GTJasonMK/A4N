@@ -159,6 +159,90 @@ fn sync_draft(
     }
 }
 
+#[tokio::test]
+async fn segment_recipe_update_writes_only_the_locked_plan_metadata() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let original = insert_prompt(&db, project_id, chapter.id).await;
+    let segment = json!({
+        "schema_version": "video_segment_plan_v2",
+        "segment_number": 1,
+        "source_shot_id": "shot-1",
+        "segment_index_in_shot": 1,
+        "shot_segment_count": 1,
+        "covered_beat_ids": [],
+        "title": "片段 1",
+        "scene_summary": "场景",
+        "blocking_summary": "调度",
+        "spatial_anchors": [],
+        "emotion_action_goals": [],
+        "video_intent": {"hook":"h","audience_effect":"a","rhythm":"r","visual_priority":"v"},
+        "emotional_arc": {"start":"s","turn":"t","end":"e","function":"f"},
+        "performance_plan": {"movement_path":"m","body_performance":"b","gaze_and_hands":"g","pause_or_reaction":"p","camera_relationship":"c","time_blocks":[],"action_script":[]},
+        "material_coverage": {"required_entities":[],"missing_or_weak_references":[],"risk_note":"r"},
+        "transition_to_next": null,
+        "source_span_ids": ["span-1"],
+        "duration_secs": 6,
+        "aspect_ratio": "16:9",
+        "reference_image_ids": []
+    });
+    let recipe = json!({
+        "schema_version": "video_segment_execution_recipe_v1",
+        "segment_number": 1,
+        "workflow_mode": "chat_video",
+        "style": "cinematic",
+        "prompt_output_language": "zh_cn",
+        "duration_secs": 6,
+        "duration_secs_options": [6],
+        "aspect_ratio": "16:9",
+        "reference_image_ids": [],
+        "video_library_image_ids": [],
+        "guidance_mode": "none",
+        "guidance_reference_image_ids": [],
+        "continuity_source_video_id": null,
+        "reference_media": null,
+        "adopted_video_id": null
+    });
+    let mut active: chapter_video_prompt::ActiveModel = original.clone().into();
+    active.style = Set(Some("cinematic".to_string()));
+    active.prompt_type = Set("frame_segment_plan".to_string());
+    active.workflow_mode = Set("shared_segment_plan".to_string());
+    active.shot_number = Set(0);
+    active.metadata_json = Set(Some(json!({
+        "video_execution_identity": {
+            "source_content_sha256": a4n_core::source_spans::source_text_hash(&chapter.content)
+        },
+        "segments": [segment],
+        "segment_recipes": [recipe.clone()]
+    })));
+    let plan = active.update(&db).await.unwrap();
+
+    let mut updated: a4n_core::video_execution::VideoSegmentExecutionRecipeV1 =
+        serde_json::from_value(recipe).unwrap();
+    updated.workflow_mode = a4n_core::video_execution::VideoSegmentWorkflowModeV1::Storyboard;
+    updated.guidance_mode = a4n_core::video_execution::VideoSegmentGuidanceModeV1::SystemFrames;
+    let recipes = update_chapter_video_segment_recipe(&db, plan.id, updated)
+        .await
+        .unwrap();
+
+    assert_eq!(recipes.len(), 1);
+    assert_eq!(
+        recipes[0].workflow_mode,
+        a4n_core::video_execution::VideoSegmentWorkflowModeV1::Storyboard
+    );
+    let stored = chapter_video_prompt::Entity::find_by_id(plan.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.visual_prompt, original.visual_prompt);
+    assert_eq!(
+        stored.metadata_json.unwrap()["segment_recipes"][0]["workflow_mode"],
+        "storyboard"
+    );
+}
+
 #[test]
 fn prompt_sync_only_marks_shared_upstream_prompts_completed() {
     assert_eq!(generated_prompt_status("frame_segment_plan"), "completed");

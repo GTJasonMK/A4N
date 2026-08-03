@@ -95,8 +95,26 @@ interface MangaPanelPlan {
     | "resolution"
     | "detail";
   size: "dominant" | "large" | "medium" | "small" | "inset";
-  shot_scale: "extreme_wide" | "wide" | "medium" | "close_up" | "extreme_close_up" | "detail";
-  camera_angle: "eye_level" | "high" | "low" | "top_down" | "dutch" | "over_shoulder" | "profile";
+  shot_scale:
+    | "extreme_wide"
+    | "wide"
+    | "medium_wide"
+    | "medium"
+    | "medium_close_up"
+    | "close_up"
+    | "extreme_close_up"
+    | "insert"
+    | "detail";
+  camera_angle:
+    | "eye_level"
+    | "high"
+    | "low"
+    | "top_down"
+    | "overhead"
+    | "dutch"
+    | "subjective"
+    | "over_shoulder"
+    | "profile";
   participants: string[];
   composition: string;
   observable_action: string;

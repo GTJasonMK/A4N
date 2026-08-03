@@ -839,7 +839,7 @@ impl OrchestratorContext {
                 == recipe.provider_reference_image_ids();
         if !valid {
             return Err(invalid_argument(format!(
-                "视频提示词 #{} 不属于当前片段执行方案，请在片段卡片中重新生成",
+                "视频提示词 #{} 不属于当前片段执行方案，请在当前片段配置中重新生成",
                 prompt.id
             )));
         }

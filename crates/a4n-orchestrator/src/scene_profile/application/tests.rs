@@ -1,13 +1,32 @@
 use super::parsing::parse_scene_profile_sync_content;
+use super::stages::build_scene_profile_stage_request;
 use super::types::{
     SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_OCCURRENCE_COVERAGE_RULE,
-    SCENE_TRANSITION_REFERENCE_RULE, SceneProfileSyncRequestContext,
+    SCENE_OCCURRENCE_PROMPT, SCENE_PROFILE_CANDIDATES_PROMPT, SCENE_TRANSITION_REFERENCE_RULE,
+    SceneProfileSyncRequestContext,
 };
+use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter;
 use a4n_core::models::project::text_anchor;
 use a4n_core::source_spans::source_spans_for_chapters;
+use a4n_prompt::rendering::PromptRenderer;
+use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
+
+struct SceneSessionPromptRenderer;
+
+#[async_trait]
+impl PromptRenderer for SceneSessionPromptRenderer {
+    async fn render_prompt(
+        &self,
+        template_name: &str,
+        _variables: &std::collections::HashMap<String, Value>,
+        _project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        Ok(format!("rendered prompt for {template_name}"))
+    }
+}
 
 fn chapter_for_test() -> chapter::Model {
     let now = chrono::Utc::now().naive_utc();
@@ -146,6 +165,49 @@ fn valid_scene_sync_content(context: &SceneProfileSyncRequestContext) -> Value {
             }
         ]
     })
+}
+
+#[tokio::test]
+async fn scene_stages_share_one_chapter_prefix_without_merging_stage_instructions() {
+    let context = context_for_test();
+    let scenes = build_scene_profile_stage_request(
+        &SceneSessionPromptRenderer,
+        &context,
+        None,
+        SCENE_PROFILE_CANDIDATES_PROMPT,
+        "识别场景",
+        json!({}),
+        json!({"required_root_field": "scenes"}),
+    )
+    .await
+    .expect("scene request");
+    let occurrences = build_scene_profile_stage_request(
+        &SceneSessionPromptRenderer,
+        &context,
+        None,
+        SCENE_OCCURRENCE_PROMPT,
+        "抽取出场",
+        json!({"scenes": []}),
+        json!({"required_root_field": "occurrences"}),
+    )
+    .await
+    .expect("occurrence request");
+
+    assert_eq!(scenes.messages[0].content, occurrences.messages[0].content);
+    assert!(
+        scenes.messages[1]
+            .content
+            .contains(SCENE_PROFILE_CANDIDATES_PROMPT)
+    );
+    assert!(
+        occurrences.messages[1]
+            .content
+            .contains(SCENE_OCCURRENCE_PROMPT)
+    );
+    let scene_pack = &scenes.context_manifest_json.as_ref().unwrap()["packs"][0];
+    let occurrence_pack = &occurrences.context_manifest_json.as_ref().unwrap()["packs"][0];
+    assert_eq!(scene_pack["config_hash"], occurrence_pack["config_hash"]);
+    assert_eq!(scene_pack["variants"], occurrence_pack["variants"]);
 }
 
 #[test]

@@ -92,7 +92,6 @@ describe("video segment-plan generation actions", () => {
     const segmentPlanDraft: LoadedSegmentPlanDraft = {
       workflowRunId: 8,
       workflowStatus: "cancelled",
-      resumable: true,
       resumeOptions,
       workflowProgress: {
         current: 87,

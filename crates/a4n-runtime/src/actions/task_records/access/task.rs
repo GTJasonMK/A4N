@@ -53,11 +53,5 @@ pub(in crate::actions::task_records) async fn verify_task_handle_access(
     {
         return Ok(());
     }
-    verify_task_project_access(
-        state,
-        user_id,
-        handle.project_id,
-        handle.root_project_id,
-    )
-    .await
+    verify_task_project_access(state, user_id, handle.project_id, handle.root_project_id).await
 }

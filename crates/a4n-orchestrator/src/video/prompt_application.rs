@@ -6,12 +6,12 @@ use a4n_core::{
     models::{
         ai::video_gen_config,
         chapter::{chapter, chapter_video_prompt},
-        generation::workflow_run,
     },
     prompt_language::PromptOutputLanguage,
     source_spans::source_text_hash as source_content_sha256,
     video_execution::{
-        VideoSegmentExecutionRecipeV1, video_segment_recipes_for_plan_from_metadata,
+        VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
+        video_segment_recipes_for_plan_from_metadata,
     },
 };
 use a4n_prompt::rendering::PromptRenderer;
@@ -23,7 +23,9 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
-    workflow::{GetWorkflowRunInput, WorkflowRunDetailSummary, WorkflowRunFinalizeOutcome},
+    workflow::{
+        WorkflowRunFinalizeOutcome, WorkflowRunSummary, workflow_run_is_running_or_resumable,
+    },
 };
 
 use super::{
@@ -31,9 +33,10 @@ use super::{
     ChapterVideoSourceContext, UpdateChapterVideoPromptInput as DbUpdate, VideoPromptChunk,
     VideoPromptDownstreamDependencies, VideoPromptOptimizationInput, VideoPromptProgress,
     VideoPromptProgressUpdate, duration_capability_for_config,
-    load_previous_shared_segment_recipe_state, materialize_video_segment_plan_draft_recipes,
+    load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
     update_video_segment_plan_draft_recipe_checkpoint,
     validate_prompt_options_with_reference_limit, validate_video_duration_for_config_secs,
+    video_db_error,
 };
 
 const VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES: &str = "boundary_frames";
@@ -62,6 +65,8 @@ pub struct GenerateChapterVideoPromptInput {
     pub active_task_id: Option<String>,
     #[serde(skip)]
     pub root_project_id: Option<i64>,
+    #[serde(skip)]
+    pub retry_of_task_id: Option<String>,
     pub options: GeneratePromptOptionsInput,
 }
 
@@ -89,6 +94,15 @@ pub struct ChapterVideoPromptSummary {
     pub updated_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct VideoSegmentPlanDraftSummary {
+    pub run: WorkflowRunSummary,
+    pub segments: Vec<VideoSegmentPlanV2>,
+    pub recipes: Vec<VideoSegmentExecutionRecipeV1>,
+    pub completed_shot_count: usize,
+    pub total_shot_count: usize,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateChapterVideoPromptInput {
@@ -97,8 +111,6 @@ pub struct UpdateChapterVideoPromptInput {
     pub motion_prompt: Option<Option<String>>,
     #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
     pub negative_prompt: Option<Option<String>>,
-    #[serde(default)]
-    pub segment_recipe: Option<VideoSegmentExecutionRecipeV1>,
     #[serde(default)]
     pub downstream_strategy: DownstreamConflictStrategy,
 }
@@ -175,10 +187,8 @@ struct VideoPromptMutationPlan {
 }
 
 struct VideoSegmentPlanDraftContext {
-    run: workflow_run::Model,
+    run: WorkflowRunSummary,
     style: String,
-    prompt_output_language: String,
-    regenerate_existing: bool,
 }
 
 impl OrchestratorContext {
@@ -283,6 +293,7 @@ impl OrchestratorContext {
             chapter_id,
             active_task_id,
             root_project_id,
+            retry_of_task_id,
             mut options,
         } = input;
         let active_task_id = active_task_id.ok_or_else(|| AppError::InvalidState {
@@ -347,6 +358,7 @@ impl OrchestratorContext {
                 &options,
                 &active_task_id,
                 root_project_id,
+                retry_of_task_id.as_deref(),
             )
             .await?;
         options.workflow_run_id = Some(workflow_run.id);
@@ -548,42 +560,45 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         input: LoadVideoSegmentPlanDraftInput,
-    ) -> Result<WorkflowRunDetailSummary, AppError> {
-        let context = self
+    ) -> Result<VideoSegmentPlanDraftSummary, AppError> {
+        let VideoSegmentPlanDraftContext { run, style } = self
             .video_segment_plan_draft_context(
                 user_id,
                 input.project_id,
                 input.chapter_id,
                 input.workflow_run_id,
-                false,
+                "加载片段规划草稿执行方案",
             )
             .await?;
-        self.materialize_video_segment_plan_draft_context(&context)
-            .await?;
-        self.workflow_run_detail(GetWorkflowRunInput {
-            workflow_run_id: context.run.id,
-            include_generation_runs: Some(false),
+        let checkpoints = load_video_segment_plan_draft_checkpoints(self, run.id).await?;
+        let (segments, recipes, completed_shot_count, total_shot_count) = if checkpoints.is_empty()
+        {
+            (Vec::new(), Vec::new(), 0, 0)
+        } else {
+            load_video_segment_plan_draft_recipe_state(&checkpoints, &style)?
+        };
+        Ok(VideoSegmentPlanDraftSummary {
+            run,
+            segments,
+            recipes,
+            completed_shot_count,
+            total_shot_count,
         })
-        .await
     }
 
     pub async fn update_video_segment_plan_draft_recipe_validated(
         &self,
         user_id: i64,
         input: UpdateVideoSegmentPlanDraftRecipeInput,
-    ) -> Result<WorkflowRunDetailSummary, AppError> {
+    ) -> Result<(), AppError> {
         let context = self
             .video_segment_plan_draft_context(
                 user_id,
                 input.project_id,
                 input.chapter_id,
                 input.workflow_run_id,
-                true,
+                "更新片段规划草稿执行方案",
             )
-            .await?;
-        self.ensure_segment_plan_finalization_not_started(context.run.id)
-            .await?;
-        self.materialize_video_segment_plan_draft_context(&context)
             .await?;
         update_video_segment_plan_draft_recipe_checkpoint(
             self,
@@ -593,13 +608,6 @@ impl OrchestratorContext {
             &context.style,
             input.recipe,
         )
-        .await?;
-        self.ensure_segment_plan_finalization_not_started(context.run.id)
-            .await?;
-        self.workflow_run_detail(GetWorkflowRunInput {
-            workflow_run_id: context.run.id,
-            include_generation_runs: Some(false),
-        })
         .await
     }
 
@@ -609,22 +617,11 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         workflow_run_id: i64,
-        writable: bool,
+        operation: &str,
     ) -> Result<VideoSegmentPlanDraftContext, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
-        self.project_chapter_video_source(
-            project_id,
-            chapter_id,
-            if writable {
-                "更新片段规划草稿执行方案"
-            } else {
-                "加载片段规划草稿执行方案"
-            },
-            writable,
-        )
-        .await?;
-        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        let run = self.workflow_run_summary(workflow_run_id).await?;
         if run.workflow_kind != "video_segment_plan"
             || run.project_id != Some(project_id)
             || run.chapter_id != Some(chapter_id)
@@ -634,14 +631,10 @@ impl OrchestratorContext {
                 "片段规划 workflow {workflow_run_id} 与当前项目或章节不一致"
             )));
         }
-        if run.status == "superseded" || (writable && run.status == "completed") {
+        if !workflow_run_is_running_or_resumable(&run.status, run.can_resume) {
             return Err(AppError::InvalidState {
                 current: run.status.clone(),
-                operation: if writable {
-                    "更新片段规划草稿执行方案".to_string()
-                } else {
-                    "加载片段规划草稿执行方案".to_string()
-                },
+                operation: operation.to_string(),
             });
         }
         let fingerprint = run
@@ -682,80 +675,7 @@ impl OrchestratorContext {
                 operation: format!("读取片段规划 workflow {workflow_run_id}"),
             })?
             .to_string();
-        let prompt_output_language = options
-            .get("prompt_output_language")
-            .and_then(Value::as_str)
-            .filter(|value| matches!(*value, "zh_cn" | "en"))
-            .ok_or_else(|| AppError::InvalidState {
-                current: "invalid_input_fingerprint_prompt_output_language".to_string(),
-                operation: format!("读取片段规划 workflow {workflow_run_id}"),
-            })?
-            .to_string();
-        let regenerate_existing = options
-            .get("regenerate_existing")
-            .and_then(Value::as_bool)
-            .ok_or_else(|| AppError::InvalidState {
-                current: "invalid_input_fingerprint_regenerate_existing".to_string(),
-                operation: format!("读取片段规划 workflow {workflow_run_id}"),
-            })?;
-        Ok(VideoSegmentPlanDraftContext {
-            run,
-            style,
-            prompt_output_language,
-            regenerate_existing,
-        })
-    }
-
-    async fn materialize_video_segment_plan_draft_context(
-        &self,
-        context: &VideoSegmentPlanDraftContext,
-    ) -> Result<(), AppError> {
-        let previous = load_previous_shared_segment_recipe_state(
-            self,
-            context
-                .run
-                .project_id
-                .ok_or_else(|| AppError::InvalidState {
-                    current: "missing_project_id".to_string(),
-                    operation: format!("读取片段规划 workflow {}", context.run.id),
-                })?,
-            context
-                .run
-                .chapter_id
-                .ok_or_else(|| AppError::InvalidState {
-                    current: "missing_chapter_id".to_string(),
-                    operation: format!("读取片段规划 workflow {}", context.run.id),
-                })?,
-            context.regenerate_existing,
-        )
-        .await?;
-        materialize_video_segment_plan_draft_recipes(
-            self,
-            context.run.id,
-            &context.style,
-            &context.prompt_output_language,
-            previous
-                .as_ref()
-                .map(|(segments, recipes)| (segments.as_slice(), recipes.as_slice())),
-        )
-        .await
-    }
-
-    async fn ensure_segment_plan_finalization_not_started(
-        &self,
-        workflow_run_id: i64,
-    ) -> Result<(), AppError> {
-        if self
-            .workflow_checkpoint_model_by_step(workflow_run_id, "video_segment_plan.final")
-            .await?
-            .is_some()
-        {
-            return Err(AppError::InvalidState {
-                current: "segment_plan_finalizing".to_string(),
-                operation: "更新片段规划草稿执行方案，请在正式规划加载后重试".to_string(),
-            });
-        }
-        Ok(())
+        Ok(VideoSegmentPlanDraftContext { run, style })
     }
 
     pub async fn update_chapter_video_prompt_validated(
@@ -775,11 +695,6 @@ impl OrchestratorContext {
             true,
         )
         .await?;
-        if let Some(recipe) = input.segment_recipe.clone() {
-            return self
-                .update_video_segment_recipe(prompt, input, recipe, user_id)
-                .await;
-        }
         let plan = self
             .prepare_mutation_plan(
                 prompt_id,
@@ -809,19 +724,19 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
     ) -> Result<chapter_video_prompt::Model, AppError> {
-        let current_source_hash = source_content_sha256(
-            &self
-                .project_chapter_video_source(project_id, chapter_id, "读取当前共享片段规划", false)
-                .await?
-                .source
-                .content,
-        );
-        latest_current_shared_segment_plan_from_rows(
-            self.chapter_video_prompts_for_chapter(project_id, chapter_id)
-                .await?,
+        let current_source_hash = self
+            .current_video_source_hash(project_id, chapter_id)
+            .await?;
+        let prompt_id = a4n_db::video::completed_shared_segment_plan_id_for_source_hash(
+            self.database.connection(),
+            project_id,
+            chapter_id,
             &current_source_hash,
         )
-        .ok_or_else(|| AppError::InvalidArgument("当前章节没有可用的共享片段规划".to_string()))
+        .await
+        .map_err(video_db_error)?
+        .ok_or_else(|| AppError::InvalidArgument("当前章节没有可用的共享片段规划".to_string()))?;
+        self.chapter_video_prompt(prompt_id).await
     }
 
     pub(in crate::video) async fn require_current_shared_segment_plan(
@@ -831,6 +746,17 @@ impl OrchestratorContext {
         prompt_id: i64,
     ) -> Result<chapter_video_prompt::Model, AppError> {
         let prompt = self.chapter_video_prompt(prompt_id).await?;
+        self.validate_loaded_current_shared_segment_plan(&prompt, project_id, chapter_id)
+            .await?;
+        Ok(prompt)
+    }
+
+    async fn validate_loaded_current_shared_segment_plan(
+        &self,
+        prompt: &chapter_video_prompt::Model,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<(), AppError> {
         if prompt.project_id != project_id
             || prompt.chapter_id != chapter_id
             || prompt.prompt_type != "frame_segment_plan"
@@ -846,99 +772,59 @@ impl OrchestratorContext {
                 "目标片段规划不是当前章节已完成的共享片段规划".to_string(),
             ));
         }
-        let current = self
-            .current_shared_segment_plan(project_id, chapter_id)
+        let current_source_hash = self
+            .current_video_source_hash(project_id, chapter_id)
             .await?;
-        let current_source_hash = video_prompt_source_content_hash(current.metadata_json.as_ref())
-            .ok_or_else(|| AppError::InvalidArgument("当前共享片段规划缺少正文身份".to_string()))?;
         if video_prompt_source_content_hash(prompt.metadata_json.as_ref())
-            != Some(current_source_hash)
+            != Some(current_source_hash.as_str())
         {
             return Err(AppError::InvalidArgument(
                 "目标片段规划对应的章节正文已变化，请重新生成片段规划".to_string(),
             ));
         }
-        if current.id != prompt.id {
+        let current_prompt_id = a4n_db::video::completed_shared_segment_plan_id_for_source_hash(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+            &current_source_hash,
+        )
+        .await
+        .map_err(video_db_error)?;
+        if current_prompt_id != Some(prompt.id) {
             return Err(AppError::InvalidArgument(
                 "目标片段规划不是当前规划，请刷新后重试".to_string(),
             ));
         }
-        Ok(prompt)
+        Ok(())
     }
 
-    async fn update_video_segment_recipe(
+    async fn current_video_source_hash(
         &self,
-        prompt: chapter_video_prompt::Model,
-        input: UpdateChapterVideoPromptInput,
-        mut recipe: VideoSegmentExecutionRecipeV1,
-        user_id: i64,
-    ) -> Result<ChapterVideoPromptSummary, AppError> {
-        if input.visual_prompt.is_some()
-            || input.motion_prompt.is_some()
-            || input.negative_prompt.is_some()
-        {
-            return Err(AppError::InvalidArgument(
-                "更新片段执行方案时不能同时编辑提示词字段".to_string(),
-            ));
-        }
-        let prompt = self
-            .require_current_shared_segment_plan(prompt.project_id, prompt.chapter_id, prompt.id)
-            .await?;
-        let plan_style = prompt
-            .style
-            .as_deref()
-            .map(str::trim)
-            .filter(|style| !style.is_empty())
-            .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少 style".to_string()))?;
-        let current_recipes =
-            video_segment_recipes_for_plan_from_metadata(prompt.metadata_json.as_ref(), plan_style)
-                .map_err(AppError::InvalidArgument)?;
-        if recipe.guidance_mode == a4n_core::video_execution::VideoSegmentGuidanceModeV1::Continuity
-            && let Some(video_id) = recipe.continuity_source_video_id
-        {
-            let source_recipe = current_recipes
-                .iter()
-                .find(|candidate| {
-                    candidate.segment_number < recipe.segment_number
-                        && candidate.adopted_video_id == Some(video_id)
-                })
-                .ok_or_else(|| {
-                    AppError::InvalidArgument(format!(
-                        "续接来源视频 #{video_id} 必须是当前规划更早片段已采用的视频"
-                    ))
-                })?;
-            let video = self
-                .generated_video_by_id(video_id)
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<String, AppError> {
+        Ok(source_content_sha256(
+            &self
+                .project_chapter_video_source(project_id, chapter_id, "读取当前共享片段规划", false)
                 .await?
-                .ok_or_else(|| AppError::NotFound(format!("视频 #{video_id} 不存在")))?;
-            let plan_identity = prompt
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("video_execution_identity"))
-                .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少执行身份".to_string()))?;
-            let expected_identity = super::prompt_generation::video_segment_execution_identity(
-                plan_identity.clone(),
-                Some(prompt.id),
-                Some(source_recipe),
-            )?;
-            if video.project_id != prompt.project_id
-                || video.chapter_id != Some(prompt.chapter_id)
-                || video.status != "completed"
-                || video
-                    .file_path
-                    .as_deref()
-                    .map(str::trim)
-                    .is_none_or(str::is_empty)
-                || !super::prompt_records::video_execution_segment_identity_matches(
-                    video.metadata_json.as_ref(),
-                    &expected_identity,
-                )
-            {
-                return Err(AppError::InvalidArgument(format!(
-                    "续接来源视频 #{video_id} 已失效或不属于当前规划"
-                )));
-            }
-        }
+                .source
+                .content,
+        ))
+    }
+
+    pub async fn update_chapter_video_segment_recipe_validated(
+        &self,
+        user_id: i64,
+        prompt_id: i64,
+        mut recipe: VideoSegmentExecutionRecipeV1,
+    ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, AppError> {
+        let (project_id, chapter_id) =
+            a4n_db::video::chapter_video_prompt_scope_by_id(self.database.connection(), prompt_id)
+                .await
+                .map_err(video_db_error)?
+                .ok_or_else(|| AppError::NotFound("视频提示词不存在".to_string()))?;
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
         let mut reference_ids = recipe.reference_image_ids.clone();
         reference_ids.extend(recipe.video_library_image_ids.iter().copied());
         reference_ids.extend(recipe.guidance_reference_image_ids.iter().copied());
@@ -946,24 +832,15 @@ impl OrchestratorContext {
         reference_ids.dedup();
         self.verify_video_reference_image_access_json(
             user_id,
-            prompt.project_id,
-            prompt.chapter_id,
+            project_id,
+            chapter_id,
             Some(&json!(reference_ids)),
         )
         .await?;
         // adopted_video_id 只能通过采用视频入口修改；DB 会在指纹未变化时原子保留当前值。
         recipe.adopted_video_id = None;
-        let row = self
-            .update_chapter_video_prompt_with_policy(
-                prompt.id,
-                DbUpdate {
-                    segment_recipe: Some(recipe),
-                    ..Default::default()
-                },
-                true,
-            )
-            .await?;
-        Ok(prompt_to_summary(&row))
+        self.update_chapter_video_segment_recipe(prompt_id, recipe)
+            .await
     }
 
     pub async fn delete_chapter_video_prompt_validated(
@@ -1367,26 +1244,6 @@ fn video_prompt_source_content_hash(metadata: Option<&Value>) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
-fn latest_current_shared_segment_plan_from_rows(
-    rows: Vec<chapter_video_prompt::Model>,
-    current_source_hash: &str,
-) -> Option<chapter_video_prompt::Model> {
-    rows.into_iter()
-        .filter(|row| {
-            row.prompt_type == "frame_segment_plan"
-                && row.workflow_mode == "shared_segment_plan"
-                && row.status == "completed"
-                && row
-                    .metadata_json
-                    .as_ref()
-                    .and_then(|metadata| metadata.get("video_execution_identity"))
-                    .is_some()
-                && video_prompt_source_content_hash(row.metadata_json.as_ref())
-                    == Some(current_source_hash)
-        })
-        .max_by_key(|row| row.id)
-}
-
 fn mutation_plan_from_dependencies(
     dependencies: VideoPromptDownstreamDependencies,
     strategy: DownstreamConflictStrategy,
@@ -1544,43 +1401,5 @@ mod tests {
             "source": { "content_sha256": "legacy" },
         });
         assert_eq!(video_prompt_source_content_hash(Some(&legacy)), None);
-    }
-
-    #[test]
-    fn current_shared_plan_ignores_newer_stale_content() {
-        let plan = |id: i64, source_hash: &str| chapter_video_prompt::Model {
-            id,
-            project_id: 1,
-            chapter_id: 2,
-            style: Some("cinematic".to_string()),
-            prompt_type: "frame_segment_plan".to_string(),
-            workflow_mode: "shared_segment_plan".to_string(),
-            shot_number: 0,
-            title: None,
-            scene_summary: None,
-            visual_prompt: "{}".to_string(),
-            motion_prompt: None,
-            negative_prompt: None,
-            duration_secs: 6,
-            aspect_ratio: Some("16:9".to_string()),
-            reference_image_ids_json: None,
-            status: "completed".to_string(),
-            generated_video_id: None,
-            metadata_json: Some(json!({
-                "video_execution_identity": {
-                    "source_content_sha256": source_hash
-                }
-            })),
-            created_at: chrono::NaiveDateTime::default(),
-            updated_at: chrono::NaiveDateTime::default(),
-        };
-
-        let current = latest_current_shared_segment_plan_from_rows(
-            vec![plan(41, "current"), plan(42, "stale")],
-            "current",
-        )
-        .unwrap();
-
-        assert_eq!(current.id, 41);
     }
 }

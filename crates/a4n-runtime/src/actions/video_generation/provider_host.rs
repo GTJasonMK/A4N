@@ -114,6 +114,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 CLIPROXY_OPENAI_VIDEO_BACKEND => (
                     CliProxyOpenAiVideoProvider::request_body_preview_with_options(
                         &input.request,
+                        input.config.base_url.as_deref().unwrap_or_default(),
                         input.config.provider_options_json.as_ref(),
                     )
                     .map_err(|error| host_error(error.to_string()))?,

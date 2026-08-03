@@ -1,4 +1,5 @@
 use super::*;
+use crate::file_utils::{canonicalize_data_file_path, data_dir_relative_file_path};
 use a4n_orchestrator::video::{
     encode_query_component, image_mime_from_path, is_provider_supported_image_content_type,
     tail_frame_image_belongs_to_video, video_shot_number,
@@ -242,6 +243,24 @@ fn required_video_file_extension_accepts_supported_formats() {
     assert_eq!(required_video_file_extension(" WEBM "), Ok("webm"));
     assert_eq!(required_video_file_extension("mov"), Ok("mov"));
     assert_eq!(required_video_file_extension("m4v"), Ok("m4v"));
+}
+
+#[test]
+fn generated_video_round_trips_through_the_configured_data_directory() {
+    let root = tempfile::tempdir().expect("create video data directory");
+    let data_dir = root.path().join("configured-data");
+    std::fs::create_dir_all(&data_dir).expect("create configured data directory");
+
+    let written =
+        save_video_bytes(&data_dir, 21, 5, 154, b"video", "mp4").expect("write generated video");
+    let relative = data_dir_relative_file_path(&data_dir, &written, "视频文件")
+        .expect("store data-relative path");
+    let resolved = canonicalize_data_file_path(&data_dir, &relative, "视频文件")
+        .expect("resolve stored video path");
+
+    assert_eq!(relative, "projects/21/videos/chapter_5/video_154.mp4");
+    assert_eq!(resolved, written.canonicalize().unwrap());
+    assert_eq!(std::fs::read(resolved).unwrap(), b"video");
 }
 
 #[test]

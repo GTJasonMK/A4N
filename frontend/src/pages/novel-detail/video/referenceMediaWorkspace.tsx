@@ -4,11 +4,8 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { GeneratedImage } from "../../../api/image";
 import type {
-  GeneratedVideo,
   SegmentReferenceMediaRecipe,
-  UpdateVideoInput,
   VideoGenConfig,
-  VideoWorkflowMode,
 } from "../../../api/video";
 import type { ReferenceMediaUploadInput } from "../../../api/generated/generationContracts";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -17,7 +14,6 @@ import { toMediaSrc } from "../../../utils/mediaSrc";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { imageTypeLabel } from "../images/imageTabUtils";
 import type { ChapterRow } from "../shared";
-import { VideoResultsPane } from "./VideoResultsPane";
 import {
   durationLimitsLabel,
   isChapterVideoMaterialImage,
@@ -27,6 +23,7 @@ import {
   MAX_REFERENCE_IMAGES,
   MAX_VIDEO_LIBRARY_IMAGES,
   referenceImageScopeLabel,
+  type ChapterVideoWorkflowMode,
   type VideoAspectRatio,
   type VideoDurationLimits,
 } from "./videoTabUtils";
@@ -40,7 +37,10 @@ export const REFERENCE_MEDIA_LIMITS = {
 
 export type ReferenceMediaKind = keyof typeof REFERENCE_MEDIA_LIMITS;
 export type ReferenceMediaInputPurpose = "generate" | "preview";
-export type ReferenceMediaRowsByKind = Record<ReferenceMediaKind, ReferenceMediaBindingRow[]>;
+type ReferenceMediaRowsByKind = Record<
+  ReferenceMediaKind,
+  ReferenceMediaBindingRow[]
+>;
 
 export interface ReferenceMediaBindingRow {
   id: string;
@@ -57,12 +57,15 @@ export interface ReferenceMediaDraft {
   imageRows: ReferenceMediaBindingRow[];
   videoRows: ReferenceMediaBindingRow[];
   audioRows: ReferenceMediaBindingRow[];
-  storageError: string | null;
 }
 
 export const REFERENCE_MEDIA_KIND_META: Record<
   ReferenceMediaKind,
-  { label: string; field: "image_files" | "video_files" | "audio_files"; tokenPrefix: string }
+  {
+    label: string;
+    field: "image_files" | "video_files" | "audio_files";
+    tokenPrefix: string;
+  }
 > = {
   image: { label: "图片", field: "image_files", tokenPrefix: "image_file" },
   video: { label: "视频", field: "video_files", tokenPrefix: "video_file" },
@@ -88,14 +91,11 @@ const createReferenceMediaBindingRow = (): ReferenceMediaBindingRow => {
   };
 };
 
-export const createReferenceMediaDraft = (
-  storageError: string | null = null,
-): ReferenceMediaDraft => ({
+export const createReferenceMediaDraft = (): ReferenceMediaDraft => ({
   prompt: "",
   imageRows: [createReferenceMediaBindingRow()],
   videoRows: [createReferenceMediaBindingRow()],
   audioRows: [createReferenceMediaBindingRow()],
-  storageError,
 });
 
 export const referenceMediaDraftScopeKey = (
@@ -105,7 +105,8 @@ export const referenceMediaDraftScopeKey = (
   segmentIndexInShot: unknown,
 ): string | null => {
   const normalizedPlanIdentity = planIdentity?.trim();
-  const normalizedSourceShotId = typeof sourceShotId === "string" ? sourceShotId.trim() : "";
+  const normalizedSourceShotId =
+    typeof sourceShotId === "string" ? sourceShotId.trim() : "";
   if (
     !normalizedPlanIdentity ||
     typeof segmentNumber !== "number" ||
@@ -129,7 +130,9 @@ export const referenceMediaDraftScopeKey = (
 export const referenceMediaDraftFromRecipe = (
   recipe: SegmentReferenceMediaRecipe | null | undefined,
 ): ReferenceMediaDraft => {
-  const rows = (items: SegmentReferenceMediaRecipe["image_rows"] | undefined) =>
+  const rows = (
+    items: SegmentReferenceMediaRecipe["image_rows"] | undefined,
+  ) =>
     items && items.length > 0
       ? items.map((item) => ({
           ...createReferenceMediaBindingRow(),
@@ -145,7 +148,6 @@ export const referenceMediaDraftFromRecipe = (
     imageRows: rows(recipe?.image_rows),
     videoRows: rows(recipe?.video_rows),
     audioRows: rows(recipe?.audio_rows),
-    storageError: null,
   };
 };
 
@@ -156,13 +158,17 @@ export const referenceMediaRecipeFromDraft = (
     items.flatMap((item) => {
       const url = item.url.trim();
       const usage = item.usage.trim();
-      return referenceMediaRowActive(item) ? [{
-        url,
-        usage,
-        upload_sha256: url ? null : (item.uploadSha256 ?? null),
-        upload_file_name: url ? null : (item.uploadFileName ?? null),
-        upload_mime_type: url ? null : (item.uploadMimeType ?? null),
-      }] : [];
+      return referenceMediaRowActive(item)
+        ? [
+            {
+              url,
+              usage,
+              upload_sha256: url ? null : (item.uploadSha256 ?? null),
+              upload_file_name: url ? null : (item.uploadFileName ?? null),
+              upload_mime_type: url ? null : (item.uploadMimeType ?? null),
+            },
+          ]
+        : [];
     });
   return {
     prompt: draft.prompt,
@@ -180,11 +186,6 @@ export const referenceMediaRowsByKindFromDraft = (
   audio: draft.audioRows,
 });
 
-export const clearReferenceMediaDraftStorageError = (
-  draft: ReferenceMediaDraft,
-): ReferenceMediaDraft =>
-  draft.storageError ? { ...draft, storageError: null } : draft;
-
 const referenceMediaRowActive = (row: ReferenceMediaBindingRow): boolean =>
   Boolean(
     row.url.trim() ||
@@ -197,18 +198,16 @@ const referenceMediaRowActive = (row: ReferenceMediaBindingRow): boolean =>
 
 const activeReferenceMediaRows = (
   rows: ReferenceMediaBindingRow[],
-): ReferenceMediaBindingRow[] =>
-  rows.filter(referenceMediaRowActive);
+): ReferenceMediaBindingRow[] => rows.filter(referenceMediaRowActive);
 
 export const normalizeReferenceMediaRows = (
   rows: ReferenceMediaBindingRow[],
 ): ReferenceMediaBindingRow[] =>
-  activeReferenceMediaRows(rows)
-    .map((row) => ({
-      ...row,
-      url: row.url.trim(),
-      usage: row.usage.trim(),
-    }));
+  activeReferenceMediaRows(rows).map((row) => ({
+    ...row,
+    url: row.url.trim(),
+    usage: row.usage.trim(),
+  }));
 
 const normalizeReferenceMediaRowsByKind = (
   rowsByKind: ReferenceMediaRowsByKind,
@@ -252,11 +251,7 @@ const buildReferenceMediaPrompt = (
 export const referenceMediaGenerateDraftError = (
   prompt: string,
   rowsByKind: ReferenceMediaRowsByKind,
-  storageError: string | null = null,
 ): string | null => {
-  if (storageError) {
-    return `${storageError}；请重新编辑当前参考媒体 prompt 或媒体行后再生成`;
-  }
   const normalizedRowsByKind = normalizeReferenceMediaRowsByKind(rowsByKind);
   for (const kind of REFERENCE_MEDIA_KINDS) {
     const meta = REFERENCE_MEDIA_KIND_META[kind];
@@ -268,7 +263,8 @@ export const referenceMediaGenerateDraftError = (
       const token = `@${meta.tokenPrefix}_${index + 1}`;
       if (row.url && row.upload) return `${token} 不能同时使用 URL 和本地文件`;
       if (!row.url && !row.upload) return `${token} 缺少 URL 或本地文件`;
-      if (row.url && !validReferenceMediaUrl(row.url)) return `${token} URL 必须以小写 http:// 或 https:// 开头`;
+      if (row.url && !validReferenceMediaUrl(row.url))
+        return `${token} URL 必须以小写 http:// 或 https:// 开头`;
       if (!row.usage) return `${token} 缺少用途描述`;
     }
   }
@@ -299,7 +295,11 @@ const assertImageIdSelection = (ids: number[], field: string) => {
   }
 };
 
-const toggleImageIdSelection = (ids: number[], id: number, field: string): number[] => {
+const toggleImageIdSelection = (
+  ids: number[],
+  id: number,
+  field: string,
+): number[] => {
   if (!Number.isInteger(id) || id <= 0) {
     throw new Error(`${field} 只能切换正整数图片 ID`);
   }
@@ -307,17 +307,25 @@ const toggleImageIdSelection = (ids: number[], id: number, field: string): numbe
   return ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id];
 };
 
-type ReferenceImageFilter = "all" | "selected" | "library" | "generation" | "chapter" | "project" | "profile_material";
+type ReferenceImageFilter =
+  | "all"
+  | "selected"
+  | "library"
+  | "generation"
+  | "chapter"
+  | "project"
+  | "profile_material";
 
-export const VideoPromptReferenceInputDialog: React.FC<{
+export const VideoReferenceInputSlots: React.FC<{
   images: GeneratedImage[];
   chapter: ChapterRow;
-  workflowMode: VideoWorkflowMode;
+  workflowMode: ChapterVideoWorkflowMode;
   currentContentHash: string | null;
   generationReferenceIds: number[];
   videoLibraryImageIds: number[];
   invalidGenerationReferenceIds: number[];
   invalidVideoLibraryImageIds: number[];
+  disabled: boolean;
   onGenerationReferenceIdsChange: (ids: number[]) => unknown | Promise<unknown>;
   onVideoLibraryImageIdsChange: (ids: number[]) => unknown | Promise<unknown>;
   onReferenceLimit: () => void;
@@ -333,6 +341,7 @@ export const VideoPromptReferenceInputDialog: React.FC<{
   videoLibraryImageIds,
   invalidGenerationReferenceIds,
   invalidVideoLibraryImageIds,
+  disabled,
   onGenerationReferenceIdsChange,
   onVideoLibraryImageIdsChange,
   onReferenceLimit,
@@ -387,7 +396,8 @@ export const VideoPromptReferenceInputDialog: React.FC<{
       if (generationActive) counts.generation += 1;
       if (image.chapter_id === chapter.id) counts.chapter += 1;
       if (image.chapter_id == null) counts.project += 1;
-      if (isProjectReusableVideoMaterialImage(image)) counts.profile_material += 1;
+      if (isProjectReusableVideoMaterialImage(image))
+        counts.profile_material += 1;
     }
     return counts;
   }, [chapter, explicitLibraryIdSet, generationIdSet, images]);
@@ -397,11 +407,23 @@ export const VideoPromptReferenceInputDialog: React.FC<{
         { id: "all", label: "全部", count: filterCounts.all },
         { id: "selected", label: "已选", count: filterCounts.selected },
         { id: "library", label: "素材库", count: filterCounts.library },
-        { id: "generation", label: generationReferenceLabel, count: filterCounts.generation },
+        {
+          id: "generation",
+          label: generationReferenceLabel,
+          count: filterCounts.generation,
+        },
         { id: "chapter", label: "本章", count: filterCounts.chapter },
         { id: "project", label: "项目", count: filterCounts.project },
-        { id: "profile_material", label: "档案素材", count: filterCounts.profile_material },
-      ] satisfies Array<{ id: ReferenceImageFilter; label: string; count: number }>,
+        {
+          id: "profile_material",
+          label: "档案素材",
+          count: filterCounts.profile_material,
+        },
+      ] satisfies Array<{
+        id: ReferenceImageFilter;
+        label: string;
+        count: number;
+      }>,
     [filterCounts, generationReferenceLabel],
   );
   const filteredImages = useMemo(
@@ -416,13 +438,15 @@ export const VideoPromptReferenceInputDialog: React.FC<{
         if (filter === "generation") return generationActive;
         if (filter === "chapter") return image.chapter_id === chapter.id;
         if (filter === "project") return image.chapter_id == null;
-        if (filter === "profile_material") return isProjectReusableVideoMaterialImage(image);
+        if (filter === "profile_material")
+          return isProjectReusableVideoMaterialImage(image);
         return true;
       }),
     [chapter, explicitLibraryIdSet, filter, generationIdSet, images],
   );
 
   const toggleGenerationReference = (imageId: number) => {
+    if (disabled) return;
     try {
       if (
         !generationIdSet.has(imageId) &&
@@ -432,7 +456,11 @@ export const VideoPromptReferenceInputDialog: React.FC<{
         return;
       }
       void onGenerationReferenceIdsChange(
-        toggleImageIdSelection(generationReferenceIds, imageId, "生成参考图片选择"),
+        toggleImageIdSelection(
+          generationReferenceIds,
+          imageId,
+          "生成参考图片选择",
+        ),
       );
     } catch (err) {
       onSelectionError(extractErrorMessage(err, ""));
@@ -440,6 +468,7 @@ export const VideoPromptReferenceInputDialog: React.FC<{
   };
 
   const toggleVideoLibraryImage = (image: GeneratedImage) => {
+    if (disabled) return;
     if (isChapterVideoMaterialImage(image, chapter)) return;
     if (
       !explicitLibraryIdSet.has(image.id) &&
@@ -450,57 +479,151 @@ export const VideoPromptReferenceInputDialog: React.FC<{
     }
     try {
       void onVideoLibraryImageIdsChange(
-        toggleImageIdSelection(videoLibraryImageIds, image.id, "视频素材库图片选择"),
+        toggleImageIdSelection(
+          videoLibraryImageIds,
+          image.id,
+          "视频素材库图片选择",
+        ),
       );
     } catch (err) {
       onSelectionError(extractErrorMessage(err, ""));
     }
   };
   const hasInvalidSelection =
-    invalidGenerationReferenceIds.length > 0 || invalidVideoLibraryImageIds.length > 0;
+    invalidGenerationReferenceIds.length > 0 ||
+    invalidVideoLibraryImageIds.length > 0;
   const selectionSummary = [
     libraryActiveCount > 0 ? `素材库 ${libraryActiveCount}` : null,
     generationReferenceIds.length > 0
       ? `${chatVideoMode ? "上传" : "参考"} ${generationReferenceCountLabel}`
       : null,
   ].filter((item): item is string => item != null);
+  const imageById = useMemo(
+    () => new Map(images.map((image) => [image.id, image])),
+    [images],
+  );
+  const selectedIds = useMemo(
+    () => [...new Set([...generationReferenceIds, ...videoLibraryImageIds])],
+    [generationReferenceIds, videoLibraryImageIds],
+  );
+  const canAdd =
+    generationReferenceIds.length < generationReferenceLimit ||
+    videoLibraryImageIds.length < MAX_VIDEO_LIBRARY_IMAGES;
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={[
-          "pyqt-btn-secondary inline-flex min-h-[28px] items-center gap-1.5 !px-2 text-small",
-          hasInvalidSelection ? "!border-error/50 !text-error" : "",
-        ].join(" ")}
-        title="提示词输入素材"
+      <section
+        aria-label="片段参考图和素材"
+        className="a4n-flat-surface p-3 sm:p-4"
       >
-        <Images size={13} />
-        <span>参考素材</span>
-        {selectionSummary.length > 0 ? (
-          <span className="hidden text-caption text-book-text-muted sm:inline">
-            {selectionSummary.join(" · ")}
-          </span>
-        ) : null}
-        {hasInvalidSelection && (
-          <span className="text-caption text-error">需处理</span>
-        )}
-      </button>
+        <div className="mb-3 flex min-w-0 items-start gap-2">
+          <Images size={14} className="mt-0.5 shrink-0 text-book-primary" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-xs font-medium text-book-text-main">
+                参考图 / 素材
+              </h3>
+              <span className="rounded-full bg-book-bg-tertiary px-2 py-0.5 text-caption text-book-text-muted">
+                可选
+              </span>
+            </div>
+            <div className="mt-0.5 text-caption text-book-text-muted">
+              已选素材会参与提示词或视频请求；按需点击加号继续添加。
+              {selectionSummary.length > 0
+                ? ` 当前：${selectionSummary.join(" · ")}。`
+                : ""}
+            </div>
+          </div>
+          {hasInvalidSelection ? (
+            <span className="shrink-0 text-caption text-error">需处理</span>
+          ) : null}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {selectedIds.map((imageId) => {
+            const image = imageById.get(imageId);
+            const src = image ? toMediaSrc(image.file_path) : "";
+            const roles = [
+              generationIdSet.has(imageId)
+                ? chatVideoMode
+                  ? "Chat 参考"
+                  : "生成参考"
+                : null,
+              explicitLibraryIdSet.has(imageId) ? "提示词素材" : null,
+            ].filter((value): value is string => value != null);
+            return (
+              <button
+                key={imageId}
+                type="button"
+                onClick={() => setOpen(true)}
+                disabled={disabled}
+                aria-label={`管理参考素材 ${imageId}`}
+                className={`group min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary disabled:cursor-not-allowed disabled:opacity-60 ${
+                  image
+                    ? "border-book-border/55 bg-book-bg-paper/45 hover:border-book-primary/60"
+                    : "border-error/45 bg-error-bg"
+                }`}
+              >
+                <span className="flex aspect-video items-center justify-center overflow-hidden bg-book-bg-tertiary text-caption text-book-text-muted">
+                  {src ? (
+                    <img
+                      src={src}
+                      alt=""
+                      className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                    />
+                  ) : image ? (
+                    "无图"
+                  ) : (
+                    "素材已失效"
+                  )}
+                </span>
+                <span className="block min-w-0 p-2">
+                  <span className="block truncate text-small font-medium text-book-text-main">
+                    {image?.prompt || `图片 #${imageId}`}
+                  </span>
+                  <span className="mt-0.5 block truncate text-caption text-book-text-muted">
+                    {roles.join(" · ") || "已选择"}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+          {canAdd ? (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              disabled={disabled}
+              aria-label="添加参考图或素材"
+              className="flex aspect-video min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-book-border/70 bg-book-bg-paper/30 text-small text-book-text-muted transition-colors hover:border-book-primary/70 hover:bg-book-primary/5 hover:text-book-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Plus size={18} />
+              <span>
+                {selectedIds.length === 0 ? "添加第一张" : "继续添加"}
+              </span>
+            </button>
+          ) : null}
+        </div>
+      </section>
 
       <Modal
         isOpen={open}
         onClose={() => setOpen(false)}
-        title="提示词输入素材"
+        title="添加参考图 / 素材"
         icon={<Images size={15} />}
         maxWidthClassName="max-w-5xl"
+        zIndexClassName="z-[70]"
         bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4 sm:px-5 sm:py-5"
       >
         <div className="mb-3 space-y-2 border-b border-book-border/35 pb-3">
           <div className="text-small text-book-text-muted">
-            素材库 {libraryActiveCount} 张 · {generationReferenceLabel} {generationReferenceCountLabel}
+            素材库 {libraryActiveCount} 张 · {generationReferenceLabel}{" "}
+            {generationReferenceCountLabel}
           </div>
-          <nav role="tablist" aria-label="参考素材筛选" className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+          <nav
+            role="tablist"
+            aria-label="参考素材筛选"
+            className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar"
+          >
             {filterOptions.map((option) => (
               <button
                 key={option.id}
@@ -524,13 +647,20 @@ export const VideoPromptReferenceInputDialog: React.FC<{
         </div>
 
         {hasInvalidSelection && (
-          <div role="alert" className="mb-3 space-y-1 rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-small text-error">
+          <div
+            role="alert"
+            className="mb-3 space-y-1 rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-small text-error"
+          >
             {invalidGenerationReferenceIds.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                <span>生成参考中有 {invalidGenerationReferenceIds.length} 张图片已不可用</span>
+                <span>
+                  生成参考中有 {invalidGenerationReferenceIds.length}{" "}
+                  张图片已不可用
+                </span>
                 <button
                   type="button"
                   onClick={() => void onClearInvalidGenerationReferences()}
+                  disabled={disabled}
                   className="pyqt-btn-secondary !min-h-9 !px-2 text-caption sm:!min-h-[22px]"
                 >
                   清除不可用
@@ -539,10 +669,13 @@ export const VideoPromptReferenceInputDialog: React.FC<{
             )}
             {invalidVideoLibraryImageIds.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                <span>素材库中有 {invalidVideoLibraryImageIds.length} 张图片已不可用</span>
+                <span>
+                  素材库中有 {invalidVideoLibraryImageIds.length} 张图片已不可用
+                </span>
                 <button
                   type="button"
                   onClick={() => void onClearInvalidVideoLibraryImages()}
+                  disabled={disabled}
                   className="pyqt-btn-secondary !min-h-9 !px-2 text-caption sm:!min-h-[22px]"
                 >
                   清除不可用
@@ -568,30 +701,48 @@ export const VideoPromptReferenceInputDialog: React.FC<{
               const autoLibrary = isChapterVideoMaterialImage(image, chapter);
               const manualLibrary = explicitLibraryIdSet.has(image.id);
               const libraryActive = autoLibrary || manualLibrary;
-              const profileCandidate = isProjectReusableVideoMaterialImage(image);
-              const scopeLabel = referenceImageScopeLabel(image, chapter, currentContentHash);
+              const profileCandidate =
+                isProjectReusableVideoMaterialImage(image);
+              const scopeLabel = referenceImageScopeLabel(
+                image,
+                chapter,
+                currentContentHash,
+              );
               return (
                 <div
                   key={image.id}
                   className="min-w-0 overflow-hidden rounded-2xl border border-book-border/50 bg-book-bg-paper/40"
                 >
                   <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-book-bg-tertiary text-caption text-book-text-muted">
-                    {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : "无图"}
-                    {(autoLibrary || manualLibrary || generationActive || profileCandidate) && (
+                    {src ? (
+                      <img
+                        src={src}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      "无图"
+                    )}
+                    {(autoLibrary ||
+                      manualLibrary ||
+                      generationActive ||
+                      profileCandidate) && (
                       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-4 text-right text-caption text-white">
                         {manualLibrary
                           ? "手动"
                           : autoLibrary
-                          ? "本章自动"
-                          : generationActive
-                          ? "参考"
-                          : "档案候选"}
+                            ? "本章自动"
+                            : generationActive
+                              ? "参考"
+                              : "档案候选"}
                       </span>
                     )}
                   </div>
                   <div className="space-y-1 p-1.5">
                     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 text-caption">
-                      <span className="min-w-0 truncate text-book-text-sub">{scopeLabel}</span>
+                      <span className="min-w-0 truncate text-book-text-sub">
+                        {scopeLabel}
+                      </span>
                       <span className="min-w-0 shrink-0 truncate text-book-text-muted">
                         {imageTypeLabel(image.image_type)}
                       </span>
@@ -600,7 +751,7 @@ export const VideoPromptReferenceInputDialog: React.FC<{
                       <button
                         type="button"
                         onClick={() => toggleVideoLibraryImage(image)}
-                        disabled={autoLibrary}
+                        disabled={disabled || autoLibrary}
                         data-active={libraryActive ? "1" : undefined}
                         className={[
                           "inline-flex min-h-9 items-center justify-center gap-1 rounded-xl border px-1 text-caption font-medium transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:min-h-8",
@@ -609,7 +760,9 @@ export const VideoPromptReferenceInputDialog: React.FC<{
                             : "border-book-border/60 bg-book-bg-paper/70 text-book-text-sub hover:border-book-primary/60 hover:text-book-text-main",
                           autoLibrary ? "cursor-default opacity-80" : "",
                         ].join(" ")}
-                        title={autoLibrary ? "自动素材库成员" : "切换素材库输入"}
+                        title={
+                          autoLibrary ? "自动素材库成员" : "切换素材库输入"
+                        }
                       >
                         {libraryActive && <Check size={10} />}
                         素材库
@@ -617,6 +770,7 @@ export const VideoPromptReferenceInputDialog: React.FC<{
                       <button
                         type="button"
                         onClick={() => toggleGenerationReference(image.id)}
+                        disabled={disabled}
                         data-active={generationActive ? "1" : undefined}
                         className={[
                           "inline-flex min-h-9 items-center justify-center gap-1 rounded-xl border px-1 text-caption font-medium transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:min-h-8",
@@ -624,7 +778,11 @@ export const VideoPromptReferenceInputDialog: React.FC<{
                             ? "border-book-primary bg-book-primary/10 text-book-primary"
                             : "border-book-border/60 bg-book-bg-paper/70 text-book-text-sub hover:border-book-primary/60 hover:text-book-text-main",
                         ].join(" ")}
-                        title={chatVideoMode ? "切换外部 Chat 上传候选" : "切换生成参考输入"}
+                        title={
+                          chatVideoMode
+                            ? "切换外部 Chat 上传候选"
+                            : "切换生成参考输入"
+                        }
                       >
                         {generationActive && <Check size={10} />}
                         {generationReferenceLabel}
@@ -646,18 +804,10 @@ export const ReferenceMediaWorkspace: React.FC<{
   imageRows: ReferenceMediaBindingRow[];
   videoRows: ReferenceMediaBindingRow[];
   audioRows: ReferenceMediaBindingRow[];
-  draftStorageError: string | null;
   durationSecs: number;
   aspectRatio: VideoAspectRatio;
   durationLimits: VideoDurationLimits;
   activeVideoConfig: VideoGenConfig | null;
-  videos: GeneratedVideo[];
-  selectedVideo: GeneratedVideo | null;
-  selectedVideoId: number | null;
-  adoptedVideoId: number | null;
-  selectedVideoPath: string;
-  trimStart: string;
-  trimEnd: string;
   acting: string | null;
   previewing: boolean;
   draftDirty: boolean;
@@ -670,33 +820,15 @@ export const ReferenceMediaWorkspace: React.FC<{
   onPreview: () => void | Promise<void>;
   onGenerate: () => void | Promise<void>;
   onImport: () => void | Promise<void>;
-  onSelectVideo: (id: number) => void;
-  onAdoptVideo: (video: GeneratedVideo) => void | Promise<void>;
-  onPollVideo: (video: GeneratedVideo) => void | Promise<void>;
-  onPreviewVideoRequest: (video: GeneratedVideo) => void | Promise<void>;
-  onToggleVideoFavorite: (video: GeneratedVideo) => void | Promise<void>;
-  onUpdateVideo: (video: GeneratedVideo, input: UpdateVideoInput) => void | Promise<void>;
-  onDeleteVideo: (video: GeneratedVideo) => void | Promise<void>;
-  onTrimStartChange: (value: string) => void;
-  onTrimEndChange: (value: string) => void;
-  onTrim: () => void | Promise<void>;
 }> = ({
   prompt,
   imageRows,
   videoRows,
   audioRows,
-  draftStorageError,
   durationSecs,
   aspectRatio,
   durationLimits,
   activeVideoConfig,
-  videos,
-  selectedVideo,
-  selectedVideoId,
-  adoptedVideoId,
-  selectedVideoPath,
-  trimStart,
-  trimEnd,
   acting,
   previewing,
   draftDirty,
@@ -709,16 +841,6 @@ export const ReferenceMediaWorkspace: React.FC<{
   onPreview,
   onGenerate,
   onImport,
-  onSelectVideo,
-  onAdoptVideo,
-  onPollVideo,
-  onPreviewVideoRequest,
-  onToggleVideoFavorite,
-  onUpdateVideo,
-  onDeleteVideo,
-  onTrimStartChange,
-  onTrimEndChange,
-  onTrim,
 }) => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const durationSupported = isDurationAllowed(durationSecs, durationLimits);
@@ -727,16 +849,19 @@ export const ReferenceMediaWorkspace: React.FC<{
     video: videoRows,
     audio: audioRows,
   };
-  const generateInputError = referenceMediaGenerateDraftError(prompt, rowsByKind, draftStorageError);
-  const previewBlockedReason = draftStorageError
-    ? `${draftStorageError}；请重新编辑后再查看模型请求`
-    : undefined;
+  const generateInputError = referenceMediaGenerateDraftError(
+    prompt,
+    rowsByKind,
+  );
   const generateBlockedReason = durationLimits.configError
-      ? durationLimits.configError
+    ? durationLimits.configError
     : !durationSupported
       ? "当前时长不在默认视频模型支持范围内"
-      : generateInputError ?? undefined;
-  const setRowsByKind: Record<ReferenceMediaKind, (rows: ReferenceMediaBindingRow[]) => void> = {
+      : (generateInputError ?? undefined);
+  const setRowsByKind: Record<
+    ReferenceMediaKind,
+    (rows: ReferenceMediaBindingRow[]) => void
+  > = {
     image: onImageRowsChange,
     video: onVideoRowsChange,
     audio: onAudioRowsChange,
@@ -744,16 +869,14 @@ export const ReferenceMediaWorkspace: React.FC<{
   const generationRunning = acting === "reference-media-video";
   const importRunning = acting === "reference-media-import";
   const operationRunning = generationRunning || importRunning;
-  const importBlockedReason = draftStorageError
-    ? `${draftStorageError}；请重新编辑后再导入`
-    : !prompt.trim()
-      ? "参考媒体提示词不能为空"
-      : undefined;
+  const importBlockedReason = !prompt.trim()
+    ? "参考媒体提示词不能为空"
+    : undefined;
   const secondaryActionItems: React.ComponentProps<typeof Dropdown>["items"] = [
     {
       label: "查看模型请求",
       icon: <Eye size={12} />,
-      disabled: previewBlockedReason != null || previewing,
+      disabled: previewing,
       onClick: () => void onPreview(),
     },
     {
@@ -763,7 +886,8 @@ export const ReferenceMediaWorkspace: React.FC<{
       onClick: () => void onImport(),
     },
   ];
-  const showGeneratePrimary = generationRunning || generateBlockedReason == null;
+  const showGeneratePrimary =
+    generationRunning || generateBlockedReason == null;
 
   const renderMediaRows = (kind: ReferenceMediaKind) => {
     const rows = rowsByKind[kind];
@@ -772,8 +896,13 @@ export const ReferenceMediaWorkspace: React.FC<{
     const maxRows = REFERENCE_MEDIA_LIMITS[kind];
     const activeCount = activeReferenceMediaRows(rows).length;
 
-    const updateRow = (rowId: string, patch: Partial<ReferenceMediaBindingRow>) => {
-      setRows(rows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
+    const updateRow = (
+      rowId: string,
+      patch: Partial<ReferenceMediaBindingRow>,
+    ) => {
+      setRows(
+        rows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+      );
     };
     const removeRow = (rowId: string) => {
       const next = rows.filter((row) => row.id !== rowId);
@@ -784,7 +913,9 @@ export const ReferenceMediaWorkspace: React.FC<{
       setUploadError(null);
       const allowedMimes = REFERENCE_MEDIA_ACCEPT[kind].split(",");
       if (!allowedMimes.includes(file.type)) {
-        setUploadError(`${meta.label}文件类型不支持：${file.type || file.name}`);
+        setUploadError(
+          `${meta.label}文件类型不支持：${file.type || file.name}`,
+        );
         return;
       }
       if (file.size > MAX_REFERENCE_MEDIA_UPLOAD_BYTES) {
@@ -821,14 +952,18 @@ export const ReferenceMediaWorkspace: React.FC<{
     return (
       <section className="border-t border-book-border/35 pt-3">
         <div className="mb-2 flex min-w-0 items-center gap-2">
-          <h3 className="text-xs font-medium text-book-text-main">{meta.label}</h3>
+          <h3 className="text-xs font-medium text-book-text-main">
+            {meta.label}
+          </h3>
           <span className="text-caption text-book-text-muted">
             {activeCount} / {maxRows}
           </span>
           {activeCount < maxRows && (
             <button
               type="button"
-              onClick={() => setRows([...rows, createReferenceMediaBindingRow()])}
+              onClick={() =>
+                setRows([...rows, createReferenceMediaBindingRow()])
+              }
               className="ml-auto inline-flex min-h-8 items-center gap-1 text-small text-book-text-sub transition-colors hover:text-book-primary"
               title={`添加${meta.label}`}
             >
@@ -858,13 +993,15 @@ export const ReferenceMediaWorkspace: React.FC<{
                 <div className="min-w-0 space-y-1.5">
                   <input
                     value={row.url}
-                    onChange={(event) => updateRow(row.id, {
-                      url: event.target.value,
-                      upload: undefined,
-                      uploadSha256: undefined,
-                      uploadFileName: undefined,
-                      uploadMimeType: undefined,
-                    })}
+                    onChange={(event) =>
+                      updateRow(row.id, {
+                        url: event.target.value,
+                        upload: undefined,
+                        uploadSha256: undefined,
+                        uploadFileName: undefined,
+                        uploadMimeType: undefined,
+                      })
+                    }
                     className="book-control h-10 w-full rounded-xl px-2.5 text-small sm:h-9"
                     placeholder={`${meta.label} URL（http:// 或 https://）`}
                     aria-label={`${meta.label} ${index + 1} URL`}
@@ -885,7 +1022,10 @@ export const ReferenceMediaWorkspace: React.FC<{
                       />
                     </label>
                     {(row.upload || row.uploadFileName) && (
-                      <span className="min-w-0 flex-1 truncate text-caption text-book-text-sub" title={row.upload?.file_name ?? row.uploadFileName}>
+                      <span
+                        className="min-w-0 flex-1 truncate text-caption text-book-text-sub"
+                        title={row.upload?.file_name ?? row.uploadFileName}
+                      >
                         {row.upload?.file_name ?? row.uploadFileName}
                         {!row.upload ? "（刷新后需重新选择该文件）" : ""}
                       </span>
@@ -893,7 +1033,9 @@ export const ReferenceMediaWorkspace: React.FC<{
                   </div>
                   <textarea
                     value={row.usage}
-                    onChange={(event) => updateRow(row.id, { usage: event.target.value })}
+                    onChange={(event) =>
+                      updateRow(row.id, { usage: event.target.value })
+                    }
                     className="book-control min-h-[58px] w-full resize-y rounded-xl p-2.5 text-small leading-relaxed"
                     placeholder="描述用途、主体、必须保持的细节"
                     aria-label={`${meta.label} ${index + 1} 用途`}
@@ -903,111 +1045,104 @@ export const ReferenceMediaWorkspace: React.FC<{
             );
           })}
         </div>
-        {uploadError && <div className="mt-2 text-caption text-error">{uploadError}</div>}
+        {uploadError && (
+          <div className="mt-2 text-caption text-error">{uploadError}</div>
+        )}
       </section>
     );
   };
 
   return (
-    <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(300px,400px)_minmax(0,1fr)]">
-      <section aria-label="参考媒体生成设置" className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden p-3">
-        <div className="mb-3 border-b border-book-border/35 pb-3 text-small text-book-text-muted">
-          视频服务 · {activeVideoConfig?.name?.trim() || (activeVideoConfig ? "已配置" : "尚未配置")}
+    <section
+      aria-label="参考媒体生成设置"
+      className="a4n-flat-surface flex h-full min-h-0 flex-col overflow-hidden p-3"
+    >
+      <div className="mb-3 border-b border-book-border/35 pb-3 text-small text-book-text-muted">
+        视频服务 ·{" "}
+        {activeVideoConfig?.name?.trim() ||
+          (activeVideoConfig ? "已配置" : "尚未配置")}
+      </div>
+      {operationRunning ? (
+        <div
+          role="status"
+          className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-book-text-muted"
+        >
+          <LoadingSpinner size="sm" />
+          {generationRunning ? "正在生成参考媒体视频" : "正在导入参考媒体视频"}
         </div>
-        {operationRunning ? (
-          <div role="status" className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-book-text-muted">
-            <LoadingSpinner size="sm" />
-            {generationRunning ? "正在生成参考媒体视频" : "正在导入参考媒体视频"}
-          </div>
-        ) : (
-          <>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-2 pr-1 custom-scrollbar">
-              <label className="flex min-w-0 flex-col gap-1">
-                <span className="text-xs text-book-text-muted">基础提示词</span>
-                <textarea
-                  value={prompt}
-                  onChange={(event) => onPromptChange(event.target.value)}
-                  className="book-control min-h-[130px] resize-y rounded-xl p-2.5 text-xs leading-relaxed"
-                  placeholder="整体画面、动作、风格、镜头和声音要求"
-                />
-              </label>
-              {renderMediaRows("image")}
-              {renderMediaRows("video")}
-              {renderMediaRows("audio")}
-              <div className="border-t border-book-border/35 pt-2 text-small text-book-text-sub">
-                规划参数：{durationSecs} 秒 · {aspectRatio}。时长、画幅和风格属于共享片段规划；如需修改，请重新生成片段规划。
-                <div className="mt-1 text-caption text-book-text-muted">
-                  {durationLimitsLabel(durationLimits)}
-                </div>
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-2 pr-1 custom-scrollbar">
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs text-book-text-muted">基础提示词</span>
+              <textarea
+                value={prompt}
+                onChange={(event) => onPromptChange(event.target.value)}
+                className="book-control min-h-[130px] resize-y rounded-xl p-2.5 text-xs leading-relaxed"
+                placeholder="整体画面、动作、风格、镜头和声音要求"
+              />
+            </label>
+            {renderMediaRows("image")}
+            {renderMediaRows("video")}
+            {renderMediaRows("audio")}
+            <div className="border-t border-book-border/35 pt-2 text-small text-book-text-sub">
+              规划参数：{durationSecs} 秒 · {aspectRatio}
+              。时长、画幅和风格属于共享片段规划；如需修改，请重新生成片段规划。
+              <div className="mt-1 text-caption text-book-text-muted">
+                {durationLimitsLabel(durationLimits)}
               </div>
-              {!durationLimits.configError && !durationSupported && (
-                <div role="status" className="rounded-xl border border-warning/40 bg-warning-bg px-2.5 py-2 text-small text-warning">
-                  当前时长不在视频服务支持范围内。
-                </div>
-              )}
-              {durationLimits.configError && (
-                <div role="alert" className="rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-small text-error">
-                  {durationLimits.configError}
-                </div>
-              )}
-              {draftStorageError && (
-                <div role="alert" className="rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-small text-error">
-                  {draftStorageError}；请重新编辑当前参考媒体提示词或媒体行后再预览或生成。
-                </div>
-              )}
-              {!draftStorageError && generateInputError && (
-                <div role="status" className="rounded-xl border border-warning/40 bg-warning-bg px-2.5 py-2 text-small text-warning">
-                  {generateInputError}
-                </div>
-              )}
             </div>
-            <div className="mt-3 flex shrink-0 items-center gap-2">
+            {!durationLimits.configError && !durationSupported && (
+              <div
+                role="status"
+                className="rounded-xl border border-warning/40 bg-warning-bg px-2.5 py-2 text-small text-warning"
+              >
+                当前时长不在视频服务支持范围内。
+              </div>
+            )}
+            {durationLimits.configError && (
+              <div
+                role="alert"
+                className="rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-small text-error"
+              >
+                {durationLimits.configError}
+              </div>
+            )}
+            {generateInputError && (
+              <div
+                role="status"
+                className="rounded-xl border border-warning/40 bg-warning-bg px-2.5 py-2 text-small text-warning"
+              >
+                {generateInputError}
+              </div>
+            )}
+          </div>
+          <div className="mt-3 flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void onSaveDraft()}
+              disabled={!draftDirty || savingDraft}
+              className="pyqt-btn-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs"
+              title={draftDirty ? "保存当前片段参考媒体草稿" : "草稿已保存"}
+            >
+              {savingDraft ? <LoadingSpinner size="sm" /> : <Check size={12} />}
+              {savingDraft ? "保存中" : draftDirty ? "保存草稿" : "已保存"}
+            </button>
+            <Dropdown items={secondaryActionItems} />
+            {showGeneratePrimary && (
               <button
                 type="button"
-                onClick={() => void onSaveDraft()}
-                disabled={!draftDirty || savingDraft}
-                className="pyqt-btn-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs"
-                title={draftDirty ? "保存当前片段参考媒体草稿" : "草稿已保存"}
+                onClick={() => void onGenerate()}
+                disabled={generationRunning || previewing}
+                className="pyqt-btn-primary inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 text-xs"
               >
-                {savingDraft ? <LoadingSpinner size="sm" /> : <Check size={12} />}
-                {savingDraft ? "保存中" : draftDirty ? "保存草稿" : "已保存"}
+                <Images size={12} />
+                生成视频
               </button>
-              <Dropdown items={secondaryActionItems} />
-              {showGeneratePrimary && (
-                <button
-                  type="button"
-                  onClick={() => void onGenerate()}
-                  disabled={generationRunning || previewing}
-                  className="pyqt-btn-primary inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 text-xs"
-                >
-                  <Images size={12} />
-                  生成视频
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </section>
-      <VideoResultsPane
-        videos={videos}
-        selectedVideo={selectedVideo}
-        selectedVideoId={selectedVideoId}
-        adoptedVideoId={adoptedVideoId}
-        selectedVideoPath={selectedVideoPath}
-        trimStart={trimStart}
-        trimEnd={trimEnd}
-        acting={acting}
-        onSelectVideo={onSelectVideo}
-        onAdoptVideo={onAdoptVideo}
-        onPollVideo={onPollVideo}
-        onPreviewVideoRequest={onPreviewVideoRequest}
-        onToggleVideoFavorite={onToggleVideoFavorite}
-        onUpdateVideo={onUpdateVideo}
-        onDeleteVideo={onDeleteVideo}
-        onTrimStartChange={onTrimStartChange}
-        onTrimEndChange={onTrimEndChange}
-        onTrim={onTrim}
-      />
-    </div>
+            )}
+          </div>
+        </>
+      )}
+    </section>
   );
 };

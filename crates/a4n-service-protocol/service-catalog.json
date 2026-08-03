@@ -1,6 +1,6 @@
 [
   {"name":"prompt","binary":"a4n-prompt-service","capability_version":"prompt-render-v2","addr_env":"A4N_PROMPT_SERVICE_ADDR","url_env":"A4N_PROMPT_SERVICE_URL","health_path":"/healthz","default_addr":"127.0.0.1:47641","default_url":"http://127.0.0.1:47641"},
-  {"name":"llm","binary":"a4n-llm-gateway","capability_version":"llm-chat-v3","addr_env":"A4N_LLM_GATEWAY_ADDR","url_env":"A4N_LLM_GATEWAY_URL","health_path":"/healthz","default_addr":"127.0.0.1:47642","default_url":"http://127.0.0.1:47642"},
+  {"name":"llm","binary":"a4n-llm-gateway","capability_version":"llm-chat-v4","addr_env":"A4N_LLM_GATEWAY_ADDR","url_env":"A4N_LLM_GATEWAY_URL","health_path":"/healthz","default_addr":"127.0.0.1:47642","default_url":"http://127.0.0.1:47642"},
   {"name":"embedding","binary":"a4n-embedding-service","capability_version":"embedding-v2","addr_env":"A4N_EMBEDDING_SERVICE_ADDR","url_env":"A4N_EMBEDDING_SERVICE_URL","health_path":"/healthz","default_addr":"127.0.0.1:47643","default_url":"http://127.0.0.1:47643"},
   {"name":"rag","binary":"a4n-rag-service","capability_version":"rag-index-v2","addr_env":"A4N_RAG_SERVICE_ADDR","url_env":"A4N_RAG_SERVICE_URL","health_path":"/healthz","default_addr":"127.0.0.1:47644","default_url":"http://127.0.0.1:47644"},
   {"name":"image","binary":"a4n-image-service","capability_version":"image-provider-v2","addr_env":"A4N_IMAGE_SERVICE_ADDR","url_env":"A4N_IMAGE_SERVICE_URL","health_path":"/healthz","default_addr":"127.0.0.1:47645","default_url":"http://127.0.0.1:47645"},

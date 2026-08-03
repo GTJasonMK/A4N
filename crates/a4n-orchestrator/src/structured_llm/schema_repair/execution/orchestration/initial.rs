@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::structured_llm::{
-    parse_strict_json_response,
+    llm_response_preview, parse_strict_json_response,
     schema_repair::{
         contract::StructuredRepairMode, execution::contracts::StructuredValueRepairInput,
     },
@@ -17,37 +17,70 @@ where
     P: Fn(&Value) -> Result<T, a4n_core::error::AppError>,
 {
     let raw_value = serde_json::from_str::<Value>(input.raw_response);
-    if let Ok(value) = raw_value.as_ref()
-        && let Ok(output) = (input.parse_output)(value)
-    {
-        return InitialRepairOutcome::Complete(StructuredOutputRepairResult {
-            output,
-            final_value: value.clone(),
-            mode: StructuredRepairMode::None,
-            restored: false,
-            schema_sha256: None,
-            field_patch_error: None,
-        });
+    let (candidate, ignored_trailing) = match raw_value {
+        Ok(value) => (Some(value), None),
+        Err(_) => first_complete_json_object(input.raw_response)
+            .map(|(value, trailing)| (Some(value), Some(trailing)))
+            .unwrap_or((None, None)),
+    };
+    if let Some(value) = candidate.as_ref() {
+        match (input.parse_output)(value) {
+            Ok(output) => {
+                if let Some(trailing) = ignored_trailing {
+                    tracing::warn!(
+                        label = input.label,
+                        ignored_chars = trailing.chars().count(),
+                        trailing = %llm_response_preview(trailing),
+                        "结构化输出已使用首个完整 JSON 对象，忽略尾随非结构化文本"
+                    );
+                }
+                return InitialRepairOutcome::Complete(StructuredOutputRepairResult {
+                    output,
+                    final_value: value.clone(),
+                    mode: StructuredRepairMode::None,
+                    restored: false,
+                    schema_sha256: None,
+                    field_patch_error: None,
+                });
+            }
+            Err(initial_error) => {
+                return InitialRepairOutcome::Repair(StructuredRepairState {
+                    candidate,
+                    initial_error,
+                    field_patch_error: None,
+                    schema_sha256: None,
+                });
+            }
+        }
     }
 
-    let initial_error = match raw_value.as_ref() {
-        Ok(value) => (input.parse_output)(value).err().unwrap_or_else(|| {
-            a4n_core::error::AppError::InvalidArgument("结构化输出校验失败".into())
-        }),
-        Err(error) => match parse_strict_json_response::<Value>(input.raw_response, input.label) {
-            Err(error) => error,
-            Ok(_) => a4n_core::error::AppError::InvalidArgument(format!(
-                "{}结构化输出 JSON 解析失败：{}",
-                input.label, error
-            )),
-        },
+    let initial_error = match parse_strict_json_response::<Value>(input.raw_response, input.label) {
+        Err(error) => error,
+        Ok(_) => a4n_core::error::AppError::InvalidArgument(format!(
+            "{}结构化输出 JSON 解析失败",
+            input.label
+        )),
     };
     InitialRepairOutcome::Repair(StructuredRepairState {
-        candidate: raw_value.ok(),
+        candidate: None,
         initial_error,
         field_patch_error: None,
         schema_sha256: None,
     })
+}
+
+fn first_complete_json_object(raw: &str) -> Option<(Value, &str)> {
+    let trimmed = raw.trim();
+    let mut values = serde_json::Deserializer::from_str(trimmed).into_iter::<Value>();
+    let value = values.next()?.ok()?;
+    if !value.is_object() {
+        return None;
+    }
+    let trailing = trimmed.get(values.byte_offset()..)?.trim();
+    if trailing.is_empty() || trailing.starts_with('{') || trailing.starts_with('[') {
+        return None;
+    }
+    Some((value, trailing))
 }
 
 #[cfg(test)]
@@ -114,6 +147,40 @@ mod tests {
         let outcome = parse_initial_structured_output(&input("{", &parse_output));
         let InitialRepairOutcome::Repair(state) = outcome else {
             panic!("malformed JSON must enter repair");
+        };
+        assert_eq!(state.candidate, None);
+        assert!(state.initial_error.to_string().contains("严格 JSON 对象"));
+    }
+
+    #[test]
+    fn trailing_explanation_uses_first_complete_json_object() {
+        let parse_output = |value: &Value| {
+            value
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .ok_or_else(|| AppError::InvalidArgument("name 缺失".into()))
+        };
+        let outcome = parse_initial_structured_output(&input(
+            "{\"name\":\"Ada\"}\n生成完成。",
+            &parse_output,
+        ));
+        let InitialRepairOutcome::Complete(result) = outcome else {
+            panic!("valid first JSON object must not be fully rewritten");
+        };
+        assert_eq!(result.output, "Ada");
+        assert_eq!(result.final_value, json!({"name": "Ada"}));
+    }
+
+    #[test]
+    fn second_json_object_remains_ambiguous() {
+        let parse_output = |_value: &Value| Ok::<_, AppError>("unused".to_string());
+        let outcome = parse_initial_structured_output(&input(
+            r#"{"name":"Ada"}{"name":"Grace"}"#,
+            &parse_output,
+        ));
+        let InitialRepairOutcome::Repair(state) = outcome else {
+            panic!("multiple JSON objects must remain an explicit failure");
         };
         assert_eq!(state.candidate, None);
         assert!(state.initial_error.to_string().contains("严格 JSON 对象"));

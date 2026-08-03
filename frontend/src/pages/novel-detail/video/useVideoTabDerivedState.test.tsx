@@ -93,6 +93,22 @@ const videos = [
   video(102, 2, "storyboard", "recipe-storyboard"),
 ];
 
+const statusVideos: GeneratedVideo[] = [
+  video(111, 1, "chat_video", "recipe-chat"),
+  {
+    ...video(112, 1, "chat_video", "recipe-chat"),
+    status: "running",
+    file_path: null,
+    provider_job_id: "job-112",
+  },
+  {
+    ...video(113, 1, "chat_video", "recipe-chat"),
+    status: "failed",
+    file_path: null,
+    error_message: "failed",
+  },
+];
+
 const framePrompt: ChapterVideoPrompt = {
   ...plan,
   id: 42,
@@ -192,6 +208,7 @@ const Probe = ({
     workflowMode,
     promptOutputLanguage: "zh_cn",
     currentContentHash: "source-1",
+    frameSegmentPlanPrompt: plan,
     activeVideoConfig: null,
     selectedSegmentNumber: segmentNumber,
     guidanceMode: "none",
@@ -221,7 +238,10 @@ const ReferenceProbe = ({
     plan,
     framePrompt,
     finalPrompt(51, "recipe-system", [systemFrameImage.id, keyframeImage.id]),
-    finalPrompt(52, "recipe-keyframes", [systemFrameImage.id, keyframeImage.id]),
+    finalPrompt(52, "recipe-keyframes", [
+      systemFrameImage.id,
+      keyframeImage.id,
+    ]),
   ];
   const state = useVideoTabDerivedState({
     prompts,
@@ -233,6 +253,7 @@ const ReferenceProbe = ({
     workflowMode: "boundary_frames",
     promptOutputLanguage: "zh_cn",
     currentContentHash: "source-1",
+    frameSegmentPlanPrompt: plan,
     activeVideoConfig: null,
     selectedSegmentNumber: 1,
     guidanceMode,
@@ -242,9 +263,39 @@ const ReferenceProbe = ({
   });
   return (
     <div
-      data-system-reference-ids={[...state.systemPromptReferenceIds].join(",")}
-      data-valid-reference-ids={[...state.validPromptReferenceIds].sort().join(",")}
+      data-valid-reference-ids={[...state.validPromptReferenceIds]
+        .sort()
+        .join(",")}
       data-stale-reference-count={state.staleSavedReferenceCount}
+    />
+  );
+};
+
+const StatusProbe = () => {
+  const state = useVideoTabDerivedState({
+    prompts: [plan],
+    videos: statusVideos,
+    images: [],
+    chapter: { id: 2, chapter_number: 1, title: "第一章" },
+    selectedPromptId: null,
+    selectedVideoId: null,
+    workflowMode: "chat_video",
+    promptOutputLanguage: "zh_cn",
+    currentContentHash: "source-1",
+    frameSegmentPlanPrompt: plan,
+    activeVideoConfig: null,
+    selectedSegmentNumber: 1,
+    guidanceMode: "none",
+    recipeFingerprint: "recipe-chat",
+    frameRecipeFingerprint: null,
+    continuitySourceVideoId: null,
+  });
+  return (
+    <div
+      data-selected-video-status={state.selectedVideo?.status ?? ""}
+      data-video-statuses={state.workflowVideos
+        .map((item) => item.status)
+        .join(",")}
     />
   );
 };
@@ -292,11 +343,15 @@ describe("useVideoTabDerivedState", () => {
       />,
     );
 
-    expect(systemFrames).toContain('data-system-reference-ids="201"');
     expect(systemFrames).toContain('data-valid-reference-ids="201,202"');
     expect(systemFrames).toContain('data-stale-reference-count="0"');
-    expect(keyframes).toContain('data-system-reference-ids=""');
     expect(keyframes).toContain('data-valid-reference-ids="202"');
     expect(keyframes).toContain('data-stale-reference-count="1"');
+  });
+
+  it("keeps running and failed records in the current recipe result set", () => {
+    const html = renderToStaticMarkup(<StatusProbe />);
+    expect(html).toContain('data-selected-video-status="completed"');
+    expect(html).toContain('data-video-statuses="completed,running,failed"');
   });
 });

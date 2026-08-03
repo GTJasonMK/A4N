@@ -36,6 +36,11 @@ fn derive_self_contained_context(segment: &VideoSegmentPlan) -> Value {
     } else {
         json!(["承接上一片段尾态的人物身份、服装、空间锚点、道具状态、光源方向和镜头轴线"])
     };
+    let performance_omission_risk = if segment.emotion_action_goals.is_empty() {
+        "省略环境动态、光影变化或摄影机运动会削弱片段结尾承接"
+    } else {
+        "省略情绪动作目标会削弱片段结尾承接"
+    };
     json!({
         "must_repeat_from_previous": repeat,
         "must_establish_in_segment": [
@@ -54,7 +59,7 @@ fn derive_self_contained_context(segment: &VideoSegmentPlan) -> Value {
         "handoff_to_next": segment_end_summary(segment),
         "omission_risks": [
             "省略分段规划中的空间锚点会造成段间站位跳变",
-            "省略情绪动作目标会削弱片段结尾承接"
+            performance_omission_risk
         ]
     })
 }
@@ -116,7 +121,11 @@ fn derive_lighting_plan(_segment: &VideoSegmentPlan) -> Value {
 }
 
 fn derive_emotion_action_beats(segment: &VideoSegmentPlan) -> Value {
-    json!(segment.performance_plan.action_script)
+    if segment.performance_plan.action_script.is_empty() {
+        json!(segment.performance_plan.time_blocks)
+    } else {
+        json!(segment.performance_plan.action_script)
+    }
 }
 
 fn derive_cinematography_plan(segment: &VideoSegmentPlan) -> Value {

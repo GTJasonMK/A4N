@@ -234,6 +234,7 @@ pub(crate) fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         commands::video::list_chapter_video_prompts,
         commands::video::load_video_segment_plan_draft,
         commands::video::update_video_segment_plan_draft_recipe,
+        commands::video::update_chapter_video_segment_recipe,
         commands::video::update_chapter_video_prompt,
         commands::video::optimize_chapter_video_prompt,
         commands::video::delete_chapter_video_prompt,

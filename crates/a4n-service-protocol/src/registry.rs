@@ -6,7 +6,7 @@ use crate::validation::RequiredSecretPolicy;
 
 pub const PROTOCOL_VERSION: u32 = 2;
 pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v2";
-pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v3";
+pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v4";
 pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v2";
 pub const RAG_INDEX_CAPABILITY_VERSION: &str = "rag-index-v2";
 pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v2";

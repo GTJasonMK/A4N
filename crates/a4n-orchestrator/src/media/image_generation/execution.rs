@@ -49,11 +49,7 @@ impl OrchestratorContext {
 
         if workflow.owned {
             return self
-                .finalize_workflow_result(
-                    workflow.workflow_run_id,
-                    result,
-                    Some("图片生成完成"),
-                )
+                .finalize_workflow_result(workflow.workflow_run_id, result, Some("图片生成完成"))
                 .await;
         }
         result

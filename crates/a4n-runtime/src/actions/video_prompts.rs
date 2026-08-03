@@ -8,12 +8,13 @@ use crate::{
     prompt_renderer::RuntimePromptRenderer,
 };
 
+pub use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 pub use a4n_orchestrator::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateVideoSegmentPlanDraftRecipeInput,
     VideoPromptUpdateApplicationInput as UpdateChapterVideoPromptInput,
+    VideoSegmentPlanDraftSummary,
 };
-pub use a4n_orchestrator::workflow::WorkflowRunDetailSummary;
 
 struct RuntimeVideoPromptCleanup<'a> {
     state: &'a AppState,
@@ -58,7 +59,7 @@ pub async fn load_video_segment_plan_draft(
     state: &AppState,
     user_id: i64,
     input: LoadVideoSegmentPlanDraftInput,
-) -> Result<WorkflowRunDetailSummary, String> {
+) -> Result<VideoSegmentPlanDraftSummary, String> {
     state
         .video()
         .load_video_segment_plan_draft_validated(user_id, input)
@@ -70,10 +71,23 @@ pub async fn update_video_segment_plan_draft_recipe(
     state: &AppState,
     user_id: i64,
     input: UpdateVideoSegmentPlanDraftRecipeInput,
-) -> Result<WorkflowRunDetailSummary, String> {
+) -> Result<(), String> {
     state
         .video()
         .update_video_segment_plan_draft_recipe_validated(user_id, input)
+        .await
+        .map_err(error_message)
+}
+
+pub async fn update_chapter_video_segment_recipe(
+    state: &AppState,
+    user_id: i64,
+    prompt_id: i64,
+    recipe: VideoSegmentExecutionRecipeV1,
+) -> Result<Vec<VideoSegmentExecutionRecipeV1>, String> {
+    state
+        .video()
+        .update_chapter_video_segment_recipe_validated(user_id, prompt_id, recipe)
         .await
         .map_err(error_message)
 }

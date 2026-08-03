@@ -7,12 +7,12 @@ use super::super::{
     VideoContextManifestInput, VideoContextPreviousOutput, VideoPlanningPromptContext,
     VideoPromptRenderInput, VideoPromptStepProgress, build_segment_plan_for_shot_user,
     build_video_context_manifest, checkpoint_response_content, load_completed_video_checkpoint,
-    load_completed_video_checkpoint_by_step, parse_generated_segment_plan_with_current_config,
-    parse_video_segment_plan_input_values, render_json_with_validation_with_context,
-    report_video_prompt_checkpoint, report_video_prompt_progress,
-    save_completed_video_llm_checkpoint, segment_plan_progress_spec, serialize_video_value,
-    source_spans_for_shot, validate_segment_plan_against_shooting_script_projection,
-    video_llm_call_trace_context, video_stage_fingerprint,
+    parse_generated_segment_plan_with_current_config, parse_video_segment_plan_input_values,
+    render_json_with_validation_with_context, report_video_prompt_checkpoint,
+    report_video_prompt_progress, save_completed_video_llm_checkpoint, segment_plan_progress_spec,
+    serialize_video_value, source_spans_for_shot,
+    validate_segment_plan_against_shooting_script_projection, video_llm_call_trace_context,
+    video_stage_fingerprint,
 };
 use super::{
     contracts::{RenderedSegmentPlanShots, StagedSegmentPlanInput},
@@ -135,24 +135,11 @@ pub(super) async fn render_segment_plan_shots(
                 "validation_contract": "segment_plan_per_shot_v2",
             }),
         );
-        let checkpoint = if let Some(checkpoint) =
+        if let Some(checkpoint) =
             load_completed_video_checkpoint(service, workflow_run_id, &step_key, &fingerprint_json)
                 .await?
         {
-            Some((checkpoint, false))
-        } else {
-            load_completed_video_checkpoint_by_step(service, workflow_run_id, &step_key)
-                .await?
-                .filter(|(stored_fingerprint, _)| {
-                    compatible_legacy_segment_plan_shot_checkpoint(
-                        stored_fingerprint,
-                        &fingerprint_json,
-                    )
-                })
-                .map(|(_, checkpoint)| (checkpoint, true))
-        };
-        if let Some((checkpoint, legacy)) = checkpoint {
-            match restore_segment_plan_shot_checkpoint(
+            let (response_content, segment_shot) = restore_segment_plan_shot_checkpoint(
                 &checkpoint,
                 &shot_context,
                 &shot_source_spans,
@@ -160,29 +147,17 @@ pub(super) async fn render_segment_plan_shots(
                 &shot.source_shot_id,
                 duration_secs,
                 default_aspect_ratio,
-            ) {
-                Ok((response_content, segment_shot)) => {
-                    completed_shots[index] = Some((
-                        segment_shot,
-                        json!({
-                            "source_shot_id": shot.source_shot_id,
-                            "prompt_name": "chapter_video_segment_plan",
-                            "raw": response_content
-                        }),
-                    ));
-                    restored_count += 1;
-                    continue;
-                }
-                Err(error) if legacy => {
-                    tracing::warn!(
-                        workflow_run_id,
-                        source_shot_id = %shot.source_shot_id,
-                        error = %error,
-                        "旧视频片段规划断点不满足当前合同，仅重生成当前镜头"
-                    );
-                }
-                Err(error) => return Err(error),
-            }
+            )?;
+            completed_shots[index] = Some((
+                segment_shot,
+                json!({
+                    "source_shot_id": shot.source_shot_id,
+                    "prompt_name": "chapter_video_segment_plan",
+                    "raw": response_content
+                }),
+            ));
+            restored_count += 1;
+            continue;
         }
 
         pending_shots.push(PendingSegmentPlanShot {
@@ -369,33 +344,6 @@ pub(super) async fn render_segment_plan_shots(
         stage_outputs,
         last_trace,
     })
-}
-
-fn compatible_legacy_segment_plan_shot_checkpoint(stored: &Value, current: &Value) -> bool {
-    fn normalize(value: &Value) -> Option<Value> {
-        let mut value = value.clone();
-        let root = value.as_object_mut()?;
-        let extra = root.get_mut("extra")?.as_object_mut()?;
-        extra.remove("expected_items");
-        extra.remove("validation_contract");
-        let manifest = root.get_mut("context_manifest")?.as_object_mut()?;
-        let dynamic = manifest.remove("dynamic_user_content")?;
-        let (instruction, payload) = dynamic.as_str()?.rsplit_once("\n\n输入：\n")?;
-        let mut payload = serde_json::from_str::<Value>(payload).ok()?;
-        payload
-            .get_mut("output_contract")?
-            .as_object_mut()?
-            .remove("segment_count_rule");
-        manifest.insert(
-            "dynamic_user_content".to_string(),
-            json!({"instruction": instruction, "payload": payload}),
-        );
-        Some(value)
-    }
-
-    normalize(stored)
-        .zip(normalize(current))
-        .is_some_and(|(stored, current)| stored == current)
 }
 
 fn restore_segment_plan_shot_checkpoint(
@@ -707,57 +655,6 @@ mod tests {
                 "必须至少覆盖镜头 shot-1 的必需动作节拍 beat_id beat-2 一次，实际覆盖 0 次"
             )
         );
-    }
-
-    #[test]
-    fn legacy_checkpoint_compatibility_ignores_only_superseded_validation_inputs() {
-        let stable_pack = json!({"kind": "shooting_script", "sha256": "same"});
-        let legacy = json!({
-            "schema_version": 1,
-            "prompt_name": "chapter_video_segment_plan",
-            "context_manifest": {
-                "schema_version": 1,
-                "packs": [stable_pack.clone()],
-                "output_contract": {"kind": "json"},
-                "dynamic_user_content": "保持一致的请求说明\n\n输入：\n{\"output_contract\":{\"format\":\"json\"},\"current_shot\":{\"id\":\"unit_2_shot_1\"}}"
-            },
-            "extra": {
-                "project_id": 19,
-                "source_shot_id": "unit_2_shot_1",
-                "shot_index": 5,
-                "total_shots": 100,
-                "expected_items": 1
-            }
-        });
-        let current = json!({
-            "schema_version": 1,
-            "prompt_name": "chapter_video_segment_plan",
-            "context_manifest": {
-                "schema_version": 1,
-                "packs": [stable_pack],
-                "output_contract": {"kind": "json"},
-                "dynamic_user_content": "保持一致的请求说明\n\n输入：\n{\"output_contract\":{\"format\":\"json\",\"segment_count_rule\":\"至少两个\"},\"current_shot\":{\"id\":\"unit_2_shot_1\"}}"
-            },
-            "extra": {
-                "project_id": 19,
-                "source_shot_id": "unit_2_shot_1",
-                "shot_index": 5,
-                "total_shots": 100,
-                "expected_items": 2,
-                "validation_contract": "segment_plan_per_shot_v1"
-            }
-        });
-
-        assert!(compatible_legacy_segment_plan_shot_checkpoint(
-            &legacy, &current
-        ));
-
-        let mut changed_projection = current;
-        changed_projection["context_manifest"]["packs"][0]["sha256"] = json!("changed");
-        assert!(!compatible_legacy_segment_plan_shot_checkpoint(
-            &legacy,
-            &changed_projection
-        ));
     }
 
     #[test]

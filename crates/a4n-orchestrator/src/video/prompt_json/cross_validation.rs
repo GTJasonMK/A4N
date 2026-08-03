@@ -132,6 +132,33 @@ fn validate_segment_characters(
         .iter()
         .filter(|segment| segment.source_shot_id == shot.source_shot_id)
     {
+        if shot.participants.is_empty() {
+            if !segment.emotion_action_goals.is_empty() {
+                return Err(AppError::InvalidArgument(format!(
+                    "视频分段规划 #{} 对应纯环境镜头，emotion_action_goals 必须为空，不能把环境或场景名伪装成人物",
+                    segment.segment_number
+                )));
+            }
+            if !segment.performance_plan.action_script.is_empty() {
+                return Err(AppError::InvalidArgument(format!(
+                    "视频分段规划 #{} 对应纯环境镜头，performance_plan.action_script 必须为空，环境动态应写入 time_blocks",
+                    segment.segment_number
+                )));
+            }
+            continue;
+        }
+        if segment.emotion_action_goals.is_empty() {
+            return Err(AppError::InvalidArgument(format!(
+                "视频分段规划 #{} emotion_action_goals 不能为空",
+                segment.segment_number
+            )));
+        }
+        if segment.performance_plan.action_script.is_empty() {
+            return Err(AppError::InvalidArgument(format!(
+                "视频分段规划 #{} performance_plan.action_script 不能为空",
+                segment.segment_number
+            )));
+        }
         for goal in &segment.emotion_action_goals {
             ensure_participant(
                 &goal.character,

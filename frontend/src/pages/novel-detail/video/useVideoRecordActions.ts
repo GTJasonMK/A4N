@@ -160,7 +160,7 @@ interface UseVideoRecordActionsParams {
   setPendingVideoId: Dispatch<SetStateAction<number | null>>;
   beginAction: (key: string) => boolean;
   isCurrentActionScope: (scope: string | null) => boolean;
-  finishAction: (key: string, scope: string | null) => void;
+  finishAction: (key: string) => void;
 }
 
 export function useVideoRecordActions({
@@ -291,7 +291,7 @@ export function useVideoRecordActions({
       if (!isCurrentActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, "操作失败"), "error");
     } finally {
-      finishAction(key, requestScope);
+      finishAction(key);
     }
   };
 
@@ -318,12 +318,12 @@ export function useVideoRecordActions({
       confirmText: "开始优化",
     });
     if (instruction == null) {
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
       return;
     }
     const trimmed = instruction.trim();
     if (!trimmed) {
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
       return;
     }
     const downstreamStrategy = await choosePromptMutationStrategy(
@@ -331,11 +331,11 @@ export function useVideoRecordActions({
       "优化",
     );
     if (downstreamStrategy == null) {
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
       return;
     }
     if (!isCurrentActionScope(requestScope)) {
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
       return;
     }
     try {
@@ -360,7 +360,7 @@ export function useVideoRecordActions({
       if (!isCurrentActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, "优化提示词失败"), "error");
     } finally {
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
     }
   };
 
@@ -374,7 +374,6 @@ export function useVideoRecordActions({
       return;
     }
     const actionKey = `delete-prompt-${prompt.id}`;
-    const requestScope = actionScopeKey;
     if (!beginAction(actionKey)) return;
     let downstreamStrategy: DownstreamConflictStrategy = "reject";
     const downstreamCount = videoPromptDownstreamCount(
@@ -385,7 +384,7 @@ export function useVideoRecordActions({
     if (downstreamCount > 0) {
       const strategy = await choosePromptMutationStrategy(prompt, "删除");
       if (strategy == null) {
-        finishAction(actionKey, requestScope);
+        finishAction(actionKey);
         return;
       }
       downstreamStrategy = strategy;
@@ -397,7 +396,7 @@ export function useVideoRecordActions({
         dialogType: "danger",
       });
       if (!ok) {
-        finishAction(actionKey, requestScope);
+        finishAction(actionKey);
         return;
       }
     }
@@ -429,14 +428,13 @@ export function useVideoRecordActions({
       return;
     }
     const actionKey = `save-prompt-${selectedPrompt.id}`;
-    const requestScope = actionScopeKey;
     if (!beginAction(actionKey)) return;
     const downstreamStrategy = await choosePromptMutationStrategy(
       selectedPrompt,
       "保存",
     );
     if (downstreamStrategy == null) {
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
       return;
     }
     await wrapAct(
@@ -453,9 +451,8 @@ export function useVideoRecordActions({
     );
   };
 
-  const handleGenerateVideo = async (promptOverride?: ChapterVideoPrompt) => {
-    const targetPrompt = promptOverride ?? selectedPrompt;
-    if (!chapter || !targetPrompt) return;
+  const handleGenerateVideo = async () => {
+    if (!chapter || !selectedPrompt) return;
     if (chapterGenerating) {
       addToast(chapterGeneratingMessage(chapter, "生成视频"), "error");
       return;
@@ -464,16 +461,13 @@ export function useVideoRecordActions({
       addToast(durationLimits.configError, "error");
       return;
     }
-    const blockedReason = videoPromptGenerateBlockedReason(targetPrompt);
+    const blockedReason = videoPromptGenerateBlockedReason(selectedPrompt);
     if (blockedReason) {
       addToast(blockedReason, "error");
       return;
     }
-    if (targetPrompt.id !== selectedPromptId) {
-      setSelectedPromptId(targetPrompt.id);
-    }
     const requestScope = actionScopeKey;
-    const actionKey = `generate-video-${targetPrompt.id}`;
+    const actionKey = `generate-video-${selectedPrompt.id}`;
     if (!beginAction(actionKey)) return;
     try {
       const handle = await startVideoGeneration({
@@ -481,7 +475,7 @@ export function useVideoRecordActions({
         operation: {
           kind: "chapter",
           chapter_id: chapter.id,
-          prompt_id: targetPrompt.id,
+          prompt_id: selectedPrompt.id,
           config_id: null,
         },
       });
@@ -516,77 +510,75 @@ export function useVideoRecordActions({
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       await loadAll();
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
     }
   };
 
-  const handleImportVideo = async (): Promise<boolean> => {
-    if (!chapter || !selectedPrompt) return false;
+  const handleImportVideo = async (): Promise<void> => {
+    if (!chapter || !selectedPrompt) return;
     if (chapterGenerating) {
       addToast(chapterGeneratingMessage(chapter, "导入视频"), "error");
-      return false;
+      return;
     }
     if (selectedPrompt.prompt_type !== "video_prompt") {
       addToast("请选择 video_prompt 类型的提示词导入视频", "error");
-      return false;
+      return;
     }
     if (selectedPrompt.status === "running") {
       addToast(
         `视频提示词 #${selectedPrompt.id} 正在运行，不能导入视频`,
         "error",
       );
-      return false;
+      return;
     }
     if (selectedPromptStale) {
       addToast(staleVideoPromptMessage(frameStageLabel), "error");
-      return false;
+      return;
     }
     if (selectedPromptDirty) {
       addToast("当前视频提示词有未保存编辑，请先保存后再导入视频", "error");
-      return false;
+      return;
     }
 
     const requestScope = actionScopeKey;
     const actionKey = `import-video-${selectedPrompt.id}`;
-    if (!beginAction(actionKey)) return false;
+    if (!beginAction(actionKey)) return;
     let upload: VideoUploadFile | null = null;
     try {
       upload = await pickVideoUploadFile();
     } catch (err) {
-      if (!isCurrentActionScope(requestScope)) return false;
+      if (!isCurrentActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
-      return false;
+      return;
     } finally {
-      if (!upload) finishAction(actionKey, requestScope);
+      if (!upload) finishAction(actionKey);
     }
-    if (!upload) return false;
+    if (!upload) return;
     const { file, mimeType } = upload;
     if (!isCurrentActionScope(requestScope)) {
-      finishAction(actionKey, requestScope);
-      return false;
+      finishAction(actionKey);
+      return;
     }
 
     try {
       const dataBase64 = await readFileAsBase64(file);
-      if (!isCurrentActionScope(requestScope)) return false;
+      if (!isCurrentActionScope(requestScope)) return;
       const row = await uploadChapterVideo(projectId, chapter.id, {
         file_name: file.name,
         mime_type: mimeType,
         data_base64: dataBase64,
         prompt_id: selectedPrompt.id,
       });
-      if (!isCurrentActionScope(requestScope)) return false;
+      if (!isCurrentActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
       addToast("视频已导入并关联当前提示词", "success");
       await loadAll();
-      return true;
     } catch (err) {
-      if (!isCurrentActionScope(requestScope)) return false;
+      if (!isCurrentActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, "导入视频失败"), "error");
-      return false;
     } finally {
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
     }
   };
 
@@ -722,13 +714,12 @@ export function useVideoRecordActions({
       addToast(extractErrorMessage(err, "保存视频记录失败"), "error");
       throw err;
     } finally {
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
     }
   };
 
   const handleDeleteVideo = async (video: GeneratedVideo) => {
     const actionKey = `delete-video-${video.id}`;
-    const requestScope = actionScopeKey;
     if (!beginAction(actionKey)) return;
     const ok = await confirmDialog({
       title: "删除视频",
@@ -737,7 +728,7 @@ export function useVideoRecordActions({
       dialogType: "danger",
     });
     if (!ok) {
-      finishAction(actionKey, requestScope);
+      finishAction(actionKey);
       return;
     }
     await wrapAct(

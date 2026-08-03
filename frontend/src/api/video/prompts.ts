@@ -3,7 +3,7 @@ import { readCurrentUserId } from "../authStorage";
 import type { GenerationTaskHandle } from "../generated/generationContracts";
 import { idNum, type ApiId as Id } from "../shared";
 import { startVideoGeneration } from "./generation";
-import type { WorkflowRunDetail } from "../streaming";
+import type { WorkflowRun } from "../streaming";
 import type {
   ChapterVideoPrompt,
   DownstreamConflictStrategy,
@@ -26,7 +26,8 @@ export interface GeneratePromptOptions {
   regenerate_existing?: boolean;
 }
 
-export type SegmentGuidanceMode = "system_frames" | "keyframes" | "none" | "continuity";
+export type SegmentGuidanceMode =
+  "system_frames" | "keyframes" | "none" | "continuity";
 
 type SegmentWorkflowMode =
   | "boundary_frames"
@@ -68,21 +69,28 @@ export interface VideoSegmentExecutionRecipe {
   adopted_video_id: number | null;
 }
 
-export interface UpdateChapterVideoPromptInput {
+interface UpdateChapterVideoPromptInput {
   visual_prompt?: string | null;
   motion_prompt?: string | null;
   negative_prompt?: string | null;
-  segment_recipe?: VideoSegmentExecutionRecipe;
   downstream_strategy?: DownstreamConflictStrategy;
 }
 
-export interface UpdateVideoSegmentPlanDraftRecipeInput {
+interface UpdateVideoSegmentPlanDraftRecipeInput {
   project_id: number;
   chapter_id: number;
   workflow_run_id: number;
   source_shot_id: string;
   segment_index_in_shot: number;
   recipe: VideoSegmentExecutionRecipe;
+}
+
+export interface VideoSegmentPlanDraftDetail {
+  run: WorkflowRun;
+  segments: Record<string, unknown>[];
+  recipes: VideoSegmentExecutionRecipe[];
+  completed_shot_count: number;
+  total_shot_count: number;
 }
 
 interface OptimizeChapterVideoPromptInput {
@@ -152,28 +160,45 @@ export async function listChapterVideoPrompts(
   });
 }
 
-export async function loadVideoSegmentPlanDraft(
+export async function loadVideoSegmentPlanDraftDetail(
   projectId: Id,
   chapterId: Id,
   workflowRunId: Id,
-): Promise<WorkflowRunDetail> {
-  return apiInvoke<WorkflowRunDetail>("load_video_segment_plan_draft", {
-    userId: currentUserId(),
-    input: {
-      project_id: idNum(projectId, "项目 ID"),
-      chapter_id: idNum(chapterId, "章节 ID"),
-      workflow_run_id: idNum(workflowRunId, "片段规划 workflow ID"),
+): Promise<VideoSegmentPlanDraftDetail> {
+  return apiInvoke<VideoSegmentPlanDraftDetail>(
+    "load_video_segment_plan_draft",
+    {
+      userId: currentUserId(),
+      input: {
+        project_id: idNum(projectId, "项目 ID"),
+        chapter_id: idNum(chapterId, "章节 ID"),
+        workflow_run_id: idNum(workflowRunId, "片段规划 workflow ID"),
+      },
     },
-  });
+  );
 }
 
 export async function updateVideoSegmentPlanDraftRecipe(
   input: UpdateVideoSegmentPlanDraftRecipeInput,
-): Promise<WorkflowRunDetail> {
-  return apiInvoke<WorkflowRunDetail>("update_video_segment_plan_draft_recipe", {
+): Promise<void> {
+  return apiInvoke<void>("update_video_segment_plan_draft_recipe", {
     userId: currentUserId(),
     input,
   });
+}
+
+export async function updateChapterVideoSegmentRecipe(
+  promptId: Id,
+  recipe: VideoSegmentExecutionRecipe,
+): Promise<VideoSegmentExecutionRecipe[]> {
+  return apiInvoke<VideoSegmentExecutionRecipe[]>(
+    "update_chapter_video_segment_recipe",
+    {
+      userId: currentUserId(),
+      promptId: idNum(promptId, "视频片段规划 ID"),
+      recipe,
+    },
+  );
 }
 
 export async function updateChapterVideoPrompt(

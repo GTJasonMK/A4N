@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use crate::{OrchestratorContext, workflow::WorkflowRunFinalizeOutcome};
+use a4n_core::error::AppError;
 use serde_json::Value;
 
 pub(in crate::scene_profile::application) async fn finalize_scene_profile_sync_workflow(

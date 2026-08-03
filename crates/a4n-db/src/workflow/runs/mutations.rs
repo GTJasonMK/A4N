@@ -3,8 +3,8 @@ use super::*;
 use super::queries::{locked_latest_workflow_run_by_business_key_model, locked_workflow_run_by_id};
 use super::validation::{
     completed_at_for_status_value, ensure_workflow_status_transition, ensure_workflow_write_open,
-    requires_explicit_interrupted_resume, should_update_existing_run, validate_workflow_run_input,
-    workflow_fingerprint_matches,
+    requires_explicit_interrupted_resume, should_resume_existing_run, should_update_existing_run,
+    validate_workflow_run_input, workflow_fingerprint_matches,
 };
 
 pub async fn upsert_workflow_run(
@@ -15,6 +15,62 @@ pub async fn upsert_workflow_run(
     let run = upsert_workflow_run_in_transaction(&tx, input).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(run)
+}
+
+pub async fn resume_or_upsert_workflow_run(
+    db: &DatabaseConnection,
+    input: UpsertWorkflowRunInput,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
+    validate_workflow_run_input(&input)?;
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let existing =
+        locked_latest_workflow_run_by_business_key_model(&tx, &input.business_key).await?;
+    if let Some(existing) = existing.as_ref()
+        && existing.status == WORKFLOW_STATUS_RUNNING
+    {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: existing.status.clone(),
+            operation: "重复启动同一工作流".to_string(),
+        });
+    }
+    if let Some(existing) = existing
+        && existing.workflow_kind == input.workflow_kind
+        && workflow_fingerprint_matches(
+            existing.input_fingerprint_json.as_ref(),
+            input.input_fingerprint_json.as_ref(),
+        )
+        && should_resume_existing_run(&existing, &input.status)
+    {
+        let run = resume_workflow_run_model_in_transaction(&tx, existing, input).await?;
+        tx.commit().await.map_err(WorkflowWriteError::Database)?;
+        return Ok(run);
+    }
+    let run = upsert_workflow_run_in_transaction(&tx, input).await?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(run)
+}
+
+pub(super) async fn resume_workflow_run_model_in_transaction(
+    tx: &sea_orm::DatabaseTransaction,
+    existing: workflow_run::Model,
+    input: UpsertWorkflowRunInput,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
+    ensure_workflow_status_transition(&existing.status, &input.status, true)?;
+    let now = Utc::now().naive_utc();
+    let mut active: workflow_run::ActiveModel = existing.into();
+    active.status = Set(input.status);
+    active.current_step_key = Set(normalize_optional_text(input.current_step_key));
+    active.progress_json = Set(None);
+    active.active_task_id = Set(normalize_optional_text(input.active_task_id));
+    active.can_resume = Set(input.can_resume);
+    active.resume_block_reason = Set(None);
+    active.error_message = Set(None);
+    active.updated_at = Set(now);
+    active.completed_at = Set(None);
+    active
+        .update(tx)
+        .await
+        .map_err(WorkflowWriteError::Database)
 }
 
 pub(super) async fn upsert_workflow_run_in_transaction(

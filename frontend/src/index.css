@@ -1887,10 +1887,6 @@ html.theme-switching * {
   outline-offset: 1px;
 }
 
-.a4n-seg--segment-workflows .a4n-seg__btn {
-  padding-inline: 2px;
-}
-
 /* 固定宽度分段（写作桌 RAG/正文优化） */
 .a4n-seg--panel {
   width: 200px;

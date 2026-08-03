@@ -24,12 +24,18 @@ pub enum MangaTextLayerKindV2 {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MangaTextPlacementV2 {
+    #[serde(alias = "upper_left")]
     TopLeft,
+    #[serde(alias = "upper_right")]
     TopRight,
+    #[serde(alias = "top_center")]
     UpperCenter,
     CenterLeft,
     CenterRight,
+    #[serde(alias = "lower_left")]
     BottomLeft,
+    #[serde(alias = "lower_right")]
     BottomRight,
+    #[serde(alias = "bottom_center")]
     LowerCenter,
 }

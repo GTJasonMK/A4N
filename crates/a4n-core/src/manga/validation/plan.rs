@@ -18,7 +18,6 @@ pub(super) fn validate_plan(plan: &MangaPagePlanV3) -> Result<(), MangaPlanValid
     if plan.pages.is_empty() {
         return invalid("pages", "至少需要一页");
     }
-    let mut previous_exit_state: Option<&str> = None;
     for (page_offset, page) in plan.pages.iter().enumerate() {
         let expected = index_u32(page_offset, "pages")?;
         let path = format!("pages[{page_offset}]");
@@ -29,15 +28,6 @@ pub(super) fn validate_plan(plan: &MangaPagePlanV3) -> Result<(), MangaPlanValid
             );
         }
         validate_page(page, &path)?;
-        if let Some(previous_exit_state) = previous_exit_state
-            && page.entry_state.trim() != previous_exit_state.trim()
-        {
-            return invalid(
-                format!("{path}.entry_state"),
-                "必须与上一页 exit_state 一致，避免页面间状态跳变",
-            );
-        }
-        previous_exit_state = Some(&page.exit_state);
     }
     Ok(())
 }

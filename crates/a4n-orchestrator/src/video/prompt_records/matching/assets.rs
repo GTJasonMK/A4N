@@ -34,6 +34,5 @@ pub(in crate::video::prompt_records) fn db_video_prompt_update_input(
         duration_secs: input.duration_secs,
         reference_image_ids_json: input.reference_image_ids_json,
         metadata_patch: None,
-        segment_recipe: None,
     }
 }

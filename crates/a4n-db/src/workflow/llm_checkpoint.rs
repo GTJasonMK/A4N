@@ -32,6 +32,16 @@ fn is_truncated_finish_reason(finish_reason: Option<&str>) -> bool {
     matches!(finish_reason, Some("length" | "max_tokens"))
 }
 
+fn has_restorable_llm_call_result(checkpoint_json: &Value) -> bool {
+    checkpoint_json
+        .get("parsed_output")
+        .is_some_and(|value| !value.is_null())
+        || checkpoint_json
+            .get("response_content")
+            .and_then(Value::as_str)
+            .is_some_and(|value| !value.trim().is_empty())
+}
+
 pub fn validate_completed_llm_call_checkpoint_json(
     checkpoint_json: &Value,
     call_key: &str,
@@ -71,6 +81,11 @@ pub fn validate_completed_llm_call_checkpoint_json(
             "{call_key} LLM 调用断点标记为截断响应，不能保存或恢复"
         )));
     }
+    if !has_restorable_llm_call_result(checkpoint_json) {
+        return Err(WorkflowCheckpointContractError::Invalid(format!(
+            "{call_key} LLM 调用断点没有可恢复的响应内容"
+        )));
+    }
     Ok(())
 }
 
@@ -96,13 +111,19 @@ pub async fn load_completed_llm_call_checkpoint(
     let input_fingerprint_sha256 =
         llm_call_checkpoint_fingerprint_sha256(input_fingerprint_json)
             .map_err(|error| WorkflowReadError::InvalidData(error.to_string()))?;
-    completed_workflow_checkpoint_by_fingerprint(
+    let checkpoint = completed_workflow_checkpoint_by_fingerprint(
         db,
         workflow_run_id,
         call_key,
         &input_fingerprint_sha256,
     )
-    .await
+    .await?;
+    Ok(checkpoint.filter(|checkpoint| {
+        checkpoint
+            .checkpoint_json
+            .as_ref()
+            .is_none_or(has_restorable_llm_call_result)
+    }))
 }
 
 pub async fn save_completed_llm_call_checkpoint(

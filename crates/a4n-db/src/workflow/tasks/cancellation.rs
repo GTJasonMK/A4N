@@ -1,6 +1,4 @@
-use super::projections::{
-    generated_video_ids_for_active_checkpoints, normalize_cancel_reason,
-};
+use super::projections::{generated_video_ids_for_active_checkpoints, normalize_cancel_reason};
 use crate::workflow::{
     CancelWorkflowRunPersistenceResult, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
     WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_SUPERSEDED, WorkflowWriteError,

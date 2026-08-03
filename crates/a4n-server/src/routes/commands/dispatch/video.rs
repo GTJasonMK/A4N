@@ -43,6 +43,9 @@ pub(super) async fn try_dispatch(
         "update_video_segment_plan_draft_recipe" => {
             update_video_segment_plan_draft_recipe(state, user_id, args).await?
         }
+        "update_chapter_video_segment_recipe" => {
+            update_chapter_video_segment_recipe(state, user_id, args).await?
+        }
         "update_chapter_video_prompt" => update_chapter_video_prompt(state, user_id, args).await?,
         "optimize_chapter_video_prompt" => {
             optimize_chapter_video_prompt(state, user_id, args).await?

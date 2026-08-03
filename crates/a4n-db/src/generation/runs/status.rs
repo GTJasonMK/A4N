@@ -138,7 +138,10 @@ mod tests {
 
     #[test]
     fn target_run_transition_is_idempotent_but_rejects_other_terminal_status() {
-        assert_eq!(should_update_target_run("running", "cancelled").unwrap(), true);
+        assert_eq!(
+            should_update_target_run("running", "cancelled").unwrap(),
+            true
+        );
         assert_eq!(
             should_update_target_run("cancelled", "cancelled").unwrap(),
             false

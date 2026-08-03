@@ -3,7 +3,7 @@ use super::provider::{DEFAULT_TIMEOUT_SECS, HttpLlmProvider};
 use super::response::*;
 use super::sse::*;
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, normalize_request_options};
+use a4n_llm::provider::{ChatChunk, ChatMessage, ChatRequest, normalize_request_options};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 
@@ -285,6 +285,67 @@ fn stream_request_usage_merges_existing_stream_options() {
         body["stream_options"]["existing_provider_option"],
         json!("kept")
     );
+}
+
+#[test]
+fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
+    let provider = HttpLlmProvider::new("https://example.test", "gpt-5.6-luna", None);
+    let mut request = ChatRequest::new(
+        vec![
+            ChatMessage::system("stable session"),
+            ChatMessage::system("stable shared context"),
+            ChatMessage::user("dynamic user"),
+        ],
+        None,
+        None,
+        None,
+    );
+    request.prompt_cache_key = Some("a4n:workflow_run:299".to_string());
+    request.prompt_cache_system_prefix = true;
+
+    let body = request_body_json(provider.build_request(&request, true));
+    assert_eq!(body["prompt_cache_key"], json!("a4n:workflow_run:299"));
+    assert_eq!(body["messages"][0]["content"], "stable session");
+    assert_eq!(
+        body["messages"][1]["content"][0]["text"],
+        "stable shared context"
+    );
+    assert_eq!(
+        body["messages"][1]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
+    assert_eq!(body["messages"][2]["content"], "dynamic user");
+    assert!(body.get("prompt_cache_options").is_none());
+}
+
+#[test]
+fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
+    let provider = HttpLlmProvider::new("https://example.test", "gpt-5.6-luna", None);
+    let mut request = ChatRequest::system_user(
+        "stable session",
+        "[稳定上下文]\nshared chapter\n\n[当前任务]\npage 2",
+        None,
+        None,
+        None,
+    );
+    request.prompt_cache_key = Some("a4n:workflow_run:299:prefix:abc".to_string());
+    request.prompt_cache_system_prefix = true;
+    request.prompt_cache_user_prefix_len = Some("[稳定上下文]\nshared chapter".len());
+
+    let body = request_body_json(provider.build_request(&request, true));
+    assert_eq!(
+        body["messages"][1]["content"][0]["text"],
+        "[稳定上下文]\nshared chapter"
+    );
+    assert_eq!(
+        body["messages"][1]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
+    assert_eq!(
+        body["messages"][1]["content"][1]["text"],
+        "\n\n[当前任务]\npage 2"
+    );
+    assert_eq!(body["messages"][0]["content"], "stable session");
 }
 
 #[test]

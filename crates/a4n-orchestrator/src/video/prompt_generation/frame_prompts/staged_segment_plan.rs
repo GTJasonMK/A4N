@@ -16,9 +16,8 @@ use self::contracts::{
 use self::finalization::finalize_staged_segment_plan;
 use self::recipes::segment_plan_shot_recipe_artifacts;
 pub(in crate::video) use self::recipes::{
-    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_recipe_state,
-    materialize_video_segment_plan_draft_recipes,
-    update_video_segment_plan_draft_recipe_checkpoint,
+    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_checkpoints,
+    load_video_segment_plan_draft_recipe_state, update_video_segment_plan_draft_recipe_checkpoint,
     video_segment_recipes_from_draft_for_final_plan,
 };
 use self::recovery::reuse_completed_staged_segment_plan;

@@ -37,6 +37,18 @@ pub(in crate::workflow) fn should_update_existing_run(
     true
 }
 
+pub(in crate::workflow) fn should_resume_existing_run(
+    existing: &workflow_run::Model,
+    incoming_status: &str,
+) -> bool {
+    incoming_status == WORKFLOW_STATUS_RUNNING
+        && existing.can_resume
+        && matches!(
+            existing.status.as_str(),
+            WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_CANCELLED | WORKFLOW_STATUS_INTERRUPTED
+        )
+}
+
 pub(in crate::workflow) fn requires_explicit_interrupted_resume(
     existing: &workflow_run::Model,
     incoming_status: &str,
@@ -65,9 +77,7 @@ pub(in crate::workflow) fn ensure_workflow_status_transition(
             && requested == WORKFLOW_STATUS_RUNNING
             && matches!(
                 current,
-                WORKFLOW_STATUS_INTERRUPTED
-                    | WORKFLOW_STATUS_FAILED
-                    | WORKFLOW_STATUS_CANCELLED
+                WORKFLOW_STATUS_INTERRUPTED | WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_CANCELLED
             ))
     {
         return Ok(());

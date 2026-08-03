@@ -15,7 +15,7 @@ fn detects_known_truncated_finish_reasons() {
 
 #[test]
 fn chat_request_serialization_skips_internal_trace_fields() {
-    let request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None, None)
+    let mut request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None, None)
         .with_stream_usage()
         .with_trace_context(LlmTraceContext {
             project_id: Some(1),
@@ -29,10 +29,16 @@ fn chat_request_serialization_skips_internal_trace_fields() {
             context_plan_json: None,
             context_pack_refs_json: None,
         });
+    request.prompt_cache_key = Some("a4n:workflow_run:7".to_string());
+    request.prompt_cache_system_prefix = true;
+    request.prompt_cache_user_prefix_len = Some(5);
 
     let value = serde_json::to_value(&request).expect("request serializes");
     assert!(value.get("trace_context").is_none());
     assert_eq!(value["stream_include_usage"], json!(true));
+    assert_eq!(value["prompt_cache_key"], "a4n:workflow_run:7");
+    assert_eq!(value["prompt_cache_system_prefix"], true);
+    assert_eq!(value["prompt_cache_user_prefix_len"], 5);
     assert!(value.get("context_manifest_json").is_none());
 }
 
@@ -61,6 +67,16 @@ fn request_options_reject_reserved_provider_fields() {
     .expect_err("reserved fields must be rejected");
 
     assert!(err.to_string().contains("temperature"));
+}
+
+#[test]
+fn request_options_reject_static_prompt_cache_keys() {
+    let err = normalize_request_options_json(Some(json!({
+        "prompt_cache_key": "shared-across-unrelated-runs"
+    })))
+    .expect_err("cache affinity must be derived per generation chain");
+
+    assert!(err.to_string().contains("prompt_cache_key"));
 }
 
 #[test]

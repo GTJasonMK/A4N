@@ -3,7 +3,8 @@ use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
 use a4n_runtime::host_api::video_prompts::{
     self as video_prompt_actions, ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput,
     OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
-    UpdateVideoSegmentPlanDraftRecipeInput, WorkflowRunDetailSummary,
+    UpdateVideoSegmentPlanDraftRecipeInput, VideoSegmentExecutionRecipeV1,
+    VideoSegmentPlanDraftSummary,
 };
 use tauri::State;
 
@@ -23,7 +24,7 @@ pub async fn load_video_segment_plan_draft(
     state: State<'_, AppState>,
     user_id: i64,
     input: LoadVideoSegmentPlanDraftInput,
-) -> Result<WorkflowRunDetailSummary, String> {
+) -> Result<VideoSegmentPlanDraftSummary, String> {
     video_prompt_actions::load_video_segment_plan_draft(state.inner(), user_id, input).await
 }
 
@@ -32,9 +33,25 @@ pub async fn update_video_segment_plan_draft_recipe(
     state: State<'_, AppState>,
     user_id: i64,
     input: UpdateVideoSegmentPlanDraftRecipeInput,
-) -> Result<WorkflowRunDetailSummary, String> {
+) -> Result<(), String> {
     video_prompt_actions::update_video_segment_plan_draft_recipe(state.inner(), user_id, input)
         .await
+}
+
+#[tauri::command]
+pub async fn update_chapter_video_segment_recipe(
+    state: State<'_, AppState>,
+    user_id: i64,
+    prompt_id: i64,
+    recipe: VideoSegmentExecutionRecipeV1,
+) -> Result<Vec<VideoSegmentExecutionRecipeV1>, String> {
+    video_prompt_actions::update_chapter_video_segment_recipe(
+        state.inner(),
+        user_id,
+        prompt_id,
+        recipe,
+    )
+    .await
 }
 
 #[tauri::command]

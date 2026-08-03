@@ -103,17 +103,16 @@ mod tests {
 
     #[test]
     fn builds_running_input() {
-        let (input, _) =
-            chapter_scene_workflow_run_input(
-                2,
-                3,
-                1,
-                "prompt",
-                "call",
-                &sample_request(),
-                Some("chapter-scene-task"),
-            )
-                .expect("valid workflow input");
+        let (input, _) = chapter_scene_workflow_run_input(
+            2,
+            3,
+            1,
+            "prompt",
+            "call",
+            &sample_request(),
+            Some("chapter-scene-task"),
+        )
+        .expect("valid workflow input");
         assert_eq!(input.workflow_kind, "chapter_scene_generation");
         assert_eq!(input.status, WORKFLOW_STATUS_RUNNING);
         assert_eq!(input.active_task_id.as_deref(), Some("chapter-scene-task"));

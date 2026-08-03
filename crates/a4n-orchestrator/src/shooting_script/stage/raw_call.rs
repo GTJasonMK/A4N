@@ -172,7 +172,8 @@ impl OrchestratorContext {
                         .checkpoint_json
                         .as_ref()
                         .and_then(|value| value.get("response_content"))
-                        .is_some_and(Value::is_string);
+                        .and_then(Value::as_str)
+                        .is_some_and(|value| !value.trim().is_empty());
                     valid_state
                         && match status {
                             Some("completed") => has_parsed_output,

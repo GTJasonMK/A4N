@@ -69,7 +69,10 @@ pub(in crate::actions::character_ai) async fn sync_character_profile_input_with_
         let trace_port = RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
         let report_progress = |current: u32, total: u32, message: &str| {
             progress.report(current, total, message).map_err(|error| {
-                if progress.progress.is_some_and(CharacterAiProgress::is_cancelled) {
+                if progress
+                    .progress
+                    .is_some_and(CharacterAiProgress::is_cancelled)
+                {
                     AppError::Cancelled
                 } else {
                     AppError::InvalidArgument(error)

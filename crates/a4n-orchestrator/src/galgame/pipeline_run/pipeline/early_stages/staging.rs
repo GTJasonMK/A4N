@@ -13,6 +13,7 @@ use super::super::contracts::GalgamePipelineExecution;
 
 pub(super) async fn run_character_staging_stage(
     execution: &GalgamePipelineExecution<'_>,
+    scenes_json: &Value,
     lines_draft_json: &Value,
 ) -> Result<(Value, GalgameCharacterStaging), AppError> {
     let stage = GalgamePipelineStartStage::CharacterStaging;
@@ -36,6 +37,7 @@ pub(super) async fn run_character_staging_stage(
         lines_draft_json,
         &execution.prompt_context.speaker_profiles,
     )?;
+    let request_user_prompt = user_prompt.clone();
     let lines_staged_json = execution
         .service
         .run_galgame_llm_stage(
@@ -48,6 +50,8 @@ pub(super) async fn run_character_staging_stage(
                 checkpoint_key: CHECKPOINT_LINES_STAGED,
                 prompt_name: "galgame_character_staging",
                 user_prompt,
+                request_user_prompt,
+                shared_shooting_script_projection: scenes_json,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

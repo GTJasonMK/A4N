@@ -1,5 +1,5 @@
 use super::super::super::*;
-use super::super::support::manifest_with_pack;
+use super::super::support::{manifest_with_pack, pack_ref};
 use crate::provider::{ChatMessage, ChatRequest};
 
 #[test]
@@ -62,4 +62,28 @@ fn manifest_rewrite_rejects_complex_chat_history() {
         .expect_err("complex history must fail");
 
     assert!(err.to_string().contains("只能重写"));
+}
+
+#[test]
+fn manifest_rewrite_records_the_stable_user_cache_boundary() {
+    let manifest = manifest_with_pack("当前任务");
+    let mut request =
+        context_aware_system_user_request("system", manifest.clone(), None, None, None)
+            .expect("request");
+    let selected = PlannedContextPack {
+        pack_ref: pack_ref("chapter_source", COMPRESSION_FULL_RAW, 10),
+        stable_prefix: true,
+        canonical_content_text: Some("冻结章节上下文".to_string()),
+    };
+
+    replace_request_user_content_from_manifest(&mut request, &manifest, &[selected])
+        .expect("manifest rewrite");
+
+    let prefix_len = request
+        .prompt_cache_user_prefix_len
+        .expect("stable cache boundary");
+    let (prefix, dynamic) = request.messages[1].content.split_at(prefix_len);
+    assert!(prefix.contains("冻结章节上下文"));
+    assert!(!prefix.contains("当前任务"));
+    assert!(dynamic.contains("当前任务"));
 }

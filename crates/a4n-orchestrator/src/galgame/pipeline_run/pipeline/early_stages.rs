@@ -16,7 +16,7 @@ pub(super) async fn run_galgame_pipeline_early_stages(
     let lines_draft_json =
         script::run_script_adaptation_stage(execution, &scenes_json, &branch_plan_json).await?;
     let (lines_staged_json, staging) =
-        staging::run_character_staging_stage(execution, &lines_draft_json).await?;
+        staging::run_character_staging_stage(execution, &scenes_json, &lines_draft_json).await?;
     Ok(GalgamePipelineEarlyOutputs {
         scenes_json,
         scenes,

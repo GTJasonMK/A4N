@@ -9,6 +9,9 @@ pub use generated_images::*;
 mod generated_videos;
 pub use generated_videos::*;
 
+mod segment_plan_draft;
+pub use segment_plan_draft::*;
+
 #[derive(Debug, thiserror::Error)]
 pub enum VideoDbError {
     #[error("{0}")]

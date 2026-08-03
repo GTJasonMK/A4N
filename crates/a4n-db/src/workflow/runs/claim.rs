@@ -3,8 +3,13 @@ use a4n_core::models::task::task_queue;
 use sea_orm::sea_query::Expr;
 use sea_orm::{ActiveModelTrait, DbBackend, Statement, TransactionTrait};
 
-use super::mutations::upsert_workflow_run_in_transaction;
-use super::validation::validate_workflow_run_input;
+use super::mutations::{
+    resume_workflow_run_model_in_transaction, upsert_workflow_run_in_transaction,
+};
+use super::queries::locked_workflow_run_by_id;
+use super::validation::{
+    should_resume_existing_run, validate_workflow_run_input, workflow_fingerprint_matches,
+};
 
 pub async fn claim_exclusive_workflow_run(
     db: &DatabaseConnection,
@@ -33,7 +38,10 @@ pub async fn claim_exclusive_workflow_run(
             running.id, running.workflow_kind, current_step_key, active_task_id
         )));
     }
-    let run = upsert_workflow_run_in_transaction(&tx, input.run).await?;
+    let run = match input.resume_from_task_id.as_deref() {
+        Some(task_id) => resume_claimed_workflow_from_task(&tx, task_id, input.run).await?,
+        None => upsert_workflow_run_in_transaction(&tx, input.run).await?,
+    };
     persist_claimed_video_task(&tx, &run).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(run)
@@ -97,6 +105,52 @@ async fn running_workflow_has_live_task(
         .await
         .map_err(WorkflowWriteError::Database)?;
     Ok(false)
+}
+
+async fn resume_claimed_workflow_from_task(
+    tx: &sea_orm::DatabaseTransaction,
+    task_id: &str,
+    mut input: UpsertWorkflowRunInput,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
+    let task = task_queue::Entity::find_by_id(task_id.to_string())
+        .lock_exclusive()
+        .one(tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?
+        .ok_or_else(|| WorkflowWriteError::NotFound(format!("重试来源任务不存在: {task_id}")))?;
+    if !is_terminal_task_status(&task.status) {
+        return Err(WorkflowWriteError::InvalidArgument(format!(
+            "重试来源任务 {task_id} 尚未结束，当前状态为 {}",
+            task.status
+        )));
+    }
+    let workflow_run_id = task.workflow_run_id.ok_or_else(|| {
+        WorkflowWriteError::InvalidData(format!("重试来源任务 {task_id} 未绑定 workflow_run"))
+    })?;
+    let existing = locked_workflow_run_by_id(tx, workflow_run_id).await?;
+    if existing.business_key != input.business_key
+        || existing.workflow_kind != input.workflow_kind
+        || existing.project_id != input.project_id
+        || existing.root_project_id != input.root_project_id
+        || existing.chapter_id != input.chapter_id
+        || existing.mode != input.mode
+        || !workflow_fingerprint_matches(
+            existing.input_fingerprint_json.as_ref(),
+            input.input_fingerprint_json.as_ref(),
+        )
+    {
+        return Err(WorkflowWriteError::InvalidArgument(format!(
+            "重试来源任务 {task_id} 与当前视频生成请求不一致"
+        )));
+    }
+    if !should_resume_existing_run(&existing, &input.status) {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: existing.status.clone(),
+            operation: format!("通过任务 {task_id} 恢复工作流"),
+        });
+    }
+    input.current_step_key = existing.current_step_key.clone();
+    resume_workflow_run_model_in_transaction(tx, existing, input).await
 }
 
 async fn persist_claimed_video_task(
@@ -192,6 +246,17 @@ fn validate_claim_input(
     {
         return Err(WorkflowWriteError::InvalidArgument(
             "独占 workflow claim 必须绑定 active_task_id".to_string(),
+        ));
+    }
+    if input.resume_from_task_id.is_some()
+        && input
+            .resume_from_task_id
+            .as_deref()
+            .and_then(non_empty_text)
+            .is_none()
+    {
+        return Err(WorkflowWriteError::InvalidArgument(
+            "resume_from_task_id 不能为空".to_string(),
         ));
     }
     let project_id = input.run.project_id.ok_or_else(|| {

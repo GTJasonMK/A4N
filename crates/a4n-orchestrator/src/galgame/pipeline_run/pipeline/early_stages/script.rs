@@ -2,7 +2,8 @@ use a4n_core::error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgamePipelineStartStage, galgame_script_adaptation_user_message, script_adaptation_from_value,
+    GalgamePipelineStartStage, galgame_script_adaptation_session_user_message,
+    galgame_script_adaptation_user_message, script_adaptation_from_value,
 };
 
 use super::super::super::contracts::CHECKPOINT_LINES_DRAFT;
@@ -37,6 +38,10 @@ pub(super) async fn run_script_adaptation_stage(
         scenes_json,
         branch_plan_json,
     )?;
+    let request_user_prompt = galgame_script_adaptation_session_user_message(
+        &execution.prompt_context.chapters,
+        branch_plan_json,
+    )?;
     let lines_draft_json = execution
         .service
         .run_galgame_llm_stage(
@@ -49,6 +54,8 @@ pub(super) async fn run_script_adaptation_stage(
                 checkpoint_key: CHECKPOINT_LINES_DRAFT,
                 prompt_name: "galgame_script_adaptation",
                 user_prompt,
+                request_user_prompt,
+                shared_shooting_script_projection: scenes_json,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

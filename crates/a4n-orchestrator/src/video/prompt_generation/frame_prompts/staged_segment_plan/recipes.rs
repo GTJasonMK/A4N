@@ -5,15 +5,21 @@ use a4n_core::video_execution::{
     carry_forward_video_segment_recipes, default_video_segment_recipes,
     validate_video_segment_recipes_for_plan, video_segment_recipes_for_plan_from_metadata,
 };
-use a4n_db::workflow::WORKFLOW_STATUS_COMPLETED;
-use serde_json::{Map, Value, json};
+use a4n_db::{
+    video::VideoSegmentPlanDraftCheckpoint,
+    workflow::{WORKFLOW_STATUS_COMPLETED, WorkflowWriteError},
+};
+use serde_json::{Value, json};
 
 use super::super::{
     AppError, OrchestratorContext, PromptWorkflowMode, SHARED_SEGMENT_PLAN_PROMPT_TYPE,
     VideoSegmentPlan, segment_plan_rows,
 };
 
+use crate::{video::video_db_error, workflow::workflow_write_app_error};
+
 const SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX: &str = "video_segment_plan.shot.";
+const SEGMENT_PLAN_FINAL_CHECKPOINT_KEY: &str = "video_segment_plan.final";
 
 pub(in crate::video) async fn load_previous_shared_segment_recipe_state(
     service: &OrchestratorContext,
@@ -81,43 +87,17 @@ pub(super) fn segment_plan_shot_recipe_artifacts(
     Ok(json!({ VIDEO_SEGMENT_RECIPES_METADATA_KEY: recipes }))
 }
 
-pub(in crate::video) async fn materialize_video_segment_plan_draft_recipes(
+pub(in crate::video) async fn load_video_segment_plan_draft_checkpoints(
     service: &OrchestratorContext,
     workflow_run_id: i64,
-    style: &str,
-    prompt_output_language: &str,
-    previous_recipe_state: Option<(&[VideoSegmentPlan], &[VideoSegmentExecutionRecipeV1])>,
-) -> Result<(), AppError> {
-    for checkpoint in service.workflow_checkpoint_models(workflow_run_id).await? {
-        if checkpoint.status != WORKFLOW_STATUS_COMPLETED
-            || !is_segment_plan_shot_checkpoint(&checkpoint.step_key)
-        {
-            continue;
-        }
-        let context = format!("片段规划 checkpoint {}", checkpoint.step_key);
-        let segments = checkpoint_segment_plans(&checkpoint, &context)?;
-        if checkpoint
-            .artifacts_json
-            .as_ref()
-            .and_then(Value::as_object)
-            .is_some_and(|artifacts| artifacts.contains_key(VIDEO_SEGMENT_RECIPES_METADATA_KEY))
-        {
-            checkpoint_recipes(&checkpoint, &segments, style, &context)?;
-            continue;
-        }
-        let recipes = initial_recipes_for_segments(
-            &segments,
-            style,
-            prompt_output_language,
-            previous_recipe_state,
-        )?;
-        let artifacts =
-            artifacts_with_recipes(checkpoint.artifacts_json.as_ref(), recipes, &context)?;
-        service
-            .update_workflow_checkpoint_artifacts(workflow_run_id, &checkpoint.step_key, artifacts)
-            .await?;
-    }
-    Ok(())
+) -> Result<Vec<VideoSegmentPlanDraftCheckpoint>, AppError> {
+    a4n_db::video::video_segment_plan_draft_checkpoints(
+        service.database.connection(),
+        workflow_run_id,
+        SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX,
+    )
+    .await
+    .map_err(video_db_error)
 }
 
 pub(in crate::video) async fn update_video_segment_plan_draft_recipe_checkpoint(
@@ -126,7 +106,7 @@ pub(in crate::video) async fn update_video_segment_plan_draft_recipe_checkpoint(
     source_shot_id: &str,
     segment_index_in_shot: i32,
     style: &str,
-    mut recipe: VideoSegmentExecutionRecipeV1,
+    recipe: VideoSegmentExecutionRecipeV1,
 ) -> Result<(), AppError> {
     let source_shot_id = source_shot_id.trim();
     if source_shot_id.is_empty() || source_shot_id.contains(':') {
@@ -141,63 +121,63 @@ pub(in crate::video) async fn update_video_segment_plan_draft_recipe_checkpoint(
             AppError::InvalidArgument("segment_index_in_shot 必须为正整数".to_string())
         })?;
     let step_key = format!("{SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX}{source_shot_id}");
-    let checkpoint = service
-        .workflow_checkpoint_model_by_step(workflow_run_id, &step_key)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("片段规划草稿不存在镜头 {source_shot_id}")))?;
-    if checkpoint.status != WORKFLOW_STATUS_COMPLETED {
-        return Err(AppError::InvalidState {
-            current: checkpoint.status,
-            operation: format!("更新片段规划镜头 {source_shot_id} 的执行方案"),
-        });
-    }
     let context = format!("片段规划 checkpoint {step_key}");
-    let segments = checkpoint_segment_plans(&checkpoint, &context)?;
-    let segment = segments.get(segment_index).ok_or_else(|| {
-        AppError::InvalidArgument(format!(
-            "镜头 {source_shot_id} 不存在第 {segment_index_in_shot} 个片段"
-        ))
-    })?;
-    if segment.source_shot_id != source_shot_id {
-        return Err(AppError::InvalidState {
-            current: segment.source_shot_id.clone(),
-            operation: format!("更新片段规划镜头 {source_shot_id} 的执行方案"),
-        });
-    }
-    let mut recipes = checkpoint_recipes(&checkpoint, &segments, style, &context)?;
-    recipe.segment_number = segment.segment_number;
-    recipe
-        .validate_for_plan(segment, style)
-        .map_err(AppError::InvalidArgument)?;
-    recipes[segment_index] = recipe;
-    validate_video_segment_recipes_for_plan(&recipes, &segments, style)
-        .map_err(AppError::InvalidArgument)?;
-    let artifacts = artifacts_with_recipes(checkpoint.artifacts_json.as_ref(), recipes, &context)?;
-    service
-        .update_workflow_checkpoint_artifacts(workflow_run_id, &step_key, artifacts)
-        .await?;
-    Ok(())
+    a4n_db::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
+        service.database.connection(),
+        workflow_run_id,
+        &step_key,
+        SEGMENT_PLAN_FINAL_CHECKPOINT_KEY,
+        move |parsed_output_json, artifacts_json| {
+            let segments = checkpoint_segment_plans(parsed_output_json, &context)
+                .map_err(draft_recipe_mutation_error)?;
+            let segment = segments.get(segment_index).ok_or_else(|| {
+                WorkflowWriteError::InvalidArgument(format!(
+                    "镜头 {source_shot_id} 不存在第 {segment_index_in_shot} 个片段"
+                ))
+            })?;
+            if segment.source_shot_id != source_shot_id {
+                return Err(WorkflowWriteError::StatusConflict {
+                    current: segment.source_shot_id.clone(),
+                    operation: format!("更新片段规划镜头 {source_shot_id} 的执行方案"),
+                });
+            }
+            let mut recipes = checkpoint_recipes(artifacts_json, &segments, style, &context)
+                .map_err(draft_recipe_mutation_error)?;
+            let mut recipe = recipe;
+            recipe.segment_number = segment.segment_number;
+            recipe
+                .validate_for_plan(segment, style)
+                .map_err(WorkflowWriteError::InvalidArgument)?;
+            recipes[segment_index] = recipe;
+            validate_video_segment_recipes_for_plan(&recipes, &segments, style)
+                .map_err(WorkflowWriteError::InvalidArgument)?;
+            artifacts_with_recipes(artifacts_json, recipes, &context)
+                .map_err(draft_recipe_mutation_error)
+        },
+    )
+    .await
+    .map_err(workflow_write_app_error)
 }
 
-pub(in crate::video) async fn load_video_segment_plan_draft_recipe_state(
-    service: &OrchestratorContext,
-    workflow_run_id: i64,
+pub(in crate::video) fn load_video_segment_plan_draft_recipe_state(
+    checkpoints: &[VideoSegmentPlanDraftCheckpoint],
     style: &str,
-) -> Result<(Vec<VideoSegmentPlan>, Vec<VideoSegmentExecutionRecipeV1>), AppError> {
-    let mut groups = service
-        .workflow_checkpoint_models(workflow_run_id)
-        .await?
-        .into_iter()
-        .filter(|checkpoint| {
-            checkpoint.status == WORKFLOW_STATUS_COMPLETED
-                && is_segment_plan_shot_checkpoint(&checkpoint.step_key)
-        })
+) -> Result<
+    (
+        Vec<VideoSegmentPlan>,
+        Vec<VideoSegmentExecutionRecipeV1>,
+        usize,
+        usize,
+    ),
+    AppError,
+> {
+    let mut groups = checkpoints
+        .iter()
         .map(|checkpoint| {
             let context = format!("片段规划 checkpoint {}", checkpoint.step_key);
             let shot_index = checkpoint
-                .input_fingerprint_json
+                .extra_json
                 .as_ref()
-                .and_then(|value| value.get("extra"))
                 .and_then(|value| value.get("shot_index"))
                 .and_then(Value::as_u64)
                 .and_then(|value| usize::try_from(value).ok())
@@ -206,15 +186,26 @@ pub(in crate::video) async fn load_video_segment_plan_draft_recipe_state(
                     current: "missing_shot_index".to_string(),
                     operation: format!("读取{context}"),
                 })?;
-            let segments = checkpoint_segment_plans(&checkpoint, &context)?;
-            let recipes = checkpoint_recipes(&checkpoint, &segments, style, &context)?;
-            Ok((
-                shot_index,
-                checkpoint.step_order,
-                checkpoint.id,
-                segments,
-                recipes,
-            ))
+            let total_shots = checkpoint
+                .extra_json
+                .as_ref()
+                .and_then(|value| value.get("total_shots"))
+                .and_then(Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok())
+                .filter(|value| *value > 0)
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "missing_total_shots".to_string(),
+                    operation: format!("读取{context}"),
+                })?;
+            let segments =
+                checkpoint_segment_plans(checkpoint.parsed_output_json.as_ref(), &context)?;
+            let recipes = checkpoint_recipes(
+                checkpoint.artifacts_json.as_ref(),
+                &segments,
+                style,
+                &context,
+            )?;
+            Ok((shot_index, total_shots, segments, recipes))
         })
         .collect::<Result<Vec<_>, AppError>>()?;
     if groups.is_empty() {
@@ -223,8 +214,33 @@ pub(in crate::video) async fn load_video_segment_plan_draft_recipe_state(
             operation: "读取片段规划草稿执行方案".to_string(),
         });
     }
+    let total_shot_count = groups[0].1;
+    if groups
+        .iter()
+        .any(|(_, total_shots, ..)| *total_shots != total_shot_count)
+    {
+        return Err(AppError::InvalidState {
+            current: "inconsistent_total_shots".to_string(),
+            operation: "读取片段规划草稿执行方案".to_string(),
+        });
+    }
+    if groups.len() > total_shot_count {
+        return Err(AppError::InvalidState {
+            current: format!(
+                "completed_shots_exceed_total:{}>{total_shot_count}",
+                groups.len()
+            ),
+            operation: "读取片段规划草稿执行方案".to_string(),
+        });
+    }
     let mut seen_shot_indexes = BTreeSet::new();
     for (shot_index, ..) in &groups {
+        if *shot_index > total_shot_count {
+            return Err(AppError::InvalidState {
+                current: format!("shot_index_exceeds_total:{shot_index}>{total_shot_count}"),
+                operation: "读取片段规划草稿执行方案".to_string(),
+            });
+        }
         if !seen_shot_indexes.insert(*shot_index) {
             return Err(AppError::InvalidState {
                 current: format!("duplicate_shot_index:{shot_index}"),
@@ -232,12 +248,12 @@ pub(in crate::video) async fn load_video_segment_plan_draft_recipe_state(
             });
         }
     }
-    groups.sort_by_key(|(shot_index, step_order, id, ..)| (*shot_index, *step_order, *id));
+    groups.sort_by_key(|(shot_index, ..)| *shot_index);
 
     let mut next_segment_number = 1i32;
     let mut segments = Vec::new();
     let mut recipes = Vec::new();
-    for (_, _, _, group_segments, group_recipes) in groups {
+    for (_, _, group_segments, group_recipes) in groups {
         for (mut segment, mut recipe) in group_segments.into_iter().zip(group_recipes) {
             segment.segment_number = next_segment_number;
             recipe.segment_number = next_segment_number;
@@ -250,7 +266,7 @@ pub(in crate::video) async fn load_video_segment_plan_draft_recipe_state(
     }
     validate_video_segment_recipes_for_plan(&recipes, &segments, style)
         .map_err(AppError::InvalidArgument)?;
-    Ok((segments, recipes))
+    Ok((segments, recipes, checkpoints.len(), total_shot_count))
 }
 
 pub(in crate::video) fn video_segment_recipes_from_draft_for_final_plan(
@@ -301,13 +317,10 @@ fn initial_recipes_for_segments(
 }
 
 fn checkpoint_segment_plans(
-    checkpoint: &a4n_core::models::generation::workflow_checkpoint::Model,
+    parsed_output_json: Option<&Value>,
     context: &str,
 ) -> Result<Vec<VideoSegmentPlan>, AppError> {
-    let values = checkpoint
-        .checkpoint_json
-        .as_ref()
-        .and_then(|value| value.get("parsed_output").or_else(|| value.get("output")))
+    let values = parsed_output_json
         .and_then(Value::as_array)
         .ok_or_else(|| AppError::InvalidState {
             current: "missing_validated_segments".to_string(),
@@ -334,14 +347,12 @@ fn segment_plans_from_values(
 }
 
 fn checkpoint_recipes(
-    checkpoint: &a4n_core::models::generation::workflow_checkpoint::Model,
+    artifacts_json: Option<&Value>,
     segments: &[VideoSegmentPlan],
     style: &str,
     context: &str,
 ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, AppError> {
-    let recipes = checkpoint
-        .artifacts_json
-        .as_ref()
+    let recipes = artifacts_json
         .and_then(Value::as_object)
         .and_then(|artifacts| artifacts.get(VIDEO_SEGMENT_RECIPES_METADATA_KEY))
         .cloned()
@@ -363,15 +374,10 @@ fn artifacts_with_recipes(
     recipes: Vec<VideoSegmentExecutionRecipeV1>,
     context: &str,
 ) -> Result<Value, AppError> {
-    let mut artifacts = match current {
-        Some(Value::Object(object)) => object.clone(),
-        Some(_) => {
-            return Err(AppError::InvalidArgument(format!(
-                "{context} artifacts_json 必须是对象"
-            )));
-        }
-        None => Map::new(),
-    };
+    let mut artifacts = current
+        .and_then(Value::as_object)
+        .cloned()
+        .ok_or_else(|| AppError::InvalidArgument(format!("{context} artifacts_json 必须是对象")))?;
     artifacts.insert(
         VIDEO_SEGMENT_RECIPES_METADATA_KEY.to_string(),
         serde_json::to_value(recipes)?,
@@ -379,11 +385,16 @@ fn artifacts_with_recipes(
     Ok(Value::Object(artifacts))
 }
 
-fn is_segment_plan_shot_checkpoint(step_key: &str) -> bool {
-    let Some(source_shot_id) = step_key.strip_prefix(SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX) else {
-        return false;
-    };
-    !source_shot_id.is_empty() && !source_shot_id.contains(':')
+fn draft_recipe_mutation_error(error: AppError) -> WorkflowWriteError {
+    match error {
+        AppError::InvalidArgument(message) => WorkflowWriteError::InvalidArgument(message),
+        AppError::InvalidState { current, operation } => {
+            WorkflowWriteError::StatusConflict { current, operation }
+        }
+        AppError::NotFound(message) => WorkflowWriteError::NotFound(message),
+        AppError::Database(error) => WorkflowWriteError::Database(error),
+        other => WorkflowWriteError::InvalidData(other.to_string()),
+    }
 }
 
 fn same_segment_anchor(left: &VideoSegmentPlan, right: &VideoSegmentPlan) -> bool {
@@ -445,6 +456,58 @@ mod tests {
             "reference_image_ids": []
         }))
         .unwrap()
+    }
+
+    fn draft_checkpoint(
+        shot_index: usize,
+        total_shots: usize,
+        segments: Vec<VideoSegmentPlan>,
+    ) -> VideoSegmentPlanDraftCheckpoint {
+        let recipes = default_video_segment_recipes(&segments, "电影感", "zh_cn").unwrap();
+        VideoSegmentPlanDraftCheckpoint {
+            step_key: format!("video_segment_plan.shot.shot-{shot_index}"),
+            extra_json: Some(json!({
+                "shot_index": shot_index,
+                "total_shots": total_shots,
+            })),
+            parsed_output_json: Some(serde_json::to_value(segments).unwrap()),
+            artifacts_json: Some(json!({
+                VIDEO_SEGMENT_RECIPES_METADATA_KEY: recipes,
+            })),
+        }
+    }
+
+    #[test]
+    fn draft_state_is_ordered_once_on_the_backend() {
+        let mut first = vec![segment("shot-1", 1), segment("shot-1", 2)];
+        first[0].segment_index_in_shot = 1;
+        first[0].shot_segment_count = 2;
+        first[1].segment_index_in_shot = 2;
+        first[1].shot_segment_count = 2;
+        let checkpoints = vec![
+            draft_checkpoint(2, 3, vec![segment("shot-2", 1)]),
+            draft_checkpoint(1, 3, first),
+        ];
+
+        let (segments, recipes, completed_shot_count, total_shot_count) =
+            load_video_segment_plan_draft_recipe_state(&checkpoints, "电影感").unwrap();
+
+        assert_eq!(
+            segments
+                .iter()
+                .map(|segment| segment.source_shot_id.as_str())
+                .collect::<Vec<_>>(),
+            ["shot-1", "shot-1", "shot-2"]
+        );
+        assert_eq!(
+            recipes
+                .iter()
+                .map(|recipe| recipe.segment_number)
+                .collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
+        assert_eq!(completed_shot_count, 2);
+        assert_eq!(total_shot_count, 3);
     }
 
     #[test]

@@ -127,26 +127,37 @@ fn existing_user_prompts_sync_failure_is_not_silently_ignored() {
 }
 
 #[test]
-fn contract_bound_sync_overwrites_stale_writing_prompt() {
+fn contract_bound_sync_overwrites_stale_backend_prompts() {
     let root = unique_temp_dir("contract_prompt_sync");
     let source_dir = root.join("bundled");
     let dest_dir = root.join("data").join("prompts");
-    let rel_path = Path::new("novel/04_writing/writing.md");
-    let source_path = source_dir.join(rel_path);
-    let dest_path = dest_dir.join(rel_path);
 
-    fs::create_dir_all(source_path.parent().expect("source parent")).expect("create source parent");
-    fs::create_dir_all(dest_path.parent().expect("dest parent")).expect("create dest parent");
-    fs::write(&source_path, "只返回章节正文纯文本").expect("write bundled writing prompt");
-    fs::write(&dest_path, "只返回 title summary full_content JSON")
-        .expect("write stale writing prompt");
+    let paths = [
+        "novel/04_writing/writing.md",
+        "novel/05_analysis/chapter_analysis_session.md",
+        "novel/05_analysis/scene_profile_sync_session.md",
+        "novel/07_protagonist/character_sync_session.md",
+        "novel/09_galgame/galgame_pipeline_session.md",
+    ];
+    for rel_path in paths {
+        let source_path = source_dir.join(rel_path);
+        let dest_path = dest_dir.join(rel_path);
+        fs::create_dir_all(source_path.parent().expect("source parent"))
+            .expect("create source parent");
+        fs::create_dir_all(dest_path.parent().expect("dest parent")).expect("create dest parent");
+        fs::write(&source_path, format!("current:{rel_path}"))
+            .expect("write bundled contract prompt");
+        fs::write(&dest_path, format!("stale:{rel_path}")).expect("write stale contract prompt");
+    }
 
     sync_contract_bound_prompts(&source_dir, &dest_dir).expect("sync contract prompts");
 
-    assert_eq!(
-        fs::read_to_string(&dest_path).expect("read synced writing prompt"),
-        "只返回章节正文纯文本"
-    );
+    for rel_path in paths {
+        assert_eq!(
+            fs::read_to_string(dest_dir.join(rel_path)).expect("read synced contract prompt"),
+            format!("current:{rel_path}")
+        );
+    }
     fs::remove_dir_all(&root).ok();
 }
 

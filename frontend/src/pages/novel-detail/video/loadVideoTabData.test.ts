@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   listVideoReferenceImages: vi.fn(),
   listEffectiveVideoConfigs: vi.fn(),
   listWorkflowRuns: vi.fn(),
-  loadVideoSegmentPlanDraft: vi.fn(),
+  loadVideoSegmentPlanDraftDetail: vi.fn(),
 }));
 
 vi.mock("../../../api/image", () => ({
@@ -23,7 +23,7 @@ vi.mock("../../../api/video", () => ({
   listChapterVideoPrompts: mocks.listChapterVideoPrompts,
   listVideosByChapter: mocks.listVideosByChapter,
   listEffectiveVideoConfigs: mocks.listEffectiveVideoConfigs,
-  loadVideoSegmentPlanDraft: mocks.loadVideoSegmentPlanDraft,
+  loadVideoSegmentPlanDraftDetail: mocks.loadVideoSegmentPlanDraftDetail,
 }));
 
 import {
@@ -80,19 +80,21 @@ describe("video tab loading", () => {
     });
 
     expect(mocks.listWorkflowRuns).not.toHaveBeenCalled();
-    expect(mocks.loadVideoSegmentPlanDraft).not.toHaveBeenCalled();
+    expect(mocks.loadVideoSegmentPlanDraftDetail).not.toHaveBeenCalled();
   });
 
   it("loads the newest workflow and restores each segment recipe independently", async () => {
-    mocks.listWorkflowRuns.mockResolvedValue([{
-      id: 8,
-      project_id: 19,
-      chapter_id: 3,
-      workflow_kind: "video_segment_plan",
-      status: "cancelled",
-      can_resume: true,
-    }]);
-    mocks.loadVideoSegmentPlanDraft.mockResolvedValue({
+    mocks.listWorkflowRuns.mockResolvedValue([
+      {
+        id: 8,
+        project_id: 19,
+        chapter_id: 3,
+        workflow_kind: "video_segment_plan",
+        status: "cancelled",
+        can_resume: true,
+      },
+    ]);
+    mocks.loadVideoSegmentPlanDraftDetail.mockResolvedValue({
       run: {
         id: 8,
         project_id: 19,
@@ -110,53 +112,40 @@ describe("video tab loading", () => {
           updated_at: "2026-07-29T00:00:00Z",
         },
       },
-      checkpoints: [{
-        id: 1,
-        workflow_run_id: 8,
-        step_key: "video_segment_plan.shot.unit_1_shot_1",
-        step_order: 200,
-        status: "completed",
-        input_fingerprint_json: { extra: { shot_index: 1, total_shots: 2 } },
-        checkpoint_json: { parsed_output: [
-          {
-            segment_number: 1,
-            source_shot_id: "unit_1_shot_1",
-            duration_secs: 10,
-            aspect_ratio: "9:16",
-          },
-          {
-            segment_number: 2,
-            source_shot_id: "unit_1_shot_1",
-            duration_secs: 10,
-            aspect_ratio: "9:16",
-          },
-        ] },
-        artifacts_json: { segment_recipes: [
-          {
-            schema_version: "video_segment_execution_recipe_v1",
-            segment_number: 1,
-            workflow_mode: "chat_video",
-          },
-          {
-            schema_version: "video_segment_execution_recipe_v1",
-            segment_number: 2,
-            workflow_mode: "storyboard",
-          },
-        ] },
-        generation_run_ids_json: null,
-        error_message: null,
-        created_at: "2026-07-29T00:00:00Z",
-        updated_at: "2026-07-29T00:00:00Z",
-        completed_at: "2026-07-29T00:00:00Z",
-      }],
-      generation_runs: [],
+      segments: [
+        {
+          segment_number: 1,
+          source_shot_id: "unit_1_shot_1",
+          duration_secs: 10,
+          aspect_ratio: "9:16",
+        },
+        {
+          segment_number: 2,
+          source_shot_id: "unit_1_shot_1",
+          duration_secs: 10,
+          aspect_ratio: "9:16",
+        },
+      ],
+      recipes: [
+        {
+          schema_version: "video_segment_execution_recipe_v1",
+          segment_number: 1,
+          workflow_mode: "chat_video",
+        },
+        {
+          schema_version: "video_segment_execution_recipe_v1",
+          segment_number: 2,
+          workflow_mode: "storyboard",
+        },
+      ],
+      completed_shot_count: 1,
+      total_shot_count: 2,
     });
 
     const loaded = await loadVideoSegmentPlanDraft(19, 3);
     expect(loaded).toMatchObject({
       workflowRunId: 8,
       workflowStatus: "cancelled",
-      resumable: true,
       completedShotCount: 1,
       totalShotCount: 2,
       resumeOptions: {
@@ -186,46 +175,71 @@ describe("video tab loading", () => {
       workflow_kind: "video_segment_plan",
       limit: 1,
     });
-    expect(mocks.loadVideoSegmentPlanDraft).toHaveBeenCalledWith(19, 3, 8);
+    expect(mocks.loadVideoSegmentPlanDraftDetail).toHaveBeenCalledWith(
+      19,
+      3,
+      8,
+    );
   });
 
-  it("reports a damaged newest draft instead of silently falling back to an older run", async () => {
-    mocks.listWorkflowRuns.mockResolvedValue([{ id: 10, status: "failed", can_resume: true }]);
-    mocks.loadVideoSegmentPlanDraft.mockResolvedValue({
-      run: {
-        id: 10,
+  it("does not load checkpoint detail for a completed segment plan", async () => {
+    mocks.listWorkflowRuns.mockResolvedValue([
+      {
+        id: 9,
+        project_id: 19,
+        chapter_id: 3,
+        workflow_kind: "video_segment_plan",
+        status: "completed",
+        can_resume: false,
+      },
+    ]);
+
+    await expect(loadVideoSegmentPlanDraft(19, 3)).resolves.toBeNull();
+    expect(mocks.loadVideoSegmentPlanDraftDetail).not.toHaveBeenCalled();
+  });
+
+  it("keeps a resumable workflow before its first shot checkpoint exists", async () => {
+    mocks.listWorkflowRuns.mockResolvedValue([
+      {
+        id: 12,
         project_id: 19,
         chapter_id: 3,
         workflow_kind: "video_segment_plan",
         status: "failed",
         can_resume: true,
       },
-      checkpoints: [{
-        id: 10,
-        workflow_run_id: 10,
-        step_key: "video_segment_plan.shot.unit_1_shot_1",
-        step_order: 200,
-        status: "completed",
-        input_fingerprint_json: { extra: { shot_index: 1, total_shots: 2 } },
-        checkpoint_json: { parsed_output: [] },
-        artifacts_json: null,
-        generation_run_ids_json: null,
-        error_message: null,
-        created_at: "2026-07-29T00:00:00Z",
-        updated_at: "2026-07-29T00:00:00Z",
-        completed_at: "2026-07-29T00:00:00Z",
-      }],
-      generation_runs: [],
+    ]);
+    mocks.loadVideoSegmentPlanDraftDetail.mockResolvedValue({
+      run: {
+        id: 12,
+        project_id: 19,
+        chapter_id: 3,
+        workflow_kind: "video_segment_plan",
+        status: "failed",
+        can_resume: true,
+        input_fingerprint_json: segmentPlanFingerprint(),
+        progress: null,
+      },
+      segments: [],
+      recipes: [],
+      completed_shot_count: 0,
+      total_shot_count: 0,
     });
 
-    await expect(loadVideoSegmentPlanDraft(19, 3)).rejects.toThrow(
-      "缺少已校验 segments",
-    );
+    await expect(loadVideoSegmentPlanDraft(19, 3)).resolves.toMatchObject({
+      workflowRunId: 12,
+      workflowStatus: "failed",
+      completedShotCount: 0,
+      totalShotCount: 0,
+      segments: [],
+    });
   });
 
   it("rejects damaged resume options instead of using current form defaults", async () => {
-    mocks.listWorkflowRuns.mockResolvedValue([{ id: 11, status: "cancelled", can_resume: true }]);
-    mocks.loadVideoSegmentPlanDraft.mockResolvedValue({
+    mocks.listWorkflowRuns.mockResolvedValue([
+      { id: 11, status: "cancelled", can_resume: true },
+    ]);
+    mocks.loadVideoSegmentPlanDraftDetail.mockResolvedValue({
       run: {
         id: 11,
         project_id: 19,
@@ -233,34 +247,28 @@ describe("video tab loading", () => {
         workflow_kind: "video_segment_plan",
         status: "cancelled",
         can_resume: true,
-        input_fingerprint_json: segmentPlanFingerprint({ duration_secs_options: [10, 6] }),
+        input_fingerprint_json: segmentPlanFingerprint({
+          duration_secs_options: [10, 6],
+        }),
         progress: null,
       },
-      checkpoints: [{
-        id: 11,
-        workflow_run_id: 11,
-        step_key: "video_segment_plan.shot.unit_1_shot_1",
-        step_order: 200,
-        status: "completed",
-        input_fingerprint_json: { extra: { shot_index: 1, total_shots: 2 } },
-        checkpoint_json: { parsed_output: [{
+      segments: [
+        {
           segment_number: 1,
           source_shot_id: "unit_1_shot_1",
           duration_secs: 10,
           aspect_ratio: "9:16",
-        }] },
-        artifacts_json: { segment_recipes: [{
+        },
+      ],
+      recipes: [
+        {
           schema_version: "video_segment_execution_recipe_v1",
           segment_number: 1,
           workflow_mode: "chat_video",
-        }] },
-        generation_run_ids_json: null,
-        error_message: null,
-        created_at: "2026-07-29T00:00:00Z",
-        updated_at: "2026-07-29T00:00:00Z",
-        completed_at: "2026-07-29T00:00:00Z",
-      }],
-      generation_runs: [],
+        },
+      ],
+      completed_shot_count: 1,
+      total_shot_count: 2,
     });
 
     await expect(loadVideoSegmentPlanDraft(19, 3)).rejects.toThrow(
@@ -270,7 +278,11 @@ describe("video tab loading", () => {
 
   it("matches the active segment-plan task by canonical target", () => {
     const targetId = videoSegmentPlanGenerationTargetId(19, 3);
-    const summary = (taskId: string, updatedAt: number, target: string): GenerationTaskSummary => ({
+    const summary = (
+      taskId: string,
+      updatedAt: number,
+      target: string,
+    ): GenerationTaskSummary => ({
       handle: {
         event_schema_version: 1,
         task_id: taskId,
@@ -284,7 +296,11 @@ describe("video tab loading", () => {
         root_project_id: null,
         workflow_run_id: null,
         generation_run_id: null,
-        target: { kind: "video_prompt_segment_plan", id: target, revision: null },
+        target: {
+          kind: "video_prompt_segment_plan",
+          id: target,
+          revision: null,
+        },
         batch_policy: "best_effort",
         root_task_id: taskId,
         parent_task_id: null,
@@ -298,11 +314,15 @@ describe("video tab loading", () => {
     });
 
     expect(
-      activeVideoSegmentPlanTask([
-        summary("old", 1, targetId),
-        summary("other", 3, videoSegmentPlanGenerationTargetId(19, 4)),
-        summary("current", 2, targetId),
-      ], 19, 3)?.handle.task_id,
+      activeVideoSegmentPlanTask(
+        [
+          summary("old", 1, targetId),
+          summary("other", 3, videoSegmentPlanGenerationTargetId(19, 4)),
+          summary("current", 2, targetId),
+        ],
+        19,
+        3,
+      )?.handle.task_id,
     ).toBe("current");
   });
 });

@@ -10,8 +10,8 @@ use crate::video::prompt_generation::frame_prompts::{
     SHARED_SEGMENT_PLAN_PROMPT_TYPE, SHARED_SEGMENT_PLAN_TITLE, VideoPromptChunk,
     VideoPromptProgress, ensure_existing_segment_plans_can_regenerate,
     ensure_no_existing_segment_plan_before_new_planning, ensure_segment_plan_generation_can_start,
-    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_recipe_state,
-    materialize_video_segment_plan_draft_recipes, report_video_prompt_progress,
+    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_checkpoints,
+    load_video_segment_plan_draft_recipe_state, report_video_prompt_progress,
     reusable_shared_segment_plan, video_segment_recipes_from_draft_for_final_plan,
 };
 use crate::video::prompt_store::{
@@ -160,19 +160,10 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
         let workflow_run_id = workflow_run_id.ok_or_else(|| {
             AppError::InvalidArgument("视频片段规划缺少 workflow_run_id".to_string())
         })?;
-        let previous_recipe_refs = previous_recipe_state
-            .as_ref()
-            .map(|(segments, recipes)| (segments.as_slice(), recipes.as_slice()));
-        materialize_video_segment_plan_draft_recipes(
-            service,
-            workflow_run_id,
-            &style,
-            prompt_output_language.as_str(),
-            previous_recipe_refs,
-        )
-        .await?;
-        let (draft_segments, draft_recipes) =
-            load_video_segment_plan_draft_recipe_state(service, workflow_run_id, &style).await?;
+        let draft_checkpoints =
+            load_video_segment_plan_draft_checkpoints(service, workflow_run_id).await?;
+        let (draft_segments, draft_recipes, _, _) =
+            load_video_segment_plan_draft_recipe_state(&draft_checkpoints, &style)?;
         let segment_recipes = video_segment_recipes_from_draft_for_final_plan(
             &draft_segments,
             &draft_recipes,

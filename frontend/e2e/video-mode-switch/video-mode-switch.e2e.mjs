@@ -1,75 +1,134 @@
 import assert from "node:assert/strict";
 
-const segmentHeaderText = (segmentNumber) => browser.execute((target) => {
-  const marker = [...document.querySelectorAll("span")]
-    .find((element) => element.textContent?.trim() === `片段 ${target}`);
-  return marker?.closest("button")?.innerText ?? "";
-}, segmentNumber);
+const segmentHeaderText = (segmentNumber) =>
+  browser.execute((target) => {
+    const button = [
+      ...document.querySelectorAll("button[data-video-segment]"),
+    ].find(
+      (element) =>
+        element.getAttribute("data-video-segment") === String(target) &&
+        !element.closest('[role="dialog"]'),
+    );
+    return button?.innerText ?? "";
+  }, segmentNumber);
 
-const persistedSnapshots = () => browser.execute(() =>
-  window.__A4N_VIDEO_MODE_E2E__.calls
-    .filter((call) => call.command === "persisted_recipe_snapshot")
-    .map(({ target, modes }) => ({ target, modes })),
-);
+const pageSegmentButton = (segmentNumber) =>
+  $(
+    `//button[@data-video-segment="${segmentNumber}" and not(ancestor::*[@role="dialog"])]`,
+  );
 
-const segmentPlanStarts = () => browser.execute(() =>
-  window.__A4N_VIDEO_MODE_E2E__.calls
-    .filter((call) => call.command === "start_video_generation")
-    .map((call) => call.args.input.operation.options),
-);
+const segmentConfigDialog = (segmentNumber) =>
+  $(
+    `//div[@role="dialog" and .//h3[normalize-space()="片段 ${segmentNumber} · 配置"]]`,
+  );
 
-const recipeUpdates = () => browser.execute(() =>
-  window.__A4N_VIDEO_MODE_E2E__.calls
-    .filter((call) => call.command === "update_chapter_video_prompt")
-    .map((call) => call.args.input.segment_recipe),
-);
+const openSegmentConfig = async (segmentNumber) => {
+  const button = await pageSegmentButton(segmentNumber);
+  await button.waitForClickable();
+  if ((await button.getAttribute("aria-current")) !== "true") {
+    await button.click();
+    await browser.waitUntil(
+      async () => (await button.getAttribute("aria-current")) === "true",
+    );
+  }
+  await button.click();
+  const dialog = await segmentConfigDialog(segmentNumber);
+  await dialog.waitForExist();
+  const group = await dialog.$(`[aria-label="片段 ${segmentNumber} 生成方案"]`);
+  await group.waitForExist();
+  return { button, dialog, group };
+};
 
-const selectSegmentVideoCalls = () => browser.execute(() =>
-  window.__A4N_VIDEO_MODE_E2E__.calls
-    .filter((call) => call.command === "select_segment_video")
-    .map((call) => ({
-      videoId: call.args.videoId,
-      segmentPlanPromptId: call.args.input.segment_plan_prompt_id,
-      shotNumber: call.args.input.shot_number,
-    })),
-);
+const closeSegmentConfig = async (segmentNumber) => {
+  const dialog = await segmentConfigDialog(segmentNumber);
+  const close = await dialog.$('button[aria-label="关闭弹窗"]');
+  await close.waitForClickable();
+  await close.click();
+  await dialog.waitForExist({ reverse: true });
+};
 
-const adoptionSnapshots = () => browser.execute(() =>
-  window.__A4N_VIDEO_MODE_E2E__.calls
-    .filter((call) => call.command === "persisted_adoption_snapshot")
-    .map(({ videoId, adopted }) => ({ videoId, adopted })),
-);
+const persistedSnapshots = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "persisted_recipe_snapshot")
+      .map(({ target, modes }) => ({ target, modes })),
+  );
 
-const assembleChapterVideoCalls = () => browser.execute(() =>
-  window.__A4N_VIDEO_MODE_E2E__.calls
-    .filter((call) => call.command === "assemble_chapter_videos")
-    .map((call) => ({
-      projectId: call.args.projectId,
-      chapterId: call.args.chapterId,
-      workflowMode: call.args.workflowMode,
-    })),
-);
+const segmentPlanStarts = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "start_video_generation")
+      .map((call) => call.args.input.operation.options),
+  );
+
+const recipeUpdates = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "update_chapter_video_segment_recipe")
+      .map((call) => call.args.recipe),
+  );
+
+const draftRecipeUpdates = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "persisted_draft_recipe_snapshot")
+      .map((call) => call.mode),
+  );
+
+const selectSegmentVideoCalls = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "select_segment_video")
+      .map((call) => ({
+        videoId: call.args.videoId,
+        segmentPlanPromptId: call.args.input.segment_plan_prompt_id,
+        shotNumber: call.args.input.shot_number,
+      })),
+  );
+
+const adoptionSnapshots = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "persisted_adoption_snapshot")
+      .map(({ videoId, adopted }) => ({ videoId, adopted })),
+  );
+
+const assembleChapterVideoCalls = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "assemble_chapter_videos")
+      .map((call) => ({
+        projectId: call.args.projectId,
+        chapterId: call.args.chapterId,
+        workflowMode: call.args.workflowMode,
+      })),
+  );
 
 describe("video segment mode switching in Chromium", () => {
   it("persists only the clicked segment recipe", async () => {
     await browser.url("/e2e/video-mode-switch/");
 
-    const firstGroup = await $('[aria-label="片段 1 生成方案"]');
-    await firstGroup.waitForExist();
+    assert.equal(await $('[aria-label="片段 1 生成方案"]').isExisting(), false);
+    const results = await $('//section[@aria-label="视频结果"]');
+    await results.waitForExist();
+    assert.match(await results.getText(), /还没有生成视频/);
     assert.match(await segmentHeaderText(1), /首尾帧生成/);
     assert.match(await segmentHeaderText(2), /分镜生成/);
 
+    const { group: firstGroup } = await openSegmentConfig(1);
     await firstGroup.$('.//button[normalize-space()="Chat"]').click();
-    await browser.waitUntil(async () => (await persistedSnapshots()).length === 1);
+    await browser.waitUntil(
+      async () => (await persistedSnapshots()).length === 1,
+    );
     assert.match(await segmentHeaderText(1), /Chat 生视频/);
     assert.match(await segmentHeaderText(2), /分镜生成/);
 
-    const secondHeader = await $('//span[normalize-space()="片段 2"]/ancestor::button[1]');
-    await secondHeader.click();
-    const secondGroup = await $('[aria-label="片段 2 生成方案"]');
-    await secondGroup.waitForExist();
+    await closeSegmentConfig(1);
+    const { group: secondGroup } = await openSegmentConfig(2);
     await secondGroup.$('.//button[normalize-space()="首尾帧"]').click();
-    await browser.waitUntil(async () => (await persistedSnapshots()).length === 2);
+    await browser.waitUntil(
+      async () => (await persistedSnapshots()).length === 2,
+    );
 
     assert.match(await segmentHeaderText(1), /Chat 生视频/);
     assert.match(await segmentHeaderText(2), /首尾帧生成/);
@@ -79,10 +138,373 @@ describe("video segment mode switching in Chromium", () => {
     ]);
   });
 
+  it("saves different segments independently instead of blocking on one global queue", async () => {
+    await browser.url("/e2e/video-mode-switch/?scenario=parallel-recipe-saves");
+
+    const { group: firstGroup } = await openSegmentConfig(1);
+    await firstGroup.$('.//button[normalize-space()="Chat"]').click();
+    assert.match(await segmentHeaderText(1), /Chat 生视频/);
+
+    await closeSegmentConfig(1);
+    const { group: secondGroup } = await openSegmentConfig(2);
+    await secondGroup.$('.//button[normalize-space()="首尾帧"]').click();
+
+    await browser.waitUntil(
+      async () => (await persistedSnapshots()).length === 2,
+    );
+    assert.deepEqual(await persistedSnapshots(), [
+      { target: 2, modes: { 1: "boundary_frames", 2: "boundary_frames" } },
+      { target: 1, modes: { 1: "chat_video", 2: "boundary_frames" } },
+    ]);
+    assert.match(await segmentHeaderText(1), /Chat 生视频/);
+    assert.match(await segmentHeaderText(2), /首尾帧生成/);
+  });
+
+  it("closes only the top modal and restores focus through the modal stack", async () => {
+    await browser.url("/e2e/video-mode-switch/");
+
+    const { dialog } = await openSegmentConfig(1);
+    const referenceTrigger = await dialog.$(
+      'button[aria-label="添加参考图或素材"]',
+    );
+    await referenceTrigger.waitForClickable();
+    await referenceTrigger.click();
+
+    const materialDialog = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="添加参考图 / 素材"]]',
+    );
+    await materialDialog.waitForExist();
+    assert.equal(
+      await browser.execute(() => document.body.style.overflow),
+      "hidden",
+    );
+
+    await browser.keys(["Escape"]);
+    await materialDialog.waitForExist({ reverse: true });
+    await dialog.waitForExist();
+    assert.equal(
+      await browser.execute(() => document.body.style.overflow),
+      "hidden",
+    );
+    assert.match(
+      await browser.execute(() => document.activeElement?.textContent ?? ""),
+      /添加第一张|继续添加/,
+    );
+
+    await browser.keys(["Escape"]);
+    await dialog.waitForExist({ reverse: true });
+    await browser.waitUntil(
+      async () =>
+        (await browser.execute(() => document.body.style.overflow)) !==
+        "hidden",
+    );
+    await browser.waitUntil(
+      async () =>
+        (await browser.execute(() =>
+          document.activeElement?.getAttribute("data-video-segment"),
+        )) === "1",
+    );
+    assert.equal((await recipeUpdates()).length, 0);
+  });
+
+  it("shows required mode inputs as clickable slots", async () => {
+    await browser.url("/e2e/video-mode-switch/");
+
+    const { dialog } = await openSegmentConfig(1);
+    assert.match(await dialog.getText(), /必需输入/);
+    assert.equal(
+      await dialog.$('button[aria-label="配置首帧"]').isExisting(),
+      true,
+    );
+    assert.equal(
+      await dialog.$('button[aria-label="配置尾帧"]').isExisting(),
+      true,
+    );
+    assert.equal(
+      await dialog.$('button[aria-label="添加参考图或素材"]').isExisting(),
+      true,
+    );
+
+    const firstFrame = await dialog.$('button[aria-label="配置首帧"]');
+    await firstFrame.click();
+    const frameDialog = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="首帧配置"]]',
+    );
+    await frameDialog.waitForExist();
+    await frameDialog
+      .$('.//button[contains(normalize-space(), "准备首帧提示词")]')
+      .waitForExist();
+    await browser.keys(["Escape"]);
+    await frameDialog.waitForExist({ reverse: true });
+    await dialog.waitForExist();
+
+    const referenceTrigger = await dialog.$(
+      'button[aria-label="添加参考图或素材"]',
+    );
+    await referenceTrigger.click();
+    const materialDialog = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="添加参考图 / 素材"]]',
+    );
+    await materialDialog.waitForExist();
+    await materialDialog.$('.//button[normalize-space()="生成参考"]').click();
+    await browser.waitUntil(
+      async () => (await persistedSnapshots()).length === 1,
+    );
+    const closeMaterialDialog = await materialDialog.$(
+      'button[aria-label="关闭弹窗"]',
+    );
+    await closeMaterialDialog.waitForClickable();
+    await closeMaterialDialog.click();
+    await materialDialog.waitForExist({ reverse: true });
+    const updatedDialog = await segmentConfigDialog(1);
+    await updatedDialog
+      .$('button[aria-label="管理参考素材 701"]')
+      .waitForExist();
+    await updatedDialog
+      .$('button[aria-label="添加参考图或素材"]')
+      .waitForExist();
+  });
+
+  it("shows generated storyboard assets after fingerprint verification", async () => {
+    await browser.url("/e2e/video-mode-switch/?scenario=storyboard-assets");
+    const { dialog } = await openSegmentConfig(2);
+    await browser.waitUntil(async () =>
+      (await dialog.getText()).includes("输入已就绪"),
+    );
+    assert.doesNotMatch(await dialog.getText(), /请先准备当前片段的分镜提示词/);
+    assert.match(
+      await dialog.$('button[aria-label="配置分镜板"]').getText(),
+      /已填充.*片段二分镜板/s,
+    );
+    assert.equal(
+      await dialog
+        .$('button[aria-label="配置分镜板"] img[alt="分镜板"]')
+        .isExisting(),
+      true,
+    );
+  });
+
+  it("confirms dirty prompt edits before closing and discards them only after confirmation", async () => {
+    await browser.url("/e2e/video-mode-switch/?scenario=stale-plan-adoption");
+
+    const { dialog } = await openSegmentConfig(1);
+    const prompt = await dialog.$(
+      './/label[.//span[normalize-space()="Chat 视频提示词"]]//textarea',
+    );
+    await prompt.waitForExist();
+    await prompt.setValue("尚未保存的提示词修改");
+    await browser.waitUntil(async () =>
+      (await dialog.getText()).includes("有未保存更改"),
+    );
+
+    await browser.keys(["Escape"]);
+    let confirm = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="放弃未保存的提示词编辑"]]',
+    );
+    await confirm.waitForExist();
+
+    await browser.keys(["Escape"]);
+    await confirm.waitForExist({ reverse: true });
+    await dialog.waitForExist();
+    assert.equal(await prompt.getValue(), "尚未保存的提示词修改");
+
+    await browser.keys(["Escape"]);
+    confirm = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="放弃未保存的提示词编辑"]]',
+    );
+    await confirm.waitForExist();
+    const discard = await confirm.$(
+      './/button[normalize-space()="放弃并关闭"]',
+    );
+    await discard.click();
+    await dialog.waitForExist({ reverse: true });
+
+    const reopened = await openSegmentConfig(1);
+    const reopenedPrompt = await reopened.dialog.$(
+      './/label[.//span[normalize-space()="Chat 视频提示词"]]//textarea',
+    );
+    await reopenedPrompt.waitForExist();
+    assert.equal(await reopenedPrompt.getValue(), "最终提示词");
+    await closeSegmentConfig(1);
+  });
+
+  it("saves dirty reference-media settings before closing without duplicating results", async () => {
+    await browser.url(
+      "/e2e/video-mode-switch/?scenario=reference-media-layout",
+    );
+
+    const pageResults = await $$('//section[@aria-label="视频结果"]');
+    assert.equal(pageResults.length, 1);
+    const { dialog } = await openSegmentConfig(1);
+    const referenceWorkspace = await dialog.$(
+      './/section[@aria-label="参考媒体生成设置"]',
+    );
+    await referenceWorkspace.waitForExist();
+    assert.equal((await dialog.$$('section[aria-label="视频结果"]')).length, 0);
+
+    const prompt = await referenceWorkspace.$(
+      'textarea[placeholder*="整体画面"]',
+    );
+    const savedPrompt = "参考媒体关闭前保存测试".repeat(10);
+    await prompt.setValue(savedPrompt);
+    await closeSegmentConfig(1);
+    await browser.waitUntil(async () => (await recipeUpdates()).length === 1);
+    const [updatedRecipe] = await recipeUpdates();
+    assert.equal(updatedRecipe.segment_number, 1);
+    assert.equal(updatedRecipe.reference_media.prompt, savedPrompt);
+    assert.equal((await $$('//section[@aria-label="视频结果"]')).length, 1);
+  });
+
+  it("shows an adopted reference-media video without a final prompt", async () => {
+    await browser.url(
+      "/e2e/video-mode-switch/?scenario=reference-media-adopted-video",
+    );
+    const results = await $('//section[@aria-label="视频结果"]');
+    await results.waitForExist();
+    await browser.execute(() =>
+      window.__A4N_VIDEO_MODE_E2E__.publishReferenceMediaVideo(),
+    );
+    const second = await pageSegmentButton(2);
+    await second.click();
+    await browser.waitUntil(
+      async () => await results.$('[data-video-preview-id="709"]').isExisting(),
+    );
+  });
+
+  it("keeps the current reference-media segment open when draft saving fails", async () => {
+    await browser.url(
+      "/e2e/video-mode-switch/?scenario=reference-media-save-failure",
+    );
+
+    const { dialog } = await openSegmentConfig(1);
+    const prompt = await dialog.$(
+      './/section[@aria-label="参考媒体生成设置"]//textarea[@placeholder and contains(@placeholder, "整体画面")]',
+    );
+    await prompt.setValue("这个草稿必须在切换片段前保存".repeat(8));
+
+    await browser.execute(() => {
+      const target = [
+        ...document.querySelectorAll('button[data-video-segment="2"]'),
+      ].find((button) => !button.closest('[role="dialog"]'));
+      target?.click();
+    });
+    await browser.waitUntil(async () => (await recipeUpdates()).length >= 1);
+    await dialog.waitForExist();
+    assert.equal(await segmentConfigDialog(2).isExisting(), false);
+    assert.equal(
+      await pageSegmentButton(1).getAttribute("aria-current"),
+      "true",
+    );
+    assert.match(await $("body").getText(), /参考媒体草稿保存失败测试/);
+  });
+
+  it("selects a segment first, follows its adopted video, and opens config on the second click", async () => {
+    await browser.url("/e2e/video-mode-switch/?scenario=segment-selection");
+
+    const results = await $('//section[@aria-label="视频结果"]');
+    await results.waitForExist();
+    await browser.waitUntil(
+      async () => await results.$('[data-video-preview-id="701"]').isExisting(),
+    );
+    assert.doesNotMatch(
+      await results.getText(),
+      /片段 1 普通候选视频|成片记录/,
+    );
+
+    const second = await pageSegmentButton(2);
+    await second.click();
+    await browser.waitUntil(
+      async () => (await second.getAttribute("aria-current")) === "true",
+    );
+    assert.equal(await segmentConfigDialog(2).isExisting(), false);
+    await browser.waitUntil(
+      async () => await results.$('[data-video-preview-id="704"]').isExisting(),
+    );
+    assert.doesNotMatch(
+      await results.getText(),
+      /片段 2 普通候选视频|成片记录/,
+    );
+
+    await second.click();
+    await segmentConfigDialog(2).waitForExist();
+  });
+
+  it("places compact segment controls above the full-width workspace", async () => {
+    await browser.url("/e2e/video-mode-switch/");
+    const { dialog } = await openSegmentConfig(1);
+    const layout = await browser.execute(() => {
+      const modal = [...document.querySelectorAll('[role="dialog"]')].find(
+        (node) =>
+          node.querySelector("h3")?.textContent?.includes("片段 1 · 配置"),
+      );
+      const setup = modal?.querySelector('[aria-label="片段配置选项"]');
+      const workspace = modal?.querySelector('[aria-label="片段生成工作区"]');
+      const setupRect = setup?.getBoundingClientRect();
+      const workspaceRect = workspace?.getBoundingClientRect();
+      return {
+        setupTag: setup?.tagName ?? "",
+        setupLeft: setupRect?.left ?? 0,
+        setupRight: setupRect?.right ?? 0,
+        setupBottom: setupRect?.bottom ?? 0,
+        workspaceLeft: workspaceRect?.left ?? 0,
+        workspaceRight: workspaceRect?.right ?? 0,
+        workspaceTop: workspaceRect?.top ?? 0,
+      };
+    });
+    assert.equal(layout.setupTag, "SECTION");
+    assert.ok(Math.abs(layout.setupLeft - layout.workspaceLeft) <= 1);
+    assert.ok(Math.abs(layout.setupRight - layout.workspaceRight) <= 1);
+    assert.ok(layout.setupBottom <= layout.workspaceTop + 1);
+    await dialog.$('button[aria-label="关闭弹窗"]').click();
+    await dialog.waitForExist({ reverse: true });
+  });
+
+  it("uses a single-column bottom workspace on a mobile viewport", async () => {
+    await browser.setWindowSize(390, 844);
+    try {
+      await browser.url("/e2e/video-mode-switch/");
+      const mobileTabs = await $('[aria-label="视频生成移动工作区"]');
+      await mobileTabs.waitForExist();
+      assert.match(await mobileTabs.getText(), /片段/);
+      assert.match(await mobileTabs.getText(), /视频/);
+
+      const { dialog } = await openSegmentConfig(1);
+      const layout = await browser.execute(() => {
+        const modal = [...document.querySelectorAll('[role="dialog"]')].find(
+          (node) =>
+            node.querySelector("h3")?.textContent?.includes("片段 1 · 配置"),
+        );
+        const setup = modal?.querySelector('[aria-label="片段配置选项"]');
+        const workspace = modal?.querySelector('[aria-label="片段生成工作区"]');
+        const modalRect = modal?.getBoundingClientRect();
+        const setupRect = setup?.getBoundingClientRect();
+        const workspaceRect = workspace?.getBoundingClientRect();
+        return {
+          viewportHeight: window.innerHeight,
+          width: modalRect?.width ?? 0,
+          height: modalRect?.height ?? 0,
+          bottom: modalRect?.bottom ?? 0,
+          setupBottom: setupRect?.bottom ?? 0,
+          workspaceTop: workspaceRect?.top ?? 0,
+        };
+      });
+      assert.ok(layout.width >= 380 && layout.width <= 390);
+      assert.ok(layout.height >= layout.viewportHeight - 20);
+      assert.ok(layout.bottom >= layout.viewportHeight - 1);
+      assert.ok(layout.setupBottom <= layout.workspaceTop + 1);
+      await dialog.$('button[aria-label="关闭弹窗"]').click();
+      await dialog.waitForExist({ reverse: true });
+    } finally {
+      await browser.setWindowSize(1440, 1000);
+    }
+  });
+
   it("retains a saved segment after cancellation and resumes from the next shot", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=cancel-resume");
 
-    const generate = await $('//button[contains(normalize-space(), "生成片段规划")]');
+    const generate = await $(
+      '//button[contains(normalize-space(), "生成片段规划")]',
+    );
     await generate.waitForEnabled();
     await generate.click();
 
@@ -96,26 +518,52 @@ describe("video segment mode switching in Chromium", () => {
     await close.waitForClickable();
     await close.click();
 
-    const resume = await $('//button[contains(normalize-space(), "继续生成")]');
+    let resume = await $('//button[contains(normalize-space(), "继续生成")]');
     await resume.waitForEnabled();
     assert.match(await $("body").getText(), /50%.*已保存镜头 1.*1\/2 个镜头/s);
-    assert.equal(await savedSegment.isExisting(), true);
+    assert.equal(await $('//*[normalize-space()="片段 1"]').isExisting(), true);
+
+    const videoTab = await $(
+      '//button[@role="tab" and normalize-space()="片段生成"]',
+    );
+    await videoTab.click();
+    const { group: firstGroup } = await openSegmentConfig(1);
+    await firstGroup.$('.//button[normalize-space()="分镜"]').click();
+    await browser.waitUntil(
+      async () => (await draftRecipeUpdates()).length === 1,
+    );
+    assert.deepEqual(await draftRecipeUpdates(), ["storyboard"]);
+    assert.match(await segmentHeaderText(1), /分镜生成/);
+    await closeSegmentConfig(1);
+
+    const planningTab = await $(
+      '//button[@role="tab" and normalize-space()="片段规划"]',
+    );
+    await planningTab.click();
+    resume = await $('//button[contains(normalize-space(), "继续生成")]');
+    await resume.waitForExist();
 
     const startsBeforeResume = await segmentPlanStarts();
     assert.equal(startsBeforeResume.length, 1);
     const originalOptions = startsBeforeResume[0];
 
-    const configuration = await $('//summary[contains(normalize-space(), "规划配置")]');
+    const configuration = await $(
+      '//summary[contains(normalize-space(), "规划配置")]',
+    );
     await configuration.click();
     const style = await $('textarea[placeholder*="整体风格"]');
     await style.setValue("不应进入恢复请求的当前表单风格");
     await resume.click();
 
-    await browser.waitUntil(async () => (await segmentPlanStarts()).length === 2);
+    await browser.waitUntil(
+      async () => (await segmentPlanStarts()).length === 2,
+    );
     const startsAfterResume = await segmentPlanStarts();
     assert.deepEqual(startsAfterResume[1], originalOptions);
     assert.notEqual(startsAfterResume[1].style, await style.getValue());
-    await browser.waitUntil(async () => (await $("body").getText()).includes("正在生成镜头 2"));
+    await browser.waitUntil(async () =>
+      (await $("body").getText()).includes("正在生成镜头 2"),
+    );
 
     const stopResumed = await $('//button[normalize-space()="停止生成"]');
     await stopResumed.waitForClickable();
@@ -123,21 +571,17 @@ describe("video segment mode switching in Chromium", () => {
     const closeResumed = await $('//button[normalize-space()="关闭"]');
     await closeResumed.waitForClickable();
     await closeResumed.click();
+    resume = await $('//button[contains(normalize-space(), "继续生成")]');
     await resume.waitForEnabled();
-    assert.equal(await savedSegment.isExisting(), true);
+    assert.equal(await $('//*[normalize-space()="片段 1"]').isExisting(), true);
   });
 
   it("continues a boundary-frame segment with a later first-frame-chain segment", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=cross-mode-continuity");
 
-    const firstGroup = await $('[aria-label="片段 1 生成方案"]');
-    await firstGroup.waitForExist();
     assert.match(await segmentHeaderText(1), /首尾帧生成/);
 
-    const secondHeader = await $('//span[normalize-space()="片段 2"]/ancestor::button[1]');
-    await secondHeader.click();
-    const secondGroup = await $('[aria-label="片段 2 生成方案"]');
-    await secondGroup.waitForExist();
+    const { dialog, group: secondGroup } = await openSegmentConfig(2);
     await secondGroup.$('.//button[normalize-space()="首帧续接"]').click();
 
     await browser.waitUntil(async () => (await recipeUpdates()).length === 1);
@@ -145,27 +589,39 @@ describe("video segment mode switching in Chromium", () => {
     assert.equal(updatedRecipe.segment_number, 2);
     assert.equal(updatedRecipe.workflow_mode, "first_frame_chain");
     assert.equal(updatedRecipe.guidance_mode, "continuity");
-    assert.equal(updatedRecipe.continuity_source_video_id, 501);
+    assert.equal(updatedRecipe.continuity_source_video_id, null);
     assert.match(await segmentHeaderText(1), /首尾帧生成/);
     assert.match(await segmentHeaderText(2), /首帧生成/);
 
-    const guidance = await $('[aria-label="片段 2 媒体引导"]');
-    await guidance.waitForExist();
-    assert.equal(
-      await guidance.$('.//button[@data-active="1"]').getText(),
-      "续接视频",
+    const continuitySlot = await dialog.$('button[aria-label="配置续接首帧"]');
+    await continuitySlot.waitForClickable();
+    await continuitySlot.click();
+    const continuityDialog = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="续接首帧配置"]]',
     );
-    const source = await $('//select[option[contains(normalize-space(), "视频 #501")]]');
+    await continuityDialog.waitForExist();
+    const source = await continuityDialog.$("select");
     await source.waitForExist();
-    assert.equal(await source.getValue(), "501");
+    assert.equal(await source.getValue(), "");
+    await source.waitForEnabled();
+    await source.selectByAttribute("value", "501");
+    await browser.waitUntil(async () => (await recipeUpdates()).length === 2);
+    const [, sourceRecipe] = await recipeUpdates();
+    assert.equal(sourceRecipe.continuity_source_video_id, 501);
   });
 
   it("keeps old-plan videos out of candidates and only adopts the current plan video", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=stale-plan-adoption");
 
-    const firstGroup = await $('[aria-label="片段 1 生成方案"]');
-    await firstGroup.waitForExist();
+    const { group: firstGroup } = await openSegmentConfig(1);
     assert.match(await segmentHeaderText(1), /Chat 生视频/);
+    assert.equal(
+      await firstGroup
+        .$('.//button[@data-active="1" and normalize-space()="Chat"]')
+        .isExisting(),
+      true,
+    );
+    await closeSegmentConfig(1);
 
     const results = await $('//section[@aria-label="视频结果"]');
     await results.waitForExist();
@@ -181,7 +637,9 @@ describe("video segment mode switching in Chromium", () => {
     await adopt.waitForClickable();
     await adopt.click();
 
-    await browser.waitUntil(async () => (await selectSegmentVideoCalls()).length === 1);
+    await browser.waitUntil(
+      async () => (await selectSegmentVideoCalls()).length === 1,
+    );
     assert.deepEqual(await selectSegmentVideoCalls(), [
       { videoId: 502, segmentPlanPromptId: 41, shotNumber: 1 },
     ]);
@@ -240,7 +698,9 @@ describe("video segment mode switching in Chromium", () => {
     assert.match(await body.getText(), /成片片段 1 有效视频|镜头 1/);
     assert.doesNotMatch(await body.getText(), /成片片段 2 有效视频/);
 
-    const generate = await $('//button[contains(normalize-space(), "生成预览")]');
+    const generate = await $(
+      '//button[contains(normalize-space(), "生成预览")]',
+    );
     await generate.waitForExist();
     assert.equal(await generate.isEnabled(), false);
     assert.equal((await assembleChapterVideoCalls()).length, 0);
@@ -258,11 +718,15 @@ describe("video segment mode switching in Chromium", () => {
     assert.match(await body.getText(), /成片片段 2 有效视频/);
     assert.doesNotMatch(await body.getText(), /尚缺片段/);
 
-    const generate = await $('//button[contains(normalize-space(), "生成预览")]');
+    const generate = await $(
+      '//button[contains(normalize-space(), "生成预览")]',
+    );
     await generate.waitForEnabled();
     await generate.click();
 
-    await browser.waitUntil(async () => (await assembleChapterVideoCalls()).length === 1);
+    await browser.waitUntil(
+      async () => (await assembleChapterVideoCalls()).length === 1,
+    );
     assert.deepEqual(await assembleChapterVideoCalls(), [
       { projectId: 1, chapterId: 2, workflowMode: "mixed" },
     ]);

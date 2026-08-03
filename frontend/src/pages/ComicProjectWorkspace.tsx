@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { GitCompare, PanelsTopLeft } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
@@ -20,7 +20,7 @@ import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 export const ComicProjectWorkspace: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToast } = useToast();
+  const addToast = useToast((state) => state.addToast);
   const projectId = Number(id);
 
   const [project, setProject] = useState<NovelProject | null>(null);
@@ -74,11 +74,10 @@ export const ComicProjectWorkspace: React.FC = () => {
     };
   }, [refresh]);
 
-  const imageProjectIds = project?.root_project_id
-    ? [project.id, project.root_project_id]
-    : project
-      ? [project.id]
-      : [];
+  const imageProjectIds = useMemo(() => {
+    if (!project) return [];
+    return project.root_project_id ? [project.id, project.root_project_id] : [project.id];
+  }, [project]);
   const canEditProject =
     project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
 

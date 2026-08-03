@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { WorkflowCheckpoint } from "../../../api/streaming";
-import type { ChapterVideoPrompt, GeneratedVideo } from "../../../api/video";
+import type {
+  ChapterVideoPrompt,
+  GeneratedVideo,
+  VideoSegmentExecutionRecipe,
+} from "../../../api/video";
 import {
   completedSegmentPlanPreviewItems,
   currentFinalVideoPromptMatchesSegment,
@@ -8,65 +11,31 @@ import {
   isSegmentPlanDraftCheckpointKey,
   latestVideoSegmentPlanPrompt,
   readVideoSegmentRecipes,
-  segmentPlanDraftSnapshotFromCheckpoints,
   videoSegmentCardsFromPlanPrompt,
   videoSegmentCardsFromSegments,
   videoExecutionPromptsShareGenerationChain,
   videoExecutionSegmentIdentityMatchesVideo,
   videoGuidanceConfigurationError,
+  videoSegmentRecipeGenerationFingerprintJson,
 } from "./videoTabUtils";
-
-const segmentPlanCheckpoint = (
-  shotIndex: number,
-  totalShots: number,
-  segments: Record<string, unknown>[],
-  status = "completed",
-): WorkflowCheckpoint => {
-  const canonicalSegments = segments.map((segment, index) => ({
-    segment_number: index + 1,
-    duration_secs: 6,
-    aspect_ratio: "16:9",
-    ...segment,
-  }));
-  return {
-  id: shotIndex,
-  workflow_run_id: 9,
-  step_key: `video_segment_plan.shot.shot-${shotIndex}`,
-  step_order: 199 + shotIndex,
-  status,
-  input_fingerprint_json: {
-    extra: { shot_index: shotIndex, total_shots: totalShots },
-  },
-  checkpoint_json: {
-    parsed_output: canonicalSegments,
-  },
-  artifacts_json: {
-    segment_recipes: canonicalSegments.map((segment) => ({
-      schema_version: "video_segment_execution_recipe_v1",
-      segment_number: segment.segment_number,
-      workflow_mode: "chat_video",
-    })),
-  },
-  generation_run_ids_json: null,
-  error_message: null,
-  created_at: "2026-07-29T00:00:00Z",
-  updated_at: "2026-07-29T00:00:00Z",
-  completed_at: status === "completed" ? "2026-07-29T00:00:00Z" : null,
-  };
-};
 
 describe("completedSegmentPlanPreviewItems", () => {
   it("ignores incomplete groups and lets a later checkpoint replace the same shot", () => {
-    const partial = '{"segments":[{"source_shot_id":"shot-1","title":"第一段","scene_summary":"字符串里的 } 不结束对象"},{"source_shot_id":"shot-1"';
+    const partial =
+      '{"segments":[{"source_shot_id":"shot-1","title":"第一段","scene_summary":"字符串里的 } 不结束对象"},{"source_shot_id":"shot-1"';
     expect(completedSegmentPlanPreviewItems(partial)).toEqual([]);
 
     const firstResult = `${JSON.stringify({
       shot_index: 1,
-      segments: [{ source_shot_id: "shot-1", segment_number: 1, title: "旧结果" }],
+      segments: [
+        { source_shot_id: "shot-1", segment_number: 1, title: "旧结果" },
+      ],
     })}\n`;
     const secondShot = `${JSON.stringify({
       shot_index: 2,
-      segments: [{ source_shot_id: "shot-2", segment_number: 1, title: "第二镜头" }],
+      segments: [
+        { source_shot_id: "shot-2", segment_number: 1, title: "第二镜头" },
+      ],
     })}\n`;
     const repairedFirstShot = `${JSON.stringify({
       shot_index: 1,
@@ -84,154 +53,63 @@ describe("completedSegmentPlanPreviewItems", () => {
   });
 
   it("recognizes only segment-plan draft checkpoints", () => {
-    expect(isSegmentPlanDraftCheckpointKey("video_segment_plan.recovered")).toBe(true);
-    expect(isSegmentPlanDraftCheckpointKey("video_segment_plan.shot.shot-2")).toBe(true);
+    expect(
+      isSegmentPlanDraftCheckpointKey("video_segment_plan.recovered"),
+    ).toBe(true);
+    expect(
+      isSegmentPlanDraftCheckpointKey("video_segment_plan.shot.shot-2"),
+    ).toBe(true);
     expect(
       isSegmentPlanDraftCheckpointKey(
         "video_segment_plan.shot.shot-2:schema_repair",
       ),
     ).toBe(false);
-    expect(isSegmentPlanDraftCheckpointKey("video_segment_plan.final")).toBe(false);
-    expect(isSegmentPlanDraftCheckpointKey("video_prompt_item_committed")).toBe(false);
-  });
-});
-
-describe("segmentPlanDraftSnapshotFromCheckpoints", () => {
-  it("loads completed shots in shot order and rebuilds continuous display numbers", () => {
-    const snapshot = segmentPlanDraftSnapshotFromCheckpoints([
-      segmentPlanCheckpoint(3, 3, [
-        { source_shot_id: "shot-3", title: "第三镜头" },
-      ]),
-      segmentPlanCheckpoint(2, 3, [
-        { source_shot_id: "shot-2", title: "失败结果" },
-      ], "failed"),
-      segmentPlanCheckpoint(1, 3, [
-        { source_shot_id: "shot-1", title: "第一镜头 A" },
-        { source_shot_id: "shot-1", title: "第一镜头 B" },
-      ]),
-      segmentPlanCheckpoint(2, 3, [
-        { source_shot_id: "shot-2", title: "第二镜头" },
-      ]),
-    ]);
-
-    expect(snapshot?.segments.map((item) => item.title)).toEqual([
-      "第一镜头 A",
-      "第一镜头 B",
-      "第二镜头",
-      "第三镜头",
-    ]);
-    expect(snapshot?.segments.map((item) => item.segment_number)).toEqual([1, 2, 3, 4]);
-    expect(snapshot?.segments.map((item) => item.segment_index_in_shot)).toEqual([1, 2, 1, 1]);
-    expect(snapshot?.segments.map((item) => item.shot_segment_count)).toEqual([2, 2, 1, 1]);
-    expect(snapshot).toMatchObject({
-      completedShotCount: 3,
-      totalShotCount: 3,
-    });
-    expect(videoSegmentCardsFromSegments(snapshot?.segments ?? [])).toHaveLength(4);
-  });
-
-  it("keeps each draft recipe on its stable shot segment when display numbers are rebuilt", () => {
-    const laterShot = segmentPlanCheckpoint(2, 2, [
-      { source_shot_id: "shot-2", title: "第二镜头" },
-    ]);
-    laterShot.artifacts_json = {
-      segment_recipes: [{
-        schema_version: "video_segment_execution_recipe_v1",
-        segment_number: 1,
-        workflow_mode: "storyboard",
-      }],
-    };
-
-    const snapshot = segmentPlanDraftSnapshotFromCheckpoints([
-      laterShot,
-      segmentPlanCheckpoint(1, 2, [
-        { source_shot_id: "shot-1", title: "第一镜头" },
-      ]),
-    ]);
-
-    expect(snapshot?.recipes.get(1)?.workflow_mode).toBe("chat_video");
-    expect(snapshot?.recipes.get(2)?.workflow_mode).toBe("storyboard");
-  });
-
-  it("rejects a persisted shot without recipes instead of inventing defaults", () => {
-    const checkpoint = segmentPlanCheckpoint(1, 1, [
-      { source_shot_id: "shot-1", title: "第一镜头" },
-    ]);
-    checkpoint.artifacts_json = null;
-
-    expect(() => segmentPlanDraftSnapshotFromCheckpoints([checkpoint])).toThrow(
-      "缺少 segment_recipes",
+    expect(isSegmentPlanDraftCheckpointKey("video_segment_plan.final")).toBe(
+      false,
     );
-  });
-
-  it("restores completed shots without inventing a second progress percentage", () => {
-    const checkpoints = Array.from({ length: 95 }, (_, index) =>
-      segmentPlanCheckpoint(index + 1, 100, [
-        { source_shot_id: `shot-${index + 1}`, title: `镜头 ${index + 1}` },
-      ]),
+    expect(isSegmentPlanDraftCheckpointKey("video_prompt_item_committed")).toBe(
+      false,
     );
-
-    expect(segmentPlanDraftSnapshotFromCheckpoints(checkpoints)).toMatchObject({
-      completedShotCount: 95,
-      totalShotCount: 100,
-    });
-    expect(segmentPlanDraftSnapshotFromCheckpoints(checkpoints)).not.toHaveProperty("progressCurrent");
-  });
-
-  it("ignores internal schema repair checkpoints and restores the final shot result", () => {
-    const finalShot = segmentPlanCheckpoint(1, 2, [
-      { source_shot_id: "unit_2_shot_1", title: "已校验片段" },
-    ]);
-    const repairCheckpoint: WorkflowCheckpoint = {
-      ...finalShot,
-      id: 99,
-      step_key: `${finalShot.step_key}:schema_repair`,
-      checkpoint_json: {
-        parsed_output: {
-          segments: [{ source_shot_id: "unit_2_shot_1", title: "结构修复输出" }],
-        },
-      },
-    };
-
-    expect(
-      segmentPlanDraftSnapshotFromCheckpoints([
-        repairCheckpoint,
-        finalShot,
-      ]),
-    ).toMatchObject({
-      completedShotCount: 1,
-      totalShotCount: 2,
-      segments: [{ title: "已校验片段" }],
-    });
   });
 });
 
 describe("videoGuidanceConfigurationError", () => {
-  it("checks workflow structure without guessing provider capabilities", () => {
-    expect(videoGuidanceConfigurationError("boundary_frames", 1, "none")).toBeNull();
-    expect(videoGuidanceConfigurationError("boundary_frames", 1, "system_frames")).toBeNull();
-    expect(videoGuidanceConfigurationError("boundary_frames", 1, "keyframes")).toBeNull();
-    expect(videoGuidanceConfigurationError("first_frame_chain", 2, "continuity")).toBeNull();
-    expect(videoGuidanceConfigurationError("boundary_frames", 1, "continuity")).toBe(
-      "续接引导只适用于首帧续接的后续片段",
-    );
-    expect(videoGuidanceConfigurationError("first_frame_chain", 2, "system_frames")).toBe(
-      "首帧续接的后续片段不能使用系统首帧",
-    );
-  });
-
-  it("preserves structurally valid guidance and falls back without a capability gate", () => {
-    expect(guidanceModeForWorkflowChange("storyboard", 1, "keyframes", false)).toBe("keyframes");
-    expect(guidanceModeForWorkflowChange("boundary_frames", 1, "system_frames", false)).toBe(
-      "system_frames",
+  it("rejects input contracts that do not match the visible workflow mode", () => {
+    expect(videoGuidanceConfigurationError("boundary_frames", 1, "none")).toBe(
+      "首尾帧方案固定使用首帧和尾帧输入",
     );
     expect(
-      guidanceModeForWorkflowChange("first_frame_chain", 2, "system_frames", true),
-    ).toBe("continuity");
-    expect(guidanceModeForWorkflowChange("first_frame_chain", 2, "system_frames", false)).toBe(
-      "none",
+      videoGuidanceConfigurationError("boundary_frames", 1, "system_frames"),
+    ).toBeNull();
+    expect(
+      videoGuidanceConfigurationError("boundary_frames", 1, "keyframes"),
+    ).toBe("首尾帧方案固定使用首帧和尾帧输入");
+    expect(
+      videoGuidanceConfigurationError("first_frame_chain", 2, "continuity"),
+    ).toBeNull();
+    expect(
+      videoGuidanceConfigurationError("boundary_frames", 1, "continuity"),
+    ).toBe("首尾帧方案固定使用首帧和尾帧输入");
+    expect(
+      videoGuidanceConfigurationError("first_frame_chain", 2, "system_frames"),
+    ).toBe("首帧续接的后续片段固定使用更早片段视频的尾帧");
+  });
+
+  it("maps every visible workflow mode to one input contract", () => {
+    expect(guidanceModeForWorkflowChange("storyboard", 1)).toBe(
+      "system_frames",
     );
-    expect(guidanceModeForWorkflowChange("chat_video", 1, "keyframes", false)).toBe("none");
+    expect(guidanceModeForWorkflowChange("boundary_frames", 1)).toBe(
+      "system_frames",
+    );
+    expect(guidanceModeForWorkflowChange("first_frame_chain", 1)).toBe(
+      "system_frames",
+    );
+    expect(guidanceModeForWorkflowChange("first_frame_chain", 2)).toBe(
+      "continuity",
+    );
+    expect(guidanceModeForWorkflowChange("chat_video", 1)).toBe("none");
+    expect(guidanceModeForWorkflowChange("reference_media", 1)).toBe("none");
   });
 });
 
@@ -276,7 +154,12 @@ describe("video execution generation chain", () => {
   });
 
   it("requires plan, segment, and recipe identity instead of the old weak workflow match", () => {
-    const plan = prompt(10, "frame_segment_plan", "shared_segment_plan", identity);
+    const plan = prompt(
+      10,
+      "frame_segment_plan",
+      "shared_segment_plan",
+      identity,
+    );
     const segmentOne = prompt(11, "frame_prompt", "boundary_frames", {
       ...identity,
       segment_plan_prompt_id: 10,
@@ -296,13 +179,24 @@ describe("video execution generation chain", () => {
       segment_recipe_fingerprint: "recipe-2",
     });
 
-    expect(videoExecutionPromptsShareGenerationChain(plan, segmentOne)).toBe(true);
-    expect(videoExecutionPromptsShareGenerationChain(segmentOne, sameSegment)).toBe(true);
-    expect(videoExecutionPromptsShareGenerationChain(segmentOne, otherRecipe)).toBe(false);
+    expect(videoExecutionPromptsShareGenerationChain(plan, segmentOne)).toBe(
+      true,
+    );
+    expect(
+      videoExecutionPromptsShareGenerationChain(segmentOne, sameSegment),
+    ).toBe(true);
+    expect(
+      videoExecutionPromptsShareGenerationChain(segmentOne, otherRecipe),
+    ).toBe(false);
   });
 
   it("shows only the current final-prompt contract for the selected segment recipe", () => {
-    const plan = prompt(20, "frame_segment_plan", "shared_segment_plan", identity);
+    const plan = prompt(
+      20,
+      "frame_segment_plan",
+      "shared_segment_plan",
+      identity,
+    );
     const finalIdentity = {
       ...identity,
       segment_plan_prompt_id: 20,
@@ -339,8 +233,12 @@ describe("video execution generation chain", () => {
       );
 
     expect(matches(finalPrompt())).toBe(true);
-    expect(matches(finalPrompt({ contract_version: "chat_video_execution_v3" }))).toBe(false);
-    expect(matches(finalPrompt({ source_prompt_type: "frame_prompt" }))).toBe(false);
+    expect(
+      matches(finalPrompt({ contract_version: "chat_video_execution_v3" })),
+    ).toBe(false);
+    expect(matches(finalPrompt({ source_prompt_type: "frame_prompt" }))).toBe(
+      false,
+    );
     expect(
       matches(
         finalPrompt(
@@ -349,18 +247,27 @@ describe("video execution generation chain", () => {
         ),
       ),
     ).toBe(false);
-    expect(matches({
-      ...finalPrompt({}, { segment_plan_prompt_id: 19 }),
-      generated_video_id: 99,
-    })).toBe(false);
-    expect(matches({
-      ...finalPrompt({}, { segment_recipe_fingerprint: "recipe-stale" }),
-      generated_video_id: 100,
-    })).toBe(false);
+    expect(
+      matches({
+        ...finalPrompt({}, { segment_plan_prompt_id: 19 }),
+        generated_video_id: 99,
+      }),
+    ).toBe(false);
+    expect(
+      matches({
+        ...finalPrompt({}, { segment_recipe_fingerprint: "recipe-stale" }),
+        generated_video_id: 100,
+      }),
+    ).toBe(false);
   });
 
   it("keeps candidate videos scoped to the current plan and recipe", () => {
-    const plan = prompt(30, "frame_segment_plan", "shared_segment_plan", identity);
+    const plan = prompt(
+      30,
+      "frame_segment_plan",
+      "shared_segment_plan",
+      identity,
+    );
     const video = (planId: number): GeneratedVideo => ({
       id: planId,
       project_id: 1,
@@ -396,8 +303,12 @@ describe("video execution generation chain", () => {
       updated_at: null,
     });
 
-    expect(videoExecutionSegmentIdentityMatchesVideo(video(30), plan, 1, "recipe-1")).toBe(true);
-    expect(videoExecutionSegmentIdentityMatchesVideo(video(29), plan, 1, "recipe-1")).toBe(false);
+    expect(
+      videoExecutionSegmentIdentityMatchesVideo(video(30), plan, 1, "recipe-1"),
+    ).toBe(true);
+    expect(
+      videoExecutionSegmentIdentityMatchesVideo(video(29), plan, 1, "recipe-1"),
+    ).toBe(false);
   });
 });
 
@@ -435,8 +346,20 @@ describe("segment cards and recipes", () => {
         aspect_ratio: "16:9",
       },
       segments: [
-        { segment_number: 2, title: "片段二", duration_secs: 6, aspect_ratio: "16:9" },
-        { segment_number: 1, title: "片段一", duration_secs: 6, aspect_ratio: "16:9" },
+        {
+          segment_number: 2,
+          title: "片段二",
+          scene_summary: "场景二",
+          duration_secs: 6,
+          aspect_ratio: "16:9",
+        },
+        {
+          segment_number: 1,
+          title: "片段一",
+          scene_summary: "场景一",
+          duration_secs: 6,
+          aspect_ratio: "16:9",
+        },
       ],
       segment_recipes: [
         {
@@ -481,7 +404,9 @@ describe("segment cards and recipes", () => {
 
   it("builds cards from the shared plan before any final prompt exists", () => {
     const prompt = planPrompt();
-    expect(videoSegmentCardsFromPlanPrompt(prompt).map((card) => card.segmentNumber)).toEqual([1, 2]);
+    expect(
+      videoSegmentCardsFromPlanPrompt(prompt).map((card) => card.segmentNumber),
+    ).toEqual([1, 2]);
 
     const recipes = readVideoSegmentRecipes(prompt);
     expect(recipes.error).toBeNull();
@@ -493,23 +418,29 @@ describe("segment cards and recipes", () => {
     const draft = [
       JSON.stringify({
         shot_index: 1,
-        segments: [{
-          source_shot_id: "shot-1",
-          segment_number: 1,
-          title: "刚生成的片段",
-          duration_secs: 6,
-          aspect_ratio: "16:9",
-        }],
+        segments: [
+          {
+            source_shot_id: "shot-1",
+            segment_number: 1,
+            title: "刚生成的片段",
+            scene_summary: "第一个镜头场景",
+            duration_secs: 6,
+            aspect_ratio: "16:9",
+          },
+        ],
       }),
       JSON.stringify({
         shot_index: 2,
-        segments: [{
-          source_shot_id: "shot-2",
-          segment_number: 1,
-          title: "第二个镜头片段",
-          duration_secs: 6,
-          aspect_ratio: "16:9",
-        }],
+        segments: [
+          {
+            source_shot_id: "shot-2",
+            segment_number: 1,
+            title: "第二个镜头片段",
+            scene_summary: "第二个镜头场景",
+            duration_secs: 6,
+            aspect_ratio: "16:9",
+          },
+        ],
       }),
     ].join("\n");
 
@@ -521,10 +452,79 @@ describe("segment cards and recipes", () => {
     ]);
   });
 
+  it("rejects incomplete segment cards instead of inventing display fallbacks", () => {
+    expect(() =>
+      videoSegmentCardsFromSegments([
+        {
+          segment_number: 1,
+          title: "片段一",
+          duration_secs: 6,
+          aspect_ratio: "16:9",
+        },
+      ]),
+    ).toThrow("片段 1 scene_summary 无效");
+  });
+
   it("does not expose a plan until the current chapter hash is known and matches", () => {
     const prompt = planPrompt();
     expect(latestVideoSegmentPlanPrompt([prompt], null)).toBeNull();
     expect(latestVideoSegmentPlanPrompt([prompt], "source-stale")).toBeNull();
-    expect(latestVideoSegmentPlanPrompt([prompt], "source-current")?.id).toBe(41);
+    expect(latestVideoSegmentPlanPrompt([prompt], "source-current")?.id).toBe(
+      41,
+    );
+  });
+});
+
+describe("video segment recipe fingerprints", () => {
+  it("canonicalizes reference-media binding fields independently of JSON key order", () => {
+    const recipe: VideoSegmentExecutionRecipe = {
+      schema_version: "video_segment_execution_recipe_v1",
+      segment_number: 4,
+      workflow_mode: "reference_media",
+      style: "cinematic",
+      prompt_output_language: "zh_cn",
+      duration_secs: 5,
+      duration_secs_options: [5],
+      aspect_ratio: "16:9",
+      reference_image_ids: [],
+      video_library_image_ids: [],
+      guidance_mode: "none",
+      guidance_reference_image_ids: [],
+      continuity_source_video_id: null,
+      reference_media: {
+        prompt: "reference media",
+        image_rows: [
+          {
+            upload_mime_type: "image/jpeg",
+            upload_file_name: "frame.jpg",
+            upload_sha256: "sha256",
+            usage: "lighting reference",
+            url: "",
+          },
+        ],
+        video_rows: [],
+        audio_rows: [],
+      },
+      adopted_video_id: 159,
+    };
+    const canonicalOrderRecipe: VideoSegmentExecutionRecipe = {
+      ...recipe,
+      reference_media: {
+        ...recipe.reference_media!,
+        image_rows: [
+          {
+            url: "",
+            usage: "lighting reference",
+            upload_sha256: "sha256",
+            upload_file_name: "frame.jpg",
+            upload_mime_type: "image/jpeg",
+          },
+        ],
+      },
+    };
+
+    expect(videoSegmentRecipeGenerationFingerprintJson(recipe)).toBe(
+      videoSegmentRecipeGenerationFingerprintJson(canonicalOrderRecipe),
+    );
   });
 });

@@ -1,5 +1,5 @@
 use super::super::contracts::{LlmContextManifest, PlannedContextPack};
-use super::super::manifest::render_context_manifest_user_content;
+use super::super::manifest::render_context_manifest_user_content_with_cache_boundary;
 use crate::provider::{ChatMessage, ChatRequest, MessageRole};
 use a4n_core::error::AppError;
 
@@ -22,7 +22,8 @@ pub fn replace_request_user_content_from_manifest(
             "LLM 上下文 manifest 只能重写 system + 单 user 结构的请求".to_string(),
         ));
     }
-    let user_content = render_context_manifest_user_content(manifest, selected_packs)?;
+    let (user_content, stable_prefix_len) =
+        render_context_manifest_user_content_with_cache_boundary(manifest, selected_packs)?;
     let mut messages: Vec<ChatMessage> = request
         .messages
         .iter()
@@ -31,5 +32,6 @@ pub fn replace_request_user_content_from_manifest(
         .collect();
     messages.push(ChatMessage::user(user_content));
     request.messages = messages;
+    request.prompt_cache_user_prefix_len = stable_prefix_len;
     Ok(())
 }

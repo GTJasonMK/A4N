@@ -418,6 +418,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
           : "直接构造将发送给模型的请求，不发送"
       }
       maxWidthClassName="max-w-[min(94vw,72rem)]"
+      zIndexClassName="z-[80]"
       footer={
         <BookButton
           variant="secondary"

@@ -69,4 +69,5 @@ pub struct WorkflowProgressEventInput<'a> {
 #[derive(Debug, Clone)]
 pub struct ClaimExclusiveWorkflowRunInput {
     pub run: UpsertWorkflowRunInput,
+    pub resume_from_task_id: Option<String>,
 }

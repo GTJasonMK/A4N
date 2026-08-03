@@ -18,6 +18,8 @@ use super::super::context::{
 };
 use super::super::types::SceneProfileSyncRequestContext;
 
+const SCENE_PROFILE_SYNC_SESSION_PROMPT: &str = "scene_profile_sync_session";
+
 pub(in crate::scene_profile::application) async fn build_scene_profile_stage_request(
     prompt_renderer: &dyn PromptRenderer,
     context: &SceneProfileSyncRequestContext,
@@ -27,9 +29,17 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
     previous_stages: Value,
     output_contract: Value,
 ) -> Result<ChatRequest, String> {
-    let system_prompt = prompt_renderer
+    let stage_prompt = prompt_renderer
         .render_prompt(
             prompt_name,
+            &HashMap::new(),
+            Some(context.chapter.project_id),
+        )
+        .await
+        .map_err(|err| err.to_string())?;
+    let system_prompt = prompt_renderer
+        .render_prompt(
+            SCENE_PROFILE_SYNC_SESSION_PROMPT,
             &HashMap::new(),
             Some(context.chapter.project_id),
         )
@@ -58,6 +68,7 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
         &payload,
     )
     .map_err(|err| format!("场景档案同步阶段上下文序列化失败: {err}"))?;
+    let user_prompt = format!("[阶段指令]\n{}\n\n{user_prompt}", stage_prompt.trim());
     context_aware_system_user_json_llm_request(
         system_prompt,
         ContextAwareJsonLlmRequestInput {
@@ -70,14 +81,12 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
             source_refs_json: Some(json!({
                 "chapter_id": context.chapter.id,
                 "chapter_number": context.chapter.chapter_number,
-                "prompt_name": prompt_name,
                 "text_anchor_count": context.text_anchors.len(),
                 "existing_scene_count": context.existing_scene_profiles.len(),
                 "character_count": context.character_profiles.len(),
                 "object_count": context.object_profiles.len()})),
             config_json: json!({
                 "ledger_version": "scene_profile_sync_context_v1",
-                "prompt_name": prompt_name,
                 "chapter_id": context.chapter.id,
                 "chapter_number": context.chapter.chapter_number}),
             stable_context_json: scene_profile_stage_stable_context(context),

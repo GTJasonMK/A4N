@@ -46,7 +46,6 @@ pub(super) struct SinglePageDrawingPromptInput<'a> {
     pub(super) chapter_content: &'a str,
     pub(super) source_spans: &'a [SourceSpan],
     pub(super) reference_assets: &'a Value,
-    pub(super) plan_json: &'a Value,
     pub(super) page_plan: &'a Value,
     pub(super) page_index: usize,
     pub(super) total_pages: usize,

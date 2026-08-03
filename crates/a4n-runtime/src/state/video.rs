@@ -3,6 +3,7 @@
 use a4n_api_contract::{generation_tasks::GenerationTaskHandle, video::StartVideoGenerationInput};
 use a4n_core::error::AppError;
 use a4n_core::models::ai::{generated_image, generated_video};
+use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 use a4n_orchestrator::{
     GenerationTaskAccessError, GenerationTaskStart, OrchestratorContext,
     video::{
@@ -10,7 +11,7 @@ use a4n_orchestrator::{
         ProjectChapterVideoSource, UpdateAssemblyPushStatusInput, UpdateGeneratedVideoInput,
         UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
         VideoPromptDownstreamCleanupPort, VideoPromptUpdateApplicationInput,
-        VideoRecordLifecycleHostPort,
+        VideoRecordLifecycleHostPort, VideoSegmentPlanDraftSummary,
     },
 };
 use a4n_prompt::rendering::PromptRenderer;
@@ -531,7 +532,7 @@ impl<'a> VideoRuntimeFacade<'a> {
         &self,
         user_id: i64,
         input: LoadVideoSegmentPlanDraftInput,
-    ) -> Result<a4n_orchestrator::workflow::WorkflowRunDetailSummary, AppError> {
+    ) -> Result<VideoSegmentPlanDraftSummary, AppError> {
         self.orchestrator
             .load_video_segment_plan_draft_validated(user_id, input)
             .await
@@ -541,9 +542,20 @@ impl<'a> VideoRuntimeFacade<'a> {
         &self,
         user_id: i64,
         input: UpdateVideoSegmentPlanDraftRecipeInput,
-    ) -> Result<a4n_orchestrator::workflow::WorkflowRunDetailSummary, AppError> {
+    ) -> Result<(), AppError> {
         self.orchestrator
             .update_video_segment_plan_draft_recipe_validated(user_id, input)
+            .await
+    }
+
+    pub(crate) async fn update_chapter_video_segment_recipe_validated(
+        &self,
+        user_id: i64,
+        prompt_id: i64,
+        recipe: VideoSegmentExecutionRecipeV1,
+    ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, AppError> {
+        self.orchestrator
+            .update_chapter_video_segment_recipe_validated(user_id, prompt_id, recipe)
             .await
     }
 

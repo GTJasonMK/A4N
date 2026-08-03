@@ -26,7 +26,10 @@ use super::{
     output::{
         parse_character_profile_sync_stage_output, validate_character_profile_sync_extraction,
     },
-    request::character_profile_sync_stage_contract,
+    request::{
+        CHARACTER_PROFILE_SYNC_SESSION_PROMPT, build_character_profile_sync_stage_request,
+        character_profile_sync_stage_contract,
+    },
 };
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
@@ -43,9 +46,10 @@ impl PromptRenderer for TestPromptRenderer {
         _project_id: Option<i64>,
     ) -> Result<String, AppError> {
         assert!(
-            CharacterProfileSyncStage::ALL
-                .iter()
-                .any(|stage| stage.prompt_name() == template_name)
+            template_name == CHARACTER_PROFILE_SYNC_SESSION_PROMPT
+                || CharacterProfileSyncStage::ALL
+                    .iter()
+                    .any(|stage| stage.prompt_name() == template_name)
         );
         Ok(format!("system prompt for {template_name}"))
     }
@@ -278,6 +282,57 @@ fn contracts_make_canonical_category_values_explicit() {
             ])
         );
     }
+}
+
+#[tokio::test]
+async fn stage_requests_share_cache_prefix_only_within_one_character_session() {
+    let input = stage_input(None);
+    let evidence = build_character_profile_sync_stage_request(
+        &input,
+        CharacterProfileSyncStage::EvidenceEvents,
+        &json!({}),
+        &TestPromptRenderer,
+    )
+    .await
+    .expect("evidence request");
+    let attributes = build_character_profile_sync_stage_request(
+        &input,
+        CharacterProfileSyncStage::AttributeChanges,
+        &json!({"character_sync_evidence_events": {"events": []}}),
+        &TestPromptRenderer,
+    )
+    .await
+    .expect("attribute request");
+
+    assert_eq!(evidence.messages[0].content, attributes.messages[0].content);
+    assert!(
+        evidence.messages[1]
+            .content
+            .contains("system prompt for character_sync_evidence_events")
+    );
+    assert!(
+        attributes.messages[1]
+            .content
+            .contains("system prompt for character_sync_attribute_changes")
+    );
+    let evidence_pack = &evidence.context_manifest_json.as_ref().unwrap()["packs"][0];
+    let attributes_pack = &attributes.context_manifest_json.as_ref().unwrap()["packs"][0];
+    assert_eq!(evidence_pack["config_hash"], attributes_pack["config_hash"]);
+    assert_eq!(evidence_pack["variants"], attributes_pack["variants"]);
+
+    let mut other_character = input;
+    other_character.profile_id = 8;
+    other_character.profile_name = "另一角色".to_string();
+    let other = build_character_profile_sync_stage_request(
+        &other_character,
+        CharacterProfileSyncStage::EvidenceEvents,
+        &json!({}),
+        &TestPromptRenderer,
+    )
+    .await
+    .expect("other character request");
+    let other_pack = &other.context_manifest_json.as_ref().unwrap()["packs"][0];
+    assert_ne!(evidence_pack["variants"], other_pack["variants"]);
 }
 
 #[tokio::test]

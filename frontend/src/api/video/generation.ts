@@ -2,7 +2,10 @@ import { apiInvoke } from "../index";
 import { readCurrentUserId } from "../authStorage";
 import { idNum, integerNum, type ApiId as Id } from "../shared";
 import { generationClient } from "../generationTasks";
-import { generationTaskKey, useGenerationTasksStore } from "../../store/generationTasks";
+import {
+  generationTaskKey,
+  useGenerationTasksStore,
+} from "../../store/generationTasks";
 import { sha256Hex } from "../../utils/contentHash";
 import type { GenerationTaskViewState } from "../../utils/generationEventReducer";
 import type {
@@ -26,7 +29,7 @@ function normalizeVideoConfigId(configId?: Id | null): number | null {
   return id === SYSTEM_VIDEO_CONFIG_ID ? null : idNum(id, "视频配置 ID");
 }
 
-export type VideoGenerationInput = Omit<StartVideoGenerationInput, "meta">;
+type VideoGenerationInput = Omit<StartVideoGenerationInput, "meta">;
 
 export async function startVideoGeneration(
   input: VideoGenerationInput,
@@ -60,31 +63,35 @@ export async function verifyVideoGenerationResult(
     const videoId = Number(resultRef.id);
     const video = videos.find(
       (item) =>
-        item.id === videoId
-        && item.project_id === project
-        && item.chapter_id === chapter
-        && item.status === "completed",
+        item.id === videoId &&
+        item.project_id === project &&
+        item.chapter_id === chapter &&
+        item.status === "completed",
     );
     const artifact = task.artifacts.find(
       (item) =>
-        item.artifact_id === `generated-video:${videoId}`
-        && item.artifact_kind === "generated_video",
+        item.artifact_id === `generated-video:${videoId}` &&
+        item.artifact_kind === "generated_video",
     );
-    valid = video != null
-      && artifact != null
-      && !artifact.temporary
-      && artifact.revision === resultRef.revision
-      && artifact.sha256 === resultRef.revision;
+    valid =
+      video != null &&
+      artifact != null &&
+      !artifact.temporary &&
+      artifact.revision === resultRef.revision &&
+      artifact.sha256 === resultRef.revision;
     if (valid && video) generated = [video];
   } else if (
-    resultRef?.kind === "generated_video_batch"
-    && Number(resultRef.id) === project
+    resultRef?.kind === "generated_video_batch" &&
+    Number(resultRef.id) === project
   ) {
     const artifacts = task.artifacts.filter(
       (item) => item.artifact_kind === "generated_video" && !item.temporary,
     );
     const ids = artifacts
-      .map((artifact) => artifact.artifact_id.match(/^generated-video:(\d+)$/)?.[1])
+      .map(
+        (artifact) =>
+          artifact.artifact_id.match(/^generated-video:(\d+)$/)?.[1],
+      )
       .filter((id): id is string => id != null)
       .map(Number);
     const uniqueIds = [...new Set(ids)].sort((left, right) => left - right);
@@ -93,26 +100,29 @@ export async function verifyVideoGenerationResult(
       .map((id) =>
         videos.find(
           (video) =>
-            video.id === id
-            && video.project_id === project
-            && video.chapter_id === chapter
-            && video.status === "completed",
+            video.id === id &&
+            video.project_id === project &&
+            video.chapter_id === chapter &&
+            video.status === "completed",
         ),
       )
       .filter((video): video is GeneratedVideo => video != null);
-    valid = uniqueIds.length > 0
-      && uniqueIds.length === artifacts.length
-      && artifacts.every((artifact) => artifact.revision === artifact.sha256)
-      && generated.length === uniqueIds.length
-      && revision != null
-      && revision === resultRef.revision;
+    valid =
+      uniqueIds.length > 0 &&
+      uniqueIds.length === artifacts.length &&
+      artifacts.every((artifact) => artifact.revision === artifact.sha256) &&
+      generated.length === uniqueIds.length &&
+      revision != null &&
+      revision === resultRef.revision;
   }
 
   if (!valid) {
-    useGenerationTasksStore.getState().dispatch(
-      generationTaskKey(task.taskId, task.attempt),
-      { type: "client_state", state: "consistency_error" },
-    );
+    useGenerationTasksStore
+      .getState()
+      .dispatch(generationTaskKey(task.taskId, task.attempt), {
+        type: "client_state",
+        state: "consistency_error",
+      });
     throw new Error("视频生成已结束，但正式结果校验失败");
   }
   return generated;
@@ -140,7 +150,9 @@ function normalizeVideoGenerationOperation(
       return {
         ...operation,
         chapter_id: idNum(operation.chapter_id, "章节 ID"),
-        prompt_ids: operation.prompt_ids.map((id) => idNum(id, "视频提示词 ID")),
+        prompt_ids: operation.prompt_ids.map((id) =>
+          idNum(id, "视频提示词 ID"),
+        ),
         config_id: normalizeVideoConfigId(operation.config_id),
       };
     case "reference_media": {

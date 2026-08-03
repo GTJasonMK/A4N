@@ -9,14 +9,19 @@ const MAX_REFERENCE_IMAGES: usize = 7;
 pub(super) fn request_body_with_mode(
     req: &VideoGenerationRequest,
     reference_mode: GrokReferenceMode,
+    openai_route: bool,
 ) -> Result<Value, AppError> {
     let mut body = Map::new();
     body.insert("model".into(), json!(req.model));
     body.insert("prompt".into(), json!(req.prompt));
-    body.insert(
-        "seconds".into(),
-        json!(req.duration_secs.max(1).to_string()),
-    );
+    if openai_route {
+        body.insert(
+            "seconds".into(),
+            json!(req.duration_secs.max(1).to_string()),
+        );
+    } else {
+        body.insert("duration".into(), json!(req.duration_secs.max(1)));
+    }
     body.insert(
         "size".into(),
         json!(format!("{}x{}", req.width, req.height)),

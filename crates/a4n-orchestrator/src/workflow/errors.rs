@@ -38,11 +38,7 @@ pub(crate) fn workflow_write_app_error(error: WorkflowWriteError) -> AppError {
         WorkflowWriteError::StatusConflict {
             current,
             operation: _,
-        }
-            if current == WORKFLOW_STATUS_CANCELLED =>
-        {
-            AppError::Cancelled
-        }
+        } if current == WORKFLOW_STATUS_CANCELLED => AppError::Cancelled,
         WorkflowWriteError::StatusConflict { current, operation } => {
             AppError::InvalidState { current, operation }
         }

@@ -115,18 +115,6 @@ pub(in crate::routes::commands) fn optional_bool_field(
     }
 }
 
-pub(in crate::routes::commands) fn nullable_string_update_field(
-    input: &Value,
-    key: &str,
-) -> Result<Option<Option<String>>, ApiError> {
-    match input.get(key) {
-        None => Ok(None),
-        Some(Value::Null) => Ok(Some(None)),
-        Some(Value::String(value)) => Ok(Some(Some(value.clone()))),
-        Some(_) => Err(ApiError::bad_request(format!("{key} 必须是字符串或 null"))),
-    }
-}
-
 pub(in crate::routes::commands) fn optional_i32_field(
     input: &Value,
     key: &str,

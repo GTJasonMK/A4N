@@ -316,15 +316,8 @@ impl crate::OrchestratorContext {
             )));
         }
         recipe.adopted_video_id = Some(video_id);
-        self.update_chapter_video_prompt_with_policy(
-            plan.id,
-            super::UpdateChapterVideoPromptInput {
-                segment_recipe: Some(recipe),
-                ..Default::default()
-            },
-            true,
-        )
-        .await?;
+        self.update_chapter_video_segment_recipe(plan.id, recipe)
+            .await?;
         self.sync_project_asset_lineage_after_commit(project_id, "同步视频方案资产谱系")
             .await;
         Ok(selected)

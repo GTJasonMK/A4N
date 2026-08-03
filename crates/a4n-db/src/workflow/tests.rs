@@ -143,6 +143,27 @@ fn rejects_completed_llm_call_checkpoint_with_truncated_finish_reason() {
 }
 
 #[test]
+fn rejects_completed_llm_call_checkpoint_without_restorable_result() {
+    let error = validate_completed_llm_call_checkpoint_json(
+        &serde_json::json!({
+            "output": "",
+            "parsed_output": null,
+            "response_content": "",
+            "usage": {"completion_tokens": 100},
+            "finish_reason": "stop",
+        }),
+        "test.call",
+    )
+    .expect_err("empty completed response must not become a resumable checkpoint");
+
+    assert!(matches!(
+        error,
+        WorkflowCheckpointContractError::Invalid(message)
+            if message.contains("没有可恢复的响应内容")
+    ));
+}
+
+#[test]
 fn required_llm_call_checkpoint_json_reports_missing_payload() {
     let now = chrono::Utc::now().naive_utc();
     let error = required_llm_call_checkpoint_json(
@@ -356,12 +377,8 @@ fn workflow_terminal_transition_requires_explicit_resume() {
         )
         .is_err()
     );
-    ensure_workflow_status_transition(
-        WORKFLOW_STATUS_CANCELLED,
-        WORKFLOW_STATUS_RUNNING,
-        true,
-    )
-    .expect("显式恢复应允许 cancelled -> running");
+    ensure_workflow_status_transition(WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_RUNNING, true)
+        .expect("显式恢复应允许 cancelled -> running");
     assert!(
         ensure_workflow_status_transition(
             WORKFLOW_STATUS_INTERRUPTED,
@@ -370,12 +387,8 @@ fn workflow_terminal_transition_requires_explicit_resume() {
         )
         .is_err()
     );
-    ensure_workflow_status_transition(
-        WORKFLOW_STATUS_INTERRUPTED,
-        WORKFLOW_STATUS_RUNNING,
-        true,
-    )
-    .expect("显式恢复应允许 interrupted -> running");
+    ensure_workflow_status_transition(WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, true)
+        .expect("显式恢复应允许 interrupted -> running");
     assert!(
         ensure_workflow_status_transition(
             WORKFLOW_STATUS_COMPLETED,
@@ -400,9 +413,30 @@ fn workflow_write_helpers_keep_existing_status_semantics() {
     let running = workflow_run_row(WORKFLOW_STATUS_RUNNING);
     let completed = workflow_run_row(WORKFLOW_STATUS_COMPLETED);
     let interrupted = workflow_run_row(WORKFLOW_STATUS_INTERRUPTED);
+    let mut failed = workflow_run_row(WORKFLOW_STATUS_FAILED);
+    failed.can_resume = true;
+    let mut cancelled = workflow_run_row(WORKFLOW_STATUS_CANCELLED);
+    cancelled.can_resume = true;
     let mut resumable_interrupted = interrupted.clone();
     resumable_interrupted.can_resume = true;
     let timestamp = test_timestamp();
+
+    assert!(workflow_run_is_running_or_resumable(
+        &running.status,
+        running.can_resume,
+    ));
+    assert!(workflow_run_is_running_or_resumable(
+        &failed.status,
+        failed.can_resume,
+    ));
+    assert!(workflow_run_is_running_or_resumable(
+        &cancelled.status,
+        cancelled.can_resume,
+    ));
+    assert!(!workflow_run_is_running_or_resumable(
+        &completed.status,
+        completed.can_resume,
+    ));
 
     assert!(workflow_fingerprint_matches(
         Some(&json!({"chapter": 1})),
@@ -435,6 +469,23 @@ fn workflow_write_helpers_keep_existing_status_semantics() {
     assert!(requires_explicit_interrupted_resume(
         &resumable_interrupted,
         WORKFLOW_STATUS_RUNNING,
+    ));
+    assert!(should_resume_existing_run(&failed, WORKFLOW_STATUS_RUNNING));
+    assert!(should_resume_existing_run(
+        &cancelled,
+        WORKFLOW_STATUS_RUNNING
+    ));
+    assert!(should_resume_existing_run(
+        &resumable_interrupted,
+        WORKFLOW_STATUS_RUNNING
+    ));
+    assert!(!should_resume_existing_run(
+        &completed,
+        WORKFLOW_STATUS_RUNNING
+    ));
+    assert!(!should_resume_existing_run(
+        &running,
+        WORKFLOW_STATUS_RUNNING
     ));
     assert!(completed_at_for_status_value(WORKFLOW_STATUS_COMPLETED, timestamp).is_some());
     assert!(completed_at_for_status_value(WORKFLOW_STATUS_INTERRUPTED, timestamp).is_some());

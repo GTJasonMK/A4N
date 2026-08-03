@@ -50,11 +50,8 @@ pub(crate) async fn sync_scene_profiles_for_chapters(
     if let Some(progress) = progress {
         let cancel_token = progress.cancel_token();
         let reporter = |current, total, message: &str| progress.progress(current, total, message);
-        let runtime_progress = SceneProfileSyncProgress::new(
-            Some(&reporter),
-            Some(&cancel_token),
-            progress.task_id(),
-        );
+        let runtime_progress =
+            SceneProfileSyncProgress::new(Some(&reporter), Some(&cancel_token), progress.task_id());
         a4n_runtime::host_api::scene_profile_sync::sync_scene_profiles_for_chapters(
             state,
             user_id,

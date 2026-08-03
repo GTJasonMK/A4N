@@ -16,7 +16,7 @@ impl OrchestratorContext {
         trace: &MangaPromptGenerationTrace,
     ) -> Result<(), AppError> {
         let message = format!(
-            "模型请求完成：{}；{}",
+            "模型请求完成：{}；{}；正在校验结构，必要时自动修复",
             trace.prompt_name,
             llm_usage_summary_text(trace.usage.as_ref())
         );

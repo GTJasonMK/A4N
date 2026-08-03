@@ -25,7 +25,9 @@ pub(super) fn validate_scene(
         required_text(text, &format!("{path}.{field}"))?;
     }
     non_empty_texts(&scene.source_span_ids, &format!("{path}.source_span_ids"))?;
-    non_empty_texts(&scene.participants, &format!("{path}.participants"))?;
+    if !scene.participants.is_empty() {
+        non_empty_texts(&scene.participants, &format!("{path}.participants"))?;
+    }
     if let Some(focal) = scene.focal_character.as_deref()
         && !scene
             .participants
@@ -106,9 +108,6 @@ fn validate_shot(
             "必须是大于 0 的有限数",
         );
     }
-    if shot.performance_beats.is_empty() {
-        return invalid(format!("{path}.performance_beats"), "至少包含一个表演节拍");
-    }
     let mut seconds = 0.0;
     for (beat_offset, beat) in shot.performance_beats.iter().enumerate() {
         let beat_path = format!("{path}.performance_beats[{beat_offset}]");
@@ -120,7 +119,8 @@ fn validate_shot(
         validate_beat(scene, shot, beat, &beat_path, beat_ids)?;
         seconds += beat.estimated_seconds;
     }
-    if (seconds - shot.estimated_natural_seconds).abs() > 0.01 {
+    if !shot.performance_beats.is_empty() && (seconds - shot.estimated_natural_seconds).abs() > 0.01
+    {
         return invalid(
             format!("{path}.estimated_natural_seconds"),
             "必须等于表演节拍时长之和",

@@ -105,10 +105,7 @@ impl OrchestratorContext {
                 .await
                 .map(|_| ()),
             Err(AppError::Cancelled) => self
-                .cancel_workflow_run_status_validated(
-                    workflow_run_id,
-                    Some("操作已取消"),
-                )
+                .cancel_workflow_run_status_validated(workflow_run_id, Some("操作已取消"))
                 .await
                 .map(|_| ()),
             Err(error) => self

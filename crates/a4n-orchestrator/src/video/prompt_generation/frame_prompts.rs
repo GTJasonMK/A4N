@@ -117,9 +117,8 @@ pub(in crate::video) use self::reuse::{
 pub(in crate::video) use self::shooting_script_projection::video_projection_from_shooting_script;
 use self::staged_segment_plan::{StagedSegmentPlanInput, render_staged_segment_plan_with_duration};
 pub(in crate::video) use self::staged_segment_plan::{
-    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_recipe_state,
-    materialize_video_segment_plan_draft_recipes,
-    update_video_segment_plan_draft_recipe_checkpoint,
+    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_checkpoints,
+    load_video_segment_plan_draft_recipe_state, update_video_segment_plan_draft_recipe_checkpoint,
     video_segment_recipes_from_draft_for_final_plan,
 };
 pub(in crate::video) use self::validation::boundary_frame_prompt_rows_prefix;

@@ -279,6 +279,33 @@ fn parses_character_staging_contract() {
 }
 
 #[test]
+fn validates_exit_against_post_line_visible_cast() {
+    let mut presentation = GalgameLinePresentationV2 {
+        schema_version: "galgame_line_presentation_v2".to_string(),
+        visible_cast: vec![GalgameVisibleCastMemberV2 {
+            character_profile_id: 7,
+            expression: "neutral".to_string(),
+            pose: "standing".to_string(),
+            position: GalgameStagePositionV2::Left,
+            facing: GalgameFacingV2::Front,
+            layer: GalgameStageLayerV2::Front,
+        }],
+        enter: Vec::new(),
+        exit: vec![8],
+        focus_character_profile_id: Some(7),
+        hold: false,
+        player_knowledge: Vec::new(),
+    };
+
+    validate_staged_presentation(&presentation, Some(7), "test").expect("character 8 exited");
+
+    for invalid_exit in [vec![7], vec![0], vec![8, 8]] {
+        presentation.exit = invalid_exit;
+        assert!(validate_staged_presentation(&presentation, Some(7), "test").is_err());
+    }
+}
+
+#[test]
 fn rejects_character_staging_without_branch_scene_lines_field() {
     let err = character_staging_from_value(json!({"scene_lines": []}), "galgame_character_staging")
         .expect_err("v2 character staging must explicitly declare branch_scene_lines");

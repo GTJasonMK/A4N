@@ -1,8 +1,8 @@
 use a4n_core::error::AppError;
 
 use crate::galgame::{
-    GalgamePipelineStartStage, GalgameVisualPlan, galgame_visual_planning_user_message,
-    visual_plan_from_value,
+    GalgamePipelineStartStage, GalgameVisualPlan, galgame_visual_planning_session_user_message,
+    galgame_visual_planning_user_message, visual_plan_from_value,
 };
 
 use super::super::super::contracts::CHECKPOINT_VISUAL_PLAN;
@@ -33,6 +33,8 @@ pub(super) async fn run_visual_planning_stage(
         .await?;
     let user_prompt =
         galgame_visual_planning_user_message(&early.scenes_json, &early.lines_staged_json)?;
+    let request_user_prompt =
+        galgame_visual_planning_session_user_message(&early.lines_staged_json)?;
     let visual_plan_json = execution
         .service
         .run_galgame_llm_stage(
@@ -45,6 +47,8 @@ pub(super) async fn run_visual_planning_stage(
                 checkpoint_key: CHECKPOINT_VISUAL_PLAN,
                 prompt_name: "galgame_visual_planning",
                 user_prompt,
+                request_user_prompt,
+                shared_shooting_script_projection: &early.scenes_json,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

@@ -70,7 +70,7 @@ pub(in crate::video) async fn build_segment_plan_for_shot_user(
             ],
             "segment_count_rule": "segments 数量必须至少等于 current_shot.minimum_readable_segment_count；优先按 current_shot.recommended_segment_count 规划，但当最低可读数量更大时必须采用更大的数量。当最终 segments 数量大于 current_shot.action_beats 数量时，必须把耗时较长的同一动作节拍按连续时间阶段拆到相邻 segments；这些相邻 segments 可以重复引用同一 beat_id，这是动作节拍通常只能覆盖一次的唯一例外。除此之外，同一 beat_id 只能由一个 segment 覆盖；每个单独 segment 的 covered_beat_ids 内仍不得重复 ID。不得为了减少调用把必需动作节拍压进观众无法读清的单个片段。",
             "segment_number_rule": "只为 current_shot 生成 1 个或多个连续 segments；source_shot_id 必须等于 current_shot.source_shot_id；covered_beat_ids 必须使用 current_shot.action_beats[].beat_id 的稳定字符串 ID。不要输出 segment_number、segment_index_in_shot、shot_segment_count、source_span_ids、duration_secs、aspect_ratio 或 reference_image_ids；后端会按数组顺序、拍摄剧本投影、用户选择时长和用户画幅推导结构字段。片段规划只做素材需求审计，不绑定具体参考图。",
-            "performance_action_script_rule": "performance_plan.action_script 每个对象必须同时包含 character、body、movement、hands、gaze、timing 六个字段，且全部必须是非空字符串。hands 没有明显手部动作时也必须写可见静止状态或未接触道具状态，例如“手自然垂在身侧”“手未接触道具”“双手保持稳定”；禁止空字符串、null、对象、数组或省略字段。"
+            "performance_action_script_rule": "当 current_shot.participants 非空时，emotion_action_goals 和 performance_plan.action_script 都必须非空，character 必须来自 participants；action_script 每个对象必须同时包含 character、body、movement、hands、gaze、timing 六个非空字符串字段，禁止空字符串、null、对象、数组或省略字段。hands 没有明显动作时也要写“手未接触道具”或“双手保持稳定”等可见静止状态。仅当 participants 为空的纯环境镜头时，这两个数组必须都返回 []，不要把场景、地点、天气或光影伪装成人物；环境动态写入 performance_plan.time_blocks。"
         }
     });
     render_strict_json_user_prompt(

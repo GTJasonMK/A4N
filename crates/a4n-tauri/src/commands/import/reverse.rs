@@ -53,8 +53,8 @@ async fn run_reverse_engineer_command(
                 &reporter,
                 progress.task_id(),
             )
-                .await
-                .map_err(|e| e.to_string())
+            .await
+            .map_err(|e| e.to_string())
         } else {
             reverse_engineer(
                 state.inner(),
@@ -64,8 +64,8 @@ async fn run_reverse_engineer_command(
                 &reporter,
                 progress.task_id(),
             )
-                .await
-                .map_err(|e| e.to_string())
+            .await
+            .map_err(|e| e.to_string())
         }
     };
     progress.remove(state.inner());

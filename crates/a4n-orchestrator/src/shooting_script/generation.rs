@@ -34,7 +34,7 @@ impl OrchestratorContext {
             cancel_token,
             active_task_id,
         )
-            .await
+        .await
     }
 
     pub async fn generate_chapter_shooting_script_with_progress(

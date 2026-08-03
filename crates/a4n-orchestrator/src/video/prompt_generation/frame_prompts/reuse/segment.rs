@@ -57,7 +57,6 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn load_shared_segm
         .cloned()
         .ok_or_else(|| AppError::InvalidArgument("共享片段规划缺少执行身份".to_string()))?;
     Ok(LoadedSharedSegmentPlan {
-        segment_json: json!({ "segments": &segment_plan }),
         segment_plan,
         execution_identity,
     })

@@ -8,6 +8,7 @@ use a4n_llm::{
     provider::{ChatRequest, LlmProvider, LlmTraceContext},
 };
 use a4n_orchestrator::DynamicProviderFacade;
+use sha2::{Digest, Sha256};
 
 use super::super::context::{
     build_manifest_requirements, build_system_prefix_pack_ref,
@@ -81,6 +82,94 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
         Some(serde_json::to_value(&plan).map_err(AppError::Serialization)?);
     trace_context.context_pack_refs_json =
         Some(serde_json::to_value(&plan.selected_pack_refs).map_err(AppError::Serialization)?);
+    configure_prompt_cache(request, provider.model_name(), &trace_context);
     request.trace_context = Some(trace_context.clone());
     Ok(Some(trace_context))
+}
+
+fn configure_prompt_cache(
+    request: &mut ChatRequest,
+    model_name: &str,
+    trace_context: &LlmTraceContext,
+) {
+    request.prompt_cache_key = None;
+    request.prompt_cache_system_prefix = false;
+    if !model_name.starts_with("gpt-5.6") {
+        return;
+    }
+    let run_scope = trace_context
+        .generation_run_id
+        .map(|id| format!("a4n:generation_run:{id}"))
+        .or_else(|| {
+            trace_context
+                .workflow_run_id
+                .map(|id| format!("a4n:workflow_run:{id}"))
+        });
+    request.prompt_cache_key = run_scope
+        .zip(system_prefix_sha256(request))
+        .map(|(run_scope, prefix_sha256)| format!("{run_scope}:prefix:{}", &prefix_sha256[..16]));
+    request.prompt_cache_system_prefix = request.prompt_cache_key.is_some();
+}
+
+fn system_prefix_sha256(request: &ChatRequest) -> Option<String> {
+    let mut hasher = Sha256::new();
+    let mut count = 0_usize;
+    for message in &request.messages {
+        if !matches!(message.role, a4n_llm::provider::MessageRole::System) {
+            continue;
+        }
+        count += 1;
+        hasher.update(message.content.len().to_le_bytes());
+        hasher.update(message.content.as_bytes());
+    }
+    (count > 0).then(|| format!("{:x}", hasher.finalize()))
+}
+
+#[cfg(test)]
+mod tests {
+    use a4n_llm::provider::{ChatMessage, ChatRequest, LlmTraceContext};
+
+    use super::configure_prompt_cache;
+
+    #[test]
+    fn gpt_5_6_cache_affinity_is_scoped_to_the_run_and_system_prefix() {
+        let mut request = ChatRequest::system_user("stable", "dynamic", None, None, None);
+        let mut trace = LlmTraceContext {
+            project_id: Some(1),
+            root_project_id: Some(1),
+            workflow: "manga_pipeline".to_string(),
+            step_key: "page".to_string(),
+            generation_run_id: None,
+            workflow_run_id: Some(299),
+            call_key: Some("page:1".to_string()),
+            input_fingerprint_sha256: None,
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        };
+
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        let first_key = request.prompt_cache_key.clone().expect("cache key");
+        assert!(first_key.starts_with("a4n:workflow_run:299:prefix:"));
+        assert!(request.prompt_cache_system_prefix);
+
+        request.messages[1].content = "different dynamic input".to_string();
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        assert_eq!(
+            request.prompt_cache_key.as_deref(),
+            Some(first_key.as_str())
+        );
+
+        request.messages[0].content = "different session".to_string();
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        assert_ne!(
+            request.prompt_cache_key.as_deref(),
+            Some(first_key.as_str())
+        );
+
+        trace.workflow_run_id = None;
+        let mut unrelated = ChatRequest::new(vec![ChatMessage::user("one shot")], None, None, None);
+        configure_prompt_cache(&mut unrelated, "gpt-5.6-luna", &trace);
+        assert!(unrelated.prompt_cache_key.is_none());
+        assert!(!unrelated.prompt_cache_system_prefix);
+    }
 }

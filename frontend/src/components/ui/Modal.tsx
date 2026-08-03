@@ -33,6 +33,30 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+const openModalStack: symbol[] = [];
+let bodyOverflowBeforeModal: string | null = null;
+
+const registerModal = (modalId: symbol) => {
+  if (openModalStack.includes(modalId)) return;
+  if (openModalStack.length === 0) {
+    bodyOverflowBeforeModal = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  openModalStack.push(modalId);
+};
+
+const unregisterModal = (modalId: symbol) => {
+  const index = openModalStack.lastIndexOf(modalId);
+  if (index >= 0) openModalStack.splice(index, 1);
+  if (openModalStack.length === 0 && bodyOverflowBeforeModal != null) {
+    document.body.style.overflow = bodyOverflowBeforeModal;
+    bodyOverflowBeforeModal = null;
+  }
+};
+
+const isTopModal = (modalId: symbol): boolean =>
+  openModalStack[openModalStack.length - 1] === modalId;
+
 const getFocusableElements = (container: HTMLElement | null): HTMLElement[] => {
   if (!container) return [];
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((item) => {
@@ -69,6 +93,7 @@ export const Modal: React.FC<ModalProps> = ({
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
+  const modalIdRef = useRef(Symbol('modal'));
 
   useEffect(() => {
     if (!isOpen || typeof document === 'undefined') return undefined;
@@ -76,9 +101,7 @@ export const Modal: React.FC<ModalProps> = ({
     previousActiveElementRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    registerModal(modalIdRef.current);
 
     const raf = window.requestAnimationFrame(() => {
       focusFirstElement(dialogRef.current);
@@ -86,10 +109,12 @@ export const Modal: React.FC<ModalProps> = ({
 
     return () => {
       window.cancelAnimationFrame(raf);
-      document.body.style.overflow = previousOverflow;
+      unregisterModal(modalIdRef.current);
       const previousActiveElement = previousActiveElementRef.current;
-      if (previousActiveElement) {
-        window.requestAnimationFrame(() => previousActiveElement.focus());
+      if (previousActiveElement?.isConnected) {
+        window.requestAnimationFrame(() => {
+          if (previousActiveElement.isConnected) previousActiveElement.focus();
+        });
       }
     };
   }, [isOpen]);
@@ -98,9 +123,10 @@ export const Modal: React.FC<ModalProps> = ({
     if (!isOpen) return undefined;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isTopModal(modalIdRef.current)) return;
+
       if (event.key === 'Escape') {
         if (!closeOnEscape) return;
-        if (document.querySelector('[role="menu"]')) return;
         event.preventDefault();
         onClose();
         return;
@@ -119,7 +145,10 @@ export const Modal: React.FC<ModalProps> = ({
       const last = focusable[focusable.length - 1];
       const active = document.activeElement;
 
-      if (event.shiftKey && active === first) {
+      if (!(active instanceof Node) || !dialogRef.current?.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && active === last) {
@@ -160,6 +189,9 @@ export const Modal: React.FC<ModalProps> = ({
   } satisfies Record<ModalTone, { accent: string; icon: string }>;
 
   const toneClass = toneClasses[tone];
+  const requestClose = () => {
+    if (isTopModal(modalIdRef.current)) onClose();
+  };
 
   return createPortal(
     <div
@@ -167,7 +199,7 @@ export const Modal: React.FC<ModalProps> = ({
     >
       <div
         className="dialog-backdrop absolute inset-0"
-        onClick={closeOnBackdrop ? onClose : undefined}
+        onClick={closeOnBackdrop ? requestClose : undefined}
       />
 
       <div
@@ -205,7 +237,7 @@ export const Modal: React.FC<ModalProps> = ({
           {headerExtra ? <div className="shrink-0">{headerExtra}</div> : null}
           {showCloseButton ? (
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted hover:bg-book-bg-tertiary hover:text-book-text-main focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:h-8 sm:w-8"
               aria-label="关闭弹窗"
               title="关闭 (Esc)"

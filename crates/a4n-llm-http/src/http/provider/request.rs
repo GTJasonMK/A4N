@@ -10,7 +10,7 @@ use super::HttpLlmProvider;
 #[derive(serde::Serialize)]
 struct OpenAiMessage {
     role: String,
-    content: String,
+    content: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_calls: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -38,17 +38,66 @@ impl HttpLlmProvider {
         request: &ChatRequest,
         stream: bool,
     ) -> reqwest::RequestBuilder {
+        let user_cache_breakpoint = request.prompt_cache_key.as_ref().and_then(|_| {
+            let prefix_len = request.prompt_cache_user_prefix_len?;
+            request
+                .messages
+                .iter()
+                .rposition(|message| matches!(message.role, MessageRole::User))
+                .filter(|&index| {
+                    let content = &request.messages[index].content;
+                    prefix_len > 0
+                        && prefix_len <= content.len()
+                        && content.is_char_boundary(prefix_len)
+                })
+                .map(|index| (index, prefix_len))
+        });
+        let cache_breakpoint_index = request
+            .prompt_cache_key
+            .as_ref()
+            .filter(|_| user_cache_breakpoint.is_none() && request.prompt_cache_system_prefix)
+            .and_then(|_| {
+                request
+                    .messages
+                    .iter()
+                    .rposition(|message| matches!(message.role, MessageRole::System))
+            });
         let messages: Vec<OpenAiMessage> = request
             .messages
             .iter()
-            .map(|message| OpenAiMessage {
+            .enumerate()
+            .map(|(index, message)| OpenAiMessage {
                 role: match message.role {
                     MessageRole::System => "system".into(),
                     MessageRole::User => "user".into(),
                     MessageRole::Assistant => "assistant".into(),
                     MessageRole::Tool => "tool".into(),
                 },
-                content: message.content.clone(),
+                content: if let Some((_, prefix_len)) =
+                    user_cache_breakpoint.filter(|(message_index, _)| *message_index == index)
+                {
+                    let (prefix, suffix) = message.content.split_at(prefix_len);
+                    let mut parts = vec![json!({
+                        "type": "text",
+                        "text": prefix,
+                        "prompt_cache_breakpoint": { "mode": "explicit" }
+                    })];
+                    if !suffix.is_empty() {
+                        parts.push(json!({
+                            "type": "text",
+                            "text": suffix
+                        }));
+                    }
+                    Value::Array(parts)
+                } else if Some(index) == cache_breakpoint_index {
+                    json!([{
+                        "type": "text",
+                        "text": message.content,
+                        "prompt_cache_breakpoint": { "mode": "explicit" }
+                    }])
+                } else {
+                    Value::String(message.content.clone())
+                },
                 tool_calls: message.tool_calls.as_ref().map(|tool_calls| {
                     tool_calls
                         .iter()
@@ -73,6 +122,11 @@ impl HttpLlmProvider {
         body.insert("messages".into(), json!(messages));
         insert_optional(&mut body, "temperature", request.temperature);
         insert_optional(&mut body, "max_tokens", request.max_tokens);
+        insert_optional(
+            &mut body,
+            "prompt_cache_key",
+            request.prompt_cache_key.as_deref(),
+        );
         insert_optional(
             &mut body,
             "response_format",

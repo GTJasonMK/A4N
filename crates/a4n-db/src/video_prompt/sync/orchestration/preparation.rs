@@ -10,7 +10,6 @@ use super::super::{
     validate_prompt_sync_draft,
     validation::validate_prompt_workflow_mode,
 };
-use super::locking::lock_chapter_video_prompt_sync_scope;
 use a4n_core::models::chapter::chapter_video_prompt;
 use sea_orm::ConnectionTrait;
 use std::collections::{BTreeSet, HashMap};
@@ -19,6 +18,7 @@ use crate::video::{self, VideoDbError};
 use crate::video_prompt::{
     ChapterVideoPromptSyncDraft, ChapterVideoPromptSyncPolicy, PromptIdentity,
     ensure_chapter_video_prompt_stage_mutable, ensure_chapter_video_prompt_stage_mutable_ignoring,
+    lock_chapter_video_prompt_scope,
 };
 
 pub(super) struct PlannedPromptSyncRow {
@@ -44,7 +44,7 @@ where
     C: ConnectionTrait,
 {
     let project_id = drafts[0].fields.project_id;
-    lock_chapter_video_prompt_sync_scope(db, chapter_id).await?;
+    lock_chapter_video_prompt_scope(db, chapter_id).await?;
     video::ensure_video_chapter_belongs_to_project_record(db, project_id, chapter_id).await?;
     for draft in &drafts {
         validate_prompt_sync_draft(project_id, chapter_id, draft)?;

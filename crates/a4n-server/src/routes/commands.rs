@@ -89,7 +89,6 @@ use a4n_runtime::host_api::character_conflict as character_conflict_actions;
 use a4n_runtime::host_api::character_implicit_review as character_implicit_review_actions;
 use a4n_runtime::host_api::character_records as character_records_actions;
 use a4n_runtime::host_api::config_records as config_records_actions;
-use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
 use a4n_runtime::host_api::embedding_model as embedding_model_actions;
 use a4n_runtime::host_api::export_files as export_files_actions;
 use a4n_runtime::host_api::generation_analytics as generation_analytics_actions;
@@ -146,31 +145,16 @@ pub async fn invoke(
     verify_user_arg(&args, user.id)?;
     let runtime_config_snapshot =
         a4n_runtime::runtime_config::snapshot_from_args(&args).map_err(ApiError::bad_request)?;
-
-    if let Some(command) = reverse_engineer_web_command(&cmd) {
-        let result = run_with_runtime_context(user.id, runtime_config_snapshot, async {
-            run_reverse_engineer_web_command(&state, user.id, &args, command).await
-        })
-        .await?;
-        return Ok(Json(result).into_response());
-    }
-
-    if is_canvas_web_command(&cmd) {
-        let result = run_with_runtime_context(user.id, runtime_config_snapshot, async {
-            run_canvas_web_command(&state, user.id, &args, &cmd).await
-        })
-        .await?;
-        return Ok(Json(result).into_response());
-    }
-
-    let result = run_with_runtime_context(
-        user.id,
-        runtime_config_snapshot,
-        Box::pin(async {
-            let result = dispatch::dispatch(&state, user.id, &args, &cmd).await?;
-            Ok::<Value, ApiError>(result)
-        }),
-    )
+    let user_id = user.id;
+    let result = run_with_runtime_context(user_id, runtime_config_snapshot, async move {
+        if let Some(command) = reverse_engineer_web_command(&cmd) {
+            return run_reverse_engineer_web_command(&state, user_id, &args, command).await;
+        }
+        if is_canvas_web_command(&cmd) {
+            return run_canvas_web_command(&state, user_id, &args, &cmd).await;
+        }
+        dispatch::dispatch(&state, user_id, &args, &cmd).await
+    })
     .await?;
 
     Ok(Json(result).into_response())

@@ -145,7 +145,7 @@ pub use prompt_application::{
     LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateChapterVideoPromptInput as VideoPromptUpdateApplicationInput,
     UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
-    VideoPromptDownstreamCleanupPort,
+    VideoPromptDownstreamCleanupPort, VideoSegmentPlanDraftSummary,
 };
 pub(crate) use prompt_application::{
     validate_video_final_prompt_generation_options, validate_video_frame_prompt_generation_options,
@@ -153,7 +153,7 @@ pub(crate) use prompt_application::{
 };
 pub use prompt_chain_rules::{prompt_chain_matches, prompt_source_type_matches};
 pub(in crate::video) use prompt_generation::{
-    load_previous_shared_segment_recipe_state, materialize_video_segment_plan_draft_recipes,
+    load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
     update_video_segment_plan_draft_recipe_checkpoint,
 };
 pub use prompt_optimization::VideoPromptOptimizationInput;

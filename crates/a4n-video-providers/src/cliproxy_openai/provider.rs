@@ -75,11 +75,15 @@ impl CliProxyOpenAiVideoProvider {
     }
 
     pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        request_body_with_mode(req, GrokReferenceMode::Reference)
+        request_body_with_mode(req, GrokReferenceMode::Reference, true)
     }
 
     fn request_body_for_config(&self, req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        request_body_with_mode(req, self.reference_mode)
+        request_body_with_mode(
+            req,
+            self.reference_mode,
+            self.supports_openai_content_route(),
+        )
     }
 
     pub fn request_body_preview(req: &VideoGenerationRequest) -> Result<Value, AppError> {
@@ -88,9 +92,10 @@ impl CliProxyOpenAiVideoProvider {
 
     pub fn request_body_preview_with_options(
         req: &VideoGenerationRequest,
+        base_url: &str,
         provider_options_json: Option<&Value>,
     ) -> Result<Value, AppError> {
-        request_body_with_mode(req, grok_reference_mode(provider_options_json)?)
+        Self::new_with_options(base_url, "", provider_options_json)?.request_body_for_config(req)
     }
 
     async fn post_json(

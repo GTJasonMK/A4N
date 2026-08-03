@@ -139,6 +139,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
       icon={icon}
       tone={tone}
       maxWidthClassName="max-w-2xl"
+      zIndexClassName="z-[90]"
       closeOnBackdrop={canClose}
       closeOnEscape={canClose}
       showCloseButton={canClose}

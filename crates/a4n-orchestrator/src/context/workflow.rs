@@ -167,20 +167,6 @@ impl WorkflowApplication {
             .map_err(workflow_read_app_error)
     }
 
-    async fn workflow_checkpoint_model_by_step(
-        &self,
-        workflow_run_id: i64,
-        step_key: &str,
-    ) -> Result<Option<workflow_checkpoint::Model>, AppError> {
-        a4n_db::workflow::workflow_checkpoint_model_by_step(
-            self.database.connection(),
-            workflow_run_id,
-            step_key,
-        )
-        .await
-        .map_err(workflow_read_app_error)
-    }
-
     async fn completed_workflow_checkpoint_by_fingerprint(
         &self,
         workflow_run_id: i64,
@@ -233,6 +219,15 @@ impl WorkflowApplication {
         input: UpsertWorkflowRunInput,
     ) -> Result<workflow_run::Model, AppError> {
         a4n_db::workflow::upsert_workflow_run(self.database.connection(), input)
+            .await
+            .map_err(workflow_write_app_error)
+    }
+
+    async fn resume_or_upsert_workflow_run(
+        &self,
+        input: UpsertWorkflowRunInput,
+    ) -> Result<workflow_run::Model, AppError> {
+        a4n_db::workflow::resume_or_upsert_workflow_run(self.database.connection(), input)
             .await
             .map_err(workflow_write_app_error)
     }
@@ -294,22 +289,6 @@ impl WorkflowApplication {
         a4n_db::workflow::upsert_workflow_checkpoint(self.database.connection(), input)
             .await
             .map_err(workflow_write_app_error)
-    }
-
-    async fn update_workflow_checkpoint_artifacts(
-        &self,
-        workflow_run_id: i64,
-        step_key: &str,
-        artifacts_json: serde_json::Value,
-    ) -> Result<workflow_checkpoint::Model, AppError> {
-        a4n_db::workflow::update_workflow_checkpoint_artifacts(
-            self.database.connection(),
-            workflow_run_id,
-            step_key,
-            artifacts_json,
-        )
-        .await
-        .map_err(workflow_write_app_error)
     }
 
     async fn record_workflow_progress_event(
@@ -458,16 +437,6 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn workflow_checkpoint_model_by_step(
-        &self,
-        workflow_run_id: i64,
-        step_key: &str,
-    ) -> Result<Option<workflow_checkpoint::Model>, AppError> {
-        self.workflow
-            .workflow_checkpoint_model_by_step(workflow_run_id, step_key)
-            .await
-    }
-
     pub async fn completed_workflow_checkpoint_by_fingerprint(
         &self,
         workflow_run_id: i64,
@@ -574,17 +543,6 @@ impl OrchestratorContext {
         self.workflow.upsert_workflow_run(input).await
     }
 
-    pub async fn update_workflow_checkpoint_artifacts(
-        &self,
-        workflow_run_id: i64,
-        step_key: &str,
-        artifacts_json: serde_json::Value,
-    ) -> Result<workflow_checkpoint::Model, AppError> {
-        self.workflow
-            .update_workflow_checkpoint_artifacts(workflow_run_id, step_key, artifacts_json)
-            .await
-    }
-
     pub async fn claim_exclusive_workflow_run(
         &self,
         input: ClaimExclusiveWorkflowRunInput,
@@ -613,6 +571,15 @@ impl OrchestratorContext {
         crate::workflow::validate_begin_workflow_run_input(&input)
             .map_err(AppError::InvalidArgument)?;
         self.upsert_workflow_run(input).await
+    }
+
+    pub async fn begin_or_resume_workflow_run_validated(
+        &self,
+        input: UpsertWorkflowRunInput,
+    ) -> Result<workflow_run::Model, AppError> {
+        crate::workflow::validate_begin_workflow_run_input(&input)
+            .map_err(AppError::InvalidArgument)?;
+        self.workflow.resume_or_upsert_workflow_run(input).await
     }
 
     /// 按成败将 workflow 标为 completed/failed。

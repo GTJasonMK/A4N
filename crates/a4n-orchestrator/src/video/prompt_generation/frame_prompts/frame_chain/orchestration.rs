@@ -69,28 +69,17 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_chapter
     )
     .await?;
     let crate::video::prompt_generation::frame_prompts::LoadedSharedSegmentPlan {
-        segment_json: loaded_segment_json,
         segment_plan: loaded_segment_plan,
         execution_identity,
     } = loaded_plan;
-    let (segment_json, segment_plan) = if matches!(
-        spec.layout,
-        crate::video::prompt_generation::frame_prompts::FramePromptLayout::BoundaryFrames
-    ) {
-        let segment = loaded_segment_plan
-            .iter()
-            .find(|segment| segment.segment_number == target_shot_number)
-            .cloned()
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "共享片段规划中不存在目标片段 {target_shot_number}"
-                ))
-            })?;
-        let plan = vec![segment];
-        (json!({ "segments": &plan }), plan)
-    } else {
-        (loaded_segment_json, loaded_segment_plan)
-    };
+    let segment = loaded_segment_plan
+        .into_iter()
+        .find(|segment| segment.segment_number == target_shot_number)
+        .ok_or_else(|| {
+            AppError::InvalidArgument(format!("共享片段规划中不存在目标片段 {target_shot_number}"))
+        })?;
+    let segment_plan = vec![segment];
+    let segment_json = json!({ "segments": &segment_plan });
     let segment_draft = None;
     let execution_identity = super::super::video_segment_frame_execution_identity(
         execution_identity,

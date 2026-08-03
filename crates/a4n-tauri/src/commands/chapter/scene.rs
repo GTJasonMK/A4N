@@ -93,8 +93,8 @@ async fn generate_chapter_scene_with_progress(
         &reporter,
         progress.and_then(WorkflowProgressTask::task_id),
     )
-        .await
-        .map_err(|err| err.to_string())
+    .await
+    .map_err(|err| err.to_string())
 }
 
 #[tauri::command]

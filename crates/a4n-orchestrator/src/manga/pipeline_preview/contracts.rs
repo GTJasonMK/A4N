@@ -33,7 +33,10 @@ pub(super) struct MangaPreviewCallInput<'a> {
 
 pub(super) enum MangaPreviewCall {
     Ready(Box<ChatRequest>),
-    Restored { parsed_output: Value },
+    Restored {
+        response_text: String,
+        parsed_output: Value,
+    },
 }
 
 pub(super) struct MangaPreviewContext<'a> {

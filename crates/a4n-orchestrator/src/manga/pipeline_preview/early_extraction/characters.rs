@@ -54,13 +54,16 @@ pub(super) async fn preview_characters(
     })
     .await?;
     let (characters_out, stage_json) = match call {
-        MangaPreviewCall::Restored { parsed_output } => {
+        MangaPreviewCall::Restored {
+            response_text,
+            parsed_output,
+        } => {
             steps.push(MangaPipelineRequestPreviewStep::reused_checkpoint(
                 "manga_character_binding",
                 "漫画 Step 1：角色绑定",
                 "manga_character_binding",
             ));
-            (serde_json::to_string(&parsed_output)?, parsed_output)
+            (response_text, parsed_output)
         }
         MangaPreviewCall::Ready(request) => {
             steps.push(MangaPipelineRequestPreviewStep::ready(

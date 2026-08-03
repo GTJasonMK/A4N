@@ -18,7 +18,7 @@ use a4n_db::generation::{
 };
 use a4n_db::workflow::{
     ClaimExclusiveWorkflowRunInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
-    claim_exclusive_workflow_run, mark_workflow_status,
+    WORKFLOW_STATUS_FAILED, claim_exclusive_workflow_run, mark_workflow_status,
 };
 use a4n_migration::test_support::connect_test_database;
 use a4n_queue::priority::{TaskKind, TaskPriority};
@@ -224,6 +224,7 @@ async fn generation_reservation_resolves_derived_project_root() {
         &db,
         ClaimExclusiveWorkflowRunInput {
             run: workflow_input.clone(),
+            resume_from_task_id: None,
         },
     )
     .await
@@ -244,19 +245,57 @@ async fn generation_reservation_resolves_derived_project_root() {
     let next_workflow = claim_exclusive_workflow_run(
         &db,
         ClaimExclusiveWorkflowRunInput {
-            run: workflow_input,
+            run: workflow_input.clone(),
+            resume_from_task_id: None,
         },
     )
     .await
     .unwrap();
     assert_ne!(next_workflow.id, workflow.id);
-    let queue_task = task_queue::Entity::find_by_id(task_id)
+    let queue_task = task_queue::Entity::find_by_id(task_id.clone())
         .one(&db)
         .await
         .unwrap()
         .unwrap();
     assert_eq!(queue_task.root_project_id, Some(root.id));
     assert_eq!(queue_task.workflow_run_id, Some(next_workflow.id));
+
+    mark_workflow_status(
+        &db,
+        next_workflow.id,
+        WORKFLOW_STATUS_FAILED,
+        true,
+        Some("retry test"),
+    )
+    .await
+    .unwrap();
+    interrupt_generation_task(&db, &task_id).await;
+    let mut retry_input = reservation_input(user.id, derived.id, Uuid::new_v4().to_string());
+    retry_input.retry_of_task_id = Some(task_id.clone());
+    let retry = reserve_generation_task(&db, retry_input).await.unwrap();
+    let retry_task_id = retry.task.checkpoint.task_id;
+    let mut retry_workflow_input = workflow_input;
+    retry_workflow_input.active_task_id = Some(retry_task_id.clone());
+    let resumed = claim_exclusive_workflow_run(
+        &db,
+        ClaimExclusiveWorkflowRunInput {
+            run: retry_workflow_input,
+            resume_from_task_id: Some(task_id.clone()),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(resumed.id, next_workflow.id);
+    assert_eq!(
+        resumed.active_task_id.as_deref(),
+        Some(retry_task_id.as_str())
+    );
+    let retry_queue_task = task_queue::Entity::find_by_id(retry_task_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(retry_queue_task.workflow_run_id, Some(next_workflow.id));
 
     let mut mismatched = reservation_input(user.id, derived.id, Uuid::new_v4().to_string());
     mismatched.root_project_id = Some(derived.id);

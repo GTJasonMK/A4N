@@ -12,9 +12,10 @@ use serde_json::{Value, json};
 use crate::OrchestratorContext;
 
 use super::{
-    VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress, VideoGenerationRecordInput,
-    VideoProviderExecutionInput, VideoProviderHostPort, VideoProviderRequestBody,
-    VideoProviderRequestInput, VideoProviderValidationMode, provider_request_snapshot_value,
+    CLIPROXY_OPENAI_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND, VIDEO_GENERATION_PROGRESS_TOTAL,
+    VideoGenerationProgress, VideoGenerationRecordInput, VideoProviderExecutionInput,
+    VideoProviderHostPort, VideoProviderRequestBody, VideoProviderRequestInput,
+    VideoProviderValidationMode, provider_request_snapshot_value,
     reference_media_rules::{
         MAX_SEEDANCE2_AUDIO_FILES, MAX_SEEDANCE2_IMAGE_FILES, MAX_SEEDANCE2_VIDEO_FILES,
         PreparedReferenceMediaVideoRequest, ReferenceMediaVideoInput,
@@ -179,6 +180,15 @@ impl OrchestratorContext {
             prepared.request.reference_media.as_ref().ok_or_else(|| {
                 AppError::InvalidArgument("参考媒体请求缺少 reference_media".into())
             })?;
+        let provider_reference_mode = match prepared.config.backend.as_str() {
+            SEEDANCE2_VIDEO_BACKEND => "omni_reference",
+            CLIPROXY_OPENAI_VIDEO_BACKEND => "image_reference",
+            backend => {
+                return Err(AppError::InvalidArgument(format!(
+                    "参考媒体请求不支持 backend={backend}"
+                )));
+            }
+        };
         let metadata = json!({
             "segment_plan_prompt_id": prepared.segment_plan_prompt_id,
             "shot_number": prepared.shot_number,
@@ -186,7 +196,7 @@ impl OrchestratorContext {
             "config_id": prepared.config.id,
             "provider_backend": prepared.config.backend,
             "reference_media": {
-                "functionMode": "omni_reference",
+                "functionMode": provider_reference_mode,
                 "image_file_count": reference_media.image_files.len(),
                 "video_file_count": reference_media.video_files.len(),
                 "audio_file_count": reference_media.audio_files.len(),
@@ -235,7 +245,11 @@ impl OrchestratorContext {
                 .await;
         }
 
-        progress.progress(3, VIDEO_GENERATION_PROGRESS_TOTAL, "正在调用 Seedance 2.0")?;
+        progress.progress(
+            3,
+            VIDEO_GENERATION_PROGRESS_TOTAL,
+            "正在调用参考媒体视频模型",
+        )?;
         if progress.check_cancelled("参考媒体视频生成已停止").is_err() {
             self.mark_generated_video_cancelled_validated(video.id, None, "参考媒体视频生成已停止")
                 .await?;
@@ -273,7 +287,7 @@ impl OrchestratorContext {
             progress.progress(
                 4,
                 VIDEO_GENERATION_PROGRESS_TOTAL,
-                "Seedance 2.0 已提交异步任务，开始等待生成结果",
+                "参考媒体视频任务已提交，开始等待生成结果",
             )?;
         } else {
             progress.progress(
@@ -288,7 +302,7 @@ impl OrchestratorContext {
                     video,
                     config: prepared.config,
                     prompt_id: None,
-                    missing_result_message: "Seedance 2.0 未返回文件或任务 ID".to_string(),
+                    missing_result_message: "参考媒体视频模型未返回文件或任务 ID".to_string(),
                     cancel_token: progress.cancel_token(),
                 },
                 result,

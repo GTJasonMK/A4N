@@ -198,6 +198,17 @@ prompts:
     description: "根据章节摘要、上下文和场景引导生成单个章节场景正文"
 
   # ============= 05 分析 =============
+  chapter_analysis_session:
+    path: "novel/05_analysis/chapter_analysis_session.md"
+    title: "章节分析会话"
+    category: "analysis"
+    tags: ["analysis", "session", "cache"]
+    version: "1.0"
+    used_by:
+      - "ChapterAnalysisService.build_analysis_requests"
+    dependencies: []
+    description: "为同一章节的结构化分析阶段提供稳定公共 System 前缀"
+
   character_analysis:
     path: "novel/05_analysis/character_analysis.md"
     title: "角色分析（A4N 自研）"
@@ -219,6 +230,7 @@ prompts:
       - "ChapterAnalysisService.analyze_and_store"
       - "ChapterAnalysisService.build_analysis_requests"
     dependencies:
+      - "chapter_analysis_session"
       - "writing"
     description: "章节结构化分析第一阶段：抽取角色、地点、物品、关键事件和伏笔候选"
 
@@ -232,6 +244,7 @@ prompts:
       - "ChapterAnalysisService.analyze_and_store"
       - "ChapterAnalysisService.build_analysis_requests"
     dependencies:
+      - "chapter_analysis_session"
       - "chapter_fact_extraction"
     description: "章节结构化分析第二阶段：基于事实候选生成摘要、标签、基调和时间标记"
 
@@ -245,6 +258,7 @@ prompts:
       - "ChapterAnalysisService.analyze_and_store"
       - "ChapterAnalysisService.build_analysis_requests"
     dependencies:
+      - "chapter_analysis_session"
       - "chapter_fact_extraction"
     description: "章节结构化分析第三阶段：生成角色章节结束状态快照"
 
@@ -258,6 +272,7 @@ prompts:
       - "ChapterAnalysisService.analyze_and_store"
       - "ChapterAnalysisService.build_analysis_requests"
     dependencies:
+      - "chapter_analysis_session"
       - "chapter_fact_extraction"
     description: "章节结构化分析第四阶段：筛选最终关键事件和伏笔追踪结构"
 
@@ -276,6 +291,17 @@ prompts:
       - "chapter_foreshadowing_events"
     description: "从章节正文和章节分析中识别可复用的关键物体档案"
 
+  scene_profile_sync_session:
+    path: "novel/05_analysis/scene_profile_sync_session.md"
+    title: "场景档案同步会话"
+    category: "analysis"
+    tags: ["scene", "sync", "session", "cache"]
+    version: "1.0"
+    used_by:
+      - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    dependencies: []
+    description: "为同一章节的场景档案同步阶段提供稳定公共 System 前缀"
+
   scene_profile_candidates:
     path: "novel/05_analysis/scene_profile_candidates.md"
     title: "场景档案候选"
@@ -285,6 +311,7 @@ prompts:
     used_by:
       - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
     dependencies:
+      - "scene_profile_sync_session"
       - "chapter_fact_extraction"
       - "chapter_summary_synthesis"
       - "chapter_character_state"
@@ -302,6 +329,7 @@ prompts:
     used_by:
       - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
     dependencies:
+      - "scene_profile_sync_session"
       - "scene_profile_candidates"
     description: "场景同步第二阶段：基于场景档案候选抽取当前章节场景出场"
 
@@ -314,6 +342,7 @@ prompts:
     used_by:
       - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
     dependencies:
+      - "scene_profile_sync_session"
       - "scene_profile_candidates"
       - "scene_occurrence_extraction"
     description: "场景同步第三阶段：基于场景与出场链抽取转场"
@@ -327,6 +356,7 @@ prompts:
     used_by:
       - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
     dependencies:
+      - "scene_profile_sync_session"
       - "scene_profile_candidates"
       - "scene_occurrence_extraction"
     description: "场景同步第四阶段：抽取角色、物体或事件在场景内的状态变化"
@@ -582,6 +612,18 @@ prompts:
     dependencies: []
     description: "从章节内容中识别出现角色，并为缺失角色生成初始档案"
 
+  character_sync_session:
+    path: "novel/07_protagonist/character_sync_session.md"
+    title: "角色档案同步会话"
+    category: "protagonist"
+    tags: ["protagonist", "sync", "session", "cache"]
+    version: "1.0"
+    used_by:
+      - "character_ai::sync_character_from_chapters"
+      - "character_ai::preview_sync_character_from_chapters_request"
+    dependencies: []
+    description: "为同一角色和同步范围内的档案同步阶段提供稳定公共 System 前缀"
+
   character_sync_evidence_events:
     path: "novel/07_protagonist/character_sync_evidence_events.md"
     title: "角色同步证据事件抽取"
@@ -591,7 +633,8 @@ prompts:
     used_by:
       - "character_ai::sync_character_from_chapters"
       - "character_ai::preview_sync_character_from_chapters_request"
-    dependencies: []
+    dependencies:
+      - "character_sync_session"
     description: "从同步章节中抽取指定角色相关的证据事件，不生成档案变更"
 
   character_sync_attribute_changes:
@@ -604,6 +647,7 @@ prompts:
       - "character_ai::sync_character_from_chapters"
       - "character_ai::preview_sync_character_from_chapters_request"
     dependencies:
+      - "character_sync_session"
       - "character_sync_evidence_events"
     description: "基于证据事件判断角色属性新增或修改，由系统推导旧值和最终状态"
 
@@ -617,6 +661,7 @@ prompts:
       - "character_ai::sync_character_from_chapters"
       - "character_ai::preview_sync_character_from_chapters_request"
     dependencies:
+      - "character_sync_session"
       - "character_sync_evidence_events"
       - "character_sync_attribute_changes"
     description: "为同步范围内每章生成角色章节结束状态"
@@ -631,6 +676,7 @@ prompts:
       - "character_ai::sync_character_from_chapters"
       - "character_ai::preview_sync_character_from_chapters_request"
     dependencies:
+      - "character_sync_session"
       - "character_sync_evidence_events"
     description: "基于证据事件抽取角色关键行为记录，不输出隐性分类结果"
 
@@ -644,6 +690,7 @@ prompts:
       - "character_ai::sync_character_from_chapters"
       - "character_ai::preview_sync_character_from_chapters_request"
     dependencies:
+      - "character_sync_session"
       - "character_sync_evidence_events"
       - "character_sync_attribute_changes"
     description: "判断已有角色属性是否出现明确失效或删除保护候选"
@@ -897,6 +944,17 @@ prompts:
     description: "主生成未通过校验时，只返回并回填失败字段；禁止完整对象重写"
 
   # ============= 09 Galgame =============
+  galgame_pipeline_session:
+    path: "novel/09_galgame/galgame_pipeline_session.md"
+    title: "Galgame 管线会话"
+    category: "galgame"
+    tags: ["galgame", "pipeline", "session", "cache"]
+    version: "1.0"
+    used_by:
+      - "GalgamePipelineRunner.run"
+    dependencies: []
+    description: "为同一次 Galgame 管线的结构化阶段提供共享导演上下文缓存前缀"
+
   galgame_script_adaptation:
     path: "novel/09_galgame/script_adaptation.md"
     title: "Galgame 剧本行改编"
@@ -907,6 +965,7 @@ prompts:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
+      - "galgame_pipeline_session"
       - "chapter_shooting_design_unit"
       - "galgame_branch_design"
     description: "将共享导演计划投影的场景和节拍改编为视觉小说对白、旁白、独白和演出提示行草稿"
@@ -921,6 +980,7 @@ prompts:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
+      - "galgame_pipeline_session"
       - "galgame_script_adaptation"
     description: "将剧本行说话人绑定到冻结人物档案，并标注表情、姿势和站位"
 
@@ -934,6 +994,7 @@ prompts:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
+      - "galgame_pipeline_session"
       - "galgame_character_staging"
     description: "根据场景和剧本行规划背景需求与事件 CG 候选"
 
@@ -947,6 +1008,7 @@ prompts:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
+      - "galgame_pipeline_session"
       - "chapter_shooting_design_unit"
     description: "基于共享导演节拍设计珍珠串结构选择支和回收点，并为后续剧本改编提供支线演出合同"
 

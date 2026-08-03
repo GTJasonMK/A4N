@@ -25,3 +25,12 @@ pub(in crate::workflow) fn is_terminal_workflow_status(status: &str) -> bool {
             | WORKFLOW_STATUS_SUPERSEDED
     )
 }
+
+pub fn workflow_run_is_running_or_resumable(status: &str, can_resume: bool) -> bool {
+    status == WORKFLOW_STATUS_RUNNING
+        || (can_resume
+            && matches!(
+                status,
+                WORKFLOW_STATUS_INTERRUPTED | WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_CANCELLED
+            ))
+}

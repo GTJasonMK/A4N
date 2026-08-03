@@ -225,6 +225,7 @@ pub async fn execute_llm_generation(
     let mut content = String::new();
     let mut pending_text = String::new();
     let mut usage = None;
+    let mut finish_reason = None;
     let mut chunk_count = 0u64;
 
     loop {
@@ -267,6 +268,16 @@ pub async fn execute_llm_generation(
             }
             Next::Item(None) => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
+                if let Some(finish_reason) = finish_reason {
+                    let content_sha256 = format!("{:x}", Sha256::digest(content.as_bytes()));
+                    return Ok(LlmGenerationOutput {
+                        content,
+                        usage,
+                        finish_reason,
+                        chunk_count,
+                        content_sha256,
+                    });
+                }
                 return Err(public_error(
                     "llm_stream_missing_finish_reason",
                     "模型流结束但缺少 finish_reason",
@@ -323,15 +334,7 @@ pub async fn execute_llm_generation(
                 }
                 if let Some(reason) = chunk.finish_reason.as_deref() {
                     flush_text(publisher, &stream_id, &mut pending_text).await?;
-                    let finish_reason = map_finish_reason(reason)?;
-                    let content_sha256 = format!("{:x}", Sha256::digest(content.as_bytes()));
-                    return Ok(LlmGenerationOutput {
-                        content,
-                        usage,
-                        finish_reason,
-                        chunk_count,
-                        content_sha256,
-                    });
+                    finish_reason = Some(map_finish_reason(reason)?);
                 }
             }
         }
@@ -827,6 +830,52 @@ mod tests {
                 prompt_cache_miss_tokens: Some(2),
             })
         );
+    }
+
+    #[tokio::test]
+    async fn waits_for_stream_terminal_after_finish_reason_chunk() {
+        let provider = FakeProvider(vec![
+            ChatChunk {
+                content: Some("done".to_string()),
+                reasoning_content: None,
+                tool_calls: None,
+                finish_reason: Some("stop".to_string()),
+                index: 0,
+                usage: None,
+            },
+            ChatChunk {
+                content: None,
+                reasoning_content: None,
+                tool_calls: None,
+                finish_reason: None,
+                index: 1,
+                usage: Some(UsageInfo {
+                    prompt_tokens: 3,
+                    completion_tokens: 4,
+                    total_tokens: 7,
+                    prompt_cache_hit_tokens: Some(2),
+                    prompt_cache_miss_tokens: Some(1),
+                }),
+            },
+        ]);
+
+        let output = execute_llm_generation(
+            &provider,
+            &RecordingPublisher::default(),
+            LlmGenerationRequest {
+                request: ChatRequest::new(vec![ChatMessage::user("continue")], None, None, None),
+                stream_id: "main".to_string(),
+                cancellation: CancellationToken::new(),
+                checkpoint: None,
+                usage_base: None,
+            },
+        )
+        .await
+        .expect("finish_reason chunk must not end collection before the stream terminal");
+
+        assert_eq!(output.content, "done");
+        assert_eq!(output.finish_reason, GenerationFinishReason::Stop);
+        assert_eq!(output.usage.expect("trailing usage").total_tokens, 7);
     }
 
     #[tokio::test]

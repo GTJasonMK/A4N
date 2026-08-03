@@ -44,6 +44,22 @@ fn request_body_uses_openai_videos_shape_and_reference_images_by_default() {
 }
 
 #[test]
+fn native_route_uses_duration_instead_of_openai_seconds() {
+    let mut req = request();
+    req.first_frame_image_url = None;
+
+    let body = CliProxyOpenAiVideoProvider::request_body_preview_with_options(
+        &req,
+        "https://example.test/v1",
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(body["duration"], 5);
+    assert!(body.get("seconds").is_none());
+}
+
+#[test]
 fn reference_mode_rejects_first_frame_slot_instead_of_promoting_it() {
     let req = request();
     let err = CliProxyOpenAiVideoProvider::request_body(&req).unwrap_err();
@@ -61,6 +77,7 @@ fn first_frame_mode_rejects_tail_frame_instead_of_dropping_it() {
 
     let err = CliProxyOpenAiVideoProvider::request_body_preview_with_options(
         &req,
+        "https://example.test/openai/v1",
         Some(&json!({ "grok_reference_mode": "first_frame" })),
     )
     .unwrap_err();
@@ -74,6 +91,7 @@ fn first_frame_mode_rejects_inline_first_frame() {
     req.first_frame_image_url = Some("data:image/png;base64,abc".into());
     let err = CliProxyOpenAiVideoProvider::request_body_preview_with_options(
         &req,
+        "https://example.test/openai/v1",
         Some(&json!({ "grok_reference_mode": "first_frame" })),
     )
     .unwrap_err();
@@ -120,6 +138,7 @@ fn first_frame_mode_uses_first_frame_input_reference() {
     let req = request();
     let body = CliProxyOpenAiVideoProvider::request_body_preview_with_options(
         &req,
+        "https://example.test/openai/v1",
         Some(&json!({ "grok_reference_mode": "first_frame" })),
     )
     .unwrap();
@@ -142,6 +161,7 @@ fn first_frame_mode_promotes_first_reference_to_input_reference() {
 
     let body = CliProxyOpenAiVideoProvider::request_body_preview_with_options(
         &req,
+        "https://example.test/openai/v1",
         Some(&json!({ "grok_reference_mode": "first_frame" })),
     )
     .unwrap();

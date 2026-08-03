@@ -50,7 +50,6 @@ impl OrchestratorContext {
                     chapter_content,
                     source_spans,
                     reference_assets,
-                    plan_json,
                     page_plan,
                     page_index: index,
                     total_pages: pages.len(),

@@ -79,6 +79,10 @@ pub use pipeline_prompt::{
     galgame_script_adaptation_user_message, galgame_speaker_profiles_from_models,
     galgame_visual_planning_user_message,
 };
+pub(in crate::galgame) use pipeline_prompt::{
+    galgame_branch_design_session_user_message, galgame_script_adaptation_session_user_message,
+    galgame_visual_planning_session_user_message,
+};
 pub(crate) use pipeline_run::validate_source_sync_scene_regeneration_stage_outputs;
 pub use pipeline_run::{
     GalgamePipelineProgressUpdate, GalgamePipelineRunOptions, GalgameProgressReporter,

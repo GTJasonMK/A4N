@@ -12,6 +12,29 @@ pub fn galgame_script_adaptation_user_message(
     shooting_script_projection: &Value,
     branch_design: &Value,
 ) -> Result<String, AppError> {
+    build_galgame_script_adaptation_user_message(
+        chapters,
+        shooting_script_projection.clone(),
+        branch_design,
+    )
+}
+
+pub(in crate::galgame) fn galgame_script_adaptation_session_user_message(
+    chapters: &[GalgamePipelinePromptChapter],
+    branch_design: &Value,
+) -> Result<String, AppError> {
+    build_galgame_script_adaptation_user_message(
+        chapters,
+        shared_shooting_script_projection_ref(),
+        branch_design,
+    )
+}
+
+fn build_galgame_script_adaptation_user_message(
+    chapters: &[GalgamePipelinePromptChapter],
+    shooting_script_projection: Value,
+    branch_design: &Value,
+) -> Result<String, AppError> {
     build_galgame_step_user_message(
         "galgame_script_adaptation",
         "把共享导演场景、节拍和分支设计改编为主线及真实支线剧本行",
@@ -51,7 +74,7 @@ pub fn galgame_character_staging_user_message(
             "branch_rule": "必须完整保留 script_adaptation.branch_scene_lines、branch_id、beat_ref、文本和 source_span_ids，并为每条支线行输出 presentation",
             "profile_rule": "speaker_profile_id 只能使用 input.speaker_profiles[].id；无法可靠绑定时为 null",
             "presentation_schema": "galgame_line_presentation_v2",
-            "presentation_rule": "每行必须输出 presentation；visible_cast 是该行画面完成后的完整在场角色状态，enter/exit/focus 必须引用 visible_cast 角色 ID；hold 表示是否保持当前画面节奏；player_knowledge 记录该行后玩家新增或被强化的认知",
+            "presentation_rule": "每行必须输出 presentation；visible_cast 是该行画面完成后的完整在场角色状态；enter 和 focus 必须引用 visible_cast 角色 ID；exit 表示本行完成后已离场角色，必须是不在 visible_cast 中的不重复正整数角色 ID；hold 表示是否保持当前画面节奏；player_knowledge 记录该行后玩家新增或被强化的认知",
             "expression_values": ["neutral", "smile", "sad", "angry", "surprised", "shy", "serious"],
             "position_values": ["left", "center", "right"],
             "facing_values": ["left", "right", "front"],
@@ -63,6 +86,25 @@ pub fn galgame_character_staging_user_message(
 
 pub fn galgame_visual_planning_user_message(
     shooting_script_projection: &Value,
+    character_staging: &Value,
+) -> Result<String, AppError> {
+    build_galgame_visual_planning_user_message(
+        shooting_script_projection.clone(),
+        character_staging,
+    )
+}
+
+pub(in crate::galgame) fn galgame_visual_planning_session_user_message(
+    character_staging: &Value,
+) -> Result<String, AppError> {
+    build_galgame_visual_planning_user_message(
+        shared_shooting_script_projection_ref(),
+        character_staging,
+    )
+}
+
+fn build_galgame_visual_planning_user_message(
+    shooting_script_projection: Value,
     character_staging: &Value,
 ) -> Result<String, AppError> {
     build_galgame_step_user_message(
@@ -87,6 +129,16 @@ pub fn galgame_visual_planning_user_message(
 pub fn galgame_branch_design_user_message(
     shooting_script_projection: &Value,
 ) -> Result<String, AppError> {
+    build_galgame_branch_design_user_message(shooting_script_projection.clone())
+}
+
+pub(in crate::galgame) fn galgame_branch_design_session_user_message() -> Result<String, AppError> {
+    build_galgame_branch_design_user_message(shared_shooting_script_projection_ref())
+}
+
+fn build_galgame_branch_design_user_message(
+    shooting_script_projection: Value,
+) -> Result<String, AppError> {
     build_galgame_step_user_message(
         "galgame_branch_design",
         "基于共享导演节拍为 Galgame 设计珍珠串结构选择支和回收点",
@@ -100,6 +152,10 @@ pub fn galgame_branch_design_user_message(
             "phase": "可返回空 choices 数组；非空 choices 会持久化为 choice 行、branch 场与 galgame_choice 选项"
         }),
     )
+}
+
+fn shared_shooting_script_projection_ref() -> Value {
+    json!({"$ref": "system.shared_context.shooting_script_projection"})
 }
 
 fn build_galgame_step_user_message(

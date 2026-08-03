@@ -1,12 +1,31 @@
 //! 视频提示词下游依赖与可变性规则（从 a4n-services 收敛，供 orchestrator facade 使用）。
 
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
-use sea_orm::ConnectionTrait;
+use a4n_core::models::chapter::{chapter, chapter_video_prompt};
+use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, QuerySelect};
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
 
 use crate::video::{self, VideoDbError};
+
+async fn lock_chapter_video_prompt_scope<C>(
+    db: &C,
+    chapter_id: i64,
+) -> Result<chapter::Model, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    let query = chapter::Entity::find_by_id(chapter_id);
+    let query = if db.get_database_backend() == DbBackend::Sqlite {
+        query
+    } else {
+        query.lock_exclusive()
+    };
+    query
+        .one(db)
+        .await
+        .map_err(VideoDbError::Database)?
+        .ok_or_else(|| VideoDbError::NotFound(format!("章节不存在: {chapter_id}")))
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct VideoPromptDownstreamDependencies {
@@ -29,7 +48,6 @@ pub struct UpdateChapterVideoPromptInput {
     pub duration_secs: Option<i32>,
     pub reference_image_ids_json: Option<Option<Value>>,
     pub metadata_patch: Option<Value>,
-    pub segment_recipe: Option<VideoSegmentExecutionRecipeV1>,
 }
 
 #[derive(Debug, Clone, Default)]

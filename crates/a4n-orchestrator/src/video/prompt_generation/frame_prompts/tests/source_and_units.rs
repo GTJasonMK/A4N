@@ -31,6 +31,26 @@ fn video_units_only_add_action_bridge_for_preserved_action() {
 }
 
 #[test]
+fn environment_action_bridge_does_not_require_fake_actor() {
+    let mut first = segment(1);
+    first.emotion_action_goals.clear();
+    first.performance_plan.action_script.clear();
+    first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
+        transition_type: "match_cut".to_string(),
+        editing_mode: a4n_core::shooting_script::ShootingEditingModeV1::Continuity,
+        preserved_action: Some("霓虹反光从街面滑入后巷水洼".to_string()),
+        preserved_sound: None,
+        required_cut_point: None,
+    });
+
+    let units = video_units_for_segment_plan(&[first, segment(2)], 5).unwrap();
+    let bridge = &units[1].prompt_segment;
+
+    assert!(bridge.emotion_action_goals.is_empty());
+    assert!(bridge.performance_plan.action_script.is_empty());
+}
+
+#[test]
 fn target_segment_selects_content_unit_even_when_a_bridge_precedes_it() {
     let mut first = segment(1);
     first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {

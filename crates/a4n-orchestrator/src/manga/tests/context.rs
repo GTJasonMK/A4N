@@ -10,9 +10,13 @@ fn manga_late_pipeline_inputs_do_not_repeat_chapter_content() {
         json!({
             "characters": {"陈恪": {"role": "主角"}},
             "events": [{"index": 0, "description": "暗棋初动"}],
+            "reference_assets": {"character_portraits": [{"prompt": "重复立绘"}]},
+            "speech": {"dialogues": [{"content": "是谁？"}]},
+            "visual_anchors": {"scenes": [{"location": "雨夜长街"}]},
+            "items": [{"name": "密信"}],
             "comic_synthesis": {"chapter_summary": "陈恪发现线索"}
         }),
-        json!({"shooting_script_id": 1, "shooting_script_revision": 1, "plan": {}}),
+        json!({"shooting_script_id": 1, "shooting_script_revision": 1, "script": {}}),
     );
 
     assert!(items_input.get("chapter").is_none());
@@ -22,11 +26,12 @@ fn manga_late_pipeline_inputs_do_not_repeat_chapter_content() {
             .unwrap()
             .contains("原文对白")
     );
-    assert!(
-        serde_json::to_string(&page_planning)
-            .unwrap()
-            .contains("暗棋初动")
-    );
+    let page_planning_text = serde_json::to_string(&page_planning).unwrap();
+    assert!(!page_planning_text.contains("暗棋初动"));
+    assert!(!page_planning_text.contains("重复立绘"));
+    assert!(page_planning_text.contains("陈恪发现线索"));
+    assert!(page_planning_text.contains("雨夜长街"));
+    assert!(page_planning_text.contains("密信"));
 }
 
 #[test]
@@ -131,7 +136,7 @@ fn manga_page_drawing_prompt_page_input_keeps_only_page_scope_and_refs() {
     assert!(context["characters"].get("陈恪").is_some());
     assert!(context["characters"].get("小宦官").is_some());
     assert!(context["characters"].get("李建成").is_none());
-    assert!(context["extraction_summary"].is_object());
+    assert!(context.get("extraction_summary").is_none());
     let refs = input["reference_assets"]["character_portraits"]
         .as_array()
         .unwrap();

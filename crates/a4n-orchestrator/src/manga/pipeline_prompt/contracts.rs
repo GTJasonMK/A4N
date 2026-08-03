@@ -33,10 +33,6 @@ pub(in crate::manga) const MANGA_PREVIOUS_OUTPUT_VISUAL_ANCHOR_EXTRACTION: &str 
     "manga_previous_output:visual_anchor_extraction";
 pub(in crate::manga) const MANGA_PREVIOUS_OUTPUT_ITEM_EXTRACTION: &str =
     "manga_previous_output:item_extraction";
-pub(in crate::manga) const MANGA_PREVIOUS_OUTPUT_EXTRACTION_SUMMARY: &str =
-    "manga_previous_output:extraction_summary";
-pub(in crate::manga) const MANGA_PREVIOUS_OUTPUT_PAGE_PLANNING: &str =
-    "manga_previous_output:page_planning";
 
 #[derive(Debug, Clone, Copy)]
 pub(in crate::manga) struct MangaContextPreviousOutput<'a> {

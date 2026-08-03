@@ -1,11 +1,10 @@
-import { listVideoReferenceImages, type GeneratedImage } from "../../../api/image";
 import {
-  listWorkflowRuns,
-  type WorkflowRun,
-  type WorkflowRunDetail,
-} from "../../../api/streaming";
+  listVideoReferenceImages,
+  type GeneratedImage,
+} from "../../../api/image";
+import { listWorkflowRuns, type WorkflowRun } from "../../../api/streaming";
 import {
-  loadVideoSegmentPlanDraft as loadVideoSegmentPlanDraftDetail,
+  loadVideoSegmentPlanDraftDetail,
   listChapterVideoPrompts,
   listEffectiveVideoConfigs,
   listVideosByChapter,
@@ -13,22 +12,23 @@ import {
   type GeneratePromptOptions,
   type GeneratedVideo,
   type VideoGenConfig,
+  type VideoSegmentExecutionRecipe,
+  type VideoSegmentPlanDraftDetail,
 } from "../../../api/video";
 import type { ChapterRow } from "../shared";
 import type { GenerationTaskSummary } from "../../../api/generated/generationContracts";
 import { asJsonRecord } from "../../../utils/jsonRecord";
-import {
-  segmentPlanDraftSnapshotFromCheckpoints,
-  type SegmentPlanDraftSnapshot,
-  VIDEO_ASPECT_RATIOS,
-} from "./videoTabUtils";
+import { VIDEO_ASPECT_RATIOS } from "./videoTabUtils";
 
-export interface LoadedSegmentPlanDraft extends SegmentPlanDraftSnapshot {
+export interface LoadedSegmentPlanDraft {
   workflowRunId: number;
   workflowStatus: string;
-  resumable: boolean;
   resumeOptions: GeneratePromptOptions;
   workflowProgress: WorkflowRun["progress"];
+  segments: Record<string, unknown>[];
+  recipes: Map<number, VideoSegmentExecutionRecipe>;
+  completedShotCount: number;
+  totalShotCount: number;
 }
 
 interface VideoTabData {
@@ -38,8 +38,13 @@ interface VideoTabData {
   activeVideoConfig: VideoGenConfig | null;
 }
 
-const invalidSegmentPlanWorkflowInput = (runId: number, field: string): never => {
-  throw new Error(`片段规划 workflow ${runId} 的原始输入 ${field} 无效，无法安全续跑`);
+const invalidSegmentPlanWorkflowInput = (
+  runId: number,
+  field: string,
+): never => {
+  throw new Error(
+    `片段规划 workflow ${runId} 的原始输入 ${field} 无效，无法安全续跑`,
+  );
 };
 
 const segmentPlanResumeOptions = (
@@ -47,23 +52,28 @@ const segmentPlanResumeOptions = (
   projectId: number,
   chapterId: number,
 ): GeneratePromptOptions => {
-  const fingerprint = asJsonRecord(run.input_fingerprint_json)
-    ?? invalidSegmentPlanWorkflowInput(run.id, "input_fingerprint_json");
+  const fingerprint =
+    asJsonRecord(run.input_fingerprint_json) ??
+    invalidSegmentPlanWorkflowInput(run.id, "input_fingerprint_json");
   if (fingerprint.schema_version !== 1) {
     invalidSegmentPlanWorkflowInput(run.id, "schema_version");
   }
   if (fingerprint.workflow_kind !== "video_segment_plan") {
     invalidSegmentPlanWorkflowInput(run.id, "workflow_kind");
   }
-  if (fingerprint.project_id !== projectId || fingerprint.chapter_id !== chapterId) {
+  if (
+    fingerprint.project_id !== projectId ||
+    fingerprint.chapter_id !== chapterId
+  ) {
     invalidSegmentPlanWorkflowInput(run.id, "project_id/chapter_id");
   }
   if (fingerprint.workflow_mode !== "shared_segment_plan") {
     invalidSegmentPlanWorkflowInput(run.id, "workflow_mode");
   }
 
-  const options = asJsonRecord(fingerprint.options)
-    ?? invalidSegmentPlanWorkflowInput(run.id, "options");
+  const options =
+    asJsonRecord(fingerprint.options) ??
+    invalidSegmentPlanWorkflowInput(run.id, "options");
   const style = options.style;
   if (typeof style !== "string" || !style || style.trim() !== style) {
     invalidSegmentPlanWorkflowInput(run.id, "options.style");
@@ -84,51 +94,66 @@ const segmentPlanResumeOptions = (
     invalidSegmentPlanWorkflowInput(run.id, "options.target_shot_number");
   }
   if (options.segment_recipe_fingerprint !== null) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.segment_recipe_fingerprint");
+    invalidSegmentPlanWorkflowInput(
+      run.id,
+      "options.segment_recipe_fingerprint",
+    );
   }
 
   const durationSecs = options.duration_secs;
   if (
-    typeof durationSecs !== "number"
-    || !Number.isInteger(durationSecs)
-    || durationSecs < 1
-    || durationSecs > 60
+    typeof durationSecs !== "number" ||
+    !Number.isInteger(durationSecs) ||
+    durationSecs < 1 ||
+    durationSecs > 60
   ) {
     invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs");
   }
   const resumeDurationSecs = durationSecs as number;
   const rawDurationOptions = options.duration_secs_options;
   if (!Array.isArray(rawDurationOptions)) {
-    return invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs_options");
+    return invalidSegmentPlanWorkflowInput(
+      run.id,
+      "options.duration_secs_options",
+    );
   }
-  if (rawDurationOptions.some((value) => typeof value !== "number" || !Number.isInteger(value))) {
+  if (
+    rawDurationOptions.some(
+      (value) => typeof value !== "number" || !Number.isInteger(value),
+    )
+  ) {
     invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs_options");
   }
   const durationOptions = rawDurationOptions as number[];
   if (
-    durationOptions.length === 0
-    || durationOptions.length > 12
-    || durationOptions.some((value) => value < 1 || value > 60)
-    || !durationOptions.includes(resumeDurationSecs)
-    || durationOptions.some((value, index) => index > 0 && value <= durationOptions[index - 1])
+    durationOptions.length === 0 ||
+    durationOptions.length > 12 ||
+    durationOptions.some((value) => value < 1 || value > 60) ||
+    !durationOptions.includes(resumeDurationSecs) ||
+    durationOptions.some(
+      (value, index) => index > 0 && value <= durationOptions[index - 1],
+    )
   ) {
     invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs_options");
   }
 
   const aspectRatio = options.aspect_ratio;
   if (
-    typeof aspectRatio !== "string"
-    || !VIDEO_ASPECT_RATIOS.some((supported) => supported === aspectRatio)
+    typeof aspectRatio !== "string" ||
+    !VIDEO_ASPECT_RATIOS.some((supported) => supported === aspectRatio)
   ) {
     invalidSegmentPlanWorkflowInput(run.id, "options.aspect_ratio");
   }
   const resumeAspectRatio = aspectRatio as string;
-  if (!Array.isArray(options.reference_image_ids) || options.reference_image_ids.length !== 0) {
+  if (
+    !Array.isArray(options.reference_image_ids) ||
+    options.reference_image_ids.length !== 0
+  ) {
     invalidSegmentPlanWorkflowInput(run.id, "options.reference_image_ids");
   }
   if (
-    !Array.isArray(options.video_library_image_ids)
-    || options.video_library_image_ids.length !== 0
+    !Array.isArray(options.video_library_image_ids) ||
+    options.video_library_image_ids.length !== 0
   ) {
     invalidSegmentPlanWorkflowInput(run.id, "options.video_library_image_ids");
   }
@@ -162,16 +187,20 @@ export const loadVideoSegmentPlanDraft = async (
     limit: 1,
   });
   const run = runs[0];
-  if (!run || run.status === "superseded") return null;
-  const detail = await loadVideoSegmentPlanDraftDetail(projectId, chapterId, run.id);
+  if (!run || (run.status !== "running" && !run.can_resume)) return null;
+  const detail = await loadVideoSegmentPlanDraftDetail(
+    projectId,
+    chapterId,
+    run.id,
+  );
   return loadedVideoSegmentPlanDraftFromDetail(detail, projectId, chapterId);
 };
 
-export const loadedVideoSegmentPlanDraftFromDetail = (
-  detail: WorkflowRunDetail,
+const loadedVideoSegmentPlanDraftFromDetail = (
+  detail: VideoSegmentPlanDraftDetail,
   projectId: number,
   chapterId: number,
-): LoadedSegmentPlanDraft | null => {
+): LoadedSegmentPlanDraft => {
   const run = detail.run;
   if (
     run.project_id !== projectId ||
@@ -180,20 +209,18 @@ export const loadedVideoSegmentPlanDraftFromDetail = (
   ) {
     throw new Error(`片段规划 workflow ${detail.run.id} 与当前章节不一致`);
   }
-  const snapshot: SegmentPlanDraftSnapshot | null =
-    segmentPlanDraftSnapshotFromCheckpoints(detail.checkpoints);
-  if (!snapshot) return null;
   const resumeOptions = segmentPlanResumeOptions(run, projectId, chapterId);
   return {
     workflowRunId: run.id,
     workflowStatus: run.status,
-    resumable: run.status === "running" || run.can_resume === true,
     resumeOptions,
     workflowProgress: run.progress,
-    segments: snapshot.segments,
-    recipes: snapshot.recipes,
-    completedShotCount: snapshot.completedShotCount,
-    totalShotCount: snapshot.totalShotCount,
+    segments: detail.segments,
+    recipes: new Map(
+      detail.recipes.map((recipe) => [recipe.segment_number, recipe]),
+    ),
+    completedShotCount: detail.completed_shot_count,
+    totalShotCount: detail.total_shot_count,
   };
 };
 
@@ -208,13 +235,16 @@ export const activeVideoSegmentPlanTask = (
   chapterId: number,
 ): GenerationTaskSummary | null => {
   const targetId = videoSegmentPlanGenerationTargetId(projectId, chapterId);
-  return tasks
-    .filter(
-      (task) =>
-        task.started.target?.kind === "video_prompt_segment_plan" &&
-        task.started.target.id === targetId,
-    )
-    .sort((left, right) => right.updated_at_ms - left.updated_at_ms)[0] ?? null;
+  return (
+    tasks
+      .filter(
+        (task) =>
+          task.started.target?.kind === "video_prompt_segment_plan" &&
+          task.started.target.id === targetId,
+      )
+      .sort((left, right) => right.updated_at_ms - left.updated_at_ms)[0] ??
+    null
+  );
 };
 
 export const loadVideoTabData = async (

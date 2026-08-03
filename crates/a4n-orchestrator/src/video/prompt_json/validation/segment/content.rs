@@ -60,11 +60,6 @@ pub(super) fn validate_segment_spatial_anchors(
 pub(super) fn validate_segment_emotion_action_goals(
     items: &[VideoEmotionActionGoalV1],
 ) -> Result<(), AppError> {
-    if items.is_empty() {
-        return Err(AppError::InvalidArgument(
-            "视频分段规划 emotion_action_goals 不能为空".to_string(),
-        ));
-    }
     for (index, item) in items.iter().enumerate() {
         for (field, value) in [
             ("character", item.character.clone()),

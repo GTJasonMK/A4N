@@ -67,16 +67,15 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
     [prompt?.metadata_json],
   );
   const draftRunning = draft?.workflowStatus === "running";
-  const canContinueDraft = draft?.resumable === true && !draftRunning;
+  const canContinueDraft = draft != null && !draftRunning;
   const busy = acting === "generate-segment-plan" || chapterGenerating || draftRunning;
-  const showingPreview =
-    previewSegments.length > 0 && (!prompt || draft?.workflowStatus !== "completed");
+  const showingPreview = previewSegments.length > 0;
   const generatingPreview = acting === "generate-segment-plan" || draftRunning;
   const segments = showingPreview ? previewSegments : persistedSegments;
   const needsLoadRetry = Boolean(loadError && !prompt);
   const shotProgress =
     draft && draft.completedShotCount > 0
-      ? `${draft.completedShotCount}/${draft.totalShotCount || "?"} 个镜头 · `
+      ? `${draft.completedShotCount}/${draft.totalShotCount} 个镜头 · `
       : "";
   const workflowProgress = draft?.workflowProgress
     ? `${Math.round(draft.workflowProgress.percent)}%${draft.workflowProgress.message.trim() ? ` · ${draft.workflowProgress.message.trim()}` : ""} · `

@@ -283,18 +283,20 @@ impl OrchestratorContext {
         let start_from_stage = parse_galgame_start_stage(input.start_from_stage.as_deref())?;
         let initial_stage =
             start_from_stage.unwrap_or(GalgamePipelineStartStage::ShootingScriptProjection);
-        let workflow_run = self
-            .begin_workflow_run_validated(
-                galgame_pipeline_workflow_run_input(
-                    project.id,
-                    root_project_id,
-                    source_snapshot_id,
-                    initial_stage.key(),
-                    input.task_id.clone(),
-                )
-                .map_err(AppError::InvalidArgument)?,
-            )
-            .await?;
+        let workflow_input = galgame_pipeline_workflow_run_input(
+            project.id,
+            root_project_id,
+            source_snapshot_id,
+            initial_stage.key(),
+            input.task_id.clone(),
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let workflow_run = if input.resume_from_checkpoint {
+            self.begin_or_resume_workflow_run_validated(workflow_input)
+                .await?
+        } else {
+            self.begin_workflow_run_validated(workflow_input).await?
+        };
         let result = self
             .run_pipeline(
                 project.id,

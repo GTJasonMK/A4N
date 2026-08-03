@@ -153,7 +153,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   imageProjectIds,
   fixedChapter,
 }) => {
-  const { addToast } = useToast();
+  const addToast = useToast((state) => state.addToast);
   const { runProgressTask: runPortraitProgressTask } = useProgressTask();
   const hasFixedChapterContext = fixedChapter !== undefined;
   const [chapters, setChapters] = useState<ChapterRow[]>([]);
@@ -575,10 +575,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     void loadCharacterAssets(projectId, characterAssetProjectId);
     void loadProjectImages(projectId, imageSourceProjectIds, imageSourceKey);
     // snapshotChapters is an external source list; when it changes, the visible chapter list must be rebuilt.
+    // imageSourceKey 已表示图片来源的值身份；不能再依赖数组引用，否则父级重渲染会清空当前页。
   }, [
     characterAssetProjectId,
     imageSourceKey,
-    imageSourceProjectIds,
     isSingleMode,
     projectId,
     snapshotChapters,
@@ -669,12 +669,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     try {
       await fn();
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      await loadChapters(requestProjectId);
-      if (!isActionCurrent(requestProjectId, actionSeq)) return;
       if (targetChapterId) {
         await Promise.all([
           isChapterCurrent(requestProjectId, targetChapterId)
-            ? loadPanels(targetChapterId, requestProjectId)
+            ? loadPanels(targetChapterId, requestProjectId, { showLoading: false })
             : Promise.resolve(),
           loadSingleStatus(targetChapterId, requestProjectId),
         ]);
@@ -1081,9 +1079,15 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             );
           })();
         }}
-        onPanelsChanged={() => {
-          if (selectedChapter) void loadPanels(selectedChapter.id);
-          void loadProjectImages();
+        onPanelsChanged={async () => {
+          await Promise.all([
+            selectedChapter
+              ? loadPanels(selectedChapter.id, projectId, { showLoading: false }).catch((err) =>
+                  addToast(extractErrorMessage(err, "加载整页提示词失败"), "error"),
+                )
+              : Promise.resolve(),
+            loadProjectImages(),
+          ]);
         }}
       />
       <ProgressDialog

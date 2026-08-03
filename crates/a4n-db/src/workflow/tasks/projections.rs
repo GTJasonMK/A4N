@@ -1,6 +1,4 @@
-use crate::workflow::{
-    PersistedTaskInfo, WorkflowReadError, is_terminal_workflow_status,
-};
+use crate::workflow::{PersistedTaskInfo, WorkflowReadError, is_terminal_workflow_status};
 use a4n_core::models::{generation::workflow_checkpoint, task::task_queue};
 use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskProgress, TaskStatus};
 use serde_json::Value;

@@ -169,6 +169,8 @@ fn full_repair_rewrites_manifest_for_trailing_comma_response() {
     );
     assert!(manifest.dynamic_user_content.contains("scene_index"));
     assert!(manifest.dynamic_user_content.contains("trailing comma"));
+    assert!(manifest.dynamic_user_content.contains(invalid_response));
+    assert!(!manifest.dynamic_user_content.contains(r#"\"scene_index\""#));
     let output_contract = manifest.output_contract.as_deref().unwrap_or_default();
     assert!(output_contract.contains("输出拍摄设计单元 JSON"));
     assert!(output_contract.contains("必须重新输出完整 JSON 根对象"));

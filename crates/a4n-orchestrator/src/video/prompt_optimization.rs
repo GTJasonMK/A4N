@@ -244,7 +244,6 @@ impl OrchestratorContext {
                 duration_secs: None,
                 reference_image_ids_json: None,
                 metadata_patch: None,
-                segment_recipe: None,
             },
             Some(optimized_metadata),
             prepared.allow_downstream,

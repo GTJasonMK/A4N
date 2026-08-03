@@ -1,8 +1,7 @@
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, DownstreamConflictStrategy, ServerState, command_input, downstream_strategy_arg,
-    i64_arg, nullable_string_update_field, optional_string_field, required_arg, to_value,
+    ApiError, ServerState, command_input, downstream_strategy_arg, i64_arg, required_arg, to_value,
     video_prompt_actions,
 };
 
@@ -45,14 +44,34 @@ pub(in crate::routes::commands) async fn update_video_segment_plan_draft_recipe(
 ) -> Result<Value, ApiError> {
     let input: video_prompt_actions::UpdateVideoSegmentPlanDraftRecipeInput =
         command_input(args, "update_video_segment_plan_draft_recipe")?;
-    let detail = video_prompt_actions::update_video_segment_plan_draft_recipe(
+    let result = video_prompt_actions::update_video_segment_plan_draft_recipe(
         state.runtime(),
         user_id,
         input,
     )
     .await
     .map_err(ApiError::bad_request)?;
-    to_value(detail)
+    to_value(result)
+}
+
+pub(in crate::routes::commands) async fn update_chapter_video_segment_recipe(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let prompt_id = i64_arg(args, "promptId")?;
+    let recipe = required_arg(args, "recipe")?;
+    let recipe = serde_json::from_value(recipe.clone())
+        .map_err(|error| ApiError::bad_request(format!("recipe 无效：{error}")))?;
+    let recipes = video_prompt_actions::update_chapter_video_segment_recipe(
+        state.runtime(),
+        user_id,
+        prompt_id,
+        recipe,
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
+    to_value(recipes)
 }
 
 pub(in crate::routes::commands) async fn update_chapter_video_prompt(
@@ -61,31 +80,13 @@ pub(in crate::routes::commands) async fn update_chapter_video_prompt(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let prompt_id = i64_arg(args, "promptId")?;
-    let input = required_arg(args, "input")?;
-    let visual_prompt = optional_string_field(input, "visual_prompt")?;
-    let motion_prompt = nullable_string_update_field(input, "motion_prompt")?;
-    let negative_prompt = nullable_string_update_field(input, "negative_prompt")?;
-    let segment_recipe = input
-        .get("segment_recipe")
-        .cloned()
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(|error| ApiError::bad_request(format!("segment_recipe 无效：{error}")))?;
-    let downstream_strategy = DownstreamConflictStrategy::from_optional_str(
-        optional_string_field(input, "downstream_strategy")?.as_deref(),
-    )
-    .map_err(ApiError::bad_request)?;
+    let input: video_prompt_actions::UpdateChapterVideoPromptInput =
+        command_input(args, "update_chapter_video_prompt")?;
     let updated = video_prompt_actions::update_chapter_video_prompt(
         state.runtime(),
         user_id,
         prompt_id,
-        video_prompt_actions::UpdateChapterVideoPromptInput {
-            visual_prompt,
-            motion_prompt,
-            negative_prompt,
-            segment_recipe,
-            downstream_strategy,
-        },
+        input,
     )
     .await
     .map_err(ApiError::bad_request)?;

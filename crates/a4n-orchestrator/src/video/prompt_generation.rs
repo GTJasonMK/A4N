@@ -11,7 +11,7 @@ pub(in crate::video) use self::frame_prompts::{
     boundary_frame_prompt_rows_prefix, boundary_frame_rows_for_image_lookup,
     expected_boundary_frame_count, expected_video_unit_count, first_frame_prompts_from_rows,
     frame_prompt_available_assets_context, frame_prompts_from_rows, initial_first_frame_rows,
-    load_previous_shared_segment_recipe_state, materialize_video_segment_plan_draft_recipes,
+    load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
     previous_boundary_frame_asset_context, reusable_boundary_video_prompts_from_rows,
     reusable_chat_video_prompts_from_rows, reusable_first_frame_video_prompts_from_rows,
     reusable_frame_prefix_len_with_previous_images, reusable_segment_plan_for_preview,

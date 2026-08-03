@@ -69,13 +69,16 @@ pub(super) async fn preview_items(
     })
     .await?;
     let (items_out, items_json) = match items_call {
-        MangaPreviewCall::Restored { parsed_output } => {
+        MangaPreviewCall::Restored {
+            response_text,
+            parsed_output,
+        } => {
             steps.push(MangaPipelineRequestPreviewStep::reused_checkpoint(
                 "manga_item_extraction",
                 "漫画 Step 4：关键物品抽取",
                 "manga_item_extraction",
             ));
-            (serde_json::to_string(&parsed_output)?, parsed_output)
+            (response_text, parsed_output)
         }
         MangaPreviewCall::Ready(request) => {
             steps.push(MangaPipelineRequestPreviewStep::ready(

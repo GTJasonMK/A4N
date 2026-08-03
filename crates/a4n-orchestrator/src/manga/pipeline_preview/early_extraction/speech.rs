@@ -67,13 +67,16 @@ pub(super) async fn preview_speech(
     })
     .await?;
     let (speech_out, speech_json) = match call {
-        MangaPreviewCall::Restored { parsed_output } => {
+        MangaPreviewCall::Restored {
+            response_text,
+            parsed_output,
+        } => {
             steps.push(MangaPipelineRequestPreviewStep::reused_checkpoint(
                 "manga_speech_selection",
                 "漫画 Step 2：对白旁白选择",
                 "manga_speech_selection",
             ));
-            (serde_json::to_string(&parsed_output)?, parsed_output)
+            (response_text, parsed_output)
         }
         MangaPreviewCall::Ready(request) => {
             steps.push(MangaPipelineRequestPreviewStep::ready(

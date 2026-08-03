@@ -19,6 +19,8 @@ use crate::{
 
 use super::contracts::{CharacterProfileSyncStage, CharacterProfileSyncStageInput};
 
+pub(super) const CHARACTER_PROFILE_SYNC_SESSION_PROMPT: &str = "character_sync_session";
+
 pub(super) struct PreparedCharacterProfileSyncStageCall {
     pub(super) request: ChatRequest,
     pub(super) call_key: String,
@@ -31,11 +33,19 @@ pub(super) async fn build_character_profile_sync_stage_request(
     previous_steps: &Value,
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<ChatRequest, AppError> {
-    let system_prompt = prompt_renderer
+    let stage_prompt = prompt_renderer
         .render_prompt(stage.prompt_name(), &HashMap::new(), Some(input.project_id))
+        .await?;
+    let system_prompt = prompt_renderer
+        .render_prompt(
+            CHARACTER_PROFILE_SYNC_SESSION_PROMPT,
+            &HashMap::new(),
+            Some(input.project_id),
+        )
         .await?;
     let user_prompt = build_character_profile_sync_stage_user_prompt(stage, previous_steps)
         .map_err(AppError::InvalidArgument)?;
+    let user_prompt = format!("[阶段指令]\n{}\n\n{user_prompt}", stage_prompt.trim());
     context_aware_system_user_json_llm_request(
         system_prompt,
         ContextAwareJsonLlmRequestInput {
@@ -54,8 +64,6 @@ pub(super) async fn build_character_profile_sync_stage_request(
             })),
             config_json: json!({
                 "ledger_version": "character_sync_context_v1",
-                "prompt_name": stage.prompt_name(),
-                "stage": stage.key(),
             }),
             stable_context_json: character_profile_sync_stage_stable_context(input),
             dynamic_user_prompt: user_prompt,

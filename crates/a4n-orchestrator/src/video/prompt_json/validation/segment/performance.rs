@@ -78,11 +78,6 @@ fn validate_segment_performance_time_blocks(
 fn validate_segment_performance_action_script(
     items: &[VideoPerformanceActionV1],
 ) -> Result<(), AppError> {
-    if items.is_empty() {
-        return Err(AppError::InvalidArgument(
-            "视频分段规划 performance_plan.action_script 不能为空".to_string(),
-        ));
-    }
     for (index, item) in items.iter().enumerate() {
         let field = format!("视频分段规划 performance_plan.action_script[{}]", index + 1);
         for (name, text) in [

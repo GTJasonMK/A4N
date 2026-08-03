@@ -66,11 +66,13 @@ pub(super) fn assemble_chapter_shooting_script(
                     ))
                 })?;
             }
-            shot.estimated_natural_seconds = shot
-                .performance_beats
-                .iter()
-                .map(|beat| beat.estimated_seconds)
-                .sum();
+            if !shot.performance_beats.is_empty() {
+                shot.estimated_natural_seconds = shot
+                    .performance_beats
+                    .iter()
+                    .map(|beat| beat.estimated_seconds)
+                    .sum();
+            }
         }
         assembled.push(scene);
     }

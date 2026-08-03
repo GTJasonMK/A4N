@@ -73,7 +73,7 @@ pub(super) async fn prepare_frame_workflow<'a, 'progress>(
         }
         (FramePromptLayout::InitialFirstFrame, Some(target)) => {
             return Err(AppError::InvalidArgument(format!(
-                "首帧续接片段 {target} 不生成新的首帧提示词；请先采用上一片段视频作为续接来源"
+                "首帧续接片段 {target} 不生成新的首帧提示词；请在续接首帧槽位选择更早片段已采用的视频"
             )));
         }
         (FramePromptLayout::PerSegmentStoryboard, Some(_)) => 1,

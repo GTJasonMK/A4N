@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_db::workflow::{
-    self, CompletedLlmCallCheckpointInput, UpsertWorkflowCheckpointInput,
-    WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, upsert_workflow_checkpoint,
+    self, CompletedLlmCallCheckpointInput, UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_FAILED,
+    upsert_workflow_checkpoint,
 };
 use a4n_llm::provider::{ChatRequest, UsageInfo};
 use serde::de::DeserializeOwned;
@@ -34,32 +34,6 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn load_completed_v
     let checkpoint_json = workflow::required_llm_call_checkpoint_json(checkpoint, step_key)
         .map_err(workflow_checkpoint_contract_app_error)?;
     Ok(Some(checkpoint_json))
-}
-
-pub(in crate::video::prompt_generation::frame_prompts) async fn load_completed_video_checkpoint_by_step(
-    service: &OrchestratorContext,
-    workflow_run_id: i64,
-    step_key: &str,
-) -> Result<Option<(Value, Value)>, AppError> {
-    let Some(checkpoint) = workflow::workflow_checkpoint_model_by_step(
-        service.database.connection(),
-        workflow_run_id,
-        step_key,
-    )
-    .await
-    .map_err(workflow_read_app_error)?
-    else {
-        return Ok(None);
-    };
-    if checkpoint.status != WORKFLOW_STATUS_COMPLETED {
-        return Ok(None);
-    }
-    let Some(input_fingerprint_json) = checkpoint.input_fingerprint_json.clone() else {
-        return Ok(None);
-    };
-    let checkpoint_json = workflow::required_llm_call_checkpoint_json(checkpoint, step_key)
-        .map_err(workflow_checkpoint_contract_app_error)?;
-    Ok(Some((input_fingerprint_json, checkpoint_json)))
 }
 
 pub(in crate::video::prompt_generation::frame_prompts) struct CompletedVideoLlmCheckpointInput<'a> {

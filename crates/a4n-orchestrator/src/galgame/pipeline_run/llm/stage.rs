@@ -26,6 +26,8 @@ pub(in crate::galgame::pipeline_run) struct GalgameLlmStageInput<'a> {
     pub(in crate::galgame::pipeline_run) checkpoint_key: &'a str,
     pub(in crate::galgame::pipeline_run) prompt_name: &'a str,
     pub(in crate::galgame::pipeline_run) user_prompt: String,
+    pub(in crate::galgame::pipeline_run) request_user_prompt: String,
+    pub(in crate::galgame::pipeline_run) shared_shooting_script_projection: &'a Value,
     pub(in crate::galgame::pipeline_run) restore_from_checkpoint: bool,
     pub(in crate::galgame::pipeline_run) restore_required: bool,
 }

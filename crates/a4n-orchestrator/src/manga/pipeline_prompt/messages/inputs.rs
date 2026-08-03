@@ -57,7 +57,13 @@ pub(in crate::manga) fn manga_page_planning_input(
     shooting_script: Value,
 ) -> Value {
     json!({
-        "extraction_summary": extraction_summary,
+        "extraction_summary": {
+            "characters": extraction_summary["characters"].clone(),
+            "speech": extraction_summary["speech"].clone(),
+            "visual_anchors": extraction_summary["visual_anchors"].clone(),
+            "items": extraction_summary["items"].clone(),
+            "comic_synthesis": extraction_summary["comic_synthesis"].clone(),
+        },
         "shooting_script": shooting_script
     })
 }
@@ -74,7 +80,6 @@ pub(in crate::manga) fn manga_page_drawing_prompt_page_input(
         "current_page": page_plan,
         "page_context": {
             "characters": characters,
-            "extraction_summary": extraction_summary,
         },
         "reference_assets": reference_assets,
     })

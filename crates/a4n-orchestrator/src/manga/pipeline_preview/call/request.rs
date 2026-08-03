@@ -51,6 +51,7 @@ pub(in crate::manga::pipeline_preview) async fn build_manga_preview_call(
         .await?
         {
             return Ok(MangaPreviewCall::Restored {
+                response_text: restored.response_text,
                 parsed_output: restored.parsed_output,
             });
         }

@@ -9,6 +9,7 @@ use a4n_core::models::{
     chapter::chapter_video_prompt,
 };
 use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 use a4n_db::DbHandle;
 use a4n_db::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
@@ -482,6 +483,20 @@ impl VideoApplication {
             prompt_id,
             input,
             allow_downstream,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
+    pub(super) async fn update_chapter_video_segment_recipe(
+        &self,
+        prompt_id: i64,
+        recipe: VideoSegmentExecutionRecipeV1,
+    ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, AppError> {
+        a4n_db::video_prompt::update_chapter_video_segment_recipe(
+            self.connection(),
+            prompt_id,
+            recipe,
         )
         .await
         .map_err(video_db_error)
@@ -1206,11 +1221,8 @@ impl OrchestratorContext {
                 prompt_id,
             )
             .await?;
-        self.sync_project_asset_lineage_after_commit(
-            updated.project_id,
-            "同步完成视频资产谱系",
-        )
-        .await;
+        self.sync_project_asset_lineage_after_commit(updated.project_id, "同步完成视频资产谱系")
+            .await;
         Ok(updated)
     }
 
@@ -1387,6 +1399,16 @@ impl OrchestratorContext {
             .await
     }
 
+    pub async fn update_chapter_video_segment_recipe(
+        &self,
+        prompt_id: i64,
+        recipe: VideoSegmentExecutionRecipeV1,
+    ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, AppError> {
+        self.video
+            .update_chapter_video_segment_recipe(prompt_id, recipe)
+            .await
+    }
+
     pub async fn update_chapter_video_prompt_with_generation_run_checkpoint(
         &self,
         prompt_id: i64,
@@ -1505,6 +1527,7 @@ impl OrchestratorContext {
         options: &crate::video::ChapterVideoPromptOptions,
         active_task_id: &str,
         root_project_id: i64,
+        retry_of_task_id: Option<&str>,
     ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
         let (input, _fingerprint) = crate::video::video_prompt_workflow_run_input(
             workflow_kind,
@@ -1520,6 +1543,7 @@ impl OrchestratorContext {
         .map_err(AppError::InvalidArgument)?;
         self.claim_exclusive_workflow_run(crate::workflow::ClaimExclusiveWorkflowRunInput {
             run: input,
+            resume_from_task_id: retry_of_task_id.map(str::to_owned),
         })
         .await
     }
@@ -1579,12 +1603,7 @@ impl OrchestratorContext {
             .await?
         {
             return self
-                .mark_workflow_status(
-                    run.id,
-                    crate::workflow::WORKFLOW_STATUS_RUNNING,
-                    true,
-                    None,
-                )
+                .mark_workflow_status(run.id, crate::workflow::WORKFLOW_STATUS_RUNNING, true, None)
                 .await;
         }
         let input = crate::video::video_provider_progress_workflow_run_input(video, job_id)

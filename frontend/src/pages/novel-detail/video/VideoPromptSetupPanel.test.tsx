@@ -17,7 +17,12 @@ const recipe = (
   aspect_ratio: "16:9",
   reference_image_ids: [],
   video_library_image_ids: [],
-  guidance_mode: "none",
+  guidance_mode:
+    workflowMode === "chat_video" || workflowMode === "reference_media"
+      ? "none"
+      : workflowMode === "first_frame_chain" && segmentNumber > 1
+        ? "continuity"
+        : "system_frames",
   guidance_reference_image_ids: [],
   continuity_source_video_id: null,
   reference_media: null,
@@ -60,30 +65,30 @@ describe("VideoPromptSetupPanel", () => {
         acting={acting}
         chapterGenerating={false}
         savingRecipeSegments={new Set()}
-        selectableReferenceImages={[]}
-        previousAdoptedVideos={[]}
         finalPromptBlockedReasons={new Map()}
+        layout="selected"
         onLoad={() => undefined}
         onSelectPrompt={() => undefined}
-        onSelectSegment={() => true}
+        onSelectSegment={() => undefined}
         onWorkflowModeChange={() => undefined}
-        onUpdateGuidance={() => undefined}
         onDeletePrompt={() => undefined}
       />);
     const firstSelected = renderSelected(1);
     const secondSelected = renderSelected(2);
 
-    for (const label of ["首帧生成", "首尾帧生成", "分镜生成", "Chat 生视频"]) {
-      expect(firstSelected).toContain(label);
-      expect(secondSelected).toContain(label);
-    }
+    expect(firstSelected).toContain("生成方式");
+    expect(firstSelected).toContain("切换后自动保存");
+    expect(firstSelected).not.toContain("首帧片段");
+    expect(firstSelected).not.toContain("首尾帧片段");
+    expect(secondSelected).not.toContain("首尾帧片段");
+    expect(secondSelected).not.toContain("首帧片段");
     expect(firstSelected.match(/aria-label="片段 \d+ 生成方案"/g)).toHaveLength(1);
     expect(firstSelected).toMatch(
       /aria-label="片段 1 生成方案"[\s\S]*?data-active="1"[^>]*>首帧续接<\/button>/,
     );
     expect(firstSelected).not.toContain('aria-label="片段 2 生成方案"');
     expect(secondSelected).toMatch(
-      /首帧片段[\s\S]*?首帧生成[\s\S]*?首尾帧片段[\s\S]*?aria-label="片段 2 生成方案"[\s\S]*?data-active="1"[^>]*>首尾帧<\/button>/,
+      /aria-label="片段 2 生成方案"[\s\S]*?data-active="1"[^>]*>首尾帧<\/button>/,
     );
     expect(secondSelected).not.toContain('aria-label="片段 1 生成方案"');
 
@@ -94,7 +99,7 @@ describe("VideoPromptSetupPanel", () => {
     expect(busyModeControl?.match(/ disabled=""/g)).toHaveLength(5);
   });
 
-  it("renders the reference-media workspace inside the selected segment card", () => {
+  it("renders the page sidebar as a pure segment index", () => {
     const html = renderToStaticMarkup(
       <VideoPromptSetupPanel
         chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
@@ -130,30 +135,22 @@ describe("VideoPromptSetupPanel", () => {
         acting={null}
         chapterGenerating={false}
         savingRecipeSegments={new Set()}
-        selectableReferenceImages={[]}
-        previousAdoptedVideos={[]}
         finalPromptBlockedReasons={new Map()}
-        selectedSegmentWorkspace={<div>参考媒体内嵌工作区</div>}
+        layout="index"
         onLoad={() => undefined}
         onSelectPrompt={() => undefined}
-        onSelectSegment={() => true}
+        onSelectSegment={() => undefined}
         onWorkflowModeChange={() => undefined}
-        onUpdateGuidance={() => undefined}
         onDeletePrompt={() => undefined}
       />,
     );
 
-    expect(html).toContain('data-segment-workspace="1"');
-    expect(html).not.toContain('data-segment-workspace="2"');
-    expect(html).toContain("参考媒体内嵌工作区");
-    expect(html).not.toContain("在右侧编辑参考媒体");
-    expect(
-      [...html.matchAll(/<button\b[\s\S]*?<\/button>/g)].some(([button]) =>
-        button.includes("生成最终提示词"),
-      ),
-    ).toBe(false);
-    expect(html).toMatch(
-      /aria-label="片段 1 生成方案"[\s\S]*?data-active="1"[^>]*>参考媒体<\/button>/,
-    );
+    expect(html).toContain("片段一");
+    expect(html).toContain("片段二");
+    expect(html.match(/无需最终提示词/g)).toHaveLength(2);
+    expect(html).toContain("点击选择片段，再次点击打开配置");
+    expect(html).not.toContain('aria-label="片段 1 生成方案"');
+    expect(html).not.toContain('aria-label="片段 2 生成方案"');
+    expect(html).not.toContain("生成最终提示词");
   });
 });

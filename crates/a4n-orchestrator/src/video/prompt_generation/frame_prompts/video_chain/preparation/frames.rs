@@ -141,7 +141,7 @@ pub(super) async fn select_video_chain_frames(
             .collect::<Vec<_>>();
         if !missing.is_empty() {
             return Err(AppError::InvalidArgument(format!(
-                "当前章节分镜板不完整：缺少第 {} 个视频单元分镜板，请先在分镜生成里生成对应图片",
+                "当前章节分镜板不完整：缺少第 {} 个视频单元分镜板，请在当前片段配置中点击分镜板槽位生成对应图片",
                 missing.join("、")
             )));
         }
@@ -188,7 +188,18 @@ pub(super) async fn select_video_chain_frames(
             expected_video_unit_count(segment_plan)
         };
         let actual_frame_count = frame_rows.len();
-        let Some(frame_rows) = complete_reusable_rows(frame_rows, expected_frame_count) else {
+        let targeted_storyboard_complete = target_shot_number.is_some_and(|target| {
+            targeted_storyboard_rows_are_complete(
+                actual_frame_count,
+                frame_rows.first().map(|row| row.shot_number),
+                target,
+            )
+        });
+        let frame_rows = if targeted_storyboard_complete {
+            frame_rows
+        } else if let Some(frame_rows) = complete_reusable_rows(frame_rows, expected_frame_count) {
+            frame_rows
+        } else {
             return Err(incomplete_frame_error(
                 spec,
                 expected_frame_count,
@@ -244,6 +255,14 @@ fn skips_system_frame_prompt_inputs(
             && target_shot_number.is_some_and(|target| target > 1))
 }
 
+fn targeted_storyboard_rows_are_complete(
+    actual_count: usize,
+    first_shot_number: Option<i32>,
+    target_shot_number: i32,
+) -> bool {
+    actual_count == 1 && first_shot_number == Some(target_shot_number)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -262,6 +281,13 @@ mod tests {
             PromptWorkflowMode::BoundaryFrames,
             Some(1)
         ));
+    }
+
+    #[test]
+    fn targeted_storyboard_accepts_the_requested_segment_number() {
+        assert!(targeted_storyboard_rows_are_complete(1, Some(3), 3));
+        assert!(!targeted_storyboard_rows_are_complete(1, Some(1), 3));
+        assert!(!targeted_storyboard_rows_are_complete(2, Some(3), 3));
     }
 }
 

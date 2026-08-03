@@ -6,9 +6,8 @@ use super::super::super::pipeline_json::{
     page_drawing_prompt_from_response, page_plan_page_number,
 };
 use super::super::super::pipeline_prompt::{
-    MANGA_PREVIOUS_OUTPUT_EXTRACTION_SUMMARY, MANGA_PREVIOUS_OUTPUT_PAGE_PLANNING,
-    MangaContextManifestInput, MangaContextPreviousOutput, MangaRenderTraceInput,
-    build_manga_context_manifest, manga_page_drawing_prompt_user_message,
+    MangaContextManifestInput, MangaRenderTraceInput, build_manga_context_manifest,
+    manga_page_drawing_prompt_user_message,
 };
 use super::super::super::pipeline_status::{
     MangaPipelineCheckpointInput, MangaPipelineStatusInput,
@@ -35,7 +34,6 @@ impl OrchestratorContext {
             chapter_content,
             source_spans,
             reference_assets,
-            plan_json,
             page_plan,
             page_index,
             total_pages,
@@ -52,28 +50,14 @@ impl OrchestratorContext {
         let page_context = format!("manga_page_drawing_prompt.page_{page_number}");
         let dp_user =
             manga_page_drawing_prompt_user_message(page_number, page_plan, extraction_summary)?;
-        let plan_context = json!({ "page_plan": page_plan, "plan": plan_json });
         let dp_manifest = build_manga_context_manifest(MangaContextManifestInput {
             prompt_renderer,
             project_id,
             variables: vars,
             chapter_content,
             source_spans,
-            prompt_names: &["manga_page_planning", "manga_page_drawing_prompt"],
-            previous_outputs: &[
-                MangaContextPreviousOutput {
-                    pack_kind: MANGA_PREVIOUS_OUTPUT_PAGE_PLANNING,
-                    prompt_name: "manga_page_planning",
-                    parsed_output: &plan_context,
-                    raw_output: None,
-                },
-                MangaContextPreviousOutput {
-                    pack_kind: MANGA_PREVIOUS_OUTPUT_EXTRACTION_SUMMARY,
-                    prompt_name: "manga_extraction_summary",
-                    parsed_output: extraction_summary,
-                    raw_output: None,
-                },
-            ],
+            prompt_names: &["manga_page_drawing_prompt"],
+            previous_outputs: &[],
             reference_assets: Some(reference_assets),
             dynamic_user_content: dp_user,
         })

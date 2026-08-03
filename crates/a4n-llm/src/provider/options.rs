@@ -8,6 +8,7 @@ const RESERVED_REQUEST_OPTION_KEYS: &[&str] = &[
     "temperature",
     "max_tokens",
     "response_format",
+    "prompt_cache_key",
     "tools",
     "tool_choice",
     "stop",

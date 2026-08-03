@@ -51,13 +51,16 @@ pub(super) async fn preview_visual(
     })
     .await?;
     let (visual_out, visual_json) = match visual_call {
-        MangaPreviewCall::Restored { parsed_output } => {
+        MangaPreviewCall::Restored {
+            response_text,
+            parsed_output,
+        } => {
             steps.push(MangaPipelineRequestPreviewStep::reused_checkpoint(
                 "manga_visual_anchor_extraction",
                 "漫画 Step 3：视觉锚点抽取",
                 "manga_visual_anchor_extraction",
             ));
-            (serde_json::to_string(&parsed_output)?, parsed_output)
+            (response_text, parsed_output)
         }
         MangaPreviewCall::Ready(request) => {
             steps.push(MangaPipelineRequestPreviewStep::ready(

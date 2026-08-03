@@ -126,14 +126,20 @@ pub(in crate::galgame) fn validate_staged_presentation(
             )));
         }
     }
-    for (field, ids) in [("enter", &presentation.enter), ("exit", &presentation.exit)] {
-        let mut unique = std::collections::BTreeSet::new();
-        for id in ids {
-            if *id <= 0 || !unique.insert(*id) || !visible.contains(id) {
-                return Err(invalid(format!(
-                    "{context}.lines[].presentation.{field} 必须引用 visible_cast 中不重复的正整数角色 ID"
-                )));
-            }
+    let mut unique = std::collections::BTreeSet::new();
+    for id in &presentation.enter {
+        if *id <= 0 || !unique.insert(*id) || !visible.contains(id) {
+            return Err(invalid(format!(
+                "{context}.lines[].presentation.enter 必须引用 visible_cast 中不重复的正整数角色 ID"
+            )));
+        }
+    }
+    unique.clear();
+    for id in &presentation.exit {
+        if *id <= 0 || !unique.insert(*id) || visible.contains(id) {
+            return Err(invalid(format!(
+                "{context}.lines[].presentation.exit 必须是不在 visible_cast 中的不重复正整数角色 ID"
+            )));
         }
     }
     if let Some(focus) = presentation.focus_character_profile_id

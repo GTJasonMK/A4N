@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::galgame::{
     GalgameBranchDesign, GalgamePipelineStartStage, branch_design_from_value,
-    galgame_branch_design_user_message,
+    galgame_branch_design_session_user_message, galgame_branch_design_user_message,
 };
 
 use super::super::super::contracts::CHECKPOINT_BRANCH_PLAN;
@@ -33,6 +33,7 @@ pub(super) async fn run_branch_design_stage(
         )
         .await?;
     let user_prompt = galgame_branch_design_user_message(scenes_json)?;
+    let request_user_prompt = galgame_branch_design_session_user_message()?;
     let branch_plan_json = execution
         .service
         .run_galgame_llm_stage(
@@ -45,6 +46,8 @@ pub(super) async fn run_branch_design_stage(
                 checkpoint_key: CHECKPOINT_BRANCH_PLAN,
                 prompt_name: "galgame_branch_design",
                 user_prompt,
+                request_user_prompt,
+                shared_shooting_script_projection: scenes_json,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

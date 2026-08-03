@@ -77,7 +77,7 @@ interface MangaChapterDetailPanelProps {
   onGenerateMissingPortraits: () => void;
   onCancelPipeline: () => void;
   onDeleteManga: () => void;
-  onPanelsChanged: () => void;
+  onPanelsChanged: () => Promise<void>;
 }
 
 type NoticeTone = "ok" | "warning" | "danger" | "muted";
@@ -124,7 +124,7 @@ export function MangaChapterDetailPanel({
   onDeleteManga,
   onPanelsChanged,
 }: MangaChapterDetailPanelProps) {
-  const { addToast } = useToast();
+  const addToast = useToast((state) => state.addToast);
   const { runProgressTask: runPageImageProgressTask } = useProgressTask();
   const [generatingPageNumber, setGeneratingPageNumber] = useState<number | null>(null);
   const [panelActionBusy, setPanelActionBusy] = useState(false);

@@ -152,3 +152,16 @@ fn supporting_shot_may_contain_only_optional_beats() {
         .validate()
         .expect("supporting shots do not have to cover a required performance fact");
 }
+
+#[test]
+fn establishing_scene_may_have_no_participants() {
+    let mut script = valid_script();
+    script.scenes[0].participants.clear();
+    script.scenes[0].focal_character = None;
+    script.scenes[0].viewpoint.anchor_character = None;
+    script.scenes[0].shots[0].performance_beats.clear();
+
+    script
+        .validate()
+        .expect("environment-only scenes may omit participants and performance beats");
+}

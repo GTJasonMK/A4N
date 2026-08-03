@@ -111,7 +111,6 @@ pub(super) async fn build_system_prefix_pack_ref(
         pack_kind: "system_prompt_prefix".to_string(),
         source_refs_json: Some(json!({
             "source": "chat_request.system_messages",
-            "step_key": trace_context.step_key.clone(),
         })),
         config_hash: "system_prompt_prefix:v1".to_string(),
         compression_level: COMPRESSION_FULL_RAW.to_string(),

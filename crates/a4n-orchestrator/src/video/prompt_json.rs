@@ -203,6 +203,9 @@ pub(super) fn derive_segment_source_span_ids(
         .iter()
         .map(String::as_str)
         .collect::<HashSet<_>>();
+    if shot.action_beats.is_empty() && covered.is_empty() {
+        return Ok(shot.source_span_ids.clone());
+    }
     let mut seen = HashSet::new();
     let mut ids = Vec::new();
     for beat in &shot.action_beats {

@@ -50,6 +50,7 @@ enum PromptTaskKind {
 struct PromptTaskInput {
     project_id: i64,
     chapter_id: i64,
+    retry_of_task_id: Option<String>,
     options: VideoPromptGenerationOptions,
     kind: PromptTaskKind,
 }
@@ -257,6 +258,7 @@ impl OrchestratorContext {
         let PromptTaskInput {
             project_id,
             chapter_id,
+            retry_of_task_id,
             options,
             kind,
         } = input;
@@ -271,6 +273,7 @@ impl OrchestratorContext {
                             chapter_id,
                             active_task_id: Some(active_task_id),
                             root_project_id: Some(root_project_id),
+                            retry_of_task_id,
                             options,
                         },
                         Some(progress),
@@ -302,6 +305,7 @@ impl OrchestratorContext {
                             chapter_id,
                             active_task_id: Some(active_task_id),
                             root_project_id: Some(root_project_id),
+                            retry_of_task_id,
                             options,
                         },
                         Some(progress),
@@ -322,6 +326,7 @@ impl OrchestratorContext {
                         chapter_id,
                         active_task_id,
                         root_project_id,
+                        retry_of_task_id,
                         options,
                         context,
                         progress,
@@ -345,6 +350,7 @@ impl OrchestratorContext {
         chapter_id: i64,
         active_task_id: String,
         root_project_id: i64,
+        retry_of_task_id: Option<String>,
         options: VideoPromptGenerationOptions,
         context: VideoPromptApplicationContext<'_>,
         progress: &mut (dyn FnMut(VideoPromptProgressUpdate) -> Result<(), AppError> + Send),
@@ -372,6 +378,7 @@ impl OrchestratorContext {
                     chapter_id,
                     active_task_id: Some(active_task_id),
                     root_project_id: Some(root_project_id),
+                    retry_of_task_id,
                     options,
                 },
                 Some(&mut *progress),
@@ -557,14 +564,20 @@ fn is_checkpoint_update(update: &VideoPromptProgressUpdate) -> bool {
 }
 
 fn prompt_task_input(input: StartVideoGenerationInput) -> Result<PromptTaskInput, String> {
-    let project_id = input.project_id;
-    let task = match input.operation {
+    let StartVideoGenerationInput {
+        meta,
+        project_id,
+        operation,
+    } = input;
+    let retry_of_task_id = meta.retry_of_task_id;
+    let task = match operation {
         VideoGenerationOperation::PromptSegmentPlan {
             chapter_id,
             options,
         } => PromptTaskInput {
             project_id,
             chapter_id,
+            retry_of_task_id,
             options,
             kind: PromptTaskKind::SegmentPlan,
         },
@@ -574,6 +587,7 @@ fn prompt_task_input(input: StartVideoGenerationInput) -> Result<PromptTaskInput
         } => PromptTaskInput {
             project_id,
             chapter_id,
+            retry_of_task_id,
             options,
             kind: PromptTaskKind::Frames,
         },
@@ -583,6 +597,7 @@ fn prompt_task_input(input: StartVideoGenerationInput) -> Result<PromptTaskInput
         } => PromptTaskInput {
             project_id,
             chapter_id,
+            retry_of_task_id,
             options,
             kind: PromptTaskKind::Videos,
         },
@@ -892,6 +907,38 @@ mod tests {
         assert!(is_checkpoint_update(&update));
         assert!(!is_committed_update(&update));
         assert_eq!(update.draft_text.as_deref(), Some("{\"segments\":[]}"));
+    }
+
+    #[test]
+    fn prompt_task_input_preserves_retry_source() {
+        let retry_of_task_id = "e991ffd3-20ca-4584-882f-485407982dc3";
+        let task = prompt_task_input(StartVideoGenerationInput {
+            meta: a4n_api_contract::generation_tasks::GenerationStartRequestMeta {
+                start_request_id: "request-1".to_string(),
+                retry_of_task_id: Some(retry_of_task_id.to_string()),
+            },
+            project_id: 21,
+            operation: VideoGenerationOperation::PromptSegmentPlan {
+                chapter_id: 5,
+                options: VideoPromptGenerationOptions {
+                    workflow_mode: Some("shared_segment_plan".to_string()),
+                    segment_plan_prompt_id: None,
+                    style: "写实".to_string(),
+                    prompt_output_language: Some("zh_cn".to_string()),
+                    prompt_batch_size: 1,
+                    target_shot_number: None,
+                    duration_secs: 5,
+                    duration_secs_options: vec![5],
+                    aspect_ratio: "16:9".to_string(),
+                    reference_image_ids: Vec::new(),
+                    video_library_image_ids: Vec::new(),
+                    regenerate_existing: false,
+                },
+            },
+        })
+        .unwrap();
+
+        assert_eq!(task.retry_of_task_id.as_deref(), Some(retry_of_task_id));
     }
 
     #[test]

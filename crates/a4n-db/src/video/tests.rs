@@ -11,12 +11,28 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     Set,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 
 mod generated_images;
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
+}
+
+fn checkpoint_artifacts_with_flag(
+    artifacts_json: Option<&Value>,
+    key: &str,
+) -> Result<Value, crate::workflow::WorkflowWriteError> {
+    let mut artifacts = artifacts_json
+        .and_then(Value::as_object)
+        .cloned()
+        .ok_or_else(|| {
+            crate::workflow::WorkflowWriteError::InvalidData(
+                "checkpoint artifacts_json 必须是对象".to_string(),
+            )
+        })?;
+    artifacts.insert(key.to_string(), Value::Bool(true));
+    Ok(Value::Object(artifacts))
 }
 
 async fn freeform_video_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
@@ -54,6 +70,44 @@ async fn video_test_chapter(db: &DatabaseConnection, project_id: i64) -> chapter
     .unwrap()
 }
 
+async fn shared_segment_plan(
+    db: &DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+    source_content_sha256: &str,
+) -> chapter_video_prompt::Model {
+    let now = Utc::now().naive_utc();
+    chapter_video_prompt::ActiveModel {
+        project_id: Set(project_id),
+        chapter_id: Set(chapter_id),
+        style: Set(Some("cinematic".to_string())),
+        prompt_type: Set("frame_segment_plan".to_string()),
+        workflow_mode: Set("shared_segment_plan".to_string()),
+        shot_number: Set(0),
+        title: Set(Some("片段规划".to_string())),
+        scene_summary: Set(None),
+        visual_prompt: Set("{}".to_string()),
+        motion_prompt: Set(None),
+        negative_prompt: Set(None),
+        duration_secs: Set(6),
+        aspect_ratio: Set(Some("16:9".to_string())),
+        reference_image_ids_json: Set(None),
+        status: Set("completed".to_string()),
+        generated_video_id: Set(None),
+        metadata_json: Set(Some(json!({
+            "video_execution_identity": {
+                "source_content_sha256": source_content_sha256
+            }
+        }))),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap()
+}
+
 #[test]
 fn video_read_ids_and_frame_numbers_reject_non_positive_values() {
     assert!(matches!(
@@ -80,6 +134,27 @@ fn video_database_error_keeps_db_source() {
         VideoDbError::Database(DbErr::Custom(message)) if message == "fixture failure"
     ));
     assert!(error.to_string().contains("fixture failure"));
+}
+
+#[tokio::test]
+async fn current_shared_segment_plan_query_filters_source_hash() {
+    let db = setup_db().await;
+    let project = freeform_video_project(&db, "当前片段规划查询").await;
+    let chapter = video_test_chapter(&db, project.id).await;
+    let current = shared_segment_plan(&db, project.id, chapter.id, "current").await;
+
+    assert_eq!(
+        completed_shared_segment_plan_id_for_source_hash(&db, project.id, chapter.id, "current")
+            .await
+            .unwrap(),
+        Some(current.id),
+    );
+    assert_eq!(
+        completed_shared_segment_plan_id_for_source_hash(&db, project.id, chapter.id, "stale")
+            .await
+            .unwrap(),
+        None,
+    );
 }
 
 #[tokio::test]
@@ -435,4 +510,250 @@ async fn missing_video_repair_uses_binding_project_and_removes_dangling_binding(
             .unwrap()
             .is_some()
     );
+}
+
+#[tokio::test]
+async fn segment_plan_draft_query_projects_only_restoration_fields() {
+    let db = setup_db().await;
+    let run = crate::workflow::upsert_workflow_run(
+        &db,
+        crate::workflow::UpsertWorkflowRunInput {
+            business_key: format!("video-segment-plan-test:{}", uuid::Uuid::new_v4()),
+            workflow_kind: "video_segment_plan".to_string(),
+            project_id: None,
+            root_project_id: None,
+            source_snapshot_id: None,
+            scope_table: None,
+            scope_id: None,
+            chapter_id: None,
+            mode: Some("shared_segment_plan".to_string()),
+            input_fingerprint_json: None,
+            status: crate::workflow::WORKFLOW_STATUS_RUNNING.to_string(),
+            current_step_key: None,
+            active_task_id: None,
+            can_resume: false,
+            resume_block_reason: None,
+            error_message: None,
+        },
+    )
+    .await
+    .unwrap();
+    let large_context = "x".repeat(10_000);
+    crate::workflow::upsert_workflow_checkpoint(
+        &db,
+        crate::workflow::UpsertWorkflowCheckpointInput {
+            workflow_run_id: run.id,
+            step_key: "video_segment_plan.shot.unit_1_shot_1".to_string(),
+            step_order: 200,
+            status: crate::workflow::WORKFLOW_STATUS_COMPLETED.to_string(),
+            input_fingerprint_sha256: Some("fingerprint".to_string()),
+            input_fingerprint_json: Some(json!({
+                "large_context": large_context,
+                "extra": { "shot_index": 1, "total_shots": 1 }
+            })),
+            checkpoint_json: Some(json!({
+                "output": [{ "segment_number": 1 }],
+                "parsed_output": [{ "segment_number": 1 }],
+                "response_content": "x".repeat(10_000)
+            })),
+            artifacts_json: Some(json!({
+                "segment_recipes": [{ "segment_number": 1 }],
+                "preserved": true
+            })),
+            generation_run_ids_json: Some(json!([9])),
+            error_message: None,
+            completed: true,
+        },
+    )
+    .await
+    .unwrap();
+    crate::workflow::upsert_workflow_checkpoint(
+        &db,
+        crate::workflow::UpsertWorkflowCheckpointInput {
+            workflow_run_id: run.id,
+            step_key: "video_segment_plan.shot.unit_1_shot_1:schema_repair".to_string(),
+            step_order: 201,
+            status: crate::workflow::WORKFLOW_STATUS_COMPLETED.to_string(),
+            input_fingerprint_sha256: None,
+            input_fingerprint_json: None,
+            checkpoint_json: Some(json!({ "parsed_output": [] })),
+            artifacts_json: None,
+            generation_run_ids_json: None,
+            error_message: None,
+            completed: true,
+        },
+    )
+    .await
+    .unwrap();
+    crate::workflow::upsert_workflow_checkpoint(
+        &db,
+        crate::workflow::UpsertWorkflowCheckpointInput {
+            workflow_run_id: run.id,
+            step_key: "videoXsegmentYplan.shot.not_a_video_checkpoint".to_string(),
+            step_order: 202,
+            status: crate::workflow::WORKFLOW_STATUS_COMPLETED.to_string(),
+            input_fingerprint_sha256: None,
+            input_fingerprint_json: Some(json!({
+                "extra": { "shot_index": 2, "total_shots": 2 }
+            })),
+            checkpoint_json: Some(json!({
+                "parsed_output": [{ "segment_number": 1 }]
+            })),
+            artifacts_json: Some(json!({
+                "segment_recipes": [{ "segment_number": 1 }]
+            })),
+            generation_run_ids_json: None,
+            error_message: None,
+            completed: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
+        &db,
+        run.id,
+        "video_segment_plan.shot.unit_1_shot_1",
+        "video_segment_plan.final",
+        |parsed_output_json, artifacts_json| {
+            assert_eq!(parsed_output_json, Some(&json!([{ "segment_number": 1 }])));
+            checkpoint_artifacts_with_flag(artifacts_json, "updated")
+        },
+    )
+    .await
+    .unwrap();
+
+    let checkpoints = video_segment_plan_draft_checkpoints(&db, run.id, "video_segment_plan.shot.")
+        .await
+        .unwrap();
+    assert_eq!(checkpoints.len(), 1);
+    let projected = &checkpoints[0];
+    assert_eq!(
+        projected.extra_json,
+        Some(json!({ "shot_index": 1, "total_shots": 1 }))
+    );
+    assert_eq!(
+        projected.parsed_output_json,
+        Some(json!([{ "segment_number": 1 }]))
+    );
+    assert_eq!(
+        projected.artifacts_json,
+        Some(json!({
+            "segment_recipes": [{ "segment_number": 1 }],
+            "preserved": true,
+            "updated": true
+        }))
+    );
+    let first_db = db.clone();
+    let second_db = db.clone();
+    let first = crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
+        &first_db,
+        run.id,
+        "video_segment_plan.shot.unit_1_shot_1",
+        "video_segment_plan.final",
+        |_, artifacts_json| checkpoint_artifacts_with_flag(artifacts_json, "parallel_first"),
+    );
+    let second = crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
+        &second_db,
+        run.id,
+        "video_segment_plan.shot.unit_1_shot_1",
+        "video_segment_plan.final",
+        |_, artifacts_json| checkpoint_artifacts_with_flag(artifacts_json, "parallel_second"),
+    );
+    let (first, second) = tokio::join!(first, second);
+    first.unwrap();
+    second.unwrap();
+    let concurrent = video_segment_plan_draft_checkpoints(&db, run.id, "video_segment_plan.shot.")
+        .await
+        .unwrap();
+    let concurrent_artifacts = concurrent[0].artifacts_json.as_ref().unwrap();
+    assert_eq!(
+        concurrent_artifacts.get("parallel_first"),
+        Some(&Value::Bool(true))
+    );
+    assert_eq!(
+        concurrent_artifacts.get("parallel_second"),
+        Some(&Value::Bool(true))
+    );
+
+    crate::workflow::mark_workflow_status(
+        &db,
+        run.id,
+        crate::workflow::WORKFLOW_STATUS_CANCELLED,
+        true,
+        None,
+    )
+    .await
+    .unwrap();
+    let resumable_artifacts = json!({
+        "segment_recipes": [{ "segment_number": 1 }],
+        "preserved": true,
+        "updated_while_cancelled": true
+    });
+    crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
+        &db,
+        run.id,
+        "video_segment_plan.shot.unit_1_shot_1",
+        "video_segment_plan.final",
+        {
+            let resumable_artifacts = resumable_artifacts.clone();
+            move |_, _| Ok(resumable_artifacts)
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        video_segment_plan_draft_checkpoints(&db, run.id, "video_segment_plan.shot.")
+            .await
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap()
+            .artifacts_json,
+        Some(resumable_artifacts.clone()),
+    );
+    crate::workflow::resume_workflow_run(&db, run.id)
+        .await
+        .unwrap();
+
+    crate::workflow::upsert_workflow_checkpoint(
+        &db,
+        crate::workflow::UpsertWorkflowCheckpointInput {
+            workflow_run_id: run.id,
+            step_key: "video_segment_plan.final".to_string(),
+            step_order: 299,
+            status: crate::workflow::WORKFLOW_STATUS_COMPLETED.to_string(),
+            input_fingerprint_sha256: None,
+            input_fingerprint_json: None,
+            checkpoint_json: Some(json!({ "segment_plan": [] })),
+            artifacts_json: None,
+            generation_run_ids_json: None,
+            error_message: None,
+            completed: true,
+        },
+    )
+    .await
+    .unwrap();
+    let conflict =
+        crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
+            &db,
+            run.id,
+            "video_segment_plan.shot.unit_1_shot_1",
+            "video_segment_plan.final",
+            |_, _| panic!("blocking checkpoint should prevent mutation"),
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        conflict,
+        crate::workflow::WorkflowWriteError::StatusConflict { ref current, .. }
+            if current == "checkpoint_exists:video_segment_plan.final"
+    ));
+    let unchanged = video_segment_plan_draft_checkpoints(&db, run.id, "video_segment_plan.shot.")
+        .await
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(unchanged.artifacts_json, Some(resumable_artifacts));
 }

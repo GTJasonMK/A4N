@@ -1,9 +1,9 @@
 use serde_json::json;
 
 use super::{
-    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V3, MangaPageDrawingPromptV2, MangaPagePacingV2,
-    MangaPagePlanV3, MangaPageRoleV2, MangaPanelFunctionV2, MangaShootingBeatRefV3,
-    MangaTextLayerKindV2, MangaTextPlacementV2,
+    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V3, MangaCameraAngleV2, MangaPageDrawingPromptV2,
+    MangaPagePacingV2, MangaPagePlanV3, MangaPageRoleV2, MangaPanelFunctionV2,
+    MangaShootingBeatRefV3, MangaShotScaleV2, MangaTextLayerKindV2, MangaTextPlacementV2,
 };
 
 #[test]
@@ -71,4 +71,50 @@ fn manga_enums_preserve_snake_case_wire_values() {
         serde_json::to_value(MangaTextPlacementV2::UpperCenter).expect("text placement wire value"),
         json!("upper_center")
     );
+    assert_eq!(
+        serde_json::from_value::<MangaShotScaleV2>(json!("medium_wide"))
+            .expect("shooting-script shot scale remains valid in manga"),
+        MangaShotScaleV2::MediumWide
+    );
+    assert_eq!(
+        serde_json::from_value::<MangaCameraAngleV2>(json!("subjective"))
+            .expect("shooting-script camera angle remains valid in manga"),
+        MangaCameraAngleV2::Subjective
+    );
+}
+
+#[test]
+fn manga_text_placement_aliases_normalize_to_canonical_wire_values() {
+    for (alias, placement, canonical) in [
+        ("upper_left", MangaTextPlacementV2::TopLeft, "top_left"),
+        ("upper_right", MangaTextPlacementV2::TopRight, "top_right"),
+        (
+            "top_center",
+            MangaTextPlacementV2::UpperCenter,
+            "upper_center",
+        ),
+        (
+            "lower_left",
+            MangaTextPlacementV2::BottomLeft,
+            "bottom_left",
+        ),
+        (
+            "lower_right",
+            MangaTextPlacementV2::BottomRight,
+            "bottom_right",
+        ),
+        (
+            "bottom_center",
+            MangaTextPlacementV2::LowerCenter,
+            "lower_center",
+        ),
+    ] {
+        let parsed = serde_json::from_value::<MangaTextPlacementV2>(json!(alias))
+            .expect("placement alias should deserialize");
+        assert_eq!(parsed, placement);
+        assert_eq!(
+            serde_json::to_value(parsed).expect("placement should serialize"),
+            json!(canonical)
+        );
+    }
 }

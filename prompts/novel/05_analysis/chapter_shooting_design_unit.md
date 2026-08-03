@@ -131,5 +131,5 @@ tags: [analysis, directing, shot, blocking, design-unit]
 - 镜头和表演只能引用输入 source spans；不能制造正文中不存在的动作、对白、反应、认知变化或空间事实。
 - 回切到同一 `scene_identity` 时，从完整 `shooting_screenplay_plan` 中查找时间线上最近的同场景前序 unit，延续轴线、屏幕方向、人物位置、动作相位、道具状态、光线和环境声；若有意打破连续性，必须在 `spatial_continuity` 和 `continuity_requirements` 中显式说明。
 - `transition_contracts` 中的动作、声音、观众认知和强制切点必须体现在首尾状态、声音或转场设计中。
-- `estimated_seconds` 必须为正数；`estimated_natural_seconds` 填写节拍时长之和，后端会重新计算并校验。
+- `estimated_seconds` 必须为正数；存在 performance beats 时，`estimated_natural_seconds` 填写节拍时长之和，后端会重新计算并校验；纯环境镜头没有 beats 时，保留大于 0 的镜头自然时长。
 - 不存在的可空字段使用 `null`，数组没有内容时使用 `[]`；所有字段都必须出现，不得省略。

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowLeft,
+import {
+  ArrowLeft,
   Check,
   Copy,
   Eye,
@@ -9,7 +10,8 @@ import { ArrowLeft,
   Save,
   Scissors,
   Star,
-  Trash2, } from "lucide-react";
+  Trash2,
+} from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { GeneratedVideo, UpdateVideoInput } from "../../../api/video";
@@ -29,25 +31,22 @@ import {
 } from "./videoTabUtils";
 
 interface VideoResultsPaneProps {
-  videos: GeneratedVideo[];
   selectedVideo: GeneratedVideo | null;
-  selectedVideoId: number | null;
-  adoptedVideoId?: number | null;
+  adoptedVideoId: number | null;
   selectedVideoPath: string;
   trimStart: string;
   trimEnd: string;
   acting: string | null;
-  onSelectVideo: (id: number) => void;
   onPollVideo: (video: GeneratedVideo) => void | Promise<void>;
-  onPreviewVideoRequest?: (video: GeneratedVideo) => void | Promise<void>;
+  onPreviewVideoRequest: (video: GeneratedVideo) => void | Promise<void>;
   onToggleVideoFavorite: (video: GeneratedVideo) => void | Promise<void>;
-  onUpdateVideo?: (video: GeneratedVideo, input: UpdateVideoInput) => void | Promise<void>;
+  onUpdateVideo: (video: GeneratedVideo, input: UpdateVideoInput) => void | Promise<void>;
   onDeleteVideo: (video: GeneratedVideo) => void | Promise<void>;
   onTrimStartChange: (value: string) => void;
   onTrimEndChange: (value: string) => void;
   onTrim: () => void | Promise<void>;
-  onOpenSetup?: () => void;
-  onAdoptVideo?: (video: GeneratedVideo) => void | Promise<void>;
+  onOpenSegmentConfig: () => void;
+  onAdoptVideo: (video: GeneratedVideo) => void | Promise<void>;
 }
 
 type VideoActionItems = React.ComponentProps<typeof Dropdown>["items"];
@@ -70,15 +69,12 @@ const videoRecordTitle = (video: GeneratedVideo): string => {
 };
 
 export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
-  videos,
   selectedVideo,
-  selectedVideoId,
-  adoptedVideoId = null,
+  adoptedVideoId,
   selectedVideoPath,
   trimStart,
   trimEnd,
   acting,
-  onSelectVideo,
   onPollVideo,
   onPreviewVideoRequest,
   onToggleVideoFavorite,
@@ -87,7 +83,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   onTrimStartChange,
   onTrimEndChange,
   onTrim,
-  onOpenSetup,
+  onOpenSegmentConfig,
   onAdoptVideo,
 }) => {
   const addToast = useToast((state) => state.addToast);
@@ -108,7 +104,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     handleVideoError,
   } = useVideoPlaybackSource({
     selectedVideo: selectedVideoRecord,
-    selectedVideoPath: selectedVideoRecord ? selectedVideoPath : "",
+    selectedVideoPath,
   });
   useEffect(() => {
     promptSavingRef.current = false;
@@ -175,7 +171,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   const selectedVideoAdopted = selectedVideoRecord?.id === adoptedVideoId;
 
   const handleSavePromptRecord = async () => {
-    if (!selectedVideoRecord || !onUpdateVideo) return;
+    if (!selectedVideoRecord) return;
     if (promptSavingRef.current || acting != null) return;
     const prompt = promptDraft.trim();
     if (!prompt) {
@@ -214,7 +210,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
         icon: <Copy size={12} />,
         onClick: () => void copyText("视频 Prompt", selectedVideoRecord.prompt),
       },
-      ...(onPreviewVideoRequest && !previewBlockedReason
+      ...(!previewBlockedReason
         ? [
             {
               label: "查看模型请求",
@@ -246,7 +242,10 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       },
     ];
     return (
-      <div className="a4n-flat-surface min-w-0 overflow-hidden">
+      <div
+        data-video-preview-id={selectedVideoRecord.id}
+        className="a4n-flat-surface min-w-0 overflow-hidden"
+      >
         <div className="relative z-10 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/40 px-3 py-2.5">
           <Film size={12} className="shrink-0 text-book-primary" />
           <div className="min-w-0 flex-1">
@@ -268,7 +267,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             <Eye size={11} />
             提示词
           </button>
-          {onAdoptVideo && selectedVideoRecord.status === "completed" ? (
+          {selectedVideoRecord.status === "completed" ? (
             <BookButton
               variant={selectedVideoAdopted ? "secondary" : "primary"}
               size="sm"
@@ -295,7 +294,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             <Dropdown items={selectedActions} />
           )}
         </div>
-        {selectedVideoRecord && selectedVideoPath ? (
+        {selectedVideoPath ? (
           <div className="relative bg-black">
             {videoPlaybackSrc ? (
               <video
@@ -393,83 +392,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     );
   };
 
-  const renderVideoHistory = () => {
-    if (videos.length === 0) {
-      return <EmptyHint text="还没有生成视频。" />;
-    }
-
-    return (
-      <ul className="space-y-2">
-        {videos.map((video) => {
-          const selected = selectedVideoId === video.id;
-          const adopted = video.id === adoptedVideoId;
-          return (
-            <li
-              key={video.id}
-              className={`a4n-flat-surface flex items-stretch overflow-hidden transition-colors ${
-                selected
-                  ? "border-book-primary/55 bg-book-primary/8"
-                  : "hover:border-book-primary/30 hover:bg-book-bg-tertiary/45"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => onSelectVideo(video.id)}
-                aria-current={selected ? "true" : undefined}
-                className="min-w-0 flex-1 p-2.5 text-left focus-visible:outline-2 focus-visible:outline-book-primary/35"
-              >
-                <div className="mb-1 flex min-w-0 items-baseline gap-1.5 text-xs">
-                  <span className="min-w-0 flex-1 truncate font-medium text-book-text-main">
-                    {videoRecordTitle(video)}
-                  </span>
-                  {video.is_favorite && (
-                    <Star size={11} className="fill-book-primary text-book-primary" />
-                  )}
-                  {adopted && (
-                    <span className="inline-flex shrink-0 items-center gap-0.5 text-caption text-success">
-                      <Check size={10} />
-                      已采用
-                    </span>
-                  )}
-                </div>
-                <div className="mb-1.5 text-caption text-book-text-muted">
-                  {getOperationStatusLabel(video.status)} · {Math.round(video.duration_secs)} 秒 · {formatVideoCreatedAt(video.created_at)}
-                </div>
-                <div className="line-clamp-2 text-small leading-relaxed text-book-text-sub">
-                  {video.prompt}
-                </div>
-                {video.error_message && (
-                  <div className="mt-1 line-clamp-2 text-caption text-error">
-                    {video.error_message}
-                  </div>
-                )}
-              </button>
-              <div className="flex shrink-0 items-start p-1.5">
-                {acting === `delete-video-${video.id}` ? (
-                  <span className="inline-flex h-9 w-9 items-center justify-center text-book-text-muted sm:h-7 sm:w-7">
-                    <LoadingSpinner size="sm" />
-                  </span>
-                ) : (
-                  <Dropdown
-                    items={[
-                      {
-                        label: "删除视频",
-                        icon: <Trash2 size={12} />,
-                        danger: true,
-                        onClick: () => void onDeleteVideo(video),
-                      },
-                    ]}
-                  />
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    );
-  };
-
-  if (videos.length === 0) {
+  if (!selectedVideoRecord) {
     return (
       <div className="a4n-flat-surface w-full self-start">
         <div className="a4n-empty-state min-h-[180px] px-4 py-6">
@@ -479,20 +402,18 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           <div className="max-w-sm">
             <h3 className="text-sm font-medium text-book-text-main">还没有生成视频</h3>
             <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
-              完成提示词配置并生成视频后，可以在这里预览、整理和剪辑成片。
+              完成片段配置并生成视频后，可以在这里预览、整理和剪辑成片。
             </p>
-            {onOpenSetup ? (
-              <div className="mt-3 xl:hidden">
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={onOpenSetup}
-                >
-                  <ArrowLeft size={13} />
-                  前往配置
-                </BookButton>
-              </div>
-            ) : null}
+            <div className="mt-3 xl:hidden">
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={onOpenSegmentConfig}
+              >
+                <ArrowLeft size={13} />
+                前往配置
+              </BookButton>
+            </div>
           </div>
         </div>
       </div>
@@ -501,23 +422,8 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
 
   return (
     <>
-      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_340px]">
-        <div className="min-h-0 overflow-y-auto custom-scrollbar pr-1">
-          {renderSelectedVideoPreview()}
-        </div>
-        <div className="flex min-h-0 flex-col">
-          <div className="mb-2 flex min-w-0 items-center gap-2 px-1">
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-medium text-book-text-main">成片记录</div>
-              <div className="mt-0.5 text-caption text-book-text-muted">
-                {videos.length} 条
-              </div>
-            </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
-            {renderVideoHistory()}
-          </div>
-        </div>
+      <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
+        {renderSelectedVideoPreview()}
       </div>
 
       <Modal
@@ -554,19 +460,17 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           <div className="space-y-3">
             {!promptEditing && (
               <div className="flex items-center justify-end gap-2">
-                {onUpdateVideo ? (
-                  <BookButton
-                    variant="primary"
-                    size="sm"
-                    onClick={beginPromptEdit}
-                    disabled={acting != null}
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      <Pencil size={12} />
-                      编辑记录
-                    </span>
-                  </BookButton>
-                ) : null}
+                <BookButton
+                  variant="primary"
+                  size="sm"
+                  onClick={beginPromptEdit}
+                  disabled={acting != null}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <Pencil size={12} />
+                    编辑记录
+                  </span>
+                </BookButton>
                 <Dropdown
                   items={[
                     {

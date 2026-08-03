@@ -241,7 +241,7 @@ pub fn boundary_frame_missing_image_message(
         return None;
     }
     Some(format!(
-        "首尾帧模式第 {} 个视频单元缺少{}，请先在首尾帧生成里生成对应边界帧图片",
+        "首尾帧模式第 {} 个视频单元缺少{}，请在当前片段配置中点击首帧或尾帧槽位生成对应边界帧图片",
         prompt.shot_number,
         missing.join("、")
     ))

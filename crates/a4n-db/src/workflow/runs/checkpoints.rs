@@ -2,6 +2,7 @@ use super::*;
 
 use super::queries::{locked_workflow_run_by_id, workflow_checkpoints};
 use super::validation::ensure_workflow_write_open;
+use sea_orm::{FromQueryResult, sea_query::extension::postgres::PgExpr};
 
 pub async fn upsert_workflow_checkpoint(
     db: &DatabaseConnection,
@@ -65,37 +66,100 @@ pub async fn upsert_workflow_checkpoint(
     Ok(inserted)
 }
 
-pub async fn update_workflow_checkpoint_artifacts(
+#[derive(Debug, FromQueryResult)]
+struct WorkflowCheckpointArtifactState {
+    parsed_output_json: Option<Value>,
+    artifacts_json: Option<Value>,
+}
+
+pub async fn mutate_completed_workflow_checkpoint_artifacts_unless_step_exists<F>(
     db: &DatabaseConnection,
     workflow_run_id: i64,
     step_key: &str,
-    artifacts_json: Value,
-) -> Result<workflow_checkpoint::Model, WorkflowWriteError> {
+    blocking_step_key: &str,
+    mutate: F,
+) -> Result<(), WorkflowWriteError>
+where
+    F: FnOnce(Option<&Value>, Option<&Value>) -> Result<Value, WorkflowWriteError> + Send,
+{
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     let step_key = required_text(step_key.to_string(), "step_key")?;
+    let blocking_step_key = required_text(blocking_step_key.to_string(), "blocking_step_key")?;
+    if step_key == blocking_step_key {
+        return Err(WorkflowWriteError::InvalidArgument(
+            "step_key 与 blocking_step_key 不能相同".to_string(),
+        ));
+    }
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
-    ensure_workflow_write_open(&run.status, "更新工作流 checkpoint 产物")?;
+    if !workflow_run_is_running_or_resumable(&run.status, run.can_resume) {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: run.status,
+            operation: "更新工作流 checkpoint 产物".to_string(),
+        });
+    }
+    if workflow_checkpoint::Entity::find()
+        .select_only()
+        .column(workflow_checkpoint::Column::Id)
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .filter(workflow_checkpoint::Column::StepKey.eq(blocking_step_key.as_str()))
+        .into_tuple::<i64>()
+        .one(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?
+        .is_some()
+    {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: format!("checkpoint_exists:{blocking_step_key}"),
+            operation: format!("更新 checkpoint {step_key} 产物"),
+        });
+    }
     let checkpoint = workflow_checkpoint::Entity::find()
+        .select_only()
+        .column_as(
+            sea_orm::sea_query::Expr::col(workflow_checkpoint::Column::CheckpointJson)
+                .get_json_field("parsed_output"),
+            "parsed_output_json",
+        )
+        .column(workflow_checkpoint::Column::ArtifactsJson)
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
         .filter(workflow_checkpoint::Column::StepKey.eq(step_key.as_str()))
+        .filter(workflow_checkpoint::Column::Status.eq(WORKFLOW_STATUS_COMPLETED))
+        .into_model::<WorkflowCheckpointArtifactState>()
         .one(&tx)
         .await
         .map_err(WorkflowWriteError::Database)?
         .ok_or_else(|| {
             WorkflowWriteError::NotFound(format!(
-                "工作流 {workflow_run_id} 不存在 checkpoint {step_key}"
+                "工作流 {workflow_run_id} 不存在已完成 checkpoint {step_key}"
             ))
         })?;
-    let mut active: workflow_checkpoint::ActiveModel = checkpoint.into();
-    active.artifacts_json = Set(Some(artifacts_json));
-    active.updated_at = Set(Utc::now().naive_utc());
-    let updated = active
-        .update(&tx)
+    let artifacts_json = mutate(
+        checkpoint.parsed_output_json.as_ref(),
+        checkpoint.artifacts_json.as_ref(),
+    )?;
+    let now = Utc::now().naive_utc();
+    let updated = workflow_checkpoint::Entity::update_many()
+        .col_expr(
+            workflow_checkpoint::Column::ArtifactsJson,
+            sea_orm::sea_query::Expr::value(Some(artifacts_json)),
+        )
+        .col_expr(
+            workflow_checkpoint::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(now),
+        )
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .filter(workflow_checkpoint::Column::StepKey.eq(step_key.as_str()))
+        .exec(&tx)
         .await
         .map_err(WorkflowWriteError::Database)?;
+    if updated.rows_affected != 1 {
+        return Err(WorkflowWriteError::NotFound(format!(
+            "工作流 {workflow_run_id} 不存在 checkpoint {step_key}"
+        )));
+    }
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(updated)
+    Ok(())
 }
 
 pub async fn workflow_checkpoint_models(

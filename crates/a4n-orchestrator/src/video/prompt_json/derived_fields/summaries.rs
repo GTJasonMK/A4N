@@ -1,7 +1,11 @@
 use super::*;
 
 pub(super) fn character_summary(segment: &VideoSegmentPlan) -> String {
-    segment.emotion_action_goals[0].character.clone()
+    segment
+        .emotion_action_goals
+        .first()
+        .map(|goal| goal.character.clone())
+        .unwrap_or_else(|| "无人物（纯环境镜头）".to_string())
 }
 
 pub(super) fn performance_summary(segment: &VideoSegmentPlan) -> String {
@@ -16,7 +20,7 @@ pub(super) fn performance_summary(segment: &VideoSegmentPlan) -> String {
 }
 
 pub(super) fn action_goal_summary(segment: &VideoSegmentPlan) -> String {
-    segment
+    let summary = segment
         .emotion_action_goals
         .iter()
         .map(|goal| {
@@ -26,15 +30,32 @@ pub(super) fn action_goal_summary(segment: &VideoSegmentPlan) -> String {
             )
         })
         .collect::<Vec<_>>()
-        .join("；")
+        .join("；");
+    if summary.is_empty() {
+        "纯环境镜头，以环境动态、光影变化和摄影机运动承载变化".to_string()
+    } else {
+        summary
+    }
 }
 
 pub(super) fn first_action_goal(segment: &VideoSegmentPlan) -> String {
-    let goal = &segment.emotion_action_goals[0];
-    format!(
-        "{}：{}：{}",
-        goal.character, goal.emotion, goal.visible_action
-    )
+    segment
+        .emotion_action_goals
+        .first()
+        .map(|goal| {
+            format!(
+                "{}：{}：{}",
+                goal.character, goal.emotion, goal.visible_action
+            )
+        })
+        .or_else(|| {
+            segment
+                .performance_plan
+                .time_blocks
+                .first()
+                .map(|block| block.subject_action.clone())
+        })
+        .unwrap_or_else(|| "建立环境状态".to_string())
 }
 
 pub(super) fn segment_end_summary(segment: &VideoSegmentPlan) -> String {

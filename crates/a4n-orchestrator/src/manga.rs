@@ -80,11 +80,61 @@ pub(crate) use pipeline_status::contracts::{
     MangaPipelineCheckpointInput, MangaPipelineStatusInput,
 };
 
-use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
+use crate::workflow::{
+    GetWorkflowRunInput, ListWorkflowRunsInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
+    WORKFLOW_STATUS_RUNNING,
+};
 use a4n_core::error::AppError;
 use a4n_core::models::generation::workflow_run;
 
 impl OrchestratorContext {
+    pub(crate) async fn resumable_manga_workflow_validated(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        input_fingerprint: &serde_json::Value,
+    ) -> Result<workflow_run::Model, AppError> {
+        let business_key = manga_pipeline_business_key(project_id, chapter_id);
+        let runs = self
+            .workflow_run_models(ListWorkflowRunsInput {
+                project_id: Some(project_id),
+                chapter_id: Some(chapter_id),
+                workflow_kind: Some("manga_pipeline".to_string()),
+                status: None,
+                resumable_only: Some(true),
+                limit: Some(100),
+            })
+            .await?;
+        let mut selected = None;
+        for run in runs.into_iter().filter(|run| {
+            run.business_key == business_key
+                && run.input_fingerprint_json.as_ref() == Some(input_fingerprint)
+        }) {
+            let completed_checkpoint_count = self
+                .workflow_run_detail(GetWorkflowRunInput {
+                    workflow_run_id: run.id,
+                    include_generation_runs: Some(false),
+                })
+                .await?
+                .checkpoints
+                .into_iter()
+                .filter(|checkpoint| checkpoint.status == WORKFLOW_STATUS_COMPLETED)
+                .count();
+            if selected
+                .as_ref()
+                .is_none_or(|(_, best_count)| completed_checkpoint_count > *best_count)
+            {
+                selected = Some((run, completed_checkpoint_count));
+            }
+        }
+        selected
+            .map(|(run, _)| run)
+            .ok_or_else(|| AppError::InvalidState {
+                current: "missing_resumable_manga_workflow".to_string(),
+                operation: "续跑漫画流水线".to_string(),
+            })
+    }
+
     /// 漫画流水线：校验后创建 workflow_run（RUNNING）。
     pub(crate) async fn begin_manga_pipeline_workflow_validated(
         &self,
@@ -94,6 +144,7 @@ impl OrchestratorContext {
         reference_context: &MangaReferenceContext,
         start_from_stage: Option<MangaPipelineStartStage>,
         task_id: Option<String>,
+        resume_from_checkpoint: bool,
     ) -> Result<workflow_run::Model, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
@@ -103,7 +154,8 @@ impl OrchestratorContext {
         }
         let mode = start_from_stage.map(|stage| stage.key().to_string());
         let step = start_from_stage.map(|stage| stage.key().to_string());
-        self.begin_workflow_run_validated(UpsertWorkflowRunInput {
+        let input_fingerprint = manga_pipeline_fingerprint(content, reference_context);
+        let input = UpsertWorkflowRunInput {
             business_key: manga_pipeline_business_key(project_id, chapter_id),
             workflow_kind: "manga_pipeline".to_string(),
             project_id: Some(project_id),
@@ -113,14 +165,21 @@ impl OrchestratorContext {
             scope_id: Some(chapter_id),
             chapter_id: Some(chapter_id),
             mode,
-            input_fingerprint_json: Some(manga_pipeline_fingerprint(content, reference_context)),
+            input_fingerprint_json: Some(input_fingerprint.clone()),
             status: WORKFLOW_STATUS_RUNNING.to_string(),
             current_step_key: step,
             active_task_id: task_id,
             can_resume: false,
             resume_block_reason: None,
             error_message: None,
-        })
-        .await
+        };
+        if resume_from_checkpoint {
+            let run = self
+                .resumable_manga_workflow_validated(project_id, chapter_id, &input_fingerprint)
+                .await?;
+            self.mark_workflow_running_validated(run.id).await
+        } else {
+            self.begin_workflow_run_validated(input).await
+        }
     }
 }

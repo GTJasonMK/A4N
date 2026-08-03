@@ -1,12 +1,11 @@
 use a4n_core::error::AppError;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::super::super::pipeline_json::{
     page_drawing_prompt_from_response, page_plan_page_number, page_plan_pages,
 };
 use super::super::super::pipeline_prompt::{
-    MANGA_PREVIOUS_OUTPUT_EXTRACTION_SUMMARY, MANGA_PREVIOUS_OUTPUT_PAGE_PLANNING,
-    MangaContextManifestInput, MangaContextPreviousOutput, manga_page_drawing_prompt_user_message,
+    MangaContextManifestInput, manga_page_drawing_prompt_user_message,
 };
 use super::super::call::build_manga_preview_call;
 use super::super::contracts::{
@@ -16,7 +15,6 @@ use super::super::contracts::{
 pub(super) async fn preview_page_drawing_prompts(
     context: &MangaPreviewContext<'_>,
     steps: &mut Vec<MangaPipelineRequestPreviewStep>,
-    plan_out: &str,
     plan_json: &Value,
     extraction_summary: &Value,
     reference_assets: &Value,
@@ -27,7 +25,6 @@ pub(super) async fn preview_page_drawing_prompts(
             page_plan_page_number(page_plan, &format!("manga_page_planning.pages[{index}]"))?;
         let key = format!("manga_page_drawing_prompt_page_{page_number}");
         let title = format!("漫画 Step 7：第 {page_number} 页绘图提示词");
-        let plan_context = json!({ "page_plan": page_plan, "plan": plan_json });
         let call_index = i32::try_from(index).map_err(|_| {
             AppError::InvalidArgument(format!("漫画绘图提示词 preview 索引超出 i32 范围：{index}"))
         })?;
@@ -52,21 +49,8 @@ pub(super) async fn preview_page_drawing_prompts(
                 variables: &context.variables,
                 chapter_content: &context.chapter_content,
                 source_spans: &context.source_spans,
-                prompt_names: &["manga_page_planning", "manga_page_drawing_prompt"],
-                previous_outputs: &[
-                    MangaContextPreviousOutput {
-                        pack_kind: MANGA_PREVIOUS_OUTPUT_PAGE_PLANNING,
-                        prompt_name: "manga_page_planning",
-                        parsed_output: &plan_context,
-                        raw_output: Some(plan_out),
-                    },
-                    MangaContextPreviousOutput {
-                        pack_kind: MANGA_PREVIOUS_OUTPUT_EXTRACTION_SUMMARY,
-                        prompt_name: "manga_extraction_summary",
-                        parsed_output: extraction_summary,
-                        raw_output: None,
-                    },
-                ],
+                prompt_names: &["manga_page_drawing_prompt"],
+                previous_outputs: &[],
                 reference_assets: Some(reference_assets),
                 dynamic_user_content: manga_page_drawing_prompt_user_message(
                     page_number,
@@ -78,7 +62,7 @@ pub(super) async fn preview_page_drawing_prompts(
         })
         .await?;
         match call {
-            MangaPreviewCall::Restored { parsed_output } => {
+            MangaPreviewCall::Restored { parsed_output, .. } => {
                 let page_context = format!("manga_page_drawing_prompt.page_{page_number}");
                 page_drawing_prompt_from_response(&parsed_output, page_number, &page_context)?;
                 steps.push(MangaPipelineRequestPreviewStep::reused_checkpoint(

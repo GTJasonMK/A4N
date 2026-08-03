@@ -66,15 +66,12 @@ impl VideoSegmentGuidanceModeV1 {
 pub struct VideoReferenceMediaBindingV1 {
     pub url: String,
     pub usage: String,
-    #[serde(default)]
     pub upload_sha256: Option<String>,
-    #[serde(default)]
     pub upload_file_name: Option<String>,
-    #[serde(default)]
     pub upload_mime_type: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoReferenceMediaRecipeV1 {
     pub prompt: String,
@@ -265,9 +262,8 @@ impl VideoSegmentExecutionRecipeV1 {
             (VideoSegmentWorkflowModeV1::ChatVideo, _) => self.reference_image_ids.clone(),
             (_, VideoSegmentGuidanceModeV1::Keyframes) => self.guidance_reference_image_ids.clone(),
             (_, VideoSegmentGuidanceModeV1::SystemFrames) => self.reference_image_ids.clone(),
-            (_, VideoSegmentGuidanceModeV1::Continuity | VideoSegmentGuidanceModeV1::None) => {
-                Vec::new()
-            }
+            (_, VideoSegmentGuidanceModeV1::Continuity) => self.reference_image_ids.clone(),
+            (_, VideoSegmentGuidanceModeV1::None) => Vec::new(),
         }
     }
 }
@@ -429,16 +425,17 @@ pub fn video_segment_recipes_for_plan_from_metadata(
     metadata: Option<&Value>,
     plan_style: &str,
 ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, String> {
-    let metadata = metadata
-        .and_then(Value::as_object)
+    let metadata = metadata.ok_or_else(|| "片段规划 metadata_json 必须为 JSON 对象".to_string())?;
+    let object = metadata
+        .as_object()
         .ok_or_else(|| "片段规划 metadata_json 必须为 JSON 对象".to_string())?;
-    let segments = metadata
+    let segments = object
         .get("segments")
         .cloned()
         .ok_or_else(|| "片段规划 metadata_json 缺少 segments".to_string())?;
     let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(segments)
         .map_err(|error| format!("片段规划 segments 无效：{error}"))?;
-    let recipes = video_segment_recipes_from_metadata(Some(&Value::Object(metadata.clone())))?;
+    let recipes = video_segment_recipes_from_metadata(Some(metadata))?;
     validate_video_segment_recipes_for_plan(&recipes, &segments, plan_style)?;
     Ok(recipes)
 }
@@ -474,47 +471,60 @@ pub fn video_segment_recipe_from_metadata(
         .find(|recipe| recipe.segment_number == segment_number))
 }
 
-pub fn metadata_with_video_segment_recipe(
+pub fn update_video_segment_recipe_metadata(
     metadata: Option<&Value>,
     plan_style: &str,
     recipe: VideoSegmentExecutionRecipeV1,
-) -> Result<Value, String> {
-    let mut metadata = metadata.cloned().unwrap_or_else(|| serde_json::json!({}));
+) -> Result<(Value, Vec<VideoSegmentExecutionRecipeV1>), String> {
+    let metadata = metadata.ok_or_else(|| "片段规划缺少 metadata_json".to_string())?;
     let object = metadata
         .as_object()
         .ok_or_else(|| "片段规划 metadata_json 必须为 JSON 对象".to_string())?;
-    let segments = object
-        .get("segments")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "片段规划 metadata_json 缺少 segments".to_string())?;
-    let segment = segments
-        .iter()
-        .find(|segment| {
-            segment.get("segment_number").and_then(Value::as_i64)
-                == Some(i64::from(recipe.segment_number))
-        })
-        .cloned()
-        .ok_or_else(|| format!("当前片段规划不存在片段 {}", recipe.segment_number))?;
-    let segment = serde_json::from_value::<VideoSegmentPlanV2>(segment)
-        .map_err(|error| format!("片段 {} 规划无效：{error}", recipe.segment_number))?;
-    recipe.validate_for_plan(&segment, plan_style)?;
-    let mut recipes = video_segment_recipes_from_metadata(Some(&metadata))?;
-    recipes.retain(|existing| existing.segment_number != recipe.segment_number);
-    recipes.push(recipe);
-    recipes.sort_by_key(|entry| entry.segment_number);
-    let segments =
-        serde_json::from_value::<Vec<VideoSegmentPlanV2>>(Value::Array(segments.clone()))
-            .map_err(|error| format!("片段规划 segments 无效：{error}"))?;
+    let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
+        object
+            .get("segments")
+            .cloned()
+            .ok_or_else(|| "片段规划 metadata_json 缺少 segments".to_string())?,
+    )
+    .map_err(|error| format!("片段规划 segments 无效：{error}"))?;
+    let mut recipes = video_segment_recipes_from_metadata(Some(metadata))?;
     validate_video_segment_recipes_for_plan(&recipes, &segments, plan_style)?;
-    metadata
+    let index = recipes
+        .iter()
+        .position(|existing| existing.segment_number == recipe.segment_number)
+        .ok_or_else(|| format!("当前片段规划不存在片段 {}", recipe.segment_number))?;
+    let existing = recipes[index].clone();
+    if let Some(source_video_id) = recipe.continuity_source_video_id
+        && !recipes.iter().any(|candidate| {
+            candidate.segment_number < recipe.segment_number
+                && candidate.adopted_video_id == Some(source_video_id)
+        })
+    {
+        return Err(format!(
+            "续接来源视频 #{source_video_id} 必须是当前规划更早片段已采用的视频"
+        ));
+    }
+    let previous_adopted_video_id = existing.adopted_video_id;
+    let next_adopted_video_id = recipe.adopted_video_id;
+    let target_segment_number = recipe.segment_number;
+    recipes[index] = recipe;
+    propagate_adopted_video_change(
+        &mut recipes,
+        target_segment_number,
+        previous_adopted_video_id,
+        next_adopted_video_id,
+    );
+    validate_video_segment_recipes_for_plan(&recipes, &segments, plan_style)?;
+    let mut updated_metadata = metadata.clone();
+    updated_metadata
         .as_object_mut()
         .expect("metadata object was validated above")
         .insert(
             VIDEO_SEGMENT_RECIPES_METADATA_KEY.to_string(),
-            serde_json::to_value(recipes)
+            serde_json::to_value(&recipes)
                 .map_err(|error| format!("序列化片段执行方案失败：{error}"))?,
         );
-    Ok(metadata)
+    Ok((updated_metadata, recipes))
 }
 
 fn validate_positive_unique_ids(ids: &[i64], field: &str) -> Result<(), String> {
@@ -556,6 +566,10 @@ mod tests {
 
     #[test]
     fn recipe_upsert_is_scoped_to_current_plan_segment() {
+        assert_eq!(
+            update_video_segment_recipe_metadata(None, "cinematic", recipe(1)).unwrap_err(),
+            "片段规划缺少 metadata_json",
+        );
         let segment = serde_json::json!({
             "schema_version": "video_segment_plan_v2",
             "segment_number": 1,
@@ -586,8 +600,8 @@ mod tests {
             "segments": [segment, segment_two],
             "segment_recipes": [recipe(1), recipe(2)]
         });
-        let metadata =
-            metadata_with_video_segment_recipe(Some(&metadata), "cinematic", recipe(2)).unwrap();
+        let (metadata, _) =
+            update_video_segment_recipe_metadata(Some(&metadata), "cinematic", recipe(2)).unwrap();
         assert_eq!(
             video_segment_recipe_from_metadata(Some(&metadata), 2)
                 .unwrap()
@@ -595,14 +609,27 @@ mod tests {
                 .workflow_mode,
             VideoSegmentWorkflowModeV1::ChatVideo
         );
+        let mut adopted = recipe(2);
+        adopted.adopted_video_id = Some(9);
+        let (metadata, _) =
+            update_video_segment_recipe_metadata(Some(&metadata), "cinematic", adopted).unwrap();
+        let (metadata, _) =
+            update_video_segment_recipe_metadata(Some(&metadata), "cinematic", recipe(2)).unwrap();
+        assert_eq!(
+            video_segment_recipe_from_metadata(Some(&metadata), 2)
+                .unwrap()
+                .unwrap()
+                .adopted_video_id,
+            None
+        );
         assert!(
-            metadata_with_video_segment_recipe(Some(&metadata), "cinematic", recipe(3)).is_err()
+            update_video_segment_recipe_metadata(Some(&metadata), "cinematic", recipe(3)).is_err()
         );
 
         let mut wrong_style = recipe(2);
         wrong_style.style = "watercolor".to_string();
         assert!(
-            metadata_with_video_segment_recipe(Some(&metadata), "cinematic", wrong_style)
+            update_video_segment_recipe_metadata(Some(&metadata), "cinematic", wrong_style)
                 .unwrap_err()
                 .contains("风格属于共享片段规划")
         );
@@ -610,14 +637,14 @@ mod tests {
         wrong_duration.duration_secs = 10;
         wrong_duration.duration_secs_options = vec![10];
         assert!(
-            metadata_with_video_segment_recipe(Some(&metadata), "cinematic", wrong_duration)
+            update_video_segment_recipe_metadata(Some(&metadata), "cinematic", wrong_duration)
                 .unwrap_err()
                 .contains("时长属于共享片段规划")
         );
         let mut wrong_aspect_ratio = recipe(2);
         wrong_aspect_ratio.aspect_ratio = "9:16".to_string();
         assert!(
-            metadata_with_video_segment_recipe(Some(&metadata), "cinematic", wrong_aspect_ratio,)
+            update_video_segment_recipe_metadata(Some(&metadata), "cinematic", wrong_aspect_ratio,)
                 .unwrap_err()
                 .contains("画幅属于共享片段规划")
         );
@@ -643,6 +670,17 @@ mod tests {
         recipe.guidance_mode = VideoSegmentGuidanceModeV1::Continuity;
         recipe.continuity_source_video_id = Some(7);
         assert!(recipe.validate_generation_ready().is_ok());
+    }
+
+    #[test]
+    fn continuity_keeps_optional_provider_reference_images() {
+        let mut recipe = recipe(2);
+        recipe.workflow_mode = VideoSegmentWorkflowModeV1::FirstFrameChain;
+        recipe.guidance_mode = VideoSegmentGuidanceModeV1::Continuity;
+        recipe.continuity_source_video_id = Some(7);
+        recipe.reference_image_ids = vec![11, 12];
+
+        assert_eq!(recipe.provider_reference_image_ids(), vec![11, 12]);
     }
 
     #[test]

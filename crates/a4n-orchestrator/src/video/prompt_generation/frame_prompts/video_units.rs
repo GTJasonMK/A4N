@@ -132,13 +132,7 @@ fn push_action_bridge_unit(
         .performance_plan
         .action_script
         .first()
-        .map(|action| action.character.clone())
-        .ok_or_else(|| {
-            AppError::InvalidArgument(format!(
-                "片段 {} performance_plan.action_script 为空，无法创建动作桥",
-                from.segment_number
-            ))
-        })?;
+        .map(|action| action.character.clone());
     let source_span_ids =
         unique_strings(from.source_span_ids.iter().chain(to.source_span_ids.iter()));
     let spatial_anchors =
@@ -160,14 +154,19 @@ fn push_action_bridge_unit(
             from.blocking_summary, preserved_action, to.blocking_summary
         ),
         spatial_anchors,
-        emotion_action_goals: vec![VideoEmotionActionGoalV1 {
-            character: actor.clone(),
-            emotion: format!(
-                "承接“{}”并进入“{}”",
-                from.emotional_arc.end, to.emotional_arc.start
-            ),
-            visible_action: preserved_action.to_string(),
-        }],
+        emotion_action_goals: actor
+            .as_ref()
+            .map(|actor| {
+                vec![VideoEmotionActionGoalV1 {
+                    character: actor.clone(),
+                    emotion: format!(
+                        "承接“{}”并进入“{}”",
+                        from.emotional_arc.end, to.emotional_arc.start
+                    ),
+                    visible_action: preserved_action.to_string(),
+                }]
+            })
+            .unwrap_or_default(),
         video_intent: VideoIntentV1 {
             hook: preserved_action.to_string(),
             audience_effect: "让动作、空间和时间交接可读，避免无依据跳变".to_string(),
@@ -182,8 +181,14 @@ fn push_action_bridge_unit(
         },
         performance_plan: VideoPerformancePlanV2 {
             movement_path: preserved_action.to_string(),
-            body_performance: format!("{actor} 只完成动作桥所需的身体位移和停点"),
-            gaze_and_hands: "视线、手部和道具状态只随 preserved_action 连续变化".to_string(),
+            body_performance: actor.as_ref().map_or_else(
+                || "纯环境镜头只保留动作桥所需的环境动态和空间变化".to_string(),
+                |actor| format!("{actor} 只完成动作桥所需的身体位移和停点"),
+            ),
+            gaze_and_hands: actor.as_ref().map_or_else(
+                || "光影、天气、道具或空间状态只随 preserved_action 连续变化".to_string(),
+                |_| "视线、手部和道具状态只随 preserved_action 连续变化".to_string(),
+            ),
             pause_or_reaction: "动作完成后留出稳定尾态，不追加新的反应事件".to_string(),
             camera_relationship: "机位只负责看清动作接点与空间交接，不重新设计前后片段主动作"
                 .to_string(),
@@ -194,14 +199,18 @@ fn push_action_bridge_unit(
                 subject_action: preserved_action.to_string(),
                 continuity_target: to.blocking_summary.clone(),
             }],
-            action_script: vec![VideoPerformanceActionV1 {
-                character: actor,
-                body: "身体姿态只完成动作桥所需变化".to_string(),
-                movement: preserved_action.to_string(),
-                hands: "手部与道具状态保持动作连续".to_string(),
-                gaze: "视线沿动作目标自然交接".to_string(),
-                timing: format!("0-{duration_secs} 秒内完成并稳定"),
-            }],
+            action_script: actor
+                .map(|actor| {
+                    vec![VideoPerformanceActionV1 {
+                        character: actor,
+                        body: "身体姿态只完成动作桥所需变化".to_string(),
+                        movement: preserved_action.to_string(),
+                        hands: "手部与道具状态保持动作连续".to_string(),
+                        gaze: "视线沿动作目标自然交接".to_string(),
+                        timing: format!("0-{duration_secs} 秒内完成并稳定"),
+                    }]
+                })
+                .unwrap_or_default(),
         },
         material_coverage: VideoMaterialCoverageV1 {
             required_entities: unique_strings(

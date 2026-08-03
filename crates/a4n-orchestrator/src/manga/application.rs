@@ -123,6 +123,7 @@ impl OrchestratorContext {
                 &reference_context,
                 input.start_from_stage,
                 Some(input.task_id.to_string()),
+                input.resume_from_checkpoint,
             )
             .await?;
         let variables = HashMap::new();
@@ -153,14 +154,25 @@ impl OrchestratorContext {
         ensure_manga_source_can_write(&source, "预览漫画流水线提示词")?;
         let reference_context = self.manga_reference_context(input.project_id).await?;
         let workflow_fingerprint = manga_pipeline_fingerprint(&source.content, &reference_context);
-        let workflow_run_id = self
-            .latest_workflow_run_by_business_key(&manga_pipeline_business_key(
+        let workflow_run_id = if input.resume_from_checkpoint {
+            Some(
+                self.resumable_manga_workflow_validated(
+                    input.project_id,
+                    source.chapter_id,
+                    &workflow_fingerprint,
+                )
+                .await?
+                .id,
+            )
+        } else {
+            self.latest_workflow_run_by_business_key(&manga_pipeline_business_key(
                 input.project_id,
                 source.chapter_id,
             ))
             .await?
             .filter(|run| run.input_fingerprint_json.as_ref() == Some(&workflow_fingerprint))
-            .map(|run| run.id);
+            .map(|run| run.id)
+        };
         let variables = HashMap::new();
         self.preview_generate_panels_requests(MangaPipelineRequestPreviewInput {
             chapter_id: source.chapter_id,

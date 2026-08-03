@@ -1,6 +1,5 @@
 import type { GeneratedImage } from "../../../api/image";
 import { extractErrorMessage } from "../../../api";
-import type { WorkflowCheckpoint } from "../../../api/streaming";
 import type {
   ChapterVideoPrompt,
   GeneratedVideo,
@@ -57,50 +56,35 @@ export function videoGuidanceConfigurationError(
   segmentNumber: number,
   guidanceMode: VideoSegmentExecutionRecipe["guidance_mode"],
 ): string | null {
-  if (workflowMode === "chat_video" || workflowMode === "reference_media") {
-    return guidanceMode === "none"
-      ? null
-      : "Chat 或参考媒体方案不能同时启用图片或续接引导";
+  const requiredMode = guidanceModeForWorkflowChange(
+    workflowMode,
+    segmentNumber,
+  );
+  if (guidanceMode === requiredMode) return null;
+  if (workflowMode === "boundary_frames") {
+    return "首尾帧方案固定使用首帧和尾帧输入";
   }
-  if (
-    guidanceMode === "continuity" &&
-    (workflowMode !== "first_frame_chain" || segmentNumber <= 1)
-  ) {
-    return "续接引导只适用于首帧续接的后续片段";
+  if (workflowMode === "storyboard") {
+    return "分镜方案固定使用分镜板输入";
   }
-  if (
-    guidanceMode === "system_frames" &&
-    workflowMode === "first_frame_chain" &&
-    segmentNumber > 1
-  ) {
-    return "首帧续接的后续片段不能使用系统首帧";
+  if (workflowMode === "first_frame_chain") {
+    return segmentNumber > 1
+      ? "首帧续接的后续片段固定使用更早片段视频的尾帧"
+      : "首帧续接的首段固定使用首帧输入";
   }
-  return null;
+  return "Chat 或参考媒体方案固定使用素材槽输入";
 }
 
 export function guidanceModeForWorkflowChange(
   workflowMode: ChapterVideoWorkflowMode,
   segmentNumber: number,
-  currentMode: SegmentGuidanceMode,
-  hasContinuitySource: boolean,
 ): SegmentGuidanceMode {
-  if (workflowMode === "chat_video" || workflowMode === "reference_media") return "none";
-  const supported = (mode: SegmentGuidanceMode) =>
-    videoGuidanceConfigurationError(
-      workflowMode,
-      segmentNumber,
-      mode,
-    ) == null;
-  if (supported(currentMode)) return currentMode;
-  if (
-    workflowMode === "first_frame_chain" &&
-    segmentNumber > 1 &&
-    hasContinuitySource &&
-    supported("continuity")
-  ) {
-    return "continuity";
+  if (workflowMode === "chat_video" || workflowMode === "reference_media") {
+    return "none";
   }
-  return "none";
+  return workflowMode === "first_frame_chain" && segmentNumber > 1
+    ? "continuity"
+    : "system_frames";
 }
 
 export const DEFAULT_DRAFT: PromptDraft = {
@@ -137,32 +121,32 @@ export const VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE = "frame_segment_plan";
 export const VIDEO_FRAME_PROMPT_TYPE = "frame_prompt";
 export const VIDEO_FIRST_FRAME_PROMPT_TYPE = "first_frame_prompt";
 export const VIDEO_STORYBOARD_PROMPT_TYPE = "storyboard_prompt";
-export const VIDEO_FINAL_PROMPT_TYPE = "video_prompt";
-export const VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION =
-  "video_execution_contract_v5";
+const VIDEO_FINAL_PROMPT_TYPE = "video_prompt";
+const VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION = "video_execution_contract_v5";
 export const VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION =
   "boundary_frame_segment_local_v4";
-export const VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION = "first_frame_chain_execution_v4";
-export const VIDEO_CHAT_VIDEO_CONTRACT_VERSION = "chat_video_execution_v4";
-export const VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION = "storyboard_execution_unit_v2";
-export const VIDEO_STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION =
+export const VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION =
+  "first_frame_chain_execution_v4";
+const VIDEO_CHAT_VIDEO_CONTRACT_VERSION = "chat_video_execution_v4";
+export const VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION =
+  "storyboard_execution_unit_v2";
+const VIDEO_STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION =
   "storyboard_execution_video_v2";
 const VIDEO_EXECUTION_CONTRACT_EPOCH = 5;
 export const VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS = 80;
 
-export type VideoFrameImageRole = "key_frame" | "start_frame" | "storyboard_frame";
+export type VideoFrameImageRole =
+  "key_frame" | "start_frame" | "storyboard_frame";
 
 const VIDEO_FRAME_IMAGE_TYPES: Array<{
   role: VideoFrameImageRole;
   imageType: string;
-  label: string;
 }> = [
-  { role: "key_frame", imageType: "video_key_frame", label: "边界帧" },
-  { role: "start_frame", imageType: "video_start_frame", label: "首帧" },
+  { role: "key_frame", imageType: "video_key_frame" },
+  { role: "start_frame", imageType: "video_start_frame" },
   {
     role: "storyboard_frame",
     imageType: "video_storyboard_frame",
-    label: "分镜板",
   },
 ];
 
@@ -186,7 +170,10 @@ const VIDEO_WORKFLOW_MODES: readonly ChapterVideoWorkflowMode[] = [
 const VIDEO_SEGMENT_EXECUTION_RECIPE_SCHEMA_VERSION =
   "video_segment_execution_recipe_v1" as const;
 
-export const VIDEO_WORKFLOW_MODE_LABELS: Record<ChapterVideoWorkflowMode, string> = {
+export const VIDEO_WORKFLOW_MODE_LABELS: Record<
+  ChapterVideoWorkflowMode,
+  string
+> = {
   boundary_frames: "首尾帧生成",
   first_frame_chain: "首帧生成",
   storyboard: "分镜生成",
@@ -302,11 +289,6 @@ const VIDEO_FRAME_IMAGE_TYPE_BY_ROLE: Record<VideoFrameImageRole, string> =
     VIDEO_FRAME_IMAGE_TYPES.map((item) => [item.role, item.imageType]),
   ) as Record<VideoFrameImageRole, string>;
 
-const VIDEO_FRAME_IMAGE_LABEL_BY_ROLE: Record<VideoFrameImageRole, string> =
-  Object.fromEntries(
-    VIDEO_FRAME_IMAGE_TYPES.map((item) => [item.role, item.label]),
-  ) as Record<VideoFrameImageRole, string>;
-
 const VIDEO_FRAME_IMAGE_ROLE_BY_TYPE: Record<string, VideoFrameImageRole> =
   Object.fromEntries(
     VIDEO_FRAME_IMAGE_TYPES.map((item) => [item.imageType, item.role]),
@@ -340,7 +322,7 @@ function videoFrameImageRoleFromImageType(
     : null;
 }
 
-export function videoFrameImageRoleOfImage(
+function videoFrameImageRoleOfImage(
   img: GeneratedImage,
 ): VideoFrameImageRole | null {
   const metadataRole = parseVideoFrameImageRole(
@@ -377,9 +359,7 @@ export const videoImageGenerationSource = (
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
 };
 
-const videoImageGenerationSourceHash = (
-  img: GeneratedImage,
-): string | null => {
+const videoImageGenerationSourceHash = (img: GeneratedImage): string | null => {
   const raw = videoImageGenerationContext(img)?.source_content_sha256;
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
 };
@@ -387,9 +367,12 @@ const videoImageGenerationSourceHash = (
 export const videoTailFrameSourceVideoId = (
   img: GeneratedImage,
 ): number | null => {
-  if (videoImageGenerationSource(img) !== "video_tail_frame_capture") return null;
+  if (videoImageGenerationSource(img) !== "video_tail_frame_capture")
+    return null;
   const raw = videoImageGenerationContext(img)?.video_id;
-  return typeof raw === "number" && Number.isInteger(raw) && raw > 0 ? raw : null;
+  return typeof raw === "number" && Number.isInteger(raw) && raw > 0
+    ? raw
+    : null;
 };
 
 export function videoTailFrameBoundaryNumber(
@@ -495,13 +478,6 @@ const metadataNumber = (value: unknown): number | null => {
   return null;
 };
 
-export function videoFrameImageRoleLabel(
-  role: VideoFrameImageRole | null,
-  fallback = "素材",
-): string {
-  return role ? VIDEO_FRAME_IMAGE_LABEL_BY_ROLE[role] : fallback;
-}
-
 export function promptOutputLanguageOfPrompt(
   prompt: ChapterVideoPrompt | null | undefined,
 ): PromptOutputLanguage {
@@ -594,39 +570,53 @@ const VIDEO_EXECUTION_BASE_IDENTITY_FIELDS = [
 export function videoExecutionIdentityOfPrompt(
   prompt: ChapterVideoPrompt | null | undefined,
 ): Record<string, unknown> | null {
-  const identity = asRecord(asRecord(prompt?.metadata_json)?.video_execution_identity);
+  const identity = asRecord(
+    asRecord(prompt?.metadata_json)?.video_execution_identity,
+  );
   if (identity?.contract_epoch !== VIDEO_EXECUTION_CONTRACT_EPOCH) return null;
   return identity;
 }
+
+const videoExecutionIdentityMatchesExpected = (
+  actual: Record<string, unknown> | null,
+  expected: Record<string, unknown> | null,
+): boolean =>
+  Boolean(
+    actual &&
+    expected &&
+    VIDEO_EXECUTION_BASE_IDENTITY_FIELDS.every(
+      (field) => actual[field] === expected[field],
+    ),
+  );
 
 export function videoExecutionIdentityMatches(
   prompt: ChapterVideoPrompt | null | undefined,
   segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
 ): boolean {
-  const actual = videoExecutionIdentityOfPrompt(prompt);
-  const expected = videoExecutionIdentityOfPrompt(segmentPlanPrompt);
-  if (!actual || !expected) return false;
-  return VIDEO_EXECUTION_BASE_IDENTITY_FIELDS.every(
-    (field) => JSON.stringify(actual[field]) === JSON.stringify(expected[field]),
+  return videoExecutionIdentityMatchesExpected(
+    videoExecutionIdentityOfPrompt(prompt),
+    videoExecutionIdentityOfPrompt(segmentPlanPrompt),
   );
 }
 
 export function videoExecutionIdentityOfVideo(
   video: GeneratedVideo | null | undefined,
 ): Record<string, unknown> | null {
-  const identity = asRecord(asRecord(video?.metadata_json)?.video_execution_identity);
-  return identity?.contract_epoch === VIDEO_EXECUTION_CONTRACT_EPOCH ? identity : null;
+  const identity = asRecord(
+    asRecord(video?.metadata_json)?.video_execution_identity,
+  );
+  return identity?.contract_epoch === VIDEO_EXECUTION_CONTRACT_EPOCH
+    ? identity
+    : null;
 }
 
 function videoExecutionIdentityMatchesPlan(
   video: GeneratedVideo | null | undefined,
   segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
 ): boolean {
-  const actual = videoExecutionIdentityOfVideo(video);
-  const expected = videoExecutionIdentityOfPrompt(segmentPlanPrompt);
-  if (!actual || !expected) return false;
-  return VIDEO_EXECUTION_BASE_IDENTITY_FIELDS.every(
-    (field) => JSON.stringify(actual[field]) === JSON.stringify(expected[field]),
+  return videoExecutionIdentityMatchesExpected(
+    videoExecutionIdentityOfVideo(video),
+    videoExecutionIdentityOfPrompt(segmentPlanPrompt),
   );
 }
 
@@ -680,7 +670,11 @@ export function videoExecutionPromptsShareGenerationChain(
   }
   const leftShared = promptIsSharedVideoUpstream(left);
   const rightShared = promptIsSharedVideoUpstream(right);
-  if (!leftShared && !rightShared && left.workflow_mode !== right.workflow_mode) {
+  if (
+    !leftShared &&
+    !rightShared &&
+    left.workflow_mode !== right.workflow_mode
+  ) {
     return false;
   }
   if (!videoExecutionIdentityMatches(left, right)) return false;
@@ -691,7 +685,8 @@ export function videoExecutionPromptsShareGenerationChain(
   if (rightShared) return leftIdentity.segment_plan_prompt_id === right.id;
   return (
     leftIdentity.segment_plan_prompt_id != null &&
-    leftIdentity.segment_plan_prompt_id === rightIdentity.segment_plan_prompt_id &&
+    leftIdentity.segment_plan_prompt_id ===
+      rightIdentity.segment_plan_prompt_id &&
     leftIdentity.segment_number === rightIdentity.segment_number &&
     leftIdentity.segment_recipe_fingerprint ===
       rightIdentity.segment_recipe_fingerprint
@@ -710,19 +705,40 @@ export function videoSegmentRecipeFrameFingerprintJson(
   return JSON.stringify(videoSegmentRecipeFingerprintValue(recipe, true));
 }
 
+const videoReferenceMediaBindingFingerprintValue = (
+  row: NonNullable<
+    VideoSegmentExecutionRecipe["reference_media"]
+  >["image_rows"][number],
+) => ({
+  url: row.url,
+  usage: row.usage,
+  upload_sha256: row.upload_sha256,
+  upload_file_name: row.upload_file_name,
+  upload_mime_type: row.upload_mime_type,
+});
+
 function videoSegmentRecipeFingerprintValue(
   recipe: VideoSegmentExecutionRecipe,
   frameStage: boolean,
 ): Record<string, unknown> {
   const guidanceMode = frameStage ? "none" : recipe.guidance_mode;
-  const referenceMedia = !frameStage && recipe.workflow_mode === "reference_media" && recipe.reference_media
-    ? {
-        prompt: recipe.reference_media.prompt,
-        image_rows: recipe.reference_media.image_rows.map((row) => ({ ...row })),
-        video_rows: recipe.reference_media.video_rows.map((row) => ({ ...row })),
-        audio_rows: recipe.reference_media.audio_rows.map((row) => ({ ...row })),
-      }
-    : null;
+  const referenceMedia =
+    !frameStage &&
+    recipe.workflow_mode === "reference_media" &&
+    recipe.reference_media
+      ? {
+          prompt: recipe.reference_media.prompt,
+          image_rows: recipe.reference_media.image_rows.map(
+            videoReferenceMediaBindingFingerprintValue,
+          ),
+          video_rows: recipe.reference_media.video_rows.map(
+            videoReferenceMediaBindingFingerprintValue,
+          ),
+          audio_rows: recipe.reference_media.audio_rows.map(
+            videoReferenceMediaBindingFingerprintValue,
+          ),
+        }
+      : null;
   return {
     schema_version: recipe.schema_version,
     segment_number: recipe.segment_number,
@@ -755,7 +771,10 @@ export function latestVideoSegmentPlanPrompt(
       prompt.prompt_type === VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE &&
       prompt.workflow_mode === "shared_segment_plan" &&
       prompt.status === "completed" &&
-      promptHasVideoWorkflowContract(prompt, VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION) &&
+      promptHasVideoWorkflowContract(
+        prompt,
+        VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
+      ) &&
       videoExecutionIdentityOfPrompt(prompt) != null &&
       extractPromptSourceHash(prompt.metadata_json) === currentContentHash &&
       (latest == null || prompt.id > latest.id)
@@ -789,7 +808,7 @@ export interface VideoSegmentCardPlan {
   raw: Record<string, unknown>;
 }
 
-export interface VideoSegmentRecipeReadResult {
+interface VideoSegmentRecipeReadResult {
   recipes: Map<number, VideoSegmentExecutionRecipe>;
   error: string | null;
 }
@@ -811,12 +830,20 @@ export function videoSegmentCardsFromSegments(
     .filter((segment): segment is Record<string, unknown> => segment != null)
     .map((segment) => {
       const segmentNumber = segment.segment_number;
-      if (typeof segmentNumber !== "number" || !Number.isInteger(segmentNumber) || segmentNumber <= 0) {
+      if (
+        typeof segmentNumber !== "number" ||
+        !Number.isInteger(segmentNumber) ||
+        segmentNumber <= 0
+      ) {
         throw new Error("片段规划包含无效 segment_number");
       }
       const durationSecs = segment.duration_secs;
       const aspectRatio = segment.aspect_ratio;
-      if (typeof durationSecs !== "number" || !Number.isInteger(durationSecs) || durationSecs <= 0) {
+      if (
+        typeof durationSecs !== "number" ||
+        !Number.isInteger(durationSecs) ||
+        durationSecs <= 0
+      ) {
         throw new Error(`片段 ${segmentNumber} duration_secs 无效`);
       }
       if (
@@ -825,10 +852,19 @@ export function videoSegmentCardsFromSegments(
       ) {
         throw new Error(`片段 ${segmentNumber} aspect_ratio 无效`);
       }
+      const title =
+        typeof segment.title === "string" ? segment.title.trim() : "";
+      if (!title) throw new Error(`片段 ${segmentNumber} title 无效`);
+      const sceneSummary =
+        typeof segment.scene_summary === "string"
+          ? segment.scene_summary.trim()
+          : "";
+      if (!sceneSummary)
+        throw new Error(`片段 ${segmentNumber} scene_summary 无效`);
       return {
         segmentNumber,
-        title: typeof segment.title === "string" ? segment.title : `片段 ${segmentNumber}`,
-        sceneSummary: typeof segment.scene_summary === "string" ? segment.scene_summary : "",
+        title,
+        sceneSummary,
         durationSecs,
         aspectRatio: aspectRatio as VideoAspectRatio,
         raw: segment,
@@ -844,34 +880,47 @@ export function readVideoSegmentRecipes(
   const raw = metadata?.segment_recipes;
   if (!prompt) return { recipes: new Map(), error: null };
   if (raw == null) {
-    return { recipes: new Map(), error: "当前片段规划缺少 segment_recipes，请完成数据库迁移后重新加载" };
+    return {
+      recipes: new Map(),
+      error: "当前片段规划缺少 segment_recipes，无法编辑或生成片段",
+    };
   }
   if (!Array.isArray(raw)) {
     return { recipes: new Map(), error: "片段规划 segment_recipes 必须是数组" };
   }
   try {
     const recipes = new Map(
-      parseVideoSegmentRecipeArray(raw).map((recipe) => [recipe.segment_number, recipe]),
+      parseVideoSegmentRecipeArray(raw).map((recipe) => [
+        recipe.segment_number,
+        recipe,
+      ]),
     );
     return { recipes, error: null };
   } catch (error) {
-    return { recipes: new Map(), error: extractErrorMessage(error, "读取片段执行方案失败") };
+    return {
+      recipes: new Map(),
+      error: extractErrorMessage(error, "读取片段执行方案失败"),
+    };
   }
 }
 
-function parseVideoSegmentRecipeArray(raw: unknown[]): VideoSegmentExecutionRecipe[] {
+function parseVideoSegmentRecipeArray(
+  raw: unknown[],
+): VideoSegmentExecutionRecipe[] {
   const recipes = new Map<number, VideoSegmentExecutionRecipe>();
   for (const [index, value] of raw.entries()) {
     const recipe = asRecord(value);
     if (!recipe) throw new Error(`segment_recipes[${index}] 必须是对象`);
-    if (recipe.schema_version !== VIDEO_SEGMENT_EXECUTION_RECIPE_SCHEMA_VERSION) {
+    if (
+      recipe.schema_version !== VIDEO_SEGMENT_EXECUTION_RECIPE_SCHEMA_VERSION
+    ) {
       throw new Error(`segment_recipes[${index}] schema_version 无效`);
     }
     const segmentNumber = recipe.segment_number;
     if (
-      typeof segmentNumber !== "number"
-      || !Number.isInteger(segmentNumber)
-      || segmentNumber <= 0
+      typeof segmentNumber !== "number" ||
+      !Number.isInteger(segmentNumber) ||
+      segmentNumber <= 0
     ) {
       throw new Error(`segment_recipes[${index}].segment_number 无效`);
     }
@@ -879,8 +928,10 @@ function parseVideoSegmentRecipeArray(raw: unknown[]): VideoSegmentExecutionReci
       throw new Error(`segment_recipes 包含重复片段 ${segmentNumber}`);
     }
     if (
-      typeof recipe.workflow_mode !== "string"
-      || !VIDEO_WORKFLOW_MODES.includes(recipe.workflow_mode as ChapterVideoWorkflowMode)
+      typeof recipe.workflow_mode !== "string" ||
+      !VIDEO_WORKFLOW_MODES.includes(
+        recipe.workflow_mode as ChapterVideoWorkflowMode,
+      )
     ) {
       throw new Error(`片段 ${segmentNumber} workflow_mode 无效`);
     }
@@ -936,7 +987,8 @@ export function currentFinalVideoPromptMatchesSegment(
       recipeFingerprint,
     ) &&
     finalVideoExecutionIdentityIsComplete(prompt) &&
-    videoExecutionIdentityOfPrompt(prompt)?.prompt_output_language === promptOutputLanguage
+    videoExecutionIdentityOfPrompt(prompt)?.prompt_output_language ===
+      promptOutputLanguage
   );
 }
 
@@ -945,7 +997,11 @@ export function completedSegmentPlanPreviewItems(
 ): Record<string, unknown>[] {
   const byShot = new Map<
     string,
-    { shotIndex: number | null; order: number; segments: Record<string, unknown>[] }
+    {
+      shotIndex: number | null;
+      order: number;
+      segments: Record<string, unknown>[];
+    }
   >();
   const unscoped: Array<{
     shotIndex: number | null;
@@ -962,7 +1018,9 @@ export function completedSegmentPlanPreviewItems(
       break;
     }
     const group = Array.isArray(value?.segments)
-      ? value.segments.map(asRecord).filter((item): item is Record<string, unknown> => item != null)
+      ? value.segments
+          .map(asRecord)
+          .filter((item): item is Record<string, unknown> => item != null)
       : [];
     if (group.length === 0) continue;
     const currentOrder = order;
@@ -971,7 +1029,10 @@ export function completedSegmentPlanPreviewItems(
     const shotIds = new Set(
       group
         .map((item) => item.source_shot_id)
-        .filter((value): value is string => typeof value === "string" && value.length > 0),
+        .filter(
+          (value): value is string =>
+            typeof value === "string" && value.length > 0,
+        ),
     );
     if (shotIds.size === 1) {
       const sourceShotId = [...shotIds][0];
@@ -1001,13 +1062,6 @@ export function completedSegmentPlanPreviewItems(
     }));
 }
 
-export interface SegmentPlanDraftSnapshot {
-  segments: Record<string, unknown>[];
-  recipes: Map<number, VideoSegmentExecutionRecipe>;
-  completedShotCount: number;
-  totalShotCount: number;
-}
-
 const SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX = "video_segment_plan.shot.";
 
 function isSegmentPlanShotResultCheckpointKey(value: string): boolean {
@@ -1016,129 +1070,11 @@ function isSegmentPlanShotResultCheckpointKey(value: string): boolean {
   return sourceShotId.length > 0 && !sourceShotId.includes(":");
 }
 
-export function segmentPlanDraftSnapshotFromCheckpoints(
-  checkpoints: WorkflowCheckpoint[],
-): SegmentPlanDraftSnapshot | null {
-  const groups = checkpoints
-    .filter(
-      (checkpoint) =>
-        checkpoint.status === "completed" &&
-        isSegmentPlanShotResultCheckpointKey(checkpoint.step_key),
-    )
-    .map((checkpoint) => {
-      const checkpointJson = asRecord(checkpoint.checkpoint_json);
-      if (!checkpointJson) {
-        throw new Error(`片段规划 checkpoint ${checkpoint.step_key} 缺少 checkpoint_json`);
-      }
-      const output = checkpointJson.parsed_output ?? checkpointJson.output;
-      if (!Array.isArray(output) || output.length === 0) {
-        throw new Error(`片段规划 checkpoint ${checkpoint.step_key} 缺少已校验 segments`);
-      }
-      const segments = output.map((value, index) => {
-        const segment = asRecord(value);
-        if (!segment) {
-          throw new Error(
-            `片段规划 checkpoint ${checkpoint.step_key} 的第 ${index + 1} 个 segment 无效`,
-          );
-        }
-        return segment;
-      });
-      const rawRecipes = asRecord(checkpoint.artifacts_json)?.segment_recipes;
-      if (!Array.isArray(rawRecipes)) {
-        throw new Error(`片段规划 checkpoint ${checkpoint.step_key} 缺少 segment_recipes`);
-      }
-      const recipesByNumber = new Map(
-        parseVideoSegmentRecipeArray(rawRecipes)
-          .map((recipe) => [recipe.segment_number, recipe]),
-      );
-      const recipes = segments.map((segment, index) => {
-        const localSegmentNumber = positiveIntegerOrNull(segment.segment_number);
-        if (localSegmentNumber == null) {
-          throw new Error(
-            `片段规划 checkpoint ${checkpoint.step_key} 的第 ${index + 1} 个 segment_number 无效`,
-          );
-        }
-        const recipe = recipesByNumber.get(localSegmentNumber);
-        if (!recipe) {
-          throw new Error(
-            `片段规划 checkpoint ${checkpoint.step_key} 的片段 ${localSegmentNumber} 缺少执行方案`,
-          );
-        }
-        return recipe;
-      });
-      if (recipes.length !== recipesByNumber.size) {
-        throw new Error(`片段规划 checkpoint ${checkpoint.step_key} 包含多余执行方案`);
-      }
-      const extra = asRecord(asRecord(checkpoint.input_fingerprint_json)?.extra);
-      return {
-        checkpoint,
-        segments,
-        recipes,
-        shotIndex: positiveIntegerOrNull(extra?.shot_index),
-        totalShots: positiveIntegerOrNull(extra?.total_shots),
-      };
-    });
-
-  if (groups.length === 0) return null;
-
-  const knownTotals = new Set(
-    groups
-      .map((group) => group.totalShots)
-      .filter((value): value is number => value != null),
-  );
-  if (knownTotals.size > 1) {
-    throw new Error("片段规划 checkpoints 的 total_shots 不一致");
-  }
-  const totalShotCount = knownTotals.values().next().value ?? 0;
-  if (totalShotCount > 0 && groups.length > totalShotCount) {
-    throw new Error(
-      `片段规划已完成镜头数 ${groups.length} 超过 total_shots ${totalShotCount}`,
-    );
-  }
-
-  const knownShotIndexes = groups
-    .map((group) => group.shotIndex)
-    .filter((value): value is number => value != null);
-  if (new Set(knownShotIndexes).size !== knownShotIndexes.length) {
-    throw new Error("片段规划 checkpoints 包含重复 shot_index");
-  }
-  if (totalShotCount > 0 && knownShotIndexes.some((index) => index > totalShotCount)) {
-    throw new Error("片段规划 checkpoint 的 shot_index 超过 total_shots");
-  }
-
-  groups.sort((left, right) => {
-    const leftOrder = left.shotIndex ?? left.checkpoint.step_order;
-    const rightOrder = right.shotIndex ?? right.checkpoint.step_order;
-    return leftOrder - rightOrder || left.checkpoint.id - right.checkpoint.id;
-  });
-
-  let segmentNumber = 0;
-  const recipes = new Map<number, VideoSegmentExecutionRecipe>();
-  const segments = groups.flatMap((group) => group.segments.map((segment, index) => {
-    const nextSegmentNumber = (segmentNumber += 1);
-    recipes.set(nextSegmentNumber, {
-      ...group.recipes[index],
-      segment_number: nextSegmentNumber,
-    });
-    return {
-      ...segment,
-      segment_number: nextSegmentNumber,
-      segment_index_in_shot: index + 1,
-      shot_segment_count: group.segments.length,
-    };
-  }));
-  const completedShotCount = groups.length;
-  return {
-    segments,
-    recipes,
-    completedShotCount,
-    totalShotCount,
-  };
-}
-
 export function isSegmentPlanDraftCheckpointKey(value: string): boolean {
-  return value === "video_segment_plan.recovered"
-    || isSegmentPlanShotResultCheckpointKey(value);
+  return (
+    value === "video_segment_plan.recovered" ||
+    isSegmentPlanShotResultCheckpointKey(value)
+  );
 }
 
 export function videoPromptUnitFrameNumbers(
@@ -1247,10 +1183,13 @@ function referenceLabelOffsetForPreviousFrame(
   savedReferenceIds: number[],
   previousFrameImageId: number | null,
 ): number {
-  return previousFrameImageId != null && savedReferenceIds[0] !== previousFrameImageId ? 1 : 0;
+  return previousFrameImageId != null &&
+    savedReferenceIds[0] !== previousFrameImageId
+    ? 1
+    : 0;
 }
 
-export interface VideoFrameImageReferences {
+interface VideoFrameImageReferences {
   ids: number[];
   note: string;
   promptReferenceOffset: number;
@@ -1311,7 +1250,9 @@ export function frameImageReferencesForPrompt(
   images: GeneratedImage[],
   prompts: ChapterVideoPrompt[],
 ): VideoFrameImageReferences {
-  const savedReferences = readSavedReferenceImageIds(prompt.reference_image_ids_json);
+  const savedReferences = readSavedReferenceImageIds(
+    prompt.reference_image_ids_json,
+  );
   if (savedReferences.error) {
     return {
       ids: [],
@@ -1366,10 +1307,14 @@ export function frameImageReferencesForPrompt(
   return {
     ids: mergeFrameReferenceIds(ids, previousImage.id),
     note: buildPreviousFrameReferencePromptNote(previousPrompt),
-    promptReferenceOffset: referenceLabelOffsetForPreviousFrame(ids, previousImage.id),
-    error: previousIndex > 0
-      ? `上一帧图片 #${previousImage.id} 在已保存参考图中不是第 1 项，不能保证“参考图 1”语义正确`
-      : undefined,
+    promptReferenceOffset: referenceLabelOffsetForPreviousFrame(
+      ids,
+      previousImage.id,
+    ),
+    error:
+      previousIndex > 0
+        ? `上一帧图片 #${previousImage.id} 在已保存参考图中不是第 1 项，不能保证“参考图 1”语义正确`
+        : undefined,
   };
 }
 
@@ -1395,7 +1340,11 @@ export function boundaryFramePromptChainTo(
   byShotNumber.set(targetPrompt.shot_number, targetPrompt);
 
   const chain: ChapterVideoPrompt[] = [];
-  for (let shotNumber = 1; shotNumber <= targetPrompt.shot_number; shotNumber += 1) {
+  for (
+    let shotNumber = 1;
+    shotNumber <= targetPrompt.shot_number;
+    shotNumber += 1
+  ) {
     const item = byShotNumber.get(shotNumber);
     if (!item) {
       throw new Error(
