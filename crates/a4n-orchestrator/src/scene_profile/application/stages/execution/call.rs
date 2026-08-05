@@ -21,8 +21,19 @@ pub(super) async fn chat_scene_profile_stage(
     let truncated_message = format!(
         "{prompt_name} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“角色/档案发现”输出档位，或减少本次章节上下文后重试"
     );
+    // 活体信号与字段级里程碑取自同一个 token 流：前者证明"还在输出"，
+    // 后者说明"进行到哪了"，二者互补而非替代。
+    let mut streamed = String::new();
+    let stream_sink = progress
+        .filter(|progress| progress.has_stream_reporter())
+        .map(|progress| {
+            move |delta: &str| {
+                streamed.push_str(delta);
+                progress.stream_text(&streamed);
+            }
+        });
     let content = state
-        .chat_json_stream_with_progress(
+        .chat_json_stream_result_with_sink(
             ChatJsonStreamInput {
                 request,
                 prompt_name,
@@ -37,8 +48,10 @@ pub(super) async fn chat_scene_profile_stage(
             |current, message| {
                 report_scene_profile_sync_progress(progress, current, message, "场景档案同步已停止")
             },
+            stream_sink,
         )
-        .await?;
+        .await?
+        .response_content;
     response_chars.push(json!({
         "prompt_name": prompt_name,
         "response_chars": content.chars().count()}));

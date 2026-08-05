@@ -19,6 +19,18 @@ const executionIdentity = {
   style_sha256: "style-1",
   duration_secs: 6,
   aspect_ratio: "16:9",
+  segment_identities: [
+    {
+      source_shot_id: "shot-1",
+      segment_index_in_shot: 1,
+      segment_sha256: "segment-1",
+    },
+    {
+      source_shot_id: "shot-2",
+      segment_index_in_shot: 1,
+      segment_sha256: "segment-2",
+    },
+  ],
 };
 
 const plan: ChapterVideoPrompt = {
@@ -42,6 +54,18 @@ const plan: ChapterVideoPrompt = {
   metadata_json: {
     contract_version: "video_execution_contract_v5",
     source: { content_sha256: "source-1" },
+    segments: [
+      {
+        segment_number: 1,
+        source_shot_id: "shot-1",
+        segment_index_in_shot: 1,
+      },
+      {
+        segment_number: 2,
+        source_shot_id: "shot-2",
+        segment_index_in_shot: 1,
+      },
+    ],
     video_execution_identity: executionIdentity,
   },
   created_at: null,
@@ -78,6 +102,9 @@ const video = (
     shot_number: segmentNumber,
     video_execution_identity: {
       ...executionIdentity,
+      source_shot_id: `shot-${segmentNumber}`,
+      segment_index_in_shot: 1,
+      segment_sha256: `segment-${segmentNumber}`,
       segment_plan_prompt_id: plan.id,
       segment_number: segmentNumber,
       segment_recipe_fingerprint: recipeFingerprint,
@@ -121,6 +148,9 @@ const framePrompt: ChapterVideoPrompt = {
     prompt_output_language: "zh_cn",
     video_execution_identity: {
       ...executionIdentity,
+      source_shot_id: "shot-1",
+      segment_index_in_shot: 1,
+      segment_sha256: "segment-1",
       segment_plan_prompt_id: plan.id,
       segment_number: 1,
       segment_recipe_fingerprint: "frame-recipe",
@@ -145,6 +175,9 @@ const finalPrompt = (
     prompt_output_language: "zh_cn",
     video_execution_identity: {
       ...executionIdentity,
+      source_shot_id: "shot-1",
+      segment_index_in_shot: 1,
+      segment_sha256: "segment-1",
       segment_plan_prompt_id: plan.id,
       segment_number: 1,
       segment_recipe_fingerprint: recipeFingerprint,

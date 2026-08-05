@@ -52,6 +52,7 @@ pub fn video_prompt_workflow_fingerprint(
             "prompt_batch_size": options.prompt_batch_size,
             "segment_plan_prompt_id": options.segment_plan_prompt_id,
             "target_shot_number": options.target_shot_number,
+            "target_narrative_unit_index": options.target_narrative_unit_index,
             "segment_recipe_fingerprint": options.segment_recipe.as_ref()
                 .and_then(|recipe| recipe.generation_fingerprint().ok()),
             "duration_secs": options.duration_secs,
@@ -191,6 +192,7 @@ mod tests {
             prompt_batch_size: 1,
             segment_plan_prompt_id: None,
             target_shot_number: None,
+            target_narrative_unit_index: None,
             segment_recipe: None,
             duration_secs: 5,
             duration_secs_options: vec![5],

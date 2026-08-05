@@ -46,7 +46,7 @@ where
     }
 }
 
-pub(in crate::config::settings_all) fn video_active_model_for_update(
+fn video_active_model_for_update(
     mut active: video_gen_config::ActiveModel,
     row: SettingsAllVideoConfigImportRow,
     now: NaiveDateTime,
@@ -64,13 +64,12 @@ pub(in crate::config::settings_all) fn video_active_model_for_update(
     active.duration_mode = Set(row.duration_mode);
     active.supported_durations_json = Set(row.supported_durations_json);
     active.default_fps = Set(row.default_fps);
-    active.provider_options_json = Set(row.provider_options_json);
     active.is_default = Set(row.is_default);
     active.updated_at = Set(now);
     active
 }
 
-pub(in crate::config::settings_all) fn video_active_model_for_insert(
+fn video_active_model_for_insert(
     row: SettingsAllVideoConfigImportRow,
     now: NaiveDateTime,
 ) -> video_gen_config::ActiveModel {
@@ -89,7 +88,6 @@ pub(in crate::config::settings_all) fn video_active_model_for_insert(
         duration_mode: Set(row.duration_mode),
         supported_durations_json: Set(row.supported_durations_json),
         default_fps: Set(row.default_fps),
-        provider_options_json: Set(row.provider_options_json),
         is_default: Set(row.is_default),
         created_at: Set(now),
         updated_at: Set(now),

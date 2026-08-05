@@ -1,4 +1,4 @@
-use a4n_video::{VideoGenerationRequest, VideoReferenceMediaRequest};
+use a4n_video::{VideoGenerationRequest, VideoMediaInput};
 
 use super::Seedance2VideoProvider;
 
@@ -11,14 +11,11 @@ fn request() -> VideoGenerationRequest {
             duration_secs: 15,
             fps: 24,
             model: "st-ai/super-seed2".into(),
-            first_frame_image_url: None,
-            last_frame_image_url: None,
-            reference_image_urls: Vec::new(),
-            reference_media: Some(VideoReferenceMediaRequest {
-                image_files: vec!["https://cdn.example.com/character.png".into()],
-                video_files: vec!["https://cdn.example.com/camera.mp4".into()],
-                audio_files: vec!["https://cdn.example.com/music.mp3".into()],
-            }),
+            media: VideoMediaInput::References {
+                images: vec!["https://cdn.example.com/character.png".into()],
+                videos: vec!["https://cdn.example.com/camera.mp4".into()],
+                audio: vec!["https://cdn.example.com/music.mp3".into()],
+            },
         }
 }
 
@@ -52,9 +49,9 @@ fn builds_omni_reference_request_body() {
 #[test]
 fn rejects_missing_reference_media() {
     let mut req = request();
-    req.reference_media = None;
+    req.media = VideoMediaInput::None;
     let err = Seedance2VideoProvider::request_body(&req).expect_err("missing media");
-    assert!(err.to_string().contains("缺少 reference_media"));
+    assert!(err.to_string().contains("media.type=references"));
 }
 
 #[test]

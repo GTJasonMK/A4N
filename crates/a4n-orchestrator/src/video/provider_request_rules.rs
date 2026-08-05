@@ -1,4 +1,4 @@
-//! 视频 provider 请求：参考图 ID、CLIProxy 模式/模型、提示词元数据纯规则（无 DB、无 Host）。
+//! 视频 provider 请求：参考图 ID、provider 媒体合同、提示词元数据纯规则（无 DB、无 Host）。
 
 use serde_json::{Value, json};
 
@@ -7,8 +7,8 @@ use super::{FRAME_SEGMENT_PLAN_PROMPT_TYPE, boundary_frame_numbers_for_prompt};
 /// CLIProxy / Grok 参考图数量上限。
 pub const MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES: usize = 7;
 
-/// CLIProxy / Grok 视频 prompt 字符上限。
-pub const MAX_CLIPROXY_VIDEO_PROMPT_CHARS: usize = 4096;
+/// CLIProxy / Grok 视频 prompt UTF-8 字节上限。
+pub const MAX_CLIPROXY_VIDEO_PROMPT_BYTES: usize = 4096;
 
 pub fn provider_request_snapshot_value(
     key: &str,
@@ -29,13 +29,6 @@ pub fn provider_request_snapshot_value(
         "note": note,
         "request": request,
     })
-}
-
-/// CLIProxy / Grok 参考图输入模式。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CliproxyGrokReferenceMode {
-    Reference,
-    FirstFrame,
 }
 
 /// 应用内视频 provider 支持的工作流。
@@ -73,43 +66,6 @@ impl ProviderGenerationWorkflow {
 
     pub fn uses_text_only(self) -> bool {
         matches!(self, Self::TextOnly)
-    }
-}
-
-/// 解析 `provider_options_json.grok_reference_mode`。
-pub fn parse_cliproxy_grok_reference_mode(
-    provider_options_json: Option<&Value>,
-) -> Result<CliproxyGrokReferenceMode, String> {
-    let Some(value) = provider_options_json.filter(|value| !value.is_null()) else {
-        return Ok(CliproxyGrokReferenceMode::Reference);
-    };
-    let Value::Object(map) = value else {
-        return Err("视频 provider_options_json 必须是 JSON 对象".to_string());
-    };
-    let Some(mode) = map
-        .get("grok_reference_mode")
-        .filter(|value| !value.is_null())
-    else {
-        return Ok(CliproxyGrokReferenceMode::Reference);
-    };
-    let mode = mode
-        .as_str()
-        .map(str::trim)
-        .ok_or_else(|| "视频 provider_options_json.grok_reference_mode 必须是字符串".to_string())?;
-    match mode {
-        "reference" => Ok(CliproxyGrokReferenceMode::Reference),
-        "first_frame" => Ok(CliproxyGrokReferenceMode::FirstFrame),
-        other => Err(format!(
-            "视频 provider_options_json.grok_reference_mode 无效：{other}"
-        )),
-    }
-}
-
-/// 模式中文标签（预览文案）。
-pub fn cliproxy_grok_reference_mode_label(mode: CliproxyGrokReferenceMode) -> &'static str {
-    match mode {
-        CliproxyGrokReferenceMode::Reference => "参考模式",
-        CliproxyGrokReferenceMode::FirstFrame => "首帧模式",
     }
 }
 
@@ -289,6 +245,9 @@ pub fn required_video_execution_identity(
         "style_sha256",
         "aspect_ratio",
         "prompt_output_language",
+        "source_shot_id",
+        "segment_sha256",
+        "segment_recipe_fingerprint",
     ] {
         if identity
             .get(key)
@@ -309,6 +268,17 @@ pub fn required_video_execution_identity(
         return Err(format!(
             "视频提示词 #{prompt_id} 的 video_execution_identity.duration_secs 必须是正整数"
         ));
+    }
+    for key in ["segment_plan_prompt_id", "segment_index_in_shot"] {
+        if identity
+            .get(key)
+            .and_then(Value::as_i64)
+            .is_none_or(|value| value <= 0)
+        {
+            return Err(format!(
+                "视频提示词 #{prompt_id} 的 video_execution_identity.{key} 必须是正整数"
+            ));
+        }
     }
     for key in ["shooting_script_identity", "generation_asset_fingerprint"] {
         if !identity.get(key).is_some_and(Value::is_object) {
@@ -349,25 +319,6 @@ pub fn linked_video_preview_config_id(
         ));
     }
     Ok(Some(config_id))
-}
-
-/// 合并首/尾帧与提示词参考图 ID（去重、忽略 ≤0）。
-pub fn reference_ids_with_prompt_frame_images(
-    start_frame_id: Option<i64>,
-    end_frame_id: Option<i64>,
-    prompt_reference_ids: &[i64],
-) -> Vec<i64> {
-    let mut ids = Vec::new();
-    for id in [start_frame_id, end_frame_id]
-        .into_iter()
-        .flatten()
-        .chain(prompt_reference_ids.iter().copied())
-    {
-        if id > 0 && !ids.contains(&id) {
-            ids.push(id);
-        }
-    }
-    ids
 }
 
 /// 合并分镜图与提示词参考图 ID（去重、忽略 ≤0）。
@@ -425,42 +376,39 @@ pub fn ensure_newapi_first_frame_image_supported(image_url: Option<&str>) -> Res
 /// provider 图片绑定违规文案列表（空表示通过）。
 pub fn provider_image_binding_violation_messages(
     backend: &str,
-    has_end_frame_input: bool,
-    has_storyboard_input: bool,
-    grok_mode: CliproxyGrokReferenceMode,
+    workflow: ProviderGenerationWorkflow,
     prompt_reference_image_count: usize,
     newapi_backend: &str,
     cliproxy_backend: &str,
 ) -> Vec<String> {
     let backend = backend.trim();
     let mut messages = Vec::new();
-    if backend == newapi_backend && has_storyboard_input {
+    if backend == newapi_backend && workflow.uses_storyboard() {
         messages.push(
             "New API 视频接口不支持媒体合同要求的分镜 reference_images；请切换到支持参考图输入的视频 provider。"
                 .to_string(),
         );
-    } else if backend == newapi_backend && has_end_frame_input {
+    } else if backend == newapi_backend
+        && matches!(workflow, ProviderGenerationWorkflow::BoundaryFrames)
+    {
         messages.push(
             "New API 视频接口只有一个起始帧图片输入槽，但当前媒体合同还要求结束帧；继续请求会静默丢弃结束帧。请重新生成不含结束帧的提示词，或切换到支持结束帧输入的视频 provider。"
                 .to_string(),
         );
     }
-    if backend == cliproxy_backend && grok_mode == CliproxyGrokReferenceMode::FirstFrame {
-        if has_storyboard_input {
-            messages.push(
-                "CLIProxy / Grok 视频接口当前使用单 image 输入，但媒体合同要求分镜 reference_images；请切换到 Grok 参考模式，或切换到支持 reference_images 的视频 provider。"
-                    .to_string(),
-            );
-        } else if has_end_frame_input {
-            messages.push(
-                "CLIProxy / Grok 视频接口当前使用单 image 输入，但媒体合同还要求结束帧；继续请求会静默丢弃结束帧。请重新生成不含结束帧的提示词、切换到 Grok 参考模式，或切换到支持结束帧输入的视频 provider。"
-                    .to_string(),
-            );
-        } else if prompt_reference_image_count > 0 {
-            messages.push(format!(
-                "CLIProxy / Grok 首帧模式只有一个 image 输入槽，不能把 {prompt_reference_image_count} 张普通参考图兼作首帧。请移除参考图，或切换到 Grok 参考模式。"
-            ));
-        }
+    if backend == cliproxy_backend && matches!(workflow, ProviderGenerationWorkflow::BoundaryFrames)
+    {
+        messages.push(
+            "CLIProxy / Grok 视频端点没有尾帧输入字段，不能执行首尾帧模式；请切换到支持尾帧输入的视频 provider。"
+                .to_string(),
+        );
+    } else if backend == cliproxy_backend
+        && workflow.uses_first_frame_chain()
+        && prompt_reference_image_count > 0
+    {
+        messages.push(format!(
+            "CLIProxy / Grok 视频端点不允许首帧 image 与 reference_images 同时发送；当前首帧串联片段还绑定了 {prompt_reference_image_count} 张普通参考图，请移除参考图或切换 provider。"
+        ));
     }
     if backend == newapi_backend && prompt_reference_image_count > 0 {
         messages.push(format!(
@@ -479,69 +427,14 @@ pub fn cliproxy_prompt_length_violation_message(
     if backend.trim() != cliproxy_backend {
         return None;
     }
-    let prompt_chars = prompt.chars().count();
     let prompt_bytes = prompt.len();
-    if prompt_chars <= MAX_CLIPROXY_VIDEO_PROMPT_CHARS {
+    if prompt_bytes <= MAX_CLIPROXY_VIDEO_PROMPT_BYTES {
         return None;
     }
+    let prompt_chars = prompt.chars().count();
     Some(format!(
-        "CLIProxy/Grok 视频 prompt 超过 {MAX_CLIPROXY_VIDEO_PROMPT_CHARS} 字符限制：实际 {prompt_chars} 字符 / {prompt_bytes} UTF-8 字节；请缩短 Visual/Motion Prompt 后再生成"
+        "CLIProxy/Grok 视频 prompt 超过 {MAX_CLIPROXY_VIDEO_PROMPT_BYTES} UTF-8 字节限制：实际 {prompt_chars} 字符 / {prompt_bytes} UTF-8 字节；请缩短 Visual/Motion Prompt 后再生成"
     ))
-}
-
-/// CLIProxy 媒体合同违规条目：错误文案 + Preview note 后缀。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CliproxyMediaContractViolation {
-    pub message: String,
-    /// Preview 追加到 note 时的后缀（Generate 只使用 `message`）。
-    pub preview_suffix: &'static str,
-}
-
-const CLIPROXY_PREVIEW_STRUCTURE_SUFFIX: &str = " 当前仅展示请求结构。";
-const CLIPROXY_PREVIEW_REJECT_SUFFIX: &str = "；真实生成会拒绝该输入。";
-
-/// CLIProxy 参考图媒体合同违规列表（空表示通过）。
-///
-/// 首帧模式下直接放行；非 cliproxy backend 直接放行。
-pub fn cliproxy_media_contract_violations(
-    backend: &str,
-    grok_mode: CliproxyGrokReferenceMode,
-    bound_reference_image_count: usize,
-    has_first_frame_image: bool,
-    duration_secs: i32,
-    cliproxy_backend: &str,
-) -> Vec<CliproxyMediaContractViolation> {
-    if backend.trim() != cliproxy_backend {
-        return Vec::new();
-    }
-    if grok_mode == CliproxyGrokReferenceMode::FirstFrame {
-        return Vec::new();
-    }
-    let mut violations = Vec::new();
-    if has_first_frame_image && bound_reference_image_count > 0 {
-        violations.push(CliproxyMediaContractViolation {
-            message: format!(
-                "CLIProxy / Grok 视频使用首帧 image 时不能同时发送 reference_images；当前请求还绑定了 {bound_reference_image_count} 张参考图。请移除参考图，或切换到支持首帧加参考图的视频 provider。"
-            ),
-            preview_suffix: CLIPROXY_PREVIEW_STRUCTURE_SUFFIX,
-        });
-    }
-    if bound_reference_image_count > MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES {
-        violations.push(CliproxyMediaContractViolation {
-            message: format!(
-                "CLIProxy / Grok 视频最多支持 {MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES} 张参考图，当前 {bound_reference_image_count} 张"
-            ),
-            preview_suffix: CLIPROXY_PREVIEW_REJECT_SUFFIX,
-        });
-    }
-    if bound_reference_image_count > 0 && duration_secs > 10 {
-        violations.push(CliproxyMediaContractViolation {
-            message: "CLIProxy / Grok 视频使用参考图时最大时长为 10 秒，请降低时长或移除参考图"
-                .to_string(),
-            preview_suffix: CLIPROXY_PREVIEW_REJECT_SUFFIX,
-        });
-    }
-    violations
 }
 
 #[cfg(test)]
@@ -551,32 +444,8 @@ mod tests {
     #[test]
     fn reference_ids_dedupe_and_order() {
         assert_eq!(
-            reference_ids_with_prompt_frame_images(Some(1), Some(2), &[2, 3, 0]),
-            vec![1, 2, 3]
-        );
-        assert_eq!(
             reference_ids_with_storyboard_image(Some(9), &[9, 8]),
             vec![9, 8]
-        );
-    }
-
-    #[test]
-    fn grok_reference_mode_parses() {
-        use serde_json::json;
-        assert_eq!(
-            parse_cliproxy_grok_reference_mode(None).unwrap(),
-            CliproxyGrokReferenceMode::Reference
-        );
-        assert_eq!(
-            parse_cliproxy_grok_reference_mode(Some(
-                &json!({"grok_reference_mode": "first_frame"})
-            ))
-            .unwrap(),
-            CliproxyGrokReferenceMode::FirstFrame
-        );
-        assert!(
-            parse_cliproxy_grok_reference_mode(Some(&json!({"grok_reference_mode": "bad"})))
-                .is_err()
         );
     }
 
@@ -590,9 +459,7 @@ mod tests {
         );
         let msgs = provider_image_binding_violation_messages(
             "newapi-video",
-            true,
-            false,
-            CliproxyGrokReferenceMode::Reference,
+            ProviderGenerationWorkflow::BoundaryFrames,
             1,
             "newapi-video",
             "cliproxy-openai-video",
@@ -600,32 +467,54 @@ mod tests {
         assert!(msgs.iter().any(|m| m.contains("结束帧")));
         assert!(msgs.iter().any(|m| m.contains("提示词参考图")));
         assert!(
+            provider_image_binding_violation_messages(
+                "cliproxy-openai-video",
+                ProviderGenerationWorkflow::BoundaryFrames,
+                0,
+                "newapi-video",
+                "cliproxy-openai-video",
+            )
+            .iter()
+            .any(|message| message.contains("没有尾帧输入字段"))
+        );
+        assert!(
+            provider_image_binding_violation_messages(
+                "cliproxy-openai-video",
+                ProviderGenerationWorkflow::FirstFrameChain,
+                1,
+                "newapi-video",
+                "cliproxy-openai-video",
+            )
+            .iter()
+            .any(|message| message.contains("不可") || message.contains("不允许"))
+        );
+        assert!(
+            provider_image_binding_violation_messages(
+                "cliproxy-openai-video",
+                ProviderGenerationWorkflow::Storyboard,
+                3,
+                "newapi-video",
+                "cliproxy-openai-video",
+            )
+            .is_empty()
+        );
+        assert!(
             cliproxy_prompt_length_violation_message(
                 "cliproxy-openai-video",
-                &"x".repeat(MAX_CLIPROXY_VIDEO_PROMPT_CHARS + 1),
+                &"x".repeat(MAX_CLIPROXY_VIDEO_PROMPT_BYTES + 1),
                 "cliproxy-openai-video",
             )
             .is_some()
         );
-        let media = cliproxy_media_contract_violations(
-            "cliproxy-openai-video",
-            CliproxyGrokReferenceMode::Reference,
-            2,
-            false,
-            12,
-            "cliproxy-openai-video",
-        );
-        assert!(media.iter().any(|v| v.message.contains("最大时长为 10 秒")));
+        let multibyte_prompt = "界".repeat(MAX_CLIPROXY_VIDEO_PROMPT_BYTES / 3 + 1);
+        assert!(multibyte_prompt.chars().count() < MAX_CLIPROXY_VIDEO_PROMPT_BYTES);
         assert!(
-            cliproxy_media_contract_violations(
+            cliproxy_prompt_length_violation_message(
                 "cliproxy-openai-video",
-                CliproxyGrokReferenceMode::FirstFrame,
-                2,
-                true,
-                12,
+                &multibyte_prompt,
                 "cliproxy-openai-video",
             )
-            .is_empty()
+            .is_some()
         );
     }
 
@@ -659,6 +548,11 @@ mod tests {
             "duration_secs": 4,
             "aspect_ratio": "16:9",
             "prompt_output_language": "zh-CN",
+            "source_shot_id": "shot-1",
+            "segment_index_in_shot": 1,
+            "segment_sha256": "segment-1",
+            "segment_plan_prompt_id": 7,
+            "segment_recipe_fingerprint": "recipe-1",
             "generation_asset_fingerprint": {}
         });
         let resolved = required_video_execution_identity(

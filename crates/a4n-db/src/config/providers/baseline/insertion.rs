@@ -56,7 +56,7 @@ pub async fn insert_baseline_llm_config_if_empty(
         timeout_secs: Set(seed.timeout_secs),
         max_context_tokens: Set(seed.max_context_tokens),
         max_output_tokens: Set(seed.max_output_tokens),
-        request_options_json: Set(seed.request_options_json),
+        extra_body_json: Set(seed.extra_body_json),
         is_default: Set(true),
         created_at: Set(now),
         updated_at: Set(now),

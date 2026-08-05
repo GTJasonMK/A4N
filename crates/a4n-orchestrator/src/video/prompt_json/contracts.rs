@@ -89,6 +89,24 @@ pub(in crate::video) struct VideoSegmentPlanInput {
     pub material_coverage: VideoMaterialCoverageV1,
 }
 
+impl From<&VideoSegmentPlan> for VideoSegmentPlanInput {
+    fn from(segment: &VideoSegmentPlan) -> Self {
+        Self {
+            source_shot_id: segment.source_shot_id.clone(),
+            covered_beat_ids: segment.covered_beat_ids.clone(),
+            title: segment.title.clone(),
+            scene_summary: segment.scene_summary.clone(),
+            blocking_summary: segment.blocking_summary.clone(),
+            spatial_anchors: segment.spatial_anchors.clone(),
+            emotion_action_goals: segment.emotion_action_goals.clone(),
+            video_intent: segment.video_intent.clone(),
+            emotional_arc: segment.emotional_arc.clone(),
+            performance_plan: segment.performance_plan.clone(),
+            material_coverage: segment.material_coverage.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(in crate::video) struct StaticVideoFramePromptInput {

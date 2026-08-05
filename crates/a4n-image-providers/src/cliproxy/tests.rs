@@ -1,6 +1,5 @@
 use super::*;
 use a4n_image::{ImageGenerationRequest, ImageReference};
-use serde_json::json;
 
 fn request() -> ImageGenerationRequest {
     ImageGenerationRequest {
@@ -31,7 +30,7 @@ fn generation_body_uses_2k_for_large_images() {
 }
 
 #[test]
-fn first_frame_mode_preview_uses_only_first_reference_image() {
+fn edit_preview_uses_all_reference_images() {
     let mut req = request();
     req.reference_images = vec![
         ImageReference {
@@ -44,14 +43,10 @@ fn first_frame_mode_preview_uses_only_first_reference_image() {
         },
     ];
 
-    let body = CliProxyImageProvider::request_body_preview_with_options(
-        &req,
-        Some(&json!({ "grok_reference_mode": "first_frame" })),
-    )
-    .unwrap();
+    let body = CliProxyImageProvider::request_body_preview(&req).unwrap();
 
-    assert_eq!(body["grok_reference_mode"], "first_frame");
     let files = body["files"].as_array().expect("files should be an array");
-    assert_eq!(files.len(), 1);
+    assert_eq!(files.len(), 2);
     assert_eq!(files[0]["label"], "参考图 1");
+    assert_eq!(files[1]["label"], "参考图 2");
 }

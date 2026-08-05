@@ -35,6 +35,7 @@ import {
   type ProjectImportAnalysisProgress,
 } from "../../api/import";
 import type { ModelRequestPreview } from "../../api/requestPreview";
+import { cancelHostWorkflowTask } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { ImportFilePanel } from "./imports/ImportFilePanel";
@@ -918,6 +919,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
       const result = await runReverseProgressTask(
         {
           cancelTaskId: taskId,
+          cancelTask: cancelHostWorkflowTask,
+          pollTaskProgress: true,
           title: apply ? `反推并应用${reverseLabel}` : `反推${reverseLabel}`,
           startMessage: `正在准备反推${reverseLabel}`,
           successMessage: apply ? `反推${reverseLabel}结果已应用` : `反推${reverseLabel}完成`,

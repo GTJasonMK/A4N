@@ -32,7 +32,6 @@ import { pickLocalFile } from "../../../utils/fileUpload";
 import type { RunProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import type { ChapterRow } from "../shared";
-import { chapterGeneratingMessage } from "../shared";
 import {
   type ChapterVideoWorkflowMode,
   buildVideoFrameImageTraceMetadata,
@@ -54,6 +53,8 @@ import {
   referenceLabelOrderError,
   shiftReferenceLabels,
   videoExecutionIdentityOfPrompt,
+  videoExecutionSegmentNumberInPlan,
+  videoExecutionSegmentNumberInPlanByLineage,
   videoWorkflowModeOfPrompt,
   videoExecutionIdentityMatches,
   videoFrameImageMetadata,
@@ -76,7 +77,11 @@ import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
 type AddToast = (message: unknown, type: ToastType) => void;
 type PromptGenerationRequestOptions = {
   regenerateExisting?: boolean;
-  targetShotNumber?: number;
+  targetSegment?: {
+    source_shot_id: string;
+    segment_index_in_shot: number;
+  };
+  targetNarrativeUnitIndex?: number;
 };
 
 export const runVideoPromptGenerationTask = async (
@@ -103,7 +108,7 @@ export const runVideoPromptGenerationTask = async (
     await runGenerationProgressTaskThen(
       runProgressTask,
       handle,
-      { ...options, showStream: true },
+      options,
       async () => {
         generationCompleted = true;
         await flushRefresh();
@@ -151,7 +156,6 @@ export const runVideoPromptGenerationTask = async (
 interface UseVideoPromptGenerationActionsParams {
   projectId: number;
   chapter: ChapterRow | null;
-  chapterGenerating: boolean;
   options: VideoGenOptions;
   segmentPlanOptions: VideoGenOptions;
   durationLimits: VideoDurationLimits;
@@ -180,7 +184,6 @@ interface UseVideoPromptGenerationActionsParams {
 export function useVideoPromptGenerationActions({
   projectId,
   chapter,
-  chapterGenerating,
   options,
   segmentPlanOptions,
   durationLimits,
@@ -273,11 +276,6 @@ export function useVideoPromptGenerationActions({
       finishAction(key);
       return;
     }
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, title), "error");
-      finishAction(key);
-      return;
-    }
     if (requests.length === 0) {
       addToast("请至少提供一个帧生成请求", "error");
       finishAction(key);
@@ -336,10 +334,6 @@ export function useVideoPromptGenerationActions({
       | "video_storyboard_prompt",
   ) => {
     if (!chapter) return;
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, `导入${frameLabel}图片`), "error");
-      return;
-    }
     if (prompt.status === "running") {
       addToast(`${frameLabel}提示词 #${prompt.shot_number} 正在运行，不能导入图片`, "error");
       return;
@@ -415,11 +409,12 @@ export function useVideoPromptGenerationActions({
   ) => ({
     workflow_mode: promptOptions.workflowMode,
     segment_plan_prompt_id:
-      requestOptions.targetShotNumber == null ? undefined : segmentPlanPrompt?.id,
+      requestOptions.targetSegment == null ? undefined : segmentPlanPrompt?.id,
     style: promptOptions.style,
     prompt_output_language: promptOptions.promptOutputLanguage,
     prompt_batch_size: 1,
-    target_shot_number: requestOptions.targetShotNumber,
+    target_segment: requestOptions.targetSegment,
+    target_narrative_unit_index: requestOptions.targetNarrativeUnitIndex,
     duration_secs: promptOptions.durationSecs,
     duration_secs_options: normalizeDurationOptions(
       promptOptions.durationSecs,
@@ -535,7 +530,7 @@ export function useVideoPromptGenerationActions({
       addToast("当前模式不能使用帧提示词链路", "error");
       return;
     }
-    const targetShotNumber = requestOptions.targetShotNumber ?? recipe.segment_number;
+    const segmentNumber = recipe.segment_number;
     const firstFrameMode = targetWorkflowMode === "first_frame_chain";
     const label =
       targetWorkflowMode === "storyboard"
@@ -545,11 +540,14 @@ export function useVideoPromptGenerationActions({
           : "边界帧提示词";
     const regenerateExisting = requestOptions.regenerateExisting ?? false;
     const operationLabel = `${regenerateExisting ? "重新生成" : "生成"}${label}`;
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, operationLabel), "error");
-      return;
-    }
-    const runningFramePrompt = allFramePrompts.find((prompt) => prompt.status === "running");
+    const runningFramePrompt = allFramePrompts.find(
+      (prompt) =>
+        prompt.status === "running" &&
+        videoExecutionSegmentNumberInPlan(
+          videoExecutionIdentityOfPrompt(prompt),
+          segmentPlanPrompt,
+        ) === segmentNumber,
+    );
     if (runningFramePrompt) {
       addToast(
         `${label} #${runningFramePrompt.shot_number} 正在运行，不能${operationLabel}`,
@@ -564,7 +562,7 @@ export function useVideoPromptGenerationActions({
         ? 2
         : targetWorkflowMode === "storyboard"
           ? 1
-          : targetShotNumber === 1
+          : segmentNumber === 1
             ? 1
             : 0;
     const framePromptType = framePromptTypeForWorkflow(targetWorkflowMode);
@@ -586,10 +584,13 @@ export function useVideoPromptGenerationActions({
     }
     const targetFrameNumbers = targetWorkflowMode === "boundary_frames"
       ? [1, 2]
-      : [targetShotNumber];
+      : [segmentNumber];
     const targetFramePrompts = allFramePrompts.filter(
       (prompt) =>
-        videoExecutionIdentityOfPrompt(prompt)?.segment_number === targetShotNumber &&
+        videoExecutionSegmentNumberInPlan(
+          videoExecutionIdentityOfPrompt(prompt),
+          segmentPlanPrompt,
+        ) === segmentNumber &&
         framePromptMatchesCurrentGenerationContext(
           prompt,
           framePromptType,
@@ -631,10 +632,7 @@ export function useVideoPromptGenerationActions({
         projectId,
         chapter.id,
         {
-          ...promptGenerationOptions(promptOptions, {
-            ...requestOptions,
-            targetShotNumber,
-          }),
+          ...promptGenerationOptions(promptOptions, requestOptions),
           prompt_batch_size: expectedFrameCount,
         },
       );
@@ -666,23 +664,10 @@ export function useVideoPromptGenerationActions({
   ) => {
     if (!chapter) return;
     const label = "视频片段规划";
-    const downstreamLabel = "片段提示词";
     const regenerateExisting = requestOptions.regenerateExisting ?? false;
     const resumedDraft = segmentPlanDraft;
     const effectiveRegenerateExisting =
       resumedDraft?.resumeOptions.regenerate_existing ?? regenerateExisting;
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, `${effectiveRegenerateExisting ? "重新生成" : "生成"}${label}`), "error");
-      return;
-    }
-    const runningFramePrompt = allFramePrompts.find((prompt) => prompt.status === "running");
-    if (runningFramePrompt) {
-      addToast(
-        `${downstreamLabel} #${runningFramePrompt.shot_number} 正在运行，不能${effectiveRegenerateExisting ? "重新生成" : "生成"}片段规划`,
-        "error",
-      );
-      return;
-    }
     let generationOptions: GeneratePromptOptions | null = resumedDraft?.resumeOptions ?? null;
     if (!generationOptions) {
       const validatedOptions = validatedPromptOptions(label, undefined, segmentPlanOptions);
@@ -727,6 +712,7 @@ export function useVideoPromptGenerationActions({
         projectId,
         chapter.id,
         generationOptions,
+        resumedDraft?.resumeTaskId,
       );
       await runVideoPromptGenerationTask(
         runProgressTask,
@@ -777,7 +763,7 @@ export function useVideoPromptGenerationActions({
       addToast("当前模式的视频提示词链路尚未接入", "error");
       return;
     }
-    const targetShotNumber = requestOptions.targetShotNumber ?? recipe.segment_number;
+    const segmentNumber = recipe.segment_number;
     const chatVideoMode = targetWorkflowMode === "chat_video";
     const promptLabel = chatVideoMode
       ? "Chat 视频提示词"
@@ -785,11 +771,14 @@ export function useVideoPromptGenerationActions({
         ? "分镜视频提示词"
         : "视频提示词";
     const regenerateExisting = requestOptions.regenerateExisting ?? false;
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, `${regenerateExisting ? "重新生成" : "生成"}${promptLabel}`), "error");
-      return;
-    }
-    const runningFramePrompt = allFramePrompts.find((prompt) => prompt.status === "running");
+    const runningFramePrompt = allFramePrompts.find(
+      (prompt) =>
+        prompt.status === "running" &&
+        videoExecutionSegmentNumberInPlan(
+          videoExecutionIdentityOfPrompt(prompt),
+          segmentPlanPrompt,
+        ) === segmentNumber,
+    );
     if (runningFramePrompt) {
       const label =
         runningFramePrompt.prompt_type === VIDEO_FIRST_FRAME_PROMPT_TYPE
@@ -800,14 +789,24 @@ export function useVideoPromptGenerationActions({
       addToast(`${label} #${runningFramePrompt.shot_number} 正在运行，不能生成视频提示词`, "error");
       return;
     }
-    const runningPrompt = allFinalVideoPrompts.find((prompt) => prompt.status === "running");
+    const runningPrompt = allFinalVideoPrompts.find(
+      (prompt) =>
+        prompt.status === "running" &&
+        videoExecutionSegmentNumberInPlanByLineage(
+          videoExecutionIdentityOfPrompt(prompt),
+          segmentPlanPrompt,
+        ) === segmentNumber,
+    );
     if (runningPrompt) {
       addToast(`视频提示词 #${runningPrompt.id} 正在运行，不能继续生成视频提示词`, "error");
       return;
     }
     const targetFinalVideoPrompts = allFinalVideoPrompts.filter(
       (prompt) =>
-        prompt.shot_number === targetShotNumber &&
+        videoExecutionSegmentNumberInPlanByLineage(
+          videoExecutionIdentityOfPrompt(prompt),
+          segmentPlanPrompt,
+        ) === segmentNumber &&
         videoWorkflowModeOfPrompt(prompt) === targetWorkflowMode &&
         promptOutputLanguageOfPrompt(prompt) === recipe.prompt_output_language,
     );
@@ -849,10 +848,7 @@ export function useVideoPromptGenerationActions({
       const handle = await startChapterVideoPrompts(
         projectId,
         chapter.id,
-        promptGenerationOptions(promptOptions, {
-          ...requestOptions,
-          targetShotNumber,
-        }),
+        promptGenerationOptions(promptOptions, requestOptions),
       );
       await runVideoPromptGenerationTask(
         runProgressTask,
@@ -932,11 +928,6 @@ export function useVideoPromptGenerationActions({
   ) => {
     const requestScope = actionScopeKey;
     if (!chapter) {
-      finishAction(actionKey);
-      return;
-    }
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, `生成${frameLabel}`), "error");
       finishAction(actionKey);
       return;
     }

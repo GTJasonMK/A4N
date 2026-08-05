@@ -17,6 +17,8 @@ import {
 } from "../../../api/config";
 import { listServerImageConfigs, type ImageGenConfig } from "../../../api/image";
 import { listServerVideoConfigs, type VideoGenConfig } from "../../../api/video";
+import { listModelProviderCatalog } from "../../../api/providerCatalog";
+import type { ModelProviderCatalog } from "../../../api/generated/config";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { EmbeddingTab } from "../EmbeddingTab";
@@ -32,6 +34,7 @@ interface ApiConfigSnapshot {
   video: VideoGenConfig[];
   embedding: EmbeddingConfig[];
   maxTokens: LlmMaxTokensConfig;
+  providers: ModelProviderCatalog;
 }
 
 const PANEL_DEFS: Array<{
@@ -103,15 +106,16 @@ const ApiConfigOverview: React.FC = () => {
     loadSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const [llm, image, video, embedding, maxTokens] = await Promise.all([
+      const [llm, image, video, embedding, maxTokens, providers] = await Promise.all([
         listServerLlmConfig(),
         listServerImageConfigs(),
         listServerVideoConfigs(),
         listEmbeddingConfig(),
         getServerLlmMaxTokensConfig(),
+        listModelProviderCatalog(),
       ]);
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
-      setSnapshot({ llm, image, video, embedding, maxTokens });
+      setSnapshot({ llm, image, video, embedding, maxTokens, providers });
     } catch (err) {
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, "加载 API 调用配置失败"), "error");
@@ -167,7 +171,7 @@ const ApiConfigOverview: React.FC = () => {
                 ? [
                     ["配置", configName(defaults.llm)],
                     ["模型", defaults.llm.model],
-                    ["服务商", providerLabel(defaults.llm.provider)],
+                    ["服务商", providerLabel(snapshot?.providers.llm, defaults.llm.provider)],
                     ["访问密钥", defaults.llm.has_api_key ? "已配置" : "未配置"],
                   ]
                 : []
@@ -184,7 +188,7 @@ const ApiConfigOverview: React.FC = () => {
                       "上下文 / 最大输出",
                       `${defaults.llm.max_context_tokens} / ${defaults.llm.max_output_tokens}`,
                     ],
-                    ["高级参数", configuredLabel(defaults.llm.request_options_json)],
+                    ["高级参数", configuredLabel(defaults.llm.extra_body_json)],
                   ]
                 : []
             }
@@ -204,7 +208,7 @@ const ApiConfigOverview: React.FC = () => {
                 ? [
                     ["配置", configName(defaults.image)],
                     ["模型", defaults.image.model],
-                    ["运行方式", backendLabel(defaults.image.backend)],
+                    ["运行方式", providerLabel(snapshot?.providers.image, defaults.image.backend)],
                     ["访问密钥", defaults.image.has_api_key ? "已配置" : "未配置"],
                   ]
                 : []
@@ -218,7 +222,6 @@ const ApiConfigOverview: React.FC = () => {
                       `${defaults.image.default_width} × ${defaults.image.default_height}`,
                     ],
                     ["并发", String(defaults.image.max_concurrent)],
-                    ["服务选项", configuredLabel(defaults.image.provider_options_json)],
                   ]
                 : []
             }
@@ -233,7 +236,7 @@ const ApiConfigOverview: React.FC = () => {
                 ? [
                     ["配置", configName(defaults.video)],
                     ["模型", defaults.video.model],
-                    ["运行方式", backendLabel(defaults.video.backend)],
+                    ["运行方式", providerLabel(snapshot?.providers.video, defaults.video.backend)],
                   ]
                 : []
             }
@@ -251,7 +254,6 @@ const ApiConfigOverview: React.FC = () => {
                     ],
                     ["时长模式", videoDurationText(defaults.video)],
                     ["并发", String(defaults.video.max_concurrent)],
-                    ["服务选项", configuredLabel(defaults.video.provider_options_json)],
                   ]
                 : []
             }
@@ -266,7 +268,10 @@ const ApiConfigOverview: React.FC = () => {
                 ? [
                     ["配置", configName(defaults.embedding)],
                     ["模型", modelLabel(defaults.embedding.model)],
-                    ["运行方式", backendLabel(defaults.embedding.backend)],
+                    [
+                      "运行方式",
+                      providerLabel(snapshot?.providers.embedding, defaults.embedding.backend),
+                    ],
                     ["访问密钥", defaults.embedding.has_api_key ? "已配置" : "未配置"],
                   ]
                 : []
@@ -367,25 +372,11 @@ function configuredLabel(value: unknown): string {
   return "已配置";
 }
 
-function backendLabel(value: string): string {
-  if (value === "local" || value === "fastembed" || value === "local_hash") return "本地运行";
-  if (value === "api" || value === "openai_compatible") return "远程接口";
-  return "其他运行方式";
-}
-
-function providerLabel(value: string): string {
-  const normalized = value.trim().toLowerCase();
-  const labels: Record<string, string> = {
-    openai: "OpenAI",
-    anthropic: "Anthropic",
-    gemini: "Gemini",
-    deepseek: "DeepSeek",
-    openrouter: "OpenRouter",
-    ollama: "Ollama",
-    custom: "自定义接口",
-    openai_compatible: "兼容接口",
-  };
-  return labels[normalized] ?? "其他服务商";
+function providerLabel(
+  providers: Array<{ id: string; display_name: string }> | undefined,
+  value: string,
+): string {
+  return providers?.find((provider) => provider.id === value)?.display_name ?? `未注册（${value}）`;
 }
 
 function modelLabel(value: string): string {

@@ -76,6 +76,5 @@ pub(super) async fn image_generation_preview_step(
         note,
         &config.backend,
         request,
-        config.provider_options_json.as_ref(),
     )
 }

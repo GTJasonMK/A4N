@@ -14,6 +14,7 @@ import {
   type ChapterScene,
 } from "../api/chapter";
 import type { ModelRequestPreview } from "../api/requestPreview";
+import { cancelHostWorkflowTask } from "../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
@@ -269,6 +270,8 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       const s = await runProgressTask(
         {
           cancelTaskId: taskId,
+          cancelTask: cancelHostWorkflowTask,
+          pollTaskProgress: true,
           title: `生成场景 ${nextNumber}`,
           startMessage: "正在准备场景生成",
           successMessage: "场景已生成",

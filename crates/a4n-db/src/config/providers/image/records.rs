@@ -49,7 +49,6 @@ where
         max_concurrent: Set(input.max_concurrent),
         default_width: Set(input.default_width),
         default_height: Set(input.default_height),
-        provider_options_json: Set(input.provider_options_json),
         is_default: Set(false),
         created_at: Set(now),
         updated_at: Set(now),
@@ -79,7 +78,6 @@ where
     active.max_concurrent = Set(input.max_concurrent);
     active.default_width = Set(input.default_width);
     active.default_height = Set(input.default_height);
-    active.provider_options_json = Set(input.provider_options_json);
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)
 }

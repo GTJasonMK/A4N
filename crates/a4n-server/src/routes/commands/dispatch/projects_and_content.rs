@@ -76,8 +76,14 @@ pub(super) async fn try_dispatch(
         "import_chapter" => import_chapter(state, user_id, args).await?,
         "update_chapter_content" => update_chapter_content(state, user_id, args).await?,
         "get_chapter_shooting_script" => get_chapter_shooting_script(state, user_id, args).await?,
+        "get_chapter_shooting_script_unit_progress" => {
+            get_chapter_shooting_script_unit_progress(state, user_id, args).await?
+        }
         "generate_chapter_shooting_script" => {
             generate_chapter_shooting_script(state, user_id, args).await?
+        }
+        "generate_next_chapter_shooting_script_unit" => {
+            generate_next_chapter_shooting_script_unit(state, user_id, args).await?
         }
         "edit_chapter_shooting_script" => {
             edit_chapter_shooting_script(state, user_id, args).await?

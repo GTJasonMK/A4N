@@ -4,8 +4,8 @@ import { detectLlmConfigModels, detectServerLlmConfigModels } from "../../../api
 import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
-import { LLM_PROVIDERS } from "./llmConfigUtils";
 import type { LlmForm } from "./types";
+import type { LlmProviderDescriptor } from "../../../api/generated/config";
 
 interface LlmConfigEditorProps {
   form: LlmForm;
@@ -14,6 +14,7 @@ interface LlmConfigEditorProps {
   serverScope?: boolean;
   readonly?: boolean;
   templateLocked?: boolean;
+  providers: LlmProviderDescriptor[];
 }
 
 export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
@@ -23,10 +24,12 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
   serverScope = false,
   readonly = false,
   templateLocked = false,
+  providers,
 }) => {
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
   const detectModels = serverScope ? detectServerLlmConfigModels : detectLlmConfigModels;
+  const selectedProvider = providers.find((provider) => provider.id === form.provider);
 
   return (
     <>
@@ -43,13 +46,30 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         <FormField label="服务商">
           <select
             value={form.provider}
-            onChange={(event) => setForm({ ...form, provider: event.target.value })}
+            onChange={(event) => {
+              const provider = event.target.value;
+              const currentDefault = providers.find(
+                (item) => item.id === form.provider,
+              )?.default_base_url;
+              const nextDefault = providers.find(
+                (item) => item.id === provider,
+              )?.default_base_url;
+              const baseUrl = form.api_base_url.trim();
+              setForm({
+                ...form,
+                provider,
+                api_base_url:
+                  !baseUrl || baseUrl === currentDefault
+                    ? nextDefault ?? ""
+                    : form.api_base_url,
+              });
+            }}
             className="pyqt-input w-full"
             disabled={structureDisabled}
           >
-            {LLM_PROVIDERS.map((provider) => (
-              <option key={provider.value} value={provider.value}>
-                {provider.label}
+            {providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.display_name}
               </option>
             ))}
           </select>
@@ -59,7 +79,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             value={form.model}
             onChange={(model) => setForm({ ...form, model })}
             placeholder="例如：deepseek-v4-flash / gpt-4o-mini / claude-3-5-sonnet"
-            disabled={readonly}
+            disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={[
               form.provider,
@@ -94,7 +114,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         <BookInput
           value={form.api_base_url}
           onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
-          placeholder="https://api.deepseek.com/v1"
+          placeholder={selectedProvider?.default_base_url ?? "https://api.example.com/v1"}
           disabled={structureDisabled}
         />
       </FormField>
@@ -204,9 +224,9 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
       >
         <BookTextarea
           rows={6}
-          value={form.request_options_text}
+          value={form.extra_body_text}
           onChange={(event) =>
-            setForm({ ...form, request_options_text: event.target.value })
+            setForm({ ...form, extra_body_text: event.target.value })
           }
           placeholder={'例如：{\n  "reasoning_effort": "low"\n}'}
           spellCheck={false}

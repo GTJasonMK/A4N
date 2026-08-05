@@ -47,6 +47,8 @@ pub type ChapterAnalysisApplicationProgressReporter<'a> =
 #[derive(Clone, Copy, Default)]
 pub struct ChapterAnalysisApplicationProgress<'a> {
     pub reporter: Option<ChapterAnalysisApplicationProgressReporter<'a>>,
+    /// 活体信号出口：与字段级里程碑取自同一个 token 流。
+    pub stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
     pub cancel_token: Option<&'a CancellationToken>,
     pub active_task_id: Option<&'a str>,
 }
@@ -486,6 +488,7 @@ impl OrchestratorContext {
                 chapter_id,
                 prompt_renderer,
                 progress: Some(&mut mapped_analysis_progress),
+                stream_reporter: progress.stream_reporter,
                 cancel_token: progress.cancel_token,
                 workflow_run_id: Some(workflow_run.id),
             })
@@ -625,6 +628,8 @@ impl OrchestratorContext {
                 prompt_renderer,
                 Some(ObjectDiscoveryProgress {
                     reporter: Some(&reporter),
+                    // 嵌套子步骤沿用同一活体信号出口。
+                    stream_reporter: progress.stream_reporter,
                     cancel_token: progress.cancel_token,
                     active_task_id: progress.active_task_id,
                 }),
@@ -670,6 +675,8 @@ impl OrchestratorContext {
                 prompt_renderer,
                 Some(CharacterDiscoveryProgress {
                     reporter: Some(&reporter),
+                    // 嵌套子步骤沿用同一活体信号出口。
+                    stream_reporter: progress.stream_reporter,
                     cancel_token: progress.cancel_token,
                     active_task_id: progress.active_task_id,
                 }),

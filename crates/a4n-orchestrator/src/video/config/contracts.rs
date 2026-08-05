@@ -23,7 +23,6 @@ pub struct VideoConfigParams {
     pub duration_mode: String,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
-    pub provider_options_json: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,7 +41,6 @@ pub struct UpdateVideoConfigParams {
     pub duration_mode: String,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
-    pub provider_options_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

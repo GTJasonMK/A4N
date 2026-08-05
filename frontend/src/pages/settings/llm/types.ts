@@ -10,5 +10,5 @@ export interface LlmForm {
   timeout_secs: number;
   max_context_tokens: number;
   max_output_tokens: number;
-  request_options_text: string;
+  extra_body_text: string;
 }

@@ -121,6 +121,11 @@ export const VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE = "frame_segment_plan";
 export const VIDEO_FRAME_PROMPT_TYPE = "frame_prompt";
 export const VIDEO_FIRST_FRAME_PROMPT_TYPE = "first_frame_prompt";
 export const VIDEO_STORYBOARD_PROMPT_TYPE = "storyboard_prompt";
+export const isVideoFramePromptType = (promptType: string): boolean =>
+  promptType === VIDEO_FRAME_PROMPT_TYPE ||
+  promptType === VIDEO_FIRST_FRAME_PROMPT_TYPE ||
+  promptType === VIDEO_STORYBOARD_PROMPT_TYPE ||
+  promptType === "chat_video_frame_prompt";
 const VIDEO_FINAL_PROMPT_TYPE = "video_prompt";
 const VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION = "video_execution_contract_v5";
 export const VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION =
@@ -179,6 +184,42 @@ export const VIDEO_WORKFLOW_MODE_LABELS: Record<
   storyboard: "分镜生成",
   chat_video: "Chat 生视频",
   reference_media: "参考媒体生成",
+};
+
+export const ASSEMBLY_WORKFLOW_MODE = "mixed" as const;
+
+export type AssemblyPushStatus = "pending" | "accepted" | "rejected";
+
+export const assemblyPushMetadata = (
+  video: GeneratedVideo,
+): Record<string, unknown> | null =>
+  asRecord(asRecord(video.metadata_json)?.assembly_push);
+
+export const assemblyPushStatus = (
+  video: GeneratedVideo,
+): AssemblyPushStatus | null => {
+  const value = assemblyPushMetadata(video)?.status;
+  return value === "pending" || value === "accepted" || value === "rejected"
+    ? value
+    : null;
+};
+
+export const assemblyPushIndex = (video: GeneratedVideo): number | null => {
+  const value = assemblyPushMetadata(video)?.push_index;
+  return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
+};
+
+export const assemblyPushSourceIds = (
+  video: GeneratedVideo,
+): number[] | null => {
+  const value = assemblyPushMetadata(video)?.source_video_ids;
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const ids = value.filter(
+    (item): item is number => Number.isInteger(item) && Number(item) > 0,
+  );
+  return ids.length === value.length && new Set(ids).size === ids.length
+    ? ids
+    : null;
 };
 
 export function videoWorkflowModeOfVideo(
@@ -557,14 +598,22 @@ export function promptHasVideoWorkflowContract(
 }
 
 const VIDEO_EXECUTION_BASE_IDENTITY_FIELDS = [
-  "shooting_script_identity",
-  "projection_sha256",
-  "segment_plan_sha256",
-  "unit_plan_sha256",
   "source_content_sha256",
   "style_sha256",
   "duration_secs",
   "aspect_ratio",
+] as const;
+
+const VIDEO_EXECUTION_LINEAGE_BASE_IDENTITY_FIELDS = [
+  "source_content_sha256",
+  "style_sha256",
+  "aspect_ratio",
+] as const;
+
+const VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS = [
+  "source_shot_id",
+  "segment_index_in_shot",
+  "segment_sha256",
 ] as const;
 
 export function videoExecutionIdentityOfPrompt(
@@ -580,14 +629,148 @@ export function videoExecutionIdentityOfPrompt(
 const videoExecutionIdentityMatchesExpected = (
   actual: Record<string, unknown> | null,
   expected: Record<string, unknown> | null,
+  fields: readonly string[],
 ): boolean =>
   Boolean(
     actual &&
     expected &&
-    VIDEO_EXECUTION_BASE_IDENTITY_FIELDS.every(
-      (field) => actual[field] === expected[field],
+    fields.every(
+      (field) =>
+        expected[field] !== undefined && actual[field] === expected[field],
     ),
   );
+
+const planSegmentIdentity = (
+  segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
+  segmentNumber: number,
+): Record<string, unknown> | null => {
+  const metadata = asRecord(segmentPlanPrompt?.metadata_json);
+  const segment = Array.isArray(metadata?.segments)
+    ? metadata.segments
+        .map(asRecord)
+        .find((item) => item?.segment_number === segmentNumber)
+    : null;
+  const sourceShotId = segment?.source_shot_id;
+  const segmentIndexInShot = segment?.segment_index_in_shot;
+  if (
+    typeof sourceShotId !== "string" ||
+    !sourceShotId.trim() ||
+    typeof segmentIndexInShot !== "number" ||
+    !Number.isInteger(segmentIndexInShot) ||
+    segmentIndexInShot <= 0
+  ) {
+    return null;
+  }
+  const identities = videoExecutionIdentityOfPrompt(segmentPlanPrompt)?.segment_identities;
+  if (!Array.isArray(identities)) return null;
+  return (
+    identities
+      .map(asRecord)
+      .find(
+        (identity) =>
+          identity?.source_shot_id === sourceShotId &&
+          identity?.segment_index_in_shot === segmentIndexInShot &&
+          typeof identity?.segment_sha256 === "string" &&
+          identity.segment_sha256.length > 0,
+      ) ?? null
+  );
+};
+
+const videoExecutionSegmentIdentityMatchesPlan = (
+  actual: Record<string, unknown> | null,
+  segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
+  segmentNumber: number,
+  fields: readonly string[],
+): boolean => {
+  return (
+    videoExecutionSegmentNumberInPlanMatching(
+      actual,
+      segmentPlanPrompt,
+      fields,
+    ) ===
+    segmentNumber
+  );
+};
+
+const segmentPlanExecutionIdentityIsComplete = (
+  prompt: ChapterVideoPrompt,
+): boolean => {
+  const segments = asRecord(prompt.metadata_json)?.segments;
+  const identities = videoExecutionIdentityOfPrompt(prompt)?.segment_identities;
+  return (
+    Array.isArray(segments) &&
+    segments.length > 0 &&
+    Array.isArray(identities) &&
+    identities.length === segments.length &&
+    segments.every((value) => {
+      const segmentNumber = asRecord(value)?.segment_number;
+      return (
+        typeof segmentNumber === "number" &&
+        Number.isInteger(segmentNumber) &&
+        segmentNumber > 0 &&
+        planSegmentIdentity(prompt, segmentNumber) != null
+      );
+    })
+  );
+};
+
+const videoExecutionSegmentNumberInPlanMatching = (
+  actual: Record<string, unknown> | null,
+  segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
+  fields: readonly string[],
+): number | null => {
+  const planIdentity = videoExecutionIdentityOfPrompt(segmentPlanPrompt);
+  if (
+    !videoExecutionIdentityMatchesExpected(actual, planIdentity, fields) ||
+    actual?.segment_plan_prompt_id !== segmentPlanPrompt?.id
+  ) {
+    return null;
+  }
+  const segments = asRecord(segmentPlanPrompt?.metadata_json)?.segments;
+  if (!Array.isArray(segments)) return null;
+  for (const value of segments) {
+    const segment = asRecord(value);
+    const segmentNumber = segment?.segment_number;
+    if (
+      typeof segmentNumber === "number" &&
+      Number.isInteger(segmentNumber) &&
+      segmentNumber > 0
+    ) {
+      const expected = planSegmentIdentity(segmentPlanPrompt, segmentNumber);
+      if (
+        expected &&
+        VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS.every(
+          (field) => actual?.[field] === expected[field],
+        )
+      ) {
+        return segmentNumber;
+      }
+    }
+  }
+  return null;
+};
+
+export function videoExecutionSegmentNumberInPlan(
+  actual: Record<string, unknown> | null,
+  segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
+): number | null {
+  return videoExecutionSegmentNumberInPlanMatching(
+    actual,
+    segmentPlanPrompt,
+    VIDEO_EXECUTION_BASE_IDENTITY_FIELDS,
+  );
+}
+
+export function videoExecutionSegmentNumberInPlanByLineage(
+  actual: Record<string, unknown> | null,
+  segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
+): number | null {
+  return videoExecutionSegmentNumberInPlanMatching(
+    actual,
+    segmentPlanPrompt,
+    VIDEO_EXECUTION_LINEAGE_BASE_IDENTITY_FIELDS,
+  );
+}
 
 export function videoExecutionIdentityMatches(
   prompt: ChapterVideoPrompt | null | undefined,
@@ -596,6 +779,7 @@ export function videoExecutionIdentityMatches(
   return videoExecutionIdentityMatchesExpected(
     videoExecutionIdentityOfPrompt(prompt),
     videoExecutionIdentityOfPrompt(segmentPlanPrompt),
+    VIDEO_EXECUTION_BASE_IDENTITY_FIELDS,
   );
 }
 
@@ -610,16 +794,6 @@ export function videoExecutionIdentityOfVideo(
     : null;
 }
 
-function videoExecutionIdentityMatchesPlan(
-  video: GeneratedVideo | null | undefined,
-  segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
-): boolean {
-  return videoExecutionIdentityMatchesExpected(
-    videoExecutionIdentityOfVideo(video),
-    videoExecutionIdentityOfPrompt(segmentPlanPrompt),
-  );
-}
-
 export function videoExecutionSegmentIdentityMatchesPrompt(
   prompt: ChapterVideoPrompt | null | undefined,
   segmentPlanPrompt: ChapterVideoPrompt | null | undefined,
@@ -629,9 +803,14 @@ export function videoExecutionSegmentIdentityMatchesPrompt(
   const identity = videoExecutionIdentityOfPrompt(prompt);
   return (
     Boolean(recipeFingerprint) &&
-    videoExecutionIdentityMatches(prompt, segmentPlanPrompt) &&
-    identity?.segment_plan_prompt_id === segmentPlanPrompt?.id &&
-    identity?.segment_number === segmentNumber &&
+    videoExecutionSegmentIdentityMatchesPlan(
+      identity,
+      segmentPlanPrompt,
+      segmentNumber,
+      prompt?.prompt_type === "video_prompt"
+        ? VIDEO_EXECUTION_LINEAGE_BASE_IDENTITY_FIELDS
+        : VIDEO_EXECUTION_BASE_IDENTITY_FIELDS,
+    ) &&
     identity?.segment_recipe_fingerprint === recipeFingerprint
   );
 }
@@ -645,9 +824,12 @@ export function videoExecutionSegmentIdentityMatchesVideo(
   const identity = videoExecutionIdentityOfVideo(video);
   return (
     Boolean(recipeFingerprint) &&
-    videoExecutionIdentityMatchesPlan(video, segmentPlanPrompt) &&
-    identity?.segment_plan_prompt_id === segmentPlanPrompt?.id &&
-    identity?.segment_number === segmentNumber &&
+    videoExecutionSegmentIdentityMatchesPlan(
+      identity,
+      segmentPlanPrompt,
+      segmentNumber,
+      VIDEO_EXECUTION_LINEAGE_BASE_IDENTITY_FIELDS,
+    ) &&
     identity?.segment_recipe_fingerprint === recipeFingerprint
   );
 }
@@ -681,29 +863,76 @@ export function videoExecutionPromptsShareGenerationChain(
   const leftIdentity = videoExecutionIdentityOfPrompt(left);
   const rightIdentity = videoExecutionIdentityOfPrompt(right);
   if (!leftIdentity || !rightIdentity) return false;
-  if (leftShared) return rightIdentity.segment_plan_prompt_id === left.id;
-  if (rightShared) return leftIdentity.segment_plan_prompt_id === right.id;
+  const identityExistsInPlan = (
+    planIdentity: Record<string, unknown>,
+    segmentIdentity: Record<string, unknown>,
+  ): boolean =>
+    Array.isArray(planIdentity.segment_identities) &&
+    planIdentity.segment_identities
+      .map(asRecord)
+      .some(
+        (candidate) =>
+          candidate != null &&
+          VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS.every(
+            (field) => candidate[field] === segmentIdentity[field],
+          ),
+      );
+  if (leftShared) {
+    return (
+      rightIdentity.segment_plan_prompt_id === left.id &&
+      identityExistsInPlan(leftIdentity, rightIdentity)
+    );
+  }
+  if (rightShared) {
+    return (
+      leftIdentity.segment_plan_prompt_id === right.id &&
+      identityExistsInPlan(rightIdentity, leftIdentity)
+    );
+  }
+  const videoAndFramePromptPair =
+    (left.prompt_type === VIDEO_FINAL_PROMPT_TYPE &&
+      isVideoFramePromptType(right.prompt_type)) ||
+    (right.prompt_type === VIDEO_FINAL_PROMPT_TYPE &&
+      isVideoFramePromptType(left.prompt_type));
   return (
     leftIdentity.segment_plan_prompt_id != null &&
     leftIdentity.segment_plan_prompt_id ===
       rightIdentity.segment_plan_prompt_id &&
-    leftIdentity.segment_number === rightIdentity.segment_number &&
-    leftIdentity.segment_recipe_fingerprint ===
-      rightIdentity.segment_recipe_fingerprint
+    VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS.every(
+      (field) => leftIdentity[field] === rightIdentity[field],
+    ) &&
+    (videoAndFramePromptPair ||
+      leftIdentity.segment_recipe_fingerprint ===
+        rightIdentity.segment_recipe_fingerprint)
   );
 }
 
 export function videoSegmentRecipeGenerationFingerprintJson(
   recipe: VideoSegmentExecutionRecipe,
 ): string {
-  return JSON.stringify(videoSegmentRecipeFingerprintValue(recipe, false));
+  return JSON.stringify(
+    canonicalJsonValue(videoSegmentRecipeFingerprintValue(recipe, false)),
+  );
 }
 
 export function videoSegmentRecipeFrameFingerprintJson(
   recipe: VideoSegmentExecutionRecipe,
 ): string {
-  return JSON.stringify(videoSegmentRecipeFingerprintValue(recipe, true));
+  return JSON.stringify(
+    canonicalJsonValue(videoSegmentRecipeFingerprintValue(recipe, true)),
+  );
 }
+
+const canonicalJsonValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalJsonValue);
+  const object = asRecord(value);
+  if (!object) return value;
+  return Object.fromEntries(
+    Object.keys(object)
+      .sort()
+      .map((key) => [key, canonicalJsonValue(object[key])]),
+  );
+};
 
 const videoReferenceMediaBindingFingerprintValue = (
   row: NonNullable<
@@ -741,7 +970,6 @@ function videoSegmentRecipeFingerprintValue(
       : null;
   return {
     schema_version: recipe.schema_version,
-    segment_number: recipe.segment_number,
     workflow_mode: recipe.workflow_mode,
     style: recipe.style,
     prompt_output_language: recipe.prompt_output_language,
@@ -775,7 +1003,7 @@ export function latestVideoSegmentPlanPrompt(
         prompt,
         VIDEO_FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
       ) &&
-      videoExecutionIdentityOfPrompt(prompt) != null &&
+      segmentPlanExecutionIdentityIsComplete(prompt) &&
       extractPromptSourceHash(prompt.metadata_json) === currentContentHash &&
       (latest == null || prompt.id > latest.id)
     ) {

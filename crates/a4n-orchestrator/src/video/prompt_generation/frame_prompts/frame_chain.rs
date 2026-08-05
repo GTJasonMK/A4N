@@ -13,3 +13,7 @@ mod storyboard_workflow;
 pub(super) use self::contracts::{FramePromptChainInput, SharedSegmentPlanInput};
 pub(super) use self::orchestration::generate_chapter_frame_prompt_chain;
 pub(super) use self::segment_plan::generate_shared_segment_plan;
+pub(in crate::video::prompt_generation::frame_prompts) use self::segment_plan::{
+    SegmentPlanDraftInput, merge_incremental_segment_plan, segment_plan_covers_required_shots,
+    segment_plan_draft,
+};

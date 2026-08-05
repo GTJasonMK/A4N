@@ -131,8 +131,6 @@ fn reply_stream(
 
 fn sequence_capabilities() -> ModelCapabilities {
     ModelCapabilities {
-        function_calling: false,
-        vision: false,
         max_context_tokens: 8192,
         max_output_tokens: 4096,
     }

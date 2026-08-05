@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   listEffectiveVideoConfigs: vi.fn(),
   listWorkflowRuns: vi.fn(),
   loadVideoSegmentPlanDraftDetail: vi.fn(),
+  listHistory: vi.fn(),
 }));
 
 vi.mock("../../../api/image", () => ({
@@ -17,6 +18,10 @@ vi.mock("../../../api/image", () => ({
 
 vi.mock("../../../api/streaming", () => ({
   listWorkflowRuns: mocks.listWorkflowRuns,
+}));
+
+vi.mock("../../../api/generationTasks", () => ({
+  generationClient: { listHistory: mocks.listHistory },
 }));
 
 vi.mock("../../../api/video", () => ({
@@ -48,6 +53,8 @@ const segmentPlanFingerprint = (
     prompt_batch_size: 1,
     segment_plan_prompt_id: null,
     target_shot_number: null,
+    target_segment: null,
+    target_narrative_unit_index: 1,
     segment_recipe_fingerprint: null,
     duration_secs: 10,
     duration_secs_options: [6, 10],
@@ -67,6 +74,25 @@ describe("video tab loading", () => {
     mocks.listVideosByChapter.mockResolvedValue([]);
     mocks.listVideoReferenceImages.mockResolvedValue([]);
     mocks.listEffectiveVideoConfigs.mockResolvedValue([]);
+    mocks.listHistory.mockResolvedValue({
+      items: [
+        {
+          handle: { task_id: "segment-child-task-8" },
+          started: {
+            workflow_run_id: 8,
+            root_task_id: "segment-task-8",
+          },
+        },
+        ...[8, 11, 12].map((workflowRunId) => ({
+          handle: { task_id: `segment-task-${workflowRunId}` },
+          started: {
+            workflow_run_id: workflowRunId,
+            root_task_id: `segment-task-${workflowRunId}`,
+          },
+        })),
+      ],
+      next_cursor: null,
+    });
   });
 
   it("does not block base video data on workflow draft loading", async () => {
@@ -146,6 +172,7 @@ describe("video tab loading", () => {
     expect(loaded).toMatchObject({
       workflowRunId: 8,
       workflowStatus: "cancelled",
+      resumeTaskId: "segment-task-8",
       completedShotCount: 1,
       totalShotCount: 2,
       resumeOptions: {
@@ -180,6 +207,11 @@ describe("video tab loading", () => {
       3,
       8,
     );
+    expect(mocks.listHistory).toHaveBeenCalledWith({
+      project_id: 19,
+      limit: 100,
+      cursor: null,
+    });
   });
 
   it("does not load checkpoint detail for a completed segment plan", async () => {
@@ -229,6 +261,7 @@ describe("video tab loading", () => {
     await expect(loadVideoSegmentPlanDraft(19, 3)).resolves.toMatchObject({
       workflowRunId: 12,
       workflowStatus: "failed",
+      resumeTaskId: "segment-task-12",
       completedShotCount: 0,
       totalShotCount: 0,
       segments: [],

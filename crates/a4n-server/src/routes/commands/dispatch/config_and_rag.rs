@@ -34,7 +34,7 @@ pub(super) async fn try_dispatch(
             set_default_embedding_config(state, user_id, args).await?
         }
         "delete_embedding_config" => delete_embedding_config(state, user_id, args).await?,
-        "list_embedding_backends" => list_embedding_backends(state, user_id, args).await?,
+        "list_model_provider_catalog" => list_model_provider_catalog(state, user_id, args).await?,
         "rag_enhanced_search" => rag_enhanced_search(state, user_id, args).await?,
         "rag_prepare_enhanced_search" => rag_prepare_enhanced_search(state, user_id, args).await?,
         "rag_enhanced_search_with_vectors" => {

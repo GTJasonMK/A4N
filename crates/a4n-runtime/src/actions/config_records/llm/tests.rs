@@ -11,7 +11,7 @@ fn create_llm_input_requires_model_token_limits() {
         "max_concurrent": 1,
         "timeout_secs": 30,
         "max_output_tokens": 8192,
-        "request_options_json": null
+        "extra_body_json": null
     }))
     .expect_err("max_context_tokens is required by the current create contract");
     assert!(err.to_string().contains("max_context_tokens"));
@@ -25,7 +25,7 @@ fn create_llm_input_requires_model_token_limits() {
         "max_concurrent": 1,
         "timeout_secs": 30,
         "max_context_tokens": 128000,
-        "request_options_json": null
+        "extra_body_json": null
     }))
     .expect_err("max_output_tokens is required by the current create contract");
     assert!(err.to_string().contains("max_output_tokens"));
@@ -105,7 +105,7 @@ fn test_llm_config_model(id: i64, max_output_tokens: i32) -> llm_config::Model {
         timeout_secs: 30,
         max_context_tokens: 128_000,
         max_output_tokens,
-        request_options_json: None,
+        extra_body_json: None,
         is_default: false,
         created_at: now,
         updated_at: now,

@@ -69,6 +69,15 @@ pub async fn load_video_playback_data(
 }
 
 #[tauri::command]
+pub async fn load_video_scrub_playback_data(
+    state: State<'_, AppState>,
+    user_id: i64,
+    video_id: i64,
+) -> Result<VideoPlaybackData, String> {
+    video_records_actions::load_video_scrub_playback_data(state.inner(), user_id, video_id).await
+}
+
+#[tauri::command]
 pub async fn assemble_chapter_videos(
     state: State<'_, AppState>,
     user_id: i64,

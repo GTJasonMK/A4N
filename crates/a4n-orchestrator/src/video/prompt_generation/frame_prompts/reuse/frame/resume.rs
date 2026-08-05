@@ -37,7 +37,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn reusable_frame_r
                 reference_ids,
                 generation_asset_fingerprint: Some(generation_asset_fingerprint),
                 source_prompt_type: Some(source_prompt_type),
-                video_execution_identity: VideoExecutionIdentityMatch::Exact(
+                video_execution_identity: VideoExecutionIdentityMatch::Segment(
                     video_execution_identity,
                 ),
             },

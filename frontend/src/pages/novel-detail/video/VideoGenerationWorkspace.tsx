@@ -29,8 +29,11 @@ import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
-import { EmptyHint, type ChapterRow } from "../shared";
+import { EmptyHint } from "../shared";
 import {
+  durationChoicesForLimits,
+  durationLimitsLabel,
+  isDurationAllowed,
   promptByteCount,
   promptCharCount,
   staleVideoPromptMessage,
@@ -54,7 +57,6 @@ import {
 } from "./videoGenerationDisplay";
 
 interface VideoGenerationWorkspaceProps {
-  chapter: ChapterRow;
   prompts: ChapterVideoPrompt[];
   segmentCards: VideoSegmentCardPlan[];
   segmentRecipes: Map<number, VideoSegmentExecutionRecipe>;
@@ -67,7 +69,6 @@ interface VideoGenerationWorkspaceProps {
   durationLimits: VideoDurationLimits;
   loading: boolean;
   acting: string | null;
-  chapterGenerating: boolean;
   chapterContentReady: boolean;
   savingRecipeSegments: Set<number>;
   draft: PromptDraft;
@@ -77,6 +78,7 @@ interface VideoGenerationWorkspaceProps {
   savedReferenceIdsError: string | null;
   framePrompts: ChapterVideoPrompt[];
   frameImages: GeneratedImage[];
+  imageBusyId: number | null;
   videos: GeneratedVideo[];
   previousAdoptedVideos: GeneratedVideo[];
   referenceInputs?: React.ReactNode;
@@ -103,9 +105,16 @@ interface VideoGenerationWorkspaceProps {
   onPreviewFrameImage: (prompt: ChapterVideoPrompt) => void | Promise<void>;
   onGenerateFrameImage: (prompt: ChapterVideoPrompt) => void | Promise<void>;
   onImportFrameImage: (prompt: ChapterVideoPrompt) => void | Promise<void>;
+  onDeleteFrameImage: (image: GeneratedImage) => void | Promise<void>;
   onDraftChange: (draft: PromptDraft) => void;
   onSavePrompt: () => void | Promise<void>;
-  onOptimizePrompt: (prompt: ChapterVideoPrompt) => void | Promise<void>;
+  onSaveFramePrompt: (
+    prompt: ChapterVideoPrompt,
+    visualPrompt: string,
+  ) => Promise<ChapterVideoPrompt | null>;
+  onOptimizePrompt: (
+    prompt: ChapterVideoPrompt,
+  ) => Promise<ChapterVideoPrompt | null>;
   onPreviewGenerateVideo: () => void | Promise<void>;
   onCopyPrompt: (prompt: ChapterVideoPrompt) => void | Promise<void>;
   onPreviewVideoRequest: (video: GeneratedVideo) => void | Promise<void>;
@@ -129,17 +138,18 @@ type SegmentInputDialog =
   | {
       kind: "frame";
       label: string;
-      prompt: ChapterVideoPrompt | null;
-      image: GeneratedImage | null;
+      promptId: number | null;
       emptyText: string;
     }
   | { kind: "continuity" }
   | null;
 
+const MEDIA_SLOT_GRID_CLASS =
+  "grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+
 export const VideoGenerationWorkspace: React.FC<
   VideoGenerationWorkspaceProps
 > = ({
-  chapter,
   prompts,
   segmentCards,
   segmentRecipes,
@@ -152,7 +162,6 @@ export const VideoGenerationWorkspace: React.FC<
   durationLimits,
   loading,
   acting,
-  chapterGenerating,
   chapterContentReady,
   savingRecipeSegments,
   draft,
@@ -162,6 +171,7 @@ export const VideoGenerationWorkspace: React.FC<
   savedReferenceIdsError,
   framePrompts,
   frameImages,
+  imageBusyId,
   videos,
   previousAdoptedVideos,
   referenceInputs,
@@ -182,8 +192,10 @@ export const VideoGenerationWorkspace: React.FC<
   onPreviewFrameImage,
   onGenerateFrameImage,
   onImportFrameImage,
+  onDeleteFrameImage,
   onDraftChange,
   onSavePrompt,
+  onSaveFramePrompt,
   onOptimizePrompt,
   onPreviewGenerateVideo,
   onCopyPrompt,
@@ -204,6 +216,10 @@ export const VideoGenerationWorkspace: React.FC<
     "segments",
   );
   const [inputDialog, setInputDialog] = useState<SegmentInputDialog>(null);
+  const [framePromptDraft, setFramePromptDraft] = useState("");
+  const [failedFrameMediaSrcs, setFailedFrameMediaSrcs] = useState<Set<string>>(
+    () => new Set(),
+  );
   const segmentRecipe =
     selectedSegmentNumber == null
       ? null
@@ -219,6 +235,18 @@ export const VideoGenerationWorkspace: React.FC<
   useEffect(() => {
     if (!segmentConfigOpen) setInputDialog(null);
   }, [segmentConfigOpen]);
+
+  const inputDialogPromptId =
+    inputDialog?.kind === "frame" ? inputDialog.promptId : null;
+  const inputDialogPrompt =
+    inputDialogPromptId == null
+      ? null
+      : (framePrompts.find((prompt) => prompt.id === inputDialogPromptId) ??
+        null);
+
+  useEffect(() => {
+    setFailedFrameMediaSrcs(new Set());
+  }, [frameImages]);
 
   const updateDraft = (patch: Partial<PromptDraft>) =>
     onDraftChange({ ...draft, ...patch });
@@ -276,6 +304,24 @@ export const VideoGenerationWorkspace: React.FC<
   const selectedContinuityTailFrameSrc = selectedContinuityTailFrame
     ? toMediaSrc(selectedContinuityTailFrame.file_path)
     : "";
+  const inputDialogImage =
+    inputDialog?.kind === "frame" && inputDialogPrompt
+      ? ([...frameImages]
+          .sort((left, right) => right.id - left.id)
+          .find(
+            (image) =>
+              isVideoPromptFrameImage(image) &&
+              videoImageGenerationPromptId(image) === inputDialogPrompt.id,
+          ) ?? null)
+      : null;
+  const inputDialogFrameSrc = inputDialogImage
+    ? toMediaSrc(inputDialogImage.file_path)
+    : "";
+  const framePromptDirty = Boolean(
+    inputDialogPrompt &&
+    framePromptDraft.trim() !== inputDialogPrompt.visual_prompt.trim(),
+  );
+  const frameImageLocked = inputDialogImage != null;
   const selectedContinuitySourceAvailable = previousAdoptedVideos.some(
     (video) => video.id === selectedContinuitySourceVideoId,
   );
@@ -287,106 +333,149 @@ export const VideoGenerationWorkspace: React.FC<
     emptyText = "等待首尾帧生成",
   ) => {
     const src = image ? toMediaSrc(image.file_path) : "";
+    const mediaReady = Boolean(src && !failedFrameMediaSrcs.has(src));
+    const mediaUnavailable = image != null && !mediaReady;
     return (
       <button
         type="button"
         aria-label={`配置${label}`}
-        onClick={() =>
+        onClick={() => {
+          setFramePromptDraft(prompt?.visual_prompt ?? "");
           setInputDialog({
             kind: "frame",
             label,
-            prompt,
-            image,
+            promptId: prompt?.id ?? null,
             emptyText,
-          })
-        }
+          });
+        }}
         className={`group min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary ${
-          image
+          mediaReady
             ? "border-success/35 bg-book-bg-paper/45 hover:border-book-primary/65"
-            : "border-warning/45 bg-warning-bg/35 hover:border-book-primary/65"
+            : mediaUnavailable
+              ? "border-error/45 bg-error-bg/25 hover:border-book-primary/65"
+              : "border-warning/45 bg-warning-bg/35 hover:border-book-primary/65"
         }`}
       >
-        <span className="flex min-w-0 items-center gap-2 border-b border-book-border/35 px-3 py-2">
-          <span className="min-w-0 flex-1">
-            <span className="block text-xs font-medium text-book-text-main">
-              {label}
-            </span>
-            <span className="mt-0.5 block truncate text-caption text-book-text-muted">
-              {prompt ? `帧 ${prompt.shot_number}` : "尚无提示词"}
-            </span>
-          </span>
-          <span
-            className={`shrink-0 text-caption ${image ? "text-success" : "text-warning"}`}
-          >
-            {image ? "已填充" : "必填"}
-          </span>
-        </span>
         <span className="relative flex aspect-video items-center justify-center overflow-hidden bg-book-bg-tertiary text-small text-book-text-muted">
-          {src ? (
+          {mediaReady ? (
             <img
               src={src}
-              alt={label}
+              alt=""
               className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+              onError={() =>
+                setFailedFrameMediaSrcs((current) => new Set(current).add(src))
+              }
             />
           ) : (
             <span className="flex flex-col items-center gap-1.5">
-              <Plus size={20} />
-              <span>{prompt ? `生成或导入${label}` : `准备${label}`}</span>
+              {mediaUnavailable ? (
+                <AlertCircle size={18} />
+              ) : (
+                <Plus size={18} />
+              )}
+              <span>
+                {mediaUnavailable
+                  ? "图片无法加载，点击处理"
+                  : prompt
+                    ? `生成或导入${label}`
+                    : `准备${label}`}
+              </span>
             </span>
           )}
         </span>
-        <span className="block truncate px-3 py-2 text-caption text-book-text-sub">
-          {prompt?.title || prompt?.scene_summary || emptyText}
+        <span className="block min-w-0 p-2">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-small font-medium text-book-text-main">
+              {label}
+            </span>
+            <span
+              className={`shrink-0 text-caption ${
+                mediaReady
+                  ? "text-success"
+                  : mediaUnavailable
+                    ? "text-error"
+                    : "text-warning"
+              }`}
+            >
+              {mediaReady ? "已填充" : mediaUnavailable ? "不可用" : "必填"}
+            </span>
+          </span>
+          <span className="mt-0.5 block truncate text-caption text-book-text-muted">
+            {prompt?.title || prompt?.scene_summary || emptyText}
+          </span>
         </span>
       </button>
     );
   };
 
   const renderContinuitySlot = () => {
+    const mediaReady = Boolean(
+      selectedContinuityTailFrameSrc &&
+      !failedFrameMediaSrcs.has(selectedContinuityTailFrameSrc),
+    );
+    const mediaUnavailable = selectedContinuityTailFrame != null && !mediaReady;
     return (
       <button
         type="button"
         aria-label="配置续接首帧"
         onClick={() => setInputDialog({ kind: "continuity" })}
         className={`group min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary ${
-          selectedContinuityTailFrame
+          mediaReady
             ? "border-success/35 bg-book-bg-paper/45 hover:border-book-primary/65"
-            : "border-warning/45 bg-warning-bg/35 hover:border-book-primary/65"
+            : mediaUnavailable
+              ? "border-error/45 bg-error-bg/25 hover:border-book-primary/65"
+              : "border-warning/45 bg-warning-bg/35 hover:border-book-primary/65"
         }`}
       >
-        <span className="flex min-w-0 items-center gap-2 border-b border-book-border/35 px-3 py-2">
-          <span className="min-w-0 flex-1">
-            <span className="block text-xs font-medium text-book-text-main">
-              续接首帧
-            </span>
-            <span className="mt-0.5 block truncate text-caption text-book-text-muted">
-              {selectedContinuitySourceVideoId == null
-                ? "尚未选择来源视频"
-                : `来自视频 #${selectedContinuitySourceVideoId} 的尾帧`}
-            </span>
-          </span>
-          <span
-            className={`shrink-0 text-caption ${selectedContinuityTailFrame ? "text-success" : "text-warning"}`}
-          >
-            {selectedContinuityTailFrame ? "已填充" : "必填"}
-          </span>
-        </span>
         <span className="flex aspect-video items-center justify-center overflow-hidden bg-book-bg-tertiary text-small text-book-text-muted">
-          {selectedContinuityTailFrameSrc ? (
+          {mediaReady ? (
             <img
               src={selectedContinuityTailFrameSrc}
-              alt="续接来源尾帧"
+              alt=""
               className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+              onError={() =>
+                setFailedFrameMediaSrcs((current) =>
+                  new Set(current).add(selectedContinuityTailFrameSrc),
+                )
+              }
             />
           ) : (
             <span className="flex flex-col items-center gap-1.5">
-              <Plus size={20} />
-              <span>选择更早片段的视频</span>
+              {mediaUnavailable ? (
+                <AlertCircle size={18} />
+              ) : (
+                <Plus size={18} />
+              )}
+              <span>
+                {mediaUnavailable
+                  ? "图片无法加载，点击处理"
+                  : "选择更早片段的视频"}
+              </span>
             </span>
           )}
         </span>
-        <span className="block truncate px-3 py-2 text-caption text-book-text-sub">
-          采用来源视频尾帧作为当前片段首帧
+        <span className="block min-w-0 p-2">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-small font-medium text-book-text-main">
+              续接首帧
+            </span>
+            <span
+              className={`shrink-0 text-caption ${
+                mediaReady
+                  ? "text-success"
+                  : mediaUnavailable
+                    ? "text-error"
+                    : "text-warning"
+              }`}
+            >
+              {mediaReady ? "已填充" : mediaUnavailable ? "不可用" : "必填"}
+            </span>
+          </span>
+          <span className="mt-0.5 block truncate text-caption text-book-text-muted">
+            {selectedContinuitySourceVideoId == null
+              ? "尚未选择来源视频"
+              : `来自视频 #${selectedContinuitySourceVideoId} 的尾帧`}
+          </span>
         </span>
       </button>
     );
@@ -558,7 +647,7 @@ export const VideoGenerationWorkspace: React.FC<
 
       return (
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible custom-scrollbar pr-2">
-          <div className="mx-auto w-full max-w-4xl space-y-3">
+          <div className="w-full space-y-3">
             <section className="a4n-flat-surface p-4 sm:p-5">
               <div className="flex min-w-0 flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">
@@ -615,13 +704,7 @@ export const VideoGenerationWorkspace: React.FC<
                     点击对应槽位生成、导入或选择素材。
                   </div>
                 </div>
-                <div
-                  className={`grid gap-3 ${
-                    mode === "boundary_frames"
-                      ? "sm:grid-cols-2"
-                      : "sm:grid-cols-1"
-                  }`}
-                >
+                <div className={MEDIA_SLOT_GRID_CLASS}>
                   {mode === "boundary_frames" ? (
                     <>
                       {renderFrameSlot(
@@ -661,7 +744,7 @@ export const VideoGenerationWorkspace: React.FC<
               <BookButton
                 variant={ready ? "primary" : "secondary"}
                 size="sm"
-                disabled={acting != null || chapterGenerating || !ready}
+                disabled={acting != null || !ready}
                 title={finalPromptBlockedReason ?? undefined}
                 onClick={() =>
                   void onGeneratePromptRequests(selectedSegmentNumber)
@@ -702,20 +785,12 @@ export const VideoGenerationWorkspace: React.FC<
       ? "该视频提示词已有下游视频；保存、优化或删除时需要选择删除下游或保留下游继续"
       : null;
     const durationConfigError = durationLimits.configError;
-    const saveBlockedReason =
-      (chapterGenerating
-        ? "当前章节正在生成，不能保存视频提示词"
-        : undefined) ??
-      selectedPromptLockedReason ??
-      undefined;
+    const saveBlockedReason = selectedPromptLockedReason ?? undefined;
     const optimizeBlockedReason =
       (selectedPromptDirty
         ? "当前编辑内容未保存，请先保存或放弃草稿后再优化"
         : undefined) ??
       selectedPromptLockedReason ??
-      (chapterGenerating
-        ? "当前章节正在生成，不能优化视频提示词"
-        : undefined) ??
       undefined;
     const videoGenerationInFlight =
       acting === `generate-video-${selectedPrompt.id}`;
@@ -735,7 +810,6 @@ export const VideoGenerationWorkspace: React.FC<
       guidanceConfigurationError ??
       frameInputMissingMessage ??
       (selectedPromptRunning ? "当前视频提示词正在运行" : undefined) ??
-      (chapterGenerating ? "当前章节正在生成，暂不能生成视频" : undefined) ??
       (!chapterContentReady ? "当前章节正文为空，不能生成视频" : undefined);
     const selectedImportBlockedReason =
       (selectedPrompt.prompt_type !== "video_prompt"
@@ -744,11 +818,10 @@ export const VideoGenerationWorkspace: React.FC<
       (selectedPromptStale ? "当前视频提示词已过期，请重新生成" : undefined) ??
       (selectedPromptDirty ? "请先保存当前更改" : undefined) ??
       (selectedPromptRunning ? "当前视频提示词正在运行" : undefined) ??
-      (chapterGenerating ? "当前章节正在生成，暂不能导入视频" : undefined) ??
       (!chapterContentReady ? "当前章节正文为空，不能导入视频" : undefined);
-    const deletePromptBlockedReason =
-      (chapterGenerating ? "当前章节正在生成，暂不能删除提示词" : undefined) ??
-      (selectedPromptRunning ? "当前视频提示词正在运行" : undefined);
+    const deletePromptBlockedReason = selectedPromptRunning
+      ? "当前视频提示词正在运行"
+      : undefined;
     const savingPrompt = acting === `save-prompt-${selectedPrompt.id}`;
     const showSavePrimary = savingPrompt || selectedPromptDirty;
     const showCopyPrimary = !showSavePrimary && chatVideoMode;
@@ -757,7 +830,7 @@ export const VideoGenerationWorkspace: React.FC<
       !chatVideoMode &&
       (videoGenerationInFlight || selectedGenerateBlockedReason == null);
     const editorMetadata = [
-      `${selectedPrompt.duration_secs} 秒`,
+      `${draft.duration_secs} 秒`,
       getOperationStatusLabel(selectedPrompt.status),
       selectedPromptStale ? "正文已变化" : null,
       selectedPrompt.generated_video_id != null ? "已生成视频" : null,
@@ -777,9 +850,7 @@ export const VideoGenerationWorkspace: React.FC<
                 variant="primary"
                 size="sm"
                 onClick={() => void onSavePrompt()}
-                disabled={
-                  savingPrompt || selectedPromptRunning || chapterGenerating
-                }
+                disabled={savingPrompt || selectedPromptRunning}
                 title={saveBlockedReason}
                 className="!min-h-9 !px-3 sm:!min-h-7"
               >
@@ -949,7 +1020,7 @@ export const VideoGenerationWorkspace: React.FC<
                     {startFrameMissingMessage}
                   </div>
                 )}
-                <div className="grid gap-2">
+                <div className={MEDIA_SLOT_GRID_CLASS}>
                   {selectedPrompt.shot_number <= 1
                     ? renderFrameSlot(
                         "首帧",
@@ -978,7 +1049,7 @@ export const VideoGenerationWorkspace: React.FC<
                     {frameInputMissingMessage}
                   </div>
                 )}
-                <div className="grid gap-2">
+                <div className={MEDIA_SLOT_GRID_CLASS}>
                   {renderFrameSlot(
                     "分镜板",
                     startFramePrompt,
@@ -1002,7 +1073,7 @@ export const VideoGenerationWorkspace: React.FC<
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className={MEDIA_SLOT_GRID_CLASS}>
                   {renderFrameSlot(
                     "首帧",
                     startFramePrompt,
@@ -1102,6 +1173,46 @@ export const VideoGenerationWorkspace: React.FC<
 
             <div className="grid gap-3">
               <label className="flex min-w-0 flex-col gap-1">
+                <span className="text-xs text-book-text-muted">视频时长</span>
+                {durationLimits.durationMode === "fixed" ? (
+                  <select
+                    value={draft.duration_secs}
+                    onChange={(event) =>
+                      updateDraft({ duration_secs: Number(event.target.value) })
+                    }
+                    disabled={selectedPromptRunning}
+                    className="book-control h-9 px-2 text-xs"
+                  >
+                    {!isDurationAllowed(draft.duration_secs, durationLimits) && (
+                      <option value={draft.duration_secs} disabled>
+                        {draft.duration_secs} 秒（当前配置不支持）
+                      </option>
+                    )}
+                    {durationChoicesForLimits(durationLimits).map((duration) => (
+                      <option key={duration} value={duration}>
+                        {duration} 秒
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    min={durationLimits.minDurationSecs}
+                    max={durationLimits.maxDurationSecs}
+                    step={1}
+                    value={draft.duration_secs}
+                    onChange={(event) =>
+                      updateDraft({ duration_secs: Number(event.target.value) })
+                    }
+                    disabled={selectedPromptRunning}
+                    className="book-control h-9 px-2 text-xs"
+                  />
+                )}
+                <span className="text-caption text-book-text-muted">
+                  当前模型支持：{durationLimitsLabel(durationLimits)}
+                </span>
+              </label>
+              <label className="flex min-w-0 flex-col gap-1">
                 <span className="text-xs text-book-text-muted">
                   {chatVideoMode ? "Chat 视频提示词" : "画面提示词"}
                 </span>
@@ -1110,7 +1221,7 @@ export const VideoGenerationWorkspace: React.FC<
                   onChange={(event) =>
                     updateDraft({ visual_prompt: event.target.value })
                   }
-                  disabled={selectedPromptRunning || selectedPromptHasVideo}
+                  disabled={selectedPromptRunning}
                   className="book-control min-h-[220px] resize-y p-2 text-xs leading-relaxed"
                 />
               </label>
@@ -1124,7 +1235,7 @@ export const VideoGenerationWorkspace: React.FC<
                     onChange={(event) =>
                       updateDraft({ motion_prompt: event.target.value })
                     }
-                    disabled={selectedPromptRunning || selectedPromptHasVideo}
+                    disabled={selectedPromptRunning}
                     className="book-control min-h-[140px] resize-y p-2 text-xs leading-relaxed"
                   />
                 </label>
@@ -1138,7 +1249,7 @@ export const VideoGenerationWorkspace: React.FC<
                   onChange={(event) =>
                     updateDraft({ negative_prompt: event.target.value })
                   }
-                  disabled={selectedPromptRunning || selectedPromptHasVideo}
+                  disabled={selectedPromptRunning}
                   className="book-control min-h-[96px] resize-y p-2 text-xs leading-relaxed"
                 />
               </label>
@@ -1170,7 +1281,6 @@ export const VideoGenerationWorkspace: React.FC<
           className={`min-h-0 ${mobilePane === "segments" ? "block" : "hidden xl:block"}`}
         >
           <VideoPromptSetupPanel
-            chapter={chapter}
             prompts={prompts}
             segmentCards={segmentCards}
             segmentRecipes={segmentRecipes}
@@ -1178,7 +1288,6 @@ export const VideoGenerationWorkspace: React.FC<
             planningDraftVisible={planningDraftVisible}
             selectedPromptId={selectedPromptId}
             acting={acting}
-            chapterGenerating={chapterGenerating}
             loading={loading}
             savingRecipeSegments={savingRecipeSegments}
             finalPromptBlockedReasons={finalPromptBlockedReasons}
@@ -1242,7 +1351,6 @@ export const VideoGenerationWorkspace: React.FC<
             >
               <div className="p-3">
                 <VideoPromptSetupPanel
-                  chapter={chapter}
                   prompts={prompts}
                   segmentCards={segmentCards}
                   segmentRecipes={segmentRecipes}
@@ -1250,7 +1358,6 @@ export const VideoGenerationWorkspace: React.FC<
                   planningDraftVisible={planningDraftVisible}
                   selectedPromptId={selectedPromptId}
                   acting={acting}
-                  chapterGenerating={chapterGenerating}
                   loading={loading}
                   savingRecipeSegments={savingRecipeSegments}
                   finalPromptBlockedReasons={finalPromptBlockedReasons}
@@ -1285,23 +1392,94 @@ export const VideoGenerationWorkspace: React.FC<
         title={
           inputDialog?.kind === "frame" ? `${inputDialog.label}配置` : "帧配置"
         }
-        subtitle="在这里准备提示词，并生成、重新生成或导入对应图片"
+        subtitle="在这里准备提示词，并生成或导入对应图片"
         icon={<ImageIcon size={15} />}
         maxWidthClassName="max-w-2xl"
         zIndexClassName="z-[70]"
         footer={
           inputDialog?.kind === "frame" && selectedSegmentNumber != null ? (
-            inputDialog.prompt ? (
+            inputDialogPrompt ? (
               <>
+                {inputDialogImage ? (
+                  <BookButton
+                    variant="danger"
+                    size="sm"
+                    aria-label={`删除${inputDialog.label}图片`}
+                    disabled={
+                      acting != null || imageBusyId === inputDialogImage.id
+                    }
+                    onClick={() => void onDeleteFrameImage(inputDialogImage)}
+                  >
+                    {imageBusyId === inputDialogImage.id ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <Trash2 size={12} />
+                    )}
+                    删除图片
+                  </BookButton>
+                ) : null}
                 <BookButton
                   variant="secondary"
                   size="sm"
-                  disabled={acting != null || chapterGenerating}
+                  disabled={
+                    acting != null ||
+                    frameImageLocked ||
+                    framePromptDirty ||
+                    inputDialogPrompt.status === "running"
+                  }
+                  title={
+                    frameImageLocked
+                      ? "请先删除当前图片，再优化提示词"
+                      : framePromptDirty
+                        ? "当前提示词有未保存编辑，请先保存"
+                        : undefined
+                  }
+                  onClick={async () => {
+                    const updated = await onOptimizePrompt(inputDialogPrompt);
+                    if (updated) setFramePromptDraft(updated.visual_prompt);
+                  }}
+                >
+                  <Wand2 size={12} />
+                  优化提示词
+                </BookButton>
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={
+                    acting != null ||
+                    frameImageLocked ||
+                    !framePromptDirty ||
+                    inputDialogPrompt.status === "running" ||
+                    !framePromptDraft.trim()
+                  }
+                  title={
+                    frameImageLocked
+                      ? "请先删除当前图片，再编辑提示词"
+                      : undefined
+                  }
+                  onClick={async () => {
+                    const updated = await onSaveFramePrompt(
+                      inputDialogPrompt,
+                      framePromptDraft,
+                    );
+                    if (updated) setFramePromptDraft(updated.visual_prompt);
+                  }}
+                >
+                  <Save size={12} />
+                  保存提示词
+                </BookButton>
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={acting != null || framePromptDirty}
+                  title={
+                    framePromptDirty
+                      ? "请先保存提示词，再预览图片请求"
+                      : undefined
+                  }
                   onClick={() => {
-                    const prompt = inputDialog.prompt;
-                    if (!prompt) return;
                     setInputDialog(null);
-                    void onPreviewFrameImage(prompt);
+                    void onPreviewFrameImage(inputDialogPrompt);
                   }}
                 >
                   <Eye size={12} />
@@ -1310,12 +1488,19 @@ export const VideoGenerationWorkspace: React.FC<
                 <BookButton
                   variant="secondary"
                   size="sm"
-                  disabled={acting != null || chapterGenerating}
+                  disabled={
+                    acting != null || frameImageLocked || framePromptDirty
+                  }
+                  title={
+                    frameImageLocked
+                      ? "请先删除当前图片，再导入新图片"
+                      : framePromptDirty
+                        ? "请先保存提示词，再导入图片"
+                        : undefined
+                  }
                   onClick={() => {
-                    const prompt = inputDialog.prompt;
-                    if (!prompt) return;
                     setInputDialog(null);
-                    void onImportFrameImage(prompt);
+                    void onImportFrameImage(inputDialogPrompt);
                   }}
                 >
                   <Upload size={12} />
@@ -1324,16 +1509,23 @@ export const VideoGenerationWorkspace: React.FC<
                 <BookButton
                   variant="primary"
                   size="sm"
-                  disabled={acting != null || chapterGenerating}
+                  disabled={
+                    acting != null || frameImageLocked || framePromptDirty
+                  }
+                  title={
+                    frameImageLocked
+                      ? "请先删除当前图片，再重新生成"
+                      : framePromptDirty
+                        ? "请先保存提示词，再生成图片"
+                        : undefined
+                  }
                   onClick={() => {
-                    const prompt = inputDialog.prompt;
-                    if (!prompt) return;
                     setInputDialog(null);
-                    void onGenerateFrameImage(prompt);
+                    void onGenerateFrameImage(inputDialogPrompt);
                   }}
                 >
                   <Wand2 size={12} />
-                  {inputDialog.image ? "重新生成" : "生成图片"}
+                  生成图片
                 </BookButton>
               </>
             ) : (
@@ -1342,7 +1534,6 @@ export const VideoGenerationWorkspace: React.FC<
                 size="sm"
                 disabled={
                   acting != null ||
-                  chapterGenerating ||
                   savingRecipeSegments.has(selectedSegmentNumber)
                 }
                 onClick={() => {
@@ -1360,29 +1551,65 @@ export const VideoGenerationWorkspace: React.FC<
         {inputDialog?.kind === "frame" ? (
           <div className="space-y-3">
             <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-book-bg-tertiary text-small text-book-text-muted">
-              {inputDialog.image && toMediaSrc(inputDialog.image.file_path) ? (
+              {inputDialogFrameSrc &&
+              !failedFrameMediaSrcs.has(inputDialogFrameSrc) ? (
                 <img
-                  src={toMediaSrc(inputDialog.image.file_path)}
-                  alt={inputDialog.label}
-                  className="h-full w-full object-contain"
+                  src={inputDialogFrameSrc}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={() =>
+                    setFailedFrameMediaSrcs((current) =>
+                      new Set(current).add(inputDialogFrameSrc),
+                    )
+                  }
                 />
               ) : (
                 <span className="flex flex-col items-center gap-2">
-                  <Plus size={24} />
-                  <span>{inputDialog.emptyText}</span>
+                  {inputDialogImage ? (
+                    <AlertCircle size={24} />
+                  ) : (
+                    <Plus size={24} />
+                  )}
+                  <span>
+                    {inputDialogImage
+                      ? "图片无法加载，请先删除后重新生成或导入"
+                      : inputDialog.emptyText}
+                  </span>
                 </span>
               )}
             </div>
             <div className="rounded-xl border border-book-border/45 bg-book-bg-paper/45 px-3 py-2.5">
-              <div className="text-xs font-medium text-book-text-main">
-                {inputDialog.prompt
-                  ? `帧 ${inputDialog.prompt.shot_number}`
-                  : "尚无帧提示词"}
-              </div>
-              <div className="mt-1 whitespace-pre-wrap text-small leading-relaxed text-book-text-muted">
-                {inputDialog.prompt?.visual_prompt ||
-                  `点击下方按钮先准备${inputDialog.label}提示词。`}
-              </div>
+              <label className="block">
+                <span className="text-xs font-medium text-book-text-main">
+                  {inputDialogPrompt
+                    ? `帧 ${inputDialogPrompt.shot_number} · 图片提示词`
+                    : "尚无帧提示词"}
+                </span>
+                {inputDialogPrompt ? (
+                  <textarea
+                    aria-label={`${inputDialog.label}图片提示词`}
+                    value={framePromptDraft}
+                    onChange={(event) =>
+                      setFramePromptDraft(event.target.value)
+                    }
+                    disabled={
+                      acting != null ||
+                      frameImageLocked ||
+                      inputDialogPrompt.status === "running"
+                    }
+                    title={
+                      frameImageLocked
+                        ? "请先删除当前图片，再编辑提示词"
+                        : undefined
+                    }
+                    className="book-control mt-2 min-h-[150px] w-full resize-y p-2 text-xs leading-relaxed"
+                  />
+                ) : (
+                  <span className="mt-1 block text-small leading-relaxed text-book-text-muted">
+                    点击下方按钮先准备{inputDialog.label}提示词。
+                  </span>
+                )}
+              </label>
             </div>
           </div>
         ) : null}
@@ -1400,17 +1627,32 @@ export const VideoGenerationWorkspace: React.FC<
         {inputDialog?.kind === "continuity" ? (
           <div className="space-y-3">
             <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-book-bg-tertiary text-small text-book-text-muted">
-              {selectedContinuityTailFrameSrc ? (
+              {selectedContinuityTailFrameSrc &&
+              !failedFrameMediaSrcs.has(selectedContinuityTailFrameSrc) ? (
                 <img
                   src={selectedContinuityTailFrameSrc}
-                  alt="续接来源尾帧"
-                  className="h-full w-full object-contain"
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={() =>
+                    setFailedFrameMediaSrcs((current) =>
+                      new Set(current).add(selectedContinuityTailFrameSrc),
+                    )
+                  }
                 />
               ) : (
-                <span>
-                  {selectedContinuitySourceVideoId == null
-                    ? "尚未选择来源视频"
-                    : `视频 #${selectedContinuitySourceVideoId} 尚无可用尾帧`}
+                <span className="flex flex-col items-center gap-2 text-center">
+                  {selectedContinuitySourceVideoId != null ? (
+                    <AlertCircle size={24} />
+                  ) : (
+                    <Plus size={24} />
+                  )}
+                  <span>
+                    {selectedContinuitySourceVideoId == null
+                      ? "尚未选择来源视频"
+                      : selectedContinuityTailFrame
+                        ? "图片无法加载，请重新选择来源视频"
+                        : `视频 #${selectedContinuitySourceVideoId} 尚无可用尾帧`}
+                  </span>
                 </span>
               )}
             </div>
@@ -1422,7 +1664,6 @@ export const VideoGenerationWorkspace: React.FC<
                 value={selectedContinuitySourceVideoId ?? ""}
                 disabled={
                   acting != null ||
-                  chapterGenerating ||
                   selectedSegmentNumber == null ||
                   savingRecipeSegments.has(selectedSegmentNumber)
                 }

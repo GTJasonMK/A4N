@@ -36,7 +36,7 @@ where
             active.timeout_secs = Set(row.timeout_secs);
             active.max_context_tokens = Set(row.max_context_tokens);
             active.max_output_tokens = Set(row.max_output_tokens);
-            active.request_options_json = Set(row.request_options_json);
+            active.extra_body_json = Set(row.extra_body_json);
             active.is_default = Set(row.is_default);
             active.updated_at = Set(now);
             active
@@ -59,7 +59,7 @@ where
                 timeout_secs: Set(row.timeout_secs),
                 max_context_tokens: Set(row.max_context_tokens),
                 max_output_tokens: Set(row.max_output_tokens),
-                request_options_json: Set(row.request_options_json),
+                extra_body_json: Set(row.extra_body_json),
                 is_default: Set(row.is_default),
                 created_at: Set(now),
                 updated_at: Set(now),

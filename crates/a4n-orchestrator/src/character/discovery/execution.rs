@@ -239,8 +239,17 @@ impl OrchestratorContext {
             }
             (discovered, checkpoint.response_content)
         } else {
+            // 活体信号与字段级里程碑取自同一个 token 流，二者互补而非替代。
+            let stream_reporter = progress.and_then(|progress| progress.stream_reporter);
+            let mut streamed = String::new();
+            let stream_sink = stream_reporter.map(|reporter| {
+                move |delta: &str| {
+                    streamed.push_str(delta);
+                    reporter(&streamed);
+                }
+            });
             let response_content = self
-                .chat_json_stream_with_progress(
+                .chat_json_stream_result_with_sink(
                     ChatJsonStreamInput {
                         request: llm_request.clone(),
                         prompt_name: "character_discovery",
@@ -261,8 +270,10 @@ impl OrchestratorContext {
                         report_character_discovery_progress(progress, current, message)
                             .map_err(|error| error.to_string())
                     },
+                    stream_sink,
                 )
                 .await
+                .map(|result| result.response_content)
                 .map_err(|error| {
                     stream_error_or_cancelled(
                         error,

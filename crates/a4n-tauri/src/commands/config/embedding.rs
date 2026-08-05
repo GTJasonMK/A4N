@@ -51,10 +51,10 @@ tauri_id_command!(
     config_records_actions::preview_test_embedding_config_request,
 );
 
-/// 列出可用的嵌入后端
 #[tauri::command]
-pub fn list_embedding_backends() -> Result<Vec<String>, String> {
-    Ok(config_records_actions::list_embedding_backends())
+pub fn list_model_provider_catalog()
+-> Result<a4n_api_contract::provider_catalog::ModelProviderCatalog, String> {
+    Ok(config_records_actions::model_provider_catalog())
 }
 
 /// 列出 fastembed 支持的本地嵌入模型及当前缓存状态。

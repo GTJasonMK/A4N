@@ -118,7 +118,7 @@ impl<'a> VideoRuntimeFacade<'a> {
         project_id: i64,
         chapter_id: i64,
         segment_plan_prompt_id: i64,
-        shot_number: i32,
+        target: (&str, i32),
         video_id: i64,
     ) -> Result<generated_video::Model, AppError> {
         self.orchestrator
@@ -126,7 +126,7 @@ impl<'a> VideoRuntimeFacade<'a> {
                 project_id,
                 chapter_id,
                 segment_plan_prompt_id,
-                shot_number,
+                target,
                 video_id,
             )
             .await
@@ -275,7 +275,7 @@ impl<'a> VideoRuntimeFacade<'a> {
         source_extension: &str,
         imported_at: &str,
         segment_prompt_id: i64,
-        shot_number: i32,
+        target: (&str, i32),
     ) -> Result<generated_video::Model, AppError> {
         self.orchestrator
             .create_imported_reference_media_video_record_validated(
@@ -286,7 +286,7 @@ impl<'a> VideoRuntimeFacade<'a> {
                 source_extension,
                 imported_at,
                 segment_prompt_id,
-                shot_number,
+                target,
             )
             .await
     }
@@ -474,6 +474,16 @@ impl<'a> VideoRuntimeFacade<'a> {
                 metadata_json,
                 prompt_id,
             )
+            .await
+    }
+
+    pub(crate) async fn update_generated_video_duration_record(
+        &self,
+        video_id: i64,
+        duration_secs: f32,
+    ) -> Result<generated_video::Model, AppError> {
+        self.orchestrator
+            .update_generated_video_duration_record(video_id, duration_secs)
             .await
     }
 

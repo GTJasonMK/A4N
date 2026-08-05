@@ -88,10 +88,12 @@ describe("video segment-plan generation actions", () => {
       reference_image_ids: [],
       video_library_image_ids: [],
       regenerate_existing: false,
+      target_narrative_unit_index: 2,
     };
     const segmentPlanDraft: LoadedSegmentPlanDraft = {
       workflowRunId: 8,
       workflowStatus: "cancelled",
+      resumeTaskId: "segment-task-8",
       resumeOptions,
       workflowProgress: {
         current: 87,
@@ -112,7 +114,6 @@ describe("video segment-plan generation actions", () => {
     const actions = useVideoPromptGenerationActions({
       projectId: 19,
       chapter: { id: 3 } as ChapterRow,
-      chapterGenerating: false,
       options: DEFAULT_VIDEO_OPTIONS,
       segmentPlanOptions: { ...DEFAULT_VIDEO_OPTIONS, style: "" },
       durationLimits: videoDurationLimitsFromConfig(null),
@@ -140,7 +141,12 @@ describe("video segment-plan generation actions", () => {
 
     await actions.handleGenerateSegmentPlan();
 
-    expect(mocks.startChapterVideoSegmentPlan).toHaveBeenCalledWith(19, 3, resumeOptions);
+    expect(mocks.startChapterVideoSegmentPlan).toHaveBeenCalledWith(
+      19,
+      3,
+      resumeOptions,
+      "segment-task-8",
+    );
     expect(mocks.runGenerationProgressTaskThen.mock.calls[0]?.[2]).toMatchObject({
       startMessage: expect.stringContaining("已加载持久化进度 87%"),
     });
@@ -152,7 +158,6 @@ describe("video segment-plan generation actions", () => {
     const commonParams: Parameters<typeof useVideoPromptGenerationActions>[0] = {
       projectId: 19,
       chapter: { id: 3 } as ChapterRow,
-      chapterGenerating: false,
       options: DEFAULT_VIDEO_OPTIONS,
       segmentPlanOptions: DEFAULT_VIDEO_OPTIONS,
       durationLimits: videoDurationLimitsFromConfig(null),
@@ -188,6 +193,7 @@ describe("video segment-plan generation actions", () => {
         reference_image_ids: [],
         video_library_image_ids: [],
       }),
+      undefined,
     );
 
     const recipe = (
@@ -222,10 +228,14 @@ describe("video segment-plan generation actions", () => {
     });
 
     for (const chain of chains) {
+      const targetSegment = {
+        source_shot_id: `shot-${chain.recipe.segment_number}`,
+        segment_index_in_shot: 1,
+      };
       if (chain.frameBatchSize != null) {
-        await actions.handleGenerateFramePrompts(chain.recipe);
+        await actions.handleGenerateFramePrompts(chain.recipe, { targetSegment });
       }
-      await actions.handleGenerateVideoPrompts(chain.recipe);
+      await actions.handleGenerateVideoPrompts(chain.recipe, { targetSegment });
     }
 
     expect(mocks.startChapterVideoFramePrompts).toHaveBeenCalledTimes(3);
@@ -237,12 +247,18 @@ describe("video segment-plan generation actions", () => {
         expect.objectContaining({
           workflow_mode: chain.recipe.workflow_mode,
           segment_plan_prompt_id: 44,
-          target_shot_number: chain.recipe.segment_number,
+          target_segment: {
+            source_shot_id: `shot-${chain.recipe.segment_number}`,
+            segment_index_in_shot: 1,
+          },
           prompt_batch_size: chain.frameBatchSize,
           reference_image_ids: chain.recipe.reference_image_ids,
           video_library_image_ids: chain.recipe.video_library_image_ids,
         }),
       );
+      expect(
+        mocks.startChapterVideoFramePrompts.mock.calls[index]?.[2],
+      ).not.toHaveProperty("target_shot_number");
     });
 
     expect(mocks.startChapterVideoPrompts).toHaveBeenCalledTimes(4);
@@ -254,12 +270,18 @@ describe("video segment-plan generation actions", () => {
         expect.objectContaining({
           workflow_mode: chain.recipe.workflow_mode,
           segment_plan_prompt_id: 44,
-          target_shot_number: chain.recipe.segment_number,
+          target_segment: {
+            source_shot_id: `shot-${chain.recipe.segment_number}`,
+            segment_index_in_shot: 1,
+          },
           prompt_batch_size: 1,
           reference_image_ids: chain.recipe.reference_image_ids,
           video_library_image_ids: chain.recipe.video_library_image_ids,
         }),
       );
+      expect(
+        mocks.startChapterVideoPrompts.mock.calls[index]?.[2],
+      ).not.toHaveProperty("target_shot_number");
     });
   });
 });

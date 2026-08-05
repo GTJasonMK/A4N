@@ -1,5 +1,10 @@
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_video_prompt;
+use std::collections::{HashMap, HashSet};
+
+use a4n_core::video_execution::{
+    VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2, validate_video_segment_recipes_for_plan,
+};
 use serde_json::json;
 
 use crate::video::ChapterVideoPromptStageInput;
@@ -12,10 +17,12 @@ use crate::video::prompt_generation::frame_prompts::{
     ensure_no_existing_segment_plan_before_new_planning, ensure_segment_plan_generation_can_start,
     load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_checkpoints,
     load_video_segment_plan_draft_recipe_state, report_video_prompt_progress,
-    reusable_shared_segment_plan, video_segment_recipes_from_draft_for_final_plan,
+    reusable_shared_segment_plan, select_video_segment_recipe_state_by_shots,
+    video_execution_chain_identity, video_segment_recipes_from_draft_for_final_plan,
 };
 use crate::video::prompt_store::{
-    NewChapterVideoPromptInput, PromptWorkflowMode, new_prompt_draft,
+    NewChapterVideoPrompt, NewChapterVideoPromptInput, PromptWorkflowMode,
+    VideoPromptGenerationTrace, new_prompt_draft,
 };
 
 use super::contracts::{
@@ -23,6 +30,53 @@ use super::contracts::{
     ShootingScriptProjectionPreparationInput,
 };
 use super::shooting_script_projection::render_segment_plan_from_shooting_script_projection;
+
+pub(in crate::video::prompt_generation::frame_prompts) struct SegmentPlanDraftInput<'a> {
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub style: &'a str,
+    pub duration_secs: i32,
+    pub aspect_ratio: &'a str,
+    pub source_metadata: &'a serde_json::Value,
+    pub stage_outputs: serde_json::Value,
+    pub execution_identity: serde_json::Value,
+    pub segments: Vec<VideoSegmentPlanV2>,
+    pub recipes: Vec<VideoSegmentExecutionRecipeV1>,
+    pub plan_complete: bool,
+    pub generation_trace: Option<VideoPromptGenerationTrace>,
+}
+
+pub(in crate::video::prompt_generation::frame_prompts) fn segment_plan_draft(
+    input: SegmentPlanDraftInput<'_>,
+) -> NewChapterVideoPrompt {
+    let canonical_segment_out = json!({ "segments": &input.segments }).to_string();
+    new_prompt_draft(NewChapterVideoPromptInput {
+        project_id: input.project_id,
+        chapter_id: input.chapter_id,
+        workflow_mode: PromptWorkflowMode::SharedSegmentPlan,
+        style: Some(input.style),
+        prompt_type: SHARED_SEGMENT_PLAN_PROMPT_TYPE,
+        shot_number: 0,
+        title: Some(SHARED_SEGMENT_PLAN_TITLE),
+        scene_summary: None,
+        visual_prompt: &canonical_segment_out,
+        motion_prompt: None,
+        negative_prompt: None,
+        duration_secs: input.duration_secs,
+        aspect_ratio: Some(input.aspect_ratio),
+        reference_image_ids_json: Some(json!([])),
+        metadata_json: Some(json!({
+            "contract_version": SHARED_SEGMENT_PLAN_CONTRACT_VERSION,
+            "video_execution_identity": input.execution_identity,
+            "stage_outputs": input.stage_outputs,
+            "segments": input.segments,
+            "segment_recipes": input.recipes,
+            "plan_complete": input.plan_complete,
+            "source": input.source_metadata
+        })),
+    })
+    .with_generation_trace_if(input.generation_trace)
+}
 
 pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_segment_plan(
     input: SharedSegmentPlanInput<'_, '_>,
@@ -51,6 +105,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
         project_context,
         vars,
         workflow_run_id,
+        target_narrative_unit_index,
         ..
     } = service
         .prepare_video_prompt_inputs(project_id, chapter_id, &source, variables, options, true)
@@ -58,9 +113,9 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
 
     let segment_storage_workflow_mode = PromptWorkflowMode::SharedSegmentPlan;
     let segment_storage_prompt_type = SHARED_SEGMENT_PLAN_PROMPT_TYPE;
-    let segment_storage_contract_version = SHARED_SEGMENT_PLAN_CONTRACT_VERSION;
     let segment_storage_context = SHARED_SEGMENT_PLAN_CONTEXT;
     let segment_storage_progress = SHARED_SEGMENT_PLAN_PROGRESS;
+    let incremental_unit = target_narrative_unit_index.is_some();
     if regenerate_existing {
         ensure_existing_segment_plans_can_regenerate(
             service,
@@ -76,11 +131,11 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
         service,
         project_id,
         chapter_id,
-        regenerate_existing,
+        regenerate_existing || incremental_unit,
     )
     .await?;
 
-    let reusable_segment = if regenerate_existing {
+    let reusable_segment = if regenerate_existing || incremental_unit {
         None
     } else {
         reusable_shared_segment_plan(ReusableSharedSegmentPlanQuery {
@@ -95,7 +150,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
         })
         .await?
     };
-    if !regenerate_existing && reusable_segment.is_none() {
+    if !regenerate_existing && !incremental_unit && reusable_segment.is_none() {
         ensure_no_existing_segment_plan_before_new_planning(
             service,
             project_id,
@@ -127,6 +182,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
                     project_id,
                     chapter_id,
                     source,
+                    source_metadata: &source_metadata,
                     source_spans: &source_spans,
                     project_context: project_context.as_ref(),
                     style: &style,
@@ -137,11 +193,13 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
                     previous_segment_recipes: previous_recipe_state
                         .as_ref()
                         .map(|(_, recipes)| recipes.as_slice()),
+                    reuse_published_shots: incremental_unit && !regenerate_existing,
                     duration_secs,
                     aspect_ratio: &aspect_ratio,
                     prompt_renderer,
                     variables: &vars,
                     workflow_run_id,
+                    target_narrative_unit_index,
                     progress_span: ProgressSpan::new(20, 45),
                     cancel_token,
                 },
@@ -156,47 +214,77 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
         if cancel_token.is_some_and(tokio_util::sync::CancellationToken::is_cancelled) {
             return Err(AppError::Cancelled);
         }
-        let canonical_segment_out = prepared.segment_json.to_string();
-        let workflow_run_id = workflow_run_id.ok_or_else(|| {
-            AppError::InvalidArgument("视频片段规划缺少 workflow_run_id".to_string())
-        })?;
-        let draft_checkpoints =
-            load_video_segment_plan_draft_checkpoints(service, workflow_run_id).await?;
-        let (draft_segments, draft_recipes, _, _) =
-            load_video_segment_plan_draft_recipe_state(&draft_checkpoints, &style)?;
-        let segment_recipes = video_segment_recipes_from_draft_for_final_plan(
-            &draft_segments,
-            &draft_recipes,
-            &prepared.segment_plan,
+        let new_segment_plan = prepared.segment_plan.clone();
+        let (segment_plan, segment_recipes) = if new_segment_plan.is_empty() {
+            previous_recipe_state
+                .clone()
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "missing_previous_segment_plan".to_string(),
+                    operation: "复用已完成场景的片段规划".to_string(),
+                })?
+        } else {
+            let workflow_run_id = workflow_run_id.ok_or_else(|| {
+                AppError::InvalidArgument("视频片段规划缺少 workflow_run_id".to_string())
+            })?;
+            let draft_checkpoints =
+                load_video_segment_plan_draft_checkpoints(service, workflow_run_id).await?;
+            let (draft_segments, draft_recipes, _, _) =
+                load_video_segment_plan_draft_recipe_state(&draft_checkpoints, &style)?;
+            let new_source_shot_ids = new_segment_plan
+                .iter()
+                .map(|segment| segment.source_shot_id.clone())
+                .collect::<HashSet<_>>();
+            let (draft_segments, draft_recipes) = select_video_segment_recipe_state_by_shots(
+                draft_segments,
+                draft_recipes,
+                &new_source_shot_ids,
+                &style,
+            )?;
+            let new_segment_recipes = video_segment_recipes_from_draft_for_final_plan(
+                &draft_segments,
+                &draft_recipes,
+                &new_segment_plan,
+                &style,
+                prompt_output_language.as_str(),
+            )?;
+            if incremental_unit {
+                merge_incremental_segment_plan(
+                    previous_recipe_state
+                        .as_ref()
+                        .map(|(segments, recipes)| (segments.as_slice(), recipes.as_slice())),
+                    new_segment_plan,
+                    new_segment_recipes,
+                    &style,
+                    &prepared.source_shot_order,
+                )?
+            } else {
+                (new_segment_plan, new_segment_recipes)
+            }
+        };
+        let plan_complete = prepared.source_complete
+            && segment_plan_covers_required_shots(&segment_plan, &prepared.source_shot_order);
+        let execution_identity = video_execution_chain_identity(
+            &prepared.shooting_script_projection,
+            &segment_plan,
             &style,
-            prompt_output_language.as_str(),
+            duration_secs,
+            &aspect_ratio,
         )?;
-        let segment_draft = new_prompt_draft(NewChapterVideoPromptInput {
+        let segment_draft = segment_plan_draft(SegmentPlanDraftInput {
             project_id,
             chapter_id,
-            workflow_mode: segment_storage_workflow_mode,
-            style: Some(&style),
-            prompt_type: segment_storage_prompt_type,
-            shot_number: 0,
-            title: Some(SHARED_SEGMENT_PLAN_TITLE),
-            scene_summary: None,
-            visual_prompt: &canonical_segment_out,
-            motion_prompt: None,
-            negative_prompt: None,
+            style: &style,
             duration_secs,
-            aspect_ratio: Some(&aspect_ratio),
-            reference_image_ids_json: Some(json!([])),
-            metadata_json: Some(json!({
-                "contract_version": segment_storage_contract_version,
-                "video_execution_identity": prepared.execution_identity,
-                "stage_outputs": prepared.segment_stage_outputs,
-                "segments": prepared.segment_plan,
-                "segment_recipes": segment_recipes,
-                "source": source_metadata.clone()
-            })),
-        })
-        .with_generation_trace_if(prepared.segment_trace);
-        (prepared.segment_plan, segment_draft)
+            aspect_ratio: &aspect_ratio,
+            source_metadata: &source_metadata,
+            stage_outputs: prepared.segment_stage_outputs,
+            execution_identity,
+            segments: segment_plan.clone(),
+            recipes: segment_recipes,
+            plan_complete,
+            generation_trace: prepared.segment_trace,
+        });
+        (segment_plan, segment_draft)
     };
     if cancel_token.is_some_and(tokio_util::sync::CancellationToken::is_cancelled) {
         return Err(AppError::Cancelled);
@@ -206,4 +294,239 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_shared_
         .await?;
     report_video_prompt_progress(&mut progress, 100, 100, "视频片段规划记录已更新")?;
     Ok(rows)
+}
+
+pub(in crate::video::prompt_generation::frame_prompts) fn segment_plan_covers_required_shots(
+    segments: &[VideoSegmentPlanV2],
+    required_source_shot_ids: &[String],
+) -> bool {
+    let planned_shot_ids = segments
+        .iter()
+        .map(|segment| segment.source_shot_id.as_str())
+        .collect::<HashSet<_>>();
+    !required_source_shot_ids.is_empty()
+        && required_source_shot_ids
+            .iter()
+            .all(|shot_id| planned_shot_ids.contains(shot_id.as_str()))
+}
+
+pub(in crate::video::prompt_generation::frame_prompts) fn merge_incremental_segment_plan(
+    previous: Option<(&[VideoSegmentPlanV2], &[VideoSegmentExecutionRecipeV1])>,
+    new_segments: Vec<VideoSegmentPlanV2>,
+    new_recipes: Vec<VideoSegmentExecutionRecipeV1>,
+    style: &str,
+    source_shot_order: &[String],
+) -> Result<(Vec<VideoSegmentPlanV2>, Vec<VideoSegmentExecutionRecipeV1>), AppError> {
+    let replaced_shots = new_segments
+        .iter()
+        .map(|segment| segment.source_shot_id.clone())
+        .collect::<HashSet<_>>();
+    let new_pairs = new_segments
+        .into_iter()
+        .map(|segment| {
+            let recipe = new_recipes
+                .iter()
+                .find(|recipe| recipe.segment_number == segment.segment_number)
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::InvalidArgument(format!(
+                        "新片段 {} 缺少执行方案",
+                        segment.segment_number
+                    ))
+                })?;
+            Ok((segment, recipe))
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    let mut pairs = Vec::new();
+    let mut inserted_new = false;
+    if let Some((previous_segments, previous_recipes)) = previous {
+        for segment in previous_segments {
+            if replaced_shots.contains(segment.source_shot_id.as_str()) {
+                if !inserted_new {
+                    pairs.extend(new_pairs.iter().cloned());
+                    inserted_new = true;
+                }
+                continue;
+            }
+            let recipe = previous_recipes
+                .iter()
+                .find(|recipe| recipe.segment_number == segment.segment_number)
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::InvalidArgument(format!(
+                        "已有片段 {} 缺少执行方案",
+                        segment.segment_number
+                    ))
+                })?;
+            pairs.push((segment.clone(), recipe));
+        }
+    }
+    if !inserted_new {
+        pairs.extend(new_pairs);
+    }
+    let source_order = source_shot_order
+        .iter()
+        .enumerate()
+        .map(|(index, shot_id)| (shot_id.as_str(), index))
+        .collect::<HashMap<_, _>>();
+    for (segment, _) in &pairs {
+        if !source_order.contains_key(segment.source_shot_id.as_str()) {
+            return Err(AppError::InvalidArgument(format!(
+                "已有片段引用了当前拍摄剧本不存在的镜头 {}",
+                segment.source_shot_id
+            )));
+        }
+    }
+    pairs.sort_by_key(|(segment, _)| {
+        (
+            source_order[segment.source_shot_id.as_str()],
+            segment.segment_index_in_shot,
+        )
+    });
+    for (offset, (segment, recipe)) in pairs.iter_mut().enumerate() {
+        let segment_number = i32::try_from(offset + 1)
+            .map_err(|_| AppError::InvalidArgument("片段数量超出 i32 范围".to_string()))?;
+        segment.segment_number = segment_number;
+        recipe.segment_number = segment_number;
+    }
+    let (segments, recipes): (Vec<_>, Vec<_>) = pairs.into_iter().unzip();
+    validate_video_segment_recipes_for_plan(&recipes, &segments, style)
+        .map_err(AppError::InvalidArgument)?;
+    Ok((segments, recipes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::video::prompt_generation::frame_prompts::{
+        tests::{segment, shooting_script_projection},
+        video_segment_execution_identity,
+    };
+    use a4n_core::video_execution::default_video_segment_recipes;
+
+    #[test]
+    fn incremental_plan_appends_new_shots_and_replaces_existing_shots_in_place() {
+        let previous_segments = vec![segment(1), segment(2)];
+        let previous_recipes =
+            default_video_segment_recipes(&previous_segments, "cinematic", "zh_cn").unwrap();
+
+        let appended_segment = segment(3);
+        let appended_recipes = default_video_segment_recipes(
+            std::slice::from_ref(&appended_segment),
+            "cinematic",
+            "zh_cn",
+        )
+        .unwrap();
+        let (appended, appended_recipes) = merge_incremental_segment_plan(
+            Some((&previous_segments, &previous_recipes)),
+            vec![appended_segment],
+            appended_recipes,
+            "cinematic",
+            &[
+                "shot-1".to_string(),
+                "shot-2".to_string(),
+                "shot-3".to_string(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            appended
+                .iter()
+                .map(|segment| segment.source_shot_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["shot-1", "shot-2", "shot-3"]
+        );
+        let final_identity = video_execution_chain_identity(
+            &shooting_script_projection(),
+            &appended,
+            "cinematic",
+            5,
+            "16:9",
+        )
+        .unwrap();
+        for (source_shot_id, segment_number) in [("shot-1", 1), ("shot-3", 3)] {
+            let recipe = appended_recipes
+                .iter()
+                .find(|recipe| recipe.segment_number == segment_number);
+            video_segment_execution_identity(
+                final_identity.clone(),
+                Some(7),
+                recipe,
+                (source_shot_id, 1),
+            )
+            .unwrap();
+        }
+        let required = vec![
+            "shot-1".to_string(),
+            "shot-2".to_string(),
+            "shot-3".to_string(),
+        ];
+        assert!(segment_plan_covers_required_shots(&appended, &required));
+        assert!(!segment_plan_covers_required_shots(&appended, &[]));
+        assert!(!segment_plan_covers_required_shots(
+            &appended,
+            &["shot-4".to_string()]
+        ));
+
+        let unordered_previous = vec![segment(1), segment(3)];
+        let unordered_recipes =
+            default_video_segment_recipes(&unordered_previous, "cinematic", "zh_cn").unwrap();
+        let middle_segment = segment(2);
+        let middle_recipes = default_video_segment_recipes(
+            std::slice::from_ref(&middle_segment),
+            "cinematic",
+            "zh_cn",
+        )
+        .unwrap();
+        let (ordered, _) = merge_incremental_segment_plan(
+            Some((&unordered_previous, &unordered_recipes)),
+            vec![middle_segment],
+            middle_recipes,
+            "cinematic",
+            &required,
+        )
+        .unwrap();
+        assert_eq!(
+            ordered
+                .iter()
+                .map(|segment| segment.source_shot_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["shot-1", "shot-2", "shot-3"]
+        );
+
+        let mut replacement = segment(9);
+        replacement.source_shot_id = "shot-1".to_string();
+        replacement.title = "replacement".to_string();
+        let replacement_recipes =
+            default_video_segment_recipes(std::slice::from_ref(&replacement), "cinematic", "zh_cn")
+                .unwrap();
+        let (replaced, _) = merge_incremental_segment_plan(
+            Some((&previous_segments, &previous_recipes)),
+            vec![replacement],
+            replacement_recipes,
+            "cinematic",
+            &["shot-1".to_string(), "shot-2".to_string()],
+        )
+        .unwrap();
+        assert_eq!(replaced[0].source_shot_id, "shot-1");
+        assert_eq!(replaced[0].title, "replacement");
+        assert_eq!(replaced[1].source_shot_id, "shot-2");
+
+        let unknown = segment(3);
+        let unknown_recipes =
+            default_video_segment_recipes(std::slice::from_ref(&unknown), "cinematic", "zh_cn")
+                .unwrap();
+        assert!(
+            merge_incremental_segment_plan(
+                None,
+                vec![unknown],
+                unknown_recipes,
+                "cinematic",
+                &["shot-1".to_string()],
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("当前拍摄剧本不存在")
+        );
+    }
 }

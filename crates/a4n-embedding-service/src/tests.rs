@@ -10,7 +10,7 @@ use crate::handlers::events::{
 };
 #[cfg(feature = "fastembed")]
 use crate::protocol::service_error;
-use crate::protocol::{error_response, validate_service_request};
+use crate::protocol::{error_response, validate_embedding_request, validate_service_request};
 use crate::{contracts::EmbedTextsPayload, handlers::embedding::embedding_provider};
 #[cfg(feature = "fastembed")]
 use a4n_embedding::provider::DownloadProgress;
@@ -21,6 +21,8 @@ use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
 async fn local_hash_embedding_runs_inside_sidecar_contract() {
     let provider = embedding_provider(&EmbedTextsPayload {
         backend: "local_hash".to_string(),
+        base_url: None,
+        api_key: None,
         model: "local-sha256-hash".to_string(),
         dimension: 64,
         batch_size: 8,
@@ -41,31 +43,28 @@ async fn local_hash_embedding_runs_inside_sidecar_contract() {
 }
 
 #[test]
-fn embedding_sidecar_rejects_api_backend_without_host_fallback() {
-    let result = embedding_provider(&EmbedTextsPayload {
+fn embedding_sidecar_accepts_api_backend() {
+    let provider = embedding_provider(&EmbedTextsPayload {
         backend: "api".to_string(),
+        base_url: Some("https://provider.example/v1".to_string()),
+        api_key: Some("secret".to_string()),
         model: "remote-model".to_string(),
         dimension: 384,
         batch_size: 8,
         texts: Vec::new(),
-    });
-    let error = match result {
-        Ok(_) => panic!("API backend requires a dedicated trusted provider sidecar"),
-        Err(error) => error,
-    };
+    })
+    .expect("API embedding must use the trusted provider sidecar");
 
-    assert!(matches!(
-        error,
-        AppError::ConfigError(message)
-            if message.contains("不接收 API embedding")
-                && message.contains("受信 provider sidecar")
-    ));
+    assert_eq!(provider.model_name(), "remote-model");
+    assert_eq!(provider.dimension(), 384);
 }
 
 #[test]
 fn embedding_sidecar_rejects_zero_batch_size() {
     let result = embedding_provider(&EmbedTextsPayload {
         backend: "local_hash".to_string(),
+        base_url: None,
+        api_key: None,
         model: "local-sha256-hash".to_string(),
         dimension: 64,
         batch_size: 0,
@@ -79,7 +78,7 @@ fn embedding_sidecar_rejects_zero_batch_size() {
 }
 
 #[test]
-fn embedding_v2_payload_rejects_removed_host_cache_path() {
+fn embedding_v3_payload_rejects_removed_host_cache_path() {
     let error = serde_json::from_value::<EmbedTextsPayload>(serde_json::json!({
         "backend": "local_hash",
         "model": "local-sha256-hash",
@@ -91,6 +90,30 @@ fn embedding_v2_payload_rejects_removed_host_cache_path() {
     .expect_err("embedding v2 must reject host filesystem paths");
 
     assert!(error.to_string().contains("unknown field `cache_dir`"));
+}
+
+#[test]
+fn api_key_requires_local_user_secret_policy() {
+    let payload = EmbedTextsPayload {
+        backend: "api".to_string(),
+        base_url: Some("https://provider.example/v1".to_string()),
+        api_key: Some("secret".to_string()),
+        model: "remote-model".to_string(),
+        dimension: 384,
+        batch_size: 8,
+        texts: vec!["test".to_string()],
+    };
+    let denied = service_request(payload.clone());
+    assert_eq!(
+        validate_embedding_request(&denied)
+            .expect_err("deny-all request cannot carry an API key")
+            .code,
+        ServiceErrorCode::Unauthorized
+    );
+
+    let mut allowed = service_request(payload);
+    allowed.secret_policy = a4n_service_protocol::SecretForwardingPolicy::local_user_secret();
+    validate_embedding_request(&allowed).expect("local provider sidecar may receive user key");
 }
 
 #[test]

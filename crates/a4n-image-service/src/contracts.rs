@@ -9,8 +9,6 @@ pub(crate) struct ImageProviderPayload {
     pub(crate) base_url: String,
     #[serde(default)]
     pub(crate) api_key: String,
-    #[serde(default)]
-    pub(crate) provider_options_json: Option<Value>,
     pub(crate) request: ImageGenerationRequest,
 }
 

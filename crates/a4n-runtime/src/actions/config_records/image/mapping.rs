@@ -19,7 +19,6 @@ pub(super) fn image_config_summary(config: &image_gen_config::Model) -> ImageCon
         max_concurrent: config.max_concurrent,
         default_width: config.default_width,
         default_height: config.default_height,
-        provider_options_json: config.provider_options_json.clone(),
         is_default: config.is_default,
         created_at: Some(config.created_at.to_string()),
         updated_at: Some(config.updated_at.to_string()),
@@ -36,7 +35,6 @@ fn image_config_params(input: ImageConfigInput) -> CreateImageConfigParams {
         max_concurrent: input.max_concurrent,
         default_width: input.default_width,
         default_height: input.default_height,
-        provider_options_json: input.provider_options_json,
     }
 }
 
@@ -50,7 +48,6 @@ fn image_update_config_params(input: UpdateImageConfigInput) -> UpdateImageConfi
         max_concurrent: input.max_concurrent,
         default_width: input.default_width,
         default_height: input.default_height,
-        provider_options_json: input.provider_options_json,
     }
 }
 
@@ -82,7 +79,6 @@ mod tests {
             "max_concurrent": 1,
             "default_width": 1024,
             "default_height": 1024,
-            "provider_options_json": null
         });
         let missing_key = serde_json::from_value::<UpdateImageConfigInput>(base.clone())
             .expect("missing api_key_encrypted should preserve the old key");

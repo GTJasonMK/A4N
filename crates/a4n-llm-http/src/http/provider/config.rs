@@ -1,6 +1,6 @@
 use a4n_core::config::app_config::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS};
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ModelCapabilities, normalize_request_options};
+use a4n_llm::provider::{ModelCapabilities, normalize_extra_body};
 use serde_json::Value;
 
 use crate::http::errors::{
@@ -40,10 +40,8 @@ impl HttpLlmProvider {
             model: model.into(),
             timeout_secs,
             connect_timeout_secs,
-            request_options: None,
+            extra_body: None,
             caps: ModelCapabilities {
-                function_calling: true,
-                vision: true,
                 max_context_tokens: DEFAULT_LLM_MAX_CONTEXT_TOKENS,
                 max_output_tokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
             },
@@ -56,10 +54,10 @@ impl HttpLlmProvider {
         model: impl Into<String>,
         api_key: Option<String>,
         timeout_secs: u64,
-        request_options: Option<Value>,
+        extra_body: Option<Value>,
     ) -> Result<Self, AppError> {
         let mut provider = Self::new_with_timeout(base_url, model, api_key, timeout_secs);
-        provider.request_options = normalize_request_options(request_options)?;
+        provider.extra_body = normalize_extra_body(extra_body)?;
         Ok(provider)
     }
 
@@ -68,16 +66,11 @@ impl HttpLlmProvider {
         model: impl Into<String>,
         api_key: Option<String>,
         timeout_secs: u64,
-        request_options: Option<Value>,
+        extra_body: Option<Value>,
         caps: ModelCapabilities,
     ) -> Result<Self, AppError> {
-        let mut provider = Self::new_with_timeout_and_options(
-            base_url,
-            model,
-            api_key,
-            timeout_secs,
-            request_options,
-        )?;
+        let mut provider =
+            Self::new_with_timeout_and_options(base_url, model, api_key, timeout_secs, extra_body)?;
         provider.caps = caps;
         Ok(provider)
     }

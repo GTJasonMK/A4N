@@ -6,11 +6,11 @@ use crate::validation::RequiredSecretPolicy;
 
 pub const PROTOCOL_VERSION: u32 = 2;
 pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v2";
-pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v4";
-pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v2";
+pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v5";
+pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v3";
 pub const RAG_INDEX_CAPABILITY_VERSION: &str = "rag-index-v2";
-pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v2";
-pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v5";
+pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v3";
+pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v6";
 pub const IMPORT_TRANSFORM_CAPABILITY_VERSION: &str = "import-transform-v2";
 pub const EXPORT_RENDER_CAPABILITY_VERSION: &str = "export-render-v2";
 
@@ -117,9 +117,7 @@ pub fn required_secret_policy_for_service(service: &str) -> Option<RequiredSecre
             rejection_message: "prompt render sidecar 不接收 secret forwarding policy",
         }),
         LLM_SERVICE_NAME => Some(RequiredSecretPolicy::AllowAny),
-        EMBEDDING_SERVICE_NAME => Some(RequiredSecretPolicy::DenyAll {
-            rejection_message: "embedding sidecar 不接收 secret forwarding policy",
-        }),
+        EMBEDDING_SERVICE_NAME => Some(RequiredSecretPolicy::AllowAny),
         RAG_SERVICE_NAME => Some(RequiredSecretPolicy::DenyAll {
             rejection_message: "rag index sidecar 不接收 secret forwarding policy",
         }),

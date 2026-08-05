@@ -82,6 +82,9 @@ mod tests {
                     "aspect_ratio": "16:9",
                     "segment_plan_prompt_id": 9,
                     "segment_number": 3,
+                    "source_shot_id": "shot-3",
+                    "segment_index_in_shot": 1,
+                    "segment_sha256": "segment-3",
                     "segment_recipe_fingerprint": recipe_fingerprint
                 }
             })),
@@ -116,15 +119,15 @@ mod tests {
     }
 
     #[test]
-    fn storyboard_prompt_accepts_frame_fingerprint_but_requires_current_chain_and_source() {
+    fn storyboard_prompt_uses_stable_segment_chain_and_source() {
         let video = prompt(10, "video_prompt", STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION);
         let storyboard = prompt(11, "storyboard_prompt", STORYBOARD_PROMPT_CONTRACT_VERSION);
 
         assert!(storyboard_prompt_matches_video_prompt(&video, &storyboard));
 
         let mut stale = storyboard.clone();
-        stale.metadata_json.as_mut().unwrap()["video_execution_identity"]["unit_plan_sha256"] =
-            json!("stale");
+        stale.metadata_json.as_mut().unwrap()["video_execution_identity"]["segment_sha256"] =
+            json!("stale-segment");
         assert!(!storyboard_prompt_matches_video_prompt(&video, &stale));
 
         let mut wrong_source = storyboard;

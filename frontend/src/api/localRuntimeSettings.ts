@@ -75,33 +75,7 @@ const LLM_MAX_TOKEN_KEYS = Object.keys(DEFAULT_LLM_MAX_TOKENS_CONFIG) as Array<
 const DEFAULT_LOCAL_EMBEDDING_NAME = "基础本地哈希向量";
 const DEFAULT_LOCAL_EMBEDDING_MODEL = "local-sha256-hash";
 const DEFAULT_LOCAL_EMBEDDING_DIMENSION = 384;
-const CLIPROXY_IMAGE_BACKEND = "cliproxy-image";
-const CLIPROXY_VIDEO_BACKEND = "cliproxy-openai-video";
-
-const EMBEDDING_BACKENDS = new Set(["api", "fastembed", "local_hash"]);
-const IMAGE_BACKENDS = new Set([
-  "openai-compatible-image",
-  "openai-compatible-image-edit",
-  "openai-chat-image",
-  CLIPROXY_IMAGE_BACKEND,
-  "stable-diffusion",
-  "comfyui",
-]);
-const IMAGE_BACKENDS_REQUIRING_API_KEY = new Set([
-  "openai-compatible-image",
-  "openai-compatible-image-edit",
-  "openai-chat-image",
-  CLIPROXY_IMAGE_BACKEND,
-]);
-const VIDEO_BACKENDS = new Set([
-  "openai-compatible-video",
-  "newapi-video",
-  "gemini-veo-video",
-  "seedance2-video",
-  CLIPROXY_VIDEO_BACKEND,
-  "openai-chat-video",
-]);
-const RESERVED_LLM_REQUEST_OPTION_KEYS = new Set([
+const RESERVED_LLM_EXTRA_BODY_KEYS = new Set([
   "model",
   "messages",
   "stream",
@@ -385,8 +359,8 @@ function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
     ),
     max_context_tokens,
     max_output_tokens,
-    request_options_json: normalizeLlmRequestOptions(
-      item.request_options_json,
+    extra_body_json: normalizeLlmExtraBody(
+      item.extra_body_json,
       `本机 LLM 配置 ${label}`,
     ),
     is_default: requiredBoolean(
@@ -402,18 +376,18 @@ function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
   };
 }
 
-function normalizeLlmRequestOptions(
+function normalizeLlmExtraBody(
   value: unknown,
   label: string,
 ): unknown | null {
   if (value == null) return null;
-  const payload = requiredObject(value, `${label} request_options_json`);
+  const payload = requiredObject(value, `${label} extra_body_json`);
   const reservedKey = Object.keys(payload).find((key) =>
-    RESERVED_LLM_REQUEST_OPTION_KEYS.has(key.toLowerCase()),
+    RESERVED_LLM_EXTRA_BODY_KEYS.has(key.toLowerCase()),
   );
   if (reservedKey) {
     throw new Error(
-      `${label} request_options_json 不能包含系统保留字段：${reservedKey}`,
+      `${label} extra_body_json 不能包含系统保留字段：${reservedKey}`,
     );
   }
   return Object.keys(payload).length > 0 ? payload : null;
@@ -426,9 +400,6 @@ function normalizeLocalEmbeddingConfig(value: unknown): EmbeddingConfig {
     item.backend,
     `本机 Embedding 配置 ${label} backend`,
   ).toLowerCase();
-  if (!EMBEDDING_BACKENDS.has(backend)) {
-    throw new Error(`本机 Embedding 配置 ${label} backend 不支持：${backend}`);
-  }
   const baseUrl = optionalTrimmedString(
     item.base_url,
     `本机 Embedding 配置 ${label} base_url`,
@@ -475,9 +446,6 @@ function normalizeLocalImageConfig(value: unknown): ImageGenConfig {
     item.backend,
     `本机图片配置 ${label} backend`,
   );
-  if (!IMAGE_BACKENDS.has(backend)) {
-    throw new Error(`本机图片配置 ${label} backend 不支持：${backend}`);
-  }
   const apiKey = optionalTrimmedString(
     item.api_key_encrypted,
     `本机图片配置 ${label} api_key_encrypted`,
@@ -490,12 +458,8 @@ function normalizeLocalImageConfig(value: unknown): ImageGenConfig {
       item.base_url,
       `本机图片配置 ${label} base_url`,
     ),
-    api_key_encrypted: IMAGE_BACKENDS_REQUIRING_API_KEY.has(backend)
-      ? apiKey
-      : null,
-    has_api_key: IMAGE_BACKENDS_REQUIRING_API_KEY.has(backend)
-      ? Boolean(apiKey)
-      : false,
+    api_key_encrypted: apiKey,
+    has_api_key: Boolean(apiKey),
     model: requiredTrimmedString(item.model, `本机图片配置 ${label} model`),
     max_concurrent: requiredPositiveInt(
       item.max_concurrent,
@@ -508,12 +472,6 @@ function normalizeLocalImageConfig(value: unknown): ImageGenConfig {
     default_height: requiredPositiveInt(
       item.default_height,
       `本机图片配置 ${label} default_height`,
-    ),
-    provider_options_json: normalizeProviderOptions(
-      item.provider_options_json,
-      backend === CLIPROXY_IMAGE_BACKEND,
-      "图片",
-      `本机图片配置 ${label}`,
     ),
     is_default: requiredBoolean(
       item.is_default,
@@ -537,9 +495,6 @@ function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
     item.backend,
     `本机视频配置 ${label} backend`,
   );
-  if (!VIDEO_BACKENDS.has(backend)) {
-    throw new Error(`本机视频配置 ${label} backend 不支持：${backend}`);
-  }
   const defaultDuration = requiredIntRange(
     item.default_duration_secs,
     `本机视频配置 ${label} default_duration_secs`,
@@ -548,16 +503,6 @@ function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
   );
   const { durationMode, minDuration, maxDuration, supportedDurations } =
     normalizeVideoDurationCapability(item, label, defaultDuration);
-  const providerMaxDuration = videoProviderMaxDuration(backend);
-  if (
-    minDuration < 1 ||
-    maxDuration > providerMaxDuration ||
-    defaultDuration > providerMaxDuration
-  ) {
-    throw new Error(
-      `本机视频配置 ${label} ${backend} 支持时长必须在 1-${providerMaxDuration} 秒之间`,
-    );
-  }
   const apiKey = optionalTrimmedString(
     item.api_key_encrypted,
     `本机视频配置 ${label} api_key_encrypted`,
@@ -598,12 +543,6 @@ function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
       1,
       120,
     ),
-    provider_options_json: normalizeProviderOptions(
-      item.provider_options_json,
-      backend === CLIPROXY_VIDEO_BACKEND,
-      "视频",
-      `本机视频配置 ${label}`,
-    ),
     is_default: requiredBoolean(
       item.is_default,
       `本机视频配置 ${label} is_default`,
@@ -617,43 +556,6 @@ function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
       `本机视频配置 ${label} updated_at`,
     ),
   };
-}
-
-function normalizeProviderOptions(
-  value: unknown,
-  enabled: boolean,
-  kind: "图片" | "视频",
-  label: string,
-): { grok_reference_mode: "reference" | "first_frame" } | null {
-  if (value == null) return null;
-  if (!enabled) {
-    throw new Error(
-      `${label} provider_options_json 仅支持 CLIProxy ${kind}后端`,
-    );
-  }
-  const payload = requiredObject(value, `${label} provider_options_json`);
-  const unknownKey = Object.keys(payload).find(
-    (key) => key !== "grok_reference_mode",
-  );
-  if (unknownKey) {
-    throw new Error(
-      `${label} provider_options_json 包含未知字段：${unknownKey}`,
-    );
-  }
-  const mode = payload.grok_reference_mode;
-  if (mode == null) return null;
-  if (typeof mode !== "string") {
-    throw new Error(
-      `${label} provider_options_json.grok_reference_mode 必须是字符串`,
-    );
-  }
-  const normalized = mode.trim();
-  if (normalized !== "reference" && normalized !== "first_frame") {
-    throw new Error(
-      `${label} provider_options_json.grok_reference_mode 无效：${normalized}`,
-    );
-  }
-  return { grok_reference_mode: normalized };
 }
 
 function normalizeVideoDurationCapability(
@@ -771,10 +673,6 @@ function normalizeSupportedDurations(value: unknown, label: string): number[] {
     previous = duration;
     return duration;
   });
-}
-
-function videoProviderMaxDuration(backend: string): number {
-  return backend === CLIPROXY_VIDEO_BACKEND ? 15 : 60;
 }
 
 function assertMaxTokensWithinModelCap(
@@ -955,7 +853,7 @@ export function createLocalLlmConfig(input: {
   timeout_secs: number;
   max_context_tokens: number;
   max_output_tokens: number;
-  request_options_json?: unknown | null;
+  extra_body_json?: unknown | null;
 }): LocalLlmConfig {
   return mutateSettings((settings) => {
     const isFirstLlmConfig = settings.llm.length === 0;
@@ -977,7 +875,7 @@ export function createLocalLlmConfig(input: {
       timeout_secs: input.timeout_secs,
       max_context_tokens: input.max_context_tokens,
       max_output_tokens: input.max_output_tokens,
-      request_options_json: input.request_options_json ?? null,
+      extra_body_json: input.extra_body_json ?? null,
       is_default: isFirstLlmConfig,
       has_api_key: Boolean(input.api_key_encrypted?.trim()),
     });
@@ -998,7 +896,7 @@ export function updateLocalLlmConfig(
     timeout_secs: number;
     max_context_tokens: number;
     max_output_tokens: number;
-    request_options_json?: unknown | null;
+    extra_body_json?: unknown | null;
   }>,
 ): LocalLlmConfig {
   return mutateSettings((settings) => {
@@ -1031,8 +929,8 @@ export function updateLocalLlmConfig(
       item.max_context_tokens = input.max_context_tokens;
     if (input.max_output_tokens != null)
       item.max_output_tokens = input.max_output_tokens;
-    if (input.request_options_json !== undefined) {
-      item.request_options_json = input.request_options_json ?? null;
+    if (input.extra_body_json !== undefined) {
+      item.extra_body_json = input.extra_body_json ?? null;
     }
     const normalized = normalizeLocalLlmConfig(item);
     Object.assign(item, normalized);
@@ -1126,7 +1024,6 @@ export function createLocalImageConfig(
       max_concurrent: input.max_concurrent,
       default_width: input.default_width,
       default_height: input.default_height,
-      provider_options_json: input.provider_options_json ?? null,
       is_default: isFirstImageConfig,
       created_at: nowIso(),
       updated_at: nowIso(),
@@ -1155,7 +1052,6 @@ export function updateLocalImageConfig(
     item.max_concurrent = input.max_concurrent;
     item.default_width = input.default_width;
     item.default_height = input.default_height;
-    item.provider_options_json = input.provider_options_json ?? null;
     item.updated_at = nowIso();
     const normalized = normalizeLocalImageConfig(item);
     Object.assign(item, normalized);
@@ -1230,7 +1126,6 @@ export function createLocalVideoConfig(
       duration_mode: input.duration_mode,
       supported_durations_json: input.supported_durations_json ?? null,
       default_fps: input.default_fps,
-      provider_options_json: input.provider_options_json ?? null,
       is_default: isFirstVideoConfig,
       created_at: nowIso(),
       updated_at: nowIso(),
@@ -1262,7 +1157,6 @@ export function updateLocalVideoConfig(
     item.duration_mode = input.duration_mode;
     item.supported_durations_json = input.supported_durations_json ?? null;
     item.default_fps = input.default_fps;
-    item.provider_options_json = input.provider_options_json ?? null;
     item.updated_at = nowIso();
     if (requestedApiKey !== undefined) {
       item.api_key_encrypted = requestedApiKey?.trim() || null;

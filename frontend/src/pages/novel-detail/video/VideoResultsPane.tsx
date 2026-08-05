@@ -104,7 +104,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     handleVideoError,
   } = useVideoPlaybackSource({
     selectedVideo: selectedVideoRecord,
-    selectedVideoPath,
+    mediaKind: "source",
   });
   useEffect(() => {
     promptSavingRef.current = false;

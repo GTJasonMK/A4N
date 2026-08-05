@@ -21,6 +21,9 @@ pub(super) async fn try_dispatch(
         "select_segment_video" => select_segment_video(state, user_id, args).await?,
         "delete_video" => delete_video(state, user_id, args).await?,
         "load_video_playback_data" => load_video_playback_data(state, user_id, args).await?,
+        "load_video_scrub_playback_data" => {
+            load_video_scrub_playback_data(state, user_id, args).await?
+        }
         "assemble_chapter_videos" => assemble_chapter_videos(state, user_id, args).await?,
         "load_cached_assembled_chapter_video_preview" => {
             load_cached_assembled_chapter_video_preview(state, user_id, args).await?

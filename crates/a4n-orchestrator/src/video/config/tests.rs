@@ -19,7 +19,6 @@ fn valid_params() -> VideoConfigParams {
         duration_mode: VIDEO_DURATION_MODE_RANGE.to_string(),
         supported_durations_json: None,
         default_fps: 24,
-        provider_options_json: None,
     }
 }
 
@@ -42,7 +41,6 @@ fn video_model() -> video_gen_config::Model {
         duration_mode: params.duration_mode,
         supported_durations_json: params.supported_durations_json,
         default_fps: params.default_fps,
-        provider_options_json: params.provider_options_json,
         is_default: true,
         created_at: now,
         updated_at: now,
@@ -103,54 +101,6 @@ fn validate_video_config_params_rejects_cliproxy_duration_over_15_secs() {
     let err = validate_video_config_params(params).expect_err("cliproxy duration cap should fail");
 
     assert!(err.contains("1-15 秒"));
-}
-
-#[test]
-fn validate_video_config_params_rejects_non_cliproxy_provider_options() {
-    let mut params = valid_params();
-    params.provider_options_json = Some(json!({
-        "grok_reference_mode": "first_frame",
-    }));
-
-    let err = validate_video_config_params(params)
-        .expect_err("non-cliproxy video backend must not silently drop provider options");
-
-    assert!(err.contains("provider_options_json 仅支持 cliproxy-openai-video"));
-}
-
-#[test]
-fn validate_video_config_params_rejects_unknown_cliproxy_provider_options() {
-    let mut params = valid_params();
-    params.backend = CLIPROXY_OPENAI_VIDEO_BACKEND.to_string();
-    params.max_duration_secs = 15;
-    params.provider_options_json = Some(json!({
-        "grok_reference_mode": "reference",
-        "legacy_mode": true,
-    }));
-
-    let err = validate_video_config_params(params)
-        .expect_err("unknown cliproxy video provider option must fail visibly");
-
-    assert!(err.contains("provider_options_json 包含未知字段：legacy_mode"));
-}
-
-#[test]
-fn validate_video_config_params_normalizes_cliproxy_provider_options() {
-    let mut params = valid_params();
-    params.backend = CLIPROXY_OPENAI_VIDEO_BACKEND.to_string();
-    params.max_duration_secs = 15;
-    params.provider_options_json = Some(json!({
-        "grok_reference_mode": " first_frame ",
-    }));
-
-    let params = validate_video_config_params(params).expect("valid cliproxy video options");
-
-    assert_eq!(
-        params.provider_options_json,
-        Some(json!({
-            "grok_reference_mode": "first_frame",
-        }))
-    );
 }
 
 #[test]

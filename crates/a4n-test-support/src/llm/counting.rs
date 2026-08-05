@@ -81,8 +81,6 @@ impl LlmProvider for CountingLlmProvider {
 
     fn capabilities(&self) -> ModelCapabilities {
         ModelCapabilities {
-            function_calling: false,
-            vision: false,
             max_context_tokens: 1024,
             max_output_tokens: 256,
         }

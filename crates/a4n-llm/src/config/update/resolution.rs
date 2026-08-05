@@ -13,7 +13,7 @@ pub(super) struct ResolvedLlmConfigUpdate {
     pub(super) timeout_secs: i32,
     pub(super) max_context_tokens: i32,
     pub(super) max_output_tokens: i32,
-    pub(super) request_options_json: Option<Value>,
+    pub(super) extra_body_json: Option<Value>,
 }
 
 pub(super) fn resolve_update_llm_config_input(
@@ -45,9 +45,9 @@ pub(super) fn resolve_update_llm_config_input(
         timeout_secs: input.timeout_secs.unwrap_or(cfg.timeout_secs),
         max_context_tokens: input.max_context_tokens.unwrap_or(cfg.max_context_tokens),
         max_output_tokens: input.max_output_tokens.unwrap_or(cfg.max_output_tokens),
-        request_options_json: input
-            .request_options_json
-            .unwrap_or_else(|| cfg.request_options_json.clone()),
+        extra_body_json: input
+            .extra_body_json
+            .unwrap_or_else(|| cfg.extra_body_json.clone()),
     }
 }
 
@@ -69,7 +69,7 @@ mod tests {
             timeout_secs: 30,
             max_context_tokens: 4096,
             max_output_tokens: 1024,
-            request_options_json: Some(json!({"stored": true})),
+            extra_body_json: Some(json!({"stored": true})),
             is_default: false,
             created_at: Default::default(),
             updated_at: Default::default(),
@@ -90,7 +90,7 @@ mod tests {
         assert_eq!(resolved.timeout_secs, cfg.timeout_secs);
         assert_eq!(resolved.max_context_tokens, cfg.max_context_tokens);
         assert_eq!(resolved.max_output_tokens, cfg.max_output_tokens);
-        assert_eq!(resolved.request_options_json, cfg.request_options_json);
+        assert_eq!(resolved.extra_body_json, cfg.extra_body_json);
     }
 
     #[test]
@@ -106,7 +106,7 @@ mod tests {
             timeout_secs: Some(60),
             max_context_tokens: Some(8192),
             max_output_tokens: Some(2048),
-            request_options_json: Some(None),
+            extra_body_json: Some(None),
         };
 
         let resolved = resolve_update_llm_config_input(&cfg, input);
@@ -120,6 +120,6 @@ mod tests {
         assert_eq!(resolved.timeout_secs, 60);
         assert_eq!(resolved.max_context_tokens, 8192);
         assert_eq!(resolved.max_output_tokens, 2048);
-        assert_eq!(resolved.request_options_json, None);
+        assert_eq!(resolved.extra_body_json, None);
     }
 }

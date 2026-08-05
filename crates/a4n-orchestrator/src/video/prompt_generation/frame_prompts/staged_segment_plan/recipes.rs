@@ -1,9 +1,10 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use a4n_core::video_execution::{
     VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
     carry_forward_video_segment_recipes, default_video_segment_recipes,
     validate_video_segment_recipes_for_plan, video_segment_recipes_for_plan_from_metadata,
+    video_segments_share_recipe_anchor,
 };
 use a4n_db::{
     video::VideoSegmentPlanDraftCheckpoint,
@@ -21,13 +22,13 @@ use crate::{video::video_db_error, workflow::workflow_write_app_error};
 const SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX: &str = "video_segment_plan.shot.";
 const SEGMENT_PLAN_FINAL_CHECKPOINT_KEY: &str = "video_segment_plan.final";
 
-pub(in crate::video) async fn load_previous_shared_segment_recipe_state(
+pub(in crate::video::prompt_generation::frame_prompts) async fn load_previous_shared_segment_recipe_state(
     service: &OrchestratorContext,
     project_id: i64,
     chapter_id: i64,
-    regenerate_existing: bool,
+    load_existing: bool,
 ) -> Result<Option<(Vec<VideoSegmentPlan>, Vec<VideoSegmentExecutionRecipeV1>)>, AppError> {
-    if !regenerate_existing {
+    if !load_existing {
         return Ok(None);
     }
     let previous = segment_plan_rows(
@@ -280,7 +281,7 @@ pub(in crate::video) fn video_segment_recipes_from_draft_for_final_plan(
         || draft_segments
             .iter()
             .zip(final_segments)
-            .any(|(draft, final_segment)| !same_segment_anchor(draft, final_segment))
+            .any(|(draft, final_segment)| !video_segments_share_recipe_anchor(draft, final_segment))
     {
         return Err(AppError::InvalidState {
             current: "segment_plan_draft_anchor_mismatch".to_string(),
@@ -295,6 +296,39 @@ pub(in crate::video) fn video_segment_recipes_from_draft_for_final_plan(
         prompt_output_language,
     )
     .map_err(AppError::InvalidArgument)
+}
+
+pub(in crate::video::prompt_generation::frame_prompts) fn select_video_segment_recipe_state_by_shots(
+    segments: Vec<VideoSegmentPlan>,
+    recipes: Vec<VideoSegmentExecutionRecipeV1>,
+    included_source_shot_ids: &HashSet<String>,
+    style: &str,
+) -> Result<(Vec<VideoSegmentPlan>, Vec<VideoSegmentExecutionRecipeV1>), AppError> {
+    let mut selected = segments
+        .into_iter()
+        .filter(|segment| included_source_shot_ids.contains(&segment.source_shot_id))
+        .map(|segment| {
+            let recipe = recipes
+                .iter()
+                .find(|recipe| recipe.segment_number == segment.segment_number)
+                .cloned()
+                .ok_or_else(|| AppError::InvalidState {
+                    current: format!("missing_recipe_for_segment:{}", segment.segment_number),
+                    operation: "筛选片段规划草稿执行方案".to_string(),
+                })?;
+            Ok((segment, recipe))
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    for (index, (segment, recipe)) in selected.iter_mut().enumerate() {
+        let segment_number = i32::try_from(index + 1)
+            .map_err(|_| AppError::InvalidArgument("片段数量超出 i32 范围".to_string()))?;
+        segment.segment_number = segment_number;
+        recipe.segment_number = segment_number;
+    }
+    let (segments, recipes): (Vec<_>, Vec<_>) = selected.into_iter().unzip();
+    validate_video_segment_recipes_for_plan(&recipes, &segments, style)
+        .map_err(AppError::InvalidArgument)?;
+    Ok((segments, recipes))
 }
 
 fn initial_recipes_for_segments(
@@ -395,14 +429,6 @@ fn draft_recipe_mutation_error(error: AppError) -> WorkflowWriteError {
         AppError::Database(error) => WorkflowWriteError::Database(error),
         other => WorkflowWriteError::InvalidData(other.to_string()),
     }
-}
-
-fn same_segment_anchor(left: &VideoSegmentPlan, right: &VideoSegmentPlan) -> bool {
-    left.source_shot_id == right.source_shot_id
-        && left.segment_index_in_shot == right.segment_index_in_shot
-        && left.shot_segment_count == right.shot_segment_count
-        && left.covered_beat_ids == right.covered_beat_ids
-        && left.source_span_ids == right.source_span_ids
 }
 
 #[cfg(test)]
@@ -536,5 +562,27 @@ mod tests {
             recipes[0].workflow_mode,
             VideoSegmentWorkflowModeV1::Storyboard
         );
+    }
+
+    #[test]
+    fn selecting_draft_shots_drops_stale_checkpoints_and_renumbers_recipes() {
+        let first = segment("shot-1", 1);
+        let mut second = segment("shot-2", 2);
+        second.segment_index_in_shot = 1;
+        let segments = vec![first, second];
+        let recipes = default_video_segment_recipes(&segments, "电影感", "zh_cn").unwrap();
+
+        let (selected_segments, selected_recipes) = select_video_segment_recipe_state_by_shots(
+            segments,
+            recipes,
+            &HashSet::from(["shot-2".to_string()]),
+            "电影感",
+        )
+        .unwrap();
+
+        assert_eq!(selected_segments.len(), 1);
+        assert_eq!(selected_segments[0].source_shot_id, "shot-2");
+        assert_eq!(selected_segments[0].segment_number, 1);
+        assert_eq!(selected_recipes[0].segment_number, 1);
     }
 }

@@ -13,11 +13,11 @@ fn baseline_seed_contracts_preserve_provider_specific_fields() {
         timeout_secs: 90,
         max_context_tokens: 32_000,
         max_output_tokens: 4_000,
-        request_options_json: Some(json!({"reasoning_effort": "medium"})),
+        extra_body_json: Some(json!({"reasoning_effort": "medium"})),
     };
     assert_eq!(llm.clone(), llm);
     assert_eq!(
-        llm.request_options_json,
+        llm.extra_body_json,
         Some(json!({"reasoning_effort": "medium"}))
     );
 

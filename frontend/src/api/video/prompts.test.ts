@@ -48,4 +48,26 @@ describe("video prompt canonical generation operations", () => {
       },
     });
   });
+
+  it("retries a resumable segment plan through its original generation task", async () => {
+    mocks.startVideoGeneration.mockResolvedValue({
+      task_id: "video-task-20",
+      attempt: 1,
+      subscription: null,
+    });
+
+    await startChapterVideoSegmentPlan(
+      19,
+      3,
+      { ...options, workflow_mode: "shared_segment_plan" },
+      "video-task-19",
+    );
+
+    expect(mocks.startVideoGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: expect.objectContaining({ kind: "prompt_segment_plan" }),
+      }),
+      "video-task-19",
+    );
+  });
 });

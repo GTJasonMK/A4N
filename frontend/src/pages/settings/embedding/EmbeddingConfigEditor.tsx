@@ -8,17 +8,17 @@ import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { FastembedModelPanel } from "./FastembedModelPanel";
 import {
-  BACKEND_LABELS,
   DEFAULT_FASTEMBED_DIMENSION,
   DEFAULT_FASTEMBED_MODEL,
   formatModelOptionLabel,
   formatSelectedModelHint,
 } from "./embeddingTabUtils";
 import type { EmbeddingForm } from "./types";
+import type { EmbeddingProviderDescriptor } from "../../../api/generated/config";
 
 interface EmbeddingConfigEditorProps {
   form: EmbeddingForm;
-  backends: string[];
+  providers: EmbeddingProviderDescriptor[];
   localModels: LocalEmbeddingModel[];
   busyModel: string | null;
   setForm: (form: EmbeddingForm) => void;
@@ -33,7 +33,7 @@ interface EmbeddingConfigEditorProps {
 
 export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
   form,
-  backends,
+  providers,
   localModels,
   busyModel,
   setForm,
@@ -88,9 +88,9 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
           }}
           className="pyqt-input w-full"
         >
-          {backends.map((backend) => (
-            <option key={backend} value={backend}>
-              {BACKEND_LABELS[backend] || backend}
+          {providers.map((provider) => (
+            <option key={provider.id} value={provider.id}>
+              {provider.display_name}
             </option>
           ))}
         </select>

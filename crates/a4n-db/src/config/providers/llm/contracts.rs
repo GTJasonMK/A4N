@@ -18,7 +18,7 @@ pub struct LlmConfigCreateRecordInput {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
 }
 
 #[derive(Clone, Debug)]
@@ -32,5 +32,5 @@ pub struct LlmConfigUpdateRecordInput {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
 }

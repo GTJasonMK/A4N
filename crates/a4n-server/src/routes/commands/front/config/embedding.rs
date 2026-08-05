@@ -37,10 +37,10 @@ config_web_id_value_command!(
     config_records_actions::preview_test_embedding_config_request,
 );
 
-pub(in crate::routes::commands) async fn list_embedding_backends(
+pub(in crate::routes::commands) async fn list_model_provider_catalog(
     _state: &ServerState,
     _user_id: i64,
     _args: &Value,
 ) -> Result<Value, ApiError> {
-    Ok(json!(config_records_actions::list_embedding_backends()))
+    Ok(json!(config_records_actions::model_provider_catalog()))
 }

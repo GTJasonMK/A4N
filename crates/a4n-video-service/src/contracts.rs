@@ -10,8 +10,6 @@ pub(crate) struct VideoProviderPayload {
     #[serde(default)]
     pub(crate) api_key: String,
     #[serde(default)]
-    pub(crate) provider_options_json: Option<Value>,
-    #[serde(default)]
     pub(crate) provider_idempotency_key_sha256: Option<String>,
     #[serde(default)]
     pub(crate) project_id: Option<i64>,
@@ -25,8 +23,6 @@ pub(crate) struct VideoPollPayload {
     pub(crate) base_url: String,
     #[serde(default)]
     pub(crate) api_key: String,
-    #[serde(default)]
-    pub(crate) provider_options_json: Option<Value>,
     #[serde(default)]
     pub(crate) project_id: Option<i64>,
     pub(crate) job_id: String,
@@ -91,10 +87,7 @@ mod tests {
                 "duration_secs": 6,
                 "fps": 24,
                 "model": "test-model",
-                "first_frame_image_url": null,
-                "last_frame_image_url": null,
-                "reference_image_urls": [],
-                "reference_media": null
+                "media": { "type": "none" }
             }
         }))
         .expect("runtime video payload project scope must deserialize");
@@ -112,5 +105,31 @@ mod tests {
         }))
         .expect_err("unknown video payload fields must fail");
         assert!(error.to_string().contains("unknown field `legacy_poll`"));
+    }
+
+    #[test]
+    fn video_provider_payload_rejects_legacy_parallel_media_fields() {
+        let error = serde_json::from_value::<VideoProviderPayload>(serde_json::json!({
+            "backend": "openai-compatible-video",
+            "base_url": "http://127.0.0.1:1",
+            "request": {
+                "prompt": "test prompt",
+                "negative_prompt": null,
+                "width": 640,
+                "height": 360,
+                "duration_secs": 6,
+                "fps": 24,
+                "model": "test-model",
+                "media": { "type": "none" },
+                "first_frame_image_url": null
+            }
+        }))
+        .expect_err("legacy parallel video media fields must fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("unknown field `first_frame_image_url`")
+        );
     }
 }

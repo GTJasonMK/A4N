@@ -22,15 +22,9 @@ import {
 } from "../localRuntimeSettings";
 import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
+import { listModelProviderCatalog } from "../providerCatalog";
 
 export const SYSTEM_IMAGE_CONFIG_ID = -1;
-const IMAGE_BACKENDS_REQUIRING_API_KEY = new Set([
-  "openai-compatible-image",
-  "openai-compatible-image-edit",
-  "openai-chat-image",
-  "cliproxy-image",
-]);
-
 function imageConfigId(configId: Id): number {
   return idNum(configId, "图片配置 ID");
 }
@@ -83,7 +77,11 @@ async function loadSystemDefaultRuntimeImageConfig(options?: { requireApiKey?: b
   const requireApiKey = options?.requireApiKey ?? true;
   const apiKey = getSystemDefaultImageApiKey()?.trim();
   const config = requiredSystemDefaultImageConfig(await listServerImageConfigs());
-  if (requireApiKey && !apiKey && IMAGE_BACKENDS_REQUIRING_API_KEY.has(config.backend)) {
+  const provider = (await listModelProviderCatalog()).image.find(
+    (item) => item.id === config.backend,
+  );
+  if (!provider) throw new Error(`image provider 未注册：${config.backend}`);
+  if (requireApiKey && !apiKey && provider.requires_api_key) {
     throw new Error("使用系统默认图片配置需要先填写并保存你的个人 API Key");
   }
   return systemDefaultRuntimeImageConfig(config, requireApiKey ? apiKey : undefined);

@@ -35,7 +35,7 @@ impl OrchestratorContext {
         host: &dyn SettingsAllHostPort,
     ) -> Result<String, AppError> {
         let export = AllConfigsExport {
-            version: "1.0".to_string(),
+            version: "2.0".to_string(),
             export_time: Utc::now().to_rfc3339(),
             export_type: "all".to_string(),
             llm_configs: self
@@ -52,7 +52,7 @@ impl OrchestratorContext {
                     timeout_secs: model.timeout_secs,
                     max_context_tokens: model.max_context_tokens,
                     max_output_tokens: model.max_output_tokens,
-                    request_options_json: model.request_options_json,
+                    extra_body_json: model.extra_body_json,
                     is_default: model.is_default,
                 })
                 .collect(),
@@ -85,7 +85,6 @@ impl OrchestratorContext {
                     max_concurrent: model.max_concurrent,
                     default_width: model.default_width,
                     default_height: model.default_height,
-                    provider_options_json: model.provider_options_json,
                     is_default: model.is_default,
                 })
                 .collect(),
@@ -108,7 +107,6 @@ impl OrchestratorContext {
                     duration_mode: model.duration_mode,
                     supported_durations_json: model.supported_durations_json,
                     default_fps: model.default_fps,
-                    provider_options_json: model.provider_options_json,
                     is_default: model.is_default,
                 })
                 .collect(),

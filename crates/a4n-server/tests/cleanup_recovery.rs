@@ -1252,7 +1252,6 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
                 duration_mode: "range".to_string(),
                 supported_durations_json: None,
                 default_fps: 24,
-                provider_options_json: None,
             },
         )
         .await
@@ -1850,7 +1849,7 @@ async fn server_process_streams_chapter_generation_failure_terminal() {
             timeout_secs: 1,
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
-            request_options_json: None,
+            extra_body_json: None,
         },
     )
     .await
@@ -2049,7 +2048,7 @@ async fn server_process_streams_outline_generation_failure_terminal() {
             timeout_secs: 1,
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
-            request_options_json: None,
+            extra_body_json: None,
         },
     )
     .await
@@ -2278,7 +2277,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
             timeout_secs: 5,
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
-            request_options_json: None,
+            extra_body_json: None,
         },
     )
     .await
@@ -2911,7 +2910,7 @@ async fn real_chromium_recovers_generation_after_proxy_aborts_sse() {
             timeout_secs: 10,
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
-            request_options_json: None,
+            extra_body_json: None,
         },
     )
     .await
@@ -2932,7 +2931,6 @@ async fn real_chromium_recovers_generation_after_proxy_aborts_sse() {
                 max_concurrent: 1,
                 default_width: 1024,
                 default_height: 1024,
-                provider_options_json: None,
             },
         )
         .await
@@ -4092,7 +4090,6 @@ async fn server_process_streams_image_generation_success_terminal() {
             max_concurrent: 1,
             default_width: 1024,
             default_height: 1024,
-            provider_options_json: None,
         },
     )
     .await
@@ -4264,7 +4261,7 @@ async fn server_process_streams_inspiration_generation_failure_terminal() {
             timeout_secs: 1,
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
-            request_options_json: None,
+            extra_body_json: None,
         },
     )
     .await
@@ -4446,7 +4443,7 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
             timeout_secs: 1,
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
-            request_options_json: None,
+            extra_body_json: None,
         },
     )
     .await

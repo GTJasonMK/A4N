@@ -17,11 +17,11 @@ pub struct ChatRequest {
     #[serde(default, skip_serializing_if = "is_false")]
     pub stream_include_usage: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_cache_key: Option<String>,
+    pub cache_scope_key: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
-    pub prompt_cache_system_prefix: bool,
+    pub cache_system_prefix: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_cache_user_prefix_len: Option<usize>,
+    pub cache_user_prefix_len: Option<usize>,
     #[serde(skip)]
     pub trace_context: Option<LlmTraceContext>,
     #[serde(skip)]
@@ -45,9 +45,9 @@ impl ChatRequest {
             max_tokens_profile,
             response_format: None,
             stream_include_usage: false,
-            prompt_cache_key: None,
-            prompt_cache_system_prefix: false,
-            prompt_cache_user_prefix_len: None,
+            cache_scope_key: None,
+            cache_system_prefix: false,
+            cache_user_prefix_len: None,
             trace_context: None,
             context_manifest_json: None,
             tools: None,

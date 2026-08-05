@@ -41,9 +41,9 @@ impl LlmProvider for DynamicLlmProvider {
             max_tokens_profile: None,
             response_format: None,
             stream_include_usage: false,
-            prompt_cache_key: None,
-            prompt_cache_system_prefix: false,
-            prompt_cache_user_prefix_len: None,
+            cache_scope_key: None,
+            cache_system_prefix: false,
+            cache_user_prefix_len: None,
             trace_context: None,
             context_manifest_json: None,
             tools: None,
@@ -64,8 +64,6 @@ impl LlmProvider for DynamicLlmProvider {
 
     fn capabilities(&self) -> ModelCapabilities {
         ModelCapabilities {
-            function_calling: true,
-            vision: true,
             max_context_tokens: DEFAULT_LLM_MAX_CONTEXT_TOKENS,
             max_output_tokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
         }

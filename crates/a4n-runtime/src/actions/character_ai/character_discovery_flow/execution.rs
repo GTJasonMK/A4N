@@ -25,8 +25,13 @@ pub async fn discover_character_profiles_for_chapters(
             .map_err(|_| AppError::Cancelled),
         None => Ok(()),
     };
+    let stream_reporter = |text: &str| match progress {
+        Some(progress) => progress.stream_text(text),
+        None => {},
+    };
     let application_progress = progress.map(|progress| CharacterDiscoveryProgress {
         reporter: Some(&reporter),
+        stream_reporter: Some(&stream_reporter),
         cancel_token: progress.cancel_token,
         active_task_id: progress.task_id,
     });

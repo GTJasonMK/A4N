@@ -4,7 +4,7 @@ use super::env::{
     usize_to_i32,
 };
 use a4n_core::{config::app_config::LlmConfig, error::AppError};
-use a4n_llm::provider::normalize_request_options_json;
+use a4n_llm::provider::normalize_extra_body_json;
 use a4n_orchestrator::{OrchestratorContext, config::BaselineLlmConfigSeed};
 use serde_json::Value;
 
@@ -18,7 +18,7 @@ const PUBLIC_LLM_ENV_KEYS: &[&str] = &[
     "A4N_PUBLIC_LLM_TIMEOUT_SECS",
     "A4N_PUBLIC_LLM_MAX_CONTEXT_TOKENS",
     "A4N_PUBLIC_LLM_MAX_OUTPUT_TOKENS",
-    "A4N_PUBLIC_LLM_REQUEST_OPTIONS_JSON",
+    "A4N_PUBLIC_LLM_EXTRA_BODY_JSON",
 ];
 
 struct PublicLlmSeed {
@@ -31,7 +31,7 @@ struct PublicLlmSeed {
     timeout_secs: i32,
     max_context_tokens: i32,
     max_output_tokens: i32,
-    request_options_json: Option<Value>,
+    extra_body_json: Option<Value>,
 }
 
 pub(super) async fn ensure_public_llm_config(
@@ -55,7 +55,7 @@ pub(super) async fn ensure_public_llm_config(
             timeout_secs: seed.timeout_secs,
             max_context_tokens: seed.max_context_tokens,
             max_output_tokens: seed.max_output_tokens,
-            request_options_json: seed.request_options_json,
+            extra_body_json: seed.extra_body_json,
         })
         .await?;
     Ok(())
@@ -102,13 +102,13 @@ fn public_llm_seed(fallback: &LlmConfig) -> Result<Option<PublicLlmSeed>, AppErr
             "A4N_PUBLIC_LLM_MAX_OUTPUT_TOKENS",
         )?,
     )?;
-    let request_options_json = normalize_request_options_json(
-        optional_env_json("A4N_PUBLIC_LLM_REQUEST_OPTIONS_JSON")?
-            .or_else(|| fallback.request_options_json.clone()),
+    let extra_body_json = normalize_extra_body_json(
+        optional_env_json("A4N_PUBLIC_LLM_EXTRA_BODY_JSON")?
+            .or_else(|| fallback.extra_body_json.clone()),
     )
     .map_err(|err| {
         AppError::ConfigError(format!(
-            "A4N_PUBLIC_LLM_REQUEST_OPTIONS_JSON 无效：{}",
+            "A4N_PUBLIC_LLM_EXTRA_BODY_JSON 无效：{}",
             app_error_plain_message(err)
         ))
     })?;
@@ -122,6 +122,6 @@ fn public_llm_seed(fallback: &LlmConfig) -> Result<Option<PublicLlmSeed>, AppErr
         timeout_secs: positive_i32(timeout_secs, "A4N_PUBLIC_LLM_TIMEOUT_SECS")?,
         max_context_tokens: positive_i32(max_context_tokens, "A4N_PUBLIC_LLM_MAX_CONTEXT_TOKENS")?,
         max_output_tokens: positive_i32(max_output_tokens, "A4N_PUBLIC_LLM_MAX_OUTPUT_TOKENS")?,
-        request_options_json,
+        extra_body_json,
     }))
 }

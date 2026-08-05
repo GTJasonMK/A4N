@@ -81,18 +81,4 @@ impl OrchestratorContext {
         .await
         .map_err(video_db_error)
     }
-
-    pub async fn has_running_chapter_video_prompts(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<bool, AppError> {
-        a4n_db::video::has_running_chapter_video_prompts(
-            self.database.connection(),
-            project_id,
-            chapter_id,
-        )
-        .await
-        .map_err(video_db_error)
-    }
 }

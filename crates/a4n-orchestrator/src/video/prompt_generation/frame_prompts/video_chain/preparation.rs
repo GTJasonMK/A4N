@@ -101,15 +101,26 @@ pub(super) async fn prepare_video_chain_inputs(
         segment_plan_prompt_id,
     )
     .await?;
+    let target_segment = loaded_plan
+        .segment_plan
+        .iter()
+        .find(|segment| segment.segment_number == segment_recipe.segment_number)
+        .ok_or_else(|| AppError::InvalidArgument("片段执行方案不属于当前规划".to_string()))?;
+    let target = (
+        target_segment.source_shot_id.as_str(),
+        target_segment.segment_index_in_shot,
+    );
     let frame_execution_identity = super::super::video_segment_frame_execution_identity(
         loaded_plan.execution_identity.clone(),
         Some(segment_plan_prompt_id),
         Some(&segment_recipe),
+        target,
     )?;
     let execution_identity = super::super::video_segment_execution_identity(
         loaded_plan.execution_identity,
         Some(segment_plan_prompt_id),
         Some(&segment_recipe),
+        target,
     )?;
     let selected_frames = select_video_chain_frames(VideoChainFrameSelectionInput {
         service,

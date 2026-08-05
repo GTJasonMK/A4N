@@ -1990,13 +1990,18 @@ async fn watch_workflow(
     let mut seen = HashSet::new();
     loop {
         let events = workflow_events(client, user_id, workflow_run_id, 500).await?;
-        let items = events.as_array().ok_or_else(|| {
-            workflow_contract_error(
-                workflow_run_id,
-                "progress events 响应不是数组",
-                events.clone(),
-            )
-        })?;
+        // 响应是 { events, stream_text }：stream_text 是当前活体信号快照，
+        // 无历史语义，watch 只消费去重后的事件列表。
+        let items = events
+            .get("events")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                workflow_contract_error(
+                    workflow_run_id,
+                    "progress events 响应缺少 events 数组",
+                    events.clone(),
+                )
+            })?;
         for event in items {
             let key = event
                 .get("id")

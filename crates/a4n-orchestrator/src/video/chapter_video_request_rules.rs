@@ -7,15 +7,13 @@ use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Value, json};
 
 use super::{
-    CLIPROXY_OPENAI_VIDEO_BACKEND, CliproxyGrokReferenceMode, GEMINI_VEO_VIDEO_BACKEND,
-    MIN_PROVIDER_MOTION_PROMPT_CHARS, MIN_PROVIDER_VISUAL_PROMPT_CHARS, NEWAPI_VIDEO_BACKEND,
-    OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, PromptOutputLanguage,
-    ProviderGenerationWorkflow, ProviderPromptTextViolation, VideoProviderValidationMode,
-    cliproxy_grok_reference_mode_label, cliproxy_media_contract_violations,
-    cliproxy_prompt_length_violation_message, parse_cliproxy_grok_reference_mode,
-    prompt_is_first_frame_chain, provider_image_binding_violation_messages,
-    provider_prompt_text_violation, reference_image_ids, validate_provider_model_text,
-    validate_video_duration_for_config_secs, validation_error_or_preview_note,
+    CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, MIN_PROVIDER_MOTION_PROMPT_CHARS,
+    MIN_PROVIDER_VISUAL_PROMPT_CHARS, NEWAPI_VIDEO_BACKEND, OPENAI_CHAT_VIDEO_BACKEND,
+    OPENAI_COMPATIBLE_VIDEO_BACKEND, PromptOutputLanguage, ProviderGenerationWorkflow,
+    ProviderPromptTextViolation, VideoProviderValidationMode,
+    cliproxy_prompt_length_violation_message, prompt_is_first_frame_chain,
+    provider_image_binding_violation_messages, provider_prompt_text_violation, reference_image_ids,
+    validate_provider_model_text, validation_error_or_preview_note,
 };
 
 const CHAPTER_VIDEO_PROVIDER_PROMPT_NAME: &str = "chapter_video_provider_prompt";
@@ -102,21 +100,6 @@ pub fn append_provider_input_notes(note: &mut Option<String>, additions: Vec<Str
     }
 }
 
-pub fn append_preview_duration_note(
-    note: &mut Option<String>,
-    config: &video_gen_config::Model,
-    duration_secs: i32,
-) {
-    if let Err(error) = validate_video_duration_for_config_secs(config, duration_secs) {
-        append_provider_input_note(
-            note,
-            format!(
-                "当前视频配置不支持 {duration_secs} 秒；预览仍展示请求结构，真实生成会失败：{error}"
-            ),
-        );
-    }
-}
-
 pub(crate) fn enforce_provider_prompt_length_contract(
     backend: &str,
     prompt: &str,
@@ -134,43 +117,18 @@ pub(crate) fn enforce_provider_prompt_length_contract(
 pub(crate) fn enforce_provider_image_binding_contract(
     backend: &str,
     workflow: ProviderGenerationWorkflow,
-    grok_mode: CliproxyGrokReferenceMode,
     prompt_reference_image_count: usize,
     mode: VideoProviderValidationMode,
     note: &mut Option<String>,
 ) -> Result<(), String> {
     for message in provider_image_binding_violation_messages(
         backend,
-        matches!(workflow, ProviderGenerationWorkflow::BoundaryFrames),
-        workflow.uses_storyboard(),
-        grok_mode,
+        workflow,
         prompt_reference_image_count,
         NEWAPI_VIDEO_BACKEND,
         CLIPROXY_OPENAI_VIDEO_BACKEND,
     ) {
         reject_generation_or_note_preview(mode, note, message, " 当前仅展示请求结构。")?;
-    }
-    Ok(())
-}
-
-pub(crate) fn enforce_cliproxy_video_media_contract(
-    backend: &str,
-    grok_mode: CliproxyGrokReferenceMode,
-    bound_reference_image_count: usize,
-    has_first_frame_image: bool,
-    duration_secs: i32,
-    mode: VideoProviderValidationMode,
-    note: &mut Option<String>,
-) -> Result<(), String> {
-    for violation in cliproxy_media_contract_violations(
-        backend,
-        grok_mode,
-        bound_reference_image_count,
-        has_first_frame_image,
-        duration_secs,
-        CLIPROXY_OPENAI_VIDEO_BACKEND,
-    ) {
-        reject_generation_or_note_preview(mode, note, violation.message, violation.preview_suffix)?;
     }
     Ok(())
 }
@@ -368,10 +326,13 @@ pub fn apply_chapter_video_prompt_preview_override(
     prompt: &mut chapter_video_prompt::Model,
     input: Option<PreviewChapterVideoPromptOverrideInput>,
     note: &mut Option<String>,
-) {
+) -> Result<(), String> {
     let Some(input) = input else {
-        return;
+        return Ok(());
     };
+    if input.duration_secs.is_some_and(|value| value <= 0) {
+        return Err("视频提示词 duration_secs 必须是正整数".to_string());
+    }
     append_provider_input_note(
         note,
         "预览使用当前编辑区草稿覆盖已保存提示词；真实生成仍会读取已保存提示词，请保存后再生成。",
@@ -390,22 +351,12 @@ pub fn apply_chapter_video_prompt_preview_override(
             .filter(|value| !value.is_empty());
     }
     if let Some(duration_secs) = input.duration_secs {
-        if duration_secs > 0 {
-            prompt.duration_secs = duration_secs;
-        } else {
-            append_provider_input_note(
-                note,
-                format!(
-                    "草稿 duration_secs={} 无效；预览使用 1 秒占位，真实生成仍需保存有效时长。",
-                    duration_secs
-                ),
-            );
-            prompt.duration_secs = 1;
-        }
+        prompt.duration_secs = duration_secs;
     }
     if let Some(reference_image_ids_json) = input.reference_image_ids_json {
         prompt.reference_image_ids_json = reference_image_ids_json;
     }
+    Ok(())
 }
 
 pub fn ensure_chapter_video_prompt_preview_texts(
@@ -837,32 +788,17 @@ pub(crate) fn chapter_video_provider_descriptor(
                 context.prompt_reference_image_count
             ),
         },
-        CLIPROXY_OPENAI_VIDEO_BACKEND => {
-            let grok_mode =
-                parse_cliproxy_grok_reference_mode(context.config.provider_options_json.as_ref())?;
-            let note = match grok_mode {
-                CliproxyGrokReferenceMode::Reference => format!(
-                    "{source}CLIProxy `/openai/v1/videos` 请求；Grok 输入模式：{}；所有输入图片均作为 reference_images 发送，最多 {} 张，当前绑定参考图：{}，实际发送参考图参数：{}；不会发送 input_reference 或尾帧图片槽；真实生成必须使用公网媒体 URL，auto 模式会优先使用已配置的 remote_temp_upload。{input_note}；{prompt_length}",
-                    cliproxy_grok_reference_mode_label(grok_mode),
-                    super::MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES,
-                    context.provider_reference_image_count,
-                    context.request.reference_image_urls.len()
-                ),
-                CliproxyGrokReferenceMode::FirstFrame => format!(
-                    "{source}CLIProxy `/openai/v1/videos` 请求；Grok 输入模式：{}；首帧图片会作为 input_reference.image_url 发送：{}；尾帧图片不会作为 provider 图片参数发送：{}；当前绑定提示词参考图：{}，实际发送参考图参数：{}；真实生成必须使用公网媒体 URL，auto 模式会优先使用已配置的 remote_temp_upload。{input_note}；{prompt_length}",
-                    cliproxy_grok_reference_mode_label(grok_mode),
-                    context.first_frame_image_url_available,
-                    context.last_frame_image_url_available,
-                    context.prompt_reference_image_count,
-                    context.request.reference_image_urls.len()
-                ),
-            };
-            ChapterVideoProviderDescriptor {
-                request_kind: "video_generation_cliproxy_openai",
-                request_title: "CLIProxy OpenAI /videos 请求",
-                note,
-            }
-        }
+        CLIPROXY_OPENAI_VIDEO_BACKEND => ChapterVideoProviderDescriptor {
+            request_kind: "video_generation_cliproxy_openai",
+            request_title: "CLIProxy / Grok 视频请求",
+            note: format!(
+                "{source}CLIProxy / Grok 请求形态由当前片段素材决定：无图片时纯文本生成，首帧通过 image 发送，参考素材通过 reference_images 发送；首帧与参考图不可混用，端点不支持尾帧。Base URL 为 `/v1` 时创建路由是 `/videos/generations`，为 `/openai/v1` 时是包装路由 `/videos`。当前首帧/尾帧：{} / {}；provider 参考图：{}；提示词参考图：{}；默认直接发送图片 data URL。{input_note}；{prompt_length}",
+                context.first_frame_image_url_available,
+                context.last_frame_image_url_available,
+                context.request.media.reference_images().len(),
+                context.prompt_reference_image_count,
+            ),
+        },
         backend => ChapterVideoProviderDescriptor {
             request_kind: "video_provider_request",
             request_title: "章节视频 provider 请求",
@@ -901,17 +837,17 @@ pub(crate) fn sanitized_chapter_video_request_for_snapshot(
     let first_frame_image_url = context
         .boundary_frame_ids
         .first
-        .filter(|_| context.request.first_frame_image_url.is_some())
+        .filter(|_| context.request.media.first_frame().is_some())
         .map(|id| historical_image_placeholder_media_url(id, "首帧"));
     let last_frame_image_url = context
         .boundary_frame_ids
         .last
-        .filter(|_| context.request.last_frame_image_url.is_some())
+        .filter(|_| context.request.media.last_frame().is_some())
         .map(|id| historical_image_placeholder_media_url(id, "尾帧"));
     let reference_image_urls = reference_ids
         .into_iter()
         .enumerate()
-        .take(context.request.reference_image_urls.len())
+        .take(context.request.media.reference_images().len())
         .map(|(index, id)| {
             let role = if context.workflow_mode == "storyboard" && index == 0 {
                 "分镜图"
@@ -929,10 +865,12 @@ pub(crate) fn sanitized_chapter_video_request_for_snapshot(
         duration_secs: context.request.duration_secs,
         fps: context.request.fps,
         model: context.request.model.clone(),
-        first_frame_image_url,
-        last_frame_image_url,
-        reference_image_urls,
-        reference_media: None,
+        media: a4n_video::VideoMediaInput::from_images(
+            first_frame_image_url,
+            last_frame_image_url,
+            reference_image_urls,
+        )
+        .map_err(|error| error.to_string())?,
     })
 }
 

@@ -73,7 +73,9 @@ async fn insert_prompt(
         reference_image_ids_json: Set(None),
         status: Set("completed".to_string()),
         generated_video_id: Set(None),
-        metadata_json: Set(None),
+        metadata_json: Set(Some(json!({
+            "video_execution_identity": {"duration_secs": 6}
+        }))),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -272,6 +274,9 @@ fn prompt_sync_video_prompt_requires_shared_segment_plan_source() {
         "video_execution_identity": {
             "segment_plan_prompt_id": 10,
             "segment_number": 1,
+            "source_shot_id": "shot-1",
+            "segment_index_in_shot": 1,
+            "segment_sha256": "segment-1",
             "segment_recipe_fingerprint": "recipe-1"
         }
     }));
@@ -284,6 +289,9 @@ fn prompt_sync_video_prompt_requires_shared_segment_plan_source() {
         "video_execution_identity": {
             "segment_plan_prompt_id": 10,
             "segment_number": 1,
+            "source_shot_id": "shot-1",
+            "segment_index_in_shot": 1,
+            "segment_sha256": "segment-1",
             "segment_recipe_fingerprint": "recipe-1"
         }
     }));
@@ -521,4 +529,28 @@ fn frame_prompt_metadata_sync_preserves_unedited_fields() {
     assert_eq!(frame.get("duration_secs"), Some(&json!(6)));
     assert_eq!(frame.get("reference_image_ids"), Some(&json!([2, 3])));
     assert_eq!(frame.get("title"), Some(&json!("旧标题")));
+}
+
+#[test]
+fn video_prompt_metadata_sync_updates_request_duration() {
+    let synced = sync_chapter_video_prompt_metadata_after_update(
+        "video_prompt",
+        Some(json!({
+            "video_execution_identity": {
+                "duration_secs": 6,
+                "source_content_sha256": "source"
+            }
+        })),
+        "提示词",
+        None,
+        10,
+        None,
+    )
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(
+        synced["video_execution_identity"]["duration_secs"],
+        json!(10)
+    );
 }

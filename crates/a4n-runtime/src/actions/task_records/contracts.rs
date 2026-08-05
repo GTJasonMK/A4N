@@ -53,6 +53,18 @@ pub struct QueueStatsSummary {
     pub low_priority_waiting: usize,
 }
 
+/// `get_workflow_progress_events` 的响应。
+///
+/// `events` 是去重后的历史里程碑；`stream_text` 是当前快照里的活体信号
+/// （模型输出尾巴），随每次轮询覆盖，不进事件历史——delta 频率是每 token 一次，
+/// 推成事件会冲爆环形缓冲并挤掉字段级里程碑。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowProgressEventsResponse {
+    pub events: Vec<TaskProgressEventSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_text: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowProgressSummary {
     pub task_id: String,

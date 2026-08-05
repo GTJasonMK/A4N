@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ModelDiscoveryAuth {
     Bearer,
+    Anthropic,
     GeminiApiKey,
     None,
 }
@@ -40,6 +41,14 @@ pub(crate) fn model_discovery_endpoints(
             label: "ComfyUI checkpoint 列表端点",
             auth: ModelDiscoveryAuth::None,
             parser: ModelDiscoveryParser::ComfyUiCheckpointLoader,
+        }];
+    }
+    if provider == "anthropic" {
+        return vec![ModelDiscoveryEndpoint {
+            url: format!("{}/v1/models", base_url.trim_end_matches('/')),
+            label: "Anthropic 模型列表端点",
+            auth: ModelDiscoveryAuth::Anthropic,
+            parser: ModelDiscoveryParser::OpenAi,
         }];
     }
     if provider.contains("gemini") || base_url.contains("generativelanguage.googleapis.com") {

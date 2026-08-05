@@ -56,10 +56,53 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn load_shared_segm
         .get("video_execution_identity")
         .cloned()
         .ok_or_else(|| AppError::InvalidArgument("共享片段规划缺少执行身份".to_string()))?;
+    validate_segment_plan_execution_identity(&execution_identity, &segment_plan)?;
     Ok(LoadedSharedSegmentPlan {
         segment_plan,
         execution_identity,
     })
+}
+
+fn validate_segment_plan_execution_identity(
+    identity: &Value,
+    segment_plan: &[crate::video::prompt_json::VideoSegmentPlan],
+) -> Result<(), AppError> {
+    if identity.get("contract_epoch").and_then(Value::as_u64)
+        != Some(a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH.into())
+    {
+        return Err(AppError::InvalidArgument(format!(
+            "共享片段规划执行身份已过期，当前需要合同 {}；请重新生成该片段规划",
+            a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH
+        )));
+    }
+    let segment_identities = identity
+        .get("segment_identities")
+        .and_then(Value::as_array)
+        .filter(|items| items.len() == segment_plan.len())
+        .ok_or_else(|| {
+            AppError::InvalidArgument(
+                "共享片段规划执行身份不完整；请重新生成该片段规划".to_string(),
+            )
+        })?;
+    for segment in segment_plan {
+        let matched = segment_identities.iter().any(|item| {
+            item.get("source_shot_id").and_then(Value::as_str)
+                == Some(segment.source_shot_id.as_str())
+                && item.get("segment_index_in_shot").and_then(Value::as_i64)
+                    == Some(i64::from(segment.segment_index_in_shot))
+                && item
+                    .get("segment_sha256")
+                    .and_then(Value::as_str)
+                    .is_some_and(|value| !value.is_empty())
+        });
+        if !matched {
+            return Err(AppError::InvalidArgument(format!(
+                "共享片段规划执行身份缺少镜头 {} 的第 {} 个片段；请重新生成该片段规划",
+                segment.source_shot_id, segment.segment_index_in_shot
+            )));
+        }
+    }
+    Ok(())
 }
 
 pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_no_existing_segment_plan_before_new_planning(
@@ -218,6 +261,12 @@ pub(in crate::video::prompt_generation::frame_prompts) fn reusable_segment_plan_
     if metadata.get("contract_version").and_then(Value::as_str) != Some(contract_version) {
         return Err(AppError::InvalidArgument(format!(
             "已保存{context} #{} contract_version 不是当前合同 {contract_version}",
+            row.shot_number
+        )));
+    }
+    if metadata.get("plan_complete").and_then(Value::as_bool) != Some(true) {
+        return Err(AppError::InvalidArgument(format!(
+            "已保存{context} #{} 尚未覆盖全部拍摄场景，不能作为完整规划复用",
             row.shot_number
         )));
     }
@@ -455,5 +504,39 @@ fn source_hash_matches(row_hash: Option<&str>, current_hash: Option<&str>) -> bo
         (Some(row_hash), Some(current_hash)) => row_hash == current_hash,
         (None, None) => true,
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::video::prompt_generation::frame_prompts::tests::{
+        segment, shooting_script_projection,
+    };
+
+    #[test]
+    fn execution_rejects_segment_plan_identity_without_stable_segment_identities() {
+        let segment_plan = vec![segment(1)];
+        let valid_identity = video_execution_chain_identity(
+            &shooting_script_projection(),
+            &segment_plan,
+            "cinematic",
+            5,
+            "16:9",
+        )
+        .unwrap();
+        validate_segment_plan_execution_identity(&valid_identity, &segment_plan).unwrap();
+
+        let mut stale_identity = valid_identity;
+        stale_identity
+            .as_object_mut()
+            .unwrap()
+            .remove("segment_identities");
+        assert!(
+            validate_segment_plan_execution_identity(&stale_identity, &segment_plan)
+                .unwrap_err()
+                .to_string()
+                .contains("执行身份不完整")
+        );
     }
 }

@@ -33,17 +33,20 @@ type VideoGenerationInput = Omit<StartVideoGenerationInput, "meta">;
 
 export async function startVideoGeneration(
   input: VideoGenerationInput,
+  retryOfTaskId?: string | null,
 ): Promise<GenerationTaskHandle> {
-  return generationClient.start((meta) =>
-    apiInvoke<GenerationTaskHandle>("start_video_generation", {
-      userId: currentUserId(),
-      input: {
-        ...input,
-        meta,
-        project_id: idNum(input.project_id, "项目 ID"),
-        operation: normalizeVideoGenerationOperation(input.operation),
-      },
-    }),
+  return generationClient.start(
+    (meta) =>
+      apiInvoke<GenerationTaskHandle>("start_video_generation", {
+        userId: currentUserId(),
+        input: {
+          ...input,
+          meta,
+          project_id: idNum(input.project_id, "项目 ID"),
+          operation: normalizeVideoGenerationOperation(input.operation),
+        },
+      }),
+    retryOfTaskId,
   );
 }
 

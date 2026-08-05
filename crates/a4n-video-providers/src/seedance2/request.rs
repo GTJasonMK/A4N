@@ -1,19 +1,23 @@
 use serde_json::{Map, Value, json};
 
 use a4n_core::error::AppError;
-use a4n_video::VideoGenerationRequest;
+use a4n_video::{VideoGenerationRequest, VideoMediaInput};
 
 use super::Seedance2VideoProvider;
 
 impl Seedance2VideoProvider {
     pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        let media = req.reference_media.as_ref().ok_or_else(|| {
-            AppError::InvalidArgument("Seedance 2.0 参考媒体模式缺少 reference_media".into())
-        })?;
-        if media.image_files.is_empty()
-            && media.video_files.is_empty()
-            && media.audio_files.is_empty()
-        {
+        let VideoMediaInput::References {
+            images,
+            videos,
+            audio,
+        } = &req.media
+        else {
+            return Err(AppError::InvalidArgument(
+                "Seedance 2.0 参考媒体模式要求 media.type=references".into(),
+            ));
+        };
+        if images.is_empty() && videos.is_empty() && audio.is_empty() {
             return Err(AppError::InvalidArgument(
                 "Seedance 2.0 参考媒体模式至少需要一个 image_files、video_files 或 audio_files"
                     .into(),
@@ -23,9 +27,9 @@ impl Seedance2VideoProvider {
         let mut parameters = Map::new();
         parameters.insert("prompt".into(), json!(req.prompt));
         parameters.insert("functionMode".into(), json!("omni_reference"));
-        parameters.insert("image_files".into(), json!(media.image_files));
-        parameters.insert("video_files".into(), json!(media.video_files));
-        parameters.insert("audio_files".into(), json!(media.audio_files));
+        parameters.insert("image_files".into(), json!(images));
+        parameters.insert("video_files".into(), json!(videos));
+        parameters.insert("audio_files".into(), json!(audio));
         parameters.insert(
             "ratio".into(),
             json!(ratio_from_size(req.width, req.height)),

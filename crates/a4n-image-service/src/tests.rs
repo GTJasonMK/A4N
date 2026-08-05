@@ -177,7 +177,6 @@ fn image_payload(api_key: &str) -> ImageProviderPayload {
         backend: "openai-compatible-image".to_string(),
         base_url: "https://provider.example/v1".to_string(),
         api_key: api_key.to_string(),
-        provider_options_json: None,
         request: ImageGenerationRequest {
             prompt: "test prompt".to_string(),
             width: 512,

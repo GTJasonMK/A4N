@@ -83,8 +83,11 @@ pub struct VideoPromptGenerationOptions {
     #[schemars(range(min = 1))]
     pub prompt_batch_size: i32,
     #[serde(default)]
+    pub target_segment: Option<VideoSegmentTarget>,
+    /// 生成共享片段规划时，可只规划已完成的某个拍摄场景。
+    #[serde(default)]
     #[schemars(range(min = 1))]
-    pub target_shot_number: Option<i32>,
+    pub target_narrative_unit_index: Option<u32>,
     #[schemars(range(min = 1, max = 60))]
     pub duration_secs: i32,
     #[serde(default)]
@@ -98,6 +101,15 @@ pub struct VideoPromptGenerationOptions {
     pub regenerate_existing: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct VideoSegmentTarget {
+    #[schemars(length(min = 1))]
+    pub source_shot_id: String,
+    #[schemars(range(min = 1))]
+    pub segment_index_in_shot: i32,
+}
+
 /// 参考媒体视频请求；提示词、URL 槽、时长和画幅由当前片段 recipe 决定。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -105,9 +117,7 @@ pub struct ReferenceMediaVideoInput {
     /// 当前共享片段规划。预览与生成使用同一规划身份。
     #[schemars(range(min = 1))]
     pub segment_plan_prompt_id: i64,
-    /// 片段顺序快照，用于结果筛选和身份校验。
-    #[schemars(range(min = 1))]
-    pub shot_number: i32,
+    pub target_segment: VideoSegmentTarget,
     #[serde(default)]
     pub image_uploads: Vec<ReferenceMediaUploadInput>,
     #[serde(default)]
@@ -177,8 +187,7 @@ pub struct VideoPlaybackData {
 pub struct SelectSegmentVideoInput {
     #[schemars(range(min = 1))]
     pub segment_plan_prompt_id: i64,
-    #[schemars(range(min = 1))]
-    pub shot_number: i32,
+    pub target_segment: VideoSegmentTarget,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -255,8 +264,7 @@ pub struct UploadReferenceMediaVideoInput {
     pub data_base64: String,
     #[schemars(range(min = 1))]
     pub segment_plan_prompt_id: i64,
-    #[schemars(range(min = 1))]
-    pub shot_number: i32,
+    pub target_segment: VideoSegmentTarget,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

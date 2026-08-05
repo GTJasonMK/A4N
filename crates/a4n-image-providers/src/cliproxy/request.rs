@@ -5,12 +5,6 @@ use a4n_image::{ImageGenerationRequest, ImageReference};
 use reqwest::multipart::{Form, Part};
 use serde_json::{Value, json};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum GrokReferenceMode {
-    Reference,
-    FirstFrame,
-}
-
 impl CliProxyImageProvider {
     pub(super) fn generation_body(req: &ImageGenerationRequest) -> Value {
         let size = format!("{}x{}", req.width, req.height);
@@ -29,8 +23,7 @@ impl CliProxyImageProvider {
     }
 
     pub(super) fn edit_form(&self, req: &ImageGenerationRequest) -> Result<Form, AppError> {
-        let reference_images =
-            selected_reference_images(&req.reference_images, self.reference_mode);
+        let reference_images = &req.reference_images;
         if reference_images.is_empty() {
             return Err(internal_error("CLIProxy 图片编辑请求缺少参考图"));
         }
@@ -62,18 +55,10 @@ impl CliProxyImageProvider {
     }
 
     pub fn request_body_preview(req: &ImageGenerationRequest) -> Result<Value, AppError> {
-        Self::request_body_preview_with_options(req, None)
-    }
-
-    pub fn request_body_preview_with_options(
-        req: &ImageGenerationRequest,
-        provider_options_json: Option<&Value>,
-    ) -> Result<Value, AppError> {
         if req.reference_images.is_empty() {
             return Ok(Self::generation_body(req));
         }
-        let reference_mode = grok_reference_mode(provider_options_json)?;
-        let reference_images = selected_reference_images(&req.reference_images, reference_mode);
+        let reference_images = &req.reference_images;
         let field_name = if reference_images.len() == 1 {
             "image"
         } else {
@@ -95,7 +80,6 @@ impl CliProxyImageProvider {
         Ok(json!({
             "endpoint": "/images/edits",
             "content_type": "multipart/form-data",
-            "grok_reference_mode": grok_reference_mode_name(reference_mode),
             "model": req.model,
             "size": format!("{}x{}", req.width, req.height),
             "fields": {
@@ -124,44 +108,6 @@ fn prompt_with_reference_labels(
         .collect::<Vec<_>>()
         .join("\n");
     format!("{}\n\n参考图绑定：\n{}", req.prompt, refs)
-}
-
-fn selected_reference_images(
-    images: &[ImageReference],
-    mode: GrokReferenceMode,
-) -> &[ImageReference] {
-    match mode {
-        GrokReferenceMode::Reference => images,
-        GrokReferenceMode::FirstFrame => images.get(..1).unwrap_or(images),
-    }
-}
-
-pub(super) fn grok_reference_mode(value: Option<&Value>) -> Result<GrokReferenceMode, AppError> {
-    let Some(value) = value.filter(|value| !value.is_null()) else {
-        return Ok(GrokReferenceMode::Reference);
-    };
-    let Some(mode) = value
-        .get("grok_reference_mode")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|mode| !mode.is_empty())
-    else {
-        return Ok(GrokReferenceMode::Reference);
-    };
-    match mode {
-        "reference" => Ok(GrokReferenceMode::Reference),
-        "first_frame" => Ok(GrokReferenceMode::FirstFrame),
-        other => Err(AppError::InvalidArgument(format!(
-            "CLIProxy 图片 grok_reference_mode 无效：{other}"
-        ))),
-    }
-}
-
-fn grok_reference_mode_name(mode: GrokReferenceMode) -> &'static str {
-    match mode {
-        GrokReferenceMode::Reference => "reference",
-        GrokReferenceMode::FirstFrame => "first_frame",
-    }
 }
 
 fn image_resolution(width: i32, height: i32) -> &'static str {

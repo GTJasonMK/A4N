@@ -1,7 +1,7 @@
 import React from "react";
 import { ChevronRight } from "lucide-react";
 
-import type { ChapterShootingScriptView } from "../../../api/shootingScript";
+import type { ChapterShootingScript } from "../../../api/shootingScript";
 import {
   shootingCameraAngleLabel,
   shootingCameraMovementLabel,
@@ -10,8 +10,8 @@ import {
 } from "../../../utils/shootingScriptPresentation";
 
 export const ScriptContent: React.FC<{
-  view: ChapterShootingScriptView;
-}> = ({ view }) => (
+  script: ChapterShootingScript;
+}> = ({ script }) => (
   <div className="space-y-3">
     <section className="a4n-flat-surface overflow-hidden">
       <div className="border-b border-book-border/45 px-3 py-2.5 sm:px-4">
@@ -20,19 +20,19 @@ export const ScriptContent: React.FC<{
       <div className="divide-y divide-book-border/45 px-3 sm:px-4">
         <Info
           label="核心戏剧问题"
-          value={view.script.directing_statement.central_dramatic_question}
+          value={script.directing_statement.central_dramatic_question}
         />
         <Info
           label="主角行动主线"
-          value={view.script.directing_statement.protagonist_throughline}
+          value={script.directing_statement.protagonist_throughline}
         />
         <Info
           label="观众体验"
-          value={view.script.directing_statement.audience_experience}
+          value={script.directing_statement.audience_experience}
         />
         <Info
           label="视觉策略"
-          value={view.script.directing_statement.visual_strategy}
+          value={script.directing_statement.visual_strategy}
         />
       </div>
       <details className="group border-t border-book-border/45 px-3 py-2 sm:px-4">
@@ -46,26 +46,26 @@ export const ScriptContent: React.FC<{
         <div className="mt-1 divide-y divide-book-border/45 border-t border-book-border/45">
           <Info
             label="视点策略"
-            value={view.script.directing_statement.viewpoint_strategy}
+            value={script.directing_statement.viewpoint_strategy}
           />
           <Info
             label="空间策略"
-            value={view.script.directing_statement.spatial_strategy}
+            value={script.directing_statement.spatial_strategy}
           />
           <Info
             label="声音策略"
-            value={view.script.directing_statement.sound_strategy}
+            value={script.directing_statement.sound_strategy}
           />
           <Info
             label="节奏策略"
-            value={view.script.directing_statement.rhythm_strategy}
+            value={script.directing_statement.rhythm_strategy}
           />
         </div>
       </details>
     </section>
 
     <div className="space-y-3">
-      {view.script.scenes.map((scene) => (
+      {script.scenes.map((scene) => (
         <article
           key={scene.scene_index}
           className="a4n-flat-surface overflow-hidden"

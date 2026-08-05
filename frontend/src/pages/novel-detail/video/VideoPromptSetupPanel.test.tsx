@@ -54,7 +54,6 @@ describe("VideoPromptSetupPanel", () => {
     ]);
     const renderSelected = (selectedSegmentNumber: number, acting: string | null = null) =>
       renderToStaticMarkup(<VideoPromptSetupPanel
-        chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
         prompts={[]}
         segmentCards={segmentCards}
         segmentRecipes={segmentRecipes}
@@ -63,7 +62,6 @@ describe("VideoPromptSetupPanel", () => {
         selectedPromptId={null}
         loading={false}
         acting={acting}
-        chapterGenerating={false}
         savingRecipeSegments={new Set()}
         finalPromptBlockedReasons={new Map()}
         layout="selected"
@@ -102,7 +100,6 @@ describe("VideoPromptSetupPanel", () => {
   it("renders the page sidebar as a pure segment index", () => {
     const html = renderToStaticMarkup(
       <VideoPromptSetupPanel
-        chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
         prompts={[]}
         segmentCards={[
           {
@@ -133,7 +130,6 @@ describe("VideoPromptSetupPanel", () => {
         selectedPromptId={null}
         loading={false}
         acting={null}
-        chapterGenerating={false}
         savingRecipeSegments={new Set()}
         finalPromptBlockedReasons={new Map()}
         layout="index"

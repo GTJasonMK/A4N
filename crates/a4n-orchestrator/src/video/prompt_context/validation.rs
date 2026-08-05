@@ -79,6 +79,7 @@ pub fn validate_prompt_options_with_reference_limit(
         prompt_batch_size: options.prompt_batch_size,
         segment_plan_prompt_id: options.segment_plan_prompt_id,
         target_shot_number: options.target_shot_number,
+        target_narrative_unit_index: options.target_narrative_unit_index,
         segment_recipe: options.segment_recipe,
         duration_secs: options.duration_secs,
         duration_secs_options,

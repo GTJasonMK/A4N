@@ -41,13 +41,14 @@ import {
   pickVideoUploadFile,
   type VideoUploadFile,
 } from "../../../utils/videoUpload";
-import { chapterGeneratingMessage, type ChapterRow } from "../shared";
+import type { ChapterRow } from "../shared";
 import { chooseDownstreamConflictStrategy } from "../dependencyConflict";
 import { promptTitle } from "./videoGenerationDisplay";
 import {
   extractPromptSourceHash,
   hasPendingProviderJob,
   isDurationAllowed,
+  isVideoFramePromptType,
   readSavedReferenceImageIds,
   staleVideoPromptMessage,
   videoExecutionPromptsShareGenerationChain,
@@ -67,18 +68,15 @@ const promptPreviewOverride = (
   visual_prompt: draft.visual_prompt,
   motion_prompt: nonEmptyText(draft.motion_prompt),
   negative_prompt: nonEmptyText(draft.negative_prompt),
+  duration_secs: draft.duration_secs,
 });
 
-const VIDEO_PROMPT_STAGE_BY_TYPE: Record<string, number> = {
-  frame_segment_plan: 1,
-  frame_prompt: 2,
-  first_frame_prompt: 2,
-  storyboard_prompt: 2,
-  video_prompt: 3,
+const videoPromptStage = (prompt: ChapterVideoPrompt): number | null => {
+  if (prompt.prompt_type === "frame_segment_plan") return 1;
+  if (isVideoFramePromptType(prompt.prompt_type)) return 2;
+  if (prompt.prompt_type === "video_prompt") return 3;
+  return null;
 };
-
-const videoPromptStage = (prompt: ChapterVideoPrompt): number | null =>
-  VIDEO_PROMPT_STAGE_BY_TYPE[prompt.prompt_type] ?? null;
 
 const frameImageBelongsToPrompt = (
   image: GeneratedImage,
@@ -134,7 +132,6 @@ const videoPromptDownstreamCount = (
 interface UseVideoRecordActionsParams {
   projectId: number;
   chapter: ChapterRow | null;
-  chapterGenerating: boolean;
   selectedPrompt: ChapterVideoPrompt | null;
   selectedPromptId: number | null;
   frameStageLabel: string;
@@ -166,7 +163,6 @@ interface UseVideoRecordActionsParams {
 export function useVideoRecordActions({
   projectId,
   chapter,
-  chapterGenerating,
   selectedPrompt,
   selectedPromptId,
   frameStageLabel,
@@ -298,52 +294,36 @@ export function useVideoRecordActions({
   const handleOptimizePromptRow = async (prompt: ChapterVideoPrompt) => {
     if (prompt.status === "running") {
       addToast(`提示词 #${prompt.id} 正在运行，不能优化`, "error");
-      return;
-    }
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, "优化提示词"), "error");
-      return;
+      return null;
     }
     const requestScope = actionScopeKey;
     const actionKey = `optimize-prompt-${prompt.id}`;
-    if (!beginAction(actionKey)) return;
-    const instruction = await promptDialog({
-      title: "优化文字资产",
-      message:
-        "输入你希望如何优化这条提示词。有下游派生产物时，下一步会让你选择删除下游或保留下游继续。",
-      placeholder:
-        "例如：保留剧情和参考图约束，增强空间关系描述，压缩重复形容词…",
-      multiline: true,
-      required: true,
-      confirmText: "开始优化",
-    });
-    if (instruction == null) {
-      finishAction(actionKey);
-      return;
-    }
-    const trimmed = instruction.trim();
-    if (!trimmed) {
-      finishAction(actionKey);
-      return;
-    }
-    const downstreamStrategy = await choosePromptMutationStrategy(
-      prompt,
-      "优化",
-    );
-    if (downstreamStrategy == null) {
-      finishAction(actionKey);
-      return;
-    }
-    if (!isCurrentActionScope(requestScope)) {
-      finishAction(actionKey);
-      return;
-    }
+    if (!beginAction(actionKey)) return null;
     try {
+      const instruction = await promptDialog({
+        title: "优化文字资产",
+        message:
+          "输入你希望如何优化这条提示词。有下游派生产物时，下一步会让你选择删除下游或保留下游继续。",
+        placeholder:
+          "例如：保留剧情和参考图约束，增强空间关系描述，压缩重复形容词…",
+        multiline: true,
+        required: true,
+        confirmText: "开始优化",
+      });
+      const trimmed = instruction?.trim();
+      if (!trimmed) return null;
+      const downstreamStrategy = await choosePromptMutationStrategy(
+        prompt,
+        "优化",
+      );
+      if (downstreamStrategy == null || !isCurrentActionScope(requestScope)) {
+        return null;
+      }
       const updated = await optimizeChapterVideoPrompt(prompt.id, {
         instruction: trimmed,
         downstream_strategy: downstreamStrategy,
       });
-      if (!isCurrentActionScope(requestScope)) return;
+      if (!isCurrentActionScope(requestScope)) return null;
       setPrompts((prev) =>
         prev.map((item) => (item.id === updated.id ? updated : item)),
       );
@@ -356,9 +336,12 @@ export function useVideoRecordActions({
         });
       }
       addToast("提示词已优化", "success");
+      await loadAll();
+      return updated;
     } catch (err) {
-      if (!isCurrentActionScope(requestScope)) return;
+      if (!isCurrentActionScope(requestScope)) return null;
       addToast(extractErrorMessage(err, "优化提示词失败"), "error");
+      return null;
     } finally {
       finishAction(actionKey);
     }
@@ -367,10 +350,6 @@ export function useVideoRecordActions({
   const handleDeletePromptRow = async (prompt: ChapterVideoPrompt) => {
     if (prompt.status === "running") {
       addToast(`提示词 #${prompt.id} 正在运行，不能删除`, "error");
-      return;
-    }
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, "删除提示词"), "error");
       return;
     }
     const actionKey = `delete-prompt-${prompt.id}`;
@@ -412,51 +391,72 @@ export function useVideoRecordActions({
     );
   };
 
-  const handleSavePrompt = async () => {
-    if (!selectedPrompt) return;
-    if (selectedPrompt.status === "running") {
-      addToast(`视频提示词 #${selectedPrompt.id} 正在运行，不能保存`, "error");
-      return;
+  const handleSavePromptRow = async (
+    prompt: ChapterVideoPrompt,
+    promptDraft: PromptDraft,
+  ) => {
+    if (prompt.status === "running") {
+      addToast(`提示词 #${prompt.id} 正在运行，不能保存`, "error");
+      return null;
     }
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, "保存提示词"), "error");
-      return;
-    }
-    const visualPrompt = draft.visual_prompt.trim();
+    const visualPrompt = promptDraft.visual_prompt.trim();
     if (!visualPrompt) {
       addToast("Visual Prompt 不能为空", "error");
-      return;
+      return null;
     }
-    const actionKey = `save-prompt-${selectedPrompt.id}`;
-    if (!beginAction(actionKey)) return;
-    const downstreamStrategy = await choosePromptMutationStrategy(
-      selectedPrompt,
-      "保存",
-    );
-    if (downstreamStrategy == null) {
+    if (!isDurationAllowed(promptDraft.duration_secs, durationLimits)) {
+      addToast("视频时长不在当前视频模型支持范围内", "error");
+      return null;
+    }
+    const requestScope = actionScopeKey;
+    const actionKey = `save-prompt-${prompt.id}`;
+    if (!beginAction(actionKey)) return null;
+    try {
+      const downstreamStrategy = await choosePromptMutationStrategy(
+        prompt,
+        "保存",
+      );
+      if (downstreamStrategy == null || !isCurrentActionScope(requestScope)) {
+        return null;
+      }
+      const updated = await updateChapterVideoPrompt(prompt.id, {
+        visual_prompt: visualPrompt,
+        motion_prompt: nonEmptyText(promptDraft.motion_prompt),
+        negative_prompt: nonEmptyText(promptDraft.negative_prompt),
+        duration_secs: promptDraft.duration_secs,
+        downstream_strategy: downstreamStrategy,
+      });
+      if (!isCurrentActionScope(requestScope)) return null;
+      setPrompts((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      if (selectedPromptId === updated.id) {
+        setDraft({
+          visual_prompt: updated.visual_prompt,
+          motion_prompt: updated.motion_prompt ?? "",
+          negative_prompt: updated.negative_prompt ?? "",
+          duration_secs: updated.duration_secs,
+        });
+      }
+      addToast("提示词已保存", "success");
+      await loadAll();
+      return updated;
+    } catch (err) {
+      if (!isCurrentActionScope(requestScope)) return null;
+      addToast(extractErrorMessage(err, "保存提示词失败"), "error");
+      return null;
+    } finally {
       finishAction(actionKey);
-      return;
     }
-    await wrapAct(
-      actionKey,
-      () =>
-        updateChapterVideoPrompt(selectedPrompt.id, {
-          visual_prompt: visualPrompt,
-          motion_prompt: nonEmptyText(draft.motion_prompt),
-          negative_prompt: nonEmptyText(draft.negative_prompt),
-          downstream_strategy: downstreamStrategy,
-        }),
-      "提示词已保存",
-      true,
-    );
+  };
+
+  const handleSavePrompt = async () => {
+    if (!selectedPrompt) return null;
+    return handleSavePromptRow(selectedPrompt, draft);
   };
 
   const handleGenerateVideo = async () => {
     if (!chapter || !selectedPrompt) return;
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, "生成视频"), "error");
-      return;
-    }
     if (durationLimits.configError) {
       addToast(durationLimits.configError, "error");
       return;
@@ -509,17 +509,16 @@ export function useVideoRecordActions({
       const message = extractErrorMessage(err, "视频生成失败");
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
-      await loadAll();
-      finishAction(actionKey);
+      try {
+        await loadAll();
+      } finally {
+        finishAction(actionKey);
+      }
     }
   };
 
   const handleImportVideo = async (): Promise<void> => {
     if (!chapter || !selectedPrompt) return;
-    if (chapterGenerating) {
-      addToast(chapterGeneratingMessage(chapter, "导入视频"), "error");
-      return;
-    }
     if (selectedPrompt.prompt_type !== "video_prompt") {
       addToast("请选择 video_prompt 类型的提示词导入视频", "error");
       return;
@@ -770,6 +769,7 @@ export function useVideoRecordActions({
     handleOptimizePromptRow,
     handleDeletePromptRow,
     handleSavePrompt,
+    handleSavePromptRow,
     handleGenerateVideo,
     handleImportVideo,
     handlePreviewGenerateVideoRequest,

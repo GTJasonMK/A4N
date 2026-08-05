@@ -6,7 +6,8 @@ use a4n_core::{
     },
     source_spans::{metadata_source_content_sha256, source_text_hash},
     video_execution::{
-        VideoSegmentExecutionRecipeV1, video_segment_recipes_for_plan_from_metadata,
+        VideoSegmentExecutionRecipeV1, resolve_video_segment_number,
+        video_segment_recipes_for_plan_from_metadata,
     },
 };
 use a4n_db::collaboration::ProjectAccessRole;
@@ -20,29 +21,28 @@ use crate::OrchestratorContext;
 
 use super::chapter_video_request_rules::{
     BoundaryFrameImageIds, ChapterVideoProviderRequestContext, ProviderPromptImageBinding,
-    append_preview_duration_note, append_provider_input_note, append_provider_input_notes,
+    append_provider_input_note, append_provider_input_notes,
     append_video_request_prompt_length_context, apply_chapter_video_prompt_preview_override,
     attach_chapter_video_snapshot_identity,
     build_video_generation_provider_preview_prompt_with_renderer,
     build_video_generation_provider_prompt_with_renderer, chapter_video_provider_descriptor,
-    enforce_cliproxy_video_media_contract, enforce_provider_image_binding_contract,
-    enforce_provider_prompt_length_contract, ensure_chapter_video_prompt_preview_metadata,
-    ensure_chapter_video_prompt_preview_texts, provider_specific_negative_prompt,
-    sanitized_chapter_video_request_for_snapshot, video_request_prompt_length_context,
+    enforce_provider_image_binding_contract, enforce_provider_prompt_length_contract,
+    ensure_chapter_video_prompt_preview_metadata, ensure_chapter_video_prompt_preview_texts,
+    provider_specific_negative_prompt, sanitized_chapter_video_request_for_snapshot,
+    video_request_prompt_length_context,
 };
 use super::{
-    CLIPROXY_OPENAI_VIDEO_BACKEND, CliproxyGrokReferenceMode, NEWAPI_VIDEO_BACKEND,
-    ProviderGenerationWorkflow, ProviderImageInputTransport, VIDEO_GENERATION_PROGRESS_TOTAL,
-    VideoGenerationProgress, VideoGenerationRecordInput, VideoProviderExecutionInput,
-    VideoProviderHostPort, VideoProviderRequestBody, VideoProviderRequestInput,
-    VideoProviderValidationMode, boundary_frame_numbers_for_prompt,
+    NEWAPI_VIDEO_BACKEND, ProviderGenerationWorkflow, ProviderImageInputTransport,
+    VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress, VideoGenerationRecordInput,
+    VideoProviderExecutionInput, VideoProviderHostPort, VideoProviderRequestBody,
+    VideoProviderRequestInput, VideoProviderValidationMode, boundary_frame_numbers_for_prompt,
     ensure_newapi_first_frame_image_supported, first_frame_prompt_matches_video_prompt,
     frame_prompt_matches_video_prompt, image_generation_prompt_id, image_generation_source,
     latest_boundary_frame_image_id, latest_storyboard_image_id, linked_video_preview_config_id,
-    prompt_provider_workflow, reference_ids_with_prompt_frame_images,
-    reference_ids_with_storyboard_image, reference_image_ids, required_prompt_source_prompt_type,
-    required_video_execution_identity, storyboard_prompt_matches_video_prompt,
-    tail_frame_image_belongs_to_video, validate_video_duration_for_config_secs,
+    prompt_provider_workflow, reference_ids_with_storyboard_image, reference_image_ids,
+    required_prompt_source_prompt_type, required_video_execution_identity,
+    storyboard_prompt_matches_video_prompt, tail_frame_image_belongs_to_video,
+    validate_video_duration_for_config_secs,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -100,10 +100,7 @@ pub trait ChapterVideoGenerationHostPort: Send + Sync {
         config_id: Option<i64>,
     ) -> Result<video_gen_config::Model, AppError>;
 
-    fn resolve_image_transport(
-        &self,
-        backend: &str,
-    ) -> Result<ProviderImageInputTransport, AppError>;
+    fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError>;
 
     async fn resolve_chapter_video_image_inputs(
         &self,
@@ -333,7 +330,8 @@ impl OrchestratorContext {
                 &mut prompt,
                 prompt_override,
                 &mut provider_input_note,
-            );
+            )
+            .map_err(AppError::InvalidArgument)?;
             ensure_chapter_video_prompt_preview_texts(&mut prompt, &mut provider_input_note);
             ensure_chapter_video_prompt_preview_metadata(&mut prompt, &mut provider_input_note)
                 .map_err(AppError::InvalidArgument)?;
@@ -370,12 +368,8 @@ impl OrchestratorContext {
             config_id
         };
         let config = host_port.resolve_video_config(config_id).await?;
-        if mode == VideoProviderValidationMode::Generate {
-            validate_video_duration_for_config_secs(&config, prompt.duration_secs)
-                .map_err(AppError::InvalidArgument)?;
-        } else {
-            append_preview_duration_note(&mut provider_input_note, &config, prompt.duration_secs);
-        }
+        validate_video_duration_for_config_secs(&config, prompt.duration_secs)
+            .map_err(AppError::InvalidArgument)?;
 
         let prompt_reference_image_ids_json = prompt.reference_image_ids_json.clone();
         let prompt_reference_image_ids =
@@ -399,24 +393,16 @@ impl OrchestratorContext {
             ));
         }
         let storyboard_workflow = provider_workflow.uses_storyboard();
-        let cliproxy_grok_mode =
-            super::parse_cliproxy_grok_reference_mode(config.provider_options_json.as_ref())
-                .map_err(AppError::InvalidArgument)?;
-        let cliproxy_first_frame_mode = config.backend == CLIPROXY_OPENAI_VIDEO_BACKEND
-            && cliproxy_grok_mode == CliproxyGrokReferenceMode::FirstFrame;
-        let cliproxy_reference_mode = config.backend == CLIPROXY_OPENAI_VIDEO_BACKEND
-            && cliproxy_grok_mode == CliproxyGrokReferenceMode::Reference;
         enforce_provider_image_binding_contract(
             &config.backend,
             provider_workflow,
-            cliproxy_grok_mode,
             prompt_reference_image_count,
             mode,
             &mut provider_input_note,
         )
         .map_err(AppError::InvalidArgument)?;
 
-        let transport = host_port.resolve_image_transport(&config.backend)?;
+        let transport = host_port.resolve_image_transport()?;
         if transport == ProviderImageInputTransport::RemoteTempUpload {
             append_provider_input_note(
                 &mut provider_input_note,
@@ -431,34 +417,30 @@ impl OrchestratorContext {
                 &prompt_reference_image_ids,
                 prompt_reference_image_ids_json.as_ref(),
                 provider_workflow,
-                cliproxy_reference_mode,
                 mode,
                 &mut provider_input_note,
             )
             .await?;
-        let cliproxy_has_first_frame = config.backend == CLIPROXY_OPENAI_VIDEO_BACKEND
-            && references.boundary_frame_ids.first.is_some();
-        let should_send_reference_images = config.backend != NEWAPI_VIDEO_BACKEND
-            && !(cliproxy_first_frame_mode && (cliproxy_has_first_frame || storyboard_workflow));
-        let selected_reference_image_ids = if should_send_reference_images {
+        let selected_reference_image_ids = if config.backend != NEWAPI_VIDEO_BACKEND {
             references.provider_reference_image_ids.clone()
-        } else if cliproxy_first_frame_mode && !cliproxy_has_first_frame && !storyboard_workflow {
-            prompt_reference_image_ids.iter().copied().take(1).collect()
         } else {
             Vec::new()
         };
-        let selected_first_frame_image_id = if cliproxy_reference_mode || storyboard_workflow {
+        let selected_first_frame_image_id = if storyboard_workflow
+            || provider_workflow.uses_keyframes()
+            || provider_workflow.uses_text_only()
+        {
             None
         } else {
             references.boundary_frame_ids.first
         };
-        let selected_last_frame_image_id = if storyboard_workflow
-            || config.backend == NEWAPI_VIDEO_BACKEND
-            || config.backend == CLIPROXY_OPENAI_VIDEO_BACKEND
-        {
-            None
-        } else {
+        let selected_last_frame_image_id = if matches!(
+            provider_workflow,
+            ProviderGenerationWorkflow::BoundaryFrames
+        ) {
             references.boundary_frame_ids.last
+        } else {
+            None
         };
         let image_inputs = host_port
             .resolve_chapter_video_image_inputs(ChapterVideoImageInput {
@@ -473,42 +455,14 @@ impl OrchestratorContext {
             })
             .await?;
         append_provider_input_notes(&mut provider_input_note, image_inputs.notes);
-        if cliproxy_first_frame_mode && !storyboard_workflow && prompt_reference_image_count > 0 {
-            let note = if references.boundary_frame_ids.first.is_some() {
-                format!(
-                    "CLIProxy/Grok 首帧模式已使用生成首帧作为 input_reference，{} 张提示词参考图不会作为 reference_images 发送。",
-                    prompt_reference_image_count
-                )
-            } else {
-                format!(
-                    "CLIProxy/Grok 首帧模式会把第一张提示词参考图作为 input_reference 使用；其余 {} 张提示词参考图不会发送。",
-                    prompt_reference_image_count - 1
-                )
-            };
-            append_provider_input_note(&mut provider_input_note, note);
-        }
-
         if config.backend == NEWAPI_VIDEO_BACKEND && mode == VideoProviderValidationMode::Generate {
             ensure_newapi_first_frame_image_supported(
                 image_inputs.first_frame_image_url.as_deref(),
             )
             .map_err(AppError::InvalidArgument)?;
         }
-        let first_frame_image_url_available = image_inputs.first_frame_image_url.is_some()
-            || (cliproxy_first_frame_mode
-                && !storyboard_workflow
-                && !image_inputs.reference_image_urls.is_empty());
+        let first_frame_image_url_available = image_inputs.first_frame_image_url.is_some();
         let last_frame_image_url_available = image_inputs.last_frame_image_url.is_some();
-        enforce_cliproxy_video_media_contract(
-            &config.backend,
-            cliproxy_grok_mode,
-            references.provider_reference_image_count,
-            first_frame_image_url_available,
-            prompt.duration_secs,
-            mode,
-            &mut provider_input_note,
-        )
-        .map_err(AppError::InvalidArgument)?;
         let image_binding = ProviderPromptImageBinding {
             has_first_frame_image: first_frame_image_url_available,
             has_last_frame_image: last_frame_image_url_available,
@@ -544,10 +498,11 @@ impl OrchestratorContext {
             duration_secs: prompt.duration_secs,
             fps: config.default_fps,
             model: config.model.clone(),
-            first_frame_image_url: image_inputs.first_frame_image_url,
-            last_frame_image_url: image_inputs.last_frame_image_url,
-            reference_image_urls: image_inputs.reference_image_urls,
-            reference_media: None,
+            media: a4n_video::VideoMediaInput::from_images(
+                image_inputs.first_frame_image_url,
+                image_inputs.last_frame_image_url,
+                image_inputs.reference_image_urls,
+            )?,
         };
         enforce_provider_prompt_length_contract(
             &config.backend,
@@ -763,32 +718,33 @@ impl OrchestratorContext {
             .as_ref()
             .and_then(Value::as_object)
             .ok_or_else(|| invalid_argument(format!("视频提示词 #{} 缺少 metadata", prompt.id)))?;
-        let plan_id = metadata
+        let execution_identity =
+            required_video_execution_identity(prompt.id, prompt.metadata_json.as_ref())
+                .map_err(AppError::InvalidArgument)?;
+        let plan_id = execution_identity
             .get("segment_plan_prompt_id")
             .and_then(Value::as_i64)
             .ok_or_else(|| {
-                invalid_argument(format!(
-                    "视频提示词 #{} 缺少 segment_plan_prompt_id，属于旧执行方案",
-                    prompt.id
-                ))
+                invalid_argument(format!("视频提示词 #{} 缺少片段规划 ID", prompt.id))
             })?;
-        let segment_number = metadata
-            .get("segment_number")
+        let source_shot_id = execution_identity
+            .get("source_shot_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| invalid_argument(format!("视频提示词 #{} 缺少镜头 ID", prompt.id)))?;
+        let segment_index_in_shot = execution_identity
+            .get("segment_index_in_shot")
             .and_then(Value::as_i64)
             .and_then(|value| i32::try_from(value).ok())
-            .filter(|value| *value > 0)
-            .ok_or_else(|| {
-                invalid_argument(format!("视频提示词 #{} 缺少有效 segment_number", prompt.id))
-            })?;
-        if segment_number != prompt.shot_number {
-            return Err(invalid_argument(format!(
-                "视频提示词 #{} 的 segment_number 与 shot_number 不一致",
-                prompt.id
-            )));
-        }
+            .ok_or_else(|| invalid_argument(format!("视频提示词 #{} 缺少镜头内序号", prompt.id)))?;
         let plan = self
             .require_current_shared_segment_plan(prompt.project_id, prompt.chapter_id, plan_id)
             .await?;
+        let segment_number = resolve_video_segment_number(
+            plan.metadata_json.as_ref(),
+            source_shot_id,
+            segment_index_in_shot,
+        )
+        .map_err(AppError::InvalidArgument)?;
         let plan_style = plan
             .style
             .as_deref()
@@ -803,30 +759,23 @@ impl OrchestratorContext {
                 .ok_or_else(|| {
                     invalid_argument(format!("当前规划缺少片段 {segment_number} 的执行方案"))
                 })?;
-        let expected_fingerprint = recipe
-            .generation_fingerprint()
-            .map_err(AppError::InvalidArgument)?;
-        let identity = metadata
-            .get("video_execution_identity")
-            .and_then(Value::as_object)
-            .ok_or_else(|| invalid_argument(format!("视频提示词 #{} 缺少执行身份", prompt.id)))?;
-        let valid = metadata
-            .get("segment_recipe_fingerprint")
-            .and_then(Value::as_str)
-            == Some(expected_fingerprint.as_str())
-            && identity
-                .get("segment_plan_prompt_id")
-                .and_then(Value::as_i64)
-                == Some(plan_id)
-            && identity.get("segment_number").and_then(Value::as_i64)
-                == Some(i64::from(segment_number))
-            && identity
-                .get("segment_recipe_fingerprint")
-                .and_then(Value::as_str)
-                == Some(expected_fingerprint.as_str())
-            && prompt.workflow_mode == recipe.workflow_mode.as_str()
+        let plan_identity = plan
+            .metadata_json
+            .as_ref()
+            .and_then(|value| value.get("video_execution_identity"))
+            .cloned()
+            .ok_or_else(|| invalid_argument("当前片段规划缺少执行身份"))?;
+        let expected_identity = super::prompt_generation::video_segment_execution_identity(
+            plan_identity,
+            Some(plan_id),
+            Some(&recipe),
+            (source_shot_id, segment_index_in_shot),
+        )?;
+        let valid = super::prompt_records::video_execution_segment_lineage_matches(
+            prompt.metadata_json.as_ref(),
+            &expected_identity,
+        ) && prompt.workflow_mode == recipe.workflow_mode.as_str()
             && prompt.style.as_deref().map(str::trim) == Some(recipe.style.trim())
-            && prompt.duration_secs == recipe.duration_secs
             && prompt.aspect_ratio.as_deref() == Some(recipe.aspect_ratio.as_str())
             && metadata
                 .get("prompt_output_language")
@@ -846,7 +795,6 @@ impl OrchestratorContext {
         Ok(recipe)
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn resolve_chapter_provider_references(
         &self,
         project_id: i64,
@@ -855,7 +803,6 @@ impl OrchestratorContext {
         prompt_reference_image_ids: &[i64],
         prompt_reference_image_ids_json: Option<&Value>,
         provider_workflow: ProviderGenerationWorkflow,
-        cliproxy_reference_mode: bool,
         mode: VideoProviderValidationMode,
         provider_input_note: &mut Option<String>,
     ) -> Result<ChapterProviderReferences, AppError> {
@@ -920,30 +867,12 @@ impl OrchestratorContext {
             prompt_reference_image_ids.to_vec()
         } else if storyboard_workflow {
             reference_ids_with_storyboard_image(storyboard_image_id, prompt_reference_image_ids)
-        } else if cliproxy_reference_mode {
-            reference_ids_with_prompt_frame_images(
-                boundary_frame_ids.first,
-                boundary_frame_ids.last,
-                prompt_reference_image_ids,
-            )
         } else {
             prompt_reference_image_ids.to_vec()
         };
         let provider_reference_ids_are_authoritative = provider_workflow.uses_text_only()
             || provider_workflow.uses_keyframes()
-            || storyboard_workflow
-            || cliproxy_reference_mode;
-        if cliproxy_reference_mode
-            && (boundary_frame_ids.first.is_some() || boundary_frame_ids.last.is_some())
-        {
-            append_provider_input_note(
-                provider_input_note,
-                format!(
-                    "CLIProxy/Grok 参考模式已将边界帧图片作为普通 reference_images 发送；实际参考图 ID 顺序：{}",
-                    joined_ids(&provider_reference_image_ids)
-                ),
-            );
-        }
+            || storyboard_workflow;
         if storyboard_workflow && storyboard_image_id.is_some() {
             append_provider_input_note(
                 provider_input_note,

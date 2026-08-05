@@ -1,7 +1,12 @@
 use a4n_core::{error::AppError, source_spans::SourceSpan};
 use a4n_llm::context::LlmContextManifest;
 use serde_json::{Value, json};
+use std::collections::{BTreeSet, HashSet};
 
+use super::super::frame_chain::{
+    SegmentPlanDraftInput, merge_incremental_segment_plan, segment_plan_covers_required_shots,
+    segment_plan_draft,
+};
 use super::super::{
     CompletedVideoLlmCheckpointInput, ProgressSpan, VIDEO_PREVIOUS_OUTPUT_SHOOTING_SCRIPT,
     VideoContextManifestInput, VideoContextPreviousOutput, VideoPlanningPromptContext,
@@ -9,14 +14,16 @@ use super::super::{
     build_video_context_manifest, checkpoint_response_content, load_completed_video_checkpoint,
     parse_generated_segment_plan_with_current_config, parse_video_segment_plan_input_values,
     render_json_with_validation_with_context, report_video_prompt_checkpoint,
-    report_video_prompt_progress, save_completed_video_llm_checkpoint, segment_plan_progress_spec,
-    serialize_video_value, source_spans_for_shot,
-    validate_segment_plan_against_shooting_script_projection, video_llm_call_trace_context,
+    report_video_prompt_item_committed, report_video_prompt_progress,
+    save_completed_video_llm_checkpoint, segment_plan_progress_spec, serialize_video_value,
+    source_spans_for_shot, validate_segment_plan_against_shooting_script_projection,
+    video_execution_chain_identity, video_llm_call_trace_context, video_segment_plan_input_values,
     video_stage_fingerprint,
 };
 use super::{
     contracts::{RenderedSegmentPlanShots, StagedSegmentPlanInput},
-    segment_plan_shot_recipe_artifacts,
+    load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
+    segment_plan_shot_recipe_artifacts, select_video_segment_recipe_state_by_shots,
 };
 
 struct PendingSegmentPlanShot {
@@ -43,18 +50,23 @@ pub(super) async fn render_segment_plan_shots(
         service,
         prompt_renderer,
         project_id,
+        chapter_id,
         workflow_run_id: _,
         variables,
         source,
+        source_metadata,
         source_spans,
         project_context,
         shooting_script_projection_json,
         shooting_script_projection,
+        source_shot_order,
+        source_complete,
         default_aspect_ratio,
         style,
         prompt_output_language,
         previous_segment_plan,
         previous_segment_recipes,
+        reuse_published_shots,
         duration_secs,
         context,
         progress_message,
@@ -79,12 +91,13 @@ pub(super) async fn render_segment_plan_shots(
         .collect::<Vec<Option<(ValidatedSegmentPlanShot, Value)>>>();
     let mut pending_shots = Vec::new();
     let mut restored_count = 0usize;
+    let mut reused_count = 0usize;
+    let mut reused_source_shot_ids = BTreeSet::new();
     let mut last_trace = None;
     for (index, shot) in shooting_script_projection.shots().enumerate() {
         if cancel_token.is_some_and(|token| token.is_cancelled()) {
             return Err(AppError::Cancelled);
         }
-        let shot_value = serialize_video_value(shot, "当前导演镜头")?;
         let shot_source_spans = source_spans_for_shot(source_spans, shot);
         if shot_source_spans.is_empty() {
             return Err(AppError::InvalidArgument(format!(
@@ -92,6 +105,29 @@ pub(super) async fn render_segment_plan_shots(
                 shot.source_shot_id
             )));
         }
+        if reuse_published_shots
+            && let Some(segment_shot) = reuse_published_segment_plan_shot(
+                previous_segment_plan,
+                shooting_script_projection,
+                &shot.source_shot_id,
+                &shot_source_spans,
+                duration_secs,
+                default_aspect_ratio,
+            )?
+        {
+            completed_shots[index] = Some((
+                segment_shot,
+                json!({
+                    "source_shot_id": shot.source_shot_id,
+                    "prompt_name": "chapter_video_segment_plan",
+                    "source": "published_segment_plan"
+                }),
+            ));
+            reused_count += 1;
+            reused_source_shot_ids.insert(shot.source_shot_id.clone());
+            continue;
+        }
+        let shot_value = serialize_video_value(shot, "当前导演镜头")?;
         let user_content = build_segment_plan_for_shot_user(
             planning_prompt_context,
             &shot_value,
@@ -132,7 +168,7 @@ pub(super) async fn render_segment_plan_shots(
                 "shot_index": index + 1,
                 "total_shots": total_shots,
                 "expected_items": expected_items,
-                "validation_contract": "segment_plan_per_shot_v2",
+                "validation_contract": "segment_plan_per_shot_v3",
             }),
         );
         if let Some(checkpoint) =
@@ -171,10 +207,11 @@ pub(super) async fn render_segment_plan_shots(
         });
     }
 
+    let completed_count = restored_count + reused_count;
     let pending_progress_span =
-        pending_segment_plan_progress_span(progress_span, restored_count, total_shots);
+        pending_segment_plan_progress_span(progress_span, completed_count, total_shots);
     let restored_current = pending_progress_span.start();
-    if restored_count > 0 {
+    if completed_count > 0 {
         let restored_draft_text = completed_shots
             .iter()
             .enumerate()
@@ -185,10 +222,12 @@ pub(super) async fn render_segment_plan_shots(
             .collect::<Result<Vec<_>, _>>()?
             .concat();
         let recovery_message = if pending_shots.is_empty() {
-            format!("{progress_message}（已恢复全部 {restored_count} 个镜头断点）")
+            format!(
+                "{progress_message}（已恢复 {restored_count} 个镜头断点，复用 {reused_count} 个已发布镜头）"
+            )
         } else {
             format!(
-                "{progress_message}（已恢复 {restored_count} 个镜头断点，剩余 {} 个镜头继续生成或修复）",
+                "{progress_message}（已恢复 {restored_count} 个镜头断点，复用 {reused_count} 个已发布镜头，剩余 {} 个镜头继续生成或修复）",
                 pending_shots.len()
             )
         };
@@ -197,7 +236,7 @@ pub(super) async fn render_segment_plan_shots(
             restored_current,
             100,
             "video_segment_plan.recovered",
-            restored_count,
+            completed_count,
             total_shots,
             restored_draft_text,
             recovery_message.clone(),
@@ -297,6 +336,59 @@ pub(super) async fn render_segment_plan_shots(
         })
         .await?;
         let draft_text = segment_plan_draft_text(index + 1, &segment_shot.checkpoint_values)?;
+        completed_shots[index] = Some((segment_shot, stage_output));
+        let draft_checkpoints =
+            load_video_segment_plan_draft_checkpoints(service, workflow_run_id).await?;
+        let (new_segments, new_recipes, _, _) =
+            load_video_segment_plan_draft_recipe_state(&draft_checkpoints, style)?;
+        let included_source_shot_ids = new_segments
+            .iter()
+            .map(|segment| segment.source_shot_id.clone())
+            .filter(|source_shot_id| !reused_source_shot_ids.contains(source_shot_id))
+            .collect::<HashSet<_>>();
+        let (new_segments, new_recipes) = select_video_segment_recipe_state_by_shots(
+            new_segments,
+            new_recipes,
+            &included_source_shot_ids,
+            style,
+        )?;
+        let (segments, recipes) = merge_incremental_segment_plan(
+            previous_segment_plan.zip(previous_segment_recipes),
+            new_segments,
+            new_recipes,
+            style,
+            source_shot_order,
+        )?;
+        let stage_outputs = completed_shots
+            .iter()
+            .filter_map(|completed| completed.as_ref().map(|(_, output)| output.clone()))
+            .collect::<Vec<_>>();
+        let plan_complete =
+            source_complete && segment_plan_covers_required_shots(&segments, source_shot_order);
+        let execution_identity = video_execution_chain_identity(
+            shooting_script_projection,
+            &segments,
+            style,
+            duration_secs,
+            default_aspect_ratio,
+        )?;
+        let segment_draft = segment_plan_draft(SegmentPlanDraftInput {
+            project_id,
+            chapter_id,
+            style,
+            duration_secs,
+            aspect_ratio: default_aspect_ratio,
+            source_metadata,
+            stage_outputs: json!({ "segment_plan_per_shot": stage_outputs }),
+            execution_identity,
+            segments,
+            recipes,
+            plan_complete,
+            generation_trace: None,
+        });
+        service
+            .sync_chapter_prompts(chapter_id, vec![segment_draft])
+            .await?;
         report_video_prompt_checkpoint(
             progress,
             shot_span.end(),
@@ -305,15 +397,24 @@ pub(super) async fn render_segment_plan_shots(
             index + 1,
             total_shots,
             draft_text,
-            format!("视频片段规划镜头 #{source_shot_id} 已保存"),
+            format!("视频片段规划镜头 #{source_shot_id} 已发布"),
+        )?;
+        report_video_prompt_item_committed(
+            progress,
+            shot_span.end(),
+            100,
+            "frame_segment_plan",
+            0,
+            index + 1,
+            total_shots,
+            &format!("视频片段规划镜头 #{source_shot_id} 已发布"),
         )?;
         report_video_prompt_progress(
             progress,
             shot_span.end(),
             100,
-            &format!("{progress_message}（镜头 #{source_shot_id} 已保存）"),
+            &format!("{progress_message}（镜头 #{source_shot_id} 已发布）"),
         )?;
-        completed_shots[index] = Some((segment_shot, stage_output));
         last_trace = Some(trace);
     }
 
@@ -342,8 +443,58 @@ pub(super) async fn render_segment_plan_shots(
     Ok(RenderedSegmentPlanShots {
         segment_inputs,
         stage_outputs,
+        reused_source_shot_ids: reused_source_shot_ids.into_iter().collect(),
         last_trace,
     })
+}
+
+fn reuse_published_segment_plan_shot(
+    previous_segment_plan: Option<&[super::super::VideoSegmentPlan]>,
+    shooting_script_projection: &super::super::VideoShootingScriptProjection,
+    source_shot_id: &str,
+    source_spans: &[a4n_core::source_spans::SourceSpan],
+    duration_secs: i32,
+    default_aspect_ratio: &str,
+) -> Result<Option<ValidatedSegmentPlanShot>, AppError> {
+    let Some(previous_segment_plan) = previous_segment_plan else {
+        return Ok(None);
+    };
+    let mut published_segments = previous_segment_plan
+        .iter()
+        .filter(|segment| segment.source_shot_id == source_shot_id)
+        .cloned()
+        .collect::<Vec<_>>();
+    if published_segments.is_empty() {
+        return Ok(None);
+    }
+    published_segments.sort_by_key(|segment| segment.segment_index_in_shot);
+    let scoped_projection =
+        shooting_script_projection_for_shot(shooting_script_projection, source_shot_id)?;
+    validate_segment_plan_against_shooting_script_projection(
+        &published_segments,
+        &scoped_projection,
+    )?;
+
+    let context = format!("已发布镜头 #{source_shot_id} 的片段规划");
+    let published_values = video_segment_plan_input_values(&published_segments, &context)?;
+    let raw = json!({ "segments": published_values }).to_string();
+    let input_values = parse_video_segment_plan_input_values(&raw, &context)?;
+    let (_, segment_plan) = parse_generated_segment_plan_with_current_config(
+        &raw,
+        source_spans,
+        &scoped_projection,
+        duration_secs,
+        default_aspect_ratio,
+    )?;
+    validate_segment_plan_against_shooting_script_projection(&segment_plan, &scoped_projection)?;
+    let checkpoint_values = segment_plan
+        .into_iter()
+        .map(serde_json::to_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some(ValidatedSegmentPlanShot {
+        input_values,
+        checkpoint_values,
+    }))
 }
 
 fn restore_segment_plan_shot_checkpoint(
@@ -356,11 +507,9 @@ fn restore_segment_plan_shot_checkpoint(
     default_aspect_ratio: &str,
 ) -> Result<(String, ValidatedSegmentPlanShot), AppError> {
     let response_content = checkpoint_response_content(checkpoint, context)?.to_string();
-    let validation_content = checkpoint
-        .get("structured_response")
-        .map(serde_json::to_string)
-        .transpose()?
-        .unwrap_or_else(|| response_content.clone());
+    let structured_response: Value =
+        super::super::checkpoint_field(checkpoint, "structured_response", context)?;
+    let validation_content = serde_json::to_string(&structured_response)?;
     let segment_shot = parse_and_validate_segment_plan_shot(
         &validation_content,
         context,
@@ -417,9 +566,7 @@ fn ensure_segment_plan_checkpoint_output(
                 current: "missing_checkpoint_parsed_output".to_string(),
                 operation: format!("读取{context}"),
             })?;
-    if checkpoint_output == &serde_json::to_value(&segment_shot.checkpoint_values)?
-        || checkpoint_output == &serde_json::to_value(&segment_shot.input_values)?
-    {
+    if checkpoint_output.as_array() == Some(&segment_shot.checkpoint_values) {
         return Ok(());
     }
     Err(AppError::InvalidState {
@@ -576,6 +723,110 @@ mod tests {
         assert_eq!(segment_shot.checkpoint_values[0]["segment_number"], 1);
         assert_eq!(segment_shot.checkpoint_values[0]["duration_secs"], 6);
         assert_eq!(segment_shot.checkpoint_values[0]["aspect_ratio"], "16:9");
+    }
+
+    #[test]
+    fn checkpoint_output_requires_current_canonical_segment_contract() {
+        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
+        let segment_shot = parse_and_validate_segment_plan_shot(
+            &repeated_segment_plan_json(1, 6, &["beat-1"]),
+            "测试镜头",
+            &source_spans,
+            &projection,
+            "shot-1",
+            6,
+            "16:9",
+        )
+        .unwrap();
+
+        ensure_segment_plan_checkpoint_output(
+            &json!({ "parsed_output": segment_shot.checkpoint_values.clone() }),
+            &segment_shot,
+            "测试镜头",
+        )
+        .unwrap();
+        let error = ensure_segment_plan_checkpoint_output(
+            &json!({ "parsed_output": segment_shot.input_values.clone() }),
+            &segment_shot,
+            "测试镜头",
+        )
+        .unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("checkpoint_parsed_output_mismatch")
+        );
+    }
+
+    #[test]
+    fn published_shot_is_reused_as_validated_input_without_derived_fields() {
+        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
+        let generated = parse_and_validate_segment_plan_shot(
+            &repeated_segment_plan_json(1, 6, &["beat-1"]),
+            "测试镜头",
+            &source_spans,
+            &projection,
+            "shot-1",
+            6,
+            "16:9",
+        )
+        .unwrap();
+        let published: Vec<super::super::super::VideoSegmentPlan> =
+            serde_json::from_value(Value::Array(generated.checkpoint_values)).unwrap();
+
+        let reused = reuse_published_segment_plan_shot(
+            Some(&published),
+            &projection,
+            "shot-1",
+            &source_spans,
+            6,
+            "16:9",
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(reused.input_values.len(), 1);
+        assert_eq!(reused.input_values[0]["source_shot_id"], "shot-1");
+        assert_eq!(reused.input_values[0].get("segment_number"), None);
+        assert_eq!(reused.input_values[0].get("duration_secs"), None);
+        assert_eq!(reused.checkpoint_values[0]["segment_number"], 1);
+    }
+
+    #[test]
+    fn incomplete_published_shot_is_rejected_instead_of_silently_skipped() {
+        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let projection = single_shot_projection(&source_spans[0].id, 2, 2, None);
+        let mut raw: Value =
+            serde_json::from_str(&repeated_segment_plan_json(2, 2, &["beat-1"])).unwrap();
+        raw["segments"][1]["covered_beat_ids"] = json!(["beat-2"]);
+        let generated = parse_and_validate_segment_plan_shot(
+            &raw.to_string(),
+            "测试镜头",
+            &source_spans,
+            &projection,
+            "shot-1",
+            2,
+            "16:9",
+        )
+        .unwrap();
+        let mut published: Vec<super::super::super::VideoSegmentPlan> =
+            serde_json::from_value(Value::Array(generated.checkpoint_values)).unwrap();
+        published.pop();
+
+        let error = reuse_published_segment_plan_shot(
+            Some(&published),
+            &projection,
+            "shot-1",
+            &source_spans,
+            2,
+            "16:9",
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("shot_segment_count 必须等于"));
     }
 
     #[test]

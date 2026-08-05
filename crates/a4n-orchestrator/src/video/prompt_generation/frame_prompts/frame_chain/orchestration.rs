@@ -78,6 +78,10 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_chapter
         .ok_or_else(|| {
             AppError::InvalidArgument(format!("共享片段规划中不存在目标片段 {target_shot_number}"))
         })?;
+    let target = (
+        segment.source_shot_id.clone(),
+        segment.segment_index_in_shot,
+    );
     let segment_plan = vec![segment];
     let segment_json = json!({ "segments": &segment_plan });
     let segment_draft = None;
@@ -85,6 +89,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn generate_chapter
         execution_identity,
         Some(segment_plan_prompt_id),
         Some(&segment_recipe),
+        (&target.0, target.1),
     )?;
     let PreparedFrameWorkflow {
         frame_source_prompt_type,

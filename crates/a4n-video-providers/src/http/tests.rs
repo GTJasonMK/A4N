@@ -1,4 +1,4 @@
-use a4n_video::VideoGenerationRequest;
+use a4n_video::{VideoGenerationRequest, VideoMediaInput};
 use base64::Engine as _;
 use serde_json::json;
 
@@ -18,10 +18,12 @@ fn request() -> VideoGenerationRequest {
         duration_secs: 5,
         fps: 24,
         model: "video-model".into(),
-        first_frame_image_url: Some("https://example.test/first.png".into()),
-        last_frame_image_url: Some("https://example.test/last.png".into()),
-        reference_image_urls: vec!["https://example.test/ref.png".into()],
-        reference_media: None,
+        media: VideoMediaInput::from_images(
+            Some("https://example.test/first.png".into()),
+            Some("https://example.test/last.png".into()),
+            vec!["https://example.test/ref.png".into()],
+        )
+        .unwrap(),
     }
 }
 

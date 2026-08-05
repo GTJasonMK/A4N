@@ -36,7 +36,6 @@ pub(super) fn image_generation_event_stream(
                 &request.payload.backend,
                 &request.payload.base_url,
                 &request.payload.api_key,
-                request.payload.provider_options_json.as_ref(),
             )?;
             let result = provider.generate(request.payload.request.clone()).await?;
             Ok::<_, AppError>(ImageGenerationOutput {

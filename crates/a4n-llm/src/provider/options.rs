@@ -12,15 +12,19 @@ const RESERVED_REQUEST_OPTION_KEYS: &[&str] = &[
     "tools",
     "tool_choice",
     "stop",
+    "stop_sequences",
+    "system",
+    "anthropic_version",
+    "cache_control",
 ];
 
-pub fn normalize_request_options_json(value: Option<Value>) -> Result<Option<Value>, AppError> {
+pub fn normalize_extra_body_json(value: Option<Value>) -> Result<Option<Value>, AppError> {
     let Some(value) = value.filter(|value| !value.is_null()) else {
         return Ok(None);
     };
     let Value::Object(map) = value else {
         return Err(AppError::ConfigError(
-            "LLM request_options_json 必须是 JSON 对象".to_string(),
+            "LLM extra_body_json 必须是 JSON 对象".to_string(),
         ));
     };
     for key in map.keys() {
@@ -29,17 +33,17 @@ pub fn normalize_request_options_json(value: Option<Value>) -> Result<Option<Val
             .any(|reserved| key.eq_ignore_ascii_case(reserved))
         {
             return Err(AppError::ConfigError(format!(
-                "LLM request_options_json 不能包含系统保留字段：{key}"
+                "LLM extra_body_json 不能包含系统保留字段：{key}"
             )));
         }
     }
     Ok((!map.is_empty()).then_some(Value::Object(map)))
 }
 
-pub fn normalize_request_options(
-    request_options: Option<Value>,
+pub fn normalize_extra_body(
+    extra_body: Option<Value>,
 ) -> Result<Option<Map<String, Value>>, AppError> {
-    match normalize_request_options_json(request_options)? {
+    match normalize_extra_body_json(extra_body)? {
         Some(Value::Object(map)) => Ok(Some(map)),
         _ => Ok(None),
     }

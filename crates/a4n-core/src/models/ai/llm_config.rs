@@ -38,7 +38,7 @@ pub struct Model {
     pub max_output_tokens: i32,
 
     /// Provider-specific extra JSON fields merged into chat/completions requests.
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
 
     /// 是否设为默认
     pub is_default: bool,

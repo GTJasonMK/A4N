@@ -52,6 +52,7 @@ pub(super) async fn run_chapter_analysis_application(
     };
     let application_progress = ChapterAnalysisApplicationProgress {
         reporter: Some(&reporter),
+        stream_reporter: progress.and_then(|progress| progress.stream_reporter),
         cancel_token: progress.and_then(|progress| progress.cancel_token),
         active_task_id: progress.and_then(|progress| progress.task_id),
     };

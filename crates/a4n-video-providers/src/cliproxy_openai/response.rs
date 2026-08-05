@@ -6,7 +6,13 @@ pub(super) fn error_body_preview(value: &str) -> String {
 }
 
 pub(super) fn completed_video_url(v: &Value) -> Option<&str> {
-    for pointer in ["/video/url", "/video_url", "/url"] {
+    for pointer in [
+        "/video/url",
+        "/video_url",
+        "/download_url",
+        "/output_url",
+        "/url",
+    ] {
         if let Some(value) = v.pointer(pointer).and_then(Value::as_str).map(str::trim)
             && !value.is_empty()
         {
@@ -17,7 +23,7 @@ pub(super) fn completed_video_url(v: &Value) -> Option<&str> {
 }
 
 pub(super) fn video_id(v: &Value) -> Result<String, AppError> {
-    for pointer in ["/id", "/request_id"] {
+    for pointer in ["/request_id", "/id", "/video_id", "/provider_job_id"] {
         if let Some(value) = v.pointer(pointer).and_then(Value::as_str).map(str::trim)
             && !value.is_empty()
         {
@@ -31,6 +37,7 @@ pub(super) fn video_id(v: &Value) -> Result<String, AppError> {
 
 pub(super) fn status(v: &Value) -> Option<String> {
     v.pointer("/status")
+        .or_else(|| v.pointer("/state"))
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -90,15 +97,6 @@ pub(super) fn aspect_ratio_from_size(width: i32, height: i32) -> Option<&'static
         return Some("2:3");
     }
     None
-}
-
-pub(super) fn ensure_http_media_url(url: &str, label: &str) -> Result<(), AppError> {
-    if url.starts_with("http://") || url.starts_with("https://") {
-        return Ok(());
-    }
-    Err(AppError::InvalidArgument(format!(
-        "{label} 必须是 xAI 可访问的 http(s) 公网 URL，不能使用 base64/data URL"
-    )))
 }
 
 pub(super) fn format_from_content_type(content_type: &str) -> Option<String> {

@@ -1,4 +1,5 @@
 use a4n_core::error::AppError;
+use a4n_embedding::http::HttpEmbeddingProvider;
 use a4n_embedding::local::LocalEmbeddingProvider;
 use a4n_embedding::provider::EmbeddingProvider;
 #[cfg(feature = "fastembed")]
@@ -7,12 +8,12 @@ use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 
 use crate::contracts::{EmbedTextsOutput, EmbedTextsPayload};
-use crate::protocol::{error_response, result_response, validate_service_request};
+use crate::protocol::{error_response, result_response, validate_embedding_request};
 
 pub(crate) async fn embed_texts(
     Json(request): Json<ServiceRequest<EmbedTextsPayload>>,
 ) -> Json<ServiceResponse<EmbedTextsOutput>> {
-    if let Err(error) = validate_service_request(&request) {
+    if let Err(error) = validate_embedding_request(&request) {
         return Json(error_response(&request, error));
     }
     let result = async {
@@ -46,46 +47,43 @@ pub(crate) fn embedding_provider(
         ));
     }
 
-    let provider: Box<dyn EmbeddingProvider> = match payload
-        .backend
-        .trim()
-        .to_ascii_lowercase()
-        .as_str()
-    {
-        #[cfg(feature = "fastembed")]
-        "fastembed" => Box::new(FastEmbedProvider::try_new(
-            model,
-            payload.batch_size,
-            crate::handlers::models::resolve_cache_dir()?,
-        )?),
-        #[cfg(not(feature = "fastembed"))]
-        "fastembed" => {
-            return Err(AppError::ConfigError(
-                "embedding sidecar fastembed 支持未编译".to_string(),
-            ));
-        }
-        "local_hash" => {
-            let expected_model = LocalEmbeddingProvider::new(payload.dimension);
-            if model != expected_model.model_name() {
+    let provider: Box<dyn EmbeddingProvider> =
+        match payload.backend.trim().to_ascii_lowercase().as_str() {
+            #[cfg(feature = "fastembed")]
+            "fastembed" => Box::new(FastEmbedProvider::try_new(
+                model,
+                payload.batch_size,
+                crate::handlers::models::resolve_cache_dir()?,
+            )?),
+            #[cfg(not(feature = "fastembed"))]
+            "fastembed" => {
+                return Err(AppError::ConfigError(
+                    "embedding sidecar fastembed 支持未编译".to_string(),
+                ));
+            }
+            "local_hash" => {
+                let expected_model = LocalEmbeddingProvider::new(payload.dimension);
+                if model != expected_model.model_name() {
+                    return Err(AppError::ConfigError(format!(
+                        "local_hash embedding 模型必须是 {}，实际为 {model}",
+                        expected_model.model_name()
+                    )));
+                }
+                Box::new(expected_model)
+            }
+            "api" => Box::new(HttpEmbeddingProvider::new_with_batch(
+                required_api_base_url(payload)?,
+                model,
+                payload.dimension,
+                payload.api_key.clone(),
+                payload.batch_size,
+            )),
+            backend => {
                 return Err(AppError::ConfigError(format!(
-                    "local_hash embedding 模型必须是 {}，实际为 {model}",
-                    expected_model.model_name()
+                    "embedding sidecar 不支持 backend={backend}"
                 )));
             }
-            Box::new(expected_model)
-        }
-        "api" => {
-            return Err(AppError::ConfigError(
-                    "embedding sidecar 不接收 API embedding 后端；API 凭证必须由受信 provider sidecar 单独管理"
-                        .to_string(),
-                ));
-        }
-        backend => {
-            return Err(AppError::ConfigError(format!(
-                "embedding sidecar 不支持 backend={backend}"
-            )));
-        }
-    };
+        };
 
     if provider.dimension() != payload.dimension {
         return Err(AppError::ConfigError(format!(
@@ -96,4 +94,13 @@ pub(crate) fn embedding_provider(
         )));
     }
     Ok(provider)
+}
+
+fn required_api_base_url(payload: &EmbedTextsPayload) -> Result<&str, AppError> {
+    payload
+        .base_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::ConfigError("API embedding base_url 不能为空".to_string()))
 }

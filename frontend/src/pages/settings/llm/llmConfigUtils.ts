@@ -14,18 +14,10 @@ export const DEFAULT_LLM_FORM: LlmForm = {
   timeout_secs: 300,
   max_context_tokens: 128000,
   max_output_tokens: 8192,
-  request_options_text: "",
+  extra_body_text: "",
 };
 
-export const LLM_PROVIDERS = [
-  { value: "openai", label: "OpenAI / 兼容协议" },
-  { value: "anthropic", label: "Anthropic Claude" },
-  { value: "deepseek", label: "DeepSeek" },
-  { value: "qwen", label: "通义千问" },
-  { value: "ollama", label: "Ollama 本地" },
-];
-
-const RESERVED_REQUEST_OPTION_KEYS = new Set([
+const RESERVED_EXTRA_BODY_KEYS = new Set([
   "model",
   "messages",
   "stream",
@@ -80,7 +72,7 @@ export function validateLlmForm(form: LlmForm): string | null {
     return "清空 API Key 时不能同时填写新 API Key";
   }
   try {
-    parseRequestOptionsText(form.request_options_text);
+    parseExtraBodyText(form.extra_body_text);
   } catch (err) {
     return err instanceof Error ? err.message : "高级请求参数 JSON 无效";
   }
@@ -115,7 +107,7 @@ export function toLlmItem(raw: LlmConfig): ConfigItem<LlmForm> {
       timeout_secs: raw.timeout_secs,
       max_context_tokens: raw.max_context_tokens,
       max_output_tokens: raw.max_output_tokens,
-      request_options_text: formatRequestOptions(raw.request_options_json),
+      extra_body_text: formatExtraBody(raw.extra_body_json),
     },
   };
 }
@@ -131,7 +123,7 @@ export function toCreateLlmInput(form: LlmForm): CreateLlmInput {
     timeout_secs: form.timeout_secs,
     max_context_tokens: form.max_context_tokens,
     max_output_tokens: form.max_output_tokens,
-    request_options_json: parseRequestOptionsText(form.request_options_text),
+    extra_body_json: parseExtraBodyText(form.extra_body_text),
   };
 }
 
@@ -147,16 +139,16 @@ export function toUpdateLlmInput(form: LlmForm): UpdateLlmInput {
     timeout_secs: form.timeout_secs,
     max_context_tokens: form.max_context_tokens,
     max_output_tokens: form.max_output_tokens,
-    request_options_json: parseRequestOptionsText(form.request_options_text),
+    extra_body_json: parseExtraBodyText(form.extra_body_text),
   };
 }
 
-function formatRequestOptions(value: unknown): string {
+function formatExtraBody(value: unknown): string {
   if (value == null) return "";
   return JSON.stringify(value, null, 2);
 }
 
-function parseRequestOptionsText(text: string): unknown | null {
+function parseExtraBodyText(text: string): unknown | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
   let value: unknown;
@@ -169,7 +161,7 @@ function parseRequestOptionsText(text: string): unknown | null {
     throw new Error("高级请求参数必须是 JSON 对象");
   }
   for (const key of Object.keys(value as Record<string, unknown>)) {
-    if (RESERVED_REQUEST_OPTION_KEYS.has(key.toLowerCase())) {
+    if (RESERVED_EXTRA_BODY_KEYS.has(key.toLowerCase())) {
       throw new Error(`高级请求参数不能包含系统保留字段：${key}`);
     }
   }

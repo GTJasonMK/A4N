@@ -1,6 +1,53 @@
-use serde_json::{Value, json};
+use serde_json::json;
 
 use super::*;
+
+fn assembly_video(id: i64, shot_number: i32, file_path: Option<&str>) -> generated_video::Model {
+    let now = chrono::Utc::now().naive_utc();
+    generated_video::Model {
+        id,
+        project_id: 1,
+        chapter_id: Some(2),
+        video_type: "chapter_video".to_string(),
+        workflow_mode: Some("first_frame_chain".to_string()),
+        file_path: file_path.map(str::to_string),
+        thumbnail_path: None,
+        prompt: format!("片段 {shot_number}"),
+        negative_prompt: None,
+        model: "test".to_string(),
+        width: 1280,
+        height: 720,
+        duration_secs: 6.0,
+        fps: 24,
+        file_size: Some(1),
+        source_video_id: None,
+        source_image_id: None,
+        status: "completed".to_string(),
+        provider_job_id: None,
+        error_message: None,
+        metadata_json: Some(json!({ "shot_number": shot_number })),
+        is_favorite: false,
+        created_at: now,
+        updated_at: now,
+    }
+}
+
+#[test]
+fn assembly_uses_available_videos_without_requiring_every_segment() {
+    let rows = [
+        assembly_video(3, 3, Some("three.mp4")),
+        assembly_video(2, 2, None),
+        assembly_video(1, 1, Some("one.mp4")),
+    ];
+
+    let clips = assembly_clip_records_from_rows(&rows, 1, 2, "first_frame_chain", None, None)
+        .expect("已有有效视频应可直接组装");
+
+    assert_eq!(
+        clips.iter().map(|clip| clip.video_id).collect::<Vec<_>>(),
+        [1, 3]
+    );
+}
 
 #[test]
 fn assembly_push_status_transition_has_one_owner() {

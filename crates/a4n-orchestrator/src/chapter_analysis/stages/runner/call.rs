@@ -20,8 +20,18 @@ pub(super) async fn chat_chapter_analysis_stage(
         "{} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“章节分析”输出档位，或减少章节正文长度后重试",
         spec.stage
     );
+    // 活体信号与字段级里程碑取自同一个 token 流，二者互补而非替代。
+    // 先取出 reporter 引用，避免与下面 &mut progress 的进度回调争用借用。
+    let stream_reporter = progress.stream_reporter();
+    let mut streamed = String::new();
+    let stream_sink = stream_reporter.map(|reporter| {
+        move |delta: &str| {
+            streamed.push_str(delta);
+            reporter(&streamed);
+        }
+    });
     context
-        .chat_json_stream_with_progress(
+        .chat_json_stream_result_with_sink(
             ChatJsonStreamInput {
                 request,
                 prompt_name: spec.stage,
@@ -39,7 +49,9 @@ pub(super) async fn chat_chapter_analysis_stage(
                     .report(current, CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL, message)
                     .map_err(|error| error.to_string())
             },
+            stream_sink,
         )
         .await
+        .map(|result| result.response_content)
         .map_err(|error| stream_error_or_cancelled(error, progress.cancel_token))
 }

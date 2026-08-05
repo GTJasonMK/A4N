@@ -641,16 +641,17 @@ export interface ReferenceMediaVideoInput {
    * 当前共享片段规划。预览与生成使用同一规划身份。
    */
   segment_plan_prompt_id: number;
-  /**
-   * 片段顺序快照，用于结果筛选和身份校验。
-   */
-  shot_number: number;
+  target_segment: VideoSegmentTarget;
   video_uploads?: ReferenceMediaUploadInput[];
 }
 export interface ReferenceMediaUploadInput {
   data_base64: string;
   file_name: string;
   mime_type: string;
+}
+export interface VideoSegmentTarget {
+  segment_index_in_shot: number;
+  source_shot_id: string;
 }
 /**
  * 章节视频提示词三段式生成共用的输入。
@@ -668,7 +669,11 @@ export interface VideoPromptGenerationOptions {
    */
   segment_plan_prompt_id?: number | null;
   style: string;
-  target_shot_number?: number | null;
+  /**
+   * 生成共享片段规划时，可只规划已完成的某个拍摄场景。
+   */
+  target_narrative_unit_index?: number | null;
+  target_segment?: VideoSegmentTarget | null;
   video_library_image_ids?: number[];
   workflow_mode?: string | null;
 }

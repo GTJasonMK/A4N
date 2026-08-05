@@ -50,7 +50,7 @@ where
         timeout_secs: Set(input.timeout_secs),
         max_context_tokens: Set(input.max_context_tokens),
         max_output_tokens: Set(input.max_output_tokens),
-        request_options_json: Set(input.request_options_json),
+        extra_body_json: Set(input.extra_body_json),
         is_default: Set(false),
         created_at: Set(now),
         updated_at: Set(now),
@@ -81,7 +81,7 @@ where
     active.timeout_secs = Set(input.timeout_secs);
     active.max_context_tokens = Set(input.max_context_tokens);
     active.max_output_tokens = Set(input.max_output_tokens);
-    active.request_options_json = Set(input.request_options_json);
+    active.extra_body_json = Set(input.extra_body_json);
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)
 }

@@ -9,6 +9,13 @@ use super::provider_prompt_text_rules::{
 };
 use super::reference_media_rules::MIN_PROVIDER_VISUAL_PROMPT_CHARS;
 
+pub(super) fn is_frame_prompt_type(prompt_type: &str) -> bool {
+    matches!(
+        prompt_type,
+        "frame_prompt" | "first_frame_prompt" | "chat_video_frame_prompt" | "storyboard_prompt"
+    )
+}
+
 /// 优化结果必填文本字段。
 pub fn required_optimized_text(value: &str, field: &str) -> Result<String, String> {
     let trimmed = value.trim();
@@ -82,7 +89,7 @@ pub fn validate_optimized_prompt_fields(
                 false,
             )?;
         }
-        "frame_prompt" | "first_frame_prompt" | "chat_video_frame_prompt" => {
+        prompt_type if is_frame_prompt_type(prompt_type) => {
             validate_provider_model_text(
                 visual_prompt,
                 "frame_prompt",

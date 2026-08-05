@@ -1132,8 +1132,9 @@ async fn prepare_canvas_video_request(
             "GenerateVideoNode 缺少有效 prompt 输入".to_string(),
         ));
     }
-    let (first_frame_image_id, last_frame_image_id, reference_image_ids, binding_note) =
-        provider_image_binding(&config, input)?;
+    let first_frame_image_id = input.first_frame_image_id;
+    let last_frame_image_id = input.last_frame_image_id;
+    let reference_image_ids = input.reference_image_ids.clone();
     let images = host_port
         .resolve_canvas_video_images(CanvasVideoImageInput {
             user_id,
@@ -1144,7 +1145,7 @@ async fn prepare_canvas_video_request(
             reference_image_ids: reference_image_ids.clone(),
         })
         .await?;
-    let provider_input_note = merge_provider_notes(binding_note, images.provider_input_note);
+    let provider_input_note = images.provider_input_note;
     let request = VideoGenerationRequest {
         prompt: prompt.clone(),
         negative_prompt: input
@@ -1158,10 +1159,11 @@ async fn prepare_canvas_video_request(
         duration_secs,
         fps,
         model: config.model.clone(),
-        first_frame_image_url: images.first_frame_image_url,
-        last_frame_image_url: images.last_frame_image_url,
-        reference_image_urls: images.reference_image_urls,
-        reference_media: None,
+        media: a4n_video::VideoMediaInput::from_images(
+            images.first_frame_image_url,
+            images.last_frame_image_url,
+            images.reference_image_urls,
+        )?,
     };
     Ok(PreparedCanvasVideoRequest {
         config,
@@ -1174,120 +1176,12 @@ async fn prepare_canvas_video_request(
     })
 }
 
-fn provider_image_binding(
-    config: &a4n_core::models::ai::video_gen_config::Model,
-    input: &CanvasVideoNodeInput,
-) -> Result<(Option<i64>, Option<i64>, Vec<i64>, Option<String>), AppError> {
-    const CLIPROXY_BACKEND: &str = "cliproxy-openai-video";
-    if config.backend != CLIPROXY_BACKEND {
-        return Ok((
-            input.first_frame_image_id,
-            input.last_frame_image_id,
-            input.reference_image_ids.clone(),
-            None,
-        ));
-    }
-    let mode =
-        crate::video::parse_cliproxy_grok_reference_mode(config.provider_options_json.as_ref())
-            .map_err(AppError::InvalidArgument)?;
-    if mode == crate::video::CliproxyGrokReferenceMode::FirstFrame {
-        return Ok((
-            input.first_frame_image_id,
-            input.last_frame_image_id,
-            input.reference_image_ids.clone(),
-            None,
-        ));
-    }
-    let reference_image_ids = unique_positive_ids(
-        input
-            .first_frame_image_id
-            .into_iter()
-            .chain(input.last_frame_image_id)
-            .chain(input.reference_image_ids.iter().copied()),
-    );
-    let note = (input.first_frame_image_id.is_some() || input.last_frame_image_id.is_some())
-        .then(|| {
-            format!(
-                "CLIProxy/Grok 参考模式已将画布首帧/尾帧输入作为普通 reference_images 发送；实际参考图 ID 顺序：{}",
-                reference_image_ids
-                    .iter()
-                    .map(i64::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        });
-    Ok((None, None, reference_image_ids, note))
-}
-
-fn unique_positive_ids(ids: impl IntoIterator<Item = i64>) -> Vec<i64> {
-    let mut out = Vec::new();
-    for id in ids {
-        if id > 0 && !out.contains(&id) {
-            out.push(id);
-        }
-    }
-    out
-}
-
-fn merge_provider_notes(primary: Option<String>, secondary: Option<String>) -> Option<String> {
-    match (primary, secondary) {
-        (Some(primary), Some(secondary)) => Some(format!("{primary}；{secondary}")),
-        (Some(note), None) | (None, Some(note)) => Some(note),
-        (None, None) => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        CanvasVideoNodeInput, GenerateVideoInputMode, generate_video_input_mode,
-        provider_image_binding, validate_generate_video_image_inputs,
+        GenerateVideoInputMode, generate_video_input_mode, validate_generate_video_image_inputs,
     };
-    use a4n_core::models::ai::video_gen_config;
-    use chrono::Utc;
     use serde_json::json;
-
-    fn cliproxy_config(reference_mode: &str) -> video_gen_config::Model {
-        let now = Utc::now().naive_utc();
-        video_gen_config::Model {
-            id: 1,
-            name: "CLIProxy".to_string(),
-            backend: "cliproxy-openai-video".to_string(),
-            base_url: Some("https://example.test".to_string()),
-            api_key_encrypted: Some("test".to_string()),
-            model: "grok-video".to_string(),
-            max_concurrent: 1,
-            default_width: 1280,
-            default_height: 720,
-            default_duration_secs: 5,
-            min_duration_secs: 1,
-            max_duration_secs: 15,
-            duration_mode: "range".to_string(),
-            supported_durations_json: None,
-            default_fps: 24,
-            provider_options_json: Some(json!({"grok_reference_mode": reference_mode})),
-            is_default: true,
-            created_at: now,
-            updated_at: now,
-        }
-    }
-
-    fn video_input() -> CanvasVideoNodeInput {
-        CanvasVideoNodeInput {
-            prompt: "test".to_string(),
-            negative_prompt: None,
-            config_id: Some(1),
-            width: None,
-            height: None,
-            duration_secs: None,
-            fps: None,
-            first_frame_image_id: Some(11),
-            last_frame_image_id: Some(12),
-            reference_image_ids: vec![12, 13, 11, 14],
-            source_node_ids: Vec::new(),
-            canvas_text_asset_id: None,
-        }
-    }
 
     #[test]
     fn video_input_mode_defaults_to_text_only() {
@@ -1313,25 +1207,5 @@ mod tests {
     #[test]
     fn unknown_mode_is_rejected() {
         assert!(generate_video_input_mode(Some(&json!("unknown"))).is_err());
-    }
-
-    #[test]
-    fn cliproxy_image_binding_preserves_provider_mode_contract() {
-        let (first, last, references, note) =
-            provider_image_binding(&cliproxy_config("reference"), &video_input())
-                .expect("reference binding");
-        assert_eq!((first, last), (None, None));
-        assert_eq!(references, vec![11, 12, 13, 14]);
-        assert!(note.is_some());
-
-        let mut input = video_input();
-        input.last_frame_image_id = None;
-        input.reference_image_ids.clear();
-        let (first, last, references, note) =
-            provider_image_binding(&cliproxy_config("first_frame"), &input)
-                .expect("first frame binding");
-        assert_eq!((first, last), (Some(11), None));
-        assert!(references.is_empty());
-        assert!(note.is_none());
     }
 }

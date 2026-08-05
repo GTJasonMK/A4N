@@ -12,8 +12,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
 use super::super::{
-    global_service_request_without_secrets, missing_sidecar_capability_message, service_app_error,
-    service_error_app_error, service_response_payload,
+    global_provider_service_request, global_service_request_without_secrets,
+    missing_sidecar_capability_message, service_app_error, service_error_app_error,
+    service_response_payload,
 };
 use super::contracts::{
     EmbeddingTextsOutput, embedding_connectivity_output_matches,
@@ -44,15 +45,19 @@ pub(crate) async fn test_embedding_config_via_sidecar(
     model: &embedding_config::Model,
     text: &str,
 ) -> Result<bool, AppError> {
-    super::provider::SidecarEmbeddingProvider::validate_sidecar_backend(model)?;
+    super::provider::SidecarEmbeddingProvider::normalized_sidecar_backend(model)?;
     let expected_dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
     let client = capabilities
         .embedding
         .clone()
         .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))?;
     let payload = embedding_connectivity_test_payload(model, text)?;
-    let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
-        .map_err(service_app_error)?;
+    let request = global_provider_service_request(
+        a4n_service_protocol::EMBEDDING_SERVICE_NAME,
+        EMBEDDING_CAPABILITY_VERSION,
+        payload,
+    )
+    .map_err(service_app_error)?;
     let response = client
         .embed(request)
         .await

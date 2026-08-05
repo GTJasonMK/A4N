@@ -102,10 +102,10 @@ pub(super) fn aspect_ratio_from_size(width: i32, height: i32) -> Option<&'static
 }
 
 pub(super) fn veo_resolution_from_size(width: i32, height: i32) -> &'static str {
-    let max_dim = width.max(height);
-    if max_dim >= 3840 {
+    let short_edge = width.min(height);
+    if short_edge >= 2160 {
         "4k"
-    } else if max_dim >= 1920 {
+    } else if short_edge >= 1080 {
         "1080p"
     } else {
         "720p"

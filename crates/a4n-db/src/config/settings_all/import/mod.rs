@@ -5,11 +5,6 @@ use super::types::{
     SettingsAllConfigImportCounts, SettingsAllConfigImportError, SettingsAllConfigImportInput,
 };
 use chrono::Utc;
-#[cfg(test)]
-pub(in crate::config::settings_all) use providers::{
-    image_active_model_for_insert, image_active_model_for_update, video_active_model_for_insert,
-    video_active_model_for_update,
-};
 use providers::{
     import_embedding_config_row, import_image_config_row, import_llm_config_row,
     import_video_config_row,

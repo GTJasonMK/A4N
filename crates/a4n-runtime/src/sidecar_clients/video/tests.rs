@@ -30,7 +30,6 @@ fn video_config() -> video_gen_config::Model {
         duration_mode: "range".to_string(),
         supported_durations_json: None,
         default_fps: 24,
-        provider_options_json: None,
         is_default: true,
         created_at: now,
         updated_at: now,
@@ -46,10 +45,7 @@ fn video_request() -> VideoGenerationRequest {
         duration_secs: 5,
         fps: 24,
         model: "video-model".to_string(),
-        first_frame_image_url: None,
-        last_frame_image_url: None,
-        reference_image_urls: Vec::new(),
-        reference_media: None,
+        media: a4n_video::VideoMediaInput::None,
     }
 }
 

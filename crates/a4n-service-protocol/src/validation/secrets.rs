@@ -1,4 +1,6 @@
-use crate::registry::{IMAGE_SERVICE_NAME, LLM_SERVICE_NAME, VIDEO_SERVICE_NAME};
+use crate::registry::{
+    EMBEDDING_SERVICE_NAME, IMAGE_SERVICE_NAME, LLM_SERVICE_NAME, VIDEO_SERVICE_NAME,
+};
 use crate::request::{SecretForwardingPolicy, SecretMaterialScope};
 use crate::response::{ServiceError, ServiceErrorCode};
 use crate::sanitization::redact_sensitive_message;
@@ -41,6 +43,9 @@ fn provider_api_key_secret_policy_rejection_message(service: &str) -> Option<&'s
     match service {
         LLM_SERVICE_NAME => Some(
             "LLM provider API key requires user-secret-only policy: scope=local_sidecar_only, allow_user_secret=true, allow_system_secret=false, allow_upload_token=false",
+        ),
+        EMBEDDING_SERVICE_NAME => Some(
+            "embedding provider API key requires user-secret-only policy: scope=local_sidecar_only, allow_user_secret=true, allow_system_secret=false, allow_upload_token=false",
         ),
         IMAGE_SERVICE_NAME => Some(
             "image provider api_key requires user-secret-only policy: scope=local_sidecar_only, allow_user_secret=true, allow_system_secret=false, allow_upload_token=false",

@@ -17,6 +17,6 @@ pub struct HttpLlmProvider {
     model: String,
     pub(super) timeout_secs: u64,
     pub(super) connect_timeout_secs: u64,
-    request_options: Option<Map<String, Value>>,
+    extra_body: Option<Map<String, Value>>,
     caps: ModelCapabilities,
 }

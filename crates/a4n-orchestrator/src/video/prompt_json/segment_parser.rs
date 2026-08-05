@@ -8,7 +8,7 @@ use a4n_core::video_execution::VIDEO_SEGMENT_PLAN_V2;
 
 use super::contracts::{
     StoredVideoSegmentPlanResponse, VideoSegmentPlan, VideoSegmentPlanDefaults,
-    VideoSegmentPlanResponse, VideoShootingScriptProjection,
+    VideoSegmentPlanInput, VideoSegmentPlanResponse, VideoShootingScriptProjection,
 };
 use super::{
     derive_segment_source_span_ids, parse_strict_json_response, validate_continuous_ids,
@@ -49,6 +49,21 @@ pub(in crate::video) fn parse_video_segment_plan_input_values(
         .map(|segment| {
             serde_json::to_value(segment).map_err(|err| {
                 AppError::InvalidArgument(format!("{context} segments 条目序列化失败: {err}"))
+            })
+        })
+        .collect()
+}
+
+pub(in crate::video) fn video_segment_plan_input_values(
+    segments: &[VideoSegmentPlan],
+    context: &str,
+) -> Result<Vec<Value>, AppError> {
+    segments
+        .iter()
+        .map(VideoSegmentPlanInput::from)
+        .map(|segment| {
+            serde_json::to_value(segment).map_err(|error| {
+                AppError::InvalidArgument(format!("{context} segments 条目序列化失败: {error}"))
             })
         })
         .collect()

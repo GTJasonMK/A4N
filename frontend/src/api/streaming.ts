@@ -178,3 +178,13 @@ export async function cancelWorkflow(input: string | {
     },
   });
 }
+
+/**
+ * Host workflow 任务的取消函数，供 `runProgressTask` 的 `cancelTask` 显式传入。
+ *
+ * 仅用于仍走旧 Host workflow 通道的任务（由 `allocateHostTaskId` 分配身份）。
+ * generation 任务必须改用 `runGenerationProgressTaskThen`，它会传
+ * `generationClient.cancel`。
+ */
+export const cancelHostWorkflowTask = (taskId: string): Promise<void> =>
+  cancelWorkflow(taskId);

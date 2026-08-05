@@ -4,11 +4,12 @@ use serde_json::Value;
 
 #[derive(Debug, Serialize)]
 pub(in crate::dynamic_llm) struct LlmGatewayProviderConfig {
+    pub(in crate::dynamic_llm) provider: String,
     pub(in crate::dynamic_llm) base_url: String,
     pub(in crate::dynamic_llm) model: String,
     pub(in crate::dynamic_llm) api_key: Option<String>,
     pub(in crate::dynamic_llm) timeout_secs: u64,
-    pub(in crate::dynamic_llm) request_options_json: Option<Value>,
+    pub(in crate::dynamic_llm) extra_body_json: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]

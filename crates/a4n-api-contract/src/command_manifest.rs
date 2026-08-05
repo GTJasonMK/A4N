@@ -101,6 +101,7 @@ pub const API_COMMANDS: &[&str] = &[
     "generate_chapter_analysis",
     "generate_chapter_scene",
     "generate_chapter_shooting_script",
+    "generate_next_chapter_shooting_script_unit",
     "generate_object_profile_image_prompt",
     "generate_portrait_prompt",
     "generate_scene_profile_image_prompt",
@@ -110,6 +111,7 @@ pub const API_COMMANDS: &[&str] = &[
     "get_canvas_node_contracts",
     "get_chapter_outlines_pacing",
     "get_chapter_shooting_script",
+    "get_chapter_shooting_script_unit_progress",
     "get_character_arc_status",
     "get_character_voice_fingerprint",
     "get_current_user",
@@ -167,7 +169,6 @@ pub const API_COMMANDS: &[&str] = &[
     "list_chapter_video_prompts",
     "list_chapters",
     "list_deletion_marks",
-    "list_embedding_backends",
     "list_embedding_config",
     "list_image_configs",
     "list_images_by_chapter",
@@ -177,6 +178,7 @@ pub const API_COMMANDS: &[&str] = &[
     "list_llm_config",
     "list_local_embedding_models",
     "list_manga_panels",
+    "list_model_provider_catalog",
     "list_my_project_invites",
     "list_object_profiles",
     "list_optimize_patch_sets",
@@ -203,6 +205,7 @@ pub const API_COMMANDS: &[&str] = &[
     "list_workflow_runs",
     "load_cached_assembled_chapter_video_preview",
     "load_video_playback_data",
+    "load_video_scrub_playback_data",
     "load_video_segment_plan_draft",
     "login_user",
     "logout_user",
@@ -697,7 +700,9 @@ fn descriptor_override(command: &str) -> DescriptorOverride {
         | "generate_chapter_analysis"
         | "generate_chapter_scene"
         | "generate_chapter_shooting_script"
+        | "generate_next_chapter_shooting_script_unit"
         | "get_chapter_shooting_script"
+        | "get_chapter_shooting_script_unit_progress"
         | "list_images_by_chapter"
         | "list_videos_by_chapter"
         | "rollback_to_chapter" => DescriptorOverride {
@@ -1014,6 +1019,9 @@ fn result_schema(command: &str) -> Value {
         "list_image_configs" => typed_schema::<Vec<crate::config::ImageConfigSummary>>(),
         "list_llm_config" => typed_schema::<Vec<crate::config::LlmConfigSummary>>(),
         "list_video_configs" => typed_schema::<Vec<crate::config::VideoConfigSummary>>(),
+        "list_model_provider_catalog" => {
+            typed_schema::<crate::provider_catalog::ModelProviderCatalog>()
+        }
         "create_embedding_config" | "update_embedding_config" => {
             typed_schema::<crate::config::EmbeddingConfigSummary>()
         }

@@ -20,7 +20,6 @@ import {
   setDefaultEmbeddingConfig,
   testEmbeddingConfig,
   previewTestEmbeddingConfigRequest,
-  listEmbeddingBackends,
   listLocalEmbeddingModels,
   getEmbeddingModelDownloadInfo,
   downloadEmbeddingModel,
@@ -32,7 +31,6 @@ import {
 import { ConfigItem, ConfigListPanel } from "./ConfigListPanel";
 import { EmbeddingConfigEditor } from "./embedding/EmbeddingConfigEditor";
 import {
-  BACKEND_LABELS,
   DEFAULT_FASTEMBED_DIMENSION,
   DEFAULT_FASTEMBED_MODEL,
   DEFAULT_FORM,
@@ -41,6 +39,11 @@ import {
   toItem,
 } from "./embedding/embeddingTabUtils";
 import type { EmbeddingForm } from "./embedding/types";
+import {
+  assertCatalogProvider,
+  listModelProviderCatalog,
+} from "../../api/providerCatalog";
+import type { ModelProviderCatalog } from "../../api/generated/config";
 
 /**
  * Embedding 配置 Tab
@@ -62,9 +65,9 @@ export const EmbeddingTab: React.FC = () => {
       : "本机";
   const { runProgressTask } = useProgressTask();
   const [items, setItems] = useState<ConfigItem<EmbeddingForm>[]>([]);
+  const [catalog, setCatalog] = useState<ModelProviderCatalog | null>(null);
   const [localModels, setLocalModels] = useState<LocalEmbeddingModel[]>([]);
   const [loading, setLoading] = useState(false);
-  const [backends, setBackends] = useState<string[]>([]);
   const [busyModel, setBusyModel] = useState<string | null>(null);
   const [downloadTaskId, setDownloadTaskId] = useState<string | null>(null);
   const [downloadInfoByModel, setDownloadInfoByModel] = useState<
@@ -104,15 +107,18 @@ export const EmbeddingTab: React.FC = () => {
     refreshSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const [list, b, models] = await Promise.all([
+      const [list, models, providerCatalog] = await Promise.all([
         listEmbeddingConfig(),
-        listEmbeddingBackends(),
         listLocalEmbeddingModels(),
+        listModelProviderCatalog(),
       ]);
       if (!isCurrentRefresh(requestSeq)) return;
+      for (const config of list) {
+        assertCatalogProvider("embedding", config.backend, providerCatalog);
+      }
       setItems(list.map(toItem));
-      setBackends(b);
       setLocalModels(models);
+      setCatalog(providerCatalog);
     } catch (err) {
       if (!isCurrentRefresh(requestSeq)) return;
       addToast(extractErrorMessage(err, "加载 Embedding 配置失败"), "error");
@@ -170,9 +176,16 @@ export const EmbeddingTab: React.FC = () => {
     localModels[0] ??
     null;
 
-  const selectableBackends = useMemo(
-    () => (usesLocalDesktopEmbedding ? ["fastembed"] : backends),
-    [backends, usesLocalDesktopEmbedding],
+  const selectableProviders = useMemo(
+    () =>
+      (catalog?.embedding ?? []).filter((provider) =>
+        !usesLocalDesktopEmbedding || provider.id === "fastembed",
+      ),
+    [catalog, usesLocalDesktopEmbedding],
+  );
+  const embeddingProviderLabels = useMemo(
+    () => new Map((catalog?.embedding ?? []).map((provider) => [provider.id, provider.display_name])),
+    [catalog],
   );
 
   const defaultEmbeddingForm = useMemo((): EmbeddingForm => {
@@ -413,13 +426,13 @@ export const EmbeddingTab: React.FC = () => {
           }}
           formatItem={(c) => ({
             primary: c.name,
-            secondary: `${BACKEND_LABELS[c.backend] || c.backend} · ${c.model}`,
+            secondary: `${embeddingProviderLabels.get(c.backend) ?? c.backend} · ${c.model}`,
             tertiary: `维度 ${c.dimension} · 批量 ${c.batch_size}`,
           })}
           renderEditor={(form, setForm) => (
             <EmbeddingConfigEditor
               form={form}
-              backends={selectableBackends}
+              providers={selectableProviders}
               localModels={localModels}
               busyModel={busyModel}
               setForm={setForm}

@@ -45,7 +45,24 @@ pub async fn chat_json_stream_with_progress(
 
 pub async fn chat_json_stream_result_with_progress(
     input: ChatJsonStreamInput<'_>,
+    report_progress: impl FnMut(u32, &str) -> Result<(), String>,
+) -> Result<StructuredLlmStreamResult, String> {
+    chat_json_stream_result_with_sink(input, report_progress, None::<&mut DeltaSinkNoop>).await
+}
+
+/// `on_delta` 的 no-op 占位类型；仅用于让不需要 delta 的调用方省略泛型参数。
+pub type DeltaSinkNoop = fn(&str);
+
+/// 与 [`chat_json_stream_result_with_progress`] 相同，但额外把原始文本增量交给 `on_delta`。
+///
+/// 结构化里程碑与原始 delta 是同一个 token 流的两种投影：前者回答「进行到哪了」，
+/// 后者回答「还活着」。二者来自同一次 `chat_stream`，不会重复请求模型。
+///
+/// `on_delta` 只做转发，不得阻塞或返回错误——活体信号的失败不应中断生成。
+pub async fn chat_json_stream_result_with_sink(
+    input: ChatJsonStreamInput<'_>,
     mut report_progress: impl FnMut(u32, &str) -> Result<(), String>,
+    mut on_delta: Option<impl FnMut(&str)>,
 ) -> Result<StructuredLlmStreamResult, String> {
     let ChatJsonStreamInput {
         llm,
@@ -95,6 +112,10 @@ pub async fn chat_json_stream_result_with_progress(
                 )?;
             }
             content.push_str(delta);
+            // 活体信号：与下面的结构化里程碑取自同一个 delta，互不替代。
+            if let Some(sink) = on_delta.as_mut() {
+                sink(delta);
+            }
             if let Some((_, tracker)) = tracker.as_mut() {
                 for event in tracker.consume(delta) {
                     last_progress_current = last_progress_current.max(event.current);

@@ -12,11 +12,66 @@ pub const CLIPROXY_OPENAI_VIDEO_BACKEND: &str = "cliproxy-openai-video";
 pub const OPENAI_CHAT_VIDEO_BACKEND: &str = "openai-chat-video";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct VideoReferenceMediaRequest {
-    pub image_files: Vec<String>,
-    pub video_files: Vec<String>,
-    pub audio_files: Vec<String>,
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum VideoMediaInput {
+    None,
+    Frames {
+        first: String,
+        last: Option<String>,
+        references: Vec<String>,
+    },
+    References {
+        images: Vec<String>,
+        videos: Vec<String>,
+        audio: Vec<String>,
+    },
+}
+
+impl VideoMediaInput {
+    pub fn from_images(
+        first: Option<String>,
+        last: Option<String>,
+        references: Vec<String>,
+    ) -> Result<Self, AppError> {
+        match (first, last, references) {
+            (Some(first), last, references) => Ok(Self::Frames {
+                first,
+                last,
+                references,
+            }),
+            (None, Some(_), _) => Err(AppError::InvalidArgument(
+                "视频尾帧不能脱离首帧单独存在".to_string(),
+            )),
+            (None, None, images) if !images.is_empty() => Ok(Self::References {
+                images,
+                videos: Vec::new(),
+                audio: Vec::new(),
+            }),
+            (None, None, _) => Ok(Self::None),
+        }
+    }
+
+    pub fn first_frame(&self) -> Option<&str> {
+        match self {
+            Self::Frames { first, .. } => Some(first),
+            _ => None,
+        }
+    }
+
+    pub fn last_frame(&self) -> Option<&str> {
+        match self {
+            Self::Frames { last, .. } => last.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub fn reference_images(&self) -> &[String] {
+        match self {
+            Self::Frames { references, .. } => references,
+            Self::References { images, .. } => images,
+            Self::None => &[],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,10 +84,7 @@ pub struct VideoGenerationRequest {
     pub duration_secs: i32,
     pub fps: i32,
     pub model: String,
-    pub first_frame_image_url: Option<String>,
-    pub last_frame_image_url: Option<String>,
-    pub reference_image_urls: Vec<String>,
-    pub reference_media: Option<VideoReferenceMediaRequest>,
+    pub media: VideoMediaInput,
 }
 
 #[derive(Debug, Clone)]

@@ -103,7 +103,7 @@ impl Default for LlmConfig {
             timeout_secs: default_llm_timeout_secs(),
             max_context_tokens: default_llm_max_context_tokens(),
             max_output_tokens: default_llm_max_output_tokens(),
-            request_options_json: None,
+            extra_body_json: None,
             max_tokens: LlmMaxTokensConfig::default(),
         }
     }

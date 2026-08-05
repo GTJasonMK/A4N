@@ -57,15 +57,19 @@ use a4n_api_contract::{
         ExportVideoStudioProjectDataInput, ImportProjectFamilyUploadInput,
         ImportProjectFullUploadInput, ImportVideoStudioProjectUploadInput,
     },
+    provider_catalog::{
+        EmbeddingProviderDescriptor, ImageProviderDescriptor, LlmProviderDescriptor,
+        ModelProviderCatalog, VideoProviderDescriptor,
+    },
     rag::{
         EnhancedSearchInput, RagEnhancedQuerySummary, RagEnhancedSearchOutput,
         RagEnhancedSearchWithVectorsInput, RagPreparedEnhancedSearchOutput, RagSearchResult,
     },
     request_preview::{ModelRequestPreview, ModelRequestPreviewStep},
     shooting_script::{
-        ChapterShootingScriptView, EditChapterShootingScriptRecordInput,
-        EditedChapterShootingScriptView, GenerateChapterShootingScriptInput,
-        GetChapterShootingScriptInput,
+        ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
+        EditChapterShootingScriptRecordInput, EditedChapterShootingScriptView,
+        GenerateChapterShootingScriptInput, GetChapterShootingScriptInput,
     },
     source_sync::{
         ApplySourceSyncInput, SourceSyncConflictSummary, SourceSyncDecisionInput,
@@ -81,7 +85,7 @@ use a4n_api_contract::{
         AssembledChapterVideoPreview, AssemblyPushResult, GenerateChapterVideosBatchResult,
         GeneratedVideoSummary, ImportCanvasVideoInput, PushAssembledChapterVideoInput,
         UploadAssemblyInsertVideoInput, UploadChapterVideoInput, UploadReferenceMediaVideoInput,
-        VideoPlaybackData,
+        VideoPlaybackData, VideoSegmentTarget,
     },
 };
 use schemars::JsonSchema;
@@ -132,6 +136,11 @@ fn main() {
         &typescript_interface::<VideoConfigSummary>("VideoConfigSummary"),
         &typescript_interface::<VideoConfigInput>("VideoConfigInput"),
         &typescript_interface::<UpdateVideoConfigInput>("UpdateVideoConfigInput"),
+        &typescript_interface::<LlmProviderDescriptor>("LlmProviderDescriptor"),
+        &typescript_interface::<ImageProviderDescriptor>("ImageProviderDescriptor"),
+        &typescript_interface::<VideoProviderDescriptor>("VideoProviderDescriptor"),
+        &typescript_interface::<EmbeddingProviderDescriptor>("EmbeddingProviderDescriptor"),
+        &typescript_interface::<ModelProviderCatalog>("ModelProviderCatalog"),
     ]
     .concat();
 
@@ -258,6 +267,9 @@ fn main() {
             "EditChapterShootingScriptRecordInput",
         ),
         &typescript_interface::<ChapterShootingScriptView>("ChapterShootingScriptView"),
+        &typescript_interface::<ChapterShootingScriptUnitProgressView>(
+            "ChapterShootingScriptUnitProgressView",
+        ),
         &typescript_interface::<EditedChapterShootingScriptView>("EditedChapterShootingScriptView"),
         &typescript_interface::<SourceSyncDecisionInput>("SourceSyncDecisionInput"),
         &typescript_interface::<ApplySourceSyncInput>("ApplySourceSyncInput"),
@@ -279,6 +291,7 @@ fn main() {
             "ApplyAssemblyPostprocessEditInput",
         ),
         &typescript_interface::<UploadChapterVideoInput>("UploadChapterVideoInput"),
+        &typescript_interface::<VideoSegmentTarget>("VideoSegmentTarget"),
         &typescript_interface::<UploadReferenceMediaVideoInput>("UploadReferenceMediaVideoInput"),
         &typescript_interface::<UploadAssemblyInsertVideoInput>("UploadAssemblyInsertVideoInput"),
         &typescript_interface::<ImportCanvasVideoInput>("ImportCanvasVideoInput"),

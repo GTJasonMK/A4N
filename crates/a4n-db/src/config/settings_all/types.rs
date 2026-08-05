@@ -23,7 +23,7 @@ pub struct SettingsAllLlmConfigImportRow {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
     pub is_default: bool,
 }
 
@@ -50,7 +50,6 @@ pub struct SettingsAllImageConfigImportRow {
     pub max_concurrent: i32,
     pub default_width: i32,
     pub default_height: i32,
-    pub provider_options_json: Option<Value>,
     pub is_default: bool,
 }
 
@@ -70,7 +69,6 @@ pub struct SettingsAllVideoConfigImportRow {
     pub duration_mode: String,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
-    pub provider_options_json: Option<Value>,
     pub is_default: bool,
 }
 

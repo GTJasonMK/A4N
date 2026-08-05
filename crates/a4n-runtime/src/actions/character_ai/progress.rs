@@ -4,6 +4,7 @@ pub type CharacterAiProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + 
 
 pub struct CharacterAiProgress<'a> {
     reporter: Option<CharacterAiProgressReporter<'a>>,
+    stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
     pub(super) cancel_token: Option<&'a CancellationToken>,
     pub(super) task_id: Option<&'a str>,
 }
@@ -16,8 +17,24 @@ impl<'a> CharacterAiProgress<'a> {
     ) -> Self {
         Self {
             reporter,
+            stream_reporter: None,
             cancel_token,
             task_id,
+        }
+    }
+
+    /// 附加活体信号出口。不提供时行为与之前完全一致。
+    pub fn with_stream_reporter(
+        mut self,
+        stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
+    ) -> Self {
+        self.stream_reporter = stream_reporter;
+        self
+    }
+
+    pub(crate) fn stream_text(&self, text: &str) {
+        if let Some(reporter) = self.stream_reporter {
+            reporter(text);
         }
     }
 

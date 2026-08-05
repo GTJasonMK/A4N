@@ -646,8 +646,6 @@ mod tests {
 
         fn capabilities(&self) -> ModelCapabilities {
             ModelCapabilities {
-                function_calling: false,
-                vision: false,
                 max_context_tokens: 4096,
                 max_output_tokens: 4096,
             }
@@ -680,8 +678,6 @@ mod tests {
 
         fn capabilities(&self) -> ModelCapabilities {
             ModelCapabilities {
-                function_calling: false,
-                vision: false,
                 max_context_tokens: 8192,
                 max_output_tokens: 4096,
             }

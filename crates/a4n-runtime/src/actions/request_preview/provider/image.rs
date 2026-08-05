@@ -18,14 +18,13 @@ pub(crate) fn image_provider_request_step(
     note: impl Into<Option<String>>,
     backend: &str,
     request: ImageGenerationRequest,
-    provider_options_json: Option<&Value>,
 ) -> Result<ModelRequestPreviewStep, String> {
     let key = key.into();
     let title = title.into();
     let prompt_name = prompt_name.into();
     let state = state.into();
     let note = note.into();
-    match image_provider_preview_payload(backend, &request, provider_options_json) {
+    match image_provider_preview_payload(backend, &request) {
         Ok((kind, provider_note, provider_request)) => provider_request_step(
             key,
             title,
@@ -50,7 +49,6 @@ pub(crate) fn image_provider_request_step(
 fn image_provider_preview_payload(
     backend: &str,
     request: &ImageGenerationRequest,
-    provider_options_json: Option<&Value>,
 ) -> Result<(&'static str, String, Value), String> {
     match backend {
         "openai-compatible-image" => Ok((
@@ -86,11 +84,8 @@ fn image_provider_preview_payload(
             Ok((
                 "image_generation_cliproxy",
                 note.into(),
-                CliProxyImageProvider::request_body_preview_with_options(
-                    request,
-                    provider_options_json,
-                )
-                .map_err(|err| err.to_string())?,
+                CliProxyImageProvider::request_body_preview(request)
+                    .map_err(|err| err.to_string())?,
             ))
         }
         "stable-diffusion" => Ok((
@@ -114,7 +109,6 @@ fn image_provider_preview_payload(
 fn image_provider_preview_payload(
     backend: &str,
     _request: &ImageGenerationRequest,
-    _provider_options_json: Option<&Value>,
 ) -> Result<(&'static str, String, Value), String> {
     Err(format!(
         "图片 provider 请求预览未启用：backend={backend}；请使用 image sidecar，或用 embedded-media-providers feature 构建"

@@ -71,10 +71,6 @@ fn prompt_execution_scope_matches(
     };
     let base_matches = [
         "contract_epoch",
-        "shooting_script_identity",
-        "projection_sha256",
-        "segment_plan_sha256",
-        "unit_plan_sha256",
         "source_content_sha256",
         "style_sha256",
         "duration_secs",
@@ -92,16 +88,70 @@ fn prompt_execution_scope_matches(
         .get("segment_plan_prompt_id")
         .and_then(Value::as_i64);
     if prompt_is_shared_video_upstream(left) {
-        return right_plan == Some(left.id);
+        return right_plan == Some(left.id)
+            && segment_identity_exists_in_plan(left_identity, right_identity);
     }
     if prompt_is_shared_video_upstream(right) {
-        return left_plan == Some(right.id);
+        return left_plan == Some(right.id)
+            && segment_identity_exists_in_plan(right_identity, left_identity);
     }
-    left_plan.is_some()
+    let same_segment = left_plan.is_some()
         && left_plan == right_plan
-        && left_identity.get("segment_number") == right_identity.get("segment_number")
-        && left_identity.get("segment_recipe_fingerprint")
-            == right_identity.get("segment_recipe_fingerprint")
+        && identity_fields_match(
+            left_identity,
+            right_identity,
+            &["source_shot_id", "segment_index_in_shot", "segment_sha256"],
+        );
+    same_segment
+        && (video_and_frame_prompt_pair(left, right)
+            || left_identity.get("segment_recipe_fingerprint")
+                == right_identity.get("segment_recipe_fingerprint"))
+}
+
+fn segment_identity_exists_in_plan(
+    plan_identity: &serde_json::Map<String, Value>,
+    segment_identity: &serde_json::Map<String, Value>,
+) -> bool {
+    plan_identity
+        .get("segment_identities")
+        .and_then(Value::as_array)
+        .is_some_and(|items| {
+            items.iter().any(|item| {
+                item.as_object().is_some_and(|item| {
+                    identity_fields_match(
+                        item,
+                        segment_identity,
+                        &["source_shot_id", "segment_index_in_shot", "segment_sha256"],
+                    )
+                })
+            })
+        })
+}
+
+fn identity_fields_match(
+    left: &serde_json::Map<String, Value>,
+    right: &serde_json::Map<String, Value>,
+    fields: &[&str],
+) -> bool {
+    fields.iter().all(|field| {
+        left.get(*field)
+            .is_some_and(|value| right.get(*field) == Some(value))
+    })
+}
+
+fn video_and_frame_prompt_pair(
+    left: &chapter_video_prompt::Model,
+    right: &chapter_video_prompt::Model,
+) -> bool {
+    (left.prompt_type == "video_prompt" && is_frame_prompt(&right.prompt_type))
+        || (right.prompt_type == "video_prompt" && is_frame_prompt(&left.prompt_type))
+}
+
+fn is_frame_prompt(prompt_type: &str) -> bool {
+    matches!(
+        prompt_type,
+        "frame_prompt" | "first_frame_prompt" | "storyboard_prompt" | "chat_video_frame_prompt"
+    )
 }
 
 pub(in crate::video_prompt::dependencies) fn prompt_same_frame_reference_chain(

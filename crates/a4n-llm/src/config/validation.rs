@@ -6,16 +6,17 @@ use a4n_core::{
 use serde_json::Value;
 use url::{Host, Url};
 
-use crate::provider::normalize_request_options_json;
+use crate::provider::LlmProtocolKind;
+use crate::provider::normalize_extra_body_json;
 
 use super::limits::ensure_output_tokens_below_context;
 
-pub(super) fn normalize_llm_request_options_json(
+pub(super) fn normalize_llm_extra_body_json(
     value: Option<Value>,
 ) -> Result<Option<Value>, AppError> {
-    normalize_request_options_json(value).map_err(|err| {
+    normalize_extra_body_json(value).map_err(|err| {
         AppError::InvalidArgument(format!(
-            "LLM配置 request_options_json 无效：{}",
+            "LLM配置 extra_body_json 无效：{}",
             app_error_plain_message(err)
         ))
     })
@@ -56,6 +57,12 @@ fn is_loopback_host(host: Option<Host<&str>>) -> bool {
 }
 
 pub fn validate_llm_config_model(model: &llm_config::Model) -> Result<(), AppError> {
+    if LlmProtocolKind::for_provider(&model.provider).is_none() {
+        return Err(AppError::ConfigError(format!(
+            "LLM 配置 {} 使用不支持的 provider: {}",
+            model.name, model.provider
+        )));
+    }
     normalize_config_name(&model.name, "LLM配置")?;
     required_config_value(&model.provider, "LLM配置", "provider")?;
     normalize_llm_base_url(&model.base_url, model.api_key_encrypted.as_deref())?;
@@ -65,7 +72,7 @@ pub fn validate_llm_config_model(model: &llm_config::Model) -> Result<(), AppErr
     positive_i32(model.max_context_tokens, "LLM配置 max_context_tokens")?;
     positive_i32(model.max_output_tokens, "LLM配置 max_output_tokens")?;
     ensure_output_tokens_below_context(model.max_output_tokens, model.max_context_tokens)?;
-    normalize_llm_request_options_json(model.request_options_json.clone())?;
+    normalize_llm_extra_body_json(model.extra_body_json.clone())?;
     Ok(())
 }
 

@@ -7,7 +7,7 @@ use a4n_api_contract::{
 use a4n_core::{
     error::AppError,
     prompt_language::{PromptOutputLanguage, metadata_matches_prompt_output_language},
-    video_execution::video_segment_recipe_from_metadata,
+    video_execution::{resolve_video_segment_number, video_segment_recipe_from_metadata},
 };
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GenerationError, GenerationFinishReason, GenerationResultRef,
@@ -604,12 +604,9 @@ fn prompt_task_input(input: StartVideoGenerationInput) -> Result<PromptTaskInput
         _ => return Err("非视频提示词操作不能进入 LLM generation worker".to_string()),
     };
     if matches!(task.kind, PromptTaskKind::Frames | PromptTaskKind::Videos)
-        && (task.options.segment_plan_prompt_id.is_none()
-            || task.options.target_shot_number.is_none())
+        && (task.options.segment_plan_prompt_id.is_none() || task.options.target_segment.is_none())
     {
-        return Err(
-            "片段卡片生成必须提供 segment_plan_prompt_id 和 target_shot_number".to_string(),
-        );
+        return Err("片段卡片生成必须提供规划 ID 与目标片段".to_string());
     }
     Ok(task)
 }
@@ -672,15 +669,10 @@ fn video_prompt_matches(
             .and_then(serde_json::Value::as_str)
             == Some("frame_segment_plan")
         && metadata_matches_prompt_output_language(Some(metadata), identity.prompt_output_language)
-        && row.shot_number == identity.segment_number
         && metadata
             .get("segment_plan_prompt_id")
             .and_then(serde_json::Value::as_i64)
             == Some(identity.segment_plan_prompt_id)
-        && metadata
-            .get("segment_number")
-            .and_then(serde_json::Value::as_i64)
-            == Some(i64::from(identity.segment_number))
         && metadata
             .get("segment_recipe_fingerprint")
             .and_then(serde_json::Value::as_str)
@@ -710,9 +702,6 @@ fn current_video_prompt_target_identity(
     let segment_plan_prompt_id = options.segment_plan_prompt_id.ok_or_else(|| {
         AppError::InvalidArgument("生成片段提示词必须提供 segment_plan_prompt_id".to_string())
     })?;
-    let segment_number = options.target_shot_number.ok_or_else(|| {
-        AppError::InvalidArgument("生成片段提示词必须提供 target_shot_number".to_string())
-    })?;
     let plan = rows
         .iter()
         .find(|row| {
@@ -725,6 +714,15 @@ fn current_video_prompt_target_identity(
     let plan_metadata = plan.metadata_json.as_ref().ok_or_else(|| {
         AppError::InvalidArgument("当前共享片段规划缺少 metadata_json".to_string())
     })?;
+    let target_segment = options.target_segment.as_ref().ok_or_else(|| {
+        AppError::InvalidArgument("生成片段提示词必须提供稳定片段目标".to_string())
+    })?;
+    let segment_number = resolve_video_segment_number(
+        Some(plan_metadata),
+        &target_segment.source_shot_id,
+        target_segment.segment_index_in_shot,
+    )
+    .map_err(AppError::InvalidArgument)?;
     let expected_plan_contract =
         expected_contract_version("shared_segment_plan", "frame_segment_plan").ok_or_else(
             || AppError::InvalidState {
@@ -761,26 +759,20 @@ fn current_video_prompt_target_identity(
     let recipe_fingerprint = recipe
         .generation_fingerprint()
         .map_err(AppError::InvalidArgument)?;
-    let mut execution_identity = plan_metadata
+    let plan_identity = plan_metadata
         .get("video_execution_identity")
         .cloned()
         .filter(serde_json::Value::is_object)
         .ok_or_else(|| AppError::InvalidArgument("当前共享片段规划缺少有效执行身份".to_string()))?;
-    let execution_identity_object = execution_identity.as_object_mut().ok_or_else(|| {
-        AppError::InvalidArgument("当前共享片段规划执行身份必须是 JSON 对象".to_string())
-    })?;
-    execution_identity_object.insert(
-        "segment_plan_prompt_id".to_string(),
-        serde_json::json!(segment_plan_prompt_id),
-    );
-    execution_identity_object.insert(
-        "segment_number".to_string(),
-        serde_json::json!(segment_number),
-    );
-    execution_identity_object.insert(
-        "segment_recipe_fingerprint".to_string(),
-        serde_json::json!(recipe_fingerprint.clone()),
-    );
+    let execution_identity = super::prompt_generation::video_segment_execution_identity(
+        plan_identity,
+        Some(segment_plan_prompt_id),
+        Some(&recipe),
+        (
+            &target_segment.source_shot_id,
+            target_segment.segment_index_in_shot,
+        ),
+    )?;
     Ok(VideoPromptTargetIdentity {
         segment_plan_prompt_id,
         segment_number,
@@ -926,7 +918,8 @@ mod tests {
                     style: "写实".to_string(),
                     prompt_output_language: Some("zh_cn".to_string()),
                     prompt_batch_size: 1,
-                    target_shot_number: None,
+                    target_segment: None,
+                    target_narrative_unit_index: None,
                     duration_secs: 5,
                     duration_secs_options: vec![5],
                     aspect_ratio: "16:9".to_string(),
@@ -994,6 +987,16 @@ mod tests {
         for stale in [old_contract, old_plan, other_language, incomplete_identity] {
             assert!(validate_video_prompt_task_target(&[stale], &identity, false).is_ok());
         }
+
+        let mut renumbered = test_prompt(6, 1, "2026-01-01 00:00:00", "zh_cn");
+        let metadata = renumbered.metadata_json.as_mut().unwrap();
+        metadata["segment_recipe_fingerprint"] = json!("recipe-2");
+        metadata["video_execution_identity"]["source_shot_id"] = json!("shot-2");
+        metadata["video_execution_identity"]["segment_sha256"] = json!("segment-2");
+        metadata["video_execution_identity"]["segment_recipe_fingerprint"] = json!("recipe-2");
+        assert!(
+            validate_video_prompt_task_target(&[renumbered], &test_identity(2), false).is_err()
+        );
     }
 
     #[test]
@@ -1023,6 +1026,15 @@ mod tests {
     fn test_identity(segment_number: i32) -> VideoPromptTargetIdentity {
         let mut execution_identity = test_base_execution_identity();
         let object = execution_identity.as_object_mut().unwrap();
+        object.insert(
+            "source_shot_id".to_string(),
+            json!(format!("shot-{segment_number}")),
+        );
+        object.insert("segment_index_in_shot".to_string(), json!(1));
+        object.insert(
+            "segment_sha256".to_string(),
+            json!(format!("segment-{segment_number}")),
+        );
         object.insert("segment_plan_prompt_id".to_string(), json!(42));
         object.insert("segment_number".to_string(), json!(segment_number));
         object.insert(
@@ -1049,7 +1061,19 @@ mod tests {
             "source_content_sha256": "source",
             "style_sha256": "style",
             "duration_secs": 6,
-            "aspect_ratio": "16:9"
+            "aspect_ratio": "16:9",
+            "segment_identities": [
+                {
+                    "source_shot_id": "shot-1",
+                    "segment_index_in_shot": 1,
+                    "segment_sha256": "segment-1"
+                },
+                {
+                    "source_shot_id": "shot-2",
+                    "segment_index_in_shot": 1,
+                    "segment_sha256": "segment-2"
+                }
+            ]
         })
     }
 
@@ -1061,6 +1085,15 @@ mod tests {
     ) -> ChapterVideoPromptSummary {
         let mut execution_identity = test_base_execution_identity();
         let identity = execution_identity.as_object_mut().unwrap();
+        identity.insert(
+            "source_shot_id".to_string(),
+            json!(format!("shot-{shot_number}")),
+        );
+        identity.insert("segment_index_in_shot".to_string(), json!(1));
+        identity.insert(
+            "segment_sha256".to_string(),
+            json!(format!("segment-{shot_number}")),
+        );
         identity.insert("segment_plan_prompt_id".to_string(), json!(42));
         identity.insert("segment_number".to_string(), json!(shot_number));
         identity.insert(

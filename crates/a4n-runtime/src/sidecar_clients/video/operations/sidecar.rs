@@ -57,10 +57,7 @@ pub(super) async fn probe_video_via_sidecar(
         duration_secs: params.default_duration_secs,
         fps: params.default_fps,
         model: params.model.clone(),
-        first_frame_image_url: None,
-        last_frame_image_url: None,
-        reference_image_urls: Vec::new(),
-        reference_media: None,
+        media: a4n_video::VideoMediaInput::None,
     };
     let payload = video_provider_payload(config, request, None, None)?;
     let response = client
@@ -91,7 +88,6 @@ pub(super) async fn poll_video_via_sidecar(
         backend: params.backend,
         base_url: params.base_url,
         api_key,
-        provider_options_json: params.provider_options_json,
         project_id,
         job_id: job_id.to_string(),
     };
@@ -134,7 +130,6 @@ pub(super) async fn video_status_via_sidecar(
         backend: params.backend,
         base_url: params.base_url,
         api_key,
-        provider_options_json: params.provider_options_json,
         project_id,
         job_id: job_id.to_string(),
     };
@@ -172,7 +167,6 @@ pub(super) async fn delete_video_via_sidecar(
         backend: params.backend,
         base_url: params.base_url,
         api_key,
-        provider_options_json: params.provider_options_json,
         project_id,
         job_id: job_id.to_string(),
     };

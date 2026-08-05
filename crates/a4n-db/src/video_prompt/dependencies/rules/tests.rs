@@ -65,10 +65,27 @@ fn source_metadata(
         }
         if let Some(value) = segment_number {
             object.insert("segment_number".to_string(), Value::from(value));
+            object.insert(
+                "source_shot_id".to_string(),
+                Value::from(format!("shot-{value}")),
+            );
+            object.insert("segment_index_in_shot".to_string(), Value::from(1));
+            object.insert(
+                "segment_sha256".to_string(),
+                Value::from(format!("segment-{value}")),
+            );
         }
         if let Some(value) = recipe_fingerprint {
             object.insert("segment_recipe_fingerprint".to_string(), Value::from(value));
         }
+        object.insert(
+            "segment_identities".to_string(),
+            json!([{
+                "source_shot_id": "shot-1",
+                "segment_index_in_shot": 1,
+                "segment_sha256": "segment-1"
+            }]),
+        );
     }
     json!({
         "contract_version": "video_prompt_v2",
@@ -147,6 +164,12 @@ fn generation_chain_requires_scope_style_and_source_identity() {
         &video_prompt,
         &different_recipe
     ));
+
+    let mut renumbered = video_prompt.clone();
+    renumbered.shot_number = 8;
+    renumbered.metadata_json.as_mut().unwrap()["video_execution_identity"]["segment_number"] =
+        json!(8);
+    assert!(prompt_same_generation_chain(&video_prompt, &renumbered));
 
     let mut different_project = video_prompt;
     different_project.project_id = 4;

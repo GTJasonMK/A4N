@@ -5,6 +5,19 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
+/// 活体信号只保留尾部片段：它用于证明「模型还在输出」，不用于阅读内容。
+/// 按字符边界截断，避免切断多字节 UTF-8 序列。
+const STREAM_TEXT_TAIL_CHARS: usize = 512;
+
+fn tail_stream_text(text: &str) -> String {
+    let start = text
+        .char_indices()
+        .rev()
+        .nth(STREAM_TEXT_TAIL_CHARS - 1)
+        .map_or(0, |(index, _)| index);
+    text[start..].to_owned()
+}
+
 /// 任务句柄
 ///
 /// 持有取消令牌和进度信息，由 `TaskManager` 统一管理。
@@ -53,18 +66,20 @@ impl TaskHandle {
         meta: Option<ProgressMeta>,
     ) {
         let updated_at = chrono::Utc::now().to_rfc3339();
-        let progress = TaskProgress {
-            current,
-            total,
-            message: message.to_string(),
-            meta: meta.clone(),
-            updated_at: Some(updated_at.clone()),
-        };
         let mut p = self.progress.write();
         let mut events = self.progress_events.write();
         if self.is_cancelled() {
             return;
         }
+        let progress = TaskProgress {
+            current,
+            total,
+            message: message.to_string(),
+            meta: meta.clone(),
+            // 活体信号跨里程碑保留：阶段推进不应让流式尾巴闪断。
+            stream_text: p.stream_text.clone(),
+            updated_at: Some(updated_at.clone()),
+        };
         *p = progress.clone();
 
         let event = TaskProgressEvent {
@@ -81,6 +96,19 @@ impl TaskHandle {
         while events.len() > MAX_TASK_PROGRESS_EVENTS {
             events.pop_front();
         }
+    }
+
+    /// 写入模型输出的活体信号（流式尾巴），只更新当前快照。
+    ///
+    /// 刻意**不**推送 `TaskProgressEvent`：delta 频率是每 token 一次，
+    /// 推成事件会冲爆环形缓冲并把字段级里程碑挤掉。前端按固定间隔轮询快照，
+    /// 只会看到最近一次尾巴，正是活体信号所需。
+    pub fn update_stream_text(&self, text: &str) {
+        let mut p = self.progress.write();
+        if self.is_cancelled() {
+            return;
+        }
+        p.stream_text = Some(tail_stream_text(text));
     }
 
     pub fn update_progress_bytes(

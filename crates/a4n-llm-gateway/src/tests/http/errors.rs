@@ -158,11 +158,12 @@ async fn malformed_provider_sse_emits_one_redacted_failed_terminal_event() {
     let client = gateway.client();
     let request = service_request(LlmChatPayload {
         provider: HttpLlmProviderConfig {
+            provider: "openai".to_string(),
             base_url: provider_base_url.clone(),
             model: "fake-malformed-model".to_string(),
             api_key: Some("fake-malformed-provider-secret".to_string()),
             timeout_secs: 5,
-            request_options_json: None,
+            extra_body_json: None,
         },
         request: ChatRequest::system_user("system", "malformed ping", None, Some(16), None),
     });
@@ -263,11 +264,12 @@ async fn provider_http_status_errors_map_to_redacted_failed_terminal_events() {
     for case in cases {
         let request = service_request(LlmChatPayload {
             provider: HttpLlmProviderConfig {
+                provider: "openai".to_string(),
                 base_url: provider_base_url.clone(),
                 model: case.model.to_string(),
                 api_key: Some("fake-status-provider-secret".to_string()),
                 timeout_secs: 5,
-                request_options_json: None,
+                extra_body_json: None,
             },
             request: ChatRequest::system_user("system", "status ping", None, Some(16), None),
         });
@@ -318,11 +320,12 @@ async fn provider_body_error_after_done_keeps_completed_result() {
     let client = gateway.client();
     let request = service_request(LlmChatPayload {
         provider: HttpLlmProviderConfig {
+            provider: "openai".to_string(),
             base_url: provider.base_url(),
             model: "body-error-after-done".to_string(),
             api_key: None,
             timeout_secs: 5,
-            request_options_json: None,
+            extra_body_json: None,
         },
         request: ChatRequest::system_user("system", "done ping", None, Some(16), None),
     });
@@ -353,11 +356,12 @@ async fn provider_body_error_after_finish_preserves_truncation_contract() {
     let client = gateway.client();
     let request = service_request(LlmChatPayload {
         provider: HttpLlmProviderConfig {
+            provider: "openai".to_string(),
             base_url: provider.base_url(),
             model: "body-error-after-length-finish".to_string(),
             api_key: None,
             timeout_secs: 5,
-            request_options_json: None,
+            extra_body_json: None,
         },
         request: ChatRequest::system_user("system", "length ping", None, Some(16), None),
     });
@@ -388,11 +392,12 @@ async fn provider_body_error_before_terminal_marker_remains_failed() {
         let client = gateway.client();
         let request = service_request(LlmChatPayload {
             provider: HttpLlmProviderConfig {
+                provider: "openai".to_string(),
                 base_url: provider.base_url(),
                 model: model.to_string(),
                 api_key: None,
                 timeout_secs: 5,
-                request_options_json: None,
+                extra_body_json: None,
             },
             request: ChatRequest::system_user("system", "partial ping", None, Some(16), None),
         });

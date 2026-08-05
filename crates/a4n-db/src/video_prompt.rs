@@ -72,11 +72,11 @@ pub struct ChapterVideoPromptSyncDraft {
     pub generation_trace: Option<PreparedVideoPromptGenerationTrace>,
 }
 
-type PromptExecutionIdentity = (i64, i32, String);
+type PromptExecutionIdentity = (i64, String, i32, String, String);
 type PromptIdentity = (
     String,
     String,
-    i32,
+    Option<i32>,
     Option<String>,
     Option<PromptExecutionIdentity>,
 );
@@ -93,18 +93,28 @@ fn prompt_execution_identity(metadata: Option<&Value>) -> Option<PromptExecution
         .get("segment_plan_prompt_id")?
         .as_i64()
         .filter(|value| *value > 0)?;
-    let segment_number = identity
-        .get("segment_number")?
+    let source_shot_id = identity.get("source_shot_id")?.as_str()?.trim();
+    if source_shot_id.is_empty() {
+        return None;
+    }
+    let segment_index_in_shot = identity
+        .get("segment_index_in_shot")?
         .as_i64()
         .and_then(|value| i32::try_from(value).ok())
         .filter(|value| *value > 0)?;
+    let segment_sha256 = identity.get("segment_sha256")?.as_str()?.trim();
+    if segment_sha256.is_empty() {
+        return None;
+    }
     let recipe_fingerprint = identity.get("segment_recipe_fingerprint")?.as_str()?.trim();
     if recipe_fingerprint.is_empty() {
         return None;
     }
     Some((
         segment_plan_prompt_id,
-        segment_number,
+        source_shot_id.to_string(),
+        segment_index_in_shot,
+        segment_sha256.to_string(),
         recipe_fingerprint.to_string(),
     ))
 }

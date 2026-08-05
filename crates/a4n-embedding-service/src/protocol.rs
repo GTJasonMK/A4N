@@ -2,7 +2,10 @@ use a4n_core::error::AppError;
 use a4n_service_protocol::{
     EMBEDDING_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
     redact_sensitive_message, validate_known_service_request,
+    validate_provider_api_key_secret_policy,
 };
+
+use crate::contracts::EmbedTextsPayload;
 
 pub(crate) fn result_response<T>(
     request: &ServiceRequest<impl Sized>,
@@ -15,6 +18,17 @@ pub(crate) fn result_response<T>(
 
 pub(crate) fn validate_service_request<T>(request: &ServiceRequest<T>) -> Result<(), ServiceError> {
     validate_known_service_request(request, EMBEDDING_SERVICE_NAME)
+}
+
+pub(crate) fn validate_embedding_request(
+    request: &ServiceRequest<EmbedTextsPayload>,
+) -> Result<(), ServiceError> {
+    validate_service_request(request)?;
+    validate_provider_api_key_secret_policy(
+        request.payload.api_key.as_deref(),
+        &request.secret_policy,
+        EMBEDDING_SERVICE_NAME,
+    )
 }
 
 pub(crate) fn error_response<T, P>(

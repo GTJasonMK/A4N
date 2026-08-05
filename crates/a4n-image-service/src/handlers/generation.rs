@@ -17,7 +17,6 @@ pub(crate) async fn generate(
             &request.payload.backend,
             &request.payload.base_url,
             &request.payload.api_key,
-            request.payload.provider_options_json.as_ref(),
         )?;
         let result = provider.generate(request.payload.request.clone()).await?;
         Ok(ImageGenerationOutput {

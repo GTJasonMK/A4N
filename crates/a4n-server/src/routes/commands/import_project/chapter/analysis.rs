@@ -1,7 +1,7 @@
 use crate::routes::commands::{
     ApiError, command_input, finish_web_task, optional_string_field, register_web_task,
     sanitize_optional_task_id, string_action_result, to_value,
-    web_fire_and_forget_progress_reporter,
+    web_fire_and_forget_progress_reporter, web_stream_reporter,
 };
 use crate::state::ServerState;
 use a4n_core::event::channel::TaskKind;
@@ -57,11 +57,14 @@ macro_rules! chapter_analysis_web_task_command {
             .await;
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
             let reporter = web_fire_and_forget_progress_reporter(task.clone());
+            // 与桌面端对称：活体信号必须双端一致。
+            let stream_reporter = web_stream_reporter(task.clone());
             let progress = a4n_runtime::workflow::ChapterAnalysisProgress::new(
                 Some(&reporter),
                 cancel_token.as_ref(),
                 task_id.as_deref(),
-            );
+            )
+            .with_stream_reporter(Some(&stream_reporter));
             let result = $run(state.runtime(), user_id, input.chapter_id, Some(&progress)).await;
             let chapter = finish_web_task(
                 state,

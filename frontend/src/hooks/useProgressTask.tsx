@@ -6,7 +6,6 @@ import React, {
   useState,
 } from "react";
 import { extractErrorMessage } from "../api";
-import { cancelWorkflow } from "../api/streaming";
 import { getTaskProgressEvents } from "../api/task";
 import { ProgressDialog } from "../components/feedback/ProgressDialog";
 import type {
@@ -42,14 +41,23 @@ export interface ProgressTaskOptions {
   /**
    * 仅作取消身份；不得再用于订阅旧 workflow 事件。
    * 新 generation 路径请用 runGenerationProgressTaskThen。
+   *
+   * @deprecated 旧 Host workflow 通道。generation 任务应改用
+   * `runGenerationProgressTaskThen`，由它提供 handle 与 generationClient.cancel。
    */
   cancelTaskId?: string | null;
-  showStream?: boolean;
   cancelLabel?: string;
   runningHint?: React.ReactNode;
   formatProgress?: (current: number, total: number, percent: number) => React.ReactNode;
+  /**
+   * 取消函数。传了 cancelTaskId 就必须显式提供，避免隐式落回旧 workflow 通道。
+   * generation 任务传 generationClient.cancel，Host workflow 任务传 cancelHostWorkflowTask。
+   */
   cancelTask?: (taskId: string) => Promise<void>;
-  /** 自定义取消函数仍对应 Host task 时显式开启；默认 Host 任务会自动读取后端进度。 */
+  /**
+   * 是否轮询后端 Host progress 事件。仅旧 Host workflow 任务应设为 true；
+   * generation 任务的进度来自事件订阅，必须保持关闭。
+   */
   pollTaskProgress?: boolean;
 }
 
@@ -117,17 +125,20 @@ export async function runTaskWithProgressEvents<T>(
   taskId: string,
   task: Promise<T>,
   setProgress: ProgressTaskControl["setProgress"],
+  setStreamText?: ProgressTaskControl["setStreamText"],
 ): Promise<T> {
   const seenEventIds = new Set<string>();
   return runTaskWithPolling(
     task,
     () => getTaskProgressEvents(taskId, 200),
-    (events) => {
-      for (const event of events) {
+    (response) => {
+      for (const event of response.events) {
         if (seenEventIds.has(event.id)) continue;
         seenEventIds.add(event.id);
         setProgress(event.message, event.current, event.total, event.meta ?? null);
       }
+      // 活体信号是快照而非事件：不去重，每次轮询取最新尾巴覆盖。
+      if (response.stream_text) setStreamText?.(response.stream_text);
     },
   );
 }
@@ -154,6 +165,10 @@ const validTotal = (value?: number): number =>
 /**
  * 仅分配 Host 取消/后端 progress 注册身份，不订阅任何旧事件通道。
  * 不得用于前端自建规范 generation task id。
+ *
+ * @deprecated 旧 Host workflow 任务身份。generation 任务的 task_id 由后端下发
+ * （`GenerationTaskHandle`），不应由前端自行分配。新增调用点一律走
+ * `runGenerationProgressTaskThen`。
  */
 export const allocateHostTaskId = (scope: string, projectId: number): string => {
   const random =
@@ -193,7 +208,6 @@ function useProgressTaskController(): ProgressTaskController {
   }, []);
 
   const runProgressTask = useCallback<RunProgressTask>(async (options, task) => {
-    const showStream = options.showStream === true;
     const eventScope = `progress-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     let taskCurrent = 0;
     let taskTotal = validTotal(options.total);
@@ -227,13 +241,15 @@ function useProgressTaskController(): ProgressTaskController {
       cancelLabel: options.cancelLabel,
       runningHint: options.runningHint,
       formatProgress: options.formatProgress,
-      streamText: showStream ? "" : null,
+      // 流式行自适应：未收到任何 delta 前不占位，伪流式 provider 自然降级为纯阶段进度。
+      streamText: null,
       events: [createEvent("running", 0, taskTotal, options.startMessage, null)],
     });
 
     const setStreamText = (text: string) => {
-      if (!showStream) return;
       const line = streamLineFromBuffer(text);
+      // 空 delta 不触发渲染，避免只发一次尾块的 provider 提前占位。
+      if (!line) return;
       setProgressTask((prev) => ({
         ...prev,
         streamText: line,
@@ -276,11 +292,17 @@ function useProgressTaskController(): ProgressTaskController {
 
     try {
       const taskPromise = task(control);
+      // 轮询归属必须显式声明：取消函数的有无不再隐含进度通道归属。
+      // Host workflow 任务传 pollTaskProgress: true；generation 任务由事件订阅供给进度。
       const shouldPollTaskProgress =
-        cancellableTaskId != null &&
-        (options.pollTaskProgress ?? options.cancelTask == null);
+        cancellableTaskId != null && options.pollTaskProgress === true;
       const result = shouldPollTaskProgress
-        ? await runTaskWithProgressEvents(cancellableTaskId, taskPromise, control.setProgress)
+        ? await runTaskWithProgressEvents(
+            cancellableTaskId,
+            taskPromise,
+            control.setProgress,
+            control.setStreamText,
+          )
         : await taskPromise;
       const timelineEvent = createEvent("success", taskTotal, taskTotal, options.successMessage);
       taskCurrent = timelineEvent.current;
@@ -345,7 +367,11 @@ function useProgressTaskController(): ProgressTaskController {
       error: null,
     }));
     try {
-      const cancelTask = cancelTaskRef.current ?? cancelWorkflow;
+      const cancelTask = cancelTaskRef.current;
+      if (!cancelTask) {
+        // 不再隐式落回旧 workflow 通道：调用点必须显式声明取消归属。
+        throw new Error("任务未提供取消函数；请在 runProgressTask 显式传入 cancelTask");
+      }
       await cancelTask(activeTaskId);
     } catch (err) {
       const errorMessage = extractErrorMessage(err, "停止任务失败");

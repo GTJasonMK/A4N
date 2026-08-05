@@ -11,6 +11,7 @@ pub struct GenerateChapterAnalysisInput {
 
 pub struct ChapterAnalysisProgress<'a> {
     pub(super) reporter: Option<ChapterAnalysisProgressReporter<'a>>,
+    pub(super) stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
     pub(super) cancel_token: Option<&'a CancellationToken>,
     pub(super) task_id: Option<&'a str>,
 }
@@ -23,9 +24,19 @@ impl<'a> ChapterAnalysisProgress<'a> {
     ) -> Self {
         Self {
             reporter,
+            stream_reporter: None,
             cancel_token,
             task_id,
         }
+    }
+
+    /// 附加活体信号出口。不提供时行为与之前完全一致。
+    pub fn with_stream_reporter(
+        mut self,
+        stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
+    ) -> Self {
+        self.stream_reporter = stream_reporter;
+        self
     }
 
     pub(super) fn report(

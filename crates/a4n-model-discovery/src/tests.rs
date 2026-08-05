@@ -1,7 +1,9 @@
 use reqwest::StatusCode;
 use serde_json::json;
 
-use crate::endpoints::{ModelDiscoveryParser, openai_model_list_urls};
+use crate::endpoints::{
+    ModelDiscoveryAuth, ModelDiscoveryParser, model_discovery_endpoints, openai_model_list_urls,
+};
 use crate::http::model_discovery_status_error;
 use crate::parsing::parse_discovered_models;
 
@@ -11,6 +13,15 @@ fn strips_known_openai_suffixes() {
         openai_model_list_urls("https://api.example.com/v1/chat/completions"),
         vec!["https://api.example.com/v1/models"]
     );
+}
+
+#[test]
+fn routes_anthropic_to_native_model_endpoint_and_auth() {
+    let endpoints = model_discovery_endpoints("anthropic", "https://api.anthropic.com");
+
+    assert_eq!(endpoints.len(), 1);
+    assert_eq!(endpoints[0].url, "https://api.anthropic.com/v1/models");
+    assert!(matches!(endpoints[0].auth, ModelDiscoveryAuth::Anthropic));
 }
 
 #[test]

@@ -31,15 +31,14 @@ const adoptedVideo: GeneratedVideo = {
 };
 
 describe("VideoAssemblyWorkspace", () => {
-  it("blocks mixed assembly until every current-plan segment has an adopted video", () => {
+  it("allows assembling the currently available completed videos", () => {
     const html = renderToStaticMarkup(
       <VideoAssemblyWorkspace
         projectId={1}
         chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
-        workflowMode="mixed"
         videos={[adoptedVideo]}
         adoptedVideoIds={new Set([adoptedVideo.id])}
-        missingSegmentNumbers={[2]}
+        unavailableSegmentNumbers={[2]}
         onToast={() => undefined}
         onRefresh={() => undefined}
       />,
@@ -47,7 +46,8 @@ describe("VideoAssemblyWorkspace", () => {
     const generateButton = [...html.matchAll(/<button\b[\s\S]*?<\/button>/g)]
       .find(([button]) => button.includes("生成预览"))?.[0];
 
-    expect(html).toContain("尚缺片段 2 的有效采用视频");
-    expect(generateButton).toContain('disabled=""');
+    expect(html).toContain("1 段");
+    expect(html).toContain("本次仅合成已有视频；片段 2 尚无有效视频");
+    expect(generateButton).not.toContain('disabled=""');
   });
 });

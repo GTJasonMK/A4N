@@ -10,42 +10,10 @@ pub enum ProviderImageInputTransport {
     RemoteTempUpload,
 }
 
-/// 解析 `A4N_VIDEO_IMAGE_INPUT_TRANSPORT` 覆盖值（纯规则，不读环境）。
-///
-/// `None` / `"auto"` → 默认 `InlineDataUrl`。
-pub fn parse_provider_image_input_transport_override(
-    override_value: Option<&str>,
-) -> Result<ProviderImageInputTransport, String> {
-    let override_value = override_value
-        .map(|value| {
-            let value = value.trim();
-            if value.is_empty() {
-                return Err(
-                    "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 不能为空；允许值为 auto、inline_data_url 或 public_url"
-                        .to_string(),
-                );
-            }
-            Ok(value.to_ascii_lowercase())
-        })
-        .transpose()?;
-    match override_value.as_deref() {
-        Some("public_url") => Ok(ProviderImageInputTransport::PublicUrl),
-        Some("inline_data_url") => Ok(ProviderImageInputTransport::InlineDataUrl),
-        Some("auto") | None => Ok(ProviderImageInputTransport::InlineDataUrl),
-        Some(other) => Err(format!(
-            "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 无效：{other}；允许值为 auto、inline_data_url 或 public_url"
-        )),
-    }
-}
-
-/// 按 backend、显式覆盖和远端临时上传能力解析图片传输模式。
+/// 解析视频图片传输模式；默认直接使用本地 data URL。
 pub fn provider_image_input_transport_with_override(
-    backend: &str,
     override_value: Option<&str>,
-    remote_temp_configured: bool,
-    cliproxy_backend: &str,
 ) -> Result<ProviderImageInputTransport, String> {
-    let backend = backend.trim();
     let override_value = override_value
         .map(|value| {
             let value = value.trim();
@@ -61,38 +29,11 @@ pub fn provider_image_input_transport_with_override(
     match override_value.as_deref() {
         Some("public_url") => Ok(ProviderImageInputTransport::PublicUrl),
         Some("remote_temp_upload") => Ok(ProviderImageInputTransport::RemoteTempUpload),
-        Some("inline_data_url") => {
-            if backend == cliproxy_backend {
-                return Err(
-                    "cliproxy-openai-video 不支持 base64/data URL 视频图片输入，请设置 A4N_VIDEO_IMAGE_INPUT_TRANSPORT=remote_temp_upload 并配置 A4N_VIDEO_REMOTE_TEMP_UPLOAD_URL/A4N_VIDEO_REMOTE_TEMP_UPLOAD_TOKEN，或设置 A4N_PUBLIC_APP_URL/A4N_PUBLIC_MEDIA_BASE_URL"
-                        .to_string(),
-                );
-            }
-            Ok(ProviderImageInputTransport::InlineDataUrl)
-        }
-        Some("auto") | None => Ok(provider_default_image_input_transport(
-            backend,
-            remote_temp_configured,
-            cliproxy_backend,
-        )),
+        Some("inline_data_url" | "auto") | None => Ok(ProviderImageInputTransport::InlineDataUrl),
         Some(other) => Err(format!(
             "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 无效：{other}；允许值为 auto、inline_data_url、public_url 或 remote_temp_upload"
         )),
     }
-}
-
-pub fn provider_default_image_input_transport(
-    backend: &str,
-    remote_temp_configured: bool,
-    cliproxy_backend: &str,
-) -> ProviderImageInputTransport {
-    if backend.trim() == cliproxy_backend {
-        if remote_temp_configured {
-            return ProviderImageInputTransport::RemoteTempUpload;
-        }
-        return ProviderImageInputTransport::PublicUrl;
-    }
-    ProviderImageInputTransport::InlineDataUrl
 }
 
 /// 是否为视频 provider 可接受的图片 Content-Type。
@@ -210,14 +151,18 @@ mod tests {
     #[test]
     fn transport_override_defaults_and_rejects() {
         assert_eq!(
-            parse_provider_image_input_transport_override(None).unwrap(),
+            provider_image_input_transport_with_override(None).unwrap(),
             ProviderImageInputTransport::InlineDataUrl
         );
         assert_eq!(
-            parse_provider_image_input_transport_override(Some("public_url")).unwrap(),
+            provider_image_input_transport_with_override(Some("remote_temp_upload")).unwrap(),
+            ProviderImageInputTransport::RemoteTempUpload
+        );
+        assert_eq!(
+            provider_image_input_transport_with_override(Some("public_url")).unwrap(),
             ProviderImageInputTransport::PublicUrl
         );
-        assert!(parse_provider_image_input_transport_override(Some("bad")).is_err());
-        assert!(parse_provider_image_input_transport_override(Some("  ")).is_err());
+        assert!(provider_image_input_transport_with_override(Some("bad")).is_err());
+        assert!(provider_image_input_transport_with_override(Some("  ")).is_err());
     }
 }

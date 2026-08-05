@@ -32,8 +32,6 @@ impl a4n_llm::provider::LlmProvider for BootstrapUnavailableLlm {
 
     fn capabilities(&self) -> a4n_llm::provider::ModelCapabilities {
         a4n_llm::provider::ModelCapabilities {
-            function_calling: false,
-            vision: false,
             max_context_tokens: 0,
             max_output_tokens: 0,
         }

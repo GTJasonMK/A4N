@@ -32,7 +32,6 @@ pub(crate) fn video_generation_event_stream(
                 &request.payload.backend,
                 &request.payload.base_url,
                 &request.payload.api_key,
-                request.payload.provider_options_json.as_ref(),
             )?;
             provider
                 .generate(

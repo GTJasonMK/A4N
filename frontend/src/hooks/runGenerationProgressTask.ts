@@ -8,18 +8,41 @@
 import { generationClient } from "../api/generationTasks";
 import type { GenerationTaskHandle } from "../api/generated/generationContracts";
 import type { GenerationTaskViewState } from "../utils/generationEventReducer";
-import type { ProgressTaskOptions, RunProgressTask } from "./useProgressTask";
+import { generationProgressMeta } from "../utils/generationProgressMeta";
+import type { ProgressTaskControl, ProgressTaskOptions, RunProgressTask } from "./useProgressTask";
 
 export type GenerationProgressUiOptions = Omit<
   ProgressTaskOptions,
-  "cancelTaskId" | "cancelTask"
+  "cancelTaskId" | "cancelTask" | "pollTaskProgress"
 >;
+
+/**
+ * 文本流优先级：章节正文用 "main"，其余结构化生成用 "raw_json"。
+ * 都不存在时取首个有内容的流，避免新增 stream id 后前端静默失去活体信号。
+ */
+const STREAM_PRIORITY = ["main", "raw_json"];
+
+export function pickDisplayStreamText(
+  streams: GenerationTaskViewState["streams"],
+): string | null {
+  for (const id of STREAM_PRIORITY) {
+    const text = streams[id]?.text;
+    if (text) return text;
+  }
+  for (const stream of Object.values(streams)) {
+    if (stream?.text) return stream.text;
+  }
+  return null;
+}
 
 export async function runGenerationProgressTaskThen<T>(
   runProgressTask: RunProgressTask,
   handle: GenerationTaskHandle,
   options: GenerationProgressUiOptions,
-  afterTerminal: (task: GenerationTaskViewState) => Promise<T> | T,
+  afterTerminal: (
+    task: GenerationTaskViewState,
+    control: ProgressTaskControl,
+  ) => Promise<T> | T,
   onUpdate?: (task: GenerationTaskViewState | null) => void,
 ): Promise<T> {
   return runProgressTask(
@@ -29,29 +52,35 @@ export async function runGenerationProgressTaskThen<T>(
       cancelTask: async () => {
         await generationClient.cancel(handle);
       },
+      // generation 任务的进度来自事件订阅，禁止叠加旧 Host 轮询通道。
+      pollTaskProgress: false,
     },
-    async ({ setProgress, setStreamText }) => {
+    async (control) => {
       const task = await generationClient.waitForTerminal(handle, (current) => {
-        applyGenerationProgress(current, setProgress, setStreamText);
+        applyGenerationProgress(current, control.setProgress, control.setStreamText);
         onUpdate?.(current);
       });
-      return afterTerminal(task);
+      return afterTerminal(task, control);
     },
   );
 }
 
 function applyGenerationProgress(
   task: GenerationTaskViewState | null,
-  setProgress: (message: string, current?: number, total?: number) => void,
-  setStreamText: (text: string) => void,
+  setProgress: ProgressTaskControl["setProgress"],
+  setStreamText: ProgressTaskControl["setStreamText"],
 ): void {
-  if (task?.progress) {
+  const progress = task?.progress;
+  if (progress) {
     setProgress(
-      task.progress.message,
-      task.progress.current ?? undefined,
-      task.progress.total ?? undefined,
+      progress.message,
+      progress.current ?? undefined,
+      progress.total ?? undefined,
+      // 传输层 ProgressEvent 的 12 个字段映射为展示层 meta，
+      // 供 progressPresentation 判定阶段名、计数标签、ETA 与语气。
+      generationProgressMeta(progress),
     );
   }
-  const stream = task?.streams.raw_json;
-  if (stream) setStreamText(stream.text);
+  const stream = task ? pickDisplayStreamText(task.streams) : null;
+  if (stream) setStreamText(stream);
 }

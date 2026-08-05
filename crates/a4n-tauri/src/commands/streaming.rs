@@ -4,7 +4,7 @@ use a4n_runtime::AppState;
 use a4n_runtime::host_api::task_records;
 use task_records::{
     CancelWorkflowInput, GetWorkflowRunInput, ListWorkflowRunsInput, ResumeWorkflowRunInput,
-    TaskProgressEventSummary, WorkflowProgressEventsInput, WorkflowRunDetailSummary,
+    WorkflowProgressEventsInput, WorkflowProgressEventsResponse, WorkflowRunDetailSummary,
     WorkflowRunSummary, WorkflowStateSummary,
 };
 use tauri::State;
@@ -58,6 +58,6 @@ pub async fn get_workflow_progress_events(
     state: State<'_, AppState>,
     user_id: i64,
     input: WorkflowProgressEventsInput,
-) -> Result<Vec<TaskProgressEventSummary>, String> {
+) -> Result<WorkflowProgressEventsResponse, String> {
     task_records::get_workflow_progress_events(&state, user_id, input).await
 }

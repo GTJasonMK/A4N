@@ -27,7 +27,7 @@ pub(crate) async fn probe(
 
 async fn probe_with_provider(payload: LlmProbePayload) -> Result<LlmProbeOutput, AppError> {
     let provider = provider_from_config(payload.provider)?;
-    probe_existing_provider(&provider, payload.request).await
+    probe_existing_provider(provider.as_ref(), payload.request).await
 }
 
 pub(crate) async fn probe_existing_provider(

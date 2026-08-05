@@ -44,8 +44,6 @@ impl LlmProvider for StaticLlmProvider {
 
     fn capabilities(&self) -> ModelCapabilities {
         ModelCapabilities {
-            function_calling: false,
-            vision: false,
             max_context_tokens: 8192,
             max_output_tokens: 1024,
         }

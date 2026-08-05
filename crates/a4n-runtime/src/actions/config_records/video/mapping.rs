@@ -27,7 +27,6 @@ pub(super) fn video_config_summary(config: &video_gen_config::Model) -> VideoCon
         duration_mode: config.duration_mode.clone(),
         supported_durations_json: config.supported_durations_json.clone(),
         default_fps: config.default_fps,
-        provider_options_json: config.provider_options_json.clone(),
         is_default: config.is_default,
         created_at: Some(config.created_at.to_string()),
         updated_at: Some(config.updated_at.to_string()),
@@ -69,7 +68,6 @@ mod tests {
             "duration_mode": "range",
             "supported_durations_json": null,
             "default_fps": 24,
-            "provider_options_json": null
         });
         let missing_key = serde_json::from_value::<UpdateVideoConfigInput>(base.clone())
             .expect("missing api_key_encrypted should preserve the old key");

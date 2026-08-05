@@ -11,7 +11,7 @@ pub struct CreateLlmConfigInput<'a> {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
 }
 
 #[derive(Debug, Default)]
@@ -25,7 +25,7 @@ pub struct UpdateLlmConfigInput<'a> {
     pub timeout_secs: Option<i32>,
     pub max_context_tokens: Option<i32>,
     pub max_output_tokens: Option<i32>,
-    pub request_options_json: Option<Option<Value>>,
+    pub extra_body_json: Option<Option<Value>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,5 +39,5 @@ pub struct NormalizedLlmConfig {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
 }

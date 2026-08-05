@@ -1,6 +1,6 @@
 use super::provider::GeminiVeoVideoProvider;
-use super::response::find_video_uri;
-use a4n_video::VideoGenerationRequest;
+use super::response::{find_video_uri, veo_resolution_from_size};
+use a4n_video::{VideoGenerationRequest, VideoMediaInput};
 use serde_json::json;
 
 fn request() -> VideoGenerationRequest {
@@ -12,10 +12,12 @@ fn request() -> VideoGenerationRequest {
         duration_secs: 8,
         fps: 24,
         model: "veo-3.1-generate-preview".into(),
-        first_frame_image_url: Some("data:image/png;base64,first".into()),
-        last_frame_image_url: Some("data:image/png;base64,last".into()),
-        reference_image_urls: vec!["data:image/jpeg;base64,asset".into()],
-        reference_media: None,
+        media: VideoMediaInput::from_images(
+            Some("data:image/png;base64,first".into()),
+            Some("data:image/png;base64,last".into()),
+            vec!["data:image/jpeg;base64,asset".into()],
+        )
+        .unwrap(),
     }
 }
 
@@ -42,6 +44,14 @@ fn builds_native_veo_first_last_frame_body() {
 }
 
 #[test]
+fn resolution_uses_short_edge_quality_tiers() {
+    assert_eq!(veo_resolution_from_size(1920, 1080), "1080p");
+    assert_eq!(veo_resolution_from_size(1080, 1080), "1080p");
+    assert_eq!(veo_resolution_from_size(3840, 2160), "4k");
+    assert_eq!(veo_resolution_from_size(2160, 2160), "4k");
+}
+
+#[test]
 fn preview_body_redacts_inline_media_payloads() {
     let body = GeminiVeoVideoProvider::request_body_preview(&request()).expect("preview body");
     let instance = &body["instances"][0];
@@ -65,9 +75,12 @@ fn preview_body_redacts_inline_media_payloads() {
 #[test]
 fn preview_body_accepts_placeholder_media_urls_as_inline_data_shape() {
     let mut req = request();
-    req.first_frame_image_url = Some("https://example.invalid/a4n-preview/first".into());
-    req.last_frame_image_url = Some("https://example.invalid/a4n-preview/last".into());
-    req.reference_image_urls = vec!["https://example.invalid/a4n-preview/ref".into()];
+    req.media = VideoMediaInput::from_images(
+        Some("https://example.invalid/a4n-preview/first".into()),
+        Some("https://example.invalid/a4n-preview/last".into()),
+        vec!["https://example.invalid/a4n-preview/ref".into()],
+    )
+    .unwrap();
 
     let body = GeminiVeoVideoProvider::request_body_preview(&req).expect("preview body");
     let instance = &body["instances"][0];
@@ -83,24 +96,19 @@ fn preview_body_accepts_placeholder_media_urls_as_inline_data_shape() {
 }
 
 #[test]
-fn rejects_last_frame_without_first_frame() {
-    let mut req = request();
-    req.first_frame_image_url = None;
-
-    let err = GeminiVeoVideoProvider::request_body(&req).expect_err("invalid body");
-
-    assert!(err.to_string().contains("必须和首帧 image 一起使用"));
-}
-
-#[test]
 fn rejects_more_than_three_reference_images() {
     let mut req = request();
-    req.reference_image_urls = vec![
-        "data:image/png;base64,a".into(),
-        "data:image/png;base64,b".into(),
-        "data:image/png;base64,c".into(),
-        "data:image/png;base64,d".into(),
-    ];
+    req.media = VideoMediaInput::from_images(
+        Some("data:image/png;base64,first".into()),
+        Some("data:image/png;base64,last".into()),
+        vec![
+            "data:image/png;base64,a".into(),
+            "data:image/png;base64,b".into(),
+            "data:image/png;base64,c".into(),
+            "data:image/png;base64,d".into(),
+        ],
+    )
+    .unwrap();
 
     let err = GeminiVeoVideoProvider::request_body(&req).expect_err("too many refs");
 

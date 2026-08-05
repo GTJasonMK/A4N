@@ -1,10 +1,7 @@
-use serde_json::Value;
-
 use crate::{error::AppError, models::ai::image_gen_config};
 
 use super::{
-    normalize_config_name, normalize_grok_reference_mode_options_json,
-    normalize_optional_config_value, positive_i32, required_config_value,
+    normalize_config_name, normalize_optional_config_value, positive_i32, required_config_value,
 };
 
 #[derive(Debug, Clone)]
@@ -17,7 +14,6 @@ pub struct CreateImageConfigParams {
     pub max_concurrent: i32,
     pub default_width: i32,
     pub default_height: i32,
-    pub provider_options_json: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -30,7 +26,6 @@ pub struct UpdateImageConfigParams {
     pub max_concurrent: i32,
     pub default_width: i32,
     pub default_height: i32,
-    pub provider_options_json: Option<Value>,
 }
 
 pub fn validate_image_config_params(
@@ -45,8 +40,6 @@ pub fn validate_image_config_params(
     params.max_concurrent = positive_i32(params.max_concurrent, "图片配置 max_concurrent")?;
     params.default_width = positive_i32(params.default_width, "图片配置 default_width")?;
     params.default_height = positive_i32(params.default_height, "图片配置 default_height")?;
-    params.provider_options_json =
-        normalize_image_provider_options_json(&params.backend, params.provider_options_json)?;
     Ok(params)
 }
 
@@ -65,7 +58,6 @@ pub fn validate_image_config_model(
         max_concurrent: model.max_concurrent,
         default_width: model.default_width,
         default_height: model.default_height,
-        provider_options_json: model.provider_options_json.clone(),
     })
 }
 
@@ -85,32 +77,8 @@ fn normalize_image_backend_api_key(
     }
 }
 
-fn normalize_image_provider_options_json(
-    backend: &str,
-    value: Option<Value>,
-) -> Result<Option<Value>, AppError> {
-    let Some(value) = value.filter(|value| !value.is_null()) else {
-        return Ok(None);
-    };
-    if backend != "cliproxy-image" {
-        return Err(AppError::InvalidArgument(format!(
-            "图片 provider_options_json 仅支持 cliproxy-image 后端，当前后端为 {backend}"
-        )));
-    }
-    if let Value::Object(map) = &value
-        && let Some(key) = map.keys().find(|key| key.as_str() != "grok_reference_mode")
-    {
-        return Err(AppError::InvalidArgument(format!(
-            "图片 provider_options_json 包含未知字段：{key}"
-        )));
-    }
-    normalize_grok_reference_mode_options_json(true, "图片", Some(value))
-}
-
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
     use super::*;
 
     fn params() -> CreateImageConfigParams {
@@ -123,7 +91,6 @@ mod tests {
             max_concurrent: 1,
             default_width: 1024,
             default_height: 1024,
-            provider_options_json: None,
         }
     }
 
@@ -193,50 +160,5 @@ mod tests {
             validate_image_config_params(unsupported),
             Err(AppError::InvalidArgument(_))
         ));
-    }
-
-    #[test]
-    fn provider_options_are_cliproxy_only_and_reject_unknown_fields() {
-        let mut non_cliproxy = params();
-        non_cliproxy.provider_options_json = Some(json!({
-            "grok_reference_mode": "first_frame",
-        }));
-        assert!(
-            validate_image_config_params(non_cliproxy)
-                .expect_err("non-cliproxy options")
-                .to_string()
-                .contains("provider_options_json 仅支持 cliproxy-image")
-        );
-
-        let mut unknown_field = params();
-        unknown_field.backend = "cliproxy-image".into();
-        unknown_field.provider_options_json = Some(json!({
-            "grok_reference_mode": "reference",
-            "legacy_mode": true,
-        }));
-        assert!(
-            validate_image_config_params(unknown_field)
-                .expect_err("unknown option")
-                .to_string()
-                .contains("provider_options_json 包含未知字段：legacy_mode")
-        );
-    }
-
-    #[test]
-    fn normalizes_cliproxy_reference_mode() {
-        let mut params = params();
-        params.backend = "cliproxy-image".into();
-        params.provider_options_json = Some(json!({
-            "grok_reference_mode": " first_frame ",
-        }));
-
-        assert_eq!(
-            validate_image_config_params(params)
-                .expect("valid cliproxy options")
-                .provider_options_json,
-            Some(json!({
-                "grok_reference_mode": "first_frame",
-            }))
-        );
     }
 }

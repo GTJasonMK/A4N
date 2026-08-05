@@ -609,6 +609,14 @@ install_frontend_deps() {
 }
 
 # —— 运行数据库迁移 ——
+is_transient_database_failure() {
+    local log_file="$1"
+    grep -Fq '连接数据库失败:' "$log_file" &&
+        grep -Eqi \
+            'error communicating with database|expected to read [0-9]+ bytes, got 0 bytes at EOF|connection (refused|reset|timed out)|server closed the connection unexpectedly|the database system is starting up|cannot connect now|timeout expired' \
+            "$log_file"
+}
+
 run_migration() {
     echo -e "${CYAN}━━━ 数据库迁移 ━━━${NC}"
 
@@ -617,10 +625,36 @@ run_migration() {
     local database_url
     database_url="$(configured_database_url)"
     echo -e "  使用项目迁移器: ${CYAN}${database_url}${NC}"
-    cargo run -p a4n-migration -- "$database_url" 2>&1 || {
-        echo -e "${RED}✗ 数据库迁移失败${NC}"
-        exit 1
-    }
+
+    local attempt=1
+    local max_attempts=5
+    local retry_delay
+    local migration_status
+    local migration_log
+    migration_log="$(mktemp "${TMPDIR:-/tmp}/a4n-migration.XXXXXX")"
+
+    while true; do
+        set +e
+        cargo run -p a4n-migration -- "$database_url" 2>&1 | tee "$migration_log"
+        migration_status=${PIPESTATUS[0]}
+        set -e
+
+        if [[ "$migration_status" -eq 0 ]]; then
+            rm -f "$migration_log"
+            break
+        fi
+
+        if [[ "$attempt" -ge "$max_attempts" ]] || ! is_transient_database_failure "$migration_log"; then
+            rm -f "$migration_log"
+            echo -e "${RED}✗ 数据库迁移失败${NC}"
+            exit 1
+        fi
+
+        retry_delay="$attempt"
+        attempt=$((attempt + 1))
+        echo -e "  ${YELLOW}⚠${NC} PostgreSQL 尚未就绪，${retry_delay} 秒后重试迁移 (${attempt}/${max_attempts})"
+        sleep "$retry_delay"
+    done
 
     echo -e "  ${GREEN}✓${NC} 数据库 schema 已同步"
 
@@ -637,6 +671,17 @@ start_dev_sidecars() {
     echo -e "  services: ${CYAN}${SIDECAR_MODULES}${NC}"
     echo ""
     "$PROJECT_ROOT/scripts/dev/run-services.sh" "$SIDECAR_MODULES"
+    # run-services.sh is intentionally a separate process, so its exported
+    # bootstrap token is not inherited by this host process. Read the shared
+    # file back before cargo-watch launches/restarts a4n-tauri.
+    local token_file="$APP_DATA_DIR/services/auth-token"
+    if [[ -z "${A4N_SIDECAR_AUTH_TOKEN:-}" && -s "$token_file" ]]; then
+        A4N_SIDECAR_AUTH_TOKEN="$(tr -d '[:space:]' <"$token_file")"
+        if [[ -z "$A4N_SIDECAR_AUTH_TOKEN" ]]; then
+            die "sidecar 认证 token 为空: $token_file"
+        fi
+        export A4N_SIDECAR_AUTH_TOKEN
+    fi
     echo ""
 }
 

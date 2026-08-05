@@ -88,12 +88,12 @@ impl GeminiVeoVideoProvider {
         req: &VideoGenerationRequest,
         image_value: fn(&str, &str) -> Result<Value, AppError>,
     ) -> Result<Value, AppError> {
-        if req.last_frame_image_url.is_some() && req.first_frame_image_url.is_none() {
+        if req.media.last_frame().is_some() && req.media.first_frame().is_none() {
             return Err(AppError::InvalidArgument(
                 "Gemini Veo lastFrame 必须和首帧 image 一起使用".into(),
             ));
         }
-        if req.reference_image_urls.len() > 3 {
+        if req.media.reference_images().len() > 3 {
             return Err(AppError::InvalidArgument(
                 "Gemini Veo referenceImages 最多支持 3 张素材参考图".into(),
             ));
@@ -101,15 +101,16 @@ impl GeminiVeoVideoProvider {
 
         let mut instance = Map::new();
         instance.insert("prompt".into(), json!(req.prompt));
-        if let Some(image) = req.first_frame_image_url.as_deref() {
+        if let Some(image) = req.media.first_frame() {
             instance.insert("image".into(), image_value(image, "首帧 image")?);
         }
-        if let Some(image) = req.last_frame_image_url.as_deref() {
+        if let Some(image) = req.media.last_frame() {
             instance.insert("lastFrame".into(), image_value(image, "尾帧 lastFrame")?);
         }
-        if !req.reference_image_urls.is_empty() {
+        if !req.media.reference_images().is_empty() {
             let references = req
-                .reference_image_urls
+                .media
+                .reference_images()
                 .iter()
                 .enumerate()
                 .map(|(index, url)| {
@@ -254,9 +255,9 @@ impl VideoProvider for GeminiVeoVideoProvider {
         tracing::debug!(
             "gemini veo video POST {url} model={} boundary_first={} boundary_last={} references={}",
             req.model,
-            req.first_frame_image_url.is_some(),
-            req.last_frame_image_url.is_some(),
-            req.reference_image_urls.len()
+            req.media.first_frame().is_some(),
+            req.media.last_frame().is_some(),
+            req.media.reference_images().len()
         );
         let v = self
             .send_json(&url, body, provider_idempotency_key_sha256)

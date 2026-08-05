@@ -6,13 +6,12 @@ use a4n_core::{
     models::ai::video_gen_config,
     video_execution::{VideoReferenceMediaBindingV1, VideoReferenceMediaRecipeV1},
 };
-use a4n_video::{VideoGenerationRequest, VideoReferenceMediaRequest};
+use a4n_video::{VideoGenerationRequest, VideoMediaInput};
 use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
 use super::{
-    CLIPROXY_OPENAI_VIDEO_BACKEND, CliproxyGrokReferenceMode, MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES,
-    SEEDANCE2_VIDEO_BACKEND, parse_cliproxy_grok_reference_mode,
+    CLIPROXY_OPENAI_VIDEO_BACKEND, MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES, SEEDANCE2_VIDEO_BACKEND,
     validate_video_duration_for_config_secs,
 };
 
@@ -109,17 +108,50 @@ pub fn reference_media_preview_placeholder_url(field: &str, index: usize) -> Str
 pub fn reference_media_dimensions_for_aspect_ratio(
     aspect_ratio: &str,
 ) -> Result<(i32, i32), String> {
+    reference_media_dimensions_for_short_edge(aspect_ratio, 720)
+}
+
+fn reference_media_dimensions_for_short_edge(
+    aspect_ratio: &str,
+    short_edge: i32,
+) -> Result<(i32, i32), String> {
+    if short_edge <= 0 {
+        return Err("参考媒体视频分辨率短边必须大于 0".to_string());
+    }
+    let short_edge = even_dimension(short_edge);
     match aspect_ratio.trim() {
-        "21:9" => Ok((1680, 720)),
-        "16:9" => Ok((1280, 720)),
-        "4:3" => Ok((1024, 768)),
-        "1:1" => Ok((1024, 1024)),
-        "3:4" => Ok((768, 1024)),
-        "9:16" => Ok((720, 1280)),
+        "21:9" => Ok((scaled_even_dimension(short_edge, 21, 9)?, short_edge)),
+        "16:9" => Ok((scaled_even_dimension(short_edge, 16, 9)?, short_edge)),
+        "4:3" => Ok((scaled_even_dimension(short_edge, 4, 3)?, short_edge)),
+        "1:1" => Ok((short_edge, short_edge)),
+        "3:4" => Ok((short_edge, scaled_even_dimension(short_edge, 4, 3)?)),
+        "9:16" => Ok((short_edge, scaled_even_dimension(short_edge, 16, 9)?)),
         other => Err(format!(
             "参考媒体视频模式不支持画幅 {other}，请选择 21:9、16:9、4:3、1:1、3:4 或 9:16"
         )),
     }
+}
+
+fn reference_media_dimensions_for_config(
+    aspect_ratio: &str,
+    config: &video_gen_config::Model,
+) -> Result<(i32, i32), String> {
+    reference_media_dimensions_for_short_edge(
+        aspect_ratio,
+        config.default_width.min(config.default_height),
+    )
+}
+
+fn even_dimension(value: i32) -> i32 {
+    value.max(2) & !1
+}
+
+fn scaled_even_dimension(short_edge: i32, numerator: i32, denominator: i32) -> Result<i32, String> {
+    let rounded = (i64::from(short_edge) * i64::from(numerator) + i64::from(denominator / 2))
+        / i64::from(denominator);
+    i32::try_from(rounded)
+        .map(even_dimension)
+        .map_err(|_| "参考媒体视频分辨率超出 i32 范围".to_string())
 }
 
 /// 参考媒体导入选项（时长 + 画幅）。
@@ -412,20 +444,6 @@ pub(crate) fn build_reference_media_video_request(
             ),
         }
     }
-    if uses_cliproxy_references
-        && parse_cliproxy_grok_reference_mode(config.provider_options_json.as_ref())?
-            != CliproxyGrokReferenceMode::Reference
-    {
-        append_optional_note(
-            &mut provider_input_note,
-            validation_error_or_preview_note(
-                mode,
-                "参考媒体模式使用 cliproxy-openai-video 时必须选择 reference 参考图模式"
-                    .to_string(),
-                "；预览仍展示当前配置会发送的请求，真实生成会失败",
-            )?,
-        );
-    }
     match mode {
         VideoProviderValidationMode::Generate => {
             validate_video_duration_for_config_secs(config, duration_secs)?;
@@ -510,12 +528,10 @@ pub(crate) fn build_reference_media_video_request(
         let note = ensure_reference_media_tokens(&mut prompt, token_prefix, count, mode)?;
         append_optional_note(&mut provider_input_note, note);
     }
-    let (width, height) = reference_media_dimensions_for_aspect_ratio(&aspect_ratio)?;
-    let reference_image_urls = if uses_cliproxy_references {
-        image_files.clone()
-    } else {
-        Vec::new()
-    };
+    let (width, height) = reference_media_dimensions_for_config(&aspect_ratio, config)?;
+    if uses_cliproxy_references && (!video_files.is_empty() || !audio_files.is_empty()) {
+        return Err("CLIProxy / Grok 视频参考模式不支持视频或音频素材".to_string());
+    }
     Ok(PreparedReferenceMediaVideoRequest {
         request: VideoGenerationRequest {
             prompt,
@@ -525,14 +541,11 @@ pub(crate) fn build_reference_media_video_request(
             duration_secs,
             fps: config.default_fps,
             model: config.model.clone(),
-            first_frame_image_url: None,
-            last_frame_image_url: None,
-            reference_image_urls,
-            reference_media: Some(VideoReferenceMediaRequest {
-                image_files,
-                video_files,
-                audio_files,
-            }),
+            media: VideoMediaInput::References {
+                images: image_files,
+                videos: video_files,
+                audio: audio_files,
+            },
         },
         provider_input_note,
     })
@@ -544,24 +557,28 @@ pub(crate) fn reference_media_provider_request_note(
     request: &VideoGenerationRequest,
     provider_input_note: Option<&str>,
 ) -> Result<String, String> {
-    let reference_media = request
-        .reference_media
-        .as_ref()
-        .ok_or_else(|| "参考媒体请求缺少 reference_media".to_string())?;
+    let VideoMediaInput::References {
+        images,
+        videos,
+        audio,
+    } = &request.media
+    else {
+        return Err("参考媒体请求要求 media.type=references".to_string());
+    };
     let mut note = match config.backend.as_str() {
         SEEDANCE2_VIDEO_BACKEND => format!(
             "{source_label}；config_id={}，backend={}；Seedance 2.0 参考媒体模式使用 functionMode=omni_reference；image_files={}，video_files={}，audio_files={}；prompt 必须用 @image_file_N / @video_file_N / @audio_file_N 明确绑定每个媒体用途。",
             config.id,
             config.backend,
-            reference_media.image_files.len(),
-            reference_media.video_files.len(),
-            reference_media.audio_files.len()
+            images.len(),
+            videos.len(),
+            audio.len()
         ),
         CLIPROXY_OPENAI_VIDEO_BACKEND => format!(
             "{source_label}；config_id={}，backend={}；图片参考媒体按顺序映射为 provider reference_images；image_files={}，video_files=0，audio_files=0。",
             config.id,
             config.backend,
-            reference_media.image_files.len()
+            images.len()
         ),
         backend => format!(
             "{source_label}；config_id={}，backend={backend}；当前后端不支持真实参考媒体生成，此请求仅用于预览结构。",
@@ -617,7 +634,6 @@ mod tests {
             duration_mode: "range".to_string(),
             supported_durations_json: None,
             default_fps: 24,
-            provider_options_json: None,
             is_default: true,
             created_at: now,
             updated_at: now,
@@ -630,6 +646,14 @@ mod tests {
             reference_media_dimensions_for_aspect_ratio("16:9").unwrap(),
             (1280, 720)
         );
+        assert_eq!(
+            reference_media_dimensions_for_aspect_ratio("4:3").unwrap(),
+            (960, 720)
+        );
+        assert_eq!(
+            reference_media_dimensions_for_aspect_ratio("1:1").unwrap(),
+            (720, 720)
+        );
         assert!(reference_media_dimensions_for_aspect_ratio("2:1").is_err());
         assert_eq!(
             reference_media_preview_placeholder_url("image_files", 0),
@@ -639,6 +663,22 @@ mod tests {
         assert_eq!(opts.aspect_ratio, "16:9");
         assert!(validate_reference_media_import_options(0, "16:9").is_err());
         assert!(validate_reference_media_import_options(8, "2:1").is_err());
+    }
+
+    #[test]
+    fn configured_full_hd_quality_scales_reference_media_dimensions() {
+        let mut config = video_config(CLIPROXY_OPENAI_VIDEO_BACKEND);
+        config.default_width = 1920;
+        config.default_height = 1080;
+
+        assert_eq!(
+            reference_media_dimensions_for_config("16:9", &config).unwrap(),
+            (1920, 1080)
+        );
+        assert_eq!(
+            reference_media_dimensions_for_config("9:16", &config).unwrap(),
+            (1080, 1920)
+        );
     }
 
     #[test]
@@ -703,15 +743,10 @@ mod tests {
             (prepared.request.width, prepared.request.height),
             (1280, 720)
         );
-        assert_eq!(
-            prepared
-                .request
-                .reference_media
-                .as_ref()
-                .unwrap()
-                .image_files,
-            ["https://example.test/ref.png"]
-        );
+        let a4n_video::VideoMediaInput::References { images, .. } = &prepared.request.media else {
+            panic!("expected reference media");
+        };
+        assert_eq!(images, &["https://example.test/ref.png"]);
         let note = reference_media_provider_request_note(
             "当前表单",
             &video_config(SEEDANCE2_VIDEO_BACKEND),
@@ -731,9 +766,6 @@ mod tests {
         );
         let mut config = video_config(CLIPROXY_OPENAI_VIDEO_BACKEND);
         config.model = "bc/se-2.0".to_string();
-        config.provider_options_json = Some(serde_json::json!({
-            "grok_reference_mode": "reference"
-        }));
         let prepared = build_reference_media_video_request(
             &config,
             ResolvedReferenceMediaVideoInput {
@@ -749,16 +781,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            prepared.request.reference_image_urls,
-            ["https://example.test/ref.png"]
-        );
-        assert_eq!(
-            prepared
-                .request
-                .reference_media
-                .as_ref()
-                .unwrap()
-                .image_files,
+            prepared.request.media.reference_images(),
             ["https://example.test/ref.png"]
         );
         let note = reference_media_provider_request_note(
@@ -773,10 +796,7 @@ mod tests {
 
     #[test]
     fn request_builder_rejects_cliproxy_video_or_audio_references() {
-        let mut config = video_config(CLIPROXY_OPENAI_VIDEO_BACKEND);
-        config.provider_options_json = Some(serde_json::json!({
-            "grok_reference_mode": "reference"
-        }));
+        let config = video_config(CLIPROXY_OPENAI_VIDEO_BACKEND);
         let error = match build_reference_media_video_request(
             &config,
             ResolvedReferenceMediaVideoInput {
@@ -798,10 +818,7 @@ mod tests {
 
     #[test]
     fn request_builder_uses_cliproxy_image_limit() {
-        let mut config = video_config(CLIPROXY_OPENAI_VIDEO_BACKEND);
-        config.provider_options_json = Some(serde_json::json!({
-            "grok_reference_mode": "reference"
-        }));
+        let config = video_config(CLIPROXY_OPENAI_VIDEO_BACKEND);
         let error = build_reference_media_video_request(
             &config,
             ResolvedReferenceMediaVideoInput {

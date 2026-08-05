@@ -69,3 +69,31 @@ where
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(VideoDbError::Database)
 }
+
+pub async fn update_generated_video_duration_record<C>(
+    db: &C,
+    video_id: i64,
+    duration_secs: f32,
+) -> Result<generated_video::Model, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    if !duration_secs.is_finite() || duration_secs <= 0.0 {
+        return Err(VideoDbError::InvalidArgument(
+            "视频实际时长必须是大于 0 的有限数".to_string(),
+        ));
+    }
+    let video = generated_video::Entity::find_by_id(video_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
+    if video.status == "running" {
+        return Err(VideoDbError::InvalidArgument(
+            "视频生成中，不能回写视频实际时长".to_string(),
+        ));
+    }
+    let mut active: generated_video::ActiveModel = video.into();
+    active.duration_secs = Set(duration_secs);
+    active.updated_at = Set(Utc::now().naive_utc());
+    active.update(db).await.map_err(VideoDbError::Database)
+}

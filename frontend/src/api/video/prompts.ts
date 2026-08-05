@@ -17,7 +17,11 @@ export interface GeneratePromptOptions {
   style: string;
   prompt_output_language?: PromptOutputLanguage;
   prompt_batch_size: number;
-  target_shot_number?: number;
+  target_segment?: {
+    source_shot_id: string;
+    segment_index_in_shot: number;
+  };
+  target_narrative_unit_index?: number;
   duration_secs: number;
   duration_secs_options?: number[];
   aspect_ratio: string;
@@ -73,6 +77,7 @@ interface UpdateChapterVideoPromptInput {
   visual_prompt?: string | null;
   motion_prompt?: string | null;
   negative_prompt?: string | null;
+  duration_secs?: number;
   downstream_strategy?: DownstreamConflictStrategy;
 }
 
@@ -123,15 +128,19 @@ export async function startChapterVideoSegmentPlan(
   projectId: Id,
   chapterId: Id,
   options: GeneratePromptOptions,
+  retryOfTaskId?: string | null,
 ): Promise<GenerationTaskHandle> {
-  return startVideoGeneration({
+  const input = {
     project_id: idNum(projectId, "项目 ID"),
     operation: {
-      kind: "prompt_segment_plan",
+      kind: "prompt_segment_plan" as const,
       chapter_id: idNum(chapterId, "章节 ID"),
       options,
     },
-  });
+  };
+  return retryOfTaskId == null
+    ? startVideoGeneration(input)
+    : startVideoGeneration(input, retryOfTaskId);
 }
 
 export async function startChapterVideoPrompts(

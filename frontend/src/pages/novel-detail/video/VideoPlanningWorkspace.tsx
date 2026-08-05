@@ -1,7 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ListChecks, RotateCcw, Trash2, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ChapterVideoPrompt } from "../../../api/video";
+import type { ShootingScene } from "../../../api/shootingScript";
 import { BookButton } from "../../../components/ui/BookButton";
 import { asArray, asJsonRecord } from "../../../utils/jsonRecord";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
@@ -25,8 +26,11 @@ interface VideoPlanningWorkspaceProps {
   loadError: string | null;
   dataReady: boolean;
   acting: string | null;
-  chapterGenerating: boolean;
-  onGenerate: (regenerateExisting: boolean) => void | Promise<void>;
+  shootingScenes: ShootingScene[];
+  onGenerate: (
+    targetNarrativeUnitIndex: number,
+    regenerateExisting: boolean,
+  ) => void | Promise<void>;
   onOptionsChange: React.Dispatch<React.SetStateAction<VideoGenOptions>>;
   onRetryLoad: () => void | Promise<void>;
   onDelete: (prompt: ChapterVideoPrompt) => void | Promise<void>;
@@ -38,6 +42,40 @@ const textValue = (value: unknown): string | null =>
 const numberValue = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+type PlanningSceneSelection = Pick<ShootingScene, "narrative_unit_index"> & {
+  shots: Array<Pick<ShootingScene["shots"][number], "shot_id">>;
+};
+
+export const selectVideoPlanningUnitIndex = (
+  shootingScenes: PlanningSceneSelection[],
+  draftTarget: number | undefined,
+  current: number | null,
+  plannedShotIds: ReadonlySet<string>,
+): number | null => {
+  const available = new Set(
+    shootingScenes.map((scene) => scene.narrative_unit_index),
+  );
+  if (draftTarget != null && available.has(draftTarget)) return draftTarget;
+
+  const currentScene = shootingScenes.find(
+    (scene) => scene.narrative_unit_index === current,
+  );
+  const currentScenePlanned =
+    currentScene != null &&
+    currentScene.shots.length > 0 &&
+    currentScene.shots.every((shot) => plannedShotIds.has(shot.shot_id));
+  if (currentScene != null && !currentScenePlanned) {
+    return currentScene.narrative_unit_index;
+  }
+
+  return shootingScenes.find((scene) =>
+    scene.shots.some((shot) => !plannedShotIds.has(shot.shot_id)),
+  )?.narrative_unit_index ??
+    currentScene?.narrative_unit_index ??
+    shootingScenes[0]?.narrative_unit_index ??
+    null;
+};
+
 export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   prompt,
   previewSegments,
@@ -48,7 +86,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   loadError,
   dataReady,
   acting,
-  chapterGenerating,
+  shootingScenes,
   onGenerate,
   onOptionsChange,
   onRetryLoad,
@@ -68,10 +106,38 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   );
   const draftRunning = draft?.workflowStatus === "running";
   const canContinueDraft = draft != null && !draftRunning;
-  const busy = acting === "generate-segment-plan" || chapterGenerating || draftRunning;
+  const busy = acting === "generate-segment-plan" || draftRunning;
   const showingPreview = previewSegments.length > 0;
   const generatingPreview = acting === "generate-segment-plan" || draftRunning;
   const segments = showingPreview ? previewSegments : persistedSegments;
+  const plannedShotIds = useMemo(
+    () =>
+      new Set(
+        segments
+          .map((segment) => textValue(segment.source_shot_id))
+          .filter((value): value is string => value != null),
+      ),
+    [segments],
+  );
+  const draftTarget = draft?.resumeOptions.target_narrative_unit_index;
+  const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(null);
+  useEffect(() => {
+    setSelectedUnitIndex((current) => {
+      return selectVideoPlanningUnitIndex(
+        shootingScenes,
+        draftTarget,
+        current,
+        plannedShotIds,
+      );
+    });
+  }, [draftTarget, plannedShotIds, shootingScenes]);
+  const selectedScene = shootingScenes.find(
+    (scene) => scene.narrative_unit_index === selectedUnitIndex,
+  );
+  const selectedScenePlanned =
+    selectedScene != null &&
+    selectedScene.shots.length > 0 &&
+    selectedScene.shots.every((shot) => plannedShotIds.has(shot.shot_id));
   const needsLoadRetry = Boolean(loadError && !prompt);
   const shotProgress =
     draft && draft.completedShotCount > 0
@@ -107,16 +173,52 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <select
+            aria-label="选择要规划的拍摄场景"
+            value={selectedUnitIndex ?? ""}
+            onChange={(event) => setSelectedUnitIndex(Number(event.target.value))}
+            disabled={busy || loading || draft != null || shootingScenes.length === 0}
+            className="pyqt-input max-w-64 !px-2 !py-2 text-xs"
+          >
+            {shootingScenes.length === 0 ? (
+              <option value="">尚无已完成场景</option>
+            ) : (
+              shootingScenes.map((scene) => {
+                const planned =
+                  scene.shots.length > 0 &&
+                  scene.shots.every((shot) => plannedShotIds.has(shot.shot_id));
+                return (
+                  <option
+                    key={scene.narrative_unit_index}
+                    value={scene.narrative_unit_index}
+                  >
+                    场景 {scene.scene_index} · {scene.title}{planned ? " · 已规划" : ""}
+                  </option>
+                );
+              })
+            )}
+          </select>
           <BookButton
             variant="primary"
             size="md"
-            onClick={() => void (needsLoadRetry ? onRetryLoad() : onGenerate(Boolean(prompt)))}
-            disabled={busy || loading || (!dataReady && !needsLoadRetry)}
+            onClick={() =>
+              void (needsLoadRetry
+                ? onRetryLoad()
+                : selectedUnitIndex == null
+                  ? undefined
+                  : onGenerate(selectedUnitIndex, selectedScenePlanned))
+            }
+            disabled={
+              busy ||
+              loading ||
+              selectedUnitIndex == null ||
+              (!dataReady && !needsLoadRetry)
+            }
           >
-            {busy || loading ? <LoadingSpinner size="sm" /> : prompt || needsLoadRetry ? <RotateCcw size={14} /> : <Wand2 size={14} />}
+            {busy || loading ? <LoadingSpinner size="sm" /> : selectedScenePlanned || needsLoadRetry ? <RotateCcw size={14} /> : <Wand2 size={14} />}
             {canContinueDraft
-              ? prompt ? "继续重新规划" : "继续生成"
-              : prompt ? "重新规划" : needsLoadRetry ? "重试加载" : "生成片段规划"}
+              ? selectedScenePlanned ? "继续重新规划" : "继续生成"
+              : selectedScenePlanned ? "重新规划此场景" : needsLoadRetry ? "重试加载" : "规划此场景"}
           </BookButton>
           {prompt ? (
             <BookButton
@@ -221,7 +323,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
       {/* 片段列表：紧凑卡片 */}
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible custom-scrollbar pr-2">
         {!prompt && !showingPreview ? (
-          <EmptyHint text={loadError ? `加载已保存的片段规划失败：${loadError}` : loading ? "正在加载已保存的片段规划…" : busy ? "首个镜头的片段规划完整校验并保存后会显示在这里。" : "当前章节还没有片段规划。"} />
+          <EmptyHint text={loadError ? `加载已保存的片段规划失败：${loadError}` : loading ? "正在加载已保存的片段规划…" : busy ? "当前场景的片段规划完整校验并保存后会显示在这里。" : shootingScenes.length === 0 ? "请先生成至少一个拍摄场景。" : "请选择已完成的拍摄场景并生成片段规划。"} />
         ) : segments.length === 0 ? (
           <EmptyHint text="片段规划中没有可展示的片段。" />
         ) : (

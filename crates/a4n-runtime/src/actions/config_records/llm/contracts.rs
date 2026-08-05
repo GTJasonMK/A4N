@@ -16,7 +16,7 @@ pub(super) fn llm_config_summary(config: &llm_config::Model) -> LlmConfigSummary
         timeout_secs: config.timeout_secs,
         max_context_tokens: config.max_context_tokens,
         max_output_tokens: config.max_output_tokens,
-        request_options_json: config.request_options_json.clone(),
+        extra_body_json: config.extra_body_json.clone(),
         is_default: config.is_default,
         created_at: Some(config.created_at.to_string()),
         updated_at: Some(config.updated_at.to_string()),

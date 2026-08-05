@@ -47,33 +47,27 @@ fn embedding_model(backend: &str) -> embedding_config::Model {
 fn embedding_sidecar_accepts_supported_backends_case_insensitively() {
     let model = embedding_model(" FastEmbed ");
     assert_eq!(
-        SidecarEmbeddingProvider::validate_sidecar_backend(&model)
+        SidecarEmbeddingProvider::normalized_sidecar_backend(&model)
             .expect("fastembed must be supported"),
         "fastembed"
     );
 
     let model = embedding_model(" Local_Hash ");
     assert_eq!(
-        SidecarEmbeddingProvider::validate_sidecar_backend(&model)
+        SidecarEmbeddingProvider::normalized_sidecar_backend(&model)
             .expect("local_hash must be supported"),
         "local_hash"
     );
 }
 
 #[test]
-fn embedding_sidecar_rejects_api_backend_without_embedded_fallback() {
+fn embedding_sidecar_accepts_api_backend() {
     let model = embedding_model("api");
-
-    let error = SidecarEmbeddingProvider::validate_sidecar_backend(&model)
-        .expect_err("API embedding must not run in the host");
-
-    assert!(matches!(
-        error,
-        AppError::ConfigError(message)
-            if message.contains("仅支持 fastembed/local_hash")
-                && message.contains("backend=api")
-                && message.contains("不能回退到 host embedded provider")
-    ));
+    assert_eq!(
+        SidecarEmbeddingProvider::normalized_sidecar_backend(&model)
+            .expect("API embedding must run in the trusted sidecar"),
+        "api"
+    );
 }
 
 #[test]
@@ -130,6 +124,8 @@ fn embedding_connectivity_payload_omits_host_cache_path_and_keeps_explicit_model
     assert_eq!(payload.dimension, 384);
     assert_eq!(payload.batch_size, 16);
     assert_eq!(payload.texts, vec!["test"]);
+    assert!(payload.base_url.is_none());
+    assert!(payload.api_key.is_none());
 }
 
 #[test]
@@ -187,6 +183,27 @@ async fn embedding_connectivity_uses_typed_capability_and_deny_all_request() {
     assert_eq!(request.payload["texts"], serde_json::json!(["test"]));
     assert!(request.payload.get("cache_dir").is_none());
     assert!(request.payload.get("api_key").is_none());
+}
+
+#[tokio::test]
+async fn api_embedding_connectivity_forwards_secret_only_with_local_user_policy() {
+    let client = Arc::new(RecordingEmbeddingClient::new(
+        successful_embedding_response(),
+    ));
+    let capabilities = A4nCapabilities::empty().with_embedding(client.clone());
+    let mut model = embedding_model("api");
+    model.base_url = Some("https://provider.example/v1".to_string());
+    model.api_key_encrypted = Some("secret-key".to_string());
+
+    assert!(
+        test_embedding_config_via_sidecar(&capabilities, &model, "test")
+            .await
+            .expect("API embedding connectivity test")
+    );
+    let request = client.last_embed_request().expect("recorded embed request");
+    assert!(request.secret_policy.is_local_user_secret_only());
+    assert_eq!(request.payload["base_url"], "https://provider.example/v1");
+    assert_eq!(request.payload["api_key"], "secret-key");
 }
 
 #[test]

@@ -15,7 +15,7 @@ pub(in crate::asset_lineage_sync) fn video_generation_kinds(
 ) -> Option<(&'static str, &'static str)> {
     match prompt_type {
         "frame_segment_plan" => Some(("video_segment_plan", "video_segment_plan")),
-        "frame_prompt" | "first_frame_prompt" | "chat_video_frame_prompt" => {
+        "frame_prompt" | "first_frame_prompt" | "chat_video_frame_prompt" | "storyboard_prompt" => {
             Some(("video_frame_prompt", "image_prompt"))
         }
         "video_prompt" if workflow_mode == "chat_video" => {

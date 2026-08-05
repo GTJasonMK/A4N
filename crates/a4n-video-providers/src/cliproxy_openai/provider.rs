@@ -1,4 +1,4 @@
-use super::request::{grok_reference_mode, request_body_with_mode};
+use super::request::request_body_for_route;
 use super::response::{
     completed_video_url, error_body_preview, failure_message, format_from_content_type,
     is_completed_status, status, url_escape_path_segment, video_id,
@@ -17,18 +17,11 @@ use crate::download::download_video_url;
 use crate::format::detect_video_format_from_bytes;
 use crate::response::{parse_json_response, parse_json_response_allow_not_found};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum GrokReferenceMode {
-    Reference,
-    FirstFrame,
-}
-
-/// CLIProxyAPI `/openai/v1/videos` adapter for xAI Grok Imagine Video.
+/// GGGB Gateway 原生 `/v1/videos/generations` 与 OpenAI `/openai/v1/videos` 适配器。
 pub struct CliProxyOpenAiVideoProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
-    reference_mode: GrokReferenceMode,
 }
 
 impl CliProxyOpenAiVideoProvider {
@@ -37,28 +30,24 @@ impl CliProxyOpenAiVideoProvider {
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key: api_key.to_string(),
             client: reqwest::Client::new(),
-            reference_mode: GrokReferenceMode::Reference,
         }
     }
 
-    pub fn new_with_options(
-        base_url: &str,
-        api_key: &str,
-        provider_options_json: Option<&Value>,
-    ) -> Result<Self, AppError> {
-        Ok(Self {
-            base_url: base_url.trim_end_matches('/').to_string(),
-            api_key: api_key.to_string(),
-            client: reqwest::Client::new(),
-            reference_mode: grok_reference_mode(provider_options_json)?,
-        })
-    }
-
     fn videos_url(&self) -> String {
-        if self.base_url.ends_with("/videos") {
+        if self.base_url.ends_with("/videos/generations") {
+            self.base_url.trim_end_matches("/generations").to_string()
+        } else if self.base_url.ends_with("/videos") {
             self.base_url.clone()
         } else {
             format!("{}/videos", self.base_url)
+        }
+    }
+
+    fn create_url(&self) -> String {
+        if self.uses_openai_route() {
+            self.videos_url()
+        } else {
+            format!("{}/generations", self.videos_url())
         }
     }
 
@@ -74,28 +63,20 @@ impl CliProxyOpenAiVideoProvider {
         format!("{}/content?variant=video", self.video_url(video_id))
     }
 
+    #[cfg(test)]
     pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        request_body_with_mode(req, GrokReferenceMode::Reference, true)
+        request_body_for_route(req, true)
     }
 
     fn request_body_for_config(&self, req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        request_body_with_mode(
-            req,
-            self.reference_mode,
-            self.supports_openai_content_route(),
-        )
+        request_body_for_route(req, self.uses_openai_route())
     }
 
-    pub fn request_body_preview(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        Self::request_body(req)
-    }
-
-    pub fn request_body_preview_with_options(
+    pub fn request_body_preview_for_base_url(
         req: &VideoGenerationRequest,
         base_url: &str,
-        provider_options_json: Option<&Value>,
     ) -> Result<Value, AppError> {
-        Self::new_with_options(base_url, "", provider_options_json)?.request_body_for_config(req)
+        Self::new(base_url, "").request_body_for_config(req)
     }
 
     async fn post_json(
@@ -157,20 +138,14 @@ impl CliProxyOpenAiVideoProvider {
             });
         }
 
-        if self.supports_openai_content_route() {
-            return self.download_openai_content(video_id, metadata).await;
-        }
-
-        Err(AppError::Internal(anyhow::anyhow!(
-            "CLIProxy native 视频任务已完成，但响应缺少 video.url，无法下载；请确认 GET /v1/videos/{video_id} 返回 video.url"
-        )))
+        self.download_content(video_id, metadata).await
     }
 
-    pub(super) fn supports_openai_content_route(&self) -> bool {
+    pub(super) fn uses_openai_route(&self) -> bool {
         self.videos_url().contains("/openai/")
     }
 
-    async fn download_openai_content(
+    async fn download_content(
         &self,
         video_id: &str,
         metadata: Value,
@@ -228,7 +203,7 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
         if self.base_url.is_empty() {
             return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
         }
-        let url = self.videos_url();
+        let url = self.create_url();
         let body = self.request_body_for_config(&req)?;
         tracing::debug!("cliproxy video POST {url} model={}", req.model);
         let v = self

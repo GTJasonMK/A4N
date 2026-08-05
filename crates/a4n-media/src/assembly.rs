@@ -115,7 +115,9 @@ pub fn assemble_videos(request: VideoAssemblyRequest<'_>) -> Result<(), VideoAss
         .arg("-crf")
         .arg("20")
         .arg("-pix_fmt")
-        .arg("yuv420p");
+        .arg("yuv420p")
+        .arg("-g")
+        .arg(request.fps.to_string());
     if request.audio_enabled {
         command
             .arg("-map")

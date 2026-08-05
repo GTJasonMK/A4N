@@ -10,10 +10,10 @@ mod stream_collect;
 mod tests;
 
 pub use contracts::{
-    ChatChunk, ChatMessage, ChatResponse, LlmTraceContext, MessageRole, ModelCapabilities,
-    ToolCall, UsageInfo, is_truncated_finish_reason,
+    ChatChunk, ChatMessage, ChatResponse, LlmProtocolKind, LlmTraceContext, MessageRole,
+    ModelCapabilities, ToolCall, UsageInfo, is_truncated_finish_reason,
 };
 pub use interface::LlmProvider;
-pub use options::{normalize_request_options, normalize_request_options_json};
+pub use options::{normalize_extra_body, normalize_extra_body_json};
 pub use request::{ChatRequest, ResponseFormat};
 pub use stream_collect::collect_chat_stream;

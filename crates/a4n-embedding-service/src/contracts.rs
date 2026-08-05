@@ -8,6 +8,10 @@ use a4n_embedding_fastembed::DEFAULT_FASTEMBED_MODEL;
 #[serde(deny_unknown_fields)]
 pub(crate) struct EmbedTextsPayload {
     pub(crate) backend: String,
+    #[serde(default)]
+    pub(crate) base_url: Option<String>,
+    #[serde(default)]
+    pub(crate) api_key: Option<String>,
     pub(crate) model: String,
     pub(crate) dimension: usize,
     #[serde(default = "default_batch_size")]

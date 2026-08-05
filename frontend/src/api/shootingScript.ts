@@ -1,6 +1,7 @@
 import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import type {
+  ChapterShootingScriptUnitProgressView as ApiChapterShootingScriptUnitProgressView,
   ChapterShootingScriptView as ApiChapterShootingScriptView,
   EditedChapterShootingScriptView as ApiEditedChapterShootingScriptView,
 } from "./generated/host";
@@ -164,6 +165,14 @@ export type ChapterShootingScriptView = Omit<
   script: ChapterShootingScript;
 };
 
+export type ChapterShootingScriptUnitProgressView = Omit<
+  ApiChapterShootingScriptUnitProgressView,
+  "script" | "shooting_script"
+> & {
+  script: ChapterShootingScript;
+  shooting_script: ChapterShootingScriptView | null;
+};
+
 type EditedChapterShootingScriptView = Omit<
   ApiEditedChapterShootingScriptView,
   "shooting_script"
@@ -176,6 +185,17 @@ export const getChapterShootingScript = (projectId: number, sourceChapterId: num
     userId: currentUserId(),
     input: { project_id: projectId, source_chapter_id: sourceChapterId },
   });
+
+export const getChapterShootingScriptUnitProgress = (
+  projectId: number,
+  sourceChapterId: number,
+) => apiInvoke<ChapterShootingScriptUnitProgressView | null>(
+  "get_chapter_shooting_script_unit_progress",
+  {
+    userId: currentUserId(),
+    input: { project_id: projectId, source_chapter_id: sourceChapterId },
+  },
+);
 
 export const generateChapterShootingScript = (
   projectId: number,
@@ -190,6 +210,22 @@ export const generateChapterShootingScript = (
     },
     taskId: taskId ?? null,
   });
+
+export const generateNextChapterShootingScriptUnit = (
+  projectId: number,
+  sourceChapterId: number,
+  taskId?: string | null,
+) => apiInvoke<ChapterShootingScriptUnitProgressView>(
+  "generate_next_chapter_shooting_script_unit",
+  {
+    userId: currentUserId(),
+    input: {
+      project_id: projectId,
+      source_chapter_id: sourceChapterId,
+    },
+    taskId: taskId ?? null,
+  },
+);
 
 export const editChapterShootingScript = (
   projectId: number,

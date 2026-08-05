@@ -7,18 +7,18 @@ use a4n_orchestrator::canvas::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoImageInput,
     CanvasVideoPersistedFile, CanvasVideoProviderInput, CanvasVideoResolvedImages,
 };
+#[cfg(feature = "embedded-media-providers")]
 use a4n_orchestrator::video::{
-    CLIPROXY_OPENAI_VIDEO_BACKEND, ChapterVideoGenerationHostPort, ChapterVideoImageInput,
-    PersistedVideoResult, ProviderImageInputTransport, ReferenceMediaVideoGenerationHostPort,
+    CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
+    OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
+};
+use a4n_orchestrator::video::{
+    ChapterVideoGenerationHostPort, ChapterVideoImageInput, PersistedVideoResult,
+    ProviderImageInputTransport, ReferenceMediaVideoGenerationHostPort,
     ResolvedChapterVideoImageInputs, VideoGenerationProgress, VideoProviderHostPort,
     VideoProviderRequestBody, VideoProviderRequestInput, VideoProviderValidationMode,
     append_video_request_prompt_length_context, is_canvas_video_record,
     provider_image_input_transport_with_override, video_request_prompt_length_context,
-};
-#[cfg(feature = "embedded-media-providers")]
-use a4n_orchestrator::video::{
-    GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND, OPENAI_CHAT_VIDEO_BACKEND,
-    OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
 };
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_service_protocol::GenerationArtifactRef;
@@ -112,10 +112,9 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     "由 embedded OpenAI 兼容视频 provider 生成真实请求体",
                 ),
                 CLIPROXY_OPENAI_VIDEO_BACKEND => (
-                    CliProxyOpenAiVideoProvider::request_body_preview_with_options(
+                    CliProxyOpenAiVideoProvider::request_body_preview_for_base_url(
                         &input.request,
                         input.config.base_url.as_deref().unwrap_or_default(),
-                        input.config.provider_options_json.as_ref(),
                     )
                     .map_err(|error| host_error(error.to_string()))?,
                     "由 embedded CLIProxy OpenAI 视频 provider 生成真实请求体",
@@ -645,10 +644,7 @@ impl ChapterVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         self.resolve_config(config_id).await
     }
 
-    fn resolve_image_transport(
-        &self,
-        backend: &str,
-    ) -> Result<ProviderImageInputTransport, AppError> {
+    fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError> {
         let override_value = match std::env::var("A4N_VIDEO_IMAGE_INPUT_TRANSPORT") {
             Ok(value) => Some(value),
             Err(std::env::VarError::NotPresent) => None,
@@ -658,13 +654,7 @@ impl ChapterVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
                 )));
             }
         };
-        provider_image_input_transport_with_override(
-            backend,
-            override_value.as_deref(),
-            remote_temp_upload_configured().map_err(host_error)?,
-            CLIPROXY_OPENAI_VIDEO_BACKEND,
-        )
-        .map_err(host_error)
+        provider_image_input_transport_with_override(override_value.as_deref()).map_err(host_error)
     }
 
     async fn resolve_chapter_video_image_inputs(

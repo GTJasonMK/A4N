@@ -26,6 +26,7 @@ pub mod portrait;
 pub mod profile;
 pub mod project;
 pub mod project_transfer;
+pub mod provider_catalog;
 pub mod rag;
 pub mod request_preview;
 pub mod shooting_script;

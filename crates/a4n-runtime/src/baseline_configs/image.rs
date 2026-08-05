@@ -96,6 +96,5 @@ fn public_image_seed(
         )?,
         default_width,
         default_height,
-        provider_options_json: None,
     }))
 }

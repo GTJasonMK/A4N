@@ -38,8 +38,8 @@ impl HttpLlmProvider {
         request: &ChatRequest,
         stream: bool,
     ) -> reqwest::RequestBuilder {
-        let user_cache_breakpoint = request.prompt_cache_key.as_ref().and_then(|_| {
-            let prefix_len = request.prompt_cache_user_prefix_len?;
+        let user_cache_breakpoint = request.cache_scope_key.as_ref().and_then(|_| {
+            let prefix_len = request.cache_user_prefix_len?;
             request
                 .messages
                 .iter()
@@ -53,9 +53,9 @@ impl HttpLlmProvider {
                 .map(|index| (index, prefix_len))
         });
         let cache_breakpoint_index = request
-            .prompt_cache_key
+            .cache_scope_key
             .as_ref()
-            .filter(|_| user_cache_breakpoint.is_none() && request.prompt_cache_system_prefix)
+            .filter(|_| user_cache_breakpoint.is_none() && request.cache_system_prefix)
             .and_then(|_| {
                 request
                     .messages
@@ -117,7 +117,7 @@ impl HttpLlmProvider {
             })
             .collect();
 
-        let mut body = self.request_options.clone().unwrap_or_default();
+        let mut body = self.extra_body.clone().unwrap_or_default();
         body.insert("model".into(), Value::String(self.model.clone()));
         body.insert("messages".into(), json!(messages));
         insert_optional(&mut body, "temperature", request.temperature);
@@ -125,7 +125,7 @@ impl HttpLlmProvider {
         insert_optional(
             &mut body,
             "prompt_cache_key",
-            request.prompt_cache_key.as_deref(),
+            request.cache_scope_key.as_deref(),
         );
         insert_optional(
             &mut body,

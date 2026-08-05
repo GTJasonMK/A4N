@@ -31,6 +31,7 @@ use crate::{
     workflow::{self, CompletedLlmCallCheckpointInput, workflow_checkpoint_contract_app_error},
 };
 
+use super::prompt_optimization_rules::is_frame_prompt_type;
 use super::{
     OptimizedVideoPromptFields, UpdateChapterVideoPromptInput, VideoPromptDownstreamCleanupPort,
     VideoPromptDownstreamDependencies, normalized_existing_optional_text,
@@ -627,16 +628,18 @@ fn optimized_prompt_asset_contract(
                 "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
             },
         }),
-        "frame_prompt" | "first_frame_prompt" | "chat_video_frame_prompt" => json!({
-            "kind": "frame_prompt",
-            "visual_prompt_is_frame_prompt": true,
-            "visual_prompt_required_sections": prompt_output_language.frame_sections(),
-            "motion_prompt_required": false,
-            "minimum_lengths": {"visual_prompt_chars": MIN_FRAME_PROMPT_CHARS},
-            "forbidden_terms": {
-                "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
-            },
-        }),
+        prompt_type if is_frame_prompt_type(prompt_type) => {
+            json!({
+                "kind": "frame_prompt",
+                "visual_prompt_is_frame_prompt": true,
+                "visual_prompt_required_sections": prompt_output_language.frame_sections(),
+                "motion_prompt_required": false,
+                "minimum_lengths": {"visual_prompt_chars": MIN_FRAME_PROMPT_CHARS},
+                "forbidden_terms": {
+                    "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
+                },
+            })
+        }
         _ => json!({"kind": "text_prompt", "motion_prompt_required": false}),
     }
 }
@@ -676,6 +679,48 @@ mod tests {
     use chrono::Utc;
 
     use super::*;
+
+    #[test]
+    fn storyboard_prompt_uses_frame_optimization_contract() {
+        let now = Utc::now().naive_utc();
+        let prompt = chapter_video_prompt::Model {
+            id: 9,
+            project_id: 1,
+            chapter_id: 2,
+            style: Some("电影感写实".to_string()),
+            prompt_type: "storyboard_prompt".to_string(),
+            workflow_mode: "storyboard".to_string(),
+            shot_number: 3,
+            title: Some("走廊分镜".to_string()),
+            scene_summary: None,
+            visual_prompt: "中景展示主角穿过昏暗走廊".to_string(),
+            motion_prompt: None,
+            negative_prompt: None,
+            duration_secs: 5,
+            aspect_ratio: Some("16:9".to_string()),
+            reference_image_ids_json: None,
+            status: "completed".to_string(),
+            generated_video_id: None,
+            metadata_json: None,
+            created_at: now,
+            updated_at: now,
+        };
+
+        assert_eq!(
+            optimized_prompt_asset_contract(&prompt, PromptOutputLanguage::ZhCn)["kind"],
+            "frame_prompt"
+        );
+        assert!(
+            validate_optimized_prompt_fields(
+                &prompt,
+                "过短",
+                None,
+                None,
+                PromptOutputLanguage::ZhCn,
+            )
+            .is_err()
+        );
+    }
 
     #[tokio::test]
     async fn request_uses_registry_and_stable_source_pack() {

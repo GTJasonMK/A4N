@@ -15,7 +15,6 @@ pub(super) fn image_provider_payload(
         backend: params.backend.clone(),
         base_url: params.base_url.clone(),
         api_key,
-        provider_options_json: params.provider_options_json.clone(),
         request,
     })
 }
@@ -58,7 +57,6 @@ pub(super) struct ImageProviderPayload {
     backend: String,
     base_url: String,
     api_key: String,
-    provider_options_json: Option<Value>,
     request: ImageGenerationRequest,
 }
 

@@ -45,33 +45,33 @@ impl OrchestratorContext {
         input: ChatJsonStreamInput<'_>,
         report_progress: impl FnMut(u32, &str) -> Result<(), String>,
     ) -> Result<String, String> {
-        let ChatJsonStreamInput {
-            request,
-            prompt_name,
-            truncated_message,
-            structured_progress,
-            cancel_token,
-            cancelled_message,
-        } = input;
-        a4n_llm::structured_stream::chat_json_stream_with_progress(
-            a4n_llm::structured_stream::ChatJsonStreamInput {
-                llm: self.llm.as_ref(),
-                request,
-                prompt_name,
-                truncated_message,
-                structured_progress,
-                cancel_token,
-                cancelled_message,
-            },
-            report_progress,
-        )
-        .await
+        self.chat_json_stream_result_with_progress(input, report_progress)
+            .await
+            .map(|result| result.response_content)
     }
 
     pub(crate) async fn chat_json_stream_result_with_progress(
         &self,
         input: ChatJsonStreamInput<'_>,
         report_progress: impl FnMut(u32, &str) -> Result<(), String>,
+    ) -> Result<StructuredLlmStreamResult, String> {
+        self.chat_json_stream_result_with_sink(
+            input,
+            report_progress,
+            None::<&mut a4n_llm::structured_stream::DeltaSinkNoop>,
+        )
+        .await
+    }
+
+    /// 与 [`Self::chat_json_stream_result_with_progress`] 相同，额外把原始文本增量交给 `on_delta`。
+    ///
+    /// 结构化里程碑（「进行到哪了」）与原始 delta（「还活着」）取自同一个 token 流，
+    /// 调用方可同时获得二者而不重复请求模型。
+    pub(crate) async fn chat_json_stream_result_with_sink(
+        &self,
+        input: ChatJsonStreamInput<'_>,
+        report_progress: impl FnMut(u32, &str) -> Result<(), String>,
+        on_delta: Option<impl FnMut(&str)>,
     ) -> Result<StructuredLlmStreamResult, String> {
         let ChatJsonStreamInput {
             request,
@@ -81,7 +81,7 @@ impl OrchestratorContext {
             cancel_token,
             cancelled_message,
         } = input;
-        a4n_llm::structured_stream::chat_json_stream_result_with_progress(
+        a4n_llm::structured_stream::chat_json_stream_result_with_sink(
             a4n_llm::structured_stream::ChatJsonStreamInput {
                 llm: self.llm.as_ref(),
                 request,
@@ -92,6 +92,7 @@ impl OrchestratorContext {
                 cancelled_message,
             },
             report_progress,
+            on_delta,
         )
         .await
     }

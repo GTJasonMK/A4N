@@ -20,7 +20,6 @@ pub(in crate::sidecar_clients::video) fn video_provider_payload(
         backend: params.backend,
         base_url: params.base_url,
         api_key,
-        provider_options_json: params.provider_options_json,
         provider_idempotency_key_sha256,
         project_id,
         request,
@@ -46,7 +45,6 @@ pub(in crate::sidecar_clients::video) struct VideoProviderPayload {
     pub(in crate::sidecar_clients::video) backend: String,
     pub(in crate::sidecar_clients::video) base_url: String,
     pub(in crate::sidecar_clients::video) api_key: String,
-    pub(in crate::sidecar_clients::video) provider_options_json: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(in crate::sidecar_clients::video) provider_idempotency_key_sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,7 +57,6 @@ pub(in crate::sidecar_clients::video) struct VideoPollPayload {
     pub(in crate::sidecar_clients::video) backend: String,
     pub(in crate::sidecar_clients::video) base_url: String,
     pub(in crate::sidecar_clients::video) api_key: String,
-    pub(in crate::sidecar_clients::video) provider_options_json: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(in crate::sidecar_clients::video) project_id: Option<i64>,
     pub(in crate::sidecar_clients::video) job_id: String,

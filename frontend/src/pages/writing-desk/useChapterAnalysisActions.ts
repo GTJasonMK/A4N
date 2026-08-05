@@ -16,6 +16,7 @@ import {
 } from "../../api/chapter";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { ToastType } from "../../components/feedback/Toast";
+import { cancelHostWorkflowTask } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 
@@ -176,6 +177,8 @@ export function useChapterAnalysisActions({
       const updated = await runProgressTask(
         {
           cancelTaskId: taskId,
+          cancelTask: cancelHostWorkflowTask,
+          pollTaskProgress: true,
           title: "章节结构化分析",
           startMessage: "正在准备章节分析",
           successMessage: "结构化分析和项目状态已同步",
@@ -248,6 +251,8 @@ export function useChapterAnalysisActions({
       const updated = await runProgressTask(
         {
           cancelTaskId: taskId,
+          cancelTask: cancelHostWorkflowTask,
+          pollTaskProgress: true,
           title: "继续同步章节分析",
           startMessage: "正在准备继续同步",
           successMessage: "结构化分析派生数据已同步",

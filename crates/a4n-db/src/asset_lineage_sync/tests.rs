@@ -63,7 +63,7 @@ fn maps_legacy_manga_prompt_types_to_canonical_kinds() {
 }
 
 #[test]
-fn rejects_removed_video_analysis_prompt_types() {
+fn maps_supported_video_prompt_types_and_rejects_removed_types() {
     assert_eq!(
         video_generation_kinds("removed_video_analysis", "boundary_frames"),
         None
@@ -74,6 +74,10 @@ fn rejects_removed_video_analysis_prompt_types() {
     );
     assert_eq!(
         video_generation_kinds("first_frame_prompt", "first_frame_chain"),
+        Some(("video_frame_prompt", "image_prompt"))
+    );
+    assert_eq!(
+        video_generation_kinds("storyboard_prompt", "storyboard"),
         Some(("video_frame_prompt", "image_prompt"))
     );
     assert_eq!(

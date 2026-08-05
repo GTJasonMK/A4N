@@ -1,14 +1,26 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LlmProtocolKind {
+    OpenAiChatCompletions,
+    AnthropicMessages,
+}
+
+impl LlmProtocolKind {
+    pub fn for_provider(provider: &str) -> Option<Self> {
+        match provider.trim().to_ascii_lowercase().as_str() {
+            "openai" | "deepseek" | "qwen" | "ollama" => Some(Self::OpenAiChatCompletions),
+            "anthropic" => Some(Self::AnthropicMessages),
+            _ => None,
+        }
+    }
+}
+
 /// 模型能力标记
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelCapabilities {
-    /// 是否支持 function calling
-    pub function_calling: bool,
-    /// 是否支持视觉输入
-    pub vision: bool,
     /// 最大上下文窗口（Token 数）
     pub max_context_tokens: usize,
     /// 最大输出 Token 数

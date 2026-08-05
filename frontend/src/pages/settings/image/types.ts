@@ -1,12 +1,4 @@
-export type ImageProvider =
-  | "openai-compatible-image"
-  | "openai-compatible-image-edit"
-  | "openai-chat-image"
-  | "cliproxy-image"
-  | "stable-diffusion"
-  | "comfyui";
-
-export type GrokReferenceMode = "reference" | "first_frame";
+export type ImageProvider = string;
 
 export interface ImageForm {
   name: string;
@@ -18,5 +10,4 @@ export interface ImageForm {
   clear_api_key: boolean;
   size: string;
   max_concurrent: number;
-  grok_reference_mode: GrokReferenceMode;
 }

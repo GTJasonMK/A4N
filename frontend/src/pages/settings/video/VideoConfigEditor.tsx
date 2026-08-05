@@ -5,13 +5,10 @@ import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import {
-  VIDEO_BASE_URL_HINTS,
   VIDEO_DURATION_MODES,
-  VIDEO_PROVIDERS,
   VIDEO_SIZE_OPTIONS,
-  GROK_REFERENCE_MODE_OPTIONS,
-  parseVideoProvider,
 } from "./videoConfigUtils";
+import type { VideoProviderDescriptor } from "../../../api/generated/config";
 import type { VideoForm } from "./types";
 
 interface VideoConfigEditorProps {
@@ -21,6 +18,7 @@ interface VideoConfigEditorProps {
   serverScope?: boolean;
   readonly?: boolean;
   templateLocked?: boolean;
+  providers: VideoProviderDescriptor[];
 }
 
 export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
@@ -30,10 +28,14 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
   serverScope = false,
   readonly = false,
   templateLocked = false,
+  providers,
 }) => {
   const detectModels = serverScope ? detectServerVideoConfigModels : detectVideoConfigModels;
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
+  const selectedProvider = providers.find((provider) => provider.id === form.provider);
+  const providerMinDuration = selectedProvider?.min_duration_secs ?? form.min_duration_secs;
+  const providerMaxDuration = selectedProvider?.max_duration_secs ?? form.max_duration_secs;
 
   const setDurationMode = (durationMode: VideoForm["duration_mode"]) => {
     if (structureDisabled) return;
@@ -62,15 +64,26 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         <FormField label="视频服务商">
           <select
             value={form.provider}
-            onChange={(event) =>
-              setForm({ ...form, provider: parseVideoProvider(event.target.value) })
-            }
+            onChange={(event) => {
+              const provider = providers.find((item) => item.id === event.target.value);
+              if (!provider) throw new Error(`video provider 未注册：${event.target.value}`);
+              setForm({
+                ...form,
+                provider: provider.id,
+                duration_secs: Math.min(
+                  provider.max_duration_secs,
+                  Math.max(provider.min_duration_secs, form.duration_secs),
+                ),
+                min_duration_secs: provider.min_duration_secs,
+                max_duration_secs: provider.max_duration_secs,
+              });
+            }}
             className="pyqt-input w-full"
             disabled={structureDisabled}
           >
-            {VIDEO_PROVIDERS.map((provider) => (
-              <option key={provider.value} value={provider.value}>
-                {provider.label}
+            {providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.display_name}
               </option>
             ))}
           </select>
@@ -80,7 +93,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             value={form.model}
             onChange={(model) => setForm({ ...form, model })}
             placeholder="例如：video-01 / kling-v1 / runway-gen3"
-            disabled={readonly}
+            disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={[
               form.provider,
@@ -111,7 +124,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField label="接口地址" hint={VIDEO_BASE_URL_HINTS[form.provider]}>
+      <FormField label="接口地址">
         <BookInput
           value={form.api_base_url}
           onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
@@ -150,35 +163,6 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             })
           }
         />
-      ) : null}
-
-      {form.provider === "cliproxy-openai-video" ? (
-        <FormField
-          label="Grok 输入模式"
-          hint={
-            GROK_REFERENCE_MODE_OPTIONS.find(
-              (option) => option.value === form.grok_reference_mode,
-            )?.hint
-          }
-        >
-          <select
-            value={form.grok_reference_mode}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                grok_reference_mode: event.target.value === "first_frame" ? "first_frame" : "reference",
-              })
-            }
-            className="pyqt-input w-full"
-            disabled={structureDisabled}
-          >
-            {GROK_REFERENCE_MODE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </FormField>
       ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -222,8 +206,8 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         <FormField label="默认时长">
           <BookInput
             type="number"
-            min={1}
-            max={60}
+            min={providerMinDuration}
+            max={providerMaxDuration}
             step={1}
             value={String(form.duration_secs)}
             onChange={(event) =>
@@ -263,8 +247,8 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
           <FormField label="最小时长">
             <BookInput
               type="number"
-              min={1}
-              max={60}
+              min={providerMinDuration}
+              max={providerMaxDuration}
               step={1}
               value={String(form.min_duration_secs)}
               onChange={(event) =>
@@ -276,8 +260,8 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
           <FormField label="最大时长">
             <BookInput
               type="number"
-              min={1}
-              max={60}
+              min={providerMinDuration}
+              max={providerMaxDuration}
               step={1}
               value={String(form.max_duration_secs)}
               onChange={(event) =>

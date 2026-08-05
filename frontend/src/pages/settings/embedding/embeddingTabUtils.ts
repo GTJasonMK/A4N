@@ -23,12 +23,6 @@ export const DEFAULT_FORM: EmbeddingForm = {
   local_model_path: "",
 };
 
-export const BACKEND_LABELS: Record<string, string> = {
-  api: "OpenAI 兼容 API",
-  fastembed: "本地 fastembed",
-  local_hash: "本地哈希向量",
-};
-
 export function toItem(raw: EmbeddingConfig): ConfigItem<EmbeddingForm> {
   return {
     id: raw.id,

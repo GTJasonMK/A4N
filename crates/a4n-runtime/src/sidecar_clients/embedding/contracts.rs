@@ -11,6 +11,8 @@ pub(super) fn embedding_connectivity_test_payload(
 ) -> Result<EmbeddingTextsPayload, AppError> {
     Ok(EmbeddingTextsPayload {
         backend: model.backend.trim().to_ascii_lowercase(),
+        base_url: model.base_url.clone(),
+        api_key: model.api_key_encrypted.clone(),
         model: required_text(&model.model, "模型名", &model.name)?,
         dimension: positive_usize(model.dimension, "向量维度", &model.name)?,
         batch_size: positive_usize(model.batch_size, "批量大小", &model.name)?,
@@ -40,6 +42,8 @@ pub(super) fn embedding_model_operation_payload(
 #[derive(Debug, Serialize)]
 pub(super) struct EmbeddingTextsPayload {
     pub(super) backend: String,
+    pub(super) base_url: Option<String>,
+    pub(super) api_key: Option<String>,
     pub(super) model: String,
     pub(super) dimension: usize,
     pub(super) batch_size: usize,

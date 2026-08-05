@@ -3,6 +3,7 @@ use crate::video::{
     ensure_video_chapter_belongs_to_project_record, generated_image_by_id, generated_video_by_id,
     validate_positive_video_i64, video_project_record,
 };
+use a4n_core::video_workflow::is_generated_video_workflow_mode;
 use sea_orm::ConnectionTrait;
 
 pub async fn validate_create_generated_video_record_input<C>(
@@ -72,19 +73,12 @@ fn validate_video_workflow_mode(workflow_mode: Option<String>) -> Result<String,
             "视频记录缺少 workflow_mode".to_string(),
         ));
     };
-    match mode.as_str() {
-        "boundary_frames"
-        | "first_frame_chain"
-        | "reference_media"
-        | "chat_video"
-        | "storyboard"
-        | "canvas_video"
-        | "canvas_reference_media"
-        | "canvas_trim"
-        | "canvas_assembly" => Ok(mode),
-        _ => Err(VideoDbError::InvalidArgument(format!(
+    if is_generated_video_workflow_mode(&mode) {
+        Ok(mode)
+    } else {
+        Err(VideoDbError::InvalidArgument(format!(
             "视频记录 workflow_mode 无效: {mode}"
-        ))),
+        )))
     }
 }
 
@@ -115,6 +109,7 @@ mod tests {
             "reference_media",
             "chat_video",
             "storyboard",
+            "mixed",
             "canvas_video",
             "canvas_reference_media",
             "canvas_trim",

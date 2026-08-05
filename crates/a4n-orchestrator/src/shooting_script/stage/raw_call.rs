@@ -30,6 +30,7 @@ impl OrchestratorContext {
         structured_progress: Option<StructuredLlmProgress>,
         progress_total: u32,
         progress: ShootingScriptProgressReporter<'_>,
+        stream_reporter: Option<super::super::contracts::ShootingScriptStreamReporter<'_>>,
         cancel_token: Option<&CancellationToken>,
     ) -> Result<RawCallResult, AppError> {
         self.mark_workflow_current_step(workflow_run_id, call_key)
@@ -74,8 +75,16 @@ impl OrchestratorContext {
         let fixed_progress = structured_progress
             .map(|value| value.span.end())
             .unwrap_or(0);
+        // 活体信号与字段级里程碑取自同一个 token 流，二者互补而非替代。
+        let mut streamed = String::new();
+        let stream_sink = stream_reporter.map(|reporter| {
+            move |delta: &str| {
+                streamed.push_str(delta);
+                reporter(&streamed);
+            }
+        });
         let result = self
-            .chat_json_stream_result_with_progress(
+            .chat_json_stream_result_with_sink(
                 ChatJsonStreamInput {
                     request,
                     prompt_name: call_key,
@@ -96,6 +105,7 @@ impl OrchestratorContext {
                     )
                     .map_err(|error| error.to_string())
                 },
+                stream_sink,
             )
             .await
             .map_err(|error| {

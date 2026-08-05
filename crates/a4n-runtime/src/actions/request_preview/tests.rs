@@ -224,7 +224,6 @@ fn image_provider_request_step_reports_disabled_provider_preview() {
             model: "chat-image".into(),
             reference_images: Vec::new(),
         },
-        None,
     )
     .expect("disabled preview should still return a blocked step");
 

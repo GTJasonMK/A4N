@@ -263,7 +263,7 @@ impl crate::OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         segment_plan_prompt_id: i64,
-        shot_number: i32,
+        target: (&str, i32),
         video_id: i64,
     ) -> Result<generated_video::Model, AppError> {
         self.project_chapter_video_source(project_id, chapter_id, "采用片段视频", true)
@@ -271,6 +271,12 @@ impl crate::OrchestratorContext {
         let plan = self
             .require_current_shared_segment_plan(project_id, chapter_id, segment_plan_prompt_id)
             .await?;
+        let shot_number = a4n_core::video_execution::resolve_video_segment_number(
+            plan.metadata_json.as_ref(),
+            target.0,
+            target.1,
+        )
+        .map_err(AppError::InvalidArgument)?;
         let mut recipe = a4n_core::video_execution::video_segment_recipe_from_metadata(
             plan.metadata_json.as_ref(),
             shot_number,
@@ -280,12 +286,6 @@ impl crate::OrchestratorContext {
             AppError::InvalidArgument(format!("当前规划缺少片段 {shot_number} 的执行方案"))
         })?;
         let selected = self.required_video_record(video_id).await?;
-        let selected_shot = selected
-            .metadata_json
-            .as_ref()
-            .and_then(|metadata| metadata.get("shot_number"))
-            .and_then(Value::as_i64)
-            .and_then(|value| i32::try_from(value).ok());
         let plan_identity = plan
             .metadata_json
             .as_ref()
@@ -295,6 +295,7 @@ impl crate::OrchestratorContext {
             plan_identity.clone(),
             Some(plan.id),
             Some(&recipe),
+            target,
         )?;
         if selected.project_id != project_id
             || selected.chapter_id != Some(chapter_id)
@@ -304,9 +305,8 @@ impl crate::OrchestratorContext {
                 .as_deref()
                 .map(str::trim)
                 .is_none_or(str::is_empty)
-            || selected_shot != Some(shot_number)
             || selected.workflow_mode.as_deref() != Some(recipe.workflow_mode.as_str())
-            || !super::prompt_records::video_execution_segment_identity_matches(
+            || !super::prompt_records::video_execution_segment_lineage_matches(
                 selected.metadata_json.as_ref(),
                 &expected_identity,
             )
@@ -471,14 +471,9 @@ impl crate::OrchestratorContext {
         let rows = self
             .generated_videos_for_chapter(project_id, chapter_id)
             .await?;
-        let adopted_video_ids = if workflow_mode == "mixed" {
-            Some(
-                self.current_mixed_adopted_video_ids(project_id, chapter_id, &rows)
-                    .await?,
-            )
-        } else {
-            None
-        };
+        let adopted_video_ids = self
+            .adopted_video_ids_for_workflow(project_id, chapter_id, workflow_mode, &rows)
+            .await?;
         Ok(AssemblyVideoRecords {
             workflow_mode: workflow_mode.to_string(),
             clips: assembly_clip_records_from_rows(
@@ -501,12 +496,17 @@ impl crate::OrchestratorContext {
         let plan = self
             .current_shared_segment_plan(project_id, chapter_id)
             .await?;
-        let segments = plan
-            .metadata_json
-            .as_ref()
-            .and_then(|metadata| metadata.get("segments"))
-            .and_then(Value::as_array)
-            .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少 segments".to_string()))?;
+        let segments =
+            serde_json::from_value::<Vec<a4n_core::video_execution::VideoSegmentPlanV2>>(
+                plan.metadata_json
+                    .as_ref()
+                    .and_then(|metadata| metadata.get("segments"))
+                    .cloned()
+                    .ok_or_else(|| {
+                        AppError::InvalidArgument("当前片段规划缺少 segments".to_string())
+                    })?,
+            )
+            .map_err(|error| AppError::InvalidArgument(format!("当前片段规划无效：{error}")))?;
         let plan_style = plan
             .style
             .as_deref()
@@ -524,69 +524,66 @@ impl crate::OrchestratorContext {
             .and_then(|metadata| metadata.get("video_execution_identity"))
             .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少执行身份".to_string()))?;
         let mut adopted = HashSet::new();
-        for segment in segments {
-            let segment_number = segment
-                .get("segment_number")
-                .and_then(Value::as_i64)
-                .and_then(|value| i32::try_from(value).ok())
-                .filter(|value| *value > 0)
-                .ok_or_else(|| {
-                    AppError::InvalidArgument("当前片段规划包含无效 segment_number".to_string())
-                })?;
-            let recipe = recipes
+        for recipe in &recipes {
+            let Some(video_id) = recipe.adopted_video_id else {
+                continue;
+            };
+            let segment_number = recipe.segment_number;
+            let segment = segments
                 .iter()
-                .find(|recipe| recipe.segment_number == segment_number)
+                .find(|segment| segment.segment_number == segment_number)
                 .ok_or_else(|| {
                     AppError::InvalidArgument(format!(
-                        "片段 {segment_number} 尚未保存执行方案，不能合成"
+                        "片段 {segment_number} 的执行方案不属于当前规划"
                     ))
                 })?;
             let expected_identity = super::prompt_generation::video_segment_execution_identity(
                 plan_identity.clone(),
                 Some(plan.id),
                 Some(recipe),
+                (&segment.source_shot_id, segment.segment_index_in_shot),
             )?;
-            let video_id = recipe.adopted_video_id.ok_or_else(|| {
-                AppError::InvalidArgument(format!("片段 {segment_number} 尚未采用视频，不能合成"))
-            })?;
-            if !adopted.insert(video_id) {
-                return Err(AppError::InvalidArgument(format!(
-                    "视频 #{video_id} 被多个片段重复采用"
-                )));
-            }
-            let video = videos
-                .iter()
-                .find(|video| video.id == video_id)
-                .ok_or_else(|| {
-                    AppError::InvalidArgument(format!("采用的视频 #{video_id} 不存在"))
-                })?;
-            let video_segment = video
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("shot_number"))
-                .and_then(Value::as_i64)
-                .and_then(|value| i32::try_from(value).ok());
-            if video.project_id != project_id
-                || video.chapter_id != Some(chapter_id)
-                || video.status != "completed"
-                || video
+            let Some(video) = videos.iter().find(|video| video.id == video_id) else {
+                continue;
+            };
+            if video.project_id == project_id
+                && video.chapter_id == Some(chapter_id)
+                && video.status == "completed"
+                && video
                     .file_path
                     .as_deref()
                     .map(str::trim)
-                    .is_none_or(str::is_empty)
-                || video_segment != Some(segment_number)
-                || video.workflow_mode.as_deref() != Some(recipe.workflow_mode.as_str())
-                || !super::prompt_records::video_execution_segment_identity_matches(
+                    .is_some_and(|path| !path.is_empty())
+                && video.workflow_mode.as_deref() == Some(recipe.workflow_mode.as_str())
+                && super::prompt_records::video_execution_segment_lineage_matches(
                     video.metadata_json.as_ref(),
                     &expected_identity,
                 )
             {
-                return Err(AppError::InvalidArgument(format!(
-                    "片段 {segment_number} 采用的视频 #{video_id} 已失效或不属于当前规划"
-                )));
+                if !adopted.insert(video_id) {
+                    return Err(AppError::InvalidArgument(format!(
+                        "视频 #{video_id} 被多个片段重复采用"
+                    )));
+                }
             }
         }
         Ok(adopted)
+    }
+
+    async fn adopted_video_ids_for_workflow(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+        videos: &[generated_video::Model],
+    ) -> Result<Option<HashSet<i64>>, AppError> {
+        if workflow_mode != "mixed" {
+            return Ok(None);
+        }
+        Ok(Some(
+            self.current_mixed_adopted_video_ids(project_id, chapter_id, videos)
+                .await?,
+        ))
     }
 
     async fn prepare_assembly_insert_metadata_validated(
@@ -604,14 +601,9 @@ impl crate::OrchestratorContext {
         let rows = self
             .generated_videos_for_chapter(project_id, chapter_id)
             .await?;
-        let adopted_video_ids = if workflow_mode == "mixed" {
-            Some(
-                self.current_mixed_adopted_video_ids(project_id, chapter_id, &rows)
-                    .await?,
-            )
-        } else {
-            None
-        };
+        let adopted_video_ids = self
+            .adopted_video_ids_for_workflow(project_id, chapter_id, workflow_mode, &rows)
+            .await?;
         assembly_insert_position_metadata_from_rows(
             &rows,
             project_id,
@@ -1045,13 +1037,19 @@ impl crate::OrchestratorContext {
         source_extension: &str,
         imported_at: &str,
         segment_plan_prompt_id: i64,
-        shot_number: i32,
+        target: (&str, i32),
     ) -> Result<generated_video::Model, AppError> {
         self.project_chapter_video_source(project_id, chapter_id, "导入参考媒体视频", true)
             .await?;
         let plan = self
             .require_current_shared_segment_plan(project_id, chapter_id, segment_plan_prompt_id)
             .await?;
+        let shot_number = a4n_core::video_execution::resolve_video_segment_number(
+            plan.metadata_json.as_ref(),
+            target.0,
+            target.1,
+        )
+        .map_err(AppError::InvalidArgument)?;
         let recipe = a4n_core::video_execution::video_segment_recipe_from_metadata(
             plan.metadata_json.as_ref(),
             shot_number,
@@ -1088,6 +1086,7 @@ impl crate::OrchestratorContext {
             plan_identity,
             Some(plan.id),
             Some(&recipe),
+            target,
         )?;
         self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
             project_id,
@@ -1543,14 +1542,9 @@ impl crate::OrchestratorContext {
         let rows = self
             .generated_videos_for_chapter(video.project_id, chapter_id)
             .await?;
-        let adopted_video_ids = if workflow_mode == "mixed" {
-            Some(
-                self.current_mixed_adopted_video_ids(video.project_id, chapter_id, &rows)
-                    .await?,
-            )
-        } else {
-            None
-        };
+        let adopted_video_ids = self
+            .adopted_video_ids_for_workflow(video.project_id, chapter_id, workflow_mode, &rows)
+            .await?;
         assembly_insert_position_metadata_from_rows(
             &rows,
             video.project_id,
@@ -1574,14 +1568,21 @@ fn assembly_insert_position_metadata_from_rows(
     base_metadata: Option<Value>,
     insert_after_video_id: Option<i64>,
 ) -> Result<Value, AppError> {
-    let anchors = completed_assembly_clip_anchors(
+    let anchors = assembly_clip_records_from_rows(
         rows,
         project_id,
         chapter_id,
         workflow_mode,
         excluded_video_id,
         adopted_video_ids,
-    )?;
+    )?
+    .into_iter()
+    .map(|clip| AssemblyClipOrderAnchor {
+        video_id: clip.video_id,
+        sort_order: clip.sort_order,
+        shot_number: clip.shot_number,
+    })
+    .collect::<Vec<_>>();
     let clip_ids = anchors.iter().map(|clip| clip.video_id).collect::<Vec<_>>();
     let pushes = assembly_push_records(rows, workflow_mode).map_err(AppError::InvalidArgument)?;
     let active_source_ids = active_assembly_push_source_ids(
@@ -1621,31 +1622,6 @@ fn required_workflow_mode<'a>(
         })
 }
 
-fn completed_assembly_clip_anchors(
-    rows: &[generated_video::Model],
-    project_id: i64,
-    chapter_id: i64,
-    workflow_mode: &str,
-    excluded_video_id: Option<i64>,
-    adopted_video_ids: Option<&HashSet<i64>>,
-) -> Result<Vec<AssemblyClipOrderAnchor>, AppError> {
-    Ok(assembly_clip_records_from_rows(
-        rows,
-        project_id,
-        chapter_id,
-        workflow_mode,
-        excluded_video_id,
-        adopted_video_ids,
-    )?
-    .into_iter()
-    .map(|clip| AssemblyClipOrderAnchor {
-        video_id: clip.video_id,
-        sort_order: clip.sort_order,
-        shot_number: clip.shot_number,
-    })
-    .collect())
-}
-
 fn assembly_clip_records_from_rows(
     rows: &[generated_video::Model],
     project_id: i64,
@@ -1656,8 +1632,9 @@ fn assembly_clip_records_from_rows(
 ) -> Result<Vec<AssemblyClipRecord>, AppError> {
     let mut clips = rows
         .iter()
-        .filter(|video| {
-            Some(video.id) != excluded_video_id
+        .filter_map(|video| {
+            let file_path = video.file_path.as_deref()?.trim();
+            (Some(video.id) != excluded_video_id
                 && video.project_id == project_id
                 && video.chapter_id == Some(chapter_id)
                 && if workflow_mode == "mixed" {
@@ -1669,21 +1646,10 @@ fn assembly_clip_records_from_rows(
                 }
                 && is_assembly_clip_video_type(&video.video_type)
                 && video.status == "completed"
-                && video
-                    .file_path
-                    .as_deref()
-                    .map(str::trim)
-                    .is_some_and(|path| !path.is_empty())
+                && !file_path.is_empty())
+            .then_some((video, file_path))
         })
-        .map(|video| {
-            let file_path = video
-                .file_path
-                .as_deref()
-                .map(str::trim)
-                .filter(|path| !path.is_empty())
-                .ok_or_else(|| {
-                    AppError::InvalidArgument(format!("成片片段视频 #{} 缺少本地文件", video.id))
-                })?;
+        .map(|(video, file_path)| {
             Ok(AssemblyClipRecord {
                 video_id: video.id,
                 video_type: video.video_type.clone(),

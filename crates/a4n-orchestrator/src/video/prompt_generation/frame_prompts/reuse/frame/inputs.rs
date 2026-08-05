@@ -86,7 +86,10 @@ pub(super) fn frame_prompt_row_matches_video_input_contract(
     if metadata.get("contract_version").and_then(Value::as_str) != Some(expected_contract) {
         return false;
     }
-    if metadata.get("video_execution_identity") != Some(video_execution_identity) {
+    if !crate::video::prompt_records::video_execution_segment_identity_matches(
+        Some(metadata),
+        video_execution_identity,
+    ) {
         return false;
     }
     metadata.get("source_prompt_type").and_then(Value::as_str) == Some(source_prompt_type)

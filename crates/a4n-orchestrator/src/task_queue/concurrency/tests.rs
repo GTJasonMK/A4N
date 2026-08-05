@@ -20,7 +20,7 @@ async fn queue_init_rejects_invalid_default_llm_concurrency() {
         timeout_secs: Set(60),
         max_context_tokens: Set(128_000),
         max_output_tokens: Set(4_096),
-        request_options_json: Set(None),
+        extra_body_json: Set(None),
         is_default: Set(true),
         created_at: Set(now),
         updated_at: Set(now),

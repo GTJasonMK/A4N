@@ -4,6 +4,7 @@ use super::super::prelude::{
 };
 use super::delete_video_record_error;
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
+use crate::file_utils::canonicalize_data_file_path;
 
 pub(in crate::actions::video_records) async fn enqueue_unadopted_video_file_cleanup(
     state: &AppState,
@@ -46,6 +47,33 @@ pub(in crate::actions::video_records) async fn mark_imported_video_completed(
     metadata_json: Option<Value>,
     failure_prefix: &str,
 ) -> Result<generated_video::Model, String> {
+    let duration_secs = match canonicalize_data_file_path(
+        state.data_dir(),
+        output_path_str,
+        &format!("{failure_prefix}输出文件"),
+    )
+    .and_then(|output_path| {
+        super::probe_video_properties(&output_path, failure_prefix)
+            .map(|properties| properties.duration_secs)
+            .map_err(|error| format!("{failure_prefix}：{error}"))
+    }) {
+        Ok(duration_secs) => duration_secs,
+        Err(error) => {
+            let cleanup_error = enqueue_unadopted_video_file_cleanup(
+                state,
+                &format!("video-completion-probe-failure:{record_id}"),
+                output_path_str,
+                thumbnail_path,
+                None,
+            )
+            .await;
+            let cleanup_error = combine_optional_errors(
+                cleanup_error,
+                delete_video_tail_frame_assets(state, record_id).await.err(),
+            );
+            return Err(append_secondary_error(error, cleanup_error));
+        }
+    };
     match state
         .video()
         .mark_generated_video_completed_and_link_prompt(
@@ -58,7 +86,11 @@ pub(in crate::actions::video_records) async fn mark_imported_video_completed(
         )
         .await
     {
-        Ok(updated) => Ok(updated),
+        Ok(_) => state
+            .video()
+            .update_generated_video_duration_record(record_id, duration_secs)
+            .await
+            .map_err(|error| format!("{failure_prefix}实际时长回写失败：{error}")),
         Err(err) => {
             let can_adopt = a4n_orchestrator::video::can_adopt_authoritative_video_completion(&err);
             let primary_error = format!("{failure_prefix}：{err}");

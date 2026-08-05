@@ -52,11 +52,12 @@ impl ResolvedLlmModel {
 
     fn provider_config(self) -> LlmGatewayProviderConfig {
         LlmGatewayProviderConfig {
+            provider: self.model.provider,
             base_url: self.model.base_url,
             model: self.model.model,
             api_key: self.model.api_key_encrypted,
             timeout_secs: self.timeout_secs,
-            request_options_json: self.model.request_options_json,
+            extra_body_json: self.model.extra_body_json,
         }
     }
 }

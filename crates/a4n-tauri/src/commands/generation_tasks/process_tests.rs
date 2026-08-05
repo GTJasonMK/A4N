@@ -76,7 +76,6 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
             max_concurrent: 1,
             default_width: 1024,
             default_height: 1024,
-            provider_options_json: None,
         },
     )
     .await

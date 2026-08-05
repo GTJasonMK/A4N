@@ -13,7 +13,7 @@ fn test_llm_config(id: i64, is_default: bool) -> RuntimeLlmConfig {
         timeout_secs: 30,
         max_context_tokens: 128_000,
         max_output_tokens: 8_192,
-        request_options_json: None,
+        extra_body_json: None,
         is_default,
     }
 }
@@ -30,7 +30,6 @@ fn test_image_config(id: i64, is_default: bool) -> RuntimeImageConfig {
         default_width: 1024,
         default_height: 1024,
         is_default,
-        provider_options_json: None,
     }
 }
 
@@ -52,7 +51,6 @@ fn test_video_config(id: i64, is_default: bool) -> RuntimeVideoConfig {
         supported_durations_json: None,
         default_fps: 24,
         is_default,
-        provider_options_json: None,
     }
 }
 
@@ -251,7 +249,7 @@ fn redacted_snapshot_value_uses_shared_sidecar_sensitive_field_policy() {
             timeout_secs: 30,
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
-            request_options_json: None,
+            extra_body_json: None,
             is_default: true,
         }),
         llm_configs: Vec::new(),

@@ -35,23 +35,22 @@ pub(super) fn model_capabilities(m: &llm_config::Model) -> Result<ModelCapabilit
     }
 
     Ok(ModelCapabilities {
-        function_calling: true,
-        vision: true,
         max_context_tokens,
         max_output_tokens,
     })
 }
 
 #[cfg(feature = "embedded-llm-provider")]
-pub(super) fn make_provider(m: &llm_config::Model) -> Result<HttpLlmProvider, AppError> {
+pub(super) fn make_provider(m: &llm_config::Model) -> Result<Box<dyn LlmProvider>, AppError> {
     let timeout_secs = validated_timeout_secs(m)?;
     let capabilities = model_capabilities(m)?;
-    HttpLlmProvider::new_with_timeout_options_and_capabilities(
+    a4n_llm_http::http::pick_llm_provider(
+        &m.provider,
         m.base_url.clone(),
         m.model.clone(),
         m.api_key_encrypted.clone(),
         timeout_secs,
-        m.request_options_json.clone(),
+        m.extra_body_json.clone(),
         capabilities,
     )
 }
@@ -170,7 +169,7 @@ pub(super) async fn chat_embedded(
 ) -> Result<ChatResponse, AppError> {
     let provider = make_provider(&resolved_model.model)?;
     // 完整结果只允许从真实 chat_stream 收集，禁止完整响应接口。
-    a4n_llm::provider::collect_chat_stream(&provider, request).await
+    a4n_llm::provider::collect_chat_stream(provider.as_ref(), request).await
 }
 
 #[cfg(not(feature = "embedded-llm-provider"))]

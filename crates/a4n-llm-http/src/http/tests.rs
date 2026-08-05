@@ -3,7 +3,7 @@ use super::provider::{DEFAULT_TIMEOUT_SECS, HttpLlmProvider};
 use super::response::*;
 use super::sse::*;
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatMessage, ChatRequest, normalize_request_options};
+use a4n_llm::provider::{ChatChunk, ChatMessage, ChatRequest, normalize_extra_body};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 
@@ -186,8 +186,8 @@ fn cloudflare_524_explains_first_byte_timeout_and_streaming_fix() {
 }
 
 #[test]
-fn request_options_reject_reserved_keys() {
-    let err = normalize_request_options(Some(json!({
+fn extra_body_reject_reserved_keys() {
+    let err = normalize_extra_body(Some(json!({
         "model": "override"
     })))
     .expect_err("reserved request option key should be rejected");
@@ -196,8 +196,8 @@ fn request_options_reject_reserved_keys() {
 }
 
 #[test]
-fn request_options_reject_response_format_as_request_contract() {
-    let err = normalize_request_options(Some(json!({
+fn extra_body_reject_response_format_as_request_contract() {
+    let err = normalize_extra_body(Some(json!({
         "response_format": { "type": "json_object" }
     })))
     .expect_err("response_format is controlled per request");
@@ -206,8 +206,8 @@ fn request_options_reject_response_format_as_request_contract() {
 }
 
 #[test]
-fn request_options_accept_provider_extension_fields() {
-    let options = normalize_request_options(Some(json!({
+fn extra_body_accept_provider_extension_fields() {
+    let options = normalize_extra_body(Some(json!({
         "reasoning_effort": "low"
     })))
     .expect("provider extension field should be accepted")
@@ -300,8 +300,8 @@ fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
         None,
         None,
     );
-    request.prompt_cache_key = Some("a4n:workflow_run:299".to_string());
-    request.prompt_cache_system_prefix = true;
+    request.cache_scope_key = Some("a4n:workflow_run:299".to_string());
+    request.cache_system_prefix = true;
 
     let body = request_body_json(provider.build_request(&request, true));
     assert_eq!(body["prompt_cache_key"], json!("a4n:workflow_run:299"));
@@ -328,9 +328,9 @@ fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
         None,
         None,
     );
-    request.prompt_cache_key = Some("a4n:workflow_run:299:prefix:abc".to_string());
-    request.prompt_cache_system_prefix = true;
-    request.prompt_cache_user_prefix_len = Some("[稳定上下文]\nshared chapter".len());
+    request.cache_scope_key = Some("a4n:workflow_run:299:prefix:abc".to_string());
+    request.cache_system_prefix = true;
+    request.cache_user_prefix_len = Some("[稳定上下文]\nshared chapter".len());
 
     let body = request_body_json(provider.build_request(&request, true));
     assert_eq!(

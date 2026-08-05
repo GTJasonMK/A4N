@@ -144,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn base_execution_identity_rejects_changed_unit_plan() {
+    fn base_execution_identity_ignores_changed_plan_audit_hashes() {
         let expected = json!({
             "contract_epoch": 5,
             "shooting_script_identity": {"record_id": 1, "revision": 2},
@@ -159,8 +159,43 @@ mod tests {
         let mut stored = expected.clone();
         stored["unit_plan_sha256"] = json!("old-units");
 
-        assert!(!video_execution_base_identity_matches(
+        assert!(video_execution_base_identity_matches(
             Some(&json!({"video_execution_identity": stored})),
+            &expected,
+        ));
+
+        let mut incomplete = expected.clone();
+        incomplete.as_object_mut().unwrap().remove("style_sha256");
+        assert!(!video_execution_base_identity_matches(
+            Some(&json!({"video_execution_identity": incomplete})),
+            &expected,
+        ));
+    }
+
+    #[test]
+    fn segment_lineage_allows_final_duration_override() {
+        let expected = json!({
+            "contract_epoch": 5,
+            "source_content_sha256": "source",
+            "style_sha256": "style",
+            "duration_secs": 6,
+            "aspect_ratio": "16:9",
+            "segment_plan_prompt_id": 10,
+            "source_shot_id": "shot-1",
+            "segment_index_in_shot": 1,
+            "segment_sha256": "segment",
+            "segment_recipe_fingerprint": "recipe"
+        });
+        let mut stored = expected.clone();
+        stored["duration_secs"] = json!(10);
+        let metadata = json!({"video_execution_identity": stored});
+
+        assert!(!video_execution_segment_identity_matches(
+            Some(&metadata),
+            &expected,
+        ));
+        assert!(video_execution_segment_lineage_matches(
+            Some(&metadata),
             &expected,
         ));
     }

@@ -1,15 +1,6 @@
-use super::import::{
-    image_active_model_for_insert, image_active_model_for_update, video_active_model_for_insert,
-    video_active_model_for_update,
-};
-use super::types::{
-    SettingsAllConfigImportError, SettingsAllEmbeddingConfigImportRow,
-    SettingsAllImageConfigImportRow, SettingsAllVideoConfigImportRow,
-};
+use super::types::{SettingsAllConfigImportError, SettingsAllEmbeddingConfigImportRow};
 use super::validation::{DefaultImportPolicy, DefaultStateRow, ensure_single_default_after_import};
-use chrono::Utc;
-use sea_orm::{ActiveValue, DbErr};
-use serde_json::json;
+use sea_orm::DbErr;
 use std::error::Error;
 
 #[test]
@@ -168,72 +159,4 @@ fn optional_config_import_allows_still_unconfigured_state() {
         true,
     )
     .expect("importing non-default optional config may remain unconfigured");
-}
-
-#[test]
-fn image_import_active_model_preserves_provider_options() {
-    let now = Utc::now().naive_utc();
-    let row = SettingsAllImageConfigImportRow {
-        name: "cliproxy image".to_string(),
-        backend: "cliproxy-image".to_string(),
-        base_url: Some("https://image.example/v1".to_string()),
-        api_key_encrypted: Some("secret".to_string()),
-        model: "grok-image".to_string(),
-        max_concurrent: 1,
-        default_width: 1024,
-        default_height: 1024,
-        provider_options_json: Some(json!({
-            "grok_reference_mode": "first_frame",
-        })),
-        is_default: true,
-    };
-
-    let expected = ActiveValue::Set(Some(json!({
-        "grok_reference_mode": "first_frame",
-    })));
-    assert_eq!(
-        image_active_model_for_insert(row.clone(), now).provider_options_json,
-        expected
-    );
-    assert_eq!(
-        image_active_model_for_update(Default::default(), row, now).provider_options_json,
-        expected
-    );
-}
-
-#[test]
-fn video_import_active_model_preserves_provider_options() {
-    let now = Utc::now().naive_utc();
-    let row = SettingsAllVideoConfigImportRow {
-        name: "cliproxy video".to_string(),
-        backend: "cliproxy-openai-video".to_string(),
-        base_url: Some("https://video.example/v1".to_string()),
-        api_key_encrypted: Some("secret".to_string()),
-        model: "grok-video".to_string(),
-        max_concurrent: 1,
-        default_width: 1280,
-        default_height: 720,
-        default_duration_secs: 5,
-        min_duration_secs: 1,
-        max_duration_secs: 15,
-        duration_mode: "range".to_string(),
-        supported_durations_json: None,
-        default_fps: 24,
-        provider_options_json: Some(json!({
-            "grok_reference_mode": "reference",
-        })),
-        is_default: true,
-    };
-
-    let expected = ActiveValue::Set(Some(json!({
-        "grok_reference_mode": "reference",
-    })));
-    assert_eq!(
-        video_active_model_for_insert(row.clone(), now).provider_options_json,
-        expected
-    );
-    assert_eq!(
-        video_active_model_for_update(Default::default(), row, now).provider_options_json,
-        expected
-    );
 }

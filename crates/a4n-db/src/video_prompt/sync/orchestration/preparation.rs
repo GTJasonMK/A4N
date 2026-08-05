@@ -5,7 +5,7 @@ use super::super::{
     },
     preservation::{
         preserved_unmatched_prompt_ids_by_policy, prompt_sync_draft_fields_match,
-        should_preserve_existing_prompt,
+        segment_plan_extension_preserves_existing, should_preserve_existing_prompt,
     },
     validate_prompt_sync_draft,
     validation::validate_prompt_workflow_mode,
@@ -143,7 +143,10 @@ where
         if let Some(existing) = existing_by_identity.remove(&identity) {
             let preserve_existing =
                 should_preserve_existing_prompt(db, &existing, &draft, policy).await?;
-            if !preserve_existing && !prompt_sync_draft_fields_match(&existing, &draft) {
+            if !preserve_existing
+                && !prompt_sync_draft_fields_match(&existing, &draft)
+                && !segment_plan_extension_preserves_existing(&existing, &draft)
+            {
                 ensure_chapter_video_prompt_stage_mutable_ignoring(
                     db,
                     &existing,

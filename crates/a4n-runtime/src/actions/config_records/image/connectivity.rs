@@ -90,7 +90,6 @@ pub async fn preview_test_image_config_request(
             Some("固定连接测试请求，不包含参考图".to_string()),
             &config.backend,
             request,
-            config.provider_options_json.as_ref(),
         )?],
     ))
 }

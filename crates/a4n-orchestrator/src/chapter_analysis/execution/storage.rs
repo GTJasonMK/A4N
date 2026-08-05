@@ -21,6 +21,7 @@ impl OrchestratorContext {
             chapter_id,
             prompt_renderer,
             progress,
+            stream_reporter,
             cancel_token,
             workflow_run_id,
         } = input;
@@ -29,7 +30,8 @@ impl OrchestratorContext {
             .map_err(chapter_content_edit_error)?;
         ensure_chapter_has_analysis_content(&chapter)?;
 
-        let mut progress = ChapterAnalysisProgress::new(progress, cancel_token);
+        let mut progress = ChapterAnalysisProgress::new(progress, cancel_token)
+            .with_stream_reporter(stream_reporter);
         let run = self
             .analyze_chapter(&chapter, prompt_renderer, &mut progress, workflow_run_id)
             .await?;

@@ -155,6 +155,7 @@ pub fn postprocess_video(
     request: VideoPostprocessRequest<'_>,
 ) -> Result<(), VideoPostprocessError> {
     let filter = build_video_postprocess_filter(&request)?;
+    let output_fps = if request.fps > 0 { request.fps } else { 24 };
     let uses_source = matches!(
         request.operation,
         VideoPostprocessOperation::Insert | VideoPostprocessOperation::Replace
@@ -194,7 +195,9 @@ pub fn postprocess_video(
         .arg("-crf")
         .arg("20")
         .arg("-pix_fmt")
-        .arg("yuv420p");
+        .arg("yuv420p")
+        .arg("-g")
+        .arg(output_fps.to_string());
     let audio_enabled = request.base_has_audio || (uses_source && request.source_has_audio);
     if audio_enabled {
         command

@@ -177,8 +177,7 @@ pub use provider_execution::{
 };
 pub use provider_image_rules::{
     ProviderImageInputTransport, encode_query_component, image_mime_from_path,
-    is_provider_supported_image_content_type, parse_provider_image_input_transport_override,
-    provider_default_image_input_transport, provider_image_input_transport_with_override,
+    is_provider_supported_image_content_type, provider_image_input_transport_with_override,
     truncate_error_body, truncate_url_for_error,
 };
 pub use provider_prompt_text_rules::{
@@ -186,17 +185,15 @@ pub use provider_prompt_text_rules::{
     provider_prompt_text_violation, validate_provider_model_text,
 };
 pub use provider_request_rules::{
-    CliproxyGrokReferenceMode, CliproxyMediaContractViolation, MAX_CLIPROXY_VIDEO_PROMPT_CHARS,
-    MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES, ProviderGenerationWorkflow,
-    boundary_frame_missing_image_message, cliproxy_grok_reference_mode_label,
-    cliproxy_media_contract_violations, cliproxy_prompt_length_violation_message, data_url_mime,
+    MAX_CLIPROXY_VIDEO_PROMPT_BYTES, MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES,
+    ProviderGenerationWorkflow, boundary_frame_missing_image_message,
+    cliproxy_prompt_length_violation_message, data_url_mime,
     ensure_newapi_first_frame_image_supported, ensure_provider_generation_workflow,
     first_frame_chain_missing_start_image_message, linked_video_preview_config_id,
-    parse_cliproxy_grok_reference_mode, prompt_is_first_frame_chain, prompt_provider_workflow,
+    prompt_is_first_frame_chain, prompt_provider_workflow,
     provider_image_binding_violation_messages, provider_request_snapshot_value,
-    reference_ids_with_prompt_frame_images, reference_ids_with_storyboard_image,
-    required_prompt_source_prompt_type, required_video_execution_identity,
-    storyboard_missing_image_message,
+    reference_ids_with_storyboard_image, required_prompt_source_prompt_type,
+    required_video_execution_identity, storyboard_missing_image_message,
 };
 pub use provider_workflow_rules::{
     is_video_provider_terminal_or_interrupted_status, prompt_id_from_generated_video,

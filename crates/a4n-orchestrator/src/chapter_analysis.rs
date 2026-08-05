@@ -35,12 +35,15 @@ pub struct ChapterAnalysisInput<'a> {
     pub chapter_id: i64,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub progress: Option<ChapterAnalysisProgressReporter<'a>>,
+    /// 活体信号出口：与字段级里程碑取自同一个 token 流。
+    pub stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
     pub cancel_token: Option<&'a CancellationToken>,
     pub workflow_run_id: Option<i64>,
 }
 
 pub(super) struct ChapterAnalysisProgress<'a> {
     reporter: Option<ChapterAnalysisProgressReporter<'a>>,
+    stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
     pub(super) cancel_token: Option<&'a CancellationToken>,
 }
 
@@ -51,8 +54,22 @@ impl<'a> ChapterAnalysisProgress<'a> {
     ) -> Self {
         Self {
             reporter,
+            stream_reporter: None,
             cancel_token,
         }
+    }
+
+    fn with_stream_reporter(
+        mut self,
+        stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
+    ) -> Self {
+        self.stream_reporter = stream_reporter;
+        self
+    }
+
+    /// 取出活体信号出口，供 LLM 调用处独立持有——避免与 `&mut self` 的进度回调争用借用。
+    pub(super) fn stream_reporter(&self) -> Option<&'a (dyn Fn(&str) + Send + Sync)> {
+        self.stream_reporter
     }
 
     pub(super) fn report(

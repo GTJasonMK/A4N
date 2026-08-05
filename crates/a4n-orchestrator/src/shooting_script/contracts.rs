@@ -21,6 +21,9 @@ pub const CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL: u32 = 100;
 pub type ShootingScriptProgressReporter<'a> =
     &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
 
+/// 活体信号出口：与字段级里程碑取自同一个 token 流。
+pub type ShootingScriptStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
+
 pub(super) struct ShootingScriptStageResult<T> {
     pub(super) output: T,
     pub(super) restored: bool,
@@ -162,6 +165,15 @@ pub struct RegenerateChapterShootingScriptInput {
 pub struct ResolvedChapterShootingScript {
     pub source: ResolvedChapterSource,
     pub shooting_script: ParsedChapterShootingScript,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChapterShootingScriptUnitProgress {
+    pub workflow_run_id: i64,
+    pub script: ChapterShootingScriptV1,
+    pub completed_unit_count: usize,
+    pub total_unit_count: usize,
+    pub resolved: Option<ResolvedChapterShootingScript>,
 }
 
 #[derive(Debug, Clone)]

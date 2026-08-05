@@ -162,7 +162,6 @@ fn image_config() -> image_gen_config::Model {
         max_concurrent: 1,
         default_width: 1024,
         default_height: 576,
-        provider_options_json: Some(json!({"quality": "standard"})),
         is_default: true,
         created_at: now,
         updated_at: now,

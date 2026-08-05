@@ -284,11 +284,12 @@ fn gateway_request_with_policy(
             LLM_CHAT_CAPABILITY_VERSION,
             json!({
                 "provider": {
+                    "provider": "openai",
                     "base_url": provider_base_url,
                     "model": provider_model,
                     "api_key": api_key,
                     "timeout_secs": 5,
-                    "request_options_json": null
+                    "extra_body_json": null
                 },
                 "request": request
             }),
@@ -312,11 +313,12 @@ pub(crate) fn gateway_probe_request(
         LLM_CHAT_CAPABILITY_VERSION,
         json!({
             "provider": {
+                "provider": "openai",
                 "base_url": provider_base_url,
                 "model": "process-fake-model",
                 "api_key": "process-provider-secret",
                 "timeout_secs": 5,
-                "request_options_json": null
+                "extra_body_json": null
             },
             "request": ChatRequest::system_user("system", "probe ping", None, Some(16), None)
         }),

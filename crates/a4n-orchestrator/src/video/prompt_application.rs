@@ -10,7 +10,7 @@ use a4n_core::{
     prompt_language::PromptOutputLanguage,
     source_spans::source_text_hash as source_content_sha256,
     video_execution::{
-        VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
+        VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2, resolve_video_segment_number,
         video_segment_recipes_for_plan_from_metadata,
     },
 };
@@ -112,6 +112,8 @@ pub struct UpdateChapterVideoPromptInput {
     #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
     pub negative_prompt: Option<Option<String>>,
     #[serde(default)]
+    pub duration_secs: Option<i32>,
+    #[serde(default)]
     pub downstream_strategy: DownstreamConflictStrategy,
 }
 
@@ -166,7 +168,6 @@ enum PromptGenerationStage {
 struct GenerationSpec {
     operation: &'static str,
     empty_content_message: &'static str,
-    running_message: &'static str,
     workflow_kind: &'static str,
     workflow_step_key: &'static str,
 }
@@ -314,20 +315,12 @@ impl OrchestratorContext {
                 spec.empty_content_message.to_string(),
             ));
         }
-        if self
-            .has_running_chapter_video_prompts(project_id, chapter_id)
-            .await?
-        {
-            return Err(AppError::InvalidState {
-                current: "video_prompt_running".to_string(),
-                operation: spec.running_message.to_string(),
-            });
-        }
         let segment_recipe = self
             .resolve_segment_recipe_options(project_id, chapter_id, stage, &mut options)
             .await?;
         let workflow_mode = ensure_video_workflow_mode_for_stage(&options, stage)?;
         let mut options = validate_generate_prompt_options(options, &workflow_mode, None)?;
+        options.target_shot_number = segment_recipe.as_ref().map(|recipe| recipe.segment_number);
         options.segment_recipe = segment_recipe;
         if workflow_mode != VIDEO_WORKFLOW_MODE_CHAT_VIDEO {
             let config = self.effective_video_config(runtime_video_config).await?;
@@ -381,16 +374,18 @@ impl OrchestratorContext {
         options: &mut GeneratePromptOptionsInput,
     ) -> Result<Option<VideoSegmentExecutionRecipeV1>, AppError> {
         if matches!(stage, PromptGenerationStage::Segment) {
-            if options.segment_plan_prompt_id.is_some() || options.target_shot_number.is_some() {
+            if options.segment_plan_prompt_id.is_some() || options.target_segment.is_some() {
                 return Err(AppError::InvalidArgument(
                     "生成共享片段规划时不能指定片段规划 ID 或目标片段".to_string(),
                 ));
             }
             return Ok(None);
         }
-        let target = options.target_shot_number.ok_or_else(|| {
-            AppError::InvalidArgument("片段卡片生成必须明确提供 target_shot_number".to_string())
-        })?;
+        if options.target_narrative_unit_index.is_some() {
+            return Err(AppError::InvalidArgument(
+                "target_narrative_unit_index 只能用于生成片段规划".to_string(),
+            ));
+        }
         let plan_id = options.segment_plan_prompt_id.ok_or_else(|| {
             AppError::InvalidArgument("片段卡片生成必须明确提供 segment_plan_prompt_id".to_string())
         })?;
@@ -403,6 +398,15 @@ impl OrchestratorContext {
             .map(str::trim)
             .filter(|style| !style.is_empty())
             .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少 style".to_string()))?;
+        let target_segment = options.target_segment.as_ref().ok_or_else(|| {
+            AppError::InvalidArgument("片段卡片生成必须明确提供稳定片段目标".to_string())
+        })?;
+        let target = resolve_video_segment_number(
+            plan.metadata_json.as_ref(),
+            &target_segment.source_shot_id,
+            target_segment.segment_index_in_shot,
+        )
+        .map_err(AppError::InvalidArgument)?;
         let recipe =
             video_segment_recipes_for_plan_from_metadata(plan.metadata_json.as_ref(), plan_style)
                 .map_err(AppError::InvalidArgument)?
@@ -438,7 +442,6 @@ impl OrchestratorContext {
         } else {
             1
         };
-        options.target_shot_number = Some(recipe.segment_number);
         options.duration_secs = recipe.duration_secs;
         options
             .duration_secs_options
@@ -688,6 +691,20 @@ impl OrchestratorContext {
         let prompt = self.chapter_video_prompt(prompt_id).await?;
         self.verify_project_permission(prompt.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
+        if input.duration_secs.is_some_and(|value| value <= 0) {
+            return Err(AppError::InvalidArgument(
+                "视频提示词 duration_secs 必须是正整数".to_string(),
+            ));
+        }
+        if input
+            .visual_prompt
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty())
+        {
+            return Err(AppError::InvalidArgument(
+                "视频提示词 visual_prompt 不能为空".to_string(),
+            ));
+        }
         self.project_chapter_video_source(
             prompt.project_id,
             prompt.chapter_id,
@@ -695,6 +712,23 @@ impl OrchestratorContext {
             true,
         )
         .await?;
+        let negative_prompt = input
+            .negative_prompt
+            .as_ref()
+            .map(|value| value.as_deref())
+            .unwrap_or(prompt.negative_prompt.as_deref());
+        a4n_db::video_prompt::sync_chapter_video_prompt_metadata_after_update(
+            &prompt.prompt_type,
+            prompt.metadata_json.clone(),
+            input
+                .visual_prompt
+                .as_deref()
+                .unwrap_or(prompt.visual_prompt.as_str()),
+            negative_prompt,
+            input.duration_secs.unwrap_or(prompt.duration_secs),
+            prompt.reference_image_ids_json.as_ref(),
+        )
+        .map_err(video_db_error)?;
         let plan = self
             .prepare_mutation_plan(
                 prompt_id,
@@ -711,6 +745,7 @@ impl OrchestratorContext {
                     visual_prompt: input.visual_prompt,
                     motion_prompt: input.motion_prompt,
                     negative_prompt: input.negative_prompt,
+                    duration_secs: input.duration_secs,
                     ..Default::default()
                 },
                 plan.allow_downstream,
@@ -816,7 +851,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         prompt_id: i64,
-        mut recipe: VideoSegmentExecutionRecipeV1,
+        recipe: VideoSegmentExecutionRecipeV1,
     ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, AppError> {
         let (project_id, chapter_id) =
             a4n_db::video::chapter_video_prompt_scope_by_id(self.database.connection(), prompt_id)
@@ -837,8 +872,6 @@ impl OrchestratorContext {
             Some(&json!(reference_ids)),
         )
         .await?;
-        // adopted_video_id 只能通过采用视频入口修改；DB 会在指纹未变化时原子保留当前值。
-        recipe.adopted_video_id = None;
         self.update_chapter_video_segment_recipe(prompt_id, recipe)
             .await
     }
@@ -988,21 +1021,18 @@ fn generation_spec(stage: PromptGenerationStage) -> GenerationSpec {
         PromptGenerationStage::Frame => GenerationSpec {
             operation: "生成边界帧提示词",
             empty_content_message: "章节正文为空，无法生成边界帧提示词",
-            running_message: "当前章节已有视频任务正在运行，请先等待完成后再重新生成边界帧提示词",
             workflow_kind: "video_frame_prompts",
             workflow_step_key: "frame_prompts",
         },
         PromptGenerationStage::Segment => GenerationSpec {
             operation: "生成片段规划",
             empty_content_message: "章节正文为空，无法生成片段规划",
-            running_message: "当前章节已有视频任务正在运行，请先等待完成后再重新生成片段规划",
             workflow_kind: "video_segment_plan",
             workflow_step_key: "segment_plan",
         },
         PromptGenerationStage::Video => GenerationSpec {
             operation: "生成视频提示词",
             empty_content_message: "章节正文为空，无法生成视频提示词",
-            running_message: "当前章节已有视频任务正在运行，请先等待完成后再重新生成视频提示词",
             workflow_kind: "video_prompts",
             workflow_step_key: "video_prompts",
         },
@@ -1065,17 +1095,17 @@ fn validate_video_prompt_generation_options_for_stage(
     let workflow_mode = ensure_video_workflow_mode_for_stage(input, stage)?;
     match stage {
         PromptGenerationStage::Segment
-            if input.segment_plan_prompt_id.is_some() || input.target_shot_number.is_some() =>
+            if input.segment_plan_prompt_id.is_some() || input.target_segment.is_some() =>
         {
             return Err(AppError::InvalidArgument(
                 "生成共享片段规划时不能指定片段规划 ID 或目标片段".to_string(),
             ));
         }
         PromptGenerationStage::Frame | PromptGenerationStage::Video
-            if input.segment_plan_prompt_id.is_none() || input.target_shot_number.is_none() =>
+            if input.segment_plan_prompt_id.is_none() || input.target_segment.is_none() =>
         {
             return Err(AppError::InvalidArgument(
-                "片段卡片生成必须提供 segment_plan_prompt_id 和 target_shot_number".to_string(),
+                "片段卡片生成必须提供 segment_plan_prompt_id 和目标片段".to_string(),
             ));
         }
         _ => {}
@@ -1126,7 +1156,8 @@ fn validate_generate_prompt_options(
             prompt_output_language,
             prompt_batch_size: input.prompt_batch_size,
             segment_plan_prompt_id: input.segment_plan_prompt_id,
-            target_shot_number: input.target_shot_number,
+            target_shot_number: None,
+            target_narrative_unit_index: input.target_narrative_unit_index,
             segment_recipe: None,
             duration_secs: input.duration_secs,
             duration_secs_options: input.duration_secs_options,
@@ -1343,7 +1374,8 @@ mod tests {
             style: "cinematic".to_string(),
             prompt_output_language: Some("zh_cn".to_string()),
             prompt_batch_size: 1,
-            target_shot_number: None,
+            target_segment: None,
+            target_narrative_unit_index: None,
             duration_secs: 6,
             duration_secs_options: vec![6],
             aspect_ratio: "16:9".to_string(),
@@ -1366,6 +1398,24 @@ mod tests {
         ))
         .unwrap_err();
         assert!(error.to_string().contains("必须为 shared_segment_plan"));
+    }
+
+    #[test]
+    fn stage_validation_accepts_stable_card_target_and_rejects_it_for_segment_plan() {
+        let mut options = segment_plan_options(VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES);
+        options.segment_plan_prompt_id = Some(7);
+        options.target_segment = Some(a4n_api_contract::video::VideoSegmentTarget {
+            source_shot_id: "shot-1".to_string(),
+            segment_index_in_shot: 1,
+        });
+
+        assert!(validate_video_frame_prompt_generation_options(&options).is_ok());
+        assert!(validate_video_final_prompt_generation_options(&options).is_ok());
+
+        options.workflow_mode = Some(VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN.to_string());
+        options.segment_plan_prompt_id = None;
+        let error = validate_video_segment_plan_generation_options(&options).unwrap_err();
+        assert!(error.to_string().contains("不能指定片段规划 ID 或目标片段"));
     }
 
     #[test]

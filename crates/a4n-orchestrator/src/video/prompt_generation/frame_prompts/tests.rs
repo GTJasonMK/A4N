@@ -114,7 +114,7 @@ pub(super) fn segment(segment_number: i32) -> VideoSegmentPlan {
     }
 }
 
-fn shooting_script_projection() -> VideoShootingScriptProjection {
+pub(super) fn shooting_script_projection() -> VideoShootingScriptProjection {
     serde_json::from_value(json!({
         "schema_version": a4n_core::video_execution::VIDEO_EXECUTION_PROJECTION_V2,
         "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,

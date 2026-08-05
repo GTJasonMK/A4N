@@ -29,7 +29,6 @@ pub(crate) async fn generate(
             &request.payload.backend,
             &request.payload.base_url,
             &request.payload.api_key,
-            request.payload.provider_options_json.as_ref(),
         )?;
         provider
             .generate(
@@ -67,7 +66,6 @@ pub(crate) async fn poll(
             &request.payload.backend,
             &request.payload.base_url,
             &request.payload.api_key,
-            request.payload.provider_options_json.as_ref(),
         )?;
         provider
             .poll(&request.payload.job_id)
@@ -89,7 +87,6 @@ pub(crate) async fn status(
             &request.payload.backend,
             &request.payload.base_url,
             &request.payload.api_key,
-            request.payload.provider_options_json.as_ref(),
         )?;
         provider
             .status(&request.payload.job_id)
@@ -111,7 +108,6 @@ pub(crate) async fn delete(
             &request.payload.backend,
             &request.payload.base_url,
             &request.payload.api_key,
-            request.payload.provider_options_json.as_ref(),
         )?;
         provider
             .delete(&request.payload.job_id)
@@ -143,7 +139,6 @@ pub(crate) async fn probe(
             &request.payload.backend,
             &request.payload.base_url,
             &request.payload.api_key,
-            request.payload.provider_options_json.as_ref(),
         )?;
         let request_preview = video_request_preview(&request.payload)?;
         Ok(ProviderProbeOutput {

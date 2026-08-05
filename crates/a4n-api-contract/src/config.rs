@@ -70,7 +70,6 @@ pub struct ImageConfigSummary {
     pub max_concurrent: i32,
     pub default_width: i32,
     pub default_height: i32,
-    pub provider_options_json: Option<Value>,
     pub is_default: bool,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
@@ -87,7 +86,6 @@ pub struct ImageConfigInput {
     pub max_concurrent: i32,
     pub default_width: i32,
     pub default_height: i32,
-    pub provider_options_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -102,7 +100,6 @@ pub struct UpdateImageConfigInput {
     pub max_concurrent: i32,
     pub default_width: i32,
     pub default_height: i32,
-    pub provider_options_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -117,7 +114,7 @@ pub struct LlmConfigSummary {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
     pub is_default: bool,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
@@ -135,7 +132,7 @@ pub struct CreateLlmInput {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -152,7 +149,7 @@ pub struct UpdateLlmInput {
     pub max_context_tokens: Option<i32>,
     pub max_output_tokens: Option<i32>,
     #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
-    pub request_options_json: Option<Option<Value>>,
+    pub extra_body_json: Option<Option<Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -173,7 +170,6 @@ pub struct VideoConfigSummary {
     pub duration_mode: String,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
-    pub provider_options_json: Option<Value>,
     pub is_default: bool,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
@@ -196,7 +192,6 @@ pub struct VideoConfigInput {
     pub duration_mode: String,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
-    pub provider_options_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -217,7 +212,6 @@ pub struct UpdateVideoConfigInput {
     pub duration_mode: String,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
-    pub provider_options_json: Option<Value>,
 }
 
 fn deserialize_nullable_update_field<'de, D, T>(

@@ -60,7 +60,6 @@ export interface ImageConfigSummary {
   max_concurrent: number;
   model: string;
   name: string;
-  provider_options_json: unknown;
   updated_at: string | null;
 }
 
@@ -73,7 +72,6 @@ export interface ImageConfigInput {
   max_concurrent: number;
   model: string;
   name: string;
-  provider_options_json?: unknown;
 }
 
 export interface UpdateImageConfigInput {
@@ -85,12 +83,12 @@ export interface UpdateImageConfigInput {
   max_concurrent: number;
   model: string;
   name: string;
-  provider_options_json?: unknown;
 }
 
 export interface LlmConfigSummary {
   base_url: string;
   created_at: string | null;
+  extra_body_json: unknown;
   has_api_key: boolean;
   id: number;
   is_default: boolean;
@@ -100,7 +98,6 @@ export interface LlmConfigSummary {
   model: string;
   name: string;
   provider: string;
-  request_options_json: unknown;
   timeout_secs: number;
   updated_at: string | null;
 }
@@ -108,26 +105,26 @@ export interface LlmConfigSummary {
 export interface CreateLlmInput {
   api_key_encrypted?: string | null;
   base_url: string;
+  extra_body_json?: unknown;
   max_concurrent: number;
   max_context_tokens: number;
   max_output_tokens: number;
   model: string;
   name: string;
   provider: string;
-  request_options_json?: unknown;
   timeout_secs: number;
 }
 
 export interface UpdateLlmInput {
   api_key_encrypted?: string | null;
   base_url?: string | null;
+  extra_body_json?: unknown;
   max_concurrent?: number | null;
   max_context_tokens?: number | null;
   max_output_tokens?: number | null;
   model?: string | null;
   name?: string | null;
   provider?: string | null;
-  request_options_json?: unknown;
   timeout_secs?: number | null;
 }
 
@@ -149,7 +146,6 @@ export interface VideoConfigSummary {
   min_duration_secs: number;
   model: string;
   name: string;
-  provider_options_json: unknown;
   supported_durations_json: unknown;
   updated_at: string | null;
 }
@@ -168,7 +164,6 @@ export interface VideoConfigInput {
   min_duration_secs: number;
   model: string;
   name: string;
-  provider_options_json?: unknown;
   supported_durations_json?: unknown;
 }
 
@@ -186,7 +181,37 @@ export interface UpdateVideoConfigInput {
   min_duration_secs: number;
   model: string;
   name: string;
-  provider_options_json?: unknown;
   supported_durations_json?: unknown;
+}
+
+export interface LlmProviderDescriptor {
+  default_base_url: string;
+  display_name: string;
+  id: string;
+}
+
+export interface ImageProviderDescriptor {
+  display_name: string;
+  id: string;
+  requires_api_key: boolean;
+}
+
+export interface VideoProviderDescriptor {
+  display_name: string;
+  id: string;
+  max_duration_secs: number;
+  min_duration_secs: number;
+}
+
+export interface EmbeddingProviderDescriptor {
+  display_name: string;
+  id: string;
+}
+
+export interface ModelProviderCatalog {
+  embedding: EmbeddingProviderDescriptor[];
+  image: ImageProviderDescriptor[];
+  llm: LlmProviderDescriptor[];
+  video: VideoProviderDescriptor[];
 }
 

@@ -36,8 +36,6 @@ impl LlmProvider for UnavailableLlmProvider {
 
     fn capabilities(&self) -> ModelCapabilities {
         ModelCapabilities {
-            function_calling: false,
-            vision: false,
             max_context_tokens: 0,
             max_output_tokens: 0,
         }

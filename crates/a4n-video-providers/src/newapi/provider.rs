@@ -50,19 +50,19 @@ impl NewApiVideoProvider {
     }
 
     pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        if req.last_frame_image_url.is_some() {
+        if req.media.last_frame().is_some() {
             return Err(AppError::InvalidArgument(
                 "New API 视频接口只有一个 image 输入槽，只能作为首帧使用，不支持尾帧输入"
                     .to_string(),
             ));
         }
-        if !req.reference_image_urls.is_empty() {
+        if !req.media.reference_images().is_empty() {
             return Err(AppError::InvalidArgument(format!(
                 "New API 视频接口不支持素材参考图输入，当前收到 {} 张参考图",
-                req.reference_image_urls.len()
+                req.media.reference_images().len()
             )));
         }
-        let image_input = req.first_frame_image_url.clone();
+        let image_input = req.media.first_frame();
         let mut body = Map::new();
         body.insert("model".into(), json!(req.model));
         body.insert("prompt".into(), json!(req.prompt));

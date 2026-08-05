@@ -92,8 +92,8 @@ fn configure_prompt_cache(
     model_name: &str,
     trace_context: &LlmTraceContext,
 ) {
-    request.prompt_cache_key = None;
-    request.prompt_cache_system_prefix = false;
+    request.cache_scope_key = None;
+    request.cache_system_prefix = false;
     if !model_name.starts_with("gpt-5.6") {
         return;
     }
@@ -105,10 +105,10 @@ fn configure_prompt_cache(
                 .workflow_run_id
                 .map(|id| format!("a4n:workflow_run:{id}"))
         });
-    request.prompt_cache_key = run_scope
+    request.cache_scope_key = run_scope
         .zip(system_prefix_sha256(request))
         .map(|(run_scope, prefix_sha256)| format!("{run_scope}:prefix:{}", &prefix_sha256[..16]));
-    request.prompt_cache_system_prefix = request.prompt_cache_key.is_some();
+    request.cache_system_prefix = request.cache_scope_key.is_some();
 }
 
 fn system_prefix_sha256(request: &ChatRequest) -> Option<String> {
@@ -148,28 +148,22 @@ mod tests {
         };
 
         configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
-        let first_key = request.prompt_cache_key.clone().expect("cache key");
+        let first_key = request.cache_scope_key.clone().expect("cache key");
         assert!(first_key.starts_with("a4n:workflow_run:299:prefix:"));
-        assert!(request.prompt_cache_system_prefix);
+        assert!(request.cache_system_prefix);
 
         request.messages[1].content = "different dynamic input".to_string();
         configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
-        assert_eq!(
-            request.prompt_cache_key.as_deref(),
-            Some(first_key.as_str())
-        );
+        assert_eq!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
 
         request.messages[0].content = "different session".to_string();
         configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
-        assert_ne!(
-            request.prompt_cache_key.as_deref(),
-            Some(first_key.as_str())
-        );
+        assert_ne!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
 
         trace.workflow_run_id = None;
         let mut unrelated = ChatRequest::new(vec![ChatMessage::user("one shot")], None, None, None);
         configure_prompt_cache(&mut unrelated, "gpt-5.6-luna", &trace);
-        assert!(unrelated.prompt_cache_key.is_none());
-        assert!(!unrelated.prompt_cache_system_prefix);
+        assert!(unrelated.cache_scope_key.is_none());
+        assert!(!unrelated.cache_system_prefix);
     }
 }

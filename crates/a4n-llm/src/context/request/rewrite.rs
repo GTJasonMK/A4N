@@ -32,6 +32,6 @@ pub fn replace_request_user_content_from_manifest(
         .collect();
     messages.push(ChatMessage::user(user_content));
     request.messages = messages;
-    request.prompt_cache_user_prefix_len = stable_prefix_len;
+    request.cache_user_prefix_len = stable_prefix_len;
     Ok(())
 }

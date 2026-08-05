@@ -68,7 +68,7 @@ pub(super) async fn prepare_video_prompt_reuse(
         reference_ids,
         generation_asset_fingerprint: Some(generation_asset_fingerprint),
         source_prompt_type: Some(segment_storage_prompt_type),
-        video_execution_identity: VideoExecutionIdentityMatch::Exact(execution_identity),
+        video_execution_identity: VideoExecutionIdentityMatch::Segment(execution_identity),
     };
     let matching_video_prompts = service
         .matching_prompt_rows_for_workflow(rows_context, prompt_output_language)

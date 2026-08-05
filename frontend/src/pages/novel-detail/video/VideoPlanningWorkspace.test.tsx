@@ -1,13 +1,25 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ChapterVideoPrompt } from "../../../api/video";
-import { VideoPlanningWorkspace } from "./VideoPlanningWorkspace";
+import type { ShootingScene } from "../../../api/shootingScript";
+import {
+  selectVideoPlanningUnitIndex,
+  VideoPlanningWorkspace,
+} from "./VideoPlanningWorkspace";
 import {
   DEFAULT_VIDEO_OPTIONS,
   videoDurationLimitsFromConfig,
 } from "./videoTabUtils";
 
 const durationLimits = videoDurationLimitsFromConfig(null);
+const shootingScenes = [
+  {
+    narrative_unit_index: 1,
+    scene_index: 1,
+    title: "场景一",
+    shots: [{ shot_id: "shot-1" }],
+  },
+] as ShootingScene[];
 
 const persistedPrompt = {
   id: 1,
@@ -33,6 +45,39 @@ const persistedPrompt = {
 } satisfies ChapterVideoPrompt;
 
 describe("VideoPlanningWorkspace", () => {
+  it("advances to the next unplanned scene after the current scene completes", () => {
+    const scenes = [
+      { narrative_unit_index: 1, shots: [{ shot_id: "shot-1" }] },
+      { narrative_unit_index: 2, shots: [{ shot_id: "shot-2" }] },
+    ];
+
+    expect(
+      selectVideoPlanningUnitIndex(scenes, undefined, 1, new Set(["shot-1"])),
+    ).toBe(2);
+  });
+
+  it("keeps an unfinished user-selected scene instead of jumping ahead", () => {
+    const scenes = [
+      { narrative_unit_index: 1, shots: [{ shot_id: "shot-1" }] },
+      { narrative_unit_index: 2, shots: [{ shot_id: "shot-2" }] },
+    ];
+
+    expect(
+      selectVideoPlanningUnitIndex(scenes, undefined, 2, new Set(["shot-1"])),
+    ).toBe(2);
+  });
+
+  it("keeps a resumable draft on its original scene", () => {
+    const scenes = [
+      { narrative_unit_index: 1, shots: [{ shot_id: "shot-1" }] },
+      { narrative_unit_index: 2, shots: [{ shot_id: "shot-2" }] },
+    ];
+
+    expect(
+      selectVideoPlanningUnitIndex(scenes, 1, 2, new Set(["shot-1"])),
+    ).toBe(1);
+  });
+
   it("keeps completed preview segments visible after generation stops", () => {
     const html = renderToStaticMarkup(
       <VideoPlanningWorkspace
@@ -41,6 +86,7 @@ describe("VideoPlanningWorkspace", () => {
         draft={{
           workflowRunId: 9,
           workflowStatus: "cancelled",
+          resumeTaskId: "segment-task-9",
           resumeOptions: {
             workflow_mode: "shared_segment_plan",
             style: "原始规划风格",
@@ -52,6 +98,7 @@ describe("VideoPlanningWorkspace", () => {
             reference_image_ids: [],
             video_library_image_ids: [],
             regenerate_existing: false,
+            target_narrative_unit_index: 1,
           },
           workflowProgress: {
             current: 87,
@@ -72,7 +119,7 @@ describe("VideoPlanningWorkspace", () => {
         loadError={null}
         dataReady
         acting={null}
-        chapterGenerating={false}
+        shootingScenes={shootingScenes}
         onGenerate={vi.fn()}
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}
@@ -100,7 +147,7 @@ describe("VideoPlanningWorkspace", () => {
         loadError={null}
         dataReady
         acting={null}
-        chapterGenerating={false}
+        shootingScenes={shootingScenes}
         onGenerate={vi.fn()}
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}
@@ -124,7 +171,7 @@ describe("VideoPlanningWorkspace", () => {
         loadError="workflow 查询失败"
         dataReady
         acting={null}
-        chapterGenerating={false}
+        shootingScenes={shootingScenes}
         onGenerate={vi.fn()}
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}

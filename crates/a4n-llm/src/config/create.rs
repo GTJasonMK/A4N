@@ -6,7 +6,7 @@ use a4n_core::{
 use super::{
     contracts::{CreateLlmConfigInput, NormalizedLlmConfig},
     limits::ensure_output_tokens_below_context,
-    validation::{normalize_llm_base_url, normalize_llm_request_options_json},
+    validation::{normalize_llm_base_url, normalize_llm_extra_body_json},
 };
 
 pub fn normalize_create_llm_config_input(
@@ -22,10 +22,15 @@ pub fn normalize_create_llm_config_input(
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
-        request_options_json,
+        extra_body_json,
     } = input;
     let name = normalize_config_name(name, "LLM配置")?;
     let provider = required_config_value(provider, "LLM配置", "provider")?;
+    if crate::provider::LlmProtocolKind::for_provider(&provider).is_none() {
+        return Err(AppError::InvalidArgument(format!(
+            "LLM配置 provider 不受支持：{provider}"
+        )));
+    }
     let base_url = normalize_llm_base_url(base_url, api_key_encrypted)?;
     let model = required_config_value(model, "LLM配置", "model")?;
     let max_concurrent = positive_i32(max_concurrent, "LLM配置 max_concurrent")?;
@@ -33,7 +38,7 @@ pub fn normalize_create_llm_config_input(
     let max_context_tokens = positive_i32(max_context_tokens, "LLM配置 max_context_tokens")?;
     let max_output_tokens = positive_i32(max_output_tokens, "LLM配置 max_output_tokens")?;
     ensure_output_tokens_below_context(max_output_tokens, max_context_tokens)?;
-    let request_options_json = normalize_llm_request_options_json(request_options_json)?;
+    let extra_body_json = normalize_llm_extra_body_json(extra_body_json)?;
     Ok(NormalizedLlmConfig {
         name,
         provider,
@@ -44,7 +49,7 @@ pub fn normalize_create_llm_config_input(
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
-        request_options_json,
+        extra_body_json,
     })
 }
 
@@ -65,14 +70,14 @@ mod tests {
             timeout_secs: 30,
             max_context_tokens: 4096,
             max_output_tokens: 1024,
-            request_options_json: Some(json!({
+            extra_body_json: Some(json!({
                 "extra_body": {"reasoning_effort": "low"}
             })),
         }
     }
 
     #[test]
-    fn normalizes_fields_and_request_options() {
+    fn normalizes_fields_and_extra_body() {
         let normalized = normalize_create_llm_config_input(input()).expect("valid config");
 
         assert_eq!(normalized.name, "primary");
@@ -80,7 +85,7 @@ mod tests {
         assert_eq!(normalized.base_url, "https://llm.example/v1");
         assert_eq!(normalized.model, "gpt-test");
         assert_eq!(
-            normalized.request_options_json,
+            normalized.extra_body_json,
             Some(json!({
                 "extra_body": {"reasoning_effort": "low"}
             }))
@@ -103,13 +108,13 @@ mod tests {
     #[test]
     fn rejects_reserved_request_option_fields() {
         let mut input = input();
-        input.request_options_json = Some(json!({"model": "override"}));
+        input.extra_body_json = Some(json!({"model": "override"}));
 
         assert!(
             normalize_create_llm_config_input(input)
                 .expect_err("reserved request option")
                 .to_string()
-                .contains("LLM配置 request_options_json 无效")
+                .contains("LLM配置 extra_body_json 无效")
         );
     }
 }

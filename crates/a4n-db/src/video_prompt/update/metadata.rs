@@ -10,6 +10,25 @@ pub fn sync_chapter_video_prompt_metadata_after_update(
     duration_secs: i32,
     reference_image_ids_json: Option<&Value>,
 ) -> Result<Option<Value>, VideoDbError> {
+    if prompt_type == "video_prompt" {
+        let mut metadata = metadata_json.ok_or_else(|| {
+            VideoDbError::InvalidArgument(
+                "视频提示词缺少 video_execution_identity，不能编辑；请重新生成该提示词".to_string(),
+            )
+        })?;
+        let identity = metadata
+            .as_object_mut()
+            .and_then(|root| root.get_mut("video_execution_identity"))
+            .and_then(Value::as_object_mut)
+            .ok_or_else(|| {
+                VideoDbError::InvalidArgument(
+                    "视频提示词 metadata_json 缺少 video_execution_identity，不能编辑；请重新生成该提示词"
+                        .to_string(),
+                )
+            })?;
+        identity.insert("duration_secs".to_string(), Value::from(duration_secs));
+        return Ok(Some(metadata));
+    }
     let Some((metadata_key, label)) = frame_prompt_metadata_key(prompt_type) else {
         return Ok(metadata_json);
     };

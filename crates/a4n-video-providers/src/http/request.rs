@@ -16,13 +16,13 @@ impl HttpVideoProvider {
         body.insert("fps".into(), json!(req.fps));
         body.insert(
             "reference_image_urls".into(),
-            json!(req.reference_image_urls.clone()),
+            json!(req.media.reference_images()),
         );
-        if let Some(image) = req.first_frame_image_url.as_ref() {
+        if let Some(image) = req.media.first_frame() {
             body.insert("image".into(), json!({ "url": image }));
             body.insert("first_frame_image_url".into(), json!(image));
         }
-        if let Some(image) = req.last_frame_image_url.as_ref() {
+        if let Some(image) = req.media.last_frame() {
             body.insert("last_frame".into(), json!({ "url": image }));
             body.insert("last_frame_image_url".into(), json!(image));
         }

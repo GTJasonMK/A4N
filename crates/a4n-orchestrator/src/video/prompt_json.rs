@@ -31,7 +31,7 @@ pub(super) use self::frame_parser::{
 };
 pub(super) use self::segment_parser::{
     parse_stored_video_segment_plan_for_reuse, parse_video_segment_plan_input_values,
-    parse_video_segment_plan_response,
+    parse_video_segment_plan_response, video_segment_plan_input_values,
 };
 pub(super) use self::shot_parser::{
     derived_prompt_shot_number, ordered_segment_numbers, parse_video_prompt_shots,

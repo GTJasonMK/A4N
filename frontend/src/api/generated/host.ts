@@ -796,6 +796,14 @@ export interface ChapterShootingScriptView {
   script: unknown;
 }
 
+export interface ChapterShootingScriptUnitProgressView {
+  completed_unit_count: number;
+  script: unknown;
+  shooting_script: ChapterShootingScriptView | null;
+  total_unit_count: number;
+  workflow_run_id: number;
+}
+
 export interface EditedChapterShootingScriptView {
   invalidated_project_ids: number[];
   shooting_script: ChapterShootingScriptView;
@@ -944,12 +952,17 @@ export interface UploadChapterVideoInput {
   prompt_id: number;
 }
 
+export interface VideoSegmentTarget {
+  segment_index_in_shot: number;
+  source_shot_id: string;
+}
+
 export interface UploadReferenceMediaVideoInput {
   data_base64: string;
   file_name: string;
   mime_type: string;
   segment_plan_prompt_id: number;
-  shot_number: number;
+  target_segment: VideoSegmentTarget;
 }
 
 export interface UploadAssemblyInsertVideoInput {

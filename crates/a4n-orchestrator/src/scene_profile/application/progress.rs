@@ -51,8 +51,12 @@ pub(super) const SCENE_ENTITY_STATE_PROGRESS_FIELDS: &[FieldMilestone] = &[
 
 pub type SceneProfileSyncProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + Sync);
 
+/// 活体信号出口：把模型输出的原始尾巴交给 Host，与字段级里程碑取自同一个 token 流。
+pub type SceneProfileSyncStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
+
 pub struct SceneProfileSyncProgress<'a> {
     reporter: Option<SceneProfileSyncProgressReporter<'a>>,
+    stream_reporter: Option<SceneProfileSyncStreamReporter<'a>>,
     pub(super) cancel_token: Option<&'a CancellationToken>,
     pub(super) active_task_id: Option<&'a str>,
 }
@@ -65,9 +69,29 @@ impl<'a> SceneProfileSyncProgress<'a> {
     ) -> Self {
         Self {
             reporter,
+            stream_reporter: None,
             cancel_token,
             active_task_id,
         }
+    }
+
+    /// 附加活体信号出口。不提供时行为与之前完全一致。
+    pub fn with_stream_reporter(
+        mut self,
+        stream_reporter: Option<SceneProfileSyncStreamReporter<'a>>,
+    ) -> Self {
+        self.stream_reporter = stream_reporter;
+        self
+    }
+
+    pub(super) fn stream_text(&self, text: &str) {
+        if let Some(reporter) = self.stream_reporter {
+            reporter(text);
+        }
+    }
+
+    pub(super) fn has_stream_reporter(&self) -> bool {
+        self.stream_reporter.is_some()
     }
 
     fn progress(&self, current: u32, total: u32, message: &str) {

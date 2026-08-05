@@ -50,8 +50,11 @@ pub(crate) async fn sync_scene_profiles_for_chapters(
     if let Some(progress) = progress {
         let cancel_token = progress.cancel_token();
         let reporter = |current, total, message: &str| progress.progress(current, total, message);
+        // 活体信号：模型输出尾巴只更新任务快照，不推进度事件。
+        let stream_reporter = |text: &str| progress.stream_text(text);
         let runtime_progress =
-            SceneProfileSyncProgress::new(Some(&reporter), Some(&cancel_token), progress.task_id());
+            SceneProfileSyncProgress::new(Some(&reporter), Some(&cancel_token), progress.task_id())
+                .with_stream_reporter(Some(&stream_reporter));
         a4n_runtime::host_api::scene_profile_sync::sync_scene_profiles_for_chapters(
             state,
             user_id,

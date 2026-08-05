@@ -104,6 +104,54 @@ fn task_progress_updates_snapshot_and_history() {
 }
 
 #[test]
+fn stream_text_updates_snapshot_without_polluting_event_history() {
+    let handle = test_handle();
+    handle.update_progress(3, 10, "生成中");
+    let events_after_progress = handle.progress_events.read().len();
+
+    // delta 频率是每 token 一次；推成事件会冲爆环形缓冲并挤掉字段级里程碑。
+    for _ in 0..500 {
+        handle.update_stream_text("{\"scenes\":[{\"name\":\"庭院");
+    }
+
+    assert_eq!(
+        handle.progress_events.read().len(),
+        events_after_progress,
+        "活体信号不得进入事件历史"
+    );
+    assert_eq!(
+        handle.progress.read().stream_text.as_deref(),
+        Some("{\"scenes\":[{\"name\":\"庭院"),
+        "快照应保留最近一次尾巴"
+    );
+}
+
+#[test]
+fn stream_text_survives_later_milestones() {
+    let handle = test_handle();
+    handle.update_stream_text("{\"scenes\":[{");
+    // 阶段推进不应让流式尾巴闪断。
+    handle.update_progress(5, 10, "第 1 个场景：名称已完成");
+
+    assert_eq!(
+        handle.progress.read().stream_text.as_deref(),
+        Some("{\"scenes\":[{")
+    );
+}
+
+#[test]
+fn stream_text_keeps_only_the_tail_on_utf8_boundaries() {
+    let handle = test_handle();
+    let long_text: String = "庭院深深".repeat(400);
+    handle.update_stream_text(&long_text);
+
+    let progress = handle.progress.read();
+    let kept = progress.stream_text.as_deref().expect("应保留尾部");
+    assert!(kept.chars().count() <= 512);
+    assert!(long_text.ends_with(kept), "应保留尾部而非头部");
+}
+
+#[test]
 fn task_byte_progress_keeps_host_bytes_and_records_scaled_progress() {
     let handle = test_handle();
 

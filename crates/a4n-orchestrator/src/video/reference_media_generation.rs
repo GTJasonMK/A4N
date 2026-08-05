@@ -176,10 +176,16 @@ impl OrchestratorContext {
             Some(snapshot_note),
             request_body.request,
         );
-        let reference_media =
-            prepared.request.reference_media.as_ref().ok_or_else(|| {
-                AppError::InvalidArgument("参考媒体请求缺少 reference_media".into())
-            })?;
+        let a4n_video::VideoMediaInput::References {
+            images,
+            videos,
+            audio,
+        } = &prepared.request.media
+        else {
+            return Err(AppError::InvalidArgument(
+                "参考媒体请求要求 media.type=references".into(),
+            ));
+        };
         let provider_reference_mode = match prepared.config.backend.as_str() {
             SEEDANCE2_VIDEO_BACKEND => "omni_reference",
             CLIPROXY_OPENAI_VIDEO_BACKEND => "image_reference",
@@ -197,12 +203,12 @@ impl OrchestratorContext {
             "provider_backend": prepared.config.backend,
             "reference_media": {
                 "functionMode": provider_reference_mode,
-                "image_file_count": reference_media.image_files.len(),
-                "video_file_count": reference_media.video_files.len(),
-                "audio_file_count": reference_media.audio_files.len(),
-                "image_files": &reference_media.image_files,
-                "video_files": &reference_media.video_files,
-                "audio_files": &reference_media.audio_files,
+                "image_file_count": images.len(),
+                "video_file_count": videos.len(),
+                "audio_file_count": audio.len(),
+                "image_files": images,
+                "video_files": videos,
+                "audio_files": audio,
             },
             "provider_request_snapshot": provider_request_snapshot,
             "runtime_config_snapshot": host_port.runtime_config_snapshot(),
@@ -332,10 +338,15 @@ impl OrchestratorContext {
         self.project_chapter_video_source(project_id, chapter_id, operation, writable)
             .await?;
         let segment_plan_prompt_id = input.segment_plan_prompt_id;
-        let shot_number = input.shot_number;
         let plan = self
             .require_current_shared_segment_plan(project_id, chapter_id, segment_plan_prompt_id)
             .await?;
+        let shot_number = a4n_core::video_execution::resolve_video_segment_number(
+            plan.metadata_json.as_ref(),
+            &input.target_segment.source_shot_id,
+            input.target_segment.segment_index_in_shot,
+        )
+        .map_err(AppError::InvalidArgument)?;
         let recipe = a4n_core::video_execution::video_segment_recipe_from_metadata(
             plan.metadata_json.as_ref(),
             shot_number,
@@ -362,6 +373,10 @@ impl OrchestratorContext {
             plan_identity,
             Some(plan.id),
             Some(&recipe),
+            (
+                &input.target_segment.source_shot_id,
+                input.target_segment.segment_index_in_shot,
+            ),
         )?;
         let config = host_port.resolve_video_config(input.config_id).await?;
         let source_media_id = segment_plan_prompt_id;

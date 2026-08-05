@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct HttpLlmProviderConfig {
+    pub provider: String,
     pub base_url: String,
     pub model: String,
     #[serde(default)]
@@ -11,7 +12,7 @@ pub(super) struct HttpLlmProviderConfig {
     #[serde(default = "default_timeout_secs")]
     pub timeout_secs: u64,
     #[serde(default)]
-    pub request_options_json: Option<serde_json::Value>,
+    pub extra_body_json: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

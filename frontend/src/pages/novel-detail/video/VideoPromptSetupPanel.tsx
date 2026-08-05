@@ -10,8 +10,6 @@ import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import {
   EmptyHint,
-  chapterGeneratingMessage,
-  type ChapterRow,
 } from "../shared";
 import {
   promptOutputLanguageOfPrompt,
@@ -24,7 +22,6 @@ import {
 import { promptTitle } from "./videoGenerationDisplay";
 
 interface VideoPromptSetupPanelProps {
-  chapter: ChapterRow;
   prompts: ChapterVideoPrompt[];
   segmentCards: VideoSegmentCardPlan[];
   segmentRecipes: Map<number, VideoSegmentExecutionRecipe>;
@@ -33,7 +30,6 @@ interface VideoPromptSetupPanelProps {
   selectedPromptId: number | null;
   loading: boolean;
   acting: string | null;
-  chapterGenerating: boolean;
   savingRecipeSegments: Set<number>;
   finalPromptBlockedReasons: Map<number, string>;
   layout: "index" | "selected";
@@ -48,7 +44,6 @@ interface VideoPromptSetupPanelProps {
 }
 
 export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
-  chapter,
   prompts,
   segmentCards,
   segmentRecipes,
@@ -57,7 +52,6 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
   selectedPromptId,
   loading,
   acting,
-  chapterGenerating,
   savingRecipeSegments,
   finalPromptBlockedReasons,
   layout,
@@ -86,11 +80,9 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
       getOperationStatusLabel(prompt.status),
       prompt.generated_video_id != null ? "已生成视频" : null,
     ].filter((value): value is string => Boolean(value));
-    const deleteBlockedReason = chapterGenerating
-      ? chapterGeneratingMessage(chapter, "删除提示词")
-      : prompt.status === "running"
-        ? `片段 ${prompt.shot_number} 正在运行，不能删除`
-        : null;
+    const deleteBlockedReason = prompt.status === "running"
+      ? `片段 ${prompt.shot_number} 正在运行，不能删除`
+      : null;
 
     return (
       <li
@@ -167,7 +159,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
     const recipe = segmentRecipes.get(shotNumber) ?? null;
     const variants = promptsBySegment.get(shotNumber) ?? [];
     const savingRecipe = savingRecipeSegments.has(shotNumber);
-    const busy = acting != null || chapterGenerating || savingRecipe;
+    const busy = acting != null || savingRecipe;
     const finalPromptBlockedReason =
       finalPromptBlockedReasons.get(shotNumber) ?? null;
     const modeInputError = recipe
@@ -254,7 +246,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
         {variants.length > 0 ? (
           <ul
             aria-label={`片段 ${shotNumber} 提示词版本`}
-            className="mt-3 grid max-h-40 grid-cols-1 gap-px overflow-y-auto rounded-[var(--pyqt-radius-md)] border border-book-border/40 bg-book-border/35 custom-scrollbar sm:grid-cols-2 xl:grid-cols-3"
+            className="mt-3 grid max-h-40 grid-cols-1 gap-px overflow-y-auto rounded-[var(--pyqt-radius-md)] border border-book-border/40 bg-book-border/35 custom-scrollbar"
           >
             {variants.map(renderPromptRow)}
           </ul>

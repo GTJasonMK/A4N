@@ -14,12 +14,7 @@ pub fn configured_image_provider(
     {
         let params = validate_image_config_model(config)?;
         let api_key = image_provider_api_key(&params.backend, params.api_key_encrypted.as_deref())?;
-        pick_image_provider(
-            &params.backend,
-            &params.base_url,
-            api_key,
-            params.provider_options_json.as_ref(),
-        )
+        pick_image_provider(&params.backend, &params.base_url, api_key)
     }
     #[cfg(not(feature = "embedded-media-providers"))]
     {
@@ -78,7 +73,6 @@ mod tests {
             max_concurrent: 1,
             default_width: 1024,
             default_height: 1024,
-            provider_options_json: None,
             is_default: true,
             created_at: now,
             updated_at: now,

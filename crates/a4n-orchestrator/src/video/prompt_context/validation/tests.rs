@@ -9,6 +9,7 @@ fn options() -> ChapterVideoPromptOptions {
         prompt_batch_size: 2,
         segment_plan_prompt_id: None,
         target_shot_number: None,
+        target_narrative_unit_index: None,
         segment_recipe: None,
         duration_secs: 8,
         duration_secs_options: vec![4, 8],

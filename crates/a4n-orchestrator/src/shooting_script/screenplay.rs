@@ -3,7 +3,7 @@ mod layout;
 mod plan;
 mod script;
 
-pub(super) use assembly::{assemble_screenplay_layout, assemble_screenplay_plan};
+pub(super) use assembly::{assemble_screenplay_layout_unit, assemble_screenplay_plan_unit};
 pub(super) use layout::validate_screenplay_layout;
 pub(super) use plan::validate_screenplay_plan;
 pub(super) use script::{

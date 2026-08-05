@@ -17,8 +17,6 @@ use a4n_llm::provider::{
     ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmProvider, LlmTraceContext, MessageRole,
     ModelCapabilities, UsageInfo,
 };
-#[cfg(feature = "embedded-llm-provider")]
-use a4n_llm_http::http::HttpLlmProvider;
 use a4n_orchestrator::llm_context::RecordOrReuseContextPackInput;
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceError};
 use async_trait::async_trait;

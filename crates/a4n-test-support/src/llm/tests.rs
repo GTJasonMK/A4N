@@ -143,8 +143,6 @@ async fn unavailable_llm_preserves_stream_and_capability_contracts() {
     assert_eq!(provider.count_tokens("text"), 0);
 
     let capabilities = provider.capabilities();
-    assert!(!capabilities.function_calling);
-    assert!(!capabilities.vision);
     assert_eq!(capabilities.max_context_tokens, 0);
     assert_eq!(capabilities.max_output_tokens, 0);
 }

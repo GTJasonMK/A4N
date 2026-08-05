@@ -39,7 +39,6 @@ pub(crate) async fn probe(
             &request.payload.backend,
             &request.payload.base_url,
             &request.payload.api_key,
-            request.payload.provider_options_json.as_ref(),
         )?;
         Ok(ProviderProbeOutput {
             ok: true,
@@ -70,10 +69,7 @@ fn image_request_preview(payload: &ImageProviderPayload) -> Result<Value, AppErr
             OpenAiCompatibleImageEditProvider::request_body_preview(request)
         }
         "openai-chat-image" => Ok(ChatCompletionsImageProvider::request_body_preview(request)),
-        "cliproxy-image" => CliProxyImageProvider::request_body_preview_with_options(
-            request,
-            payload.provider_options_json.as_ref(),
-        ),
+        "cliproxy-image" => CliProxyImageProvider::request_body_preview(request),
         "stable-diffusion" => StableDiffusionWebUiImageProvider::request_body_preview(request),
         "comfyui" => ComfyUiImageProvider::request_body_preview(request),
         other => Err(AppError::InvalidArgument(format!(

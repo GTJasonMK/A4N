@@ -16,7 +16,6 @@ pub struct VideoConfigCreateRecordInput {
     pub duration_mode: String,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
-    pub provider_options_json: Option<Value>,
 }
 
 #[derive(Clone, Debug)]
@@ -35,5 +34,4 @@ pub struct VideoConfigUpdateRecordInput {
     pub duration_mode: String,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
-    pub provider_options_json: Option<Value>,
 }

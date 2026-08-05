@@ -1,5 +1,4 @@
 use a4n_core::error::AppError;
-use serde_json::Value;
 
 use super::chat::ChatCompletionsVideoProvider;
 use super::cliproxy_openai::CliProxyOpenAiVideoProvider;
@@ -17,7 +16,6 @@ pub fn pick_video_provider(
     backend: &str,
     base_url: &str,
     api_key: &str,
-    provider_options_json: Option<&Value>,
 ) -> Result<Box<dyn VideoProvider>, AppError> {
     if video_provider_cleanup_capabilities(backend).is_none() {
         return Err(AppError::Internal(anyhow::anyhow!(
@@ -29,13 +27,9 @@ pub fn pick_video_provider(
         NEWAPI_VIDEO_BACKEND => Ok(Box::new(NewApiVideoProvider::new(base_url, api_key))),
         GEMINI_VEO_VIDEO_BACKEND => Ok(Box::new(GeminiVeoVideoProvider::new(base_url, api_key))),
         SEEDANCE2_VIDEO_BACKEND => Ok(Box::new(Seedance2VideoProvider::new(base_url, api_key))),
-        CLIPROXY_OPENAI_VIDEO_BACKEND => {
-            Ok(Box::new(CliProxyOpenAiVideoProvider::new_with_options(
-                base_url,
-                api_key,
-                provider_options_json,
-            )?))
-        }
+        CLIPROXY_OPENAI_VIDEO_BACKEND => Ok(Box::new(CliProxyOpenAiVideoProvider::new(
+            base_url, api_key,
+        ))),
         OPENAI_CHAT_VIDEO_BACKEND => Ok(Box::new(ChatCompletionsVideoProvider::new(
             base_url, api_key,
         )?)),
@@ -58,7 +52,7 @@ mod tests {
             "openai-chat-video",
         ] {
             assert!(
-                pick_video_provider(backend, "http://localhost:3000", "test-key", None).is_ok(),
+                pick_video_provider(backend, "http://localhost:3000", "test-key").is_ok(),
                 "backend should be accepted: {backend}"
             );
         }
@@ -71,7 +65,6 @@ mod tests {
                 "unsupported-video-backend",
                 "http://localhost:3000",
                 "test-key",
-                None,
             )
             .is_err()
         );
@@ -79,13 +72,11 @@ mod tests {
 
     #[test]
     fn chat_video_backend_requires_base_url() {
-        assert!(pick_video_provider("openai-chat-video", "", "test-key", None).is_err());
+        assert!(pick_video_provider("openai-chat-video", "", "test-key").is_err());
     }
 
     #[test]
     fn chat_video_backend_requires_api_key() {
-        assert!(
-            pick_video_provider("openai-chat-video", "http://localhost:3000", "", None).is_err()
-        );
+        assert!(pick_video_provider("openai-chat-video", "http://localhost:3000", "").is_err());
     }
 }

@@ -103,6 +103,7 @@ async fn collect_stream_events(
 fn invalid_provider_payload() -> LlmChatPayload {
     LlmChatPayload {
         provider: super::HttpLlmProviderConfig {
+            provider: "openai".to_string(),
             base_url: "not a provider URL".to_string(),
             api_key: Some("payload-provider-secret".to_string()),
             ..test_provider_config()
@@ -342,11 +343,12 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks_and_final_usage() {
 
     let request = service_request(LlmChatPayload {
         provider: super::HttpLlmProviderConfig {
+            provider: "openai".to_string(),
             base_url: provider_base_url.clone(),
             model: "fake-stream-model".to_string(),
             api_key: Some("fake-provider-secret".to_string()),
             timeout_secs: 5,
-            request_options_json: None,
+            extra_body_json: None,
         },
         request: ChatRequest::system_user("system", "stream ping", None, Some(16), None)
             .with_stream_usage(),
@@ -435,11 +437,12 @@ async fn closed_typed_event_receiver_drops_gateway_and_provider_http_streams() {
     let client = gateway.client();
     let request = service_request(LlmChatPayload {
         provider: super::HttpLlmProviderConfig {
+            provider: "openai".to_string(),
             base_url: provider.base_url(),
             model: "fake-cancel-model".to_string(),
             api_key: Some("fake-cancel-secret".to_string()),
             timeout_secs: 5,
-            request_options_json: None,
+            extra_body_json: None,
         },
         request: ChatRequest::system_user("system", "cancel ping", None, Some(16), None),
     });
@@ -530,11 +533,12 @@ async fn run_stream_baseline(
     let client = gateway.client();
     let request = service_request(LlmChatPayload {
         provider: super::HttpLlmProviderConfig {
+            provider: "openai".to_string(),
             base_url: provider.base_url(),
             model: "fake-baseline-model".to_string(),
             api_key: None,
             timeout_secs: 30,
-            request_options_json: None,
+            extra_body_json: None,
         },
         request: ChatRequest::system_user("system", "baseline", None, None, None),
     });

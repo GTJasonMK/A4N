@@ -666,7 +666,8 @@ mod unit_tests {
             style: "电影感".to_string(),
             prompt_output_language: Some("zh_cn".to_string()),
             prompt_batch_size: 2,
-            target_shot_number: None,
+            target_segment: None,
+            target_narrative_unit_index: None,
             duration_secs: 6,
             duration_secs_options: vec![6],
             aspect_ratio: "16:9".to_string(),
@@ -699,7 +700,10 @@ mod unit_tests {
                 chapter_id: 1,
                 input: a4n_api_contract::video::ReferenceMediaVideoInput {
                     segment_plan_prompt_id: 2,
-                    shot_number: 1,
+                    target_segment: a4n_api_contract::video::VideoSegmentTarget {
+                        source_shot_id: "shot-1".to_string(),
+                        segment_index_in_shot: 1,
+                    },
                     image_uploads: Vec::new(),
                     video_uploads: Vec::new(),
                     audio_uploads: Vec::new(),

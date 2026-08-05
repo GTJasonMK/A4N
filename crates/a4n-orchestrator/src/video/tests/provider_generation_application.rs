@@ -151,7 +151,7 @@ impl ReferenceMediaVideoGenerationHostPort for TestReferenceMediaHost {
             request: json!({
                 "model": input.config.model,
                 "prompt": input.request.prompt,
-                "reference_media": input.request.reference_media,
+                "media": input.request.media,
             }),
             source_label: "test-seedance-body".to_string(),
         })
@@ -214,10 +214,7 @@ impl ChapterVideoGenerationHostPort for RejectingChapterHost {
         Ok(seedance_config(config_id.unwrap_or(7)))
     }
 
-    fn resolve_image_transport(
-        &self,
-        _backend: &str,
-    ) -> Result<ProviderImageInputTransport, AppError> {
+    fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError> {
         Ok(ProviderImageInputTransport::InlineDataUrl)
     }
 
@@ -270,7 +267,6 @@ fn seedance_config(id: i64) -> video_gen_config::Model {
         duration_mode: "range".to_string(),
         supported_durations_json: None,
         default_fps: 24,
-        provider_options_json: None,
         is_default: true,
         created_at: now,
         updated_at: now,
@@ -284,12 +280,41 @@ fn long_reference_prompt() -> String {
     )
 }
 
+fn reference_media_segment() -> a4n_core::video_execution::VideoSegmentPlanV2 {
+    serde_json::from_value(json!({
+        "schema_version": "video_segment_plan_v2",
+        "segment_number": 1,
+        "source_shot_id": "shot-1",
+        "segment_index_in_shot": 1,
+        "shot_segment_count": 1,
+        "covered_beat_ids": ["shot-1-beat-1"],
+        "title": "参考媒体片段",
+        "scene_summary": "参考媒体场景",
+        "blocking_summary": "人物保持在画面中央",
+        "spatial_anchors": [],
+        "emotion_action_goals": [],
+        "video_intent": {"hook":"人物入画","audience_effect":"建立人物","rhythm":"平稳","visual_priority":"人物"},
+        "emotional_arc": {"start":"平静","turn":"观察","end":"确认","function":"建立场景"},
+        "performance_plan": {"movement_path":"原地","body_performance":"克制","gaze_and_hands":"看向镜头外","pause_or_reaction":"短暂停顿","camera_relationship":"中景","time_blocks":[],"action_script":[]},
+        "material_coverage": {"required_entities":[],"missing_or_weak_references":[],"risk_note":"无"},
+        "transition_to_next": null,
+        "source_span_ids": ["span-1"],
+        "duration_secs": 8,
+        "aspect_ratio": "16:9",
+        "reference_image_ids": []
+    }))
+    .expect("参考媒体测试片段应符合当前合同")
+}
+
 async fn insert_reference_media_segment_plan(
     db: &a4n_db::DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
 ) -> chapter_video_prompt::Model {
     let now = fixed_time(3);
+    let segment = reference_media_segment();
+    let segment_sha256 = a4n_core::video_execution::video_segment_content_fingerprint(&segment)
+        .expect("参考媒体测试片段应可计算指纹");
     let recipe = VideoSegmentExecutionRecipeV1 {
         schema_version: VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
         segment_number: 1,
@@ -337,8 +362,22 @@ async fn insert_reference_media_segment_plan(
         generated_video_id: Set(None),
         metadata_json: Set(Some(json!({
             "video_execution_identity": {
-                "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH
+                "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+                "shooting_script_identity": {},
+                "projection_sha256": "projection",
+                "segment_plan_sha256": "segment-plan",
+                "unit_plan_sha256": "unit-plan",
+                "source_content_sha256": "source",
+                "style_sha256": "style",
+                "duration_secs": 8,
+                "aspect_ratio": "16:9",
+                "segment_identities": [{
+                    "source_shot_id": "shot-1",
+                    "segment_index_in_shot": 1,
+                    "segment_sha256": segment_sha256
+                }]
             },
+            "segments": [segment],
             "segment_recipes": [recipe]
         }))),
         created_at: Set(now),
@@ -353,7 +392,10 @@ async fn insert_reference_media_segment_plan(
 fn reference_media_input(segment_plan_prompt_id: i64) -> ReferenceMediaVideoInput {
     ReferenceMediaVideoInput {
         segment_plan_prompt_id,
-        shot_number: 1,
+        target_segment: a4n_api_contract::video::VideoSegmentTarget {
+            source_shot_id: "shot-1".to_string(),
+            segment_index_in_shot: 1,
+        },
         image_uploads: Vec::new(),
         video_uploads: Vec::new(),
         audio_uploads: Vec::new(),

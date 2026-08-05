@@ -4,7 +4,7 @@ use serde_json::Value;
 use super::super::super::{
     ApiError, ServerState, finish_web_task, i64_arg, optional_i32_field, optional_string_field,
     register_web_task, sanitize_optional_task_id, scene_profile_sync_actions, string_action_result,
-    web_fire_and_forget_progress_reporter,
+    web_fire_and_forget_progress_reporter, web_stream_reporter,
 };
 
 pub(in crate::routes::commands) async fn sync_scene_profiles(
@@ -35,11 +35,14 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
     .await;
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
     let reporter = web_fire_and_forget_progress_reporter(task.clone());
+    // 与桌面端对称：活体信号必须双端一致，否则浏览器端会缺失流式尾巴。
+    let stream_reporter = web_stream_reporter(task.clone());
     let progress = scene_profile_sync_actions::SceneProfileSyncProgress::new(
         Some(&reporter),
         cancel_token.as_ref(),
         task_id.as_deref(),
-    );
+    )
+    .with_stream_reporter(Some(&stream_reporter));
     let result = scene_profile_sync_actions::sync_scene_profiles_for_chapters(
         state.runtime(),
         user_id,

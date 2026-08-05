@@ -1,7 +1,10 @@
 use a4n_core::{
     models::{ai::generated_video, chapter::chapter_video_prompt},
     source_spans::source_text_hash,
-    video_execution::{VideoSegmentExecutionRecipeV1, update_video_segment_recipe_metadata},
+    video_execution::{
+        VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
+        update_video_segment_recipe_metadata, video_segment_content_fingerprint,
+    },
 };
 use chrono::Utc;
 use sea_orm::{
@@ -53,6 +56,7 @@ where
         reference_image_ids_json,
         metadata_patch,
     } = input;
+    validate_prompt_duration_update(duration_secs)?;
     let prompt = video::chapter_video_prompt_record(db, prompt_id).await?;
     if prompt.status == "running" {
         return Err(VideoDbError::InvalidState {
@@ -287,14 +291,6 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound(format!("视频 #{video_id} 不存在")))?;
-    let identity = video
-        .metadata_json
-        .as_ref()
-        .and_then(|metadata| metadata.get("video_execution_identity"))
-        .and_then(Value::as_object);
-    let fingerprint = recipe
-        .generation_fingerprint()
-        .map_err(VideoDbError::InvalidArgument)?;
     let valid = video.project_id == plan.project_id
         && video.chapter_id == Some(plan.chapter_id)
         && video.status == "completed"
@@ -304,24 +300,12 @@ where
             .map(str::trim)
             .is_some_and(|path| !path.is_empty())
         && video.workflow_mode.as_deref() == Some(recipe.workflow_mode.as_str())
-        && video
-            .metadata_json
-            .as_ref()
-            .and_then(|metadata| metadata.get("shot_number"))
-            .and_then(Value::as_i64)
-            == Some(i64::from(recipe.segment_number))
-        && identity
-            .and_then(|value| value.get("segment_plan_prompt_id"))
-            .and_then(Value::as_i64)
-            == Some(plan.id)
-        && identity
-            .and_then(|value| value.get("segment_number"))
-            .and_then(Value::as_i64)
-            == Some(i64::from(recipe.segment_number))
-        && identity
-            .and_then(|value| value.get("segment_recipe_fingerprint"))
-            .and_then(Value::as_str)
-            == Some(fingerprint.as_str());
+        && adopted_video_identity_matches(
+            plan.id,
+            plan.metadata_json.as_ref(),
+            video.metadata_json.as_ref(),
+            recipe,
+        )?;
     if !valid {
         return Err(VideoDbError::InvalidArgument(format!(
             "视频 #{video_id} 不属于当前规划片段 {} 的所选执行方案",
@@ -329,6 +313,74 @@ where
         )));
     }
     Ok(())
+}
+
+fn adopted_video_identity_matches(
+    plan_id: i64,
+    plan_metadata: Option<&Value>,
+    video_metadata: Option<&Value>,
+    recipe: &VideoSegmentExecutionRecipeV1,
+) -> Result<bool, VideoDbError> {
+    let Some(plan_metadata) = plan_metadata else {
+        return Ok(false);
+    };
+    let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
+        plan_metadata.get("segments").cloned().ok_or_else(|| {
+            VideoDbError::InvalidArgument("当前片段规划缺少 segments".to_string())
+        })?,
+    )
+    .map_err(|error| VideoDbError::InvalidArgument(format!("当前片段规划无效：{error}")))?;
+    let segment = segments
+        .iter()
+        .find(|segment| segment.segment_number == recipe.segment_number)
+        .ok_or_else(|| {
+            VideoDbError::InvalidArgument(format!("当前片段规划缺少片段 {}", recipe.segment_number))
+        })?;
+    let Some(plan_identity) = plan_metadata
+        .get("video_execution_identity")
+        .and_then(Value::as_object)
+    else {
+        return Ok(false);
+    };
+    let Some(video_identity) = video_metadata
+        .and_then(|metadata| metadata.get("video_execution_identity"))
+        .and_then(Value::as_object)
+    else {
+        return Ok(false);
+    };
+    let segment_fingerprint =
+        video_segment_content_fingerprint(segment).map_err(VideoDbError::InvalidArgument)?;
+    let recipe_fingerprint = recipe
+        .generation_fingerprint()
+        .map_err(VideoDbError::InvalidArgument)?;
+    let contract_epoch = Some(u64::from(VIDEO_EXECUTION_CONTRACT_EPOCH));
+    Ok(
+        plan_identity.get("contract_epoch").and_then(Value::as_u64) == contract_epoch
+            && video_identity.get("contract_epoch").and_then(Value::as_u64) == contract_epoch
+            && ["source_content_sha256", "style_sha256", "aspect_ratio"]
+                .into_iter()
+                .all(|field| {
+                    plan_identity
+                        .get(field)
+                        .is_some_and(|expected| video_identity.get(field) == Some(expected))
+                })
+            && video_identity
+                .get("segment_plan_prompt_id")
+                .and_then(Value::as_i64)
+                == Some(plan_id)
+            && video_identity.get("source_shot_id").and_then(Value::as_str)
+                == Some(segment.source_shot_id.as_str())
+            && video_identity
+                .get("segment_index_in_shot")
+                .and_then(Value::as_i64)
+                == Some(i64::from(segment.segment_index_in_shot))
+            && video_identity.get("segment_sha256").and_then(Value::as_str)
+                == Some(segment_fingerprint.as_str())
+            && video_identity
+                .get("segment_recipe_fingerprint")
+                .and_then(Value::as_str)
+                == Some(recipe_fingerprint.as_str()),
+    )
 }
 
 fn required_prompt_text(value: &str, field: &str) -> Result<String, VideoDbError> {
@@ -344,4 +396,117 @@ fn normalize_optional_prompt_text(value: Option<String>) -> Option<String> {
         let value = value.trim();
         (!value.is_empty()).then(|| value.to_string())
     })
+}
+
+fn validate_prompt_duration_update(duration_secs: Option<i32>) -> Result<(), VideoDbError> {
+    if duration_secs.is_some_and(|value| value <= 0) {
+        return Err(VideoDbError::InvalidArgument(
+            "视频提示词 duration_secs 必须是正整数".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use a4n_core::video_execution::default_video_segment_recipes;
+    use serde_json::json;
+
+    #[test]
+    fn prompt_duration_update_requires_positive_integer() {
+        assert!(validate_prompt_duration_update(None).is_ok());
+        assert!(validate_prompt_duration_update(Some(1)).is_ok());
+        assert!(matches!(
+            validate_prompt_duration_update(Some(0)),
+            Err(VideoDbError::InvalidArgument(message))
+                if message == "视频提示词 duration_secs 必须是正整数"
+        ));
+    }
+
+    #[test]
+    fn adopted_video_identity_uses_stable_segment_target_after_renumbering() {
+        let segment = serde_json::from_value::<VideoSegmentPlanV2>(json!({
+            "schema_version": "video_segment_plan_v2",
+            "segment_number": 2,
+            "source_shot_id": "shot-1",
+            "segment_index_in_shot": 1,
+            "shot_segment_count": 1,
+            "covered_beat_ids": [],
+            "title": "片段",
+            "scene_summary": "场景",
+            "blocking_summary": "调度",
+            "spatial_anchors": [],
+            "emotion_action_goals": [],
+            "video_intent": {
+                "hook": "h",
+                "audience_effect": "a",
+                "rhythm": "r",
+                "visual_priority": "v"
+            },
+            "emotional_arc": {"start": "s", "turn": "t", "end": "e", "function": "f"},
+            "performance_plan": {
+                "movement_path": "m",
+                "body_performance": "b",
+                "gaze_and_hands": "g",
+                "pause_or_reaction": "p",
+                "camera_relationship": "c",
+                "time_blocks": [],
+                "action_script": []
+            },
+            "material_coverage": {
+                "required_entities": [],
+                "missing_or_weak_references": [],
+                "risk_note": "r"
+            },
+            "transition_to_next": null,
+            "source_span_ids": ["span-1"],
+            "duration_secs": 6,
+            "aspect_ratio": "16:9",
+            "reference_image_ids": []
+        }))
+        .unwrap();
+        let recipe =
+            default_video_segment_recipes(std::slice::from_ref(&segment), "cinematic", "zh_cn")
+                .unwrap()
+                .remove(0);
+        let segment_sha256 = video_segment_content_fingerprint(&segment).unwrap();
+        let recipe_fingerprint = recipe.generation_fingerprint().unwrap();
+        let plan_metadata = json!({
+            "segments": [segment],
+            "video_execution_identity": {
+                "contract_epoch": VIDEO_EXECUTION_CONTRACT_EPOCH,
+                "source_content_sha256": "source",
+                "style_sha256": "style",
+                "duration_secs": 6,
+                "aspect_ratio": "16:9"
+            }
+        });
+        let video_metadata = json!({
+            "shot_number": 1,
+            "video_execution_identity": {
+                "contract_epoch": VIDEO_EXECUTION_CONTRACT_EPOCH,
+                "source_content_sha256": "source",
+                "style_sha256": "style",
+                "duration_secs": 10,
+                "aspect_ratio": "16:9",
+                "segment_plan_prompt_id": 42,
+                "segment_number": 1,
+                "source_shot_id": "shot-1",
+                "segment_index_in_shot": 1,
+                "segment_sha256": segment_sha256,
+                "segment_recipe_fingerprint": recipe_fingerprint
+            }
+        });
+
+        assert!(
+            adopted_video_identity_matches(
+                42,
+                Some(&plan_metadata),
+                Some(&video_metadata),
+                &recipe,
+            )
+            .unwrap()
+        );
+    }
 }

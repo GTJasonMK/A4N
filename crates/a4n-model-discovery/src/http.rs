@@ -77,6 +77,12 @@ async fn fetch_discovered_models(
                 request = request.bearer_auth(api_key);
             }
         }
+        ModelDiscoveryAuth::Anthropic => {
+            if let Some(api_key) = api_key {
+                request = request.header("x-api-key", api_key);
+            }
+            request = request.header("anthropic-version", "2023-06-01");
+        }
         ModelDiscoveryAuth::GeminiApiKey => {
             if let Some(api_key) = api_key {
                 request = request.header("x-goog-api-key", api_key);

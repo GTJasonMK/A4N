@@ -13,7 +13,6 @@ use super::super::{
 
 pub(super) type StagedSegmentPlanResult = (
     Option<RenderedVideoPromptTrace>,
-    Value,
     Vec<VideoSegmentPlan>,
     Value,
 );
@@ -27,16 +26,20 @@ pub(in crate::video::prompt_generation::frame_prompts) struct StagedSegmentPlanI
     pub(in crate::video::prompt_generation::frame_prompts) service: &'a OrchestratorContext,
     pub(in crate::video::prompt_generation::frame_prompts) prompt_renderer: &'a dyn PromptRenderer,
     pub(in crate::video::prompt_generation::frame_prompts) project_id: i64,
+    pub(in crate::video::prompt_generation::frame_prompts) chapter_id: i64,
     pub(in crate::video::prompt_generation::frame_prompts) workflow_run_id: Option<i64>,
     pub(in crate::video::prompt_generation::frame_prompts) variables: &'a HashMap<String, Value>,
     pub(in crate::video::prompt_generation::frame_prompts) source:
         ChapterVideoSourceContext<'source>,
+    pub(in crate::video::prompt_generation::frame_prompts) source_metadata: &'a Value,
     pub(in crate::video::prompt_generation::frame_prompts) source_spans: &'a [SourceSpan],
     pub(in crate::video::prompt_generation::frame_prompts) project_context: Option<&'a Value>,
     pub(in crate::video::prompt_generation::frame_prompts) shooting_script_projection_json:
         &'a Value,
     pub(in crate::video::prompt_generation::frame_prompts) shooting_script_projection:
         &'a VideoShootingScriptProjection,
+    pub(in crate::video::prompt_generation::frame_prompts) source_shot_order: &'a [String],
+    pub(in crate::video::prompt_generation::frame_prompts) source_complete: bool,
     pub(in crate::video::prompt_generation::frame_prompts) default_aspect_ratio: &'a str,
     pub(in crate::video::prompt_generation::frame_prompts) style: &'a str,
     pub(in crate::video::prompt_generation::frame_prompts) prompt_output_language: &'a str,
@@ -44,6 +47,7 @@ pub(in crate::video::prompt_generation::frame_prompts) struct StagedSegmentPlanI
         Option<&'a [VideoSegmentPlan]>,
     pub(in crate::video::prompt_generation::frame_prompts) previous_segment_recipes:
         Option<&'a [VideoSegmentExecutionRecipeV1]>,
+    pub(in crate::video::prompt_generation::frame_prompts) reuse_published_shots: bool,
     pub(in crate::video::prompt_generation::frame_prompts) duration_secs: i32,
     pub(in crate::video::prompt_generation::frame_prompts) context: &'a str,
     pub(in crate::video::prompt_generation::frame_prompts) progress_message: &'a str,
@@ -69,6 +73,7 @@ pub(super) struct CompletedSegmentPlanRecoveryInput<'a, 'progress> {
 pub(super) struct RenderedSegmentPlanShots {
     pub(super) segment_inputs: Vec<Value>,
     pub(super) stage_outputs: Vec<Value>,
+    pub(super) reused_source_shot_ids: Vec<String>,
     pub(super) last_trace: Option<RenderedVideoPromptTrace>,
 }
 

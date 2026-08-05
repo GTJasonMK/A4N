@@ -61,11 +61,36 @@ const segmentPlanStarts = () =>
       .map((call) => call.args.input.operation.options),
   );
 
+const segmentPlanRetryTaskIds = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "start_video_generation")
+      .map((call) => call.args.input.meta.retry_of_task_id),
+  );
+
 const recipeUpdates = () =>
   browser.execute(() =>
     window.__A4N_VIDEO_MODE_E2E__.calls
       .filter((call) => call.command === "update_chapter_video_segment_recipe")
       .map((call) => call.args.recipe),
+  );
+
+const framePromptMutations = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter(
+        (call) =>
+          call.command === "update_chapter_video_prompt" ||
+          call.command === "optimize_chapter_video_prompt",
+      )
+      .map((call) => ({ command: call.command, args: call.args })),
+  );
+
+const deletedImageIds = () =>
+  browser.execute(() =>
+    window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "delete_image")
+      .map((call) => call.args.imageId),
   );
 
 const draftRecipeUpdates = () =>
@@ -82,7 +107,7 @@ const selectSegmentVideoCalls = () =>
       .map((call) => ({
         videoId: call.args.videoId,
         segmentPlanPromptId: call.args.input.segment_plan_prompt_id,
-        shotNumber: call.args.input.shot_number,
+        targetSegment: call.args.input.target_segment,
       })),
   );
 
@@ -224,6 +249,30 @@ describe("video segment mode switching in Chromium", () => {
       await dialog.$('button[aria-label="添加参考图或素材"]').isExisting(),
       true,
     );
+    const slotLayout = await browser.execute(() => {
+      const slot = document.querySelector(
+        '[role="dialog"] button[aria-label="配置首帧"]',
+      );
+      const preview = slot?.children[0]?.getBoundingClientRect();
+      const rect = slot?.getBoundingClientRect();
+      return {
+        slotHeight: rect?.height ?? 0,
+        previewWidth: preview?.width ?? 0,
+        previewHeight: preview?.height ?? 0,
+      };
+    });
+    const referenceSlotLayout = await browser.execute(() => {
+      const slot = document.querySelector(
+        '[role="dialog"] button[aria-label="添加参考图或素材"]',
+      );
+      const rect = slot?.getBoundingClientRect();
+      return { width: rect?.width ?? 0 };
+    });
+    assert.ok(slotLayout.slotHeight <= 240);
+    assert.ok(slotLayout.previewWidth > slotLayout.previewHeight);
+    assert.ok(
+      Math.abs(slotLayout.previewWidth - referenceSlotLayout.width) <= 4,
+    );
 
     const firstFrame = await dialog.$('button[aria-label="配置首帧"]');
     await firstFrame.click();
@@ -277,10 +326,100 @@ describe("video segment mode switching in Chromium", () => {
       /已填充.*片段二分镜板/s,
     );
     assert.equal(
-      await dialog
-        .$('button[aria-label="配置分镜板"] img[alt="分镜板"]')
+      await dialog.$('button[aria-label="配置分镜板"] img').isExisting(),
+      true,
+    );
+
+    await dialog.$('button[aria-label="配置分镜板"]').click();
+    const frameDialog = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="分镜板配置"]]',
+    );
+    await frameDialog.waitForExist();
+    const prompt = await frameDialog.$(
+      'textarea[aria-label="分镜板图片提示词"]',
+    );
+    await prompt.waitForExist();
+    assert.equal(await prompt.getValue(), "storyboard");
+    assert.equal(
+      await frameDialog
+        .$('.//button[normalize-space()="优化提示词"]')
         .isExisting(),
       true,
+    );
+
+    assert.equal(await prompt.isEnabled(), false);
+    assert.equal(
+      await frameDialog
+        .$('.//button[normalize-space()="优化提示词"]')
+        .isEnabled(),
+      false,
+    );
+    assert.equal(
+      await frameDialog
+        .$('.//button[normalize-space()="导入图片"]')
+        .isEnabled(),
+      false,
+    );
+    assert.equal(
+      await frameDialog
+        .$('.//button[normalize-space()="生成图片"]')
+        .isEnabled(),
+      false,
+    );
+    await frameDialog.$('button[aria-label="删除分镜板图片"]').click();
+    const deleteDialog = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="删除图片"]]',
+    );
+    await deleteDialog.waitForExist();
+    await deleteDialog.$('.//button[normalize-space()="删除"]').click();
+    await browser.waitUntil(async () => (await deletedImageIds()).length === 1);
+    await deleteDialog.waitForExist({ reverse: true });
+    await frameDialog.waitForExist();
+    await browser.waitUntil(async () => await prompt.isEnabled());
+    assert.deepEqual(await deletedImageIds(), [179]);
+    assert.equal(
+      await frameDialog.$('button[aria-label="删除分镜板图片"]').isExisting(),
+      false,
+    );
+    assert.equal(
+      await frameDialog
+        .$('.//button[normalize-space()="生成图片"]')
+        .isEnabled(),
+      true,
+    );
+
+    const edited = "编辑后的分镜图片提示词，保留人物、空间关系和镜头构图。";
+    await prompt.setValue(edited);
+    const generate = await frameDialog.$(
+      './/button[normalize-space()="生成图片"]',
+    );
+    assert.equal(await generate.isEnabled(), false);
+    await frameDialog.$('.//button[normalize-space()="保存提示词"]').click();
+    await browser.waitUntil(
+      async () => (await framePromptMutations()).length === 1,
+    );
+    assert.equal(
+      (await framePromptMutations())[0].args.input.visual_prompt,
+      edited,
+    );
+    assert.equal(await prompt.getValue(), edited);
+
+    await frameDialog.$('.//button[normalize-space()="优化提示词"]').click();
+    const optimizeDialog = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="优化文字资产"]]',
+    );
+    await optimizeDialog.waitForExist();
+    await optimizeDialog.$("textarea").setValue("强化画面层次");
+    await optimizeDialog.$('.//button[normalize-space()="开始优化"]').click();
+    await browser.waitUntil(
+      async () => (await framePromptMutations()).length === 2,
+    );
+    assert.equal(
+      (await framePromptMutations())[1].args.input.instruction,
+      "强化画面层次",
+    );
+    await browser.waitUntil(async () =>
+      (await prompt.getValue()).includes("优化要求：强化画面层次"),
     );
   });
 
@@ -457,6 +596,28 @@ describe("video segment mode switching in Chromium", () => {
     assert.ok(layout.setupBottom <= layout.workspaceTop + 1);
     await dialog.$('button[aria-label="关闭弹窗"]').click();
     await dialog.waitForExist({ reverse: true });
+
+    await browser.url("/e2e/video-mode-switch/?scenario=stale-plan-adoption");
+    const versionsDialog = (await openSegmentConfig(1)).dialog;
+    const versionLayout = await browser.execute(() => {
+      const list = document.querySelector(
+        '[role="dialog"] ul[aria-label="片段 1 提示词版本"]',
+      );
+      const item = list?.querySelector("li");
+      const listRect = list?.getBoundingClientRect();
+      const itemRect = item?.getBoundingClientRect();
+      return {
+        count: list?.children.length ?? 0,
+        widthDifference:
+          listRect && itemRect
+            ? Math.abs(listRect.width - itemRect.width)
+            : null,
+      };
+    });
+    assert.equal(versionLayout.count, 1);
+    assert.ok((versionLayout.widthDifference ?? Number.POSITIVE_INFINITY) <= 4);
+    await versionsDialog.$('button[aria-label="关闭弹窗"]').click();
+    await versionsDialog.waitForExist({ reverse: true });
   });
 
   it("uses a single-column bottom workspace on a mobile viewport", async () => {
@@ -503,7 +664,7 @@ describe("video segment mode switching in Chromium", () => {
     await browser.url("/e2e/video-mode-switch/?scenario=cancel-resume");
 
     const generate = await $(
-      '//button[contains(normalize-space(), "生成片段规划")]',
+      '//button[contains(normalize-space(), "规划此场景")]',
     );
     await generate.waitForEnabled();
     await generate.click();
@@ -561,6 +722,10 @@ describe("video segment mode switching in Chromium", () => {
     const startsAfterResume = await segmentPlanStarts();
     assert.deepEqual(startsAfterResume[1], originalOptions);
     assert.notEqual(startsAfterResume[1].style, await style.getValue());
+    assert.deepEqual(await segmentPlanRetryTaskIds(), [
+      null,
+      "00000000-0000-4000-8000-000000000001",
+    ]);
     await browser.waitUntil(async () =>
       (await $("body").getText()).includes("正在生成镜头 2"),
     );
@@ -641,7 +806,14 @@ describe("video segment mode switching in Chromium", () => {
       async () => (await selectSegmentVideoCalls()).length === 1,
     );
     assert.deepEqual(await selectSegmentVideoCalls(), [
-      { videoId: 502, segmentPlanPromptId: 41, shotNumber: 1 },
+      {
+        videoId: 502,
+        segmentPlanPromptId: 41,
+        targetSegment: {
+          source_shot_id: "unit_1_shot_1",
+          segment_index_in_shot: 1,
+        },
+      },
     ]);
     assert.deepEqual(await adoptionSnapshots(), [
       { videoId: 502, adopted: { 1: 502, 2: null } },
@@ -662,7 +834,10 @@ describe("video segment mode switching in Chromium", () => {
           videoId: 503,
           input: {
             segment_plan_prompt_id: 41,
-            shot_number: 1,
+            target_segment: {
+              source_shot_id: "unit_1_shot_1",
+              segment_index_in_shot: 1,
+            },
           },
         });
         return { ok: true };
@@ -682,18 +857,21 @@ describe("video segment mode switching in Chromium", () => {
     assert.deepEqual((await selectSegmentVideoCalls())[1], {
       videoId: 503,
       segmentPlanPromptId: 41,
-      shotNumber: 1,
+      targetSegment: {
+        source_shot_id: "unit_1_shot_1",
+        segment_index_in_shot: 1,
+      },
     });
   });
 
-  it("blocks mixed assembly when a segment only has a stale adopted video", async () => {
+  it("assembles the valid prefix when a later adopted video is stale", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=mixed-assembly-gap");
 
     const previewTitle = await $('//h3[normalize-space()="成片预览"]');
     await previewTitle.waitForExist();
     const body = await $("body");
     await browser.waitUntil(async () =>
-      (await body.getText()).includes("尚缺片段 2 的有效采用视频"),
+      (await body.getText()).includes("本次仅合成已有视频；片段 2 尚无有效视频"),
     );
     assert.match(await body.getText(), /成片片段 1 有效视频|镜头 1/);
     assert.doesNotMatch(await body.getText(), /成片片段 2 有效视频/);
@@ -702,11 +880,20 @@ describe("video segment mode switching in Chromium", () => {
       '//button[contains(normalize-space(), "生成预览")]',
     );
     await generate.waitForExist();
-    assert.equal(await generate.isEnabled(), false);
-    assert.equal((await assembleChapterVideoCalls()).length, 0);
+    await generate.waitForEnabled();
+    await generate.click();
+    await browser.waitUntil(
+      async () => (await assembleChapterVideoCalls()).length === 1,
+    );
+    assert.deepEqual(await assembleChapterVideoCalls(), [
+      { projectId: 1, chapterId: 2, workflowMode: "mixed" },
+    ]);
+    await browser.waitUntil(async () =>
+      (await body.getText()).includes("更新预览"),
+    );
   });
 
-  it("assembles mixed preview only after every current-plan segment is adopted", async () => {
+  it("assembles all valid videos when every current-plan segment is adopted", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=mixed-assembly-ready");
 
     const previewTitle = await $('//h3[normalize-space()="成片预览"]');
@@ -716,7 +903,7 @@ describe("video segment mode switching in Chromium", () => {
       (await body.getText()).includes("成片片段 1 有效视频"),
     );
     assert.match(await body.getText(), /成片片段 2 有效视频/);
-    assert.doesNotMatch(await body.getText(), /尚缺片段/);
+    assert.doesNotMatch(await body.getText(), /本次仅合成已有视频/);
 
     const generate = await $(
       '//button[contains(normalize-space(), "生成预览")]',

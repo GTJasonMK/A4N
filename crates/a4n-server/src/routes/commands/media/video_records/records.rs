@@ -95,3 +95,16 @@ pub(in crate::routes::commands) async fn load_video_playback_data(
             .map_err(ApiError::bad_request)?;
     to_value(playback)
 }
+
+pub(in crate::routes::commands) async fn load_video_scrub_playback_data(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let video_id = i64_arg(args, "videoId")?;
+    let playback =
+        video_records_actions::load_video_scrub_playback_data(state.runtime(), user_id, video_id)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(playback)
+}

@@ -30,7 +30,7 @@ pub async fn upload_reference_media_video(
         project_id,
         chapter_id,
         input.segment_plan_prompt_id,
-        input.shot_number,
+        input.target_segment,
         source,
     )
     .await
@@ -42,7 +42,7 @@ async fn create_imported_reference_media_video(
     project_id: i64,
     chapter_id: i64,
     segment_prompt_id: i64,
-    shot_number: i32,
+    target_segment: a4n_api_contract::video::VideoSegmentTarget,
     source: ImportedVideoSource,
 ) -> Result<GeneratedVideoSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
@@ -63,7 +63,10 @@ async fn create_imported_reference_media_video(
             source.extension,
             &imported_at,
             segment_prompt_id,
-            shot_number,
+            (
+                &target_segment.source_shot_id,
+                target_segment.segment_index_in_shot,
+            ),
         )
         .await
         .map_err(crate::actions::app_error_message)?;

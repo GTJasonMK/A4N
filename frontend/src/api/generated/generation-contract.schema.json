@@ -2043,11 +2043,8 @@
           "minimum": 1,
           "type": "integer"
         },
-        "shot_number": {
-          "description": "片段顺序快照，用于结果筛选和身份校验。",
-          "format": "int32",
-          "minimum": 1,
-          "type": "integer"
+        "target_segment": {
+          "$ref": "#/$defs/VideoSegmentTarget"
         },
         "video_uploads": {
           "default": [],
@@ -2059,7 +2056,7 @@
       },
       "required": [
         "segment_plan_prompt_id",
-        "shot_number"
+        "target_segment"
       ],
       "type": "object"
     },
@@ -2896,14 +2893,26 @@
         "style": {
           "type": "string"
         },
-        "target_shot_number": {
+        "target_narrative_unit_index": {
           "default": null,
-          "format": "int32",
+          "description": "生成共享片段规划时，可只规划已完成的某个拍摄场景。",
+          "format": "uint32",
           "minimum": 1,
           "type": [
             "integer",
             "null"
           ]
+        },
+        "target_segment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VideoSegmentTarget"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "video_library_image_ids": {
           "default": [],
@@ -2926,6 +2935,25 @@
         "prompt_batch_size",
         "duration_secs",
         "aspect_ratio"
+      ],
+      "type": "object"
+    },
+    "VideoSegmentTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "segment_index_in_shot": {
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "source_shot_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_shot_id",
+        "segment_index_in_shot"
       ],
       "type": "object"
     }

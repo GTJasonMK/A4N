@@ -1,6 +1,6 @@
 import type { ImageConfigInput, ImageGenConfig, UpdateImageConfigInput } from "../../../api/image";
 import type { ConfigItem } from "../ConfigListPanel";
-import type { GrokReferenceMode, ImageForm, ImageProvider } from "./types";
+import type { ImageForm } from "./types";
 
 export const DEFAULT_IMAGE_FORM: ImageForm = {
   name: "",
@@ -12,36 +12,6 @@ export const DEFAULT_IMAGE_FORM: ImageForm = {
   clear_api_key: false,
   size: "1024x1024",
   max_concurrent: 1,
-  grok_reference_mode: "reference",
-};
-
-export const IMAGE_PROVIDERS: Array<{ value: ImageProvider; label: string }> = [
-  { value: "openai-compatible-image", label: "OpenAI 兼容图像 (images/generations)" },
-  {
-    value: "openai-compatible-image-edit",
-    label: "OpenAI 兼容图像编辑 (generations/edits，支持参考图)",
-  },
-  { value: "openai-chat-image", label: "Chat Completions（自动嗅探，适配中转站）" },
-  { value: "cliproxy-image", label: "CLIProxy / Grok 图片 (generations/edits)" },
-  { value: "stable-diffusion", label: "Stable Diffusion (Auto1111/SD-WebUI)" },
-  { value: "comfyui", label: "ComfyUI 工作流" },
-];
-
-const IMAGE_PROVIDER_LABELS: Record<ImageProvider, string> = Object.fromEntries(
-  IMAGE_PROVIDERS.map((provider) => [provider.value, provider.label]),
-) as Record<ImageProvider, string>;
-
-export const IMAGE_BASE_URL_HINTS: Record<ImageProvider, string> = {
-  "openai-compatible-image":
-    "走 POST {base}/images/generations，从 data[0].b64_json 或 data[0].url 取图片，兼容无 format 响应",
-  "openai-compatible-image-edit":
-    "无参考图走 POST {base}/images/generations；有参考图走 multipart POST {base}/images/edits",
-  "openai-chat-image":
-    "走 POST {base}/chat/completions，解析 message.images[] / content[].image_url / content 字符串中的图片引用",
-  "cliproxy-image":
-    "走 CLIProxy POST {base}/images/generations；有参考图时走 multipart {base}/images/edits；默认 response_format=url",
-  "stable-diffusion": "本地 SD-WebUI 通常为 http://localhost:7860",
-  comfyui: "本地 ComfyUI 通常为 http://localhost:8188",
 };
 
 export const IMAGE_SIZE_OPTIONS = [
@@ -61,30 +31,6 @@ export const IMAGE_SIZE_OPTIONS = [
   "2160x4096",
   "4096x4096",
 ];
-
-export const GROK_REFERENCE_MODE_OPTIONS: Array<{
-  value: GrokReferenceMode;
-  label: string;
-  hint: string;
-}> = [
-  {
-    value: "reference",
-    label: "参考模式",
-    hint: "上传全部参考图作为图片编辑参考，保持当前默认行为。",
-  },
-  {
-    value: "first_frame",
-    label: "首帧模式",
-    hint: "只上传第一张参考图作为编辑输入，其余参考图不发送。",
-  },
-];
-
-export function parseImageProvider(value: string): ImageProvider {
-  if (Object.prototype.hasOwnProperty.call(IMAGE_PROVIDER_LABELS, value)) {
-    return value as ImageProvider;
-  }
-  throw new Error(`图片生成后端未注册：${value}`);
-}
 
 export function validateImageForm(form: ImageForm): string | null {
   if (!form.name.trim()) return "请填写配置名称";
@@ -108,7 +54,7 @@ export function formatImageItem(config: ImageForm): {
 } {
   return {
     primary: config.name,
-    secondary: `${IMAGE_PROVIDER_LABELS[config.provider]} · ${config.model}`,
+    secondary: `${config.provider} · ${config.model}`,
     tertiary: config.size,
   };
 }
@@ -119,7 +65,7 @@ export function toImageItem(raw: ImageGenConfig): ConfigItem<ImageForm> {
     isActive: Boolean(raw.is_default),
     config: {
       name: raw.name,
-      provider: parseImageProvider(raw.backend),
+      provider: raw.backend,
       model: raw.model,
       api_base_url: raw.base_url ?? "",
       api_key: "",
@@ -127,7 +73,6 @@ export function toImageItem(raw: ImageGenConfig): ConfigItem<ImageForm> {
       clear_api_key: false,
       size: imageSizeFromConfig(raw),
       max_concurrent: imageConcurrencyFromConfig(raw),
-      grok_reference_mode: grokReferenceModeFromConfig(raw),
     },
   };
 }
@@ -162,43 +107,7 @@ function buildImageConfigInput(
     max_concurrent: form.max_concurrent,
     default_width: width,
     default_height: height,
-    provider_options_json: imageProviderOptions(form),
   };
-}
-
-function imageProviderOptions(form: ImageForm): ImageConfigInput["provider_options_json"] {
-  if (form.provider !== "cliproxy-image") return null;
-  return { grok_reference_mode: form.grok_reference_mode };
-}
-
-function grokReferenceModeFromConfig(config: ImageGenConfig): GrokReferenceMode {
-  const value = config.provider_options_json;
-  if (value == null) return "reference";
-  if (config.backend !== "cliproxy-image") {
-    throw new Error(
-      `图片配置 ${config.id} provider_options_json 仅支持 cliproxy-image 后端`,
-    );
-  }
-  if (typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`图片配置 ${config.id} provider_options_json 必须是 JSON 对象`);
-  }
-  const payload = value as Record<string, unknown>;
-  const unknownKey = Object.keys(payload).find((key) => key !== "grok_reference_mode");
-  if (unknownKey) {
-    throw new Error(`图片配置 ${config.id} provider_options_json 包含未知字段：${unknownKey}`);
-  }
-  const mode = payload.grok_reference_mode;
-  if (mode == null) return "reference";
-  if (typeof mode !== "string") {
-    throw new Error(
-      `图片配置 ${config.id} provider_options_json.grok_reference_mode 必须是字符串`,
-    );
-  }
-  const normalized = mode.trim();
-  if (normalized === "reference" || normalized === "first_frame") return normalized;
-  throw new Error(
-    `图片配置 ${config.id} provider_options_json.grok_reference_mode 无效：${normalized}`,
-  );
 }
 
 function parseImageSize(value: string): { width: number; height: number } {

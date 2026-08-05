@@ -1,7 +1,7 @@
 use std::{pin::Pin, time::Instant};
 
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider};
+use a4n_llm::provider::{ChatChunk, ChatRequest};
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use futures::Stream;
 
@@ -34,7 +34,8 @@ impl DynamicLlmProvider {
             model_name.as_str(),
         )?;
         let trace_context =
-            prepare_dynamic_llm_trace_context(&self.facade, &provider, &mut request).await?;
+            prepare_dynamic_llm_trace_context(&self.facade, provider.as_ref(), &mut request)
+                .await?;
         if trace_context.is_some() {
             request.stream_include_usage = true;
         }

@@ -3,9 +3,7 @@ use super::contracts::{
     VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, VideoConfigParams,
     VideoDurationCapabilityValues,
 };
-use super::provider::{
-    normalize_video_provider_options_json, validate_backend_duration_constraints,
-};
+use super::provider::validate_backend_duration_constraints;
 use a4n_core::models::ai::video_gen_config;
 use a4n_video::video_provider_cleanup_capabilities;
 use serde_json::{Value, json};
@@ -32,7 +30,6 @@ pub fn validate_video_config_model(
         duration_mode: cfg.duration_mode.clone(),
         supported_durations_json: cfg.supported_durations_json.clone(),
         default_fps: cfg.default_fps,
-        provider_options_json: cfg.provider_options_json.clone(),
     })
 }
 
@@ -63,9 +60,6 @@ pub fn validate_video_config_params(
     validate_video_duration_capability(&mut params)?;
     validate_backend_duration_constraints(&params)?;
     validate_i32_range(params.default_fps, "default_fps", 1, 120)?;
-    params.provider_options_json =
-        normalize_video_provider_options_json(&params.backend, params.provider_options_json)?;
-
     Ok(params)
 }
 

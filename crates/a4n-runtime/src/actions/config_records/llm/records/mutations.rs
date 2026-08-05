@@ -18,7 +18,7 @@ pub async fn create_llm_config(
         timeout_secs: input.timeout_secs,
         max_context_tokens: input.max_context_tokens,
         max_output_tokens: input.max_output_tokens,
-        request_options_json: input.request_options_json,
+        extra_body_json: input.extra_body_json,
     };
     let config = state
         .settings()
@@ -46,7 +46,7 @@ pub async fn update_llm_config(
         timeout_secs: input.timeout_secs,
         max_context_tokens: input.max_context_tokens,
         max_output_tokens: input.max_output_tokens,
-        request_options_json: input.request_options_json,
+        extra_body_json: input.extra_body_json,
     };
     let config = state
         .settings()

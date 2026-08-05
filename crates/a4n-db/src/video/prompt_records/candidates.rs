@@ -1,7 +1,5 @@
 use a4n_core::models::chapter::chapter_video_prompt;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 
 use super::super::{
     VideoDbError, validate_positive_video_i32, validate_positive_video_i64,
@@ -109,21 +107,4 @@ pub async fn chapter_video_storyboard_prompt_candidates(
         .all(db)
         .await
         .map_err(VideoDbError::Database)
-}
-
-pub async fn has_running_chapter_video_prompts(
-    db: &DatabaseConnection,
-    project_id: i64,
-    chapter_id: i64,
-) -> Result<bool, VideoDbError> {
-    validate_positive_video_i64(project_id, "project_id")?;
-    validate_positive_video_i64(chapter_id, "chapter_id")?;
-    let running = chapter_video_prompt::Entity::find()
-        .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
-        .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_video_prompt::Column::Status.eq("running"))
-        .count(db)
-        .await
-        .map_err(VideoDbError::Database)?;
-    Ok(running > 0)
 }

@@ -88,7 +88,7 @@ pub(super) fn validate_prompt_sync_draft(
         && prompt_execution_identity(fields.metadata_json.as_ref()).is_none()
     {
         return Err(VideoDbError::InvalidArgument(format!(
-            "视频提示词草稿类型 {} 缺少完整的片段规划 ID、片段编号或 recipe 指纹",
+            "视频提示词草稿类型 {} 缺少完整的稳定片段执行身份",
             fields.prompt_type
         )));
     }

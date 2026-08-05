@@ -28,6 +28,11 @@ import {
   validateImageForm,
 } from "./image/imageConfigUtils";
 import type { ImageForm } from "./image/types";
+import {
+  assertCatalogProvider,
+  listModelProviderCatalog,
+} from "../../api/providerCatalog";
+import type { ModelProviderCatalog } from "../../api/generated/config";
 
 /**
  * 图片生成配置 Tab
@@ -43,15 +48,28 @@ interface ImageTabProps {
 
 export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
   const serverScope = scope === "server";
-  const loadItems = useCallback(async (): Promise<ConfigItem<ImageForm>[]> => {
-    const list = await (serverScope ? listServerImageConfigs() : listImageConfigs());
-    return list.map((config) => ({
-      ...toImageItem(config),
-      deleteDisabled: !serverScope && config.id === SYSTEM_IMAGE_CONFIG_ID,
-      deleteDisabledReason: "系统默认图片模板由管理员维护，不能在用户配置页删除。",
-    }));
+  const loadItems = useCallback(async (): Promise<{
+    items: ConfigItem<ImageForm>[];
+    catalog: ModelProviderCatalog;
+  }> => {
+    const [list, providerCatalog] = await Promise.all([
+      serverScope ? listServerImageConfigs() : listImageConfigs(),
+      listModelProviderCatalog(),
+    ]);
+    const items = list.map((config) => {
+      assertCatalogProvider("image", config.backend, providerCatalog);
+      return {
+        ...toImageItem(config),
+        deleteDisabled: !serverScope && config.id === SYSTEM_IMAGE_CONFIG_ID,
+        deleteDisabledReason: "系统默认图片模板由管理员维护，不能在用户配置页删除。",
+      };
+    });
+    return { items, catalog: providerCatalog };
   }, [serverScope]);
-  const { items, loading, refresh } = useConfigItems(loadItems, "加载图片配置失败");
+  const { items, catalog, loading, refresh } = useConfigItems(
+    loadItems,
+    "加载图片配置失败",
+  );
 
   return (
     <ConfigListPanel<ImageForm>
@@ -74,6 +92,7 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "user" }) => {
           serverScope={serverScope}
           readonly={context.readonly}
           templateLocked={!serverScope && context.selectedId === SYSTEM_IMAGE_CONFIG_ID}
+          providers={catalog?.image ?? []}
         />
       )}
       onCreate={async (f) => {

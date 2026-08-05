@@ -17,12 +17,14 @@ import {
 } from "../../../api/video";
 import type { ChapterRow } from "../shared";
 import type { GenerationTaskSummary } from "../../../api/generated/generationContracts";
+import { generationClient } from "../../../api/generationTasks";
 import { asJsonRecord } from "../../../utils/jsonRecord";
 import { VIDEO_ASPECT_RATIOS } from "./videoTabUtils";
 
 export interface LoadedSegmentPlanDraft {
   workflowRunId: number;
   workflowStatus: string;
+  resumeTaskId: string | null;
   resumeOptions: GeneratePromptOptions;
   workflowProgress: WorkflowRun["progress"];
   segments: Record<string, unknown>[];
@@ -92,6 +94,21 @@ const segmentPlanResumeOptions = (
   }
   if (options.target_shot_number !== null) {
     invalidSegmentPlanWorkflowInput(run.id, "options.target_shot_number");
+  }
+  if (options.target_segment != null) {
+    invalidSegmentPlanWorkflowInput(run.id, "options.target_segment");
+  }
+  const targetNarrativeUnitIndex = options.target_narrative_unit_index;
+  if (
+    targetNarrativeUnitIndex != null &&
+    (typeof targetNarrativeUnitIndex !== "number" ||
+      !Number.isInteger(targetNarrativeUnitIndex) ||
+      targetNarrativeUnitIndex <= 0)
+  ) {
+    invalidSegmentPlanWorkflowInput(
+      run.id,
+      "options.target_narrative_unit_index",
+    );
   }
   if (options.segment_recipe_fingerprint !== null) {
     invalidSegmentPlanWorkflowInput(
@@ -173,6 +190,10 @@ const segmentPlanResumeOptions = (
     reference_image_ids: [],
     video_library_image_ids: [],
     regenerate_existing: regenerateExisting,
+    target_narrative_unit_index:
+      typeof targetNarrativeUnitIndex === "number"
+        ? targetNarrativeUnitIndex
+        : undefined,
   };
 };
 
@@ -188,18 +209,47 @@ export const loadVideoSegmentPlanDraft = async (
   });
   const run = runs[0];
   if (!run || (run.status !== "running" && !run.can_resume)) return null;
-  const detail = await loadVideoSegmentPlanDraftDetail(
+  const [detail, resumeTaskId] = await Promise.all([
+    loadVideoSegmentPlanDraftDetail(projectId, chapterId, run.id),
+    run.status === "running"
+      ? Promise.resolve(null)
+      : workflowResumeTaskId(projectId, run.id),
+  ]);
+  return loadedVideoSegmentPlanDraftFromDetail(
+    detail,
     projectId,
     chapterId,
-    run.id,
+    resumeTaskId,
   );
-  return loadedVideoSegmentPlanDraftFromDetail(detail, projectId, chapterId);
+};
+
+const workflowResumeTaskId = async (
+  projectId: number,
+  workflowRunId: number,
+): Promise<string> => {
+  let cursor: string | null = null;
+  do {
+    const page = await generationClient.listHistory({
+      project_id: projectId,
+      limit: 100,
+      cursor,
+    });
+    const task = page.items.find(
+      (item) =>
+        item.started.workflow_run_id === workflowRunId &&
+        item.started.root_task_id === item.handle.task_id,
+    );
+    if (task) return task.handle.task_id;
+    cursor = page.next_cursor ?? null;
+  } while (cursor);
+  throw new Error(`片段规划 workflow ${workflowRunId} 缺少可用于续跑的生成任务`);
 };
 
 const loadedVideoSegmentPlanDraftFromDetail = (
   detail: VideoSegmentPlanDraftDetail,
   projectId: number,
   chapterId: number,
+  resumeTaskId: string | null,
 ): LoadedSegmentPlanDraft => {
   const run = detail.run;
   if (
@@ -213,6 +263,7 @@ const loadedVideoSegmentPlanDraftFromDetail = (
   return {
     workflowRunId: run.id,
     workflowStatus: run.status,
+    resumeTaskId,
     resumeOptions,
     workflowProgress: run.progress,
     segments: detail.segments,

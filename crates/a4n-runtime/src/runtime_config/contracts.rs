@@ -54,7 +54,7 @@ pub struct RuntimeLlmConfig {
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
     #[serde(default)]
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
     #[serde(default)]
     pub is_default: bool,
 }
@@ -75,8 +75,6 @@ pub struct RuntimeImageConfig {
     pub default_height: i32,
     #[serde(default)]
     pub is_default: bool,
-    #[serde(default)]
-    pub provider_options_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,8 +100,6 @@ pub struct RuntimeVideoConfig {
     pub default_fps: i32,
     #[serde(default)]
     pub is_default: bool,
-    #[serde(default)]
-    pub provider_options_json: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

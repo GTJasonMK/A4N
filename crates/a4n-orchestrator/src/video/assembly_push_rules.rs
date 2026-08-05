@@ -1,6 +1,6 @@
 //! 成片推送（assembly_push）metadata 纯规则。
 
-use a4n_core::models::ai::generated_video;
+use a4n_core::{models::ai::generated_video, video_workflow::is_assembly_video_workflow_mode};
 use chrono::Utc;
 use serde_json::{Map, Value, json};
 use std::collections::HashSet;
@@ -143,16 +143,14 @@ pub fn assembly_push_records(
 }
 
 /// 校验成片 workflow_mode（trim 后白名单）。
-pub fn validate_assembly_workflow_mode(value: &str) -> Result<&'static str, String> {
-    match value.trim() {
-        "boundary_frames" => Ok("boundary_frames"),
-        "first_frame_chain" => Ok("first_frame_chain"),
-        "reference_media" => Ok("reference_media"),
-        "chat_video" => Ok("chat_video"),
-        "storyboard" => Ok("storyboard"),
-        "mixed" => Ok("mixed"),
-        "" => Err("请选择视频生成流程后再拼接成片".to_string()),
-        other => Err(format!("视频生成流程无效：{other}")),
+pub fn validate_assembly_workflow_mode(value: &str) -> Result<&str, String> {
+    let mode = value.trim();
+    if is_assembly_video_workflow_mode(mode) {
+        Ok(mode)
+    } else if mode.is_empty() {
+        Err("请选择视频生成流程后再拼接成片".to_string())
+    } else {
+        Err(format!("视频生成流程无效：{mode}"))
     }
 }
 
@@ -361,6 +359,7 @@ mod tests {
             validate_assembly_workflow_mode("chat_video"),
             Ok("chat_video")
         );
+        assert_eq!(validate_assembly_workflow_mode(" mixed "), Ok("mixed"));
         assert!(validate_assembly_workflow_mode(" ").is_err());
         assert!(validate_assembly_workflow_mode("unknown").is_err());
     }

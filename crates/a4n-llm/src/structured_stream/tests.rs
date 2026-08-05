@@ -13,7 +13,7 @@ use crate::provider::{
 
 use super::{
     ChatJsonStreamInput, StructuredLlmProgress, chat_json_stream_result_with_progress,
-    chat_json_stream_with_progress,
+    chat_json_stream_result_with_sink, chat_json_stream_with_progress,
 };
 
 const ITEM_MILESTONES: &[FieldMilestone] = &[FieldMilestone::new("name", "名称", 1)];
@@ -21,6 +21,61 @@ const ITEM_MILESTONES: &[FieldMilestone] = &[FieldMilestone::new("name", "名称
 struct StreamProvider {
     chunks: Vec<ChatChunk>,
     stream_calls: AtomicUsize,
+}
+
+#[tokio::test]
+async fn delta_sink_and_structured_progress_share_one_stream() {
+    // 结构化里程碑与原始 delta 是同一个 token 流的两种投影，
+    // 不得为了同时获得二者而重复请求模型。
+    let provider = StreamProvider::new(vec![
+        chunk(Some(r#"{"items":[{"name":"#), None, 0),
+        chunk(Some(r#""甲"}]}"#), Some("stop"), 0),
+    ]);
+    let progress = StructuredLlmProgress {
+        spec: StructuredJsonProgressSpec {
+            root_array_key: "items",
+            item_label: "条目",
+            expected_items: None,
+            milestones: ITEM_MILESTONES,
+        },
+        span: ProgressSpan::new(0, 100),
+    };
+    let mut deltas = Vec::new();
+    let mut messages = Vec::new();
+
+    let result = chat_json_stream_result_with_sink(
+        input(&provider, Some(progress), None),
+        |_, message| {
+            messages.push(message.to_string());
+            Ok(())
+        },
+        Some(|delta: &str| deltas.push(delta.to_string())),
+    )
+    .await
+    .expect("stream with sink should succeed");
+
+    // 只建立一次流。
+    assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 1);
+    // 活体信号拿到全部原始增量，拼接后等于完整响应。
+    assert_eq!(deltas.concat(), result.response_content);
+    assert_eq!(deltas.len(), 2);
+    // 结构化里程碑仍照常产出。
+    assert!(
+        messages.iter().any(|message| message.contains("名称")),
+        "应报出字段级里程碑，实际: {messages:?}"
+    );
+}
+
+#[tokio::test]
+async fn delta_sink_is_optional_and_progress_is_unchanged_without_it() {
+    let provider = StreamProvider::new(vec![chunk(Some(r#"{"ok":true}"#), Some("stop"), 0)]);
+
+    let result = chat_json_stream_result_with_progress(input(&provider, None, None), |_, _| Ok(()))
+        .await
+        .expect("stream without sink should succeed");
+
+    assert_eq!(result.response_content, r#"{"ok":true}"#);
+    assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]
@@ -77,8 +132,6 @@ impl LlmProvider for StreamProvider {
 
     fn capabilities(&self) -> ModelCapabilities {
         ModelCapabilities {
-            function_calling: false,
-            vision: false,
             max_context_tokens: 4096,
             max_output_tokens: 1024,
         }

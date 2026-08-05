@@ -33,6 +33,15 @@ pub struct ChapterShootingScriptView {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChapterShootingScriptUnitProgressView {
+    pub workflow_run_id: i64,
+    pub script: Value,
+    pub completed_unit_count: usize,
+    pub total_unit_count: usize,
+    pub shooting_script: Option<ChapterShootingScriptView>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct EditedChapterShootingScriptView {
     pub shooting_script: ChapterShootingScriptView,
     pub invalidated_project_ids: Vec<i64>,

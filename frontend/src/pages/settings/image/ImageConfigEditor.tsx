@@ -5,12 +5,9 @@ import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import {
-  IMAGE_BASE_URL_HINTS,
-  IMAGE_PROVIDERS,
   IMAGE_SIZE_OPTIONS,
-  GROK_REFERENCE_MODE_OPTIONS,
-  parseImageProvider,
 } from "./imageConfigUtils";
+import type { ImageProviderDescriptor } from "../../../api/generated/config";
 import type { ImageForm } from "./types";
 
 interface ImageConfigEditorProps {
@@ -20,6 +17,7 @@ interface ImageConfigEditorProps {
   serverScope?: boolean;
   readonly?: boolean;
   templateLocked?: boolean;
+  providers: ImageProviderDescriptor[];
 }
 
 const IMAGE_SIZE_DATALIST_ID = "image-config-size-options";
@@ -31,10 +29,12 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
   serverScope = false,
   readonly = false,
   templateLocked = false,
+  providers,
 }) => {
   const detectModels = serverScope ? detectServerImageConfigModels : detectImageConfigModels;
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
+  const selectedProvider = providers.find((provider) => provider.id === form.provider);
 
   return (
     <>
@@ -52,14 +52,14 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
           <select
             value={form.provider}
             onChange={(event) =>
-              setForm({ ...form, provider: parseImageProvider(event.target.value) })
+              setForm({ ...form, provider: event.target.value })
             }
             className="pyqt-input w-full"
             disabled={structureDisabled}
           >
-            {IMAGE_PROVIDERS.map((provider) => (
-              <option key={provider.value} value={provider.value}>
-                {provider.label}
+            {providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.display_name}
               </option>
             ))}
           </select>
@@ -69,7 +69,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
             value={form.model}
             onChange={(model) => setForm({ ...form, model })}
             placeholder="例如：gpt-image-2 / dall-e-3 / sd_xl_base_1.0"
-            disabled={readonly}
+            disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={[
               form.provider,
@@ -100,7 +100,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField label="接口地址" required hint={IMAGE_BASE_URL_HINTS[form.provider]}>
+      <FormField label="接口地址" required>
         <BookInput
           value={form.api_base_url}
           onChange={(event) => setForm({ ...form, api_base_url: event.target.value })}
@@ -139,35 +139,6 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
             })
           }
         />
-      ) : null}
-
-      {form.provider === "cliproxy-image" ? (
-        <FormField
-          label="Grok 输入模式"
-          hint={
-            GROK_REFERENCE_MODE_OPTIONS.find(
-              (option) => option.value === form.grok_reference_mode,
-            )?.hint
-          }
-        >
-          <select
-            value={form.grok_reference_mode}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                grok_reference_mode: event.target.value === "first_frame" ? "first_frame" : "reference",
-              })
-            }
-            className="pyqt-input w-full"
-            disabled={structureDisabled}
-          >
-            {GROK_REFERENCE_MODE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </FormField>
       ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -140,6 +140,7 @@ pub struct ChapterVideoPromptOptions {
     pub prompt_batch_size: i32,
     pub segment_plan_prompt_id: Option<i64>,
     pub target_shot_number: Option<i32>,
+    pub target_narrative_unit_index: Option<u32>,
     /// 服务端从当前共享规划解析出的唯一片段执行方案；客户端不能直接提供。
     pub segment_recipe: Option<VideoSegmentExecutionRecipeV1>,
     pub duration_secs: i32,

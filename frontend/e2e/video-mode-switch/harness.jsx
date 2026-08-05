@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { ConfirmDialogHost } from "../../src/components/feedback/ConfirmDialog";
+import { PromptDialogHost } from "../../src/components/feedback/PromptDialog";
 import { ToastContainer } from "../../src/components/feedback/Toast";
 import { ProgressTaskProvider } from "../../src/hooks/useProgressTask";
 import { VideoTab } from "../../src/pages/novel-detail/VideoTab";
@@ -35,6 +36,17 @@ const referenceMediaScenario =
 const segmentSelectionScenario = scenario === "segment-selection";
 const storyboardAssetsScenario = scenario === "storyboard-assets";
 const content = "真实浏览器模式切换测试正文";
+const shootingScript = {
+  schema_version: "chapter_shooting_script_v1",
+  scenes: [
+    {
+      scene_index: 1,
+      narrative_unit_index: 1,
+      title: "测试场景",
+      shots: [{ shot_id: "unit_1_shot_1" }, { shot_id: "unit_2_shot_1" }],
+    },
+  ],
+};
 const contentHash = [
   ...new Uint8Array(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content)),
@@ -149,6 +161,18 @@ const planIdentity = {
   style_sha256: "style-1",
   duration_secs: 6,
   aspect_ratio: "16:9",
+  segment_identities: [
+    {
+      source_shot_id: "unit_1_shot_1",
+      segment_index_in_shot: 1,
+      segment_sha256: "segment-1",
+    },
+    {
+      source_shot_id: "unit_2_shot_1",
+      segment_index_in_shot: 1,
+      segment_sha256: "segment-2",
+    },
+  ],
 };
 
 let plan = cancelResumeScenario
@@ -218,7 +242,7 @@ const secondFrameRecipeFingerprint = storyboardAssetsScenario
   ? await sha256Hex(videoSegmentRecipeFrameFingerprintJson(secondRecipe))
   : null;
 
-const storyboardPrompt = storyboardAssetsScenario
+let storyboardPrompt = storyboardAssetsScenario
   ? {
       id: 229,
       project_id: projectId,
@@ -246,6 +270,9 @@ const storyboardPrompt = storyboardAssetsScenario
           ...planIdentity,
           segment_plan_prompt_id: planId,
           segment_number: 2,
+          source_shot_id: "unit_2_shot_1",
+          segment_index_in_shot: 1,
+          segment_sha256: "segment-2",
           segment_recipe_fingerprint: secondFrameRecipeFingerprint,
         },
       },
@@ -254,7 +281,7 @@ const storyboardPrompt = storyboardAssetsScenario
     }
   : null;
 
-const storyboardImage = storyboardAssetsScenario
+let storyboardImage = storyboardAssetsScenario
   ? {
       ...referenceImage,
       id: 179,
@@ -309,6 +336,9 @@ const makeVideo = ({
       ...planIdentity,
       segment_plan_prompt_id: segmentPlanPromptId,
       segment_number: segmentNumber,
+      source_shot_id: `unit_${segmentNumber}_shot_1`,
+      segment_index_in_shot: 1,
+      segment_sha256: `segment-${segmentNumber}`,
       segment_recipe_fingerprint: recipeFingerprint,
     },
   },
@@ -467,6 +497,9 @@ const finalPrompt = stalePlanAdoptionScenario
           ...planIdentity,
           segment_plan_prompt_id: planId,
           segment_number: 1,
+          source_shot_id: "unit_1_shot_1",
+          segment_index_in_shot: 1,
+          segment_sha256: "segment-1",
           segment_recipe_fingerprint: firstRecipeFingerprint,
           frame_set_sha256: "frames-1",
           prompt_output_language: "zh_cn",
@@ -531,6 +564,7 @@ const workflowOptions = (options) => ({
   prompt_batch_size: 1,
   segment_plan_prompt_id: null,
   target_shot_number: null,
+  target_narrative_unit_index: options.target_narrative_unit_index,
   segment_recipe_fingerprint: null,
   duration_secs: options.duration_secs,
   duration_secs_options: [...options.duration_secs_options],
@@ -651,6 +685,7 @@ const progressData = (shotIndex) => ({
 });
 
 const cancelTask = (task) => {
+  task.handle = { ...task.handle, status: "cancelled" };
   run = {
     ...run,
     status: "cancelled",
@@ -705,9 +740,38 @@ const invoke = async (command, args = {}) => {
       return storyboardImage
         ? [referenceImage, storyboardImage]
         : [referenceImage];
+    case "delete_image":
+      if (!storyboardImage || args.imageId !== storyboardImage.id) {
+        throw new Error("unexpected delete_image input");
+      }
+      storyboardImage = null;
+      return null;
     case "list_video_configs":
     case "list_active_generation_tasks":
       return [];
+    case "list_generation_task_history":
+      if (
+        !cancelResumeScenario ||
+        args.input?.project_id !== projectId ||
+        args.input?.limit !== 100
+      ) {
+        throw new Error("unexpected list_generation_task_history input");
+      }
+      return {
+        items: [...generationTasks.values()].reverse().map((task) => ({
+          handle: structuredClone(task.handle),
+          started: startedData(task),
+          updated_at_ms: Date.now(),
+          result_ref: null,
+          snapshot_state: "available",
+          terminal_event: null,
+        })),
+        next_cursor: null,
+      };
+    case "get_chapter_shooting_script":
+      return { record: {}, script: shootingScript };
+    case "get_chapter_shooting_script_unit_progress":
+      return null;
     case "list_videos_by_chapter":
       return chapterVideos();
     case "list_workflow_runs":
@@ -715,6 +779,7 @@ const invoke = async (command, args = {}) => {
     case "list_chapter_video_prompts":
       return chapterPrompts();
     case "load_video_playback_data":
+    case "load_video_scrub_playback_data":
       return {
         mime_type: "video/mp4",
         data_base64: "AAAA",
@@ -722,10 +787,8 @@ const invoke = async (command, args = {}) => {
     case "load_cached_assembled_chapter_video_preview":
       return null;
     case "assemble_chapter_videos": {
-      if (!mixedAssemblyReadyScenario) {
-        throw new Error(
-          "incomplete mixed assembly must not call assemble_chapter_videos",
-        );
+      if (!mixedAssemblyScenario) {
+        throw new Error("unexpected assemble_chapter_videos call");
       }
       if (args.workflowMode !== "mixed") {
         throw new Error(
@@ -744,23 +807,30 @@ const invoke = async (command, args = {}) => {
             sort_order: 1000,
             video_type: "chapter_video",
           },
-          {
-            video_id: assemblySegment2VideoId,
-            duration_secs: 6,
-            file_path: "/tmp/segment-602.mp4",
-            insert_after_video_id: null,
-            shot_number: 2,
-            sort_order: 2000,
-            video_type: "chapter_video",
-          },
+          ...(mixedAssemblyReadyScenario
+            ? [
+                {
+                  video_id: assemblySegment2VideoId,
+                  duration_secs: 6,
+                  file_path: "/tmp/segment-602.mp4",
+                  insert_after_video_id: null,
+                  shot_number: 2,
+                  sort_order: 2000,
+                  video_type: "chapter_video",
+                },
+              ]
+            : []),
         ],
         data_base64: "AAAA",
-        duration_secs: 12,
+        duration_secs: mixedAssemblyReadyScenario ? 12 : 6,
         file_path: "/tmp/mixed-assembly.mp4",
         file_size: 2048,
         mime_type: "video/mp4",
         updated_at: "2026-07-31T00:00:00Z",
-        video_ids: [assemblySegment1VideoId, assemblySegment2VideoId],
+        video_ids: [
+          assemblySegment1VideoId,
+          ...(mixedAssemblyReadyScenario ? [assemblySegment2VideoId] : []),
+        ],
       };
     }
     case "select_segment_video": {
@@ -768,13 +838,14 @@ const invoke = async (command, args = {}) => {
         throw new Error("unexpected select_segment_video input");
       }
       const videoId = args.videoId;
-      const shotNumber = args.input?.shot_number;
+      const targetSegment = args.input?.target_segment;
       const segmentPlanPromptId = args.input?.segment_plan_prompt_id;
       const video = videoById(videoId);
       const identity = video?.metadata_json?.video_execution_identity;
       if (
         segmentPlanPromptId !== planId ||
-        shotNumber !== 1 ||
+        targetSegment?.source_shot_id !== "unit_1_shot_1" ||
+        targetSegment?.segment_index_in_shot !== 1 ||
         !video ||
         identity?.segment_plan_prompt_id !== planId ||
         identity?.segment_number !== 1 ||
@@ -845,6 +916,13 @@ const invoke = async (command, args = {}) => {
         args.input?.operation?.kind !== "prompt_segment_plan"
       ) {
         throw new Error("unexpected start_video_generation input");
+      }
+      const previousTaskId =
+        [...generationTasks.values()].at(-1)?.handle.task_id ?? null;
+      const expectedRetryTaskId =
+        generationNumber === 0 ? null : previousTaskId;
+      if (args.input?.meta?.retry_of_task_id !== expectedRetryTaskId) {
+        throw new Error("segment plan resume must retry the previous task");
       }
       generationNumber += 1;
       const handle = handleFor(generationNumber);
@@ -985,6 +1063,31 @@ const invoke = async (command, args = {}) => {
       }
       return structuredClone(plan.metadata_json.segment_recipes);
     }
+    case "update_chapter_video_prompt": {
+      if (!storyboardPrompt || args.promptId !== storyboardPrompt.id) {
+        throw new Error("unexpected update_chapter_video_prompt input");
+      }
+      storyboardPrompt = {
+        ...storyboardPrompt,
+        visual_prompt:
+          args.input?.visual_prompt ?? storyboardPrompt.visual_prompt,
+        motion_prompt:
+          args.input?.motion_prompt ?? storyboardPrompt.motion_prompt,
+        negative_prompt:
+          args.input?.negative_prompt ?? storyboardPrompt.negative_prompt,
+      };
+      return structuredClone(storyboardPrompt);
+    }
+    case "optimize_chapter_video_prompt": {
+      if (!storyboardPrompt || args.promptId !== storyboardPrompt.id) {
+        throw new Error("unexpected optimize_chapter_video_prompt input");
+      }
+      storyboardPrompt = {
+        ...storyboardPrompt,
+        visual_prompt: `${storyboardPrompt.visual_prompt}\n优化要求：${args.input?.instruction}`,
+      };
+      return structuredClone(storyboardPrompt);
+    }
     default:
       throw new Error(`unexpected command: ${command}`);
   }
@@ -1009,6 +1112,7 @@ createRoot(document.getElementById("root")).render(
     <div style={{ height: "100vh", padding: 16 }}>
       <ToastContainer />
       <ConfirmDialogHost />
+      <PromptDialogHost />
       <VideoTab
         projectId={projectId}
         fixedChapter={{

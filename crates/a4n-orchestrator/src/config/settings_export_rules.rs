@@ -8,7 +8,7 @@ use a4n_core::{
     },
     error::AppError,
 };
-use a4n_llm::provider::normalize_request_options_json;
+use a4n_llm::provider::normalize_extra_body_json;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
@@ -50,7 +50,7 @@ pub struct LlmRow {
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
     #[serde(default)]
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
     pub is_default: bool,
 }
 
@@ -80,7 +80,6 @@ pub struct ImageRow {
     pub default_width: i32,
     pub default_height: i32,
     #[serde(default)]
-    pub provider_options_json: Option<Value>,
     pub is_default: bool,
 }
 
@@ -102,7 +101,6 @@ pub struct VideoRow {
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
     #[serde(default)]
-    pub provider_options_json: Option<Value>,
     pub is_default: bool,
 }
 
@@ -147,8 +145,8 @@ pub struct ImportAllResult {
 
 /// 导出头 version / export_type 契约。
 pub fn validate_all_configs_export_header(version: &str, export_type: &str) -> Result<(), String> {
-    if version != "1.0" {
-        return Err(format!("version 不匹配：期望 '1.0'，收到 '{version}'"));
+    if version != "2.0" {
+        return Err(format!("version 不匹配：期望 '2.0'，收到 '{version}'"));
     }
     if export_type != "all" {
         return Err(format!(
@@ -343,13 +341,10 @@ fn validate_llm_rows(incoming: &AllConfigsExport) -> Result<(), String> {
                     "{label} max_output_tokens 必须小于 max_context_tokens"
                 ));
             }
-            normalize_request_options_json(row.request_options_json.clone())
+            normalize_extra_body_json(row.extra_body_json.clone())
                 .map(|_| ())
                 .map_err(|error| {
-                    format!(
-                        "{label} request_options_json 无效：{}",
-                        plain_app_error(error)
-                    )
+                    format!("{label} extra_body_json 无效：{}", plain_app_error(error))
                 })
         },
     )
@@ -362,10 +357,10 @@ fn normalize_provider_rows(incoming: &mut AllConfigsExport) -> Result<(), String
         trim_string(&mut row.provider);
         trim_string(&mut row.base_url);
         trim_string(&mut row.model);
-        row.request_options_json = normalize_request_options_json(row.request_options_json.clone())
-            .map_err(|error| {
+        row.extra_body_json =
+            normalize_extra_body_json(row.extra_body_json.clone()).map_err(|error| {
                 format!(
-                    "{label} request_options_json 规范化失败：{}",
+                    "{label} extra_body_json 规范化失败：{}",
                     plain_app_error(error)
                 )
             })?;
@@ -512,7 +507,6 @@ fn image_params_from_row(row: &ImageRow) -> CreateImageConfigParams {
         max_concurrent: row.max_concurrent,
         default_width: row.default_width,
         default_height: row.default_height,
-        provider_options_json: row.provider_options_json.clone(),
     }
 }
 
@@ -525,7 +519,6 @@ fn apply_image_params_to_row(row: &mut ImageRow, params: CreateImageConfigParams
     row.max_concurrent = params.max_concurrent;
     row.default_width = params.default_width;
     row.default_height = params.default_height;
-    row.provider_options_json = params.provider_options_json;
 }
 
 fn video_params_from_row(row: &VideoRow) -> VideoConfigParams {
@@ -544,7 +537,6 @@ fn video_params_from_row(row: &VideoRow) -> VideoConfigParams {
         duration_mode: row.duration_mode.clone(),
         supported_durations_json: row.supported_durations_json.clone(),
         default_fps: row.default_fps,
-        provider_options_json: row.provider_options_json.clone(),
     }
 }
 
@@ -563,7 +555,6 @@ fn apply_video_params_to_row(row: &mut VideoRow, params: VideoConfigParams) {
     row.duration_mode = params.duration_mode;
     row.supported_durations_json = params.supported_durations_json;
     row.default_fps = params.default_fps;
-    row.provider_options_json = params.provider_options_json;
 }
 
 fn llm_import_row(row: &LlmRow) -> SettingsAllLlmConfigImportRow {
@@ -577,7 +568,7 @@ fn llm_import_row(row: &LlmRow) -> SettingsAllLlmConfigImportRow {
         timeout_secs: row.timeout_secs,
         max_context_tokens: row.max_context_tokens,
         max_output_tokens: row.max_output_tokens,
-        request_options_json: row.request_options_json.clone(),
+        extra_body_json: row.extra_body_json.clone(),
         is_default: row.is_default,
     }
 }
@@ -606,7 +597,6 @@ fn image_import_row(row: &ImageRow) -> SettingsAllImageConfigImportRow {
         max_concurrent: row.max_concurrent,
         default_width: row.default_width,
         default_height: row.default_height,
-        provider_options_json: row.provider_options_json.clone(),
         is_default: row.is_default,
     }
 }
@@ -627,7 +617,6 @@ fn video_import_row(row: &VideoRow) -> SettingsAllVideoConfigImportRow {
         duration_mode: row.duration_mode.clone(),
         supported_durations_json: row.supported_durations_json.clone(),
         default_fps: row.default_fps,
-        provider_options_json: row.provider_options_json.clone(),
         is_default: row.is_default,
     }
 }
@@ -683,7 +672,7 @@ mod tests {
 
     fn full_export() -> AllConfigsExport {
         serde_json::from_value(json!({
-            "version": "1.0",
+            "version": "2.0",
             "export_time": "2026-07-23T00:00:00Z",
             "export_type": "all",
             "llm_configs": [],
@@ -699,9 +688,9 @@ mod tests {
 
     #[test]
     fn header_and_shared_helpers() {
-        validate_all_configs_export_header("1.0", "all").unwrap();
-        assert!(validate_all_configs_export_header("2.0", "all").is_err());
-        assert!(validate_all_configs_export_header("1.0", "partial").is_err());
+        validate_all_configs_export_header("2.0", "all").unwrap();
+        assert!(validate_all_configs_export_header("1.0", "all").is_err());
+        assert!(validate_all_configs_export_header("2.0", "partial").is_err());
 
         ensure_at_most_one_default("主题", 1).unwrap();
         assert!(ensure_at_most_one_default("主题", 2).is_err());
@@ -756,7 +745,7 @@ mod tests {
             timeout_secs: 30,
             max_context_tokens: 8192,
             max_output_tokens: 2048,
-            request_options_json: Some(json!({})),
+            extra_body_json: Some(json!({})),
             is_default: true,
         });
 

@@ -3,7 +3,7 @@ mod probe;
 mod stream;
 
 use a4n_core::error::AppError;
-use a4n_llm_http::http::HttpLlmProvider;
+use a4n_llm::provider::{LlmProvider, ModelCapabilities};
 use a4n_service_protocol::{
     HealthStatus, LLM_SERVICE_NAME, ServiceHealth, known_service_health_for_host,
 };
@@ -28,12 +28,17 @@ pub(crate) async fn healthz(headers: HeaderMap) -> Json<ServiceHealth> {
     ))
 }
 
-fn provider_from_config(config: HttpLlmProviderConfig) -> Result<HttpLlmProvider, AppError> {
-    HttpLlmProvider::new_with_timeout_and_options(
+fn provider_from_config(config: HttpLlmProviderConfig) -> Result<Box<dyn LlmProvider>, AppError> {
+    a4n_llm_http::http::pick_llm_provider(
+        &config.provider,
         config.base_url,
         config.model,
         config.api_key,
         config.timeout_secs,
-        config.request_options_json,
+        config.extra_body_json,
+        ModelCapabilities {
+            max_context_tokens: 128_000,
+            max_output_tokens: 8_192,
+        },
     )
 }

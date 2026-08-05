@@ -44,7 +44,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "backend": "openai-compatible-video",
             "base_url": "http://127.0.0.1:1",
             "api_key": "process-provider-secret",
-            "request": {"prompt": "contract test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "first_frame_image_url": null, "last_frame_image_url": null, "reference_image_urls": [], "reference_media": null}
+            "request": {"prompt": "contract test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
     assert_route_rejects_unknown_payload_field(
@@ -63,7 +63,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "backend": "openai-compatible-video",
             "base_url": hanging_provider.base_url(),
             "api_key": "process-provider-secret",
-            "request": {"prompt": "cancel process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "first_frame_image_url": null, "last_frame_image_url": null, "reference_image_urls": [], "reference_media": null}
+            "request": {"prompt": "cancel process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
@@ -111,7 +111,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "backend": "openai-compatible-video",
             "base_url": idle_provider.base_url(),
             "api_key": "process-provider-secret",
-            "request": {"prompt": "stream idle process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "first_frame_image_url": null, "last_frame_image_url": null, "reference_image_urls": [], "reference_media": null}
+            "request": {"prompt": "stream idle process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
     let (idle_tx, mut idle_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
@@ -149,7 +149,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "backend": "openai-compatible-video",
             "base_url": preview_provider.base_url(),
             "api_key": "process-provider-secret",
-            "request": {"prompt": "preview test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "first_frame_image_url": null, "last_frame_image_url": null, "reference_image_urls": [], "reference_media": null}
+            "request": {"prompt": "preview test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
     let backpressure_client =
@@ -209,7 +209,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
                 "backend": "openai-compatible-video",
                 "base_url": "http://127.0.0.1:1",
                 "api_key": "process-provider-secret",
-                "request": {"prompt": "remote secret must stop", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "first_frame_image_url": null, "last_frame_image_url": null, "reference_image_urls": [], "reference_media": null}
+                "request": {"prompt": "remote secret must stop", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
             }),
         ))
         .await
@@ -238,7 +238,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
                 "backend": "openai-compatible-video",
                 "base_url": remote_provider.base_url(),
                 "api_key": "",
-                "request": {"prompt": "remote video content", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "first_frame_image_url": null, "last_frame_image_url": null, "reference_image_urls": [], "reference_media": null}
+                "request": {"prompt": "remote video content", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
             }),
         ))
         .await
@@ -259,7 +259,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "backend": "openai-compatible-video",
             "base_url": sidecar_base_url(failed_provider_addr),
             "api_key": "process-provider-secret",
-            "request": {"prompt": "failure test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "first_frame_image_url": null, "last_frame_image_url": null, "reference_image_urls": [], "reference_media": null}
+            "request": {"prompt": "failure test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
     let (failed_tx, mut failed_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
@@ -297,7 +297,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "backend": "openai-compatible-video",
             "base_url": bytes_provider.base_url(),
             "api_key": "process-provider-secret",
-            "request": {"prompt": "bytes test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "first_frame_image_url": null, "last_frame_image_url": null, "reference_image_urls": [], "reference_media": null}
+            "request": {"prompt": "bytes test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
     let bytes_response = client
@@ -320,7 +320,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "backend": "openai-compatible-video",
             "base_url": provider.base_url(),
             "api_key": "process-provider-secret",
-            "request": {"prompt": "process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "first_frame_image_url": null, "last_frame_image_url": null, "reference_image_urls": [], "reference_media": null}
+            "request": {"prompt": "process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
     assert_route_rejects_version_mismatch(&sidecar_base_url(addr), "/video/generate", &request)

@@ -73,7 +73,6 @@ pub(super) async fn provider_preview_step(
         None,
         &config.backend,
         request,
-        None,
     )
 }
 

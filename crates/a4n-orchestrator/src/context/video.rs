@@ -343,6 +343,20 @@ impl VideoApplication {
             .map_err(video_db_error)
     }
 
+    pub(super) async fn update_generated_video_duration_record(
+        &self,
+        video_id: i64,
+        duration_secs: f32,
+    ) -> Result<generated_video::Model, AppError> {
+        a4n_db::video::update_generated_video_duration_record(
+            self.connection(),
+            video_id,
+            duration_secs,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
     pub(super) async fn delete_generated_video_record_with_cleanup(
         &self,
         video_id: i64,
@@ -1083,6 +1097,20 @@ impl OrchestratorContext {
         self.video
             .update_generated_video_record(video_id, input)
             .await
+    }
+
+    pub async fn update_generated_video_duration_record(
+        &self,
+        video_id: i64,
+        duration_secs: f32,
+    ) -> Result<generated_video::Model, AppError> {
+        let updated = self
+            .video
+            .update_generated_video_duration_record(video_id, duration_secs)
+            .await?;
+        self.sync_project_asset_lineage_after_commit(updated.project_id, "同步视频实际时长")
+            .await;
+        Ok(updated)
     }
 
     pub async fn delete_generated_image_record_with_cleanup(

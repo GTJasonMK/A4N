@@ -2,12 +2,12 @@ use crate::structured_llm::parse_strict_json_response;
 
 use super::{
     contracts::{
-        ChapterScreenplayLayoutV1, ChapterScreenplaySkeletonV1, ScreenplayLayoutUnitDetailV1,
-        ScreenplayLayoutUnitV1, ScreenplayPerformanceFactV1, ScreenplaySkeletonUnitV1,
-        ScreenplayUnitAdaptationV1,
+        ChapterScreenplayLayoutV1, ChapterScreenplayPlan, ChapterScreenplaySkeletonV1,
+        ScreenplayLayoutUnitDetailV1, ScreenplayLayoutUnitV1, ScreenplayPerformanceFactV1,
+        ScreenplaySkeletonUnitV1, ScreenplayUnitAdaptationV1,
     },
     screenplay::{
-        assemble_screenplay_layout, assemble_screenplay_plan, validate_screenplay_layout,
+        assemble_screenplay_layout_unit, assemble_screenplay_plan_unit, validate_screenplay_layout,
     },
 };
 
@@ -53,8 +53,13 @@ fn assembles_layout_without_allowing_unit_details_to_replace_skeleton_topology()
         exit_state: "行动".into(),
     };
 
-    let layout = assemble_screenplay_layout(skeleton, vec![detail])
+    let unit = assemble_screenplay_layout_unit(&skeleton.units[0], detail)
         .expect("skeleton and detail should assemble");
+    let layout = ChapterScreenplayLayoutV1 {
+        schema_version: "chapter_screenplay_layout_v1".into(),
+        directing_statement: skeleton.directing_statement,
+        units: vec![unit],
+    };
 
     assert_eq!(layout.units[0].scene_identity, "classroom");
     assert_eq!(layout.units[0].timeline_position, 2);
@@ -179,8 +184,12 @@ fn assembles_independent_unit_adaptation_without_model_layout_duplication() {
         }],
     };
 
-    let plan = assemble_screenplay_plan(layout, vec![output])
+    let unit = assemble_screenplay_plan_unit(&layout.units[0], output)
         .expect("independent unit output should assemble");
+    let plan = ChapterScreenplayPlan {
+        directing_statement: layout.directing_statement,
+        units: vec![unit],
+    };
 
     assert_eq!(plan.units.len(), 1);
     assert_eq!(plan.units[0].scene_identity, "room");

@@ -5,6 +5,7 @@
 
 mod assembly;
 mod ffmpeg;
+mod playback;
 mod postprocess;
 mod probe;
 
@@ -16,6 +17,7 @@ pub use ffmpeg::{
     FfmpegAvailabilityError, FfmpegCommandError, FfmpegTrimError, check_ffmpeg_available,
     extract_video_frame, extract_video_tail_frame, generate_video_thumbnail, trim_video_segment,
 };
+pub use playback::{VideoScrubProxyError, generate_video_scrub_proxy};
 pub use postprocess::{
     VideoPostprocessError, VideoPostprocessOperation, VideoPostprocessRequest,
     build_video_postprocess_filter, postprocess_video,

@@ -6,6 +6,7 @@ use super::super::{
     validate_segment_plan_against_shooting_script_projection,
 };
 use super::contracts::{FinalizeStagedSegmentPlanInput, StagedSegmentPlanResult};
+use super::exclude_reused_segment_plan_shots;
 
 pub(super) async fn finalize_staged_segment_plan(
     input: FinalizeStagedSegmentPlanInput<'_>,
@@ -22,7 +23,7 @@ pub(super) async fn finalize_staged_segment_plan(
         rendered_shots,
     } = input;
     let combined_raw = json!({ "segments": rendered_shots.segment_inputs }).to_string();
-    let (segment_json, segment_plan) = parse_generated_segment_plan_with_current_config(
+    let (_, segment_plan) = parse_generated_segment_plan_with_current_config(
         &combined_raw,
         source_spans,
         shooting_script_projection,
@@ -33,6 +34,10 @@ pub(super) async fn finalize_staged_segment_plan(
         &segment_plan,
         shooting_script_projection,
     )?;
+    let new_segment_plan = exclude_reused_segment_plan_shots(
+        segment_plan.clone(),
+        &rendered_shots.reused_source_shot_ids,
+    );
     if cancel_token.is_some_and(tokio_util::sync::CancellationToken::is_cancelled) {
         return Err(AppError::Cancelled);
     }
@@ -44,17 +49,12 @@ pub(super) async fn finalize_staged_segment_plan(
         299,
         fingerprint_json,
         json!({
-            "segment_json": segment_json.clone(),
             "segment_plan": segment_plan.clone(),
             "stage_outputs": stage_outputs.clone(),
+            "reused_source_shot_ids": rendered_shots.reused_source_shot_ids.clone(),
         }),
         None,
     )
     .await?;
-    Ok((
-        rendered_shots.last_trace,
-        segment_json,
-        segment_plan,
-        stage_outputs,
-    ))
+    Ok((rendered_shots.last_trace, new_segment_plan, stage_outputs))
 }

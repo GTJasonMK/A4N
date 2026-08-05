@@ -307,7 +307,6 @@ impl ConfigApplication {
             max_concurrent: params.max_concurrent,
             default_width: params.default_width,
             default_height: params.default_height,
-            provider_options_json: params.provider_options_json,
         })
         .await
     }
@@ -332,7 +331,6 @@ impl ConfigApplication {
             max_concurrent: params.max_concurrent,
             default_width: params.default_width,
             default_height: params.default_height,
-            provider_options_json: params.provider_options_json,
         })?;
         self.update_image_config_record(
             existing,
@@ -345,7 +343,6 @@ impl ConfigApplication {
                 max_concurrent: params.max_concurrent,
                 default_width: params.default_width,
                 default_height: params.default_height,
-                provider_options_json: params.provider_options_json,
             },
         )
         .await
@@ -450,7 +447,6 @@ impl ConfigApplication {
             duration_mode: params.duration_mode,
             supported_durations_json: params.supported_durations_json,
             default_fps: params.default_fps,
-            provider_options_json: params.provider_options_json,
         })
         .await
     }
@@ -481,7 +477,6 @@ impl ConfigApplication {
             duration_mode: params.duration_mode,
             supported_durations_json: params.supported_durations_json,
             default_fps: params.default_fps,
-            provider_options_json: params.provider_options_json,
         })
         .map_err(AppError::InvalidArgument)?;
         self.update_video_config_record(
@@ -501,7 +496,6 @@ impl ConfigApplication {
                 duration_mode: params.duration_mode,
                 supported_durations_json: params.supported_durations_json,
                 default_fps: params.default_fps,
-                provider_options_json: params.provider_options_json,
             },
         )
         .await
@@ -1228,7 +1222,7 @@ fn llm_create_record_input(normalized: NormalizedLlmConfig) -> LlmConfigCreateRe
         timeout_secs: normalized.timeout_secs,
         max_context_tokens: normalized.max_context_tokens,
         max_output_tokens: normalized.max_output_tokens,
-        request_options_json: normalized.request_options_json,
+        extra_body_json: normalized.extra_body_json,
     }
 }
 
@@ -1243,6 +1237,6 @@ fn llm_update_record_input(normalized: NormalizedLlmConfig) -> LlmConfigUpdateRe
         timeout_secs: normalized.timeout_secs,
         max_context_tokens: normalized.max_context_tokens,
         max_output_tokens: normalized.max_output_tokens,
-        request_options_json: normalized.request_options_json,
+        extra_body_json: normalized.extra_body_json,
     }
 }

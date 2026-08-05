@@ -14,6 +14,7 @@ pub(in crate::video) enum VideoExecutionIdentityMatch<'a> {
     #[cfg(test)]
     NotApplicable,
     Exact(&'a Value),
+    Segment(&'a Value),
     Base(&'a Value),
 }
 

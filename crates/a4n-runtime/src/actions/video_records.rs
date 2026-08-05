@@ -25,7 +25,7 @@ pub use imports::{
     upload_reference_media_video,
 };
 use playback::MAX_INLINE_PLAYBACK_VIDEO_BYTES;
-pub use playback::load_video_playback_data;
+pub use playback::{load_video_playback_data, load_video_scrub_playback_data};
 pub use records::*;
 
 #[cfg(test)]

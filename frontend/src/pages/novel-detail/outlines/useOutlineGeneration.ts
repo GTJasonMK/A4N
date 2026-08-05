@@ -1,11 +1,13 @@
 import { useCallback, useRef, useState } from "react";
-import { generationClient } from "../../../api/generationTasks";
 import type { GenerationTaskHandle } from "../../../api/generated/generationContracts";
 import {
   startOutlineGeneration,
   type OutlineGenerationInput,
 } from "../../../api/outline";
-import type { GenerationProgressUiOptions } from "../../../hooks/runGenerationProgressTask";
+import {
+  runGenerationProgressTaskThen,
+  type GenerationProgressUiOptions,
+} from "../../../hooks/runGenerationProgressTask";
 import {
   useProgressTask,
   type ProgressTaskControl,
@@ -42,26 +44,13 @@ export function useOutlineGeneration() {
     handleRef.current = nextHandle;
     setHandle(nextHandle);
     try {
-      await runProgressTask(
-        {
-          ...options,
-          // 禁止旧 Host 进度通道监听；进度只来自 generation client。
-          cancelTaskId: nextHandle.task_id,
-          cancelTask: async () => {
-            await generationClient.cancel(nextHandle);
-          },
-        },
-        async (control) => {
-          control.setProgress(options.startMessage, 0, options.total);
-          const task = await generationClient.waitForTerminal(nextHandle, (current) => {
-            if (current?.progress) {
-              control.setProgress(
-                current.progress.message,
-                current.progress.current ?? undefined,
-                current.progress.total ?? undefined,
-              );
-            }
-          });
+      // 统一走 generation helper：取消、进度、文本流与 meta 映射均由它提供，
+      // 不在此处手写第二份实现。
+      await runGenerationProgressTaskThen(
+        runProgressTask,
+        nextHandle,
+        options,
+        async (task, control) => {
           if (afterCompletion) await afterCompletion(control, task);
         },
       );

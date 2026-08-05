@@ -104,8 +104,7 @@ impl WorkflowProgressTask {
         }
     }
 
-    pub(crate) fn progress_bytes(
-        &self,
+    pub(crate) fn progress_bytes(        &self,
         current: u64,
         total: u64,
         progress_total: u32,
@@ -113,6 +112,13 @@ impl WorkflowProgressTask {
     ) {
         if let Some(handle) = self.task_handle.as_ref() {
             handle.update_progress_bytes(current, total, progress_total, message);
+        }
+    }
+
+    /// 转发模型输出的活体信号（流式尾巴）。只更新快照，不推送进度事件。
+    pub(crate) fn stream_text(&self, text: &str) {
+        if let Some(handle) = self.task_handle.as_ref() {
+            handle.update_stream_text(text);
         }
     }
 

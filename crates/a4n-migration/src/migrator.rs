@@ -60,6 +60,8 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::segment_execution_recipe_identity::Migration),
             Box::new(crate::migrations::segment_recipe_adoption_repair::Migration),
             Box::new(crate::migrations::chapter_video_prompt_execution_identity::Migration),
+            Box::new(crate::migrations::drop_chapter_video_prompt_identity_unique::Migration),
+            Box::new(crate::migrations::unified_model_provider_requests::Migration),
         ]
     }
 }
@@ -114,8 +116,6 @@ mod tests {
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
             [
-                "video_workflow_exclusive_claim",
-                "video_workflow_task_binding",
                 "neutral_video_segment_plan",
                 "shooting_script_transition_type_canonicalization",
                 "generation_task_persistence",
@@ -126,6 +126,8 @@ mod tests {
                 "segment_execution_recipe_identity",
                 "segment_recipe_adoption_repair",
                 "chapter_video_prompt_execution_identity",
+                "drop_chapter_video_prompt_identity_unique",
+                "unified_model_provider_requests",
             ],
             "deployed migration history must remain registered in execution order"
         );

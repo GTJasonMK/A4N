@@ -80,7 +80,7 @@ fn manifest_rewrite_records_the_stable_user_cache_boundary() {
         .expect("manifest rewrite");
 
     let prefix_len = request
-        .prompt_cache_user_prefix_len
+        .cache_user_prefix_len
         .expect("stable cache boundary");
     let (prefix, dynamic) = request.messages[1].content.split_at(prefix_len);
     assert!(prefix.contains("冻结章节上下文"));

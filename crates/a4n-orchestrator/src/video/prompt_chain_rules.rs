@@ -60,18 +60,16 @@ fn video_execution_identity_matches(
     {
         return false;
     }
-    let base_matches = [
-        "shooting_script_identity",
-        "projection_sha256",
-        "segment_plan_sha256",
-        "unit_plan_sha256",
-        "source_content_sha256",
-        "style_sha256",
-        "duration_secs",
-        "aspect_ratio",
-    ]
-    .into_iter()
-    .all(|key| left_identity.get(key) == right_identity.get(key));
+    let base_matches = identity_fields_match(
+        left_identity,
+        right_identity,
+        &[
+            "source_content_sha256",
+            "style_sha256",
+            "duration_secs",
+            "aspect_ratio",
+        ],
+    );
     base_matches && segment_execution_scope_matches(left, right, left_identity, right_identity)
 }
 
@@ -88,18 +86,56 @@ fn segment_execution_scope_matches(
         .get("segment_plan_prompt_id")
         .and_then(Value::as_i64);
     if left.prompt_type == "frame_segment_plan" {
-        return right_plan == Some(left.id);
+        return right_plan == Some(left.id)
+            && segment_identity_exists_in_plan(left_identity, right_identity);
     }
     if right.prompt_type == "frame_segment_plan" {
-        return left_plan == Some(right.id);
+        return left_plan == Some(right.id)
+            && segment_identity_exists_in_plan(right_identity, left_identity);
     }
     let same_segment = left_plan.is_some()
         && left_plan == right_plan
-        && left_identity.get("segment_number") == right_identity.get("segment_number");
+        && identity_fields_match(
+            left_identity,
+            right_identity,
+            &["source_shot_id", "segment_index_in_shot", "segment_sha256"],
+        );
     same_segment
         && (video_and_frame_prompt_pair(left, right)
             || left_identity.get("segment_recipe_fingerprint")
                 == right_identity.get("segment_recipe_fingerprint"))
+}
+
+fn segment_identity_exists_in_plan(
+    plan_identity: &serde_json::Map<String, Value>,
+    segment_identity: &serde_json::Map<String, Value>,
+) -> bool {
+    plan_identity
+        .get("segment_identities")
+        .and_then(Value::as_array)
+        .is_some_and(|items| {
+            items.iter().any(|item| {
+                let Some(item) = item.as_object() else {
+                    return false;
+                };
+                identity_fields_match(
+                    item,
+                    segment_identity,
+                    &["source_shot_id", "segment_index_in_shot", "segment_sha256"],
+                )
+            })
+        })
+}
+
+fn identity_fields_match(
+    left: &serde_json::Map<String, Value>,
+    right: &serde_json::Map<String, Value>,
+    fields: &[&str],
+) -> bool {
+    fields.iter().all(|key| {
+        left.get(*key)
+            .is_some_and(|value| right.get(*key) == Some(value))
+    })
 }
 
 fn video_and_frame_prompt_pair(

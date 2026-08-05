@@ -17,7 +17,6 @@ pub(super) fn video_config_params(input: VideoConfigInput) -> VideoConfigParams 
         duration_mode: input.duration_mode,
         supported_durations_json: input.supported_durations_json,
         default_fps: input.default_fps,
-        provider_options_json: input.provider_options_json,
     }
 }
 
@@ -37,6 +36,5 @@ pub(super) fn video_update_config_params(input: UpdateVideoConfigInput) -> Updat
         duration_mode: input.duration_mode,
         supported_durations_json: input.supported_durations_json,
         default_fps: input.default_fps,
-        provider_options_json: input.provider_options_json,
     }
 }

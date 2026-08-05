@@ -26,12 +26,13 @@ fn prompt_sync_identity(
     shot_number: i32,
     metadata: Option<&Value>,
 ) -> PromptIdentity {
+    let execution_identity = prompt_execution_identity(metadata);
     (
         workflow_mode.to_string(),
         prompt_type.to_string(),
-        shot_number,
+        execution_identity.is_none().then_some(shot_number),
         prompt_sync_output_language_identity(prompt_type, metadata),
-        prompt_execution_identity(metadata),
+        execution_identity,
     )
 }
 
@@ -112,6 +113,9 @@ mod tests {
             "video_execution_identity": {
                 "segment_plan_prompt_id": 10,
                 "segment_number": 1,
+                "source_shot_id": "shot-1",
+                "segment_index_in_shot": 1,
+                "segment_sha256": "segment-1",
                 "segment_recipe_fingerprint": "recipe-1"
             }
         });
@@ -120,6 +124,9 @@ mod tests {
             "video_execution_identity": {
                 "segment_plan_prompt_id": 10,
                 "segment_number": 2,
+                "source_shot_id": "shot-2",
+                "segment_index_in_shot": 1,
+                "segment_sha256": "segment-2",
                 "segment_recipe_fingerprint": "recipe-2"
             }
         });
@@ -131,6 +138,13 @@ mod tests {
         assert_ne!(
             prompt_sync_scope("boundary_frames", "frame_prompt", Some(&first)),
             prompt_sync_scope("boundary_frames", "frame_prompt", Some(&second)),
+        );
+
+        let mut renumbered = first.clone();
+        renumbered["video_execution_identity"]["segment_number"] = json!(8);
+        assert_eq!(
+            prompt_sync_identity("boundary_frames", "frame_prompt", 1, Some(&first)),
+            prompt_sync_identity("boundary_frames", "frame_prompt", 8, Some(&renumbered)),
         );
     }
 }

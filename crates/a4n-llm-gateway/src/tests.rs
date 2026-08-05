@@ -21,16 +21,18 @@ mod http;
 
 fn test_provider_config() -> HttpLlmProviderConfig {
     HttpLlmProviderConfig {
+        provider: "openai".to_string(),
         base_url: "http://127.0.0.1:1".to_string(),
         model: "test-model".to_string(),
         api_key: None,
         timeout_secs: 1,
-        request_options_json: None,
+        extra_body_json: None,
     }
 }
 
 fn test_provider_config_with_api_key() -> HttpLlmProviderConfig {
     HttpLlmProviderConfig {
+        provider: "openai".to_string(),
         api_key: Some("secret-key".to_string()),
         ..test_provider_config()
     }

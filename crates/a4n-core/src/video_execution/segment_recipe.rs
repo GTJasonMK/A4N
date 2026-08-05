@@ -269,8 +269,25 @@ impl VideoSegmentExecutionRecipeV1 {
 }
 
 fn recipe_fingerprint(recipe: &VideoSegmentExecutionRecipeV1) -> Result<String, String> {
-    let bytes = serde_json::to_vec(recipe)
-        .map_err(|error| format!("序列化片段执行方案指纹失败：{error}"))?;
+    fingerprint_without_segment_number(recipe, "片段执行方案")
+}
+
+pub fn video_segment_content_fingerprint(segment: &VideoSegmentPlanV2) -> Result<String, String> {
+    fingerprint_without_segment_number(segment, "视频片段内容")
+}
+
+fn fingerprint_without_segment_number<T: Serialize>(
+    value: &T,
+    context: &str,
+) -> Result<String, String> {
+    let mut value =
+        serde_json::to_value(value).map_err(|error| format!("序列化{context}指纹失败：{error}"))?;
+    value
+        .as_object_mut()
+        .ok_or_else(|| format!("{context}指纹输入必须是 JSON 对象"))?
+        .remove("segment_number");
+    let bytes =
+        serde_json::to_vec(&value).map_err(|error| format!("序列化{context}指纹失败：{error}"))?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
@@ -356,10 +373,10 @@ pub fn carry_forward_video_segment_recipes(
 ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, String> {
     let mut recipes = default_video_segment_recipes(next_segments, style, prompt_output_language)?;
     for (next, recipe) in next_segments.iter().zip(&mut recipes) {
-        let Some((_, previous)) = previous_segments
+        let Some((previous_segment, previous)) = previous_segments
             .iter()
             .zip(previous_recipes)
-            .find(|(segment, _)| same_segment_recipe_anchor(segment, next))
+            .find(|(segment, _)| video_segments_share_recipe_anchor(segment, next))
         else {
             continue;
         };
@@ -371,7 +388,6 @@ pub fn carry_forward_video_segment_recipes(
         recipe.duration_secs_options = vec![next.duration_secs];
         recipe.aspect_ratio.clone_from(&next.aspect_ratio);
         recipe.continuity_source_video_id = None;
-        recipe.adopted_video_id = None;
         if matches!(
             recipe.workflow_mode,
             VideoSegmentWorkflowModeV1::ReferenceMedia | VideoSegmentWorkflowModeV1::ChatVideo
@@ -383,12 +399,21 @@ pub fn carry_forward_video_segment_recipes(
         {
             recipe.guidance_mode = VideoSegmentGuidanceModeV1::Continuity;
         }
+        if video_segment_content_fingerprint(previous_segment)?
+            != video_segment_content_fingerprint(next)?
+            || previous.generation_fingerprint()? != recipe.generation_fingerprint()?
+        {
+            recipe.adopted_video_id = None;
+        }
     }
     validate_video_segment_recipes_for_plan(&recipes, next_segments, style)?;
     Ok(recipes)
 }
 
-fn same_segment_recipe_anchor(left: &VideoSegmentPlanV2, right: &VideoSegmentPlanV2) -> bool {
+pub fn video_segments_share_recipe_anchor(
+    left: &VideoSegmentPlanV2,
+    right: &VideoSegmentPlanV2,
+) -> bool {
     left.source_shot_id == right.source_shot_id
         && left.segment_index_in_shot == right.segment_index_in_shot
         && left.shot_segment_count == right.shot_segment_count
@@ -471,10 +496,39 @@ pub fn video_segment_recipe_from_metadata(
         .find(|recipe| recipe.segment_number == segment_number))
 }
 
+pub fn resolve_video_segment_number(
+    metadata: Option<&Value>,
+    source_shot_id: &str,
+    segment_index_in_shot: i32,
+) -> Result<i32, String> {
+    let source_shot_id = source_shot_id.trim();
+    if source_shot_id.is_empty() || segment_index_in_shot <= 0 {
+        return Err("稳定片段目标必须提供镜头 ID 和正整数镜头内序号".to_string());
+    }
+    let metadata = metadata.ok_or_else(|| "片段规划缺少 metadata_json".to_string())?;
+    let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
+        metadata
+            .get("segments")
+            .cloned()
+            .ok_or_else(|| "片段规划 metadata_json 缺少 segments".to_string())?,
+    )
+    .map_err(|error| format!("片段规划 segments 无效：{error}"))?;
+    segments
+        .into_iter()
+        .find(|segment| {
+            segment.source_shot_id == source_shot_id
+                && segment.segment_index_in_shot == segment_index_in_shot
+        })
+        .map(|segment| segment.segment_number)
+        .ok_or_else(|| {
+            format!("当前片段规划不存在镜头 {source_shot_id} 的第 {segment_index_in_shot} 个片段")
+        })
+}
+
 pub fn update_video_segment_recipe_metadata(
     metadata: Option<&Value>,
     plan_style: &str,
-    recipe: VideoSegmentExecutionRecipeV1,
+    mut recipe: VideoSegmentExecutionRecipeV1,
 ) -> Result<(Value, Vec<VideoSegmentExecutionRecipeV1>), String> {
     let metadata = metadata.ok_or_else(|| "片段规划缺少 metadata_json".to_string())?;
     let object = metadata
@@ -494,6 +548,9 @@ pub fn update_video_segment_recipe_metadata(
         .position(|existing| existing.segment_number == recipe.segment_number)
         .ok_or_else(|| format!("当前片段规划不存在片段 {}", recipe.segment_number))?;
     let existing = recipes[index].clone();
+    if recipe.adopted_video_id.is_none() {
+        recipe.adopted_video_id = existing.adopted_video_id;
+    }
     if let Some(source_video_id) = recipe.continuity_source_video_id
         && !recipes.iter().any(|candidate| {
             candidate.segment_number < recipe.segment_number
@@ -564,20 +621,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn recipe_upsert_is_scoped_to_current_plan_segment() {
-        assert_eq!(
-            update_video_segment_recipe_metadata(None, "cinematic", recipe(1)).unwrap_err(),
-            "片段规划缺少 metadata_json",
-        );
-        let segment = serde_json::json!({
+    fn segment(segment_number: i32) -> VideoSegmentPlanV2 {
+        serde_json::from_value(serde_json::json!({
             "schema_version": "video_segment_plan_v2",
-            "segment_number": 1,
+            "segment_number": segment_number,
             "source_shot_id": "shot-1",
             "segment_index_in_shot": 1,
             "shot_segment_count": 1,
             "covered_beat_ids": [],
-            "title": "片段 1",
+            "title": format!("片段 {segment_number}"),
             "scene_summary": "场景",
             "blocking_summary": "调度",
             "spatial_anchors": [],
@@ -591,15 +643,31 @@ mod tests {
             "duration_secs": 6,
             "aspect_ratio": "16:9",
             "reference_image_ids": []
-        });
-        let mut segment_two = segment.clone();
-        let segment_two_object = segment_two.as_object_mut().unwrap();
-        segment_two_object.insert("segment_number".to_string(), Value::from(2));
-        segment_two_object.insert("title".to_string(), Value::from("片段 2"));
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn recipe_upsert_is_scoped_to_current_plan_segment() {
+        assert_eq!(
+            update_video_segment_recipe_metadata(None, "cinematic", recipe(1)).unwrap_err(),
+            "片段规划缺少 metadata_json",
+        );
+        let segment_one = segment(1);
+        let segment_two = segment(2);
         let metadata = serde_json::json!({
-            "segments": [segment, segment_two],
+            "segments": [segment_one, segment_two],
             "segment_recipes": [recipe(1), recipe(2)]
         });
+        assert_eq!(
+            resolve_video_segment_number(Some(&metadata), "shot-1", 1).unwrap(),
+            1
+        );
+        assert!(
+            resolve_video_segment_number(Some(&metadata), "missing", 1)
+                .unwrap_err()
+                .contains("不存在")
+        );
         let (metadata, _) =
             update_video_segment_recipe_metadata(Some(&metadata), "cinematic", recipe(2)).unwrap();
         assert_eq!(
@@ -620,7 +688,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .adopted_video_id,
-            None
+            Some(9)
         );
         assert!(
             update_video_segment_recipe_metadata(Some(&metadata), "cinematic", recipe(3)).is_err()
@@ -659,6 +727,45 @@ mod tests {
             recipe.generation_fingerprint().unwrap(),
             adopted.generation_fingerprint().unwrap()
         );
+    }
+
+    #[test]
+    fn display_number_does_not_invalidate_segment_outputs() {
+        let previous_segment = segment(1);
+        let mut renumbered_segment = previous_segment.clone();
+        renumbered_segment.segment_number = 2;
+
+        let mut previous_recipe = recipe(1);
+        previous_recipe.adopted_video_id = Some(9);
+        let carried = carry_forward_video_segment_recipes(
+            &[previous_segment.clone()],
+            &[previous_recipe.clone()],
+            &[renumbered_segment.clone()],
+            "cinematic",
+            "zh_cn",
+        )
+        .unwrap();
+
+        assert_eq!(
+            previous_recipe.generation_fingerprint().unwrap(),
+            carried[0].generation_fingerprint().unwrap()
+        );
+        assert_eq!(
+            video_segment_content_fingerprint(&previous_segment).unwrap(),
+            video_segment_content_fingerprint(&renumbered_segment).unwrap()
+        );
+        assert_eq!(carried[0].adopted_video_id, Some(9));
+
+        renumbered_segment.title = "内容已经变化".to_string();
+        let changed = carry_forward_video_segment_recipes(
+            &[previous_segment],
+            &[previous_recipe],
+            &[renumbered_segment],
+            "cinematic",
+            "zh_cn",
+        )
+        .unwrap();
+        assert_eq!(changed[0].adopted_video_id, None);
     }
 
     #[test]

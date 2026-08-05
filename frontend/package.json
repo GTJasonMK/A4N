@@ -12,6 +12,7 @@
     "check:generation-contract": "bash ../scripts/checks/check-generation-contracts.sh",
     "check:web-api-parity": "npm run check:api-contract && npm run check:generation-contract && node ../scripts/checks/check-web-api-parity.mjs",
     "test:browser-video-mode": "wdio run ./e2e/video-mode-switch/wdio.conf.mjs",
+    "test:browser-video-scrub": "wdio run ./e2e/video-scrub/wdio.conf.mjs",
     "test:tauri-generation": "wdio run ./e2e/tauri-generation/wdio.conf.mjs",
     "test:run": "vitest run",
     "preview": "vite preview"

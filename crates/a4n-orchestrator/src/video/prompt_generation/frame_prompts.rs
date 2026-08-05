@@ -39,7 +39,7 @@ use super::super::prompt_json::{
     parse_storyboard_frame_prompts_with_defaults, parse_video_frame_prompts_with_defaults,
     parse_video_prompt_shots, parse_video_segment_plan_input_values,
     parse_video_segment_plan_response, validate_direct_prompt_text, validate_reference_label_text,
-    validate_segment_plan_against_shooting_script_projection,
+    validate_segment_plan_against_shooting_script_projection, video_segment_plan_input_values,
 };
 use super::super::prompt_records::{
     PromptWorkflowRowsContext, VideoExecutionIdentityMatch, video_generation_asset_fingerprint,
@@ -115,10 +115,13 @@ pub(in crate::video) use self::reuse::{
     video_prompt_segments_with_reference_ids,
 };
 pub(in crate::video) use self::shooting_script_projection::video_projection_from_shooting_script;
-use self::staged_segment_plan::{StagedSegmentPlanInput, render_staged_segment_plan_with_duration};
+use self::staged_segment_plan::{
+    StagedSegmentPlanInput, load_previous_shared_segment_recipe_state,
+    render_staged_segment_plan_with_duration, select_video_segment_recipe_state_by_shots,
+};
 pub(in crate::video) use self::staged_segment_plan::{
-    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_checkpoints,
-    load_video_segment_plan_draft_recipe_state, update_video_segment_plan_draft_recipe_checkpoint,
+    load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
+    update_video_segment_plan_draft_recipe_checkpoint,
     video_segment_recipes_from_draft_for_final_plan,
 };
 pub(in crate::video) use self::validation::boundary_frame_prompt_rows_prefix;

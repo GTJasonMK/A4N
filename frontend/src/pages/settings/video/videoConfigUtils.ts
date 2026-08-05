@@ -4,7 +4,8 @@ import type {
   VideoGenConfig,
 } from "../../../api/video";
 import type { ConfigItem } from "../ConfigListPanel";
-import type { GrokReferenceMode, VideoDurationMode, VideoForm, VideoProvider } from "./types";
+import type { VideoDurationMode, VideoForm } from "./types";
+import type { VideoProviderDescriptor } from "../../../api/generated/config";
 
 export const DEFAULT_VIDEO_FORM: VideoForm = {
   name: "",
@@ -22,35 +23,6 @@ export const DEFAULT_VIDEO_FORM: VideoForm = {
   supported_durations_text: "",
   fps: 24,
   max_concurrent: 1,
-  grok_reference_mode: "reference",
-};
-
-export const VIDEO_PROVIDERS: Array<{ value: VideoProvider; label: string }> = [
-  { value: "openai-compatible-video", label: "OpenAI 兼容视频 (videos/generations)" },
-  { value: "newapi-video", label: "New API 视频 (video/generations)" },
-  { value: "gemini-veo-video", label: "Gemini Veo 原生 (predictLongRunning)" },
-  { value: "seedance2-video", label: "Seedance 2.0 参考媒体 (task/submit)" },
-  { value: "cliproxy-openai-video", label: "CLIProxy / Grok 视频 (/openai/v1/videos)" },
-  { value: "openai-chat-video", label: "Chat Completions（自动嗅探，适配中转站）" },
-];
-
-const VIDEO_PROVIDER_LABELS: Record<VideoProvider, string> = Object.fromEntries(
-  VIDEO_PROVIDERS.map((provider) => [provider.value, provider.label]),
-) as Record<VideoProvider, string>;
-
-export const VIDEO_BASE_URL_HINTS: Record<VideoProvider, string> = {
-  "openai-compatible-video":
-    "默认提交 POST {base}/videos/generations；轮询 GET {base}/videos/generations/{job_id}",
-  "newapi-video":
-    "默认提交 POST {base}/video/generations；轮询 GET {base}/video/generations/{task_id}，适配 muyuan.do / New API 视频模型",
-  "gemini-veo-video":
-    "仅用于真实 Google Gemini REST：POST {base}/v1beta/models/{model}:predictLongRunning；原生支持 Veo image + lastFrame，不适用于 New API /v1beta 兼容路由",
-  "seedance2-video":
-    "提交 POST {base}/task/submit；轮询 GET {base}/task/{task_id}；参考媒体模式使用 functionMode=omni_reference 与 @image_file_N / @video_file_N / @audio_file_N",
-  "cliproxy-openai-video":
-    "提交 POST {base}/videos；轮询 GET {base}/videos/{id}；首帧走 input_reference.image_url，需要 A4N_PUBLIC_APP_URL 或 A4N_PUBLIC_MEDIA_BASE_URL",
-  "openai-chat-video":
-    "走 POST {base}/chat/completions，解析 message.video / videos[] / content[].video_url / content 字符串中的视频引用（兼容兜底，同步返回，不轮询）",
 };
 
 export const VIDEO_SIZE_OPTIONS = [
@@ -66,30 +38,6 @@ export const VIDEO_DURATION_MODES: Array<{ value: VideoDurationMode; label: stri
   { value: "fixed", label: "固定时间档位" },
 ];
 
-export const GROK_REFERENCE_MODE_OPTIONS: Array<{
-  value: GrokReferenceMode;
-  label: string;
-  hint: string;
-}> = [
-  {
-    value: "reference",
-    label: "参考模式",
-    hint: "发送图片到 reference_images；Grok 1.5 系列为单首帧 image-to-video，不支持此字段，请改用 grok-imagine-video。",
-  },
-  {
-    value: "first_frame",
-    label: "首帧模式",
-    hint: "发送 input_reference.image_url；适用于 Grok 1.5 系列，没有生成首帧时使用第一张素材图作为首帧来源。",
-  },
-];
-
-export function parseVideoProvider(value: string): VideoProvider {
-  if (Object.prototype.hasOwnProperty.call(VIDEO_PROVIDER_LABELS, value)) {
-    return value as VideoProvider;
-  }
-  throw new Error(`视频生成后端未注册：${value}`);
-}
-
 function parseVideoDurationMode(
   value: string | null | undefined,
 ): VideoDurationMode {
@@ -98,15 +46,20 @@ function parseVideoDurationMode(
   throw new Error(`视频配置 duration_mode 无效：${value ?? "<missing>"}`);
 }
 
-export function validateVideoForm(form: VideoForm): string | null {
+export function validateVideoForm(
+  form: VideoForm,
+  provider: VideoProviderDescriptor | undefined,
+): string | null {
   if (!form.name.trim()) return "请填写配置名称";
   if (!form.model.trim()) return "请填写模型名";
   if (!form.api_base_url.trim()) return "请填写 API Base URL";
-  const maxDuration = providerMaxDurationSecs(form.provider);
+  if (!provider || provider.id !== form.provider) return `video provider 未注册：${form.provider}`;
+  const minDuration = provider.min_duration_secs;
+  const maxDuration = provider.max_duration_secs;
   return (
     intRangeError(form.max_concurrent, "并发", 1, 8) ??
-    intRangeError(form.duration_secs, "时长", 1, maxDuration) ??
-    validateDurationCapability(form) ??
+    intRangeError(form.duration_secs, "时长", minDuration, maxDuration) ??
+    validateDurationCapability(form, provider) ??
     intRangeError(form.fps, "FPS", 1, 120)
   );
 }
@@ -118,7 +71,7 @@ export function formatVideoItem(config: VideoForm): {
 } {
   return {
     primary: config.name,
-    secondary: `${VIDEO_PROVIDER_LABELS[config.provider]} · ${config.model}`,
+    secondary: `${config.provider} · ${config.model}`,
     tertiary: `${config.size} · 默认 ${config.duration_secs}s · 支持 ${durationCapabilityLabel(config)} · ${config.fps}fps`,
   };
 }
@@ -135,7 +88,7 @@ export function toVideoItem(raw: VideoGenConfig): ConfigItem<VideoForm> {
     isActive: Boolean(raw.is_default),
     config: {
       name: raw.name,
-      provider: parseVideoProvider(raw.backend),
+      provider: raw.backend,
       model: raw.model,
       api_base_url: raw.base_url ?? "",
       api_key: "",
@@ -159,40 +112,50 @@ export function toVideoItem(raw: VideoGenConfig): ConfigItem<VideoForm> {
       supported_durations_text: supportedText,
       fps: ensureIntRange(raw.default_fps, `视频配置 ${raw.id} 默认 FPS`, 1, 120),
       max_concurrent: ensureIntRange(raw.max_concurrent, `视频配置 ${raw.id} 并发上限`, 1, 8),
-      grok_reference_mode: grokReferenceModeFromProviderOptions(raw.provider_options_json),
     },
   };
 }
 
-export function toCreateVideoInput(form: VideoForm): CreateVideoConfigInput {
+export function toCreateVideoInput(
+  form: VideoForm,
+  provider: VideoProviderDescriptor | undefined,
+): CreateVideoConfigInput {
   const apiKey = form.api_key.trim();
   return {
-    ...buildVideoConfigInput(form),
+    ...buildVideoConfigInput(form, provider),
     api_key_encrypted: apiKey || undefined,
   };
 }
 
-export function toUpdateVideoInput(form: VideoForm): UpdateVideoConfigInput {
+export function toUpdateVideoInput(
+  form: VideoForm,
+  provider: VideoProviderDescriptor | undefined,
+): UpdateVideoConfigInput {
   const apiKey = form.api_key.trim();
   return {
-    ...buildVideoConfigInput(form),
+    ...buildVideoConfigInput(form, provider),
     api_key_encrypted: form.clear_api_key ? null : apiKey || undefined,
   };
 }
 
 function buildVideoConfigInput(
   form: VideoForm,
+  provider: VideoProviderDescriptor | undefined,
 ): Omit<CreateVideoConfigInput, "api_key_encrypted"> {
-  const capabilityError = validateDurationCapability(form);
+  if (!provider || provider.id !== form.provider) {
+    throw new Error(`video provider 未注册：${form.provider}`);
+  }
+  const capabilityError = validateDurationCapability(form, provider);
   if (capabilityError) throw new Error(capabilityError);
   const { width, height } = parseVideoSize(form.size);
   const fixedDurations =
     form.duration_mode === "fixed" ? parseSupportedDurationsText(form) : [];
-  const maxDuration = providerMaxDurationSecs(form.provider);
+  const minDuration = provider.min_duration_secs;
+  const maxDuration = provider.max_duration_secs;
   const minDurationSecs =
     form.duration_mode === "fixed"
       ? fixedDurations[0]
-      : ensureIntRange(form.min_duration_secs, "最小时长", 1, maxDuration);
+      : ensureIntRange(form.min_duration_secs, "最小时长", minDuration, maxDuration);
   const maxDurationSecs =
     form.duration_mode === "fixed"
       ? fixedDurations[fixedDurations.length - 1]
@@ -205,30 +168,32 @@ function buildVideoConfigInput(
     max_concurrent: ensureIntRange(form.max_concurrent, "并发", 1, 8),
     default_width: width,
     default_height: height,
-    default_duration_secs: ensureIntRange(form.duration_secs, "时长", 1, maxDuration),
+    default_duration_secs: ensureIntRange(
+      form.duration_secs,
+      "时长",
+      minDuration,
+      maxDuration,
+    ),
     min_duration_secs: minDurationSecs,
     max_duration_secs: maxDurationSecs,
     duration_mode: form.duration_mode,
     supported_durations_json: form.duration_mode === "fixed" ? fixedDurations : null,
     default_fps: ensureIntRange(form.fps, "FPS", 1, 120),
-    provider_options_json: videoProviderOptions(form),
   };
 }
 
-function videoProviderOptions(form: VideoForm): CreateVideoConfigInput["provider_options_json"] {
-  if (form.provider !== "cliproxy-openai-video") return null;
-  return { grok_reference_mode: form.grok_reference_mode };
-}
-
-function grokReferenceModeFromProviderOptions(value: unknown): GrokReferenceMode {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return "reference";
-  const mode = (value as { grok_reference_mode?: unknown }).grok_reference_mode;
-  return mode === "first_frame" ? "first_frame" : "reference";
-}
-
-function validateDurationCapability(form: VideoForm): string | null {
-  const maxDuration = providerMaxDurationSecs(form.provider);
-  const defaultDuration = ensureIntRangeOrNull(form.duration_secs, "默认时长", 1, maxDuration);
+function validateDurationCapability(
+  form: VideoForm,
+  provider: VideoProviderDescriptor,
+): string | null {
+  const minDuration = provider.min_duration_secs;
+  const maxDuration = provider.max_duration_secs;
+  const defaultDuration = ensureIntRangeOrNull(
+    form.duration_secs,
+    "默认时长",
+    minDuration,
+    maxDuration,
+  );
   if (typeof defaultDuration === "string") return defaultDuration;
   if (form.duration_mode === "fixed") {
     try {
@@ -236,7 +201,7 @@ function validateDurationCapability(form: VideoForm): string | null {
       if (supported.length === 0) return "固定时间档位模式必须填写固定时长档位";
       const tooLong = supported.find((duration) => duration > maxDuration);
       if (tooLong != null) {
-        return `${VIDEO_PROVIDER_LABELS[form.provider]} 固定时长不能超过 ${maxDuration} 秒：${tooLong}`;
+        return `${form.provider} 固定时长不能超过 ${maxDuration} 秒：${tooLong}`;
       }
       if (!supported.includes(defaultDuration)) {
         return `默认时长必须包含在固定时长档位 ${supported.join(", ")} 中`;
@@ -247,7 +212,12 @@ function validateDurationCapability(form: VideoForm): string | null {
     return null;
   }
 
-  const min = ensureIntRangeOrNull(form.min_duration_secs, "最小时长", 1, maxDuration);
+  const min = ensureIntRangeOrNull(
+    form.min_duration_secs,
+    "最小时长",
+    minDuration,
+    maxDuration,
+  );
   if (typeof min === "string") return min;
   const max = ensureIntRangeOrNull(form.max_duration_secs, "最大时长", 1, maxDuration);
   if (typeof max === "string") return max;
@@ -256,10 +226,6 @@ function validateDurationCapability(form: VideoForm): string | null {
     return `默认时长必须在模型支持范围 ${min}-${max} 秒之间`;
   }
   return null;
-}
-
-function providerMaxDurationSecs(provider: VideoProvider): number {
-  return provider === "cliproxy-openai-video" ? 15 : 60;
 }
 
 function parseVideoSize(value: string): { width: number; height: number } {

@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use super::{
     FRAME_SEGMENT_PLAN_CONTRACT_VERSION, NewChapterVideoPrompt, PromptOutputLanguage, SourceSpan,
-    VideoPromptGenerationTrace, VideoSegmentPlan,
+    VideoPromptGenerationTrace, VideoSegmentPlan, VideoShootingScriptProjection,
 };
 use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 
@@ -14,6 +14,7 @@ pub(in crate::video) struct PreparedVideoPromptInputs {
     pub(in crate::video) regenerate_existing: bool,
     pub(in crate::video) prompt_batch_size: usize,
     pub(in crate::video) target_shot_number: Option<i32>,
+    pub(in crate::video) target_narrative_unit_index: Option<u32>,
     pub(in crate::video) segment_plan_prompt_id: Option<i64>,
     pub(in crate::video) segment_recipe: Option<VideoSegmentExecutionRecipeV1>,
     pub(in crate::video) style: String,
@@ -33,9 +34,10 @@ pub(in crate::video) struct PreparedVideoPromptInputs {
 pub(super) struct PreparedSegmentPlan {
     pub(super) segment_stage_outputs: Value,
     pub(super) segment_trace: Option<VideoPromptGenerationTrace>,
-    pub(super) segment_json: Value,
     pub(super) segment_plan: Vec<VideoSegmentPlan>,
-    pub(super) execution_identity: Value,
+    pub(super) shooting_script_projection: VideoShootingScriptProjection,
+    pub(super) source_shot_order: Vec<String>,
+    pub(super) source_complete: bool,
 }
 
 pub(crate) struct ReusableSegmentPlan {

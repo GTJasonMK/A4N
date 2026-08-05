@@ -24,3 +24,4 @@ pub mod state;
 pub mod structured_progress;
 pub mod text_location;
 pub mod video_execution;
+pub mod video_workflow;

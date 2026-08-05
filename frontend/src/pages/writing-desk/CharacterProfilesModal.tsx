@@ -27,6 +27,7 @@ import {
   type ProfileForm,
 } from "./CharacterProfileEditorModal";
 import { CharacterProfileList } from "./CharacterProfileList";
+import { cancelHostWorkflowTask } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import type { CharacterAttributeCategory } from "../../utils/characterAttributes";
 import { isCancelledOperation } from "../../utils/cancellation";
@@ -305,6 +306,8 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       const result = await runProgressTask(
         {
           cancelTaskId: taskId,
+          cancelTask: cancelHostWorkflowTask,
+          pollTaskProgress: true,
           title: "发现角色",
           startMessage: "正在准备角色发现",
           successMessage: "角色发现完成",
@@ -414,6 +417,8 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       const result = await runProgressTask(
         {
           cancelTaskId: taskId,
+          cancelTask: cancelHostWorkflowTask,
+          pollTaskProgress: true,
           title: "同步全部角色档案",
           startMessage: "正在准备批量角色同步",
           successMessage: "批量角色同步完成",

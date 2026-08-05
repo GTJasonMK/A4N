@@ -238,7 +238,6 @@ fn video_payload(api_key: &str) -> VideoProviderPayload {
         backend: "openai-compatible-video".to_string(),
         base_url: "https://provider.example/v1".to_string(),
         api_key: api_key.to_string(),
-        provider_options_json: None,
         provider_idempotency_key_sha256: None,
         project_id: None,
         request: VideoGenerationRequest {
@@ -249,10 +248,7 @@ fn video_payload(api_key: &str) -> VideoProviderPayload {
             duration_secs: 5,
             fps: 24,
             model: "test-model".to_string(),
-            first_frame_image_url: None,
-            last_frame_image_url: None,
-            reference_image_urls: Vec::new(),
-            reference_media: None,
+            media: a4n_video::VideoMediaInput::None,
         },
     }
 }
@@ -262,7 +258,6 @@ fn video_poll_payload(api_key: &str) -> VideoPollPayload {
         backend: "openai-compatible-video".to_string(),
         base_url: "https://provider.example/v1".to_string(),
         api_key: api_key.to_string(),
-        provider_options_json: None,
         project_id: None,
         job_id: "job-1".to_string(),
     }

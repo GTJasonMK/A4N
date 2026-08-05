@@ -46,7 +46,7 @@ where
     }
 }
 
-pub(in crate::config::settings_all) fn image_active_model_for_update(
+fn image_active_model_for_update(
     mut active: image_gen_config::ActiveModel,
     row: SettingsAllImageConfigImportRow,
     now: NaiveDateTime,
@@ -58,13 +58,12 @@ pub(in crate::config::settings_all) fn image_active_model_for_update(
     active.max_concurrent = Set(row.max_concurrent);
     active.default_width = Set(row.default_width);
     active.default_height = Set(row.default_height);
-    active.provider_options_json = Set(row.provider_options_json);
     active.is_default = Set(row.is_default);
     active.updated_at = Set(now);
     active
 }
 
-pub(in crate::config::settings_all) fn image_active_model_for_insert(
+fn image_active_model_for_insert(
     row: SettingsAllImageConfigImportRow,
     now: NaiveDateTime,
 ) -> image_gen_config::ActiveModel {
@@ -77,7 +76,6 @@ pub(in crate::config::settings_all) fn image_active_model_for_insert(
         max_concurrent: Set(row.max_concurrent),
         default_width: Set(row.default_width),
         default_height: Set(row.default_height),
-        provider_options_json: Set(row.provider_options_json),
         is_default: Set(row.is_default),
         created_at: Set(now),
         updated_at: Set(now),

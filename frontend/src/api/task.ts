@@ -1,7 +1,11 @@
 import { apiInvoke } from "./index";
 import { readCurrentUserId } from "./authStorage";
 import { idNum, type ApiId as Id } from "./shared";
-import type { ProgressEventRecord, ProgressSnapshot } from "./progress";
+import type {
+  ProgressEventRecord,
+  ProgressSnapshot,
+  WorkflowProgressEventsResponse,
+} from "./progress";
 
 /**
  * Task API wrapper —— 对齐 crates/a4n-tauri/src/commands/task.rs.
@@ -83,8 +87,8 @@ export async function getTaskHistory(
 export async function getTaskProgressEvents(
   taskId: string,
   limit = 50,
-): Promise<ProgressEventRecord[]> {
-  return apiInvoke<ProgressEventRecord[]>("get_workflow_progress_events", {
+): Promise<WorkflowProgressEventsResponse> {
+  return apiInvoke<WorkflowProgressEventsResponse>("get_workflow_progress_events", {
     userId: currentUserId(),
     input: { task_id: taskId, workflow_run_id: null, limit },
   });

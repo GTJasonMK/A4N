@@ -78,6 +78,9 @@ jobs:
       - name: Check retired generation contract boundary
         run: ./scripts/checks/check-generation-cutover-boundary.sh
 
+      - name: Check generation progress channel boundary
+        run: ./scripts/checks/check-generation-progress-boundary.sh
+
   sidecars:
     name: Sidecar package ${{ matrix.package }}
     runs-on: ubuntu-latest

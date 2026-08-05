@@ -67,7 +67,10 @@ pub async fn select_segment_video(
             project_id,
             chapter_id,
             input.segment_plan_prompt_id,
-            input.shot_number,
+            (
+                &input.target_segment.source_shot_id,
+                input.target_segment.segment_index_in_shot,
+            ),
             video_id,
         )
         .await

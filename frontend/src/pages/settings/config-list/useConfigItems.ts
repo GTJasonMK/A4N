@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { useToast } from "../../../components/feedback/Toast";
+import type { ModelProviderCatalog } from "../../../api/generated/config";
 import type { ConfigItem } from "./types";
 
+interface LoadedConfigItems<C> {
+  items: ConfigItem<C>[];
+  catalog: ModelProviderCatalog;
+}
+
 export function useConfigItems<C>(
-  loadItems: () => Promise<ConfigItem<C>[]>,
+  loadItems: () => Promise<LoadedConfigItems<C>>,
   loadErrorMessage: string,
 ) {
   const addToast = useToast((state) => state.addToast);
   const [items, setItems] = useState<ConfigItem<C>[]>([]);
+  const [catalog, setCatalog] = useState<ModelProviderCatalog | null>(null);
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
   const refreshSeqRef = useRef(0);
@@ -26,9 +33,10 @@ export function useConfigItems<C>(
     refreshSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const nextItems = await loadItems();
+      const loaded = await loadItems();
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      setItems(nextItems);
+      setItems(loaded.items);
+      setCatalog(loaded.catalog);
     } catch (error) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(error, loadErrorMessage), "error");
@@ -43,5 +51,5 @@ export function useConfigItems<C>(
     void refresh();
   }, [refresh]);
 
-  return { items, loading, refresh };
+  return { items, catalog, loading, refresh };
 }

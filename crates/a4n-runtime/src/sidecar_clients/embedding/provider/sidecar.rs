@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use crate::{dynamic_embedding, runtime_config};
 
 use super::super::super::{
-    global_service_request_without_secrets, service_app_error, service_error_app_error,
+    global_provider_service_request, service_app_error, service_error_app_error,
     service_response_payload,
 };
 use super::super::contracts::{
@@ -47,22 +47,17 @@ impl SidecarEmbeddingProvider {
         self.facade.default_embedding_config().await
     }
 
-    pub(in crate::sidecar_clients::embedding) fn validate_sidecar_backend(
+    pub(in crate::sidecar_clients::embedding) fn normalized_sidecar_backend(
         model: &embedding_config::Model,
     ) -> Result<String, AppError> {
         match model.backend.trim().to_ascii_lowercase().as_str() {
+            "api" => Ok("api".to_string()),
             "fastembed" => Ok("fastembed".to_string()),
             "local_hash" => Ok("local_hash".to_string()),
-            _ => Err(Self::unsupported_sidecar_backend_error(model)),
+            backend => Err(AppError::ConfigError(format!(
+                "embedding sidecar 不支持 backend={backend}"
+            ))),
         }
-    }
-
-    fn unsupported_sidecar_backend_error(model: &embedding_config::Model) -> AppError {
-        AppError::ConfigError(format!(
-            "embedding sidecar 仅支持 fastembed/local_hash 后端，当前配置 {} 使用 backend={}；API embedding 必须由受信 provider sidecar 单独管理，不能回退到 host embedded provider",
-            model.name,
-            model.backend.trim()
-        ))
     }
 
     fn embedding_payload(
@@ -70,8 +65,23 @@ impl SidecarEmbeddingProvider {
         model: &embedding_config::Model,
         texts: Vec<String>,
     ) -> Result<EmbeddingTextsPayload, AppError> {
+        let backend = Self::normalized_sidecar_backend(model)?;
+        let (base_url, api_key) = if backend == "api" {
+            (
+                Some(required_text(
+                    model.base_url.as_deref().unwrap_or_default(),
+                    "Base URL",
+                    &model.name,
+                )?),
+                model.api_key_encrypted.clone(),
+            )
+        } else {
+            (None, None)
+        };
         Ok(EmbeddingTextsPayload {
-            backend: Self::validate_sidecar_backend(model)?,
+            backend,
+            base_url,
+            api_key,
             model: required_text(&model.model, "模型名", &model.name)?,
             dimension: positive_usize(model.dimension, "向量维度", &model.name)?,
             batch_size: positive_usize(model.batch_size, "批量大小", &model.name)?,
@@ -94,7 +104,8 @@ impl SidecarEmbeddingProvider {
                 TaskPriority::Low,
                 None,
                 || async move {
-                    let request = global_service_request_without_secrets(
+                    let request = global_provider_service_request(
+                        a4n_service_protocol::EMBEDDING_SERVICE_NAME,
                         a4n_service_protocol::EMBEDDING_CAPABILITY_VERSION,
                         payload,
                     )
@@ -142,7 +153,7 @@ impl EmbeddingProvider for SidecarEmbeddingProvider {
 
     async fn model_identity(&self) -> Result<EmbeddingModelIdentity, AppError> {
         let model = self.resolve_default_model().await?;
-        Self::validate_sidecar_backend(&model)?;
+        Self::normalized_sidecar_backend(&model)?;
         dynamic_embedding::model_identity_from_config(&model)
     }
 

@@ -67,7 +67,7 @@ export async function selectSegmentVideo(
   chapterId: Id,
   videoId: Id,
   segmentPlanPromptId: Id,
-  shotNumber: number,
+  targetSegment: { source_shot_id: string; segment_index_in_shot: number },
 ): Promise<GeneratedVideo> {
   return apiInvoke<GeneratedVideo>("select_segment_video", {
     userId: currentUserId(),
@@ -76,13 +76,20 @@ export async function selectSegmentVideo(
     videoId: idNum(videoId),
     input: {
       segment_plan_prompt_id: idNum(segmentPlanPromptId, "片段规划提示词 ID"),
-      shot_number: shotNumber,
+      target_segment: targetSegment,
     },
   });
 }
 
 export async function loadVideoPlaybackData(videoId: Id): Promise<VideoPlaybackData> {
   return apiInvoke<VideoPlaybackData>("load_video_playback_data", {
+    userId: currentUserId(),
+    videoId: idNum(videoId),
+  });
+}
+
+export async function loadVideoScrubPlaybackData(videoId: Id): Promise<VideoPlaybackData> {
+  return apiInvoke<VideoPlaybackData>("load_video_scrub_playback_data", {
     userId: currentUserId(),
     videoId: idNum(videoId),
   });
@@ -204,7 +211,7 @@ export async function uploadReferenceMediaVideo(
       mime_type: input.mime_type,
       data_base64: input.data_base64,
       segment_plan_prompt_id: idNum(input.segment_plan_prompt_id),
-      shot_number: input.shot_number,
+      target_segment: input.target_segment,
     },
   });
 }

@@ -7,36 +7,30 @@ use crate::{
         context::shooting_context_request,
         contracts::{
             CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT, CHAPTER_SCREENPLAY_SKELETON_PROMPT,
-            ChapterScreenplayLayoutV1, ChapterScreenplaySkeletonV1,
+            CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterScreenplaySkeletonV1,
             PreparedChapterShootingScriptRequest, ScreenplayLayoutUnitDetailV1,
-            ShootingScriptProgressReporter,
+            ShootingScriptProgressReporter, ShootingScriptStreamReporter,
         },
         progress::{SKELETON_STREAM_SPAN, layout_unit_stream_progress, skeleton_stream_progress},
-        screenplay::{assemble_screenplay_layout, validate_screenplay_layout},
     },
 };
 
 use super::validation::{validate_layout_unit_detail, validate_skeleton};
 
-pub(super) async fn generate_screenplay_layout(
+pub(in crate::shooting_script::generation) async fn generate_screenplay_skeleton(
     orchestrator: &OrchestratorContext,
     workflow_run_id: i64,
     prepared: &PreparedChapterShootingScriptRequest,
-    progress_total: u32,
     progress: ShootingScriptProgressReporter<'_>,
+    stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
     cancel_token: Option<&CancellationToken>,
-) -> Result<ChapterScreenplayLayoutV1, AppError> {
-    progress(1, progress_total, "正在生成或恢复全章叙事骨架")?;
-    let skeleton_request = shooting_context_request::<serde_json::Value>(
-        prepared,
-        workflow_run_id,
-        CHAPTER_SCREENPLAY_SKELETON_PROMPT,
-        "screenplay_skeleton".into(),
-        prepared.skeleton_system_prompt.clone(),
-        None,
-        "基于全部稳定上下文生成全章叙事骨架。".into(),
-        llm_token_profiles::LONG.into(),
+) -> Result<ChapterScreenplaySkeletonV1, AppError> {
+    progress(
+        1,
+        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
+        "正在生成或恢复全章叙事骨架",
     )?;
+    let skeleton_request = screenplay_skeleton_request(prepared, workflow_run_id)?;
     let skeleton_stage = orchestrator
         .run_shooting_script_stage::<ChapterScreenplaySkeletonV1>(
             workflow_run_id,
@@ -45,72 +39,159 @@ pub(super) async fn generate_screenplay_layout(
             skeleton_request,
             "章节叙事骨架",
             skeleton_stream_progress(),
-            progress_total,
+            CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
             progress,
+            stream_reporter,
             cancel_token,
             |output| validate_skeleton(output, prepared),
         )
         .await?;
     progress(
         SKELETON_STREAM_SPAN.end(),
-        progress_total,
+        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         if skeleton_stage.restored {
             "叙事骨架已恢复，开始逐单元细化"
         } else {
             "叙事骨架已生成，开始逐单元细化"
         },
     )?;
-    let skeleton = skeleton_stage.output;
+    Ok(skeleton_stage.output)
+}
 
-    let mut details = Vec::with_capacity(skeleton.units.len());
-    for (offset, unit) in skeleton.units.iter().enumerate() {
-        let unit_progress = layout_unit_stream_progress(offset, skeleton.units.len());
-        let request = shooting_context_request(
-            prepared,
+pub(in crate::shooting_script) async fn restore_screenplay_skeleton(
+    orchestrator: &OrchestratorContext,
+    workflow_run_id: i64,
+    prepared: &PreparedChapterShootingScriptRequest,
+) -> Result<Option<ChapterScreenplaySkeletonV1>, AppError> {
+    let request = screenplay_skeleton_request(prepared, workflow_run_id)?;
+    orchestrator
+        .restore_completed_shooting_script_stage(
             workflow_run_id,
-            CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
-            format!("screenplay_layout_unit:{}", unit.narrative_unit_index),
-            prepared.layout_unit_system_prompt.clone(),
-            Some(("shooting_layout_skeleton", &skeleton)),
-            format!(
-                "只细化 narrative_unit_index={}。",
-                unit.narrative_unit_index
-            ),
-            llm_token_profiles::LONG.into(),
-        )?;
-        let stage = orchestrator
-            .run_shooting_script_stage::<ScreenplayLayoutUnitDetailV1>(
-                workflow_run_id,
-                &format!("screenplay_layout_unit:{}", unit.narrative_unit_index),
-                i32::try_from(offset + 2)
-                    .map_err(|_| AppError::InvalidArgument("布局单元数量超限".into()))?,
-                request,
-                "叙事单元布局细化",
-                unit_progress,
-                progress_total,
-                progress,
-                cancel_token,
-                |output| validate_layout_unit_detail(output, unit.narrative_unit_index),
-            )
-            .await?;
-        progress(
-            unit_progress.span.end(),
-            progress_total,
-            &format!(
-                "布局单元 {}/{} {}",
-                offset + 1,
-                skeleton.units.len(),
-                if stage.restored {
-                    "已从调用断点恢复"
-                } else {
-                    "细化完成"
-                }
-            ),
-        )?;
-        details.push(stage.output);
-    }
+            "screenplay_skeleton",
+            &request,
+            "章节叙事骨架",
+            |output| validate_skeleton(output, prepared),
+        )
+        .await
+}
 
-    let layout = assemble_screenplay_layout(skeleton, details)?;
-    validate_screenplay_layout(&layout, &prepared.source_spans)?;
-    Ok(layout)
+pub(in crate::shooting_script::generation) async fn generate_screenplay_layout_unit(
+    orchestrator: &OrchestratorContext,
+    workflow_run_id: i64,
+    prepared: &PreparedChapterShootingScriptRequest,
+    skeleton: &ChapterScreenplaySkeletonV1,
+    offset: usize,
+    progress: ShootingScriptProgressReporter<'_>,
+    stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
+    cancel_token: Option<&CancellationToken>,
+) -> Result<
+    super::super::super::contracts::ShootingScriptStageResult<ScreenplayLayoutUnitDetailV1>,
+    AppError,
+> {
+    let unit = skeleton
+        .units
+        .get(offset)
+        .ok_or_else(|| AppError::InvalidArgument(format!("不存在第 {} 个布局单元", offset + 1)))?;
+    let unit_progress = layout_unit_stream_progress(offset, skeleton.units.len());
+    let request = screenplay_layout_unit_request(prepared, workflow_run_id, skeleton, offset)?;
+    let stage = orchestrator
+        .run_shooting_script_stage::<ScreenplayLayoutUnitDetailV1>(
+            workflow_run_id,
+            &format!("screenplay_layout_unit:{}", unit.narrative_unit_index),
+            i32::try_from(
+                offset
+                    .checked_mul(3)
+                    .and_then(|value| value.checked_add(2))
+                    .ok_or_else(|| AppError::InvalidArgument("布局单元数量超限".into()))?,
+            )
+            .map_err(|_| AppError::InvalidArgument("布局单元数量超限".into()))?,
+            request,
+            "叙事单元布局细化",
+            unit_progress,
+            CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
+            progress,
+            stream_reporter,
+            cancel_token,
+            |output| validate_layout_unit_detail(output, unit.narrative_unit_index),
+        )
+        .await?;
+    progress(
+        unit_progress.span.end(),
+        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
+        &format!(
+            "布局单元 {}/{} {}",
+            offset + 1,
+            skeleton.units.len(),
+            if stage.restored {
+                "已从调用断点恢复"
+            } else {
+                "细化完成"
+            }
+        ),
+    )?;
+    Ok(stage)
+}
+
+pub(in crate::shooting_script) async fn restore_screenplay_layout_unit(
+    orchestrator: &OrchestratorContext,
+    workflow_run_id: i64,
+    prepared: &PreparedChapterShootingScriptRequest,
+    skeleton: &ChapterScreenplaySkeletonV1,
+    offset: usize,
+) -> Result<Option<ScreenplayLayoutUnitDetailV1>, AppError> {
+    let unit = skeleton
+        .units
+        .get(offset)
+        .ok_or_else(|| AppError::InvalidArgument(format!("不存在第 {} 个布局单元", offset + 1)))?;
+    let request = screenplay_layout_unit_request(prepared, workflow_run_id, skeleton, offset)?;
+    orchestrator
+        .restore_completed_shooting_script_stage(
+            workflow_run_id,
+            &format!("screenplay_layout_unit:{}", unit.narrative_unit_index),
+            &request,
+            "叙事单元布局细化",
+            |output| validate_layout_unit_detail(output, unit.narrative_unit_index),
+        )
+        .await
+}
+
+fn screenplay_skeleton_request(
+    prepared: &PreparedChapterShootingScriptRequest,
+    workflow_run_id: i64,
+) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    shooting_context_request::<serde_json::Value>(
+        prepared,
+        workflow_run_id,
+        CHAPTER_SCREENPLAY_SKELETON_PROMPT,
+        "screenplay_skeleton".into(),
+        prepared.skeleton_system_prompt.clone(),
+        None,
+        "基于全部稳定上下文生成全章叙事骨架。".into(),
+        llm_token_profiles::LONG.into(),
+    )
+}
+
+fn screenplay_layout_unit_request(
+    prepared: &PreparedChapterShootingScriptRequest,
+    workflow_run_id: i64,
+    skeleton: &ChapterScreenplaySkeletonV1,
+    offset: usize,
+) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    let unit = skeleton
+        .units
+        .get(offset)
+        .ok_or_else(|| AppError::InvalidArgument(format!("不存在第 {} 个布局单元", offset + 1)))?;
+    shooting_context_request(
+        prepared,
+        workflow_run_id,
+        CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
+        format!("screenplay_layout_unit:{}", unit.narrative_unit_index),
+        prepared.layout_unit_system_prompt.clone(),
+        Some(("shooting_layout_skeleton", skeleton)),
+        format!(
+            "只细化 narrative_unit_index={}。",
+            unit.narrative_unit_index
+        ),
+        llm_token_profiles::LONG.into(),
+    )
 }

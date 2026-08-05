@@ -2368,10 +2368,14 @@ fn video_generation_target_id(project_id: i64, operation: &VideoGenerationOperat
         VideoGenerationOperation::ChapterBatch { chapter_id, .. } => {
             format!("{project_id}:chapter:{chapter_id}")
         }
-        VideoGenerationOperation::ReferenceMedia { chapter_id, input } => format!(
-            "{project_id}:chapter:{chapter_id}:reference_media:plan:{}:segment:{}",
-            input.segment_plan_prompt_id, input.shot_number
-        ),
+        VideoGenerationOperation::ReferenceMedia { chapter_id, input } => {
+            format!(
+                "{project_id}:chapter:{chapter_id}:reference_media:plan:{}:shot:{}:index:{}",
+                input.segment_plan_prompt_id,
+                input.target_segment.source_shot_id,
+                input.target_segment.segment_index_in_shot,
+            )
+        }
         VideoGenerationOperation::PromptSegmentPlan { chapter_id, .. } => {
             format!("{project_id}:chapter:{chapter_id}:prompt_segment_plan:shared")
         }
@@ -2379,25 +2383,39 @@ fn video_generation_target_id(project_id: i64, operation: &VideoGenerationOperat
             chapter_id,
             options,
         } => format!(
-            "{project_id}:chapter:{chapter_id}:prompt_frames:plan:{}:segment:{}",
+            "{project_id}:chapter:{chapter_id}:prompt_frames:plan:{}:shot:{}:index:{}",
             options
                 .segment_plan_prompt_id
                 .expect("video frame prompt start validation requires segment plan"),
             options
-                .target_shot_number
+                .target_segment
+                .as_ref()
                 .expect("video frame prompt start validation requires target segment")
+                .source_shot_id,
+            options
+                .target_segment
+                .as_ref()
+                .expect("video frame prompt start validation requires target segment")
+                .segment_index_in_shot,
         ),
         VideoGenerationOperation::PromptVideos {
             chapter_id,
             options,
         } => format!(
-            "{project_id}:chapter:{chapter_id}:prompt_videos:plan:{}:segment:{}",
+            "{project_id}:chapter:{chapter_id}:prompt_videos:plan:{}:shot:{}:index:{}",
             options
                 .segment_plan_prompt_id
                 .expect("video final prompt start validation requires segment plan"),
             options
-                .target_shot_number
+                .target_segment
+                .as_ref()
                 .expect("video final prompt start validation requires target segment")
+                .source_shot_id,
+            options
+                .target_segment
+                .as_ref()
+                .expect("video final prompt start validation requires target segment")
+                .segment_index_in_shot,
         ),
     }
 }
@@ -2531,7 +2549,7 @@ mod video_prompt_generation_tests {
     use super::*;
     use a4n_api_contract::{
         generation_tasks::GenerationStartRequestMeta,
-        video::{ReferenceMediaVideoInput, VideoPromptGenerationOptions},
+        video::{ReferenceMediaVideoInput, VideoPromptGenerationOptions, VideoSegmentTarget},
     };
 
     fn options() -> VideoPromptGenerationOptions {
@@ -2541,7 +2559,11 @@ mod video_prompt_generation_tests {
             style: "电影感".to_string(),
             prompt_output_language: Some("zh_cn".to_string()),
             prompt_batch_size: 2,
-            target_shot_number: Some(4),
+            target_segment: Some(VideoSegmentTarget {
+                source_shot_id: "shot-4".to_string(),
+                segment_index_in_shot: 1,
+            }),
+            target_narrative_unit_index: None,
             duration_secs: 6,
             duration_secs_options: vec![6],
             aspect_ratio: "16:9".to_string(),
@@ -2578,7 +2600,7 @@ mod video_prompt_generation_tests {
         let operation = input(options()).operation;
         assert_eq!(
             video_generation_target_id(19, &operation),
-            "19:chapter:3:prompt_frames:plan:11:segment:4"
+            "19:chapter:3:prompt_frames:plan:11:shot:shot-4:index:1"
         );
     }
 
@@ -2597,7 +2619,7 @@ mod video_prompt_generation_tests {
                 "task_kind": "video_generation",
                 "project_id": 19,
                 "operation_kind": "prompt_frames",
-                "target_id": "19:chapter:3:prompt_frames:plan:11:segment:4",
+                "target_id": "19:chapter:3:prompt_frames:plan:11:shot:shot-4:index:1",
             })
         );
     }
@@ -2608,7 +2630,10 @@ mod video_prompt_generation_tests {
             chapter_id: 3,
             input: ReferenceMediaVideoInput {
                 segment_plan_prompt_id: 11,
-                shot_number: 4,
+                target_segment: VideoSegmentTarget {
+                    source_shot_id: "shot-4".to_string(),
+                    segment_index_in_shot: 1,
+                },
                 image_uploads: vec![],
                 video_uploads: vec![],
                 audio_uploads: vec![],
@@ -2617,7 +2642,7 @@ mod video_prompt_generation_tests {
         };
         assert_eq!(
             video_generation_target_id(19, &operation),
-            "19:chapter:3:reference_media:plan:11:segment:4"
+            "19:chapter:3:reference_media:plan:11:shot:shot-4:index:1"
         );
     }
 

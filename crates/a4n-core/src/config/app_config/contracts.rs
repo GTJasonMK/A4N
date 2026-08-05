@@ -82,7 +82,7 @@ pub struct LlmConfig {
 
     /// Provider-specific extra JSON fields merged into chat/completions requests.
     #[serde(default)]
-    pub request_options_json: Option<Value>,
+    pub extra_body_json: Option<Value>,
 
     /// LLM 各场景请求输出预算配置
     #[serde(default)]

@@ -14,7 +14,9 @@ use crate::{
     workflow::{llm_call_checkpoint_fingerprint_sha256, workflow_checkpoint_contract_app_error},
 };
 
-use super::contracts::{ShootingScriptProgressReporter, ShootingScriptStageResult};
+use super::contracts::{
+    ShootingScriptProgressReporter, ShootingScriptStageResult, ShootingScriptStreamReporter,
+};
 
 mod persistence;
 mod raw_call;
@@ -82,6 +84,7 @@ impl OrchestratorContext {
         structured_progress: StructuredLlmProgress,
         progress_total: u32,
         progress: ShootingScriptProgressReporter<'_>,
+        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
         cancel_token: Option<&CancellationToken>,
         validate_output: impl Fn(&T) -> Result<(), AppError>,
     ) -> Result<ShootingScriptStageResult<T>, AppError>
@@ -106,6 +109,7 @@ impl OrchestratorContext {
                 Some(structured_progress),
                 progress_total,
                 progress,
+                stream_reporter,
                 cancel_token,
             )
             .await?;

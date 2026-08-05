@@ -107,10 +107,6 @@ export async function previewTestEmbeddingConfigRequest(configId: Id): Promise<M
   });
 }
 
-export async function listEmbeddingBackends(): Promise<string[]> {
-  return apiInvoke<string[]>("list_embedding_backends");
-}
-
 export async function listLocalEmbeddingModels(): Promise<LocalEmbeddingModel[]> {
   if (canUseLocalDesktopEmbedding()) {
     return runtimeInvoke<LocalEmbeddingModel[]>("local_list_embedding_models");

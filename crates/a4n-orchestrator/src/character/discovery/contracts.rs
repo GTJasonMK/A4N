@@ -28,6 +28,8 @@ pub type CharacterDiscoveryProgressReporter<'a> =
 #[derive(Clone, Copy)]
 pub struct CharacterDiscoveryProgress<'a> {
     pub reporter: Option<CharacterDiscoveryProgressReporter<'a>>,
+    /// 活体信号出口：与字段级里程碑取自同一个 token 流。
+    pub stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
     pub cancel_token: Option<&'a CancellationToken>,
     pub active_task_id: Option<&'a str>,
 }

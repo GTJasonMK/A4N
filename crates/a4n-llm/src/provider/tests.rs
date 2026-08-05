@@ -2,7 +2,7 @@ use serde_json::json;
 
 use super::{
     ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmTraceContext, ModelCapabilities,
-    UsageInfo, is_truncated_finish_reason, normalize_request_options_json,
+    UsageInfo, is_truncated_finish_reason, normalize_extra_body_json,
 };
 
 #[test]
@@ -29,16 +29,16 @@ fn chat_request_serialization_skips_internal_trace_fields() {
             context_plan_json: None,
             context_pack_refs_json: None,
         });
-    request.prompt_cache_key = Some("a4n:workflow_run:7".to_string());
-    request.prompt_cache_system_prefix = true;
-    request.prompt_cache_user_prefix_len = Some(5);
+    request.cache_scope_key = Some("a4n:workflow_run:7".to_string());
+    request.cache_system_prefix = true;
+    request.cache_user_prefix_len = Some(5);
 
     let value = serde_json::to_value(&request).expect("request serializes");
     assert!(value.get("trace_context").is_none());
     assert_eq!(value["stream_include_usage"], json!(true));
-    assert_eq!(value["prompt_cache_key"], "a4n:workflow_run:7");
-    assert_eq!(value["prompt_cache_system_prefix"], true);
-    assert_eq!(value["prompt_cache_user_prefix_len"], 5);
+    assert_eq!(value["cache_scope_key"], "a4n:workflow_run:7");
+    assert_eq!(value["cache_system_prefix"], true);
+    assert_eq!(value["cache_user_prefix_len"], 5);
     assert!(value.get("context_manifest_json").is_none());
 }
 
@@ -60,8 +60,8 @@ fn chat_request_serializes_json_response_format() {
 }
 
 #[test]
-fn request_options_reject_reserved_provider_fields() {
-    let err = normalize_request_options_json(Some(json!({
+fn extra_body_reject_reserved_provider_fields() {
+    let err = normalize_extra_body_json(Some(json!({
         "temperature": 0.1
     })))
     .expect_err("reserved fields must be rejected");
@@ -70,8 +70,8 @@ fn request_options_reject_reserved_provider_fields() {
 }
 
 #[test]
-fn request_options_reject_static_prompt_cache_keys() {
-    let err = normalize_request_options_json(Some(json!({
+fn extra_body_reject_static_prompt_cache_keys() {
+    let err = normalize_extra_body_json(Some(json!({
         "prompt_cache_key": "shared-across-unrelated-runs"
     })))
     .expect_err("cache affinity must be derived per generation chain");
@@ -80,8 +80,8 @@ fn request_options_reject_static_prompt_cache_keys() {
 }
 
 #[test]
-fn request_options_keep_provider_specific_fields() {
-    let value = normalize_request_options_json(Some(json!({
+fn extra_body_keep_provider_specific_fields() {
+    let value = normalize_extra_body_json(Some(json!({
         "extra_body": {
             "reasoning_effort": "low"
         }
@@ -97,8 +97,6 @@ fn request_options_keep_provider_specific_fields() {
 #[test]
 fn nested_llm_contracts_reject_unknown_fields() {
     let error = serde_json::from_value::<ModelCapabilities>(json!({
-        "function_calling": false,
-        "vision": false,
         "max_context_tokens": 8192,
         "max_output_tokens": 2048,
         "legacy_capability": true

@@ -31,6 +31,11 @@ import {
   validateLlmForm,
 } from "./llm/llmConfigUtils";
 import type { LlmForm } from "./llm/types";
+import {
+  assertCatalogProvider,
+  listModelProviderCatalog,
+} from "../../api/providerCatalog";
+import type { ModelProviderCatalog } from "../../api/generated/config";
 
 /**
  * LLM 配置 Tab
@@ -45,15 +50,28 @@ interface LlmTabProps {
 
 export const LlmTab: React.FC<LlmTabProps> = ({ scope = "user" }) => {
   const serverScope = scope === "server";
-  const loadItems = useCallback(async (): Promise<ConfigItem<LlmForm>[]> => {
-    const list = await (serverScope ? listServerLlmConfig() : listLlmConfig());
-    return list.map((config) => ({
-      ...toLlmItem(config),
-      deleteDisabled: !serverScope && config.id === SYSTEM_LLM_CONFIG_ID,
-      deleteDisabledReason: "系统默认 LLM 模板由管理员维护，不能在用户配置页删除。",
-    }));
+  const loadItems = useCallback(async (): Promise<{
+    items: ConfigItem<LlmForm>[];
+    catalog: ModelProviderCatalog;
+  }> => {
+    const [list, providerCatalog] = await Promise.all([
+      serverScope ? listServerLlmConfig() : listLlmConfig(),
+      listModelProviderCatalog(),
+    ]);
+    const items = list.map((config) => {
+      assertCatalogProvider("llm", config.provider, providerCatalog);
+      return {
+        ...toLlmItem(config),
+        deleteDisabled: !serverScope && config.id === SYSTEM_LLM_CONFIG_ID,
+        deleteDisabledReason: "系统默认 LLM 模板由管理员维护，不能在用户配置页删除。",
+      };
+    });
+    return { items, catalog: providerCatalog };
   }, [serverScope]);
-  const { items, loading, refresh } = useConfigItems(loadItems, "加载 LLM 配置失败");
+  const { items, catalog, loading, refresh } = useConfigItems(
+    loadItems,
+    "加载 LLM 配置失败",
+  );
 
   const defaultModelOutputCap =
     items.find((item) => item.isActive)?.config.max_output_tokens ?? null;
@@ -87,6 +105,7 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "user" }) => {
               serverScope={serverScope}
               readonly={context.readonly}
               templateLocked={!serverScope && context.selectedId === SYSTEM_LLM_CONFIG_ID}
+              providers={catalog?.llm ?? []}
             />
           )}
           onCreate={async (form) => {

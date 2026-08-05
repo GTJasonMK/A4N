@@ -5,9 +5,13 @@ import type {
   VideoSegmentExecutionRecipe,
 } from "../../../api/video";
 import {
+  assemblyPushIndex,
+  assemblyPushSourceIds,
+  assemblyPushStatus,
   completedSegmentPlanPreviewItems,
   currentFinalVideoPromptMatchesSegment,
   guidanceModeForWorkflowChange,
+  isVideoFramePromptType,
   isSegmentPlanDraftCheckpointKey,
   latestVideoSegmentPlanPrompt,
   readVideoSegmentRecipes,
@@ -18,6 +22,38 @@ import {
   videoGuidanceConfigurationError,
   videoSegmentRecipeGenerationFingerprintJson,
 } from "./videoTabUtils";
+
+it("parses assembly push metadata without defaulting an invalid status", () => {
+  const video = (assemblyPush: unknown) =>
+    ({ metadata_json: { assembly_push: assemblyPush } }) as GeneratedVideo;
+
+  expect(assemblyPushStatus(video({ status: "pending" }))).toBe("pending");
+  expect(assemblyPushStatus(video({}))).toBeNull();
+  expect(assemblyPushStatus(video({ status: "legacy" }))).toBeNull();
+  expect(assemblyPushIndex(video({ push_index: 2 }))).toBe(2);
+  expect(assemblyPushIndex(video({ push_index: 0 }))).toBeNull();
+  expect(assemblyPushSourceIds(video({ source_video_ids: [3, 5] }))).toEqual([
+    3, 5,
+  ]);
+  expect(
+    assemblyPushSourceIds(video({ source_video_ids: [3, 0, "4", 5] })),
+  ).toBeNull();
+  expect(
+    assemblyPushSourceIds(video({ source_video_ids: [3, 3] })),
+  ).toBeNull();
+});
+
+it("classifies every supported video frame prompt type", () => {
+  expect(
+    [
+      "frame_prompt",
+      "first_frame_prompt",
+      "chat_video_frame_prompt",
+      "storyboard_prompt",
+    ].every(isVideoFramePromptType),
+  ).toBe(true);
+  expect(isVideoFramePromptType("video_prompt")).toBe(false);
+});
 
 describe("completedSegmentPlanPreviewItems", () => {
   it("ignores incomplete groups and lets a later checkpoint replace the same shot", () => {
@@ -114,6 +150,11 @@ describe("videoGuidanceConfigurationError", () => {
 });
 
 describe("video execution generation chain", () => {
+  const segmentIdentity = {
+    source_shot_id: "shot-1",
+    segment_index_in_shot: 1,
+    segment_sha256: "segment-1",
+  };
   const identity = {
     contract_epoch: 5,
     shooting_script_identity: "script-1",
@@ -124,6 +165,7 @@ describe("video execution generation chain", () => {
     style_sha256: "style-1",
     duration_secs: 6,
     aspect_ratio: "16:9",
+    segment_identities: [segmentIdentity],
   };
   const prompt = (
     id: number,
@@ -148,7 +190,16 @@ describe("video execution generation chain", () => {
     reference_image_ids_json: null,
     status: "completed",
     generated_video_id: null,
-    metadata_json: { video_execution_identity: executionIdentity },
+    metadata_json: {
+      segments: [
+        {
+          segment_number: 1,
+          source_shot_id: "shot-1",
+          segment_index_in_shot: 1,
+        },
+      ],
+      video_execution_identity: executionIdentity,
+    },
     created_at: null,
     updated_at: null,
   });
@@ -162,18 +213,21 @@ describe("video execution generation chain", () => {
     );
     const segmentOne = prompt(11, "frame_prompt", "boundary_frames", {
       ...identity,
+      ...segmentIdentity,
       segment_plan_prompt_id: 10,
       segment_number: 1,
       segment_recipe_fingerprint: "recipe-1",
     });
     const sameSegment = prompt(12, "video_prompt", "boundary_frames", {
       ...identity,
+      ...segmentIdentity,
       segment_plan_prompt_id: 10,
       segment_number: 1,
       segment_recipe_fingerprint: "recipe-1",
     });
     const otherRecipe = prompt(13, "video_prompt", "boundary_frames", {
       ...identity,
+      ...segmentIdentity,
       segment_plan_prompt_id: 10,
       segment_number: 1,
       segment_recipe_fingerprint: "recipe-2",
@@ -186,7 +240,7 @@ describe("video execution generation chain", () => {
       videoExecutionPromptsShareGenerationChain(segmentOne, sameSegment),
     ).toBe(true);
     expect(
-      videoExecutionPromptsShareGenerationChain(segmentOne, otherRecipe),
+      videoExecutionPromptsShareGenerationChain(sameSegment, otherRecipe),
     ).toBe(false);
   });
 
@@ -199,6 +253,7 @@ describe("video execution generation chain", () => {
     );
     const finalIdentity = {
       ...identity,
+      ...segmentIdentity,
       segment_plan_prompt_id: 20,
       segment_number: 1,
       segment_recipe_fingerprint: "recipe-1",
@@ -293,6 +348,7 @@ describe("video execution generation chain", () => {
         shot_number: 1,
         video_execution_identity: {
           ...identity,
+          ...segmentIdentity,
           segment_plan_prompt_id: planId,
           segment_number: 1,
           segment_recipe_fingerprint: "recipe-1",
@@ -309,6 +365,118 @@ describe("video execution generation chain", () => {
     expect(
       videoExecutionSegmentIdentityMatchesVideo(video(29), plan, 1, "recipe-1"),
     ).toBe(false);
+
+    const retimed = video(30);
+    retimed.duration_secs = 10;
+    (
+      retimed.metadata_json as {
+        video_execution_identity: { duration_secs: number };
+      }
+    ).video_execution_identity.duration_secs = 10;
+    expect(
+      videoExecutionSegmentIdentityMatchesVideo(
+        retimed,
+        plan,
+        1,
+        "recipe-1",
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps an existing segment valid when an earlier segment changes its display number", () => {
+    const existingSegment = {
+      source_shot_id: "shot-2",
+      segment_index_in_shot: 1,
+      segment_sha256: "stable-shot-2",
+    };
+    const expandedPlan: ChapterVideoPrompt = {
+      ...prompt(40, "frame_segment_plan", "shared_segment_plan", {
+        ...identity,
+        projection_sha256: "expanded-projection",
+        segment_plan_sha256: "expanded-plan",
+        unit_plan_sha256: "expanded-units",
+        segment_identities: [
+          {
+            source_shot_id: "shot-1",
+            segment_index_in_shot: 1,
+            segment_sha256: "new-shot-1",
+          },
+          existingSegment,
+        ],
+      }),
+      metadata_json: {
+        segments: [
+          {
+            segment_number: 1,
+            source_shot_id: "shot-1",
+            segment_index_in_shot: 1,
+          },
+          {
+            segment_number: 2,
+            source_shot_id: "shot-2",
+            segment_index_in_shot: 1,
+          },
+        ],
+        video_execution_identity: {
+          ...identity,
+          projection_sha256: "expanded-projection",
+          segment_plan_sha256: "expanded-plan",
+          unit_plan_sha256: "expanded-units",
+          segment_identities: [
+            {
+              source_shot_id: "shot-1",
+              segment_index_in_shot: 1,
+              segment_sha256: "new-shot-1",
+            },
+            existingSegment,
+          ],
+        },
+      },
+    };
+    const existingVideo: GeneratedVideo = {
+      id: 401,
+      project_id: 1,
+      chapter_id: 2,
+      video_type: "chapter_video",
+      workflow_mode: "chat_video",
+      file_path: "existing.mp4",
+      thumbnail_path: null,
+      prompt: "prompt",
+      negative_prompt: null,
+      model: "test",
+      width: 1280,
+      height: 720,
+      duration_secs: 6,
+      fps: 24,
+      file_size: 1,
+      source_video_id: null,
+      source_image_id: null,
+      status: "completed",
+      provider_job_id: null,
+      error_message: null,
+      metadata_json: {
+        shot_number: 1,
+        video_execution_identity: {
+          ...identity,
+          ...existingSegment,
+          segment_plan_prompt_id: 40,
+          segment_number: 1,
+          segment_recipe_fingerprint: "recipe-2",
+        },
+      },
+      is_favorite: false,
+      created_at: null,
+      updated_at: null,
+    };
+
+    expect(
+      videoExecutionSegmentIdentityMatchesVideo(
+        existingVideo,
+        expandedPlan,
+        2,
+        "recipe-2",
+      ),
+    ).toBe(true);
   });
 });
 
@@ -344,10 +512,24 @@ describe("segment cards and recipes", () => {
         style_sha256: "style-1",
         duration_secs: 6,
         aspect_ratio: "16:9",
+        segment_identities: [
+          {
+            source_shot_id: "shot-1",
+            segment_index_in_shot: 1,
+            segment_sha256: "segment-1",
+          },
+          {
+            source_shot_id: "shot-2",
+            segment_index_in_shot: 1,
+            segment_sha256: "segment-2",
+          },
+        ],
       },
       segments: [
         {
           segment_number: 2,
+          source_shot_id: "shot-2",
+          segment_index_in_shot: 1,
           title: "片段二",
           scene_summary: "场景二",
           duration_secs: 6,
@@ -355,6 +537,8 @@ describe("segment cards and recipes", () => {
         },
         {
           segment_number: 1,
+          source_shot_id: "shot-1",
+          segment_index_in_shot: 1,
           title: "片段一",
           scene_summary: "场景一",
           duration_secs: 6,
@@ -473,6 +657,16 @@ describe("segment cards and recipes", () => {
       41,
     );
   });
+
+  it("does not expose a legacy plan without stable segment identities", () => {
+    const prompt = planPrompt();
+    const metadata = prompt.metadata_json as Record<string, unknown>;
+    const identity = metadata.video_execution_identity as Record<string, unknown>;
+    delete identity.segment_identities;
+    expect(
+      latestVideoSegmentPlanPrompt([prompt], "source-current"),
+    ).toBeNull();
+  });
 });
 
 describe("video segment recipe fingerprints", () => {
@@ -526,5 +720,11 @@ describe("video segment recipe fingerprints", () => {
     expect(videoSegmentRecipeGenerationFingerprintJson(recipe)).toBe(
       videoSegmentRecipeGenerationFingerprintJson(canonicalOrderRecipe),
     );
+    expect(
+      videoSegmentRecipeGenerationFingerprintJson({
+        ...recipe,
+        segment_number: recipe.segment_number + 1,
+      }),
+    ).toBe(videoSegmentRecipeGenerationFingerprintJson(recipe));
   });
 });

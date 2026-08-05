@@ -7,8 +7,8 @@ use std::{
 use a4n_media::{
     VideoAssemblyClip, VideoAssemblyRequest, VideoPostprocessOperation, VideoPostprocessRequest,
     assemble_videos, check_ffmpeg_available, extract_video_frame, extract_video_tail_frame,
-    generate_video_thumbnail, postprocess_video, probe_audio_duration_secs, probe_video_has_audio,
-    probe_video_properties, trim_video_segment,
+    generate_video_scrub_proxy, generate_video_thumbnail, postprocess_video,
+    probe_audio_duration_secs, probe_video_has_audio, probe_video_properties, trim_video_segment,
 };
 
 #[test]
@@ -51,6 +51,7 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
     let inserted = temp_dir.join("inserted.mp4");
     let deleted = temp_dir.join("deleted.mp4");
     let replaced = temp_dir.join("replaced.mp4");
+    let scrub_proxy = temp_dir.join("scrub-proxy.mp4");
 
     create_fixture_video(&input, true);
     create_fixture_video(&silent_input, false);
@@ -58,6 +59,21 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
     extract_video_frame(&input, &frame, 0.2).expect("extract fixture frame");
     extract_video_tail_frame(&input, &tail).expect("extract fixture tail frame");
     generate_video_thumbnail(&input, &thumbnail).expect("generate fixture thumbnail");
+    generate_video_scrub_proxy(&input, &scrub_proxy).expect("generate scrub proxy");
+    assert!(
+        probe_video_has_audio(&scrub_proxy).expect("probe scrub proxy audio"),
+        "scrub proxy should preserve source audio"
+    );
+    let input_properties = probe_video_properties(&input).expect("probe scrub source properties");
+    let scrub_properties =
+        probe_video_properties(&scrub_proxy).expect("probe scrub proxy properties");
+    assert_eq!(
+        (scrub_properties.width, scrub_properties.height),
+        (input_properties.width, input_properties.height),
+        "scrub proxy should preserve source resolution"
+    );
+    assert_webkit_compatible_codec(&scrub_proxy);
+    assert_keyframe_gap(&scrub_proxy, 0.2);
     let assembly_clips = [
         VideoAssemblyClip {
             path: &input,
@@ -139,6 +155,8 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
         (1.2..=1.8).contains(&replaced_duration),
         "replaced output duration should exchange the selected range: {replaced_duration}"
     );
+    assert_keyframe_gap(&assembled, 1.1);
+    assert_keyframe_gap(&inserted, 1.1);
 
     for output in [
         &input,
@@ -151,6 +169,7 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
         &inserted,
         &deleted,
         &replaced,
+        &scrub_proxy,
     ] {
         let metadata = std::fs::metadata(output)
             .unwrap_or_else(|error| panic!("read {} metadata: {error}", output.display()));
@@ -162,6 +181,81 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
     }
 
     std::fs::remove_dir_all(&temp_dir).expect("remove FFmpeg smoke directory");
+}
+
+fn assert_keyframe_gap(path: &Path, max_gap_secs: f32) {
+    let output = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-skip_frame",
+            "nokey",
+            "-show_entries",
+            "frame=best_effort_timestamp_time",
+            "-of",
+            "csv=p=0",
+        ])
+        .arg(path)
+        .output()
+        .expect("start FFprobe keyframe inspection");
+    assert!(
+        output.status.success(),
+        "inspect {} keyframes: {}",
+        path.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let keyframes = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.trim().trim_end_matches(',').parse::<f32>().ok())
+        .collect::<Vec<_>>();
+    assert!(
+        keyframes.len() >= 2,
+        "{} should contain at least two keyframes: {keyframes:?}",
+        path.display()
+    );
+    assert!(
+        keyframes
+            .windows(2)
+            .all(|pair| pair[1] - pair[0] <= max_gap_secs),
+        "{} keyframes should be no more than {max_gap_secs}s apart: {keyframes:?}",
+        path.display()
+    );
+}
+
+fn assert_webkit_compatible_codec(path: &Path) {
+    let output = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=profile,has_b_frames",
+            "-of",
+            "default=nw=1",
+        ])
+        .arg(path)
+        .output()
+        .expect("start FFprobe scrub codec inspection");
+    assert!(
+        output.status.success(),
+        "inspect {} scrub codec: {}",
+        path.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let details = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        details.lines().any(|line| line.trim() == "profile=Main"),
+        "{} should use the H.264 Main profile: {details}",
+        path.display()
+    );
+    assert!(
+        details.lines().any(|line| line.trim() == "has_b_frames=0"),
+        "{} should not use B frames: {details}",
+        path.display()
+    );
 }
 
 fn postprocess_request<'a>(

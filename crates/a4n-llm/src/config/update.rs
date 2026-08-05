@@ -7,7 +7,7 @@ use a4n_core::{
 use super::{
     contracts::{NormalizedLlmConfig, UpdateLlmConfigInput},
     limits::ensure_output_tokens_below_context,
-    validation::{normalize_llm_base_url, normalize_llm_request_options_json},
+    validation::{normalize_llm_base_url, normalize_llm_extra_body_json},
 };
 
 mod resolution;
@@ -28,7 +28,7 @@ pub fn normalize_update_llm_config_input(
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
-        request_options_json,
+        extra_body_json,
     } = resolve_update_llm_config_input(cfg, input);
     let name = normalize_config_name(&name, "LLM配置")?;
     let provider = required_config_value(&provider, "LLM配置", "provider")?;
@@ -38,7 +38,7 @@ pub fn normalize_update_llm_config_input(
     let timeout_secs = positive_i32(timeout_secs, "LLM配置 timeout_secs")?;
     let max_context_tokens = positive_i32(max_context_tokens, "LLM配置 max_context_tokens")?;
     let max_output_tokens = positive_i32(max_output_tokens, "LLM配置 max_output_tokens")?;
-    let request_options_json = normalize_llm_request_options_json(request_options_json)?;
+    let extra_body_json = normalize_llm_extra_body_json(extra_body_json)?;
     ensure_output_tokens_below_context(max_output_tokens, max_context_tokens)?;
     Ok(NormalizedLlmConfig {
         name,
@@ -50,6 +50,6 @@ pub fn normalize_update_llm_config_input(
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
-        request_options_json,
+        extra_body_json,
     })
 }

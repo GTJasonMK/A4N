@@ -1,6 +1,6 @@
 import type {
   ProgressMeta,
-  ProgressPhaseKind,
+  ProgressDisplayPhase,
   ProgressSnapshot,
   ProgressStatus,
 } from "../api/progress";
@@ -13,7 +13,7 @@ export interface ProgressDisplayModel {
   countLabel: string | null;
   etaMode: "hidden" | "rough" | "linear";
   tone: "default" | "success" | "warning" | "danger";
-  phaseKind: ProgressPhaseKind | null;
+  phaseKind: ProgressDisplayPhase | null;
 }
 
 interface ProgressPresentationInput extends Partial<ProgressSnapshot> {
@@ -23,8 +23,8 @@ interface ProgressPresentationInput extends Partial<ProgressSnapshot> {
   streamText?: string | null;
 }
 
-const LINEAR_PHASES = new Set<ProgressPhaseKind>(["transfer"]);
-const MODEL_PHASES = new Set<ProgressPhaseKind>([
+const LINEAR_PHASES = new Set<ProgressDisplayPhase>(["transfer"]);
+const MODEL_PHASES = new Set<ProgressDisplayPhase>([
   "model_connect",
   "model_wait",
   "model_stream",

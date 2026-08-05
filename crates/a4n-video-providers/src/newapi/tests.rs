@@ -1,6 +1,6 @@
 use super::provider::NewApiVideoProvider;
 use super::response::{extract_status, extract_task_id, find_video_url};
-use a4n_video::VideoGenerationRequest;
+use a4n_video::{VideoGenerationRequest, VideoMediaInput};
 use serde_json::json;
 
 fn request() -> VideoGenerationRequest {
@@ -12,10 +12,7 @@ fn request() -> VideoGenerationRequest {
         duration_secs: 5,
         fps: 24,
         model: "grok-imagine-video".into(),
-        first_frame_image_url: None,
-        last_frame_image_url: None,
-        reference_image_urls: Vec::new(),
-        reference_media: None,
+        media: VideoMediaInput::None,
     }
 }
 
@@ -38,8 +35,8 @@ fn builds_newapi_request_body() {
 #[test]
 fn rejects_material_reference_images_instead_of_dropping_them() {
     let mut req = request();
-    req.reference_image_urls
-        .push("data:image/png;base64,def".into());
+    req.media =
+        VideoMediaInput::from_images(None, None, vec!["data:image/png;base64,def".into()]).unwrap();
 
     let err = NewApiVideoProvider::request_body(&req)
         .expect_err("newapi must reject unsupported reference images");
@@ -51,8 +48,12 @@ fn rejects_material_reference_images_instead_of_dropping_them() {
 #[test]
 fn rejects_tail_frame_instead_of_dropping_it() {
     let mut req = request();
-    req.first_frame_image_url = Some("data:image/png;base64,start".into());
-    req.last_frame_image_url = Some("data:image/png;base64,end".into());
+    req.media = VideoMediaInput::from_images(
+        Some("data:image/png;base64,start".into()),
+        Some("data:image/png;base64,end".into()),
+        Vec::new(),
+    )
+    .unwrap();
 
     let err = NewApiVideoProvider::request_body(&req)
         .expect_err("newapi must reject unsupported tail frame");
@@ -63,7 +64,9 @@ fn rejects_tail_frame_instead_of_dropping_it() {
 #[test]
 fn uses_first_frame_image() {
     let mut req = request();
-    req.first_frame_image_url = Some("data:image/png;base64,start".into());
+    req.media =
+        VideoMediaInput::from_images(Some("data:image/png;base64,start".into()), None, Vec::new())
+            .unwrap();
 
     let body = NewApiVideoProvider::request_body(&req).expect("valid body");
 
@@ -74,7 +77,9 @@ fn uses_first_frame_image() {
 fn model_names_do_not_change_newapi_request_fields() {
     let mut req = request();
     req.model = "veo-3.1-generate-preview".into();
-    req.first_frame_image_url = Some("data:image/png;base64,start".into());
+    req.media =
+        VideoMediaInput::from_images(Some("data:image/png;base64,start".into()), None, Vec::new())
+            .unwrap();
 
     let body = NewApiVideoProvider::request_body(&req).expect("valid body");
 
