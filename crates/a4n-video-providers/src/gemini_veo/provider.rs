@@ -12,7 +12,7 @@ use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, Vi
 
 use crate::download::download_video_url_with_api_key;
 use crate::format::detect_video_format_from_bytes;
-use crate::response::{parse_json_response, parse_json_response_allow_not_found};
+use crate::transport::{self, ApiKeyAuth};
 
 pub struct GeminiVeoVideoProvider {
     base_url: String,
@@ -81,7 +81,9 @@ impl GeminiVeoVideoProvider {
     }
 
     pub fn request_body_preview(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        Self::request_body_with_image_mapper(req, image_inline_data_preview)
+        Self::request_body_with_image_mapper(req, |raw, label| {
+            Ok(image_inline_data_preview(raw, label))
+        })
     }
 
     fn request_body_with_image_mapper(
@@ -146,51 +148,6 @@ impl GeminiVeoVideoProvider {
             "instances": [Value::Object(instance)],
             "parameters": Value::Object(parameters),
         }))
-    }
-
-    async fn send_json(
-        &self,
-        url: &str,
-        body: Value,
-        provider_idempotency_key_sha256: Option<&str>,
-    ) -> Result<Value, AppError> {
-        let mut req = self.client.post(url).json(&body);
-        if !self.api_key.is_empty() {
-            req = req.header("x-goog-api-key", &self.api_key);
-        }
-        let req = crate::idempotency::with_provider_idempotency_key(
-            req,
-            provider_idempotency_key_sha256,
-        )?;
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Gemini Veo 视频生成请求失败：{e}")))?;
-        parse_json_response(resp, "Gemini Veo 视频生成").await
-    }
-
-    async fn get_json(&self, url: &str) -> Result<Value, AppError> {
-        let mut req = self.client.get(url);
-        if !self.api_key.is_empty() {
-            req = req.header("x-goog-api-key", &self.api_key);
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Gemini Veo 任务查询失败：{e}")))?;
-        parse_json_response(resp, "Gemini Veo 任务查询").await
-    }
-
-    async fn get_status_json(&self, url: &str) -> Result<Option<Value>, AppError> {
-        let mut req = self.client.get(url);
-        if !self.api_key.is_empty() {
-            req = req.header("x-goog-api-key", &self.api_key);
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Gemini Veo 任务状态查询失败：{e}")))?;
-        parse_json_response_allow_not_found(resp, "Gemini Veo 任务状态查询").await
     }
 
     async fn decode_completed(&self, v: &Value) -> Result<VideoGenerationResult, AppError> {
@@ -259,9 +216,16 @@ impl VideoProvider for GeminiVeoVideoProvider {
             req.media.last_frame().is_some(),
             req.media.reference_images().len()
         );
-        let v = self
-            .send_json(&url, body, provider_idempotency_key_sha256)
-            .await?;
+        let v = transport::post_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::TrimmedHeader("x-goog-api-key"),
+            &url,
+            &body,
+            provider_idempotency_key_sha256,
+            "Gemini Veo 视频生成",
+        )
+        .await?;
         let operation_name = required_operation_name(&v)?;
         Ok(VideoGenerationResult {
             bytes: Vec::new(),
@@ -278,7 +242,14 @@ impl VideoProvider for GeminiVeoVideoProvider {
             ));
         }
         let url = self.operation_url(job_id)?;
-        let v = self.get_json(&url).await?;
+        let v = transport::get_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::TrimmedHeader("x-goog-api-key"),
+            &url,
+            "Gemini Veo 任务查询",
+        )
+        .await?;
         if let Some(message) = operation_error_message(&v) {
             return Ok(VideoJobState::Failed(message));
         }
@@ -294,7 +265,14 @@ impl VideoProvider for GeminiVeoVideoProvider {
                 "Gemini Veo 视频配置缺少 api_key".into(),
             ));
         }
-        let value = self.get_status_json(&self.operation_url(job_id)?).await?;
+        let value = transport::get_status_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::TrimmedHeader("x-goog-api-key"),
+            &self.operation_url(job_id)?,
+            "Gemini Veo 任务状态查询",
+        )
+        .await?;
         let Some(value) = value else {
             return Ok(a4n_video::VideoJobStatus::NotFound);
         };

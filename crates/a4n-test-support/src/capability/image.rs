@@ -80,11 +80,6 @@ impl CapabilityClient for RecordingImageClient {
 
 #[async_trait]
 impl ImageClient for RecordingImageClient {
-    async fn generate(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.state.generate_requests.record(request);
-        Err(unexpected_call("RecordingImageClient", "generate"))
-    }
-
     async fn generate_events(
         &self,
         request: JsonRequest,

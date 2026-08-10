@@ -1,16 +1,20 @@
 //! Galgame 领域 runtime 窄 facade。
 
+use a4n_api_contract::export::ExportFileData;
+use a4n_api_contract::galgame::{
+    BindGalgameMediaInput, GalgameAssetGenerationSummary, GalgameAssetPlan, GalgameChoice,
+    GalgameLine, GalgameMediaBindingSummary, GalgameScene, GalgameScriptDetail,
+    ImportGalgameAudioInput, InsertGalgameLineInput, ReorderGalgameLinesInput,
+    RunGalgameAssetGenerationInput, UnbindGalgameMediaInput, UpdateGalgameChoicesInput,
+    UpdateGalgameLineInput, UpdateGalgameSceneInput,
+};
 use a4n_core::error::AppError;
-use a4n_core::models::galgame::{galgame_choice, galgame_line, galgame_scene};
+use a4n_domain::galgame::GalgamePipelineStartStage;
 use a4n_orchestrator::{
     OrchestratorContext,
     galgame::{
-        BindGalgameMediaInput, GalgameAssetGenerationHostPort, GalgameAssetPlan,
-        GalgameAudioHostPort, GalgameMediaBindingResult, GalgamePipelineApplicationInput,
-        GalgamePipelineStatusReadModel, GalgameScriptDetail, ImportGalgameAudioInput,
-        InsertGalgameLineInput, ReorderGalgameLinesInput, UnbindGalgameMediaInput,
-        UpdateGalgameChoicesInput, UpdateGalgameLineInput, UpdateGalgameSceneInput,
-        WebgalExportHostPort,
+        GalgameAssetGenerationHostPort, GalgamePipelineApplicationInput,
+        GalgamePipelineStatusReadModel,
     },
 };
 use a4n_prompt::rendering::PromptRenderer;
@@ -48,8 +52,8 @@ impl<'a> GalgameRuntimeFacade<'a> {
         &self,
         host_port: &dyn GalgameAssetGenerationHostPort,
         user_id: i64,
-        input: a4n_orchestrator::galgame::GalgameAssetGenerationApplicationInput,
-    ) -> Result<a4n_orchestrator::galgame::GalgameAssetGenerationApplicationSummary, AppError> {
+        input: RunGalgameAssetGenerationInput,
+    ) -> Result<GalgameAssetGenerationSummary, AppError> {
         self.orchestrator
             .run_galgame_asset_generation_for_user_validated(host_port, user_id, input)
             .await
@@ -91,7 +95,7 @@ impl<'a> GalgameRuntimeFacade<'a> {
         user_id: i64,
         project_id: i64,
         input: InsertGalgameLineInput,
-    ) -> Result<galgame_line::Model, AppError> {
+    ) -> Result<GalgameLine, AppError> {
         self.orchestrator
             .insert_galgame_line_for_user_validated(user_id, project_id, input)
             .await
@@ -102,7 +106,7 @@ impl<'a> GalgameRuntimeFacade<'a> {
         user_id: i64,
         project_id: i64,
         input: UpdateGalgameLineInput,
-    ) -> Result<galgame_line::Model, AppError> {
+    ) -> Result<GalgameLine, AppError> {
         self.orchestrator
             .update_galgame_line_for_user_validated(user_id, project_id, input)
             .await
@@ -113,7 +117,7 @@ impl<'a> GalgameRuntimeFacade<'a> {
         user_id: i64,
         project_id: i64,
         input: UpdateGalgameSceneInput,
-    ) -> Result<galgame_scene::Model, AppError> {
+    ) -> Result<GalgameScene, AppError> {
         self.orchestrator
             .update_galgame_scene_for_user_validated(user_id, project_id, input)
             .await
@@ -124,7 +128,7 @@ impl<'a> GalgameRuntimeFacade<'a> {
         user_id: i64,
         project_id: i64,
         input: UpdateGalgameChoicesInput,
-    ) -> Result<Vec<galgame_choice::Model>, AppError> {
+    ) -> Result<Vec<GalgameChoice>, AppError> {
         self.orchestrator
             .update_galgame_choices_for_user_validated(user_id, project_id, input)
             .await
@@ -135,7 +139,7 @@ impl<'a> GalgameRuntimeFacade<'a> {
         user_id: i64,
         project_id: i64,
         input: ReorderGalgameLinesInput,
-    ) -> Result<Vec<galgame_line::Model>, AppError> {
+    ) -> Result<Vec<GalgameLine>, AppError> {
         self.orchestrator
             .reorder_galgame_lines_for_user_validated(user_id, project_id, input)
             .await
@@ -156,7 +160,7 @@ impl<'a> GalgameRuntimeFacade<'a> {
         &self,
         user_id: i64,
         project_id: i64,
-        start_from_stage: Option<&str>,
+        start_from_stage: Option<GalgamePipelineStartStage>,
         resume_from_checkpoint: bool,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<a4n_orchestrator::galgame::GalgamePipelinePreviewRequest>, AppError> {
@@ -173,12 +177,11 @@ impl<'a> GalgameRuntimeFacade<'a> {
 
     pub(crate) async fn run_export_galgame_webgal_for_user_validated(
         &self,
-        host_port: &dyn WebgalExportHostPort,
         user_id: i64,
         project_id: i64,
-    ) -> Result<a4n_orchestrator::export::ExportFileData, AppError> {
+    ) -> Result<ExportFileData, AppError> {
         self.orchestrator
-            .run_export_galgame_webgal_for_user_validated(host_port, user_id, project_id)
+            .run_export_galgame_webgal_for_user_validated(user_id, project_id)
             .await
     }
 
@@ -186,7 +189,7 @@ impl<'a> GalgameRuntimeFacade<'a> {
         &self,
         user_id: i64,
         input: BindGalgameMediaInput,
-    ) -> Result<GalgameMediaBindingResult, AppError> {
+    ) -> Result<GalgameMediaBindingSummary, AppError> {
         self.orchestrator
             .bind_galgame_media_for_user_validated(user_id, input)
             .await
@@ -204,12 +207,11 @@ impl<'a> GalgameRuntimeFacade<'a> {
 
     pub(crate) async fn import_galgame_audio_for_user_validated(
         &self,
-        host_port: &dyn GalgameAudioHostPort,
         user_id: i64,
         input: ImportGalgameAudioInput,
-    ) -> Result<GalgameMediaBindingResult, AppError> {
+    ) -> Result<GalgameMediaBindingSummary, AppError> {
         self.orchestrator
-            .import_galgame_audio_for_user_validated(host_port, user_id, input)
+            .import_galgame_audio_for_user_validated(user_id, input)
             .await
     }
 }

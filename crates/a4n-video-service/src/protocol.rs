@@ -23,6 +23,13 @@ pub(crate) fn validate_video_provider_request(
     request: &ServiceRequest<VideoProviderPayload>,
 ) -> Result<(), ServiceError> {
     validate_service_request(request)?;
+    request
+        .payload
+        .request
+        .validate_dimensions()
+        .map_err(|error| {
+            ServiceError::non_retryable(ServiceErrorCode::ConfigurationError, error.to_string())
+        })?;
     validate_provider_secret_policy(&request.payload.api_key, request)?;
     validate_project_scope(request.payload.project_id, request.project_id, "generation")?;
     a4n_video::validate_video_provider_idempotency_key(

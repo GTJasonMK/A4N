@@ -61,20 +61,14 @@ pub async fn restore_blueprint_version_record(
     restore_blueprint_character_snapshot_record(
         &txn,
         project_id,
-        version
-            .characters_snapshot
-            .as_ref()
-            .or_else(|| data.get("characters")),
+        data.get("characters"),
         now,
     )
     .await?;
     restore_blueprint_relationship_snapshot_record(
         &txn,
         project_id,
-        version
-            .relationships_snapshot
-            .as_ref()
-            .or_else(|| data.get("relationships")),
+        data.get("relationships"),
         now,
     )
     .await?;

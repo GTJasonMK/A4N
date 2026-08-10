@@ -69,22 +69,22 @@ export async function updateEmbeddingConfig(
   });
 }
 
-export async function testEmbeddingConfig(configId: Id): Promise<boolean> {
+export async function testEmbeddingConfig(configId: Id): Promise<void> {
   if (usesLocalRuntimeSettings()) {
     const id = idNum(configId, "Embedding 配置 ID");
     if (canUseLocalDesktopEmbedding()) {
-      return runtimeInvoke<boolean>("local_test_embedding_config", {
+      return runtimeInvoke<void>("local_test_embedding_config", {
         input: getLocalEmbeddingConfig(id),
       });
     }
-    return apiInvoke<boolean>("test_embedding_config", {
+    return apiInvoke<void>("test_embedding_config", {
       configId: id,
       runtime_config_snapshot: buildRuntimeConfigSnapshot({
         embedding: getLocalEmbeddingConfig(id),
       }),
     });
   }
-  return apiInvoke<boolean>("test_embedding_config", {
+  return apiInvoke<void>("test_embedding_config", {
     configId: idNum(configId, "Embedding 配置 ID"),
   });
 }

@@ -1,3 +1,5 @@
+use a4n_prompt::contracts::{PromptEmptyPayload, PromptRenderPayload};
+use a4n_service_protocol::ServiceRequest;
 use a4n_test_support::process::{
     HttpPromptClient, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PromptClient,
     SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
@@ -9,6 +11,19 @@ use a4n_test_support::process::{
     sidecar_base_url, sidecar_manager_with_dir, start_sidecar, trusted_remote_request_context,
     unused_local_addr,
 };
+use serde::de::DeserializeOwned;
+
+fn typed_request<T: DeserializeOwned>(
+    request: a4n_test_support::process::JsonRequest,
+) -> ServiceRequest<T> {
+    let (context, capability_version, payload) = request.into_context_and_payload();
+    context
+        .with_payload(
+            capability_version,
+            serde_json::from_value(payload).expect("test payload must match the typed contract"),
+        )
+        .expect("typed test request context should be valid")
+}
 
 fn run_prompt_git_command(command: &str, git_dir: &std::path::Path, backup_dir: &std::path::Path) {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_a4n-prompt-service"))
@@ -77,11 +92,17 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
     assert_route_accepts_unknown_envelope_field(&sidecar_base_url(addr), "/prompt/list", &request)
         .await;
     let response = client
-        .list(request)
+        .list(typed_request::<PromptEmptyPayload>(request))
         .await
         .expect("typed prompt list should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
-    assert!(response.payload.expect("prompt list payload")["prompts"].is_array());
+    assert!(
+        !response
+            .payload
+            .expect("prompt list payload")
+            .prompts
+            .is_empty()
+    );
 
     let render_request = trusted_remote_request_context(
         "prompt-process-render",
@@ -93,7 +114,8 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
                 "chapter_word_count_range": "10-20 字",
                 "chapter_word_count_min": 10,
                 "chapter_word_count_max": 20
-            }
+            },
+            "project_id": null
         }),
     );
     assert_route_rejects_unknown_payload_field(
@@ -104,38 +126,44 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
     .await;
     disconnect_during_request_body(addr, "/prompt/render").await;
     let rendered = client
-        .render(render_request)
+        .render(typed_request::<PromptRenderPayload>(render_request))
         .await
         .expect("typed prompt render should recover after a client disconnect");
     assert_eq!(rendered.status, ServiceStatus::Ok);
-    assert!(rendered.payload.expect("render payload")["rendered"].is_string());
+    assert!(
+        !rendered
+            .payload
+            .expect("render payload")
+            .rendered
+            .is_empty()
+    );
 
     let validated = client
-        .validate(request_context(
+        .validate(typed_request(request_context(
             "prompt-process-validate",
             "prompt-process-validate-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({"template_name": "writing", "variables": []}),
-        ))
+        )))
         .await
         .expect("prompt validate should cross the independent process");
     assert_eq!(validated.status, ServiceStatus::Ok);
-    assert!(validated.payload.expect("validate payload")["missing"].is_array());
+    let _ = validated.payload.expect("validate payload").missing;
 
     let missing = client
-        .get(request_context(
+        .get(typed_request(request_context(
             "prompt-process-missing",
             "prompt-process-missing-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({"name": "missing-process-prompt"}),
-        ))
+        )))
         .await
         .expect("missing prompt should return a typed error response");
     assert_eq!(missing.status, ServiceStatus::Error);
     assert!(missing.error.is_some());
 
     let update = client
-        .update(request_context(
+        .update(typed_request(request_context(
             "prompt-process-update",
             "prompt-process-update-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
@@ -144,35 +172,41 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
                 "content": "Prompt Git backup sentinel {{ chapter_title }}",
                 "author": "process-test"
             }),
-        ))
+        )))
         .await
         .expect("prompt update should be persisted before backup");
     assert_eq!(update.status, ServiceStatus::Ok);
-    let updated_version = update.payload.as_ref().expect("updated prompt payload")["version"]
-        .as_str()
-        .expect("updated prompt version")
-        .to_string();
+    let updated_version = update
+        .payload
+        .as_ref()
+        .expect("updated prompt payload")
+        .version
+        .clone();
 
     let rendered_updated = client
-        .render(request_context(
+        .render(typed_request(request_context(
             "prompt-process-render-updated",
             "prompt-process-render-updated-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({
                 "template_name": "writing",
-                "variables": {"chapter_title": "恢复哨兵"}
+                "variables": {"chapter_title": "恢复哨兵"},
+                "project_id": null
             }),
-        ))
+        )))
         .await
         .expect("updated prompt should render");
     assert_eq!(rendered_updated.status, ServiceStatus::Ok);
     assert_eq!(
-        rendered_updated.payload.expect("updated render payload")["rendered"],
+        rendered_updated
+            .payload
+            .expect("updated render payload")
+            .rendered,
         "Prompt Git backup sentinel 恢复哨兵"
     );
 
     let render_ab = client
-        .render_ab(request_context(
+        .render_ab(typed_request(request_context(
             "prompt-process-render-ab",
             "prompt-process-render-ab-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
@@ -183,48 +217,40 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
                     "chapter_word_count_range": "10-20 字",
                     "chapter_word_count_min": 10,
                     "chapter_word_count_max": 20
-                }
+                },
+                "project_id": null
             }),
-        ))
+        )))
         .await
         .expect("prompt render_ab should cross the independent process");
     assert_eq!(render_ab.status, ServiceStatus::Ok);
     let render_ab_payload = render_ab.payload.expect("render_ab payload");
     assert_eq!(
-        render_ab_payload["version_a"],
+        render_ab_payload.version_a,
         "Prompt Git backup sentinel A/B 哨兵"
     );
-    assert_ne!(
-        render_ab_payload["version_a"],
-        render_ab_payload["version_b"]
-    );
+    assert_ne!(render_ab_payload.version_a, render_ab_payload.version_b);
 
     let history = client
-        .version_history(request_context(
+        .version_history(typed_request(request_context(
             "prompt-process-history",
             "prompt-process-history-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({"name": "writing"}),
-        ))
+        )))
         .await
         .expect("prompt version history should cross the independent process");
     assert_eq!(history.status, ServiceStatus::Ok);
-    assert!(history.payload.expect("version history payload")["versions"].is_array());
-
-    let original = client
-        .get_version(request_context(
-            "prompt-process-version-get",
-            "prompt-process-version-get-trace",
-            PROMPT_RENDER_CAPABILITY_VERSION,
-            serde_json::json!({"name": "writing", "version": "1.0"}),
-        ))
-        .await
-        .expect("prompt version_get should cross the independent process");
-    assert_eq!(original.status, ServiceStatus::Ok);
-    assert!(original.payload.expect("version_get payload")["content"].is_string());
+    assert!(
+        !history
+            .payload
+            .expect("version history payload")
+            .versions
+            .is_empty()
+    );
 
     let diff = client
-        .diff(request_context(
+        .diff(typed_request(request_context(
             "prompt-process-version-diff",
             "prompt-process-version-diff-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
@@ -233,14 +259,14 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
                 "version_a": "1.0",
                 "version_b": updated_version
             }),
-        ))
+        )))
         .await
         .expect("prompt version diff should cross the independent process");
     assert_eq!(diff.status, ServiceStatus::Ok);
-    assert!(diff.payload.expect("version diff payload")["diff"].is_string());
+    assert!(!diff.payload.expect("version diff payload").diff.is_empty());
 
     let override_set = client
-        .set_project_override(request_context(
+        .set_project_override(typed_request(request_context(
             "prompt-process-override-set",
             "prompt-process-override-set-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
@@ -249,12 +275,12 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
                 "name": "writing",
                 "content": "Override {{ chapter_title }}"
             }),
-        ))
+        )))
         .await
         .expect("prompt project override should cross the independent process");
     assert_eq!(override_set.status, ServiceStatus::Ok);
     let overridden = client
-        .render(request_context(
+        .render(typed_request(request_context(
             "prompt-process-override-render",
             "prompt-process-override-render-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
@@ -263,38 +289,27 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
                 "project_id": 42,
                 "variables": {"chapter_title": "覆盖哨兵"}
             }),
-        ))
+        )))
         .await
         .expect("project override should affect prompt rendering");
     assert_eq!(overridden.status, ServiceStatus::Ok);
     assert_eq!(
-        overridden.payload.expect("override render payload")["rendered"],
+        overridden
+            .payload
+            .expect("override render payload")
+            .rendered,
         "Override 覆盖哨兵"
     );
     let override_removed = client
-        .remove_project_override(request_context(
+        .remove_project_override(typed_request(request_context(
             "prompt-process-override-remove",
             "prompt-process-override-remove-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({"project_id": 42, "name": "writing"}),
-        ))
+        )))
         .await
         .expect("prompt project override removal should cross the process");
     assert_eq!(override_removed.status, ServiceStatus::Ok);
-
-    let dependency_graph = client
-        .dependency_graph(request_context(
-            "prompt-process-dependency-graph",
-            "prompt-process-dependency-graph-trace",
-            PROMPT_RENDER_CAPABILITY_VERSION,
-            serde_json::json!({}),
-        ))
-        .await
-        .expect("prompt dependency graph should cross the independent process");
-    assert_eq!(dependency_graph.status, ServiceStatus::Ok);
-    assert!(
-        dependency_graph.payload.expect("dependency graph payload")["graph"]["nodes"].is_array()
-    );
 
     finish_sidecar(process, &manager, PROMPT_SERVICE_NAME, addr).await;
 
@@ -305,38 +320,43 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
     run_prompt_git_command("restore", &git_dir, &backup_dir);
 
     let restored_process = start_sidecar(&manager, PROMPT_SERVICE_NAME).await;
-    let restored = client
-        .get(request_context(
+    let restored_client =
+        HttpPromptClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN);
+    let restored = restored_client
+        .get(typed_request(request_context(
             "prompt-process-restored-get",
             "prompt-process-restored-get-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({"name": "writing"}),
-        ))
+        )))
         .await
         .expect("restored prompt should be readable");
     assert_eq!(restored.status, ServiceStatus::Ok);
     assert_eq!(
-        restored.payload.expect("restored prompt payload")["content"],
-        serde_json::json!("Prompt Git backup sentinel {{ chapter_title }}")
+        restored.payload.expect("restored prompt payload").content,
+        "Prompt Git backup sentinel {{ chapter_title }}"
     );
     force_finish_sidecar(restored_process, &manager, PROMPT_SERVICE_NAME, addr).await;
 
     let force_kill_recovered = start_sidecar(&manager, PROMPT_SERVICE_NAME).await;
-    let recovered_after_kill = client
-        .get(request_context(
+    let recovered_client =
+        HttpPromptClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN);
+    let recovered_after_kill = recovered_client
+        .get(typed_request(request_context(
             "prompt-process-force-kill-get",
             "prompt-process-force-kill-get-trace",
             PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({"name": "writing"}),
-        ))
+        )))
         .await
         .expect("prompt Git should reopen after a forced process stop");
     assert_eq!(recovered_after_kill.status, ServiceStatus::Ok);
     assert_eq!(
         recovered_after_kill
             .payload
-            .expect("force-kill prompt payload")["content"],
-        serde_json::json!("Prompt Git backup sentinel {{ chapter_title }}")
+            .expect("force-kill prompt payload")
+            .content,
+        "Prompt Git backup sentinel {{ chapter_title }}"
     );
     finish_sidecar(force_kill_recovered, &manager, PROMPT_SERVICE_NAME, addr).await;
 

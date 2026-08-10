@@ -1,26 +1,26 @@
 import React from "react";
 import { ChevronRight } from "lucide-react";
-import { STATUS_FLOW, projectStatusIndex } from "./statusMachineUtils";
+import type { ProjectStatus } from "../../api/project";
+import { PROJECT_STATUSES, getProjectStatusText } from "../../utils/projectStatus";
 
 interface StatusFlowViewProps {
-  currentStatus: string;
+  currentStatus: ProjectStatus;
 }
 
 export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus }) => {
-  const currentIndex = projectStatusIndex(currentStatus);
-  const currentStep = currentIndex >= 0 ? STATUS_FLOW[currentIndex] : null;
-  const completedSteps = currentIndex >= 0 ? currentIndex + 1 : 0;
-  const progress = STATUS_FLOW.length > 0 ? (completedSteps / STATUS_FLOW.length) * 100 : 0;
+  const currentIndex = PROJECT_STATUSES.indexOf(currentStatus);
+  const completedSteps = currentIndex + 1;
+  const progress = (completedSteps / PROJECT_STATUSES.length) * 100;
 
   return (
     <section className="a4n-context-bar !block">
       <div className="flex min-w-0 items-baseline gap-2">
         <span className="text-caption text-book-text-muted">当前阶段</span>
         <strong className="truncate text-sm font-semibold text-book-text-main">
-          {currentStep?.label ?? "未知阶段"}
+          {getProjectStatusText(currentStatus)}
         </strong>
         <span className="ml-auto shrink-0 text-caption tabular-nums text-book-text-muted">
-          {completedSteps} / {STATUS_FLOW.length}
+          {completedSteps} / {PROJECT_STATUSES.length}
         </span>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-book-bg-tertiary">
@@ -42,11 +42,11 @@ export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus })
           aria-label="完整项目阶段流程"
         >
           <ol className="flex min-w-max flex-nowrap items-baseline gap-x-1.5 leading-relaxed">
-            {STATUS_FLOW.map((step, index) => {
+            {PROJECT_STATUSES.map((status, index) => {
               const isCurrent = currentIndex === index;
               const isPast = currentIndex > index;
               return (
-                <React.Fragment key={step.id}>
+                <React.Fragment key={status}>
                   <li
                     aria-current={isCurrent ? "step" : undefined}
                     className={`shrink-0 border-b py-0.5 transition-colors ${
@@ -57,9 +57,9 @@ export const StatusFlowView: React.FC<StatusFlowViewProps> = ({ currentStatus })
                           : "border-transparent text-book-text-sub"
                     }`}
                   >
-                    {step.label}
+                    {getProjectStatusText(status)}
                   </li>
-                  {index < STATUS_FLOW.length - 1 ? (
+                  {index < PROJECT_STATUSES.length - 1 ? (
                     <span aria-hidden="true" className="shrink-0 text-book-border">
                       ·
                     </span>

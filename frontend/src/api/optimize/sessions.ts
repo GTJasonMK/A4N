@@ -1,13 +1,7 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { OptimizePatchSet, OptimizeSession, OptimizeTurn } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问优化会话");
-  return id;
-};
 
 export async function listOptimizeSessions(
   projectId: Id,

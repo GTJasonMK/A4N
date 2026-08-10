@@ -1,8 +1,7 @@
 use a4n_runtime::AppState;
-use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
 use a4n_runtime::host_api::manga_records::{
-    self as manga_records_actions, BindReferenceImageInput, MangaPromptSummary,
-    OptimizeMangaPromptInput, UpdateMangaPromptInput,
+    self as manga_records_actions, BindMangaReferenceImageInput, DeleteMangaPromptInput,
+    MangaChapterInput, MangaPromptSummary, OptimizeMangaPromptInput, UpdateMangaPromptInput,
 };
 use tauri::State;
 
@@ -10,17 +9,16 @@ use tauri::State;
 pub async fn list_manga_panels(
     state: State<'_, AppState>,
     user_id: i64,
-    project_id: i64,
-    chapter_id: i64,
+    input: MangaChapterInput,
 ) -> Result<Vec<MangaPromptSummary>, String> {
-    manga_records_actions::list_manga_panels(state.inner(), user_id, project_id, chapter_id).await
+    manga_records_actions::list_manga_panels(state.inner(), user_id, input).await
 }
 
 #[tauri::command]
 pub async fn bind_manga_reference_image(
     state: State<'_, AppState>,
     user_id: i64,
-    input: BindReferenceImageInput,
+    input: BindMangaReferenceImageInput,
 ) -> Result<MangaPromptSummary, String> {
     manga_records_actions::bind_manga_reference_image(state.inner(), user_id, input).await
 }
@@ -47,27 +45,16 @@ pub async fn optimize_manga_prompt(
 pub async fn delete_manga_by_chapter(
     state: State<'_, AppState>,
     user_id: i64,
-    project_id: i64,
-    chapter_id: i64,
+    input: MangaChapterInput,
 ) -> Result<(), String> {
-    manga_records_actions::delete_manga_by_chapter(state.inner(), user_id, project_id, chapter_id)
-        .await
+    manga_records_actions::delete_manga_by_chapter(state.inner(), user_id, input).await
 }
 
 #[tauri::command]
 pub async fn delete_manga_prompt(
     state: State<'_, AppState>,
     user_id: i64,
-    prompt_id: i64,
-    downstream_strategy: Option<String>,
+    input: DeleteMangaPromptInput,
 ) -> Result<(), String> {
-    let downstream_strategy =
-        DownstreamConflictStrategy::from_optional_str(downstream_strategy.as_deref())?;
-    manga_records_actions::delete_manga_prompt(
-        state.inner(),
-        user_id,
-        prompt_id,
-        downstream_strategy,
-    )
-    .await
+    manga_records_actions::delete_manga_prompt(state.inner(), user_id, input).await
 }

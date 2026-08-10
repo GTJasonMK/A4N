@@ -1,5 +1,5 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
 import type {
   GenerationTaskHandle,
@@ -11,12 +11,6 @@ import type {
   OptimizeSession,
   PrepareOptimizationAnalysisSessionInput,
 } from "./types";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法执行内容优化");
-  return id;
-};
 
 export async function createOptimizationChatSession(
   input: CreateOptimizationChatSessionInput,

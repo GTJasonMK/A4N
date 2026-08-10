@@ -71,7 +71,7 @@ fn load_defaults_failure_does_not_mutate_runtime_registry_or_entries() {
 
     let engine = TeraPromptEngine::from_directory(tmp.path()).unwrap();
     assert_eq!(engine.list_all().len(), 1);
-    assert!(engine.registry().read().get("broken").is_none());
+    assert!(engine.registry.read().get("broken").is_none());
 
     fs::write(
         tmp.path().join("broken.md"),
@@ -91,7 +91,7 @@ fn load_defaults_failure_does_not_mutate_runtime_registry_or_entries() {
 
     assert_eq!(engine.list_all().len(), 1);
     assert!(engine.get("broken").is_err());
-    assert!(engine.registry().read().get("broken").is_none());
+    assert!(engine.registry.read().get("broken").is_none());
 
     let mut vars = HashMap::new();
     vars.insert("name".into(), serde_json::json!("小明"));
@@ -241,9 +241,6 @@ fn missing_prompt_is_reported_as_not_found_across_engine_entrypoints() {
         engine
             .version_history("missing")
             .expect_err("version_history should fail"),
-        engine
-            .get_version("missing", "1.0")
-            .expect_err("get_version should fail"),
         engine
             .diff("missing", "1.0", "1.0")
             .expect_err("diff should fail"),

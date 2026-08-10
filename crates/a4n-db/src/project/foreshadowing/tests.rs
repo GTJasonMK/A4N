@@ -4,7 +4,10 @@ use serde_json::json;
 
 use super::{
     contracts::ForeshadowingAnalysisDraft,
-    rules::{foreshadowing_matches_analysis_draft, foreshadowing_status_after_setup_resync},
+    rules::{
+        ForeshadowingResolutionAction, foreshadowing_matches_analysis_draft,
+        foreshadowing_resolution_action, foreshadowing_status_after_setup_resync,
+    },
 };
 
 fn foreshadowing(status: &str, payoff_chapter: Option<i32>) -> foreshadowing_index::Model {
@@ -21,6 +24,31 @@ fn foreshadowing(status: &str, payoff_chapter: Option<i32>) -> foreshadowing_ind
         created_at: now,
         updated_at: now,
     }
+}
+
+#[test]
+fn resolution_action_is_idempotent_and_rejects_wrong_timeline() {
+    let pending = foreshadowing("pending", None);
+    assert_eq!(
+        foreshadowing_resolution_action(&pending, 8),
+        Ok(ForeshadowingResolutionAction::Resolve)
+    );
+    assert_eq!(
+        foreshadowing_resolution_action(&foreshadowing("resolved", Some(8)), 8),
+        Ok(ForeshadowingResolutionAction::Keep)
+    );
+    assert!(
+        foreshadowing_resolution_action(&foreshadowing("resolved", Some(9)), 8)
+            .unwrap_err()
+            .contains("第 9 章回收")
+    );
+    let mut future_setup = pending;
+    future_setup.setup_chapter = 8;
+    assert!(
+        foreshadowing_resolution_action(&future_setup, 8)
+            .unwrap_err()
+            .contains("不早于回收章节")
+    );
 }
 
 #[test]

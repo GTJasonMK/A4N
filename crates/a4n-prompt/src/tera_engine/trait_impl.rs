@@ -1,12 +1,10 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 
 use async_trait::async_trait;
-use parking_lot::RwLock;
 
 use a4n_core::error::AppError;
 
-use crate::engine::{DependencyGraph, PromptEngine, PromptEntry, PromptVersion};
+use crate::engine::{PromptCategory, PromptEngine, PromptEntry, PromptVersion};
 
 use super::state::TeraPromptEngine;
 
@@ -58,10 +56,6 @@ impl PromptEngine for TeraPromptEngine {
         self.prompt_version_history(name)
     }
 
-    fn get_version(&self, name: &str, version: &str) -> Result<PromptEntry, AppError> {
-        self.prompt_at_version(name, version)
-    }
-
     async fn set_project_override(
         &self,
         project_id: i64,
@@ -69,11 +63,10 @@ impl PromptEngine for TeraPromptEngine {
         content: String,
     ) -> Result<(), AppError> {
         self.set_runtime_project_override(project_id, name, content)
-            .await
     }
 
     async fn remove_project_override(&self, project_id: i64, name: &str) -> Result<(), AppError> {
-        self.remove_runtime_project_override(project_id, name).await
+        self.remove_runtime_project_override(project_id, name)
     }
 
     fn diff(&self, name: &str, version_a: &str, version_b: &str) -> Result<String, AppError> {
@@ -88,8 +81,8 @@ impl PromptEngine for TeraPromptEngine {
         self.validate_prompt_variables(template_name, variables)
     }
 
-    fn dependency_graph(&self) -> DependencyGraph {
-        self.prompt_dependency_graph()
+    fn categories(&self) -> Result<Vec<PromptCategory>, AppError> {
+        self.prompt_categories()
     }
 
     fn render_ab(
@@ -99,9 +92,5 @@ impl PromptEngine for TeraPromptEngine {
         project_id: Option<i64>,
     ) -> Result<(String, String), AppError> {
         self.render_prompt_ab(template_name, variables, project_id)
-    }
-
-    fn registry(&self) -> Arc<RwLock<crate::registry::PromptRegistry>> {
-        self.prompt_registry()
     }
 }

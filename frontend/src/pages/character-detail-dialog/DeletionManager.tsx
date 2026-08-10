@@ -17,6 +17,7 @@ import {
   ATTRIBUTE_CATEGORY_OPTIONS,
   attributeKeyLabel,
   categoryLabel,
+  sourceKindLabel,
 } from "./manageViewUtils";
 import { formatUiDateTime } from "../../utils/dateTime";
 
@@ -298,8 +299,10 @@ export const DeletionManager: React.FC<{
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
       addToast(
-        `已删除“${attributeKeyLabel(result.event.key)}”，连续标记 ${result.consecutive_count}/${result.threshold}`,
-        "success",
+        result.warnings.length > 0
+          ? `已删除“${attributeKeyLabel(result.event.key)}”，连续标记 ${result.consecutive_count}/${result.threshold}；${result.warnings.join("；")}`
+          : `已删除“${attributeKeyLabel(result.event.key)}”，连续标记 ${result.consecutive_count}/${result.threshold}`,
+        result.warnings.length > 0 ? "info" : "success",
       );
       await load();
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
@@ -517,6 +520,8 @@ export const DeletionManager: React.FC<{
                   <span>第 {m.last_marked_chapter} 章</span>
                   <span aria-hidden="true">·</span>
                   <span>连续 {m.consecutive_count}/{m.threshold}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{sourceKindLabel(m.source_kind)}</span>
                   <span aria-hidden="true">·</span>
                   <span className={deletionStatusTone(m)}>{deletionStatusLabel(m)}</span>
                   <span aria-hidden="true">·</span>

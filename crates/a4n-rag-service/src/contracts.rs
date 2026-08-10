@@ -62,14 +62,6 @@ pub(crate) struct CollectionPayload {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct UpdateMetadataPayload {
-    pub(crate) collection: String,
-    pub(crate) id: String,
-    pub(crate) metadata: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct MetadataByIdsPayload {
     pub(crate) collection: String,
     pub(crate) ids: Vec<String>,
@@ -84,13 +76,6 @@ pub(crate) struct MetadataByFilterPayload {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct CompletenessPayload {
-    pub(crate) collection: String,
-    pub(crate) expected_count: usize,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct CompletenessByIdsPayload {
     pub(crate) collection: String,
     pub(crate) expected_ids: Vec<String>,
@@ -99,21 +84,6 @@ pub(crate) struct CompletenessByIdsPayload {
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct DeleteOutput {
     pub(crate) deleted: usize,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub(crate) struct BoolOutput {
-    pub(crate) value: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub(crate) struct CountOutput {
-    pub(crate) count: usize,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub(crate) struct CollectionsOutput {
-    pub(crate) collections: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -139,5 +109,28 @@ mod tests {
                 .to_string()
                 .contains("unknown field `create_if_missing`")
         );
+    }
+
+    #[test]
+    fn rag_ingest_requires_string_content() {
+        for record in [
+            serde_json::json!({
+                "id": "chapter:1:1",
+                "embedding": [1.0, 0.0],
+                "metadata": {"project_id": 1}
+            }),
+            serde_json::json!({
+                "id": "chapter:1:1",
+                "embedding": [1.0, 0.0],
+                "metadata": {"project_id": 1},
+                "content": null
+            }),
+        ] {
+            serde_json::from_value::<IngestPayload>(serde_json::json!({
+                "collection": "1",
+                "records": [record]
+            }))
+            .expect_err("missing or null content must fail at the sidecar boundary");
+        }
     }
 }

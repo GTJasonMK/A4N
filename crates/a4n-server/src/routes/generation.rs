@@ -86,423 +86,108 @@ where
     Ok((input, runtime_config_snapshot))
 }
 
-pub(super) async fn start_chapter(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartChapterGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::chapter_generation::start_chapter_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
+async fn authenticated_generation_user_id(
+    state: &ServerState,
+    headers: &HeaderMap,
+) -> Result<i64, GenerationApiError> {
+    authenticated_user(state, headers)
+        .await
+        .map(|user| user.id)
+        .map_err(|_| {
+            GenerationApiError::unauthorized(
+                "generation_task_unauthenticated",
+                "需要有效的 Bearer token",
+            )
+        })
 }
 
-pub(super) async fn start_inspiration(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartInspirationGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::inspiration_records::start_inspiration_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
+macro_rules! generation_start_route {
+    ($name:ident, $input:ty, $action:path) => {
+        pub(super) async fn $name(
+            State(state): State<ServerState>,
+            headers: HeaderMap,
+            Json(body): Json<Value>,
+        ) -> Result<
+            (
+                StatusCode,
+                Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
+            ),
+            GenerationApiError,
+        > {
+            let user_id = authenticated_generation_user_id(&state, &headers).await?;
+            let (input, runtime_config_snapshot) = generation_start_input::<$input>(body)?;
+            let handle = a4n_runtime::runtime_config::request_scope(
+                user_id,
+                runtime_config_snapshot,
+                ($action)(state.runtime(), user_id, input),
+            )
+            .await
+            .map_err(map_access_error)?;
+            let status = if handle.status.is_terminal() {
+                StatusCode::OK
+            } else {
+                StatusCode::ACCEPTED
+            };
+            Ok((status, Json(handle)))
+        }
     };
-    Ok((status, Json(handle)))
 }
 
-pub(super) async fn start_blueprint(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartBlueprintGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::blueprint_records::start_blueprint_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
-}
-
-pub(super) async fn start_blueprint_refinement(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartBlueprintRefinementInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::blueprint_records::start_blueprint_refinement_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
-}
-
-pub(super) async fn start_outline(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartOutlineGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::outline_records::start_outline_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
-}
-
-pub(super) async fn start_portrait(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartPortraitGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::portrait_generation::start_portrait_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
-}
-
-pub(super) async fn start_image(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartImageGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::image_generation::start_image_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
-}
-
-pub(super) async fn start_video(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartVideoGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::video_generation::start_video_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
-}
-
-pub(super) async fn start_optimize_chat(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartOptimizeChatGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::optimize::start_optimize_chat_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
-}
-
-pub(super) async fn start_optimize_analysis(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartOptimizeAnalysisGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::optimize::start_optimize_analysis_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
-}
-
-pub(super) async fn start_optimize_patch(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(body): Json<Value>,
-) -> Result<
-    (
-        StatusCode,
-        Json<a4n_api_contract::generation_tasks::GenerationTaskHandle>,
-    ),
-    GenerationApiError,
-> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let (input, runtime_config_snapshot) =
-        generation_start_input::<StartOptimizePatchGenerationInput>(body)?;
-    let handle = a4n_runtime::runtime_config::request_scope(
-        user.id,
-        runtime_config_snapshot,
-        a4n_runtime::host_api::optimize::start_optimize_patch_generation_typed(
-            state.runtime(),
-            user.id,
-            input,
-        ),
-    )
-    .await
-    .map_err(map_access_error)?;
-    let status = if handle.status.is_terminal() {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    Ok((status, Json(handle)))
-}
+generation_start_route!(
+    start_chapter,
+    StartChapterGenerationInput,
+    a4n_runtime::host_api::chapter_generation::start_chapter_generation
+);
+generation_start_route!(
+    start_inspiration,
+    StartInspirationGenerationInput,
+    a4n_runtime::host_api::inspiration_records::start_inspiration_generation
+);
+generation_start_route!(
+    start_blueprint,
+    StartBlueprintGenerationInput,
+    a4n_runtime::host_api::blueprint_records::start_blueprint_generation
+);
+generation_start_route!(
+    start_blueprint_refinement,
+    StartBlueprintRefinementInput,
+    a4n_runtime::host_api::blueprint_records::start_blueprint_refinement
+);
+generation_start_route!(
+    start_outline,
+    StartOutlineGenerationInput,
+    a4n_runtime::host_api::outline_records::start_outline_generation
+);
+generation_start_route!(
+    start_portrait,
+    StartPortraitGenerationInput,
+    a4n_runtime::host_api::portrait_generation::start_portrait_generation
+);
+generation_start_route!(
+    start_image,
+    StartImageGenerationInput,
+    a4n_runtime::host_api::image_generation::start_image_generation
+);
+generation_start_route!(
+    start_video,
+    StartVideoGenerationInput,
+    a4n_runtime::host_api::video_generation::start_video_generation
+);
+generation_start_route!(
+    start_optimize_chat,
+    StartOptimizeChatGenerationInput,
+    a4n_runtime::host_api::optimize::start_optimize_chat_generation
+);
+generation_start_route!(
+    start_optimize_analysis,
+    StartOptimizeAnalysisGenerationInput,
+    a4n_runtime::host_api::optimize::start_optimize_analysis_generation
+);
+generation_start_route!(
+    start_optimize_patch,
+    StartOptimizePatchGenerationInput,
+    a4n_runtime::host_api::optimize::start_optimize_patch_generation
+);
 
 pub(super) async fn task(
     State(state): State<ServerState>,
@@ -510,15 +195,10 @@ pub(super) async fn task(
     Path(task_id): Path<String>,
     Query(query): Query<AttemptQuery>,
 ) -> Result<Json<GenerationTaskSummary>, GenerationApiError> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
+    let user_id = authenticated_generation_user_id(&state, &headers).await?;
     let attempt = parse_attempt(query.attempt.as_deref())?;
     let summary =
-        generation_actions::generation_task_summary(state.runtime(), user.id, &task_id, attempt)
+        generation_actions::generation_task_summary(state.runtime(), user_id, &task_id, attempt)
             .await
             .map_err(map_access_error)?;
     Ok(Json(summary))
@@ -529,15 +209,10 @@ pub(super) async fn active(
     headers: HeaderMap,
     Query(query): Query<ProjectListQuery>,
 ) -> Result<Json<Vec<GenerationTaskSummary>>, GenerationApiError> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
+    let user_id = authenticated_generation_user_id(&state, &headers).await?;
     let project_id = parse_project_id(query.project_id.as_deref())?;
     let items =
-        generation_actions::list_active_generation_tasks(state.runtime(), user.id, project_id)
+        generation_actions::list_active_generation_tasks(state.runtime(), user_id, project_id)
             .await
             .map_err(map_access_error)?;
     Ok(Json(items))
@@ -548,12 +223,7 @@ pub(super) async fn history(
     headers: HeaderMap,
     Query(query): Query<HistoryListQuery>,
 ) -> Result<Json<GenerationTaskHistoryPage>, GenerationApiError> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
+    let user_id = authenticated_generation_user_id(&state, &headers).await?;
     let project_id = parse_project_id(query.project_id.as_deref())?;
     let limit = parse_history_limit(query.limit.as_deref())?;
     let cursor = query
@@ -570,7 +240,7 @@ pub(super) async fn history(
         cursor: query.cursor,
     };
     let page =
-        generation_actions::list_generation_task_history(state.runtime(), user.id, input, cursor)
+        generation_actions::list_generation_task_history(state.runtime(), user_id, input, cursor)
             .await
             .map_err(map_access_error)?;
     Ok(Json(page))
@@ -582,15 +252,10 @@ pub(super) async fn snapshot(
     Path(task_id): Path<String>,
     Query(query): Query<AttemptQuery>,
 ) -> Result<Json<GenerationTaskSnapshot>, GenerationApiError> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
+    let user_id = authenticated_generation_user_id(&state, &headers).await?;
     let attempt = parse_attempt(query.attempt.as_deref())?;
     let task =
-        generation_actions::authorize_generation_task(state.runtime(), user.id, &task_id, attempt)
+        generation_actions::authorize_generation_task(state.runtime(), user_id, &task_id, attempt)
             .await
             .map_err(map_access_error)?;
     let snapshot = task.public_snapshot.ok_or_else(|| {
@@ -630,15 +295,10 @@ pub(super) async fn events(
     Path(task_id): Path<String>,
     Query(query): Query<AttemptQuery>,
 ) -> Result<impl IntoResponse, GenerationApiError> {
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
+    let user_id = authenticated_generation_user_id(&state, &headers).await?;
     let attempt = parse_attempt(query.attempt.as_deref())?;
     let task =
-        generation_actions::authorize_generation_task(state.runtime(), user.id, &task_id, attempt)
+        generation_actions::authorize_generation_task(state.runtime(), user_id, &task_id, attempt)
             .await
             .map_err(map_access_error)?;
     let cursor = parse_last_event_id(&headers, attempt)?;
@@ -727,13 +387,8 @@ pub(super) async fn cancel(
             "body.task_id 必须与 path task_id 一致",
         ));
     }
-    let user = authenticated_user(&state, &headers).await.map_err(|_| {
-        GenerationApiError::unauthorized(
-            "generation_task_unauthenticated",
-            "需要有效的 Bearer token",
-        )
-    })?;
-    let handle = generation_actions::cancel_generation_task_typed(state.runtime(), user.id, input)
+    let user_id = authenticated_generation_user_id(&state, &headers).await?;
+    let handle = generation_actions::cancel_generation_task(state.runtime(), user_id, input)
         .await
         .map_err(map_terminal_error)?;
     Ok((StatusCode::ACCEPTED, Json(handle)))
@@ -972,7 +627,7 @@ mod tests {
                 "runtime_config_snapshot": {
                     "schema_version": 1,
                     "image": {
-                        "id": null,
+                        "id": 1,
                         "name": "request image config",
                         "backend": "openai-compatible-image",
                         "base_url": "https://example.test/v1",

@@ -44,6 +44,10 @@ pub(super) fn status(v: &Value) -> Option<String> {
         .map(str::to_ascii_lowercase)
 }
 
+pub(super) fn required_status(v: &Value) -> Result<String, AppError> {
+    status(v).ok_or_else(|| AppError::Internal(anyhow::anyhow!("CLIProxy 视频任务响应缺少 status")))
+}
+
 pub(super) fn is_completed_status(status: Option<&str>) -> bool {
     matches!(
         status,
@@ -97,22 +101,6 @@ pub(super) fn aspect_ratio_from_size(width: i32, height: i32) -> Option<&'static
         return Some("2:3");
     }
     None
-}
-
-pub(super) fn format_from_content_type(content_type: &str) -> Option<String> {
-    let media_type = content_type
-        .split(';')
-        .next()
-        .unwrap_or(content_type)
-        .trim()
-        .to_ascii_lowercase();
-    match media_type.as_str() {
-        "video/mp4" => Some("mp4".into()),
-        "video/webm" => Some("webm".into()),
-        "video/quicktime" => Some("mov".into()),
-        "video/x-m4v" => Some("m4v".into()),
-        _ => None,
-    }
 }
 
 pub(super) fn url_escape_path_segment(value: &str) -> String {

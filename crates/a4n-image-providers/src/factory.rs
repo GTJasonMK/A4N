@@ -6,7 +6,8 @@ use super::openai_edit::OpenAiCompatibleImageEditProvider;
 use super::sd_webui::StableDiffusionWebUiImageProvider;
 use super::support::internal_error;
 use a4n_core::error::AppError;
-use a4n_image::ImageProvider;
+use a4n_image::{ImageGenerationRequest, ImageProvider};
+use serde_json::Value;
 
 /// 选择 provider。
 pub fn pick_image_provider(
@@ -31,12 +32,38 @@ pub fn pick_image_provider(
     }
 }
 
+pub fn image_provider_request_body_preview(
+    backend: &str,
+    request: &ImageGenerationRequest,
+) -> Result<Value, AppError> {
+    match backend {
+        "openai-compatible-image" => OpenAiCompatibleImageProvider::request_body_preview(request),
+        "openai-compatible-image-edit" => {
+            OpenAiCompatibleImageEditProvider::request_body_preview(request)
+        }
+        "openai-chat-image" => Ok(ChatCompletionsImageProvider::request_body_preview(request)),
+        "cliproxy-image" => CliProxyImageProvider::request_body_preview(request),
+        "stable-diffusion" => StableDiffusionWebUiImageProvider::request_body_preview(request),
+        "comfyui" => ComfyUiImageProvider::request_body_preview(request),
+        other => Err(AppError::InvalidArgument(format!(
+            "未知图片生成后端: {other}"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn accepts_canonical_image_backends() {
+    fn accepts_and_previews_canonical_image_backends() {
+        let request = ImageGenerationRequest {
+            prompt: "draw".into(),
+            width: 1024,
+            height: 1024,
+            model: "image-model".into(),
+            reference_images: Vec::new(),
+        };
         for backend in [
             "openai-compatible-image",
             "openai-compatible-image-edit",
@@ -48,6 +75,10 @@ mod tests {
             assert!(
                 pick_image_provider(backend, "http://localhost:3000", "test-key").is_ok(),
                 "backend should be accepted: {backend}"
+            );
+            assert!(
+                image_provider_request_body_preview(backend, &request).is_ok(),
+                "backend request preview should be available: {backend}"
             );
         }
     }

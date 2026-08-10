@@ -93,9 +93,13 @@ pub mod chapter {
     pub mod chapter;
     pub mod chapter_manga_prompt;
     pub mod chapter_outline;
+    pub mod chapter_outline_provenance;
     pub mod chapter_scene;
     pub mod chapter_shooting_script;
     pub mod chapter_video_prompt;
+    pub mod chapter_video_timeline;
+    pub mod chapter_video_timeline_event;
+    pub mod chapter_video_timeline_item;
     pub mod part_outline;
 }
 

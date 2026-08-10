@@ -13,6 +13,7 @@ export const CharacterProfileList: React.FC<{
   discovering: boolean;
   syncingAll: boolean;
   canSyncAll: boolean;
+  aiActionBlockedReason: string | null;
   onRefresh: () => void | Promise<void>;
   onCreate: () => void;
   onPreviewDiscover: () => void | Promise<void>;
@@ -27,6 +28,7 @@ export const CharacterProfileList: React.FC<{
   discovering,
   syncingAll,
   canSyncAll,
+  aiActionBlockedReason,
   onRefresh,
   onCreate,
   onPreviewDiscover,
@@ -58,19 +60,31 @@ export const CharacterProfileList: React.FC<{
           {
             label: "预览角色发现请求",
             icon: <Eye size={12} />,
-            disabled: discovering || syncingAll || loading,
+            disabled: discovering || syncingAll || loading || aiActionBlockedReason != null,
             onClick: () => void onPreviewDiscover(),
           },
           {
             label: "预览全部同步请求",
             icon: <Eye size={12} />,
-            disabled: syncingAll || discovering || loading || profiles.length === 0 || !canSyncAll,
+            disabled:
+              syncingAll ||
+              discovering ||
+              loading ||
+              profiles.length === 0 ||
+              !canSyncAll ||
+              aiActionBlockedReason != null,
             onClick: () => void onPreviewSyncAll(),
           },
           {
             label: "同步全部角色",
             icon: <RefreshCw size={12} />,
-            disabled: syncingAll || discovering || loading || profiles.length === 0 || !canSyncAll,
+            disabled:
+              syncingAll ||
+              discovering ||
+              loading ||
+              profiles.length === 0 ||
+              !canSyncAll ||
+              aiActionBlockedReason != null,
             onClick: () => void onSyncAll(),
           },
         ]}
@@ -79,7 +93,7 @@ export const CharacterProfileList: React.FC<{
         variant="primary"
         size="sm"
         onClick={() => void onDiscover()}
-        disabled={discovering || syncingAll || loading}
+        disabled={discovering || syncingAll || loading || aiActionBlockedReason != null}
         className="min-w-0 flex-1 md:flex-none"
       >
         {syncingAll ? (
@@ -97,6 +111,10 @@ export const CharacterProfileList: React.FC<{
         )}
       </BookButton>
     </div>
+
+    {aiActionBlockedReason ? (
+      <p className="mb-3 text-caption leading-relaxed text-error">{aiActionBlockedReason}</p>
+    ) : null}
 
     {loading && profiles.length === 0 ? (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">

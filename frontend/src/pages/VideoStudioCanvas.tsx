@@ -922,7 +922,7 @@ export const VideoStudioCanvas: React.FC = () => {
       setWorkflowLoading(true);
       try {
         const [detail, events] = await Promise.all([
-          getWorkflowRunDetail(workflowRunId),
+          getWorkflowRunDetail(workflowRunId, true),
           getWorkflowRunProgressEvents(workflowRunId, 20),
         ]);
         setWorkflowDetail(detail);
@@ -976,6 +976,7 @@ export const VideoStudioCanvas: React.FC = () => {
       const runs = await listWorkflowRuns({
         project_id: projectId,
         workflow_kind: CANVAS_WORKFLOW_KIND,
+        resumable_only: false,
         limit: 50,
       });
       const submittedFloorMs = submittedAtMs - 5000;

@@ -534,7 +534,7 @@ fn task_and_workflow_terminal_states_use_stable_exit_codes() {
     ] {
         let (server, server_thread) = spawn_json_replies(vec![
             user.clone(),
-            json!([]),
+            json!({"events": []}),
             json!({"run": {"status": status}}),
         ]);
         write_config(&config, &server);

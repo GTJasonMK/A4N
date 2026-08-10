@@ -5,8 +5,9 @@ use super::{
 };
 use a4n_core::{
     models::project::{blueprint_version, novel_blueprint, novel_project},
-    state::{status::ProjectStatus, validator::StateValidator},
+    state::validator::StateValidator,
 };
+use a4n_domain::project::ProjectStatus;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,

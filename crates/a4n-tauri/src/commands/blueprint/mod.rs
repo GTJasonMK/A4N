@@ -10,8 +10,9 @@ use a4n_api_contract::{
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::blueprint_records as blueprint_actions;
 use blueprint_actions::{
-    BlueprintDiffSummary, BlueprintSummary, BlueprintVersionSummary, DiffBlueprintVersionsInput,
-    PreviewBlueprintGenerationInput, PreviewBlueprintRefinementInput, RestoreBlueprintVersionInput,
+    BlueprintDiffSummary, BlueprintMutationResult, BlueprintSummary, BlueprintVersionSummary,
+    DiffBlueprintVersionsInput, ListBlueprintVersionsInput, PreviewBlueprintGenerationInput,
+    PreviewBlueprintRefinementInput, RestoreBlueprintVersionInput, SaveBlueprintInput,
     UpdateWorldSettingInput,
 };
 use tauri::State;
@@ -28,12 +29,23 @@ pub async fn get_blueprint(
 }
 
 #[tauri::command]
+pub async fn sync_blueprint_materials(
+    state: State<'_, AppState>,
+    user_id: i64,
+    project_id: i64,
+) -> Result<BlueprintMutationResult, String> {
+    blueprint_actions::sync_blueprint_materials(state.inner(), user_id, project_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn start_blueprint_generation(
     state: State<'_, AppState>,
     user_id: i64,
     input: StartBlueprintGenerationInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    blueprint_actions::start_blueprint_generation_typed(state.inner(), user_id, input)
+    blueprint_actions::start_blueprint_generation(state.inner(), user_id, input)
         .await
         .map_err(crate::commands::generation_tasks::map_access_error)
 }
@@ -44,7 +56,7 @@ pub async fn start_blueprint_refinement(
     user_id: i64,
     input: StartBlueprintRefinementInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    blueprint_actions::start_blueprint_refinement_typed(state.inner(), user_id, input)
+    blueprint_actions::start_blueprint_refinement(state.inner(), user_id, input)
         .await
         .map_err(crate::commands::generation_tasks::map_access_error)
 }
@@ -75,9 +87,9 @@ pub async fn preview_refine_blueprint_request(
 pub async fn list_blueprint_versions(
     state: State<'_, AppState>,
     user_id: i64,
-    project_id: i64,
+    input: ListBlueprintVersionsInput,
 ) -> Result<Vec<BlueprintVersionSummary>, String> {
-    blueprint_actions::list_blueprint_versions(state.inner(), user_id, project_id)
+    blueprint_actions::list_blueprint_versions(state.inner(), user_id, input)
         .await
         .map_err(|e| e.to_string())
 }
@@ -98,8 +110,19 @@ pub async fn restore_blueprint_version(
     state: State<'_, AppState>,
     user_id: i64,
     input: RestoreBlueprintVersionInput,
-) -> Result<BlueprintSummary, String> {
+) -> Result<BlueprintMutationResult, String> {
     blueprint_actions::restore_blueprint_version(state.inner(), user_id, input)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn save_blueprint(
+    state: State<'_, AppState>,
+    user_id: i64,
+    input: SaveBlueprintInput,
+) -> Result<BlueprintMutationResult, String> {
+    blueprint_actions::save_blueprint(state.inner(), user_id, input)
         .await
         .map_err(|e| e.to_string())
 }
@@ -109,7 +132,7 @@ pub async fn update_world_setting(
     state: State<'_, AppState>,
     user_id: i64,
     input: UpdateWorldSettingInput,
-) -> Result<serde_json::Value, String> {
+) -> Result<BlueprintMutationResult, String> {
     blueprint_actions::update_world_setting(state.inner(), user_id, input)
         .await
         .map_err(|e| e.to_string())

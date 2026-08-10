@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Check, Play, RotateCcw, Scissors, Upload, X } from "lucide-react";
+import { Check, RotateCcw, Scissors, Upload, X } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
@@ -45,6 +45,7 @@ const ASSEMBLY_PUSH_VIDEO_TYPE = "assembly_push";
 const POSTPROCESS_EDIT_VIDEO_TYPE = "assembly_postprocess_edit";
 const MARKER_MIN_GAP_SECS = 0.05;
 const VIDEO_SEEK_TOLERANCE_SECS = 0.05;
+const VIDEO_FRAME_PRESENTATION_TIMEOUT_MS = 750;
 
 const formatSeconds = (value: number): string => {
   if (!Number.isFinite(value) || value <= 0) return "0s";
@@ -110,9 +111,7 @@ export const VideoPostProcessWorkspace: React.FC<
     }
     for (const rows of map.values()) {
       rows.sort((a, b) => {
-        const left = a.created_at ?? "";
-        const right = b.created_at ?? "";
-        return left.localeCompare(right) || a.id - b.id;
+        return a.created_at.localeCompare(b.created_at) || a.id - b.id;
       });
     }
     return map;
@@ -136,6 +135,7 @@ export const VideoPostProcessWorkspace: React.FC<
   const currentVideo = versions[versions.length - 1] ?? selectedPush;
   const {
     videoPlaybackSrc,
+    videoScrubFrames,
     videoLoadError,
     videoLoading,
     handleVideoLoadStart,
@@ -161,10 +161,9 @@ export const VideoPostProcessWorkspace: React.FC<
     null,
   );
   const [scrubPreviewVisible, setScrubPreviewVisible] = useState(false);
-  const [scrubFrameReady, setScrubFrameReady] = useState(false);
   const playbackVideoRef = useRef<HTMLVideoElement | null>(null);
-  const scrubCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const scrubCanvasUsableRef = useRef<boolean | null>(null);
+  const scrubFrameImageRef = useRef<HTMLImageElement | null>(null);
+  const scrubFrameUrlsRef = useRef(new Map<number, string>());
   const desiredSeekTimeRef = useRef<number | null>(null);
   const seekRafRef = useRef<number | null>(null);
   const seekInFlightRef = useRef(false);
@@ -219,16 +218,21 @@ export const VideoPostProcessWorkspace: React.FC<
     scrubPreviewActiveRef.current = false;
     draggingScrubRef.current = false;
     pendingDragReleaseRef.current = false;
+    const video = playbackVideoRef.current;
+    if (video) delete video.dataset.scrubSeekPending;
   }, [cancelPresentationWait]);
   const waitForPresentedFrame = useCallback(
-    (video: HTMLVideoElement, onPresented: () => void) => {
+    (video: HTMLVideoElement, targetTime: number, onPresented: () => void) => {
       cancelPresentationWait();
       const token = presentationTokenRef.current;
       let finished = false;
       const finish = () => {
         if (finished || presentationTokenRef.current !== token) return;
         finished = true;
-        presentationRafRef.current = null;
+        if (presentationRafRef.current != null) {
+          cancelAnimationFrame(presentationRafRef.current);
+          presentationRafRef.current = null;
+        }
         presentationVideoRef.current = null;
         presentationCallbackRef.current = null;
         if (presentationTimeoutRef.current != null) {
@@ -237,64 +241,73 @@ export const VideoPostProcessWorkspace: React.FC<
         }
         onPresented();
       };
-      // `seeked` only means that the media timeline moved. WebKitGTK can fire
-      // it before the compositor has submitted the target frame. Prefer the
-      // frame callback, which is defined to run after a frame is presented.
       if (typeof video.requestVideoFrameCallback === "function") {
-        presentationVideoRef.current = video;
-        presentationCallbackRef.current = video.requestVideoFrameCallback(
-          finish,
-        );
+        const waitForTargetFrame = () => {
+          presentationVideoRef.current = video;
+          presentationCallbackRef.current = video.requestVideoFrameCallback(
+            (_now, metadata) => {
+              presentationCallbackRef.current = null;
+              if (finished || presentationTokenRef.current !== token) return;
+              if (
+                Math.abs(metadata.mediaTime - targetTime) <
+                VIDEO_SEEK_TOLERANCE_SECS
+              ) {
+                finish();
+              } else {
+                waitForTargetFrame();
+              }
+            },
+          );
+        };
+        waitForTargetFrame();
       } else {
-        // Older WebKitGTK has no frame callback. Two animation frames allow
-        // the paused native video layer to repaint without restarting it.
         presentationRafRef.current = requestAnimationFrame(() => {
           presentationRafRef.current = requestAnimationFrame(finish);
         });
       }
-      // A paused video may not deliver a frame callback on older WebKitGTK.
-      // Keep the seek state from being stuck forever, while retaining the
-      // native frame instead of clearing the preview during the wait.
-      presentationTimeoutRef.current = setTimeout(finish, 250);
+      presentationTimeoutRef.current = setTimeout(
+        finish,
+        VIDEO_FRAME_PRESENTATION_TIMEOUT_MS,
+      );
     },
     [cancelPresentationWait],
   );
-  const drawScrubFrame = useCallback((): boolean => {
-    if (scrubCanvasUsableRef.current === false) return false;
-    const video = playbackVideoRef.current;
-    const canvas = scrubCanvasRef.current;
-    if (
-      !video ||
-      !canvas ||
-      video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
-      video.videoWidth <= 0 ||
-      video.videoHeight <= 0
-    ) {
-      return false;
-    }
-    if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
-    if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    if (!context) return false;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    try {
-      // WebKitGTK can expose a decoded video frame to the video element while
-      // returning a fully transparent canvas surface. Do not put that surface
-      // above the native video or it will look like a frozen/black preview.
-      const alpha = context.getImageData(0, 0, 1, 1).data[3];
-      scrubCanvasUsableRef.current = alpha > 0;
-    } catch {
-      scrubCanvasUsableRef.current = false;
-    }
-    if (scrubCanvasUsableRef.current === false) {
-      setScrubPreviewVisible(false);
-      setScrubFrameReady(false);
-      return false;
-    }
-    setScrubPreviewVisible(true);
-    setScrubFrameReady(true);
-    return true;
-  }, []);
+  const showScrubFrame = useCallback(
+    (time: number): boolean => {
+      const image = scrubFrameImageRef.current;
+      if (!image || !videoScrubFrames) return false;
+      const index = Math.max(
+        0,
+        Math.min(
+          videoScrubFrames.ranges.length - 1,
+          Math.round(time * videoScrubFrames.framesPerSecond),
+        ),
+      );
+      let url = scrubFrameUrlsRef.current.get(index);
+      if (!url) {
+        const range = videoScrubFrames.ranges[index];
+        url = URL.createObjectURL(
+          new Blob([videoScrubFrames.bytes.slice(range.start, range.end)], {
+            type: "image/jpeg",
+          }),
+        );
+        scrubFrameUrlsRef.current.set(index, url);
+      }
+      if (image.src !== url) image.src = url;
+      image.dataset.scrubFrameIndex = String(index);
+      setScrubPreviewVisible(true);
+      return true;
+    },
+    [videoScrubFrames],
+  );
+
+  useEffect(() => {
+    const urls = scrubFrameUrlsRef.current;
+    return () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+  }, [videoScrubFrames]);
   useLayoutEffect(() => {
     activeScopeRef.current = scopeKey;
     actionBusyRef.current = false;
@@ -306,11 +319,6 @@ export const VideoPostProcessWorkspace: React.FC<
     setVideoPlaying(false);
     setDraggingMarkerIndex(null);
     setScrubPreviewVisible(false);
-    setScrubFrameReady(false);
-    const userAgent =
-      typeof navigator === "undefined" ? "" : navigator.userAgent;
-    scrubCanvasUsableRef.current =
-      !/AppleWebKit/i.test(userAgent) || /Chrome|Chromium/i.test(userAgent);
     cancelSeekPump();
   }, [cancelSeekPump, clearMarkers, currentVideo?.id, scopeKey]);
 
@@ -348,6 +356,16 @@ export const VideoPostProcessWorkspace: React.FC<
     0.1,
     decodedDurationSecs ?? currentVideo?.duration_secs ?? 0,
   );
+  // 解码时长可能短于记录时长；时长收敛后把已有竖线夹回真实片尾，
+  // 避免把越界秒数提交给后端。
+  useEffect(() => {
+    setMarkers((prev) =>
+      prev.some((marker) => marker > duration)
+        ? prev.map((marker) => Math.min(marker, duration))
+        : prev,
+    );
+    setMarkerValue((prev) => Math.min(prev, duration));
+  }, [duration]);
   const selectedRange = useMemo(() => {
     if (markers.length < 2) return null;
     const sorted = [...markers].sort((a, b) => a - b);
@@ -428,34 +446,39 @@ export const VideoPostProcessWorkspace: React.FC<
     video.pause();
     if (Math.abs(video.currentTime - target) >= VIDEO_SEEK_TOLERANCE_SECS) {
       seekInFlightRef.current = true;
+      video.dataset.scrubSeekPending = "true";
       video.currentTime = target;
     } else {
       desiredSeekTimeRef.current = null;
+      video.dataset.scrubSeekPending = "false";
+      if (draggingScrubRef.current) showScrubFrame(target);
       if (pendingDragReleaseRef.current) {
         draggingScrubRef.current = false;
         pendingDragReleaseRef.current = false;
-      }
-      if (draggingScrubRef.current) {
-        drawScrubFrame();
+        setScrubPreviewVisible(false);
       }
     }
-  }, [drawScrubFrame, duration]);
+  }, [duration, showScrubFrame]);
   const schedulePendingSeek = useCallback(() => {
     if (seekRafRef.current != null) return;
     seekRafRef.current = requestAnimationFrame(applyPendingSeek);
   }, [applyPendingSeek]);
   const handleScrubSeeked = useCallback(() => {
-    seekInFlightRef.current = false;
     const video = playbackVideoRef.current;
     const desiredTime = desiredSeekTimeRef.current;
     if (!video) return;
     const seekVideoElement = video;
-    if (scrubPreviewActiveRef.current && draggingScrubRef.current) {
-      drawScrubFrame();
-    }
     const finish = () => {
+      seekInFlightRef.current = false;
       const latestVideo = playbackVideoRef.current;
       if (!latestVideo) return;
+      if (draggingScrubRef.current && !pendingDragReleaseRef.current) {
+        // 拖动期间只显示 JPEG 帧。旧 seek 若此时结束，不要继续追赶
+        // 最新指针位置，否则 WebKitGTK 又会退化为高频连续 seek。
+        setPlaybackTimeSecs(latestVideo.currentTime);
+        latestVideo.dataset.scrubSeekPending = "false";
+        return;
+      }
       const latestDesiredTime = desiredSeekTimeRef.current;
       if (
         latestDesiredTime != null &&
@@ -473,39 +496,59 @@ export const VideoPostProcessWorkspace: React.FC<
           pendingDragReleaseRef.current = false;
         }
       }
-      if (!scrubPreviewActiveRef.current) return;
+      if (!scrubPreviewActiveRef.current) {
+        // 原生控件 seek（非 scrub 请求）：把竖线基准同步到画面位置，
+        // 否则读数与后续添加的竖线会停在旧位置，与画面脱节。
+        setPlaybackTimeSecs(latestVideo.currentTime);
+        setMarkerValue(latestVideo.currentTime);
+        latestVideo.dataset.scrubSeekPending = "false";
+        setScrubPreviewVisible(false);
+        return;
+      }
       setPlaybackTimeSecs(latestVideo.currentTime);
-      if (!draggingScrubRef.current) drawScrubFrame();
+      latestVideo.dataset.scrubSeekPending = "false";
+      if (!draggingScrubRef.current) setScrubPreviewVisible(false);
     };
-    if (desiredTime != null && !draggingScrubRef.current) {
-      waitForPresentedFrame(seekVideoElement, finish);
+    const reachedDesiredTime =
+      desiredTime != null &&
+      Math.abs(seekVideoElement.currentTime - desiredTime) <
+        VIDEO_SEEK_TOLERANCE_SECS;
+    if (
+      reachedDesiredTime &&
+      scrubPreviewActiveRef.current &&
+      (!draggingScrubRef.current || pendingDragReleaseRef.current)
+    ) {
+      waitForPresentedFrame(seekVideoElement, desiredTime, finish);
     } else {
       finish();
     }
-  }, [drawScrubFrame, schedulePendingSeek, waitForPresentedFrame]);
+  }, [schedulePendingSeek, waitForPresentedFrame]);
   const seekVideo = useCallback(
     (value: number) => {
       const target = Math.max(0, Math.min(value, duration));
       playbackVideoRef.current?.pause();
       setMarkerValue(target);
-      if (scrubPreviewActiveRef.current && !draggingScrubRef.current) {
-        setScrubFrameReady(false);
-      }
+      showScrubFrame(target);
       desiredSeekTimeRef.current = target;
-      schedulePendingSeek();
+      if (!draggingScrubRef.current) schedulePendingSeek();
     },
-    [duration, schedulePendingSeek],
+    [duration, schedulePendingSeek, showScrubFrame],
   );
   const finishScrub = useCallback(() => {
     if (seekRafRef.current != null) cancelAnimationFrame(seekRafRef.current);
     applyPendingSeek();
   }, [applyPendingSeek]);
-  const beginScrub = useCallback((preserveCurrentFrame = true) => {
+  const beginScrub = useCallback(() => {
+    cancelPresentationWait();
+    // WebKitGTK 偶尔不会为失败的 seek 派发 seeked。新一次用户拖动
+    // 必须能覆盖旧请求，不能被我们自己的 in-flight 标记永久锁死。
+    seekInFlightRef.current = false;
     scrubPreviewActiveRef.current = true;
-    playbackVideoRef.current?.pause();
-    setScrubFrameReady(false);
-    if (preserveCurrentFrame) drawScrubFrame();
-  }, [drawScrubFrame]);
+    pendingDragReleaseRef.current = false;
+    const video = playbackVideoRef.current;
+    video?.pause();
+    showScrubFrame(video?.currentTime ?? markerValue);
+  }, [cancelPresentationWait, markerValue, showScrubFrame]);
   const addMarker = () => {
     appendMarker(markerValue);
   };
@@ -530,7 +573,7 @@ export const VideoPostProcessWorkspace: React.FC<
     }
     const value = markerValueFromClientX(event.clientX);
     if (value == null) return;
-    beginScrub(false);
+    beginScrub();
     seekVideo(value);
     finishScrub();
     appendMarker(value);
@@ -784,6 +827,7 @@ export const VideoPostProcessWorkspace: React.FC<
                   type="button"
                   onClick={() => setSelectedPushId(push.id)}
                   disabled={acting != null}
+                  data-video-push-id={push.id}
                   data-active={active ? "1" : undefined}
                   aria-current={active ? "true" : undefined}
                   className={`w-full border-b-2 px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 xl:border-b-0 xl:border-l-2 ${
@@ -829,9 +873,7 @@ export const VideoPostProcessWorkspace: React.FC<
                     : PUSH_STATUS_LABELS[selectedPushStatus]}{" "}
                   · {formatSeconds(currentVideo.duration_secs)} · 第{" "}
                   {versions.length + 1} 版
-                  {currentVideo.updated_at
-                    ? ` · ${formatVideoCreatedAt(currentVideo.updated_at)}`
-                    : ""}
+                  {` · ${formatVideoCreatedAt(currentVideo.updated_at)}`}
                 </p>
               ) : null}
             </div>
@@ -866,13 +908,23 @@ export const VideoPostProcessWorkspace: React.FC<
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-book-border/50 bg-black">
             {videoPlaybackSrc ? (
               <video
+                key={videoPlaybackSrc}
                 ref={playbackVideoRef}
+                data-video-id={currentVideo?.id}
                 controls
                 playsInline
                 preload="auto"
                 src={videoPlaybackSrc}
                 className="h-full min-h-[280px] w-full bg-black object-contain"
-                onLoadStart={handleVideoLoadStart}
+                onLoadStart={() => {
+                  // 换源/重载后旧的 in-flight seek 永远不会有 seeked 回调，
+                  // 必须重置，否则 seek 泵会永久死锁；desiredSeekTime 保留，
+                  // 元数据就绪后恢复到原位置。
+                  seekInFlightRef.current = false;
+                  cancelPresentationWait();
+                  setScrubPreviewVisible(false);
+                  handleVideoLoadStart();
+                }}
                 onLoadedMetadata={(event) => {
                   const mediaDuration = event.currentTarget.duration;
                   setPlaybackTimeSecs(event.currentTarget.currentTime);
@@ -900,13 +952,24 @@ export const VideoPostProcessWorkspace: React.FC<
                     playbackVideoRef.current?.pause();
                     return;
                   }
-                  cancelSeekPump();
                   setScrubPreviewVisible(false);
-                  setScrubFrameReady(false);
+                  cancelSeekPump();
                   setVideoPlaying(true);
                 }}
-                onPause={() => setVideoPlaying(false)}
-                onError={handleVideoError}
+                onPause={(event) => {
+                  setVideoPlaying(false);
+                  const time = event.currentTarget.currentTime;
+                  setPlaybackTimeSecs(time);
+                  // scrub 过程中的暂停由 seekVideo 触发，markerValue 已是目标值；
+                  // 只在用户经原生控件暂停时同步，保证竖线基准跟随画面。
+                  if (!scrubPreviewActiveRef.current) setMarkerValue(time);
+                }}
+                onError={(event) => {
+                  if (!handleVideoError(event)) return;
+                  seekInFlightRef.current = false;
+                  cancelPresentationWait();
+                  setScrubPreviewVisible(false);
+                }}
               />
             ) : (
               <div className="flex h-full min-h-[280px] items-center justify-center bg-book-bg-tertiary">
@@ -918,42 +981,17 @@ export const VideoPostProcessWorkspace: React.FC<
               </div>
             )}
             {videoPlaybackSrc ? (
-              <canvas
-                ref={scrubCanvasRef}
+              <img
+                ref={scrubFrameImageRef}
+                alt=""
                 aria-hidden="true"
                 data-scrub-preview-visible={
-                  scrubFrameReady ? "true" : "false"
+                  scrubPreviewVisible ? "true" : "false"
                 }
-                className={`pointer-events-none absolute inset-0 z-[2] h-full min-h-[280px] w-full object-contain transition-none ${
+                className={`pointer-events-none absolute inset-0 z-[2] h-full min-h-[280px] w-full bg-black object-contain transition-none ${
                   scrubPreviewVisible ? "opacity-100" : "opacity-0"
                 }`}
               />
-            ) : null}
-            {scrubFrameReady ? (
-              <button
-                type="button"
-                aria-label="播放后处理预览"
-                title="播放"
-                onClick={() => {
-                  const video = playbackVideoRef.current;
-                  if (!video) return;
-                  cancelSeekPump();
-                  setScrubPreviewVisible(false);
-                  setVideoPlaying(true);
-                  void video.play().catch((error) => {
-                    setVideoPlaying(false);
-                    scrubPreviewActiveRef.current = true;
-                    setScrubPreviewVisible(true);
-                    onToast(
-                      extractErrorMessage(error, "播放视频失败"),
-                      "error",
-                    );
-                  });
-                }}
-                className="absolute left-1/2 top-1/2 z-[3] flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white transition-colors hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-              >
-                <Play size={22} fill="currentColor" />
-              </button>
             ) : null}
             {videoLoading && (
               <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/35 text-xs text-white">
@@ -1151,8 +1189,8 @@ export const VideoPostProcessWorkspace: React.FC<
                         );
                       }
                       setDraggingMarkerIndex(null);
-                      finishScrub();
                       pendingDragReleaseRef.current = true;
+                      finishScrub();
                       if (desiredSeekTimeRef.current == null) {
                         draggingScrubRef.current = false;
                         pendingDragReleaseRef.current = false;

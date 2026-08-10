@@ -1,9 +1,6 @@
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "fastembed")]
-use a4n_embedding_fastembed::DEFAULT_FASTEMBED_MODEL;
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct EmbedTextsPayload {
@@ -14,7 +11,6 @@ pub(crate) struct EmbedTextsPayload {
     pub(crate) api_key: Option<String>,
     pub(crate) model: String,
     pub(crate) dimension: usize,
-    #[serde(default = "default_batch_size")]
     pub(crate) batch_size: usize,
     pub(crate) texts: Vec<String>,
 }
@@ -30,8 +26,7 @@ pub(crate) struct EmbedTextsOutput {
 #[cfg(feature = "fastembed")]
 pub(crate) struct ModelPayload {
     pub(crate) operation: String,
-    #[serde(default = "default_fastembed_model")]
-    pub(crate) model: String,
+    pub(crate) model: Option<String>,
 }
 
 #[cfg(feature = "fastembed")]
@@ -48,13 +43,15 @@ impl ModelPayload {
             "embedding 模型端点要求 operation={expected}，实际为 {operation}"
         )))
     }
-}
-
-#[cfg(feature = "fastembed")]
-fn default_fastembed_model() -> String {
-    DEFAULT_FASTEMBED_MODEL.to_string()
-}
-
-fn default_batch_size() -> usize {
-    32
+    pub(crate) fn required_model(&self) -> Result<&str, a4n_core::error::AppError> {
+        self.model
+            .as_deref()
+            .map(str::trim)
+            .filter(|model| !model.is_empty())
+            .ok_or_else(|| {
+                a4n_core::error::AppError::InvalidArgument(
+                    "embedding 模型操作必须提供模型名".to_string(),
+                )
+            })
+    }
 }

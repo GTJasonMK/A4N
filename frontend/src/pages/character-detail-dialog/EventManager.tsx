@@ -16,6 +16,7 @@ import {
   attributeValueText,
   categoryLabel,
   operationLabel,
+  sourceKindLabel,
 } from "./manageViewUtils";
 import { formatUiDateTime } from "../../utils/dateTime";
 import { nonEmptyText } from "../../utils/text";
@@ -250,29 +251,34 @@ export const EventManager: React.FC<{
     saveInFlightRef.current = true;
     setSaving(true);
     try {
-      if (requestMode === "add") {
-        await addProfileAttribute({
-          profile_id: requestProfileId,
-          chapter_number: requestPayload.chapter_number,
-          category: requestPayload.category,
-          key: requestPayload.key,
-          value: requestPayload.value,
-          cause: requestPayload.cause,
-          evidence: requestPayload.evidence,
-        });
-      } else {
-        await modifyProfileAttribute({
-          profile_id: requestProfileId,
-          chapter_number: requestPayload.chapter_number,
-          category: requestPayload.category,
-          key: requestPayload.key,
-          new_value: requestPayload.value,
-          cause: requestPayload.cause,
-          evidence: requestPayload.evidence,
-        });
-      }
+      const result =
+        requestMode === "add"
+          ? await addProfileAttribute({
+              profile_id: requestProfileId,
+              chapter_number: requestPayload.chapter_number,
+              category: requestPayload.category,
+              key: requestPayload.key,
+              value: requestPayload.value,
+              cause: requestPayload.cause,
+              evidence: requestPayload.evidence,
+            })
+          : await modifyProfileAttribute({
+              profile_id: requestProfileId,
+              chapter_number: requestPayload.chapter_number,
+              category: requestPayload.category,
+              key: requestPayload.key,
+              new_value: requestPayload.value,
+              cause: requestPayload.cause,
+              evidence: requestPayload.evidence,
+            });
       if (!isCurrentProfile(requestProfileId) || saveSeqRef.current !== requestSeq) return;
-      addToast(requestMode === "add" ? "已新增属性" : "已修改属性", "success");
+      const successMessage = requestMode === "add" ? "已新增属性" : "已修改属性";
+      addToast(
+        result.warnings.length > 0
+          ? `${successMessage}；${result.warnings.join("；")}`
+          : successMessage,
+        result.warnings.length > 0 ? "info" : "success",
+      );
       setKey("");
       setValueText("");
       setCause("");
@@ -561,7 +567,7 @@ export const EventManager: React.FC<{
                   </span>
                   <span className="text-caption text-book-text-muted">
                     第 {event.chapter_number} 章 · {categoryLabel(event.category)} ·{" "}
-                    {operationLabel(event.operation)}
+                    {operationLabel(event.operation)} · {sourceKindLabel(event.source_kind)}
                   </span>
                   {event.timestamp && (
                     <span className="ml-auto shrink-0 text-caption text-book-text-muted">

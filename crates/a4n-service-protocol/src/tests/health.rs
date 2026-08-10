@@ -1,8 +1,7 @@
 use super::support::service_health;
 use crate::{
     HealthStatus, LLM_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME,
-    PROTOCOL_VERSION, ServiceErrorCode, negotiate_service_health_envelope,
-    validate_service_health_envelope,
+    PROTOCOL_VERSION, ServiceErrorCode, validate_service_health_envelope,
 };
 
 #[test]
@@ -104,25 +103,23 @@ fn service_health_validation_allows_generic_healthy_service_without_expectations
 }
 
 #[test]
-fn health_negotiation_returns_the_selected_version_for_rolling_deployments() {
+fn health_validation_accepts_same_major_rolling_deployments() {
     let health = service_health(
         PROMPT_SERVICE_NAME,
         HealthStatus::Healthy,
         PROTOCOL_VERSION,
-        "prompt-render-v2.1",
+        "prompt-render-v4.1",
     );
-    let negotiated = negotiate_service_health_envelope(
+    validate_service_health_envelope(
         &health,
         Some(PROMPT_SERVICE_NAME),
         Some(PROMPT_RENDER_CAPABILITY_VERSION),
     )
     .expect("same capability major should negotiate");
-    assert_eq!(negotiated.protocol_version, PROTOCOL_VERSION);
-    assert_eq!(negotiated.capability_version, "prompt-render-v2.1");
 }
 
 #[test]
-fn health_negotiation_rejects_an_advertised_range_that_excludes_the_host() {
+fn health_validation_rejects_an_advertised_range_that_excludes_the_host() {
     let mut health = service_health(
         PROMPT_SERVICE_NAME,
         HealthStatus::Healthy,
@@ -133,7 +130,7 @@ fn health_negotiation_rejects_an_advertised_range_that_excludes_the_host() {
         protocol: crate::VersionRange::exact(PROTOCOL_VERSION + 1),
         capability_major: crate::VersionRange::exact(2),
     });
-    let error = negotiate_service_health_envelope(
+    let error = validate_service_health_envelope(
         &health,
         Some(PROMPT_SERVICE_NAME),
         Some(PROMPT_RENDER_CAPABILITY_VERSION),

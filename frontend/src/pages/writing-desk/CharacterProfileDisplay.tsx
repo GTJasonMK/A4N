@@ -2,15 +2,16 @@ import React from "react";
 import { type CharacterProfile } from "../../api/character";
 import {
   type CharacterAttributeCategory,
+  characterAttributeText,
   characterAttributeValueText,
 } from "../../utils/characterAttributes";
 import { nonEmptyText } from "../../utils/text";
 import { attributeKeyLabel } from "../character-detail-dialog/manageViewUtils";
 
 export const describeProfile = (profile: CharacterProfile): string | null =>
-  nonEmptyText(profile.personality) ??
-  nonEmptyText(profile.background) ??
-  nonEmptyText(profile.appearance);
+  characterAttributeText(profile, "implicit", "personality") ??
+  characterAttributeText(profile, "explicit", "background") ??
+  characterAttributeText(profile, "explicit", "appearance");
 
 const compactValue = (value: unknown): string | null => {
   if (value == null) return null;

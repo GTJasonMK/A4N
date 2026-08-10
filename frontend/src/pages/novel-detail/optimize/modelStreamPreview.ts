@@ -1,6 +1,8 @@
 import {
+  parseJsonObject,
   parseOptimizeIssues,
   patchOperationLabel,
+  stringField,
   type StreamItemKind,
 } from "./optimizeTabUtils";
 import { isJsonRecord as isRecord, type JsonRecord } from "../../../utils/jsonRecord";
@@ -307,23 +309,9 @@ function protocolError(title: string, content: string): ModelStreamPreview {
   };
 }
 
-function stringField(record: JsonRecord, key: string): string | null {
-  const value = record[key];
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
 function recordField(record: JsonRecord, key: string): JsonRecord | null {
   const value = record[key];
   return isRecord(value) ? value : null;
-}
-
-function parseJsonObject(raw: string): JsonRecord | null {
-  try {
-    const parsed = JSON.parse(raw);
-    return isRecord(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 function hasField(raw: string, field: string): boolean {

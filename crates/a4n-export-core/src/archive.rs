@@ -16,28 +16,17 @@ pub fn render_zip(input: ExportRenderZipInput) -> Result<ExportRenderZipOutput, 
 }
 
 pub fn render_zip_package(input: ExportZipPackageInput) -> Result<Vec<u8>, ExportRenderError> {
-    let cursor = Cursor::new(Vec::new());
-    let cursor = write_zip_package_to_writer(cursor, &input)?;
-    Ok(cursor.into_inner())
-}
-
-pub fn write_zip_package_to_writer<W>(
-    writer: W,
-    input: &ExportZipPackageInput,
-) -> Result<W, ExportRenderError>
-where
-    W: Write + Seek,
-{
-    let mut zip = ExportZipWriter::new(writer);
+    let mut zip = ExportZipWriter::new(Cursor::new(Vec::new()));
     zip.write_entry_bytes(
         &input.manifest_path,
         &input.manifest_bytes,
-        input.manifest_label.clone(),
+        input.manifest_label,
     )?;
-    for entry in &input.entries {
-        zip.write_entry_bytes(&entry.path, &entry.bytes, entry.label.clone())?;
+    for entry in input.entries {
+        zip.write_entry_bytes(&entry.path, &entry.bytes, entry.label)?;
     }
-    zip.finish(input.package_label.clone())
+    let cursor = zip.finish(input.package_label)?;
+    Ok(cursor.into_inner())
 }
 
 pub(crate) fn decode_base64(
@@ -52,14 +41,14 @@ pub(crate) fn decode_base64(
         })
 }
 
-pub struct ExportZipWriter<W: Write + Seek> {
+pub(crate) struct ExportZipWriter<W: Write + Seek> {
     zip: ZipWriter<W>,
     options: SimpleFileOptions,
     entries: HashSet<String>,
 }
 
 impl<W: Write + Seek> ExportZipWriter<W> {
-    pub fn new(writer: W) -> Self {
+    pub(crate) fn new(writer: W) -> Self {
         Self {
             zip: ZipWriter::new(writer),
             options: SimpleFileOptions::default()
@@ -68,7 +57,7 @@ impl<W: Write + Seek> ExportZipWriter<W> {
         }
     }
 
-    pub fn write_entry_bytes(
+    pub(crate) fn write_entry_bytes(
         &mut self,
         path: &str,
         bytes: &[u8],
@@ -92,7 +81,7 @@ impl<W: Write + Seek> ExportZipWriter<W> {
             .map_err(|source| ExportRenderError::ZipEntryWrite { label, source })
     }
 
-    pub fn finish(self, label: impl Into<String>) -> Result<W, ExportRenderError> {
+    pub(crate) fn finish(self, label: impl Into<String>) -> Result<W, ExportRenderError> {
         self.zip
             .finish()
             .map_err(|source| ExportRenderError::ZipFinish {

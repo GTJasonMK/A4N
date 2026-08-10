@@ -7,10 +7,8 @@ use super::{
     creation::{chapter_scope_json, create_source_snapshot_in_record, normalize_chapter_scope},
     types::CreateDerivedProjectParams,
 };
-use a4n_core::{
-    models::project::{novel_project, project_derivation},
-    state::status::ProjectStatus,
-};
+use a4n_core::models::project::{novel_project, project_derivation};
+use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set, TransactionTrait};
 

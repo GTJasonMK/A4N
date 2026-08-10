@@ -1,11 +1,11 @@
 import type {
-  ShootingCameraAngle,
-  ShootingCameraMovement,
-  ShootingCoverage,
-  ShootingShotSize,
+  ShootingCameraAngleV1,
+  ShootingCameraMovementV1,
+  ShootingCoverageV1,
+  ShootingShotSizeV1,
 } from "../api/shootingScript";
 
-const SHOT_SIZE_LABELS: Record<ShootingShotSize, string> = {
+const SHOT_SIZE_LABELS: Record<ShootingShotSizeV1, string> = {
   extreme_wide: "大远景",
   wide: "远景",
   medium_wide: "中远景",
@@ -16,7 +16,7 @@ const SHOT_SIZE_LABELS: Record<ShootingShotSize, string> = {
   insert: "插入镜头",
 };
 
-const CAMERA_ANGLE_LABELS: Record<ShootingCameraAngle, string> = {
+const CAMERA_ANGLE_LABELS: Record<ShootingCameraAngleV1, string> = {
   eye_level: "平视",
   high: "俯拍",
   low: "仰拍",
@@ -25,7 +25,7 @@ const CAMERA_ANGLE_LABELS: Record<ShootingCameraAngle, string> = {
   subjective: "主观视角",
 };
 
-const CAMERA_MOVEMENT_LABELS: Record<ShootingCameraMovement, string> = {
+const CAMERA_MOVEMENT_LABELS: Record<ShootingCameraMovementV1, string> = {
   locked: "固定机位",
   pan: "横摇",
   tilt: "纵摇",
@@ -39,21 +39,21 @@ const CAMERA_MOVEMENT_LABELS: Record<ShootingCameraMovement, string> = {
   whip_pan: "甩摇",
 };
 
-const COVERAGE_LABELS: Record<ShootingCoverage, string> = {
+const COVERAGE_LABELS: Record<ShootingCoverageV1, string> = {
   must_show: "必须呈现",
   should_show: "建议呈现",
   optional: "可选镜头",
 };
 
-export const shootingShotSizeLabel = (value: ShootingShotSize): string =>
+export const shootingShotSizeLabel = (value: ShootingShotSizeV1): string =>
   SHOT_SIZE_LABELS[value];
 
-export const shootingCameraAngleLabel = (value: ShootingCameraAngle): string =>
+export const shootingCameraAngleLabel = (value: ShootingCameraAngleV1): string =>
   CAMERA_ANGLE_LABELS[value];
 
 export const shootingCameraMovementLabel = (
-  value: ShootingCameraMovement,
+  value: ShootingCameraMovementV1,
 ): string => CAMERA_MOVEMENT_LABELS[value];
 
-export const shootingCoverageLabel = (value: ShootingCoverage): string =>
+export const shootingCoverageLabel = (value: ShootingCoverageV1): string =>
   COVERAGE_LABELS[value];

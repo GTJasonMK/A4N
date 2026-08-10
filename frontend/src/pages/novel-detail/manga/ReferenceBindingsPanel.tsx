@@ -23,7 +23,9 @@ export const ReferenceBindingsPanel: React.FC<{
   chapterLocked: boolean;
   selectedCandidateBySlot: Record<string, string>;
   onSelectCandidate: (slotKey: string, value: string) => void;
-  onBindReferenceImage?: (input: BindMangaReferenceImageInput) => void | Promise<void>;
+  onBindReferenceImage?: (
+    input: Omit<BindMangaReferenceImageInput, "downstream_strategy">,
+  ) => void | Promise<void>;
 }> = ({
   page,
   profiles,
@@ -51,7 +53,7 @@ export const ReferenceBindingsPanel: React.FC<{
         const boundKey = slot.boundAsset
           ? `${slot.boundAsset.asset_kind}:${slot.boundAsset.asset_id}`
           : "";
-        const selectedKey = selectedCandidateBySlot[slotKey] ?? boundKey ?? candidates[0]?.key ?? "";
+        const selectedKey = selectedCandidateBySlot[slotKey] ?? boundKey;
         const selected = candidates.find((candidate) => candidate.key === selectedKey);
         const boundSrc = toMediaSrc(slot.boundAsset?.image_path);
         const bindDisabled =
@@ -92,7 +94,7 @@ export const ReferenceBindingsPanel: React.FC<{
                   </span>
                 </div>
                 <div className="mt-0.5 line-clamp-2 text-small leading-relaxed text-book-text-muted">
-                  {slot.purpose ?? slot.targetName ?? slot.slotId}
+                  {slot.purpose}
                 </div>
               </div>
             </div>

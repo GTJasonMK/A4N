@@ -212,10 +212,9 @@ pub async fn get_generation_task_summary(
     task_id: String,
     attempt: u32,
 ) -> Result<a4n_api_contract::generation_tasks::GenerationTaskSummary, HostErrorResponse> {
-    let task = generation_actions::authorize_generation_task(&state, user_id, &task_id, attempt)
+    generation_actions::generation_task_summary(&state, user_id, &task_id, attempt)
         .await
-        .map_err(map_access_error)?;
-    generation_actions::generation_task_summary_for_host(&task).map_err(map_access_error)
+        .map_err(map_access_error)
 }
 
 #[tauri::command]

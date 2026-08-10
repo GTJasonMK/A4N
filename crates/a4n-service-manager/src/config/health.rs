@@ -1,10 +1,10 @@
 use a4n_service_protocol::{
-    HealthStatus, PROTOCOL_VERSION, ServiceHealth, ServiceVersion, service_compatibility,
+    HealthStatus, PROTOCOL_VERSION, ServiceHealth, ServiceVersion,
+    expected_capability_version_for_service, service_compatibility,
 };
 
 use super::contracts::ManagedServiceConfig;
 use crate::errors::ServiceManagerError;
-use crate::health::expected_capability_version;
 
 impl ManagedServiceConfig {
     pub(crate) fn health_url(&self) -> Result<String, ServiceManagerError> {
@@ -19,12 +19,13 @@ impl ManagedServiceConfig {
     }
 
     pub(crate) fn embedded_health(&self) -> Result<ServiceHealth, ServiceManagerError> {
-        let capability_version = expected_capability_version(&self.name).ok_or_else(|| {
-            ServiceManagerError::InvalidConfig(format!(
-                "embedded service {} has no registered capability version",
-                self.name
-            ))
-        })?;
+        let capability_version =
+            expected_capability_version_for_service(&self.name).ok_or_else(|| {
+                ServiceManagerError::InvalidConfig(format!(
+                    "embedded service {} has no registered capability version",
+                    self.name
+                ))
+            })?;
         Ok(ServiceHealth {
             service: self.name.clone(),
             status: HealthStatus::Healthy,

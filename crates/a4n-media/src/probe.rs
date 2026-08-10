@@ -9,12 +9,15 @@ use thiserror::Error;
 
 const STDERR_PREVIEW_CHARS: usize = 500;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VideoProbeProperties {
     pub width: i32,
     pub height: i32,
     pub duration_secs: f32,
     pub fps: i32,
+    pub codec_name: Option<String>,
+    pub profile: Option<String>,
+    pub has_b_frames: Option<i32>,
 }
 
 #[derive(Debug, Error)]
@@ -70,7 +73,7 @@ pub fn probe_video_properties(path: &Path) -> Result<VideoProbeProperties, Video
             "-select_streams",
             "v:0",
             "-show_entries",
-            "stream=width,height,r_frame_rate",
+            "stream=codec_name,profile,has_b_frames,width,height,r_frame_rate",
             "-show_entries",
             "format=duration",
             "-of",
@@ -168,12 +171,27 @@ pub fn parse_video_probe_properties(
         .and_then(Value::as_str)
         .and_then(parse_frame_rate)
         .unwrap_or(24);
+    let codec_name = stream
+        .get("codec_name")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let profile = stream
+        .get("profile")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let has_b_frames = stream
+        .get("has_b_frames")
+        .and_then(Value::as_i64)
+        .and_then(|value| i32::try_from(value).ok());
 
     Ok(VideoProbeProperties {
         width,
         height,
         duration_secs,
         fps,
+        codec_name,
+        profile,
+        has_b_frames,
     })
 }
 

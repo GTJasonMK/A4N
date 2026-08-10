@@ -112,12 +112,12 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
             {!generationActive ? (
               <>
                 <BookTextarea
-                  label="写作备注 / 重试要求"
+                  label="本章创作简报 / 写作要求"
                   value={writingNotes}
                   onChange={(event) => onWritingNotesChange(event.target.value)}
                   rows={3}
                   maxLength={1200}
-                  placeholder="例如：加强悬疑氛围，减少解释性旁白"
+                  placeholder="无章纲时写清本章要发生什么；有章纲时可补充风格或重试要求"
                   className="text-xs leading-relaxed"
                 />
 
@@ -184,7 +184,11 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                     {
                       label: previewing ? "正在构造模型请求" : "查看模型请求",
                       icon: <Eye size={12} className={previewing ? "animate-pulse" : undefined} />,
-                      disabled: !activeNumber || previewing || !!wordCountRangeError,
+                      disabled:
+                        !activeNumber ||
+                        previewing ||
+                        !!wordCountRangeError ||
+                        !canGenerateChapter,
                       onClick: () => void onPreviewPrompt(),
                     },
                     {

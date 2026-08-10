@@ -4,15 +4,17 @@ import type { CharacterProfile } from "../../../api/character";
 import { CharacterDetailDialog } from "../../CharacterDetailDialog";
 import {
   characterAttributeEntries,
+  characterAttributeText,
   characterAttributeValueText,
 } from "../../../utils/characterAttributes";
 import { attributeKeyLabel } from "../../character-detail-dialog/manageViewUtils";
 import { EmptyHint } from "../shared";
 
 const profileDescription = (profile: CharacterProfile): string =>
-  [profile.personality, profile.background, profile.appearance]
-    .map((value) => value?.trim())
-    .find((value): value is string => !!value) ?? "暂无角色摘要。";
+  characterAttributeText(profile, "implicit", "personality") ??
+  characterAttributeText(profile, "explicit", "background") ??
+  characterAttributeText(profile, "explicit", "appearance") ??
+  "暂无角色摘要。";
 
 const syncedChapterText = (chapter: number): string =>
   chapter > 0 ? `同步至第 ${chapter} 章` : "未同步";
@@ -34,7 +36,8 @@ export const CharacterProfilesPanel: React.FC<{
   projectId: number;
   profiles: CharacterProfile[];
   onChanged: () => void | Promise<void>;
-}> = ({ projectId, profiles, onChanged }) => {
+  onEdit: (profile: CharacterProfile) => void;
+}> = ({ projectId, profiles, onChanged, onEdit }) => {
   const [detailFor, setDetailFor] = useState<CharacterProfile | null>(null);
 
   useEffect(() => {
@@ -45,7 +48,7 @@ export const CharacterProfilesPanel: React.FC<{
   }, [profiles]);
 
   if (profiles.length === 0) {
-    return <EmptyHint text="尚未从正文分析出角色档案。" />;
+    return <EmptyHint text="尚无角色档案。可手动建立，或在有正文后运行章节分析。" />;
   }
 
   const latestSyncedChapter = profiles.reduce(
@@ -66,6 +69,8 @@ export const CharacterProfilesPanel: React.FC<{
         <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
           {profiles.map((profile) => {
             const attributes = visibleAttributeEntries(profile);
+            const gender = characterAttributeText(profile, "explicit", "gender");
+            const age = characterAttributeText(profile, "explicit", "age");
             return (
               <li
                 key={profile.id}
@@ -87,7 +92,7 @@ export const CharacterProfilesPanel: React.FC<{
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
                   <div className="mt-0.5 text-caption text-book-text-muted">
-                    {[profile.gender, profile.age, syncedChapterText(profile.last_synced_chapter)]
+                    {[gender, age, syncedChapterText(profile.last_synced_chapter)]
                       .filter(Boolean)
                       .join(" · ")}
                   </div>
@@ -113,6 +118,10 @@ export const CharacterProfilesPanel: React.FC<{
         projectId={projectId}
         character={detailFor}
         onChanged={onChanged}
+        onEditInitial={(profile) => {
+          setDetailFor(null);
+          onEdit(profile);
+        }}
       />
     </>
   );

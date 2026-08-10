@@ -2,15 +2,15 @@
 
 use crate::progress_task::WorkflowProgressTask;
 use a4n_core::event::channel::TaskKind;
-use a4n_core::models::galgame::{galgame_choice, galgame_line, galgame_scene};
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::export_files::ExportFileData;
 use a4n_runtime::host_api::galgame_records;
 use a4n_runtime::host_api::galgame_records::{
     BindGalgameMediaInput, DeleteGalgameLineInput, GALGAME_PIPELINE_TOTAL_STEPS,
-    GalgameAssetGenerationSummary, GalgameAssetPlan, GalgameMediaBindingResult,
-    GalgamePipelineProgressUpdate, GalgamePipelineStatusSummary, GalgameProjectInput,
-    GalgameScriptDetail, ImportGalgameAudioInput, InsertGalgameLineInput, ReorderGalgameLinesInput,
+    GalgameAssetGenerationSummary, GalgameAssetPlan, GalgameChoice, GalgameLine,
+    GalgameMediaBindingSummary, GalgamePipelineProgressUpdate, GalgamePipelineStatusSummary,
+    GalgameProjectInput, GalgameScene, GalgameScriptDetail, ImportGalgameAudioInput,
+    InsertGalgameLineInput, PreviewGalgamePipelineInput, ReorderGalgameLinesInput,
     RunGalgameAssetGenerationInput, StartGalgamePipelineInput, UnbindGalgameMediaInput,
     UpdateGalgameChoicesInput, UpdateGalgameLineInput, UpdateGalgameSceneInput,
 };
@@ -36,7 +36,7 @@ pub async fn start_galgame_pipeline(
     let progress_task = Arc::new(WorkflowProgressTask::new(
         state.inner(),
         Some(user_id),
-        input.task_id.clone(),
+        Some(input.task_id.clone()),
         TaskKind::GalgameGeneration,
         Some(input.project_id),
         GALGAME_PIPELINE_TOTAL_STEPS,
@@ -76,7 +76,7 @@ pub async fn cancel_galgame_pipeline(
 pub async fn preview_galgame_pipeline_request(
     state: State<'_, AppState>,
     user_id: i64,
-    input: StartGalgamePipelineInput,
+    input: PreviewGalgamePipelineInput,
 ) -> Result<ModelRequestPreview, String> {
     galgame_records::preview_galgame_pipeline_request(state.inner(), user_id, input).await
 }
@@ -96,7 +96,7 @@ pub async fn update_galgame_line(
     user_id: i64,
     project_id: i64,
     input: UpdateGalgameLineInput,
-) -> Result<galgame_line::Model, String> {
+) -> Result<GalgameLine, String> {
     galgame_records::update_galgame_line(state.inner(), user_id, project_id, input).await
 }
 
@@ -106,7 +106,7 @@ pub async fn insert_galgame_line(
     user_id: i64,
     project_id: i64,
     input: InsertGalgameLineInput,
-) -> Result<galgame_line::Model, String> {
+) -> Result<GalgameLine, String> {
     galgame_records::insert_galgame_line(state.inner(), user_id, project_id, input).await
 }
 
@@ -116,7 +116,7 @@ pub async fn update_galgame_scene(
     user_id: i64,
     project_id: i64,
     input: UpdateGalgameSceneInput,
-) -> Result<galgame_scene::Model, String> {
+) -> Result<GalgameScene, String> {
     galgame_records::update_galgame_scene(state.inner(), user_id, project_id, input).await
 }
 
@@ -136,7 +136,7 @@ pub async fn reorder_galgame_lines(
     user_id: i64,
     project_id: i64,
     input: ReorderGalgameLinesInput,
-) -> Result<Vec<galgame_line::Model>, String> {
+) -> Result<Vec<GalgameLine>, String> {
     galgame_records::reorder_galgame_lines(state.inner(), user_id, project_id, input).await
 }
 
@@ -146,7 +146,7 @@ pub async fn update_galgame_choices(
     user_id: i64,
     project_id: i64,
     input: UpdateGalgameChoicesInput,
-) -> Result<Vec<galgame_choice::Model>, String> {
+) -> Result<Vec<GalgameChoice>, String> {
     galgame_records::update_galgame_choices(state.inner(), user_id, project_id, input).await
 }
 
@@ -173,7 +173,7 @@ pub async fn bind_galgame_media(
     state: State<'_, AppState>,
     user_id: i64,
     input: BindGalgameMediaInput,
-) -> Result<GalgameMediaBindingResult, String> {
+) -> Result<GalgameMediaBindingSummary, String> {
     galgame_records::bind_galgame_media(state.inner(), user_id, input).await
 }
 
@@ -191,7 +191,7 @@ pub async fn import_galgame_audio(
     state: State<'_, AppState>,
     user_id: i64,
     input: ImportGalgameAudioInput,
-) -> Result<GalgameMediaBindingResult, String> {
+) -> Result<GalgameMediaBindingSummary, String> {
     galgame_records::import_galgame_audio(state.inner(), user_id, input).await
 }
 

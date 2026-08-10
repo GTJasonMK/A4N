@@ -97,8 +97,6 @@ pub fn sidecar_resource_policy(service: &str) -> Option<SidecarResourcePolicy> {
     }
 }
 
-pub use sidecar_resource_policy as resource_policy_for_service;
-
 #[cfg(test)]
 mod tests {
     use super::{BodyLimitKind, sidecar_resource_policy};

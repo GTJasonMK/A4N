@@ -50,11 +50,11 @@ pub(super) fn validate_service_health(
     validate_service_health_envelope(
         health,
         Some(config.name.as_str()),
-        expected_capability_version(&config.name),
+        expected_capability_version_for_service(&config.name),
     )
     .map_err(map_health_validation_error)?;
     if matches!(config.mode, ServiceMode::Sidecar)
-        && expected_capability_version(&config.name).is_some()
+        && expected_capability_version_for_service(&config.name).is_some()
         && health.version.service_version != env!("CARGO_PKG_VERSION")
     {
         return Err(ServiceManagerError::ServiceBuildMismatch {
@@ -64,10 +64,6 @@ pub(super) fn validate_service_health(
         });
     }
     Ok(())
-}
-
-pub(super) fn expected_capability_version(service: &str) -> Option<&'static str> {
-    expected_capability_version_for_service(service)
 }
 
 fn map_health_validation_error(error: ServiceHealthValidationError) -> ServiceManagerError {

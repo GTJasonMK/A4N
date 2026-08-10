@@ -1,5 +1,6 @@
 use a4n_core::models::project::novel_project;
-use a4n_core::state::{status::ProjectStatus, validator::StateValidator};
+use a4n_core::state::validator::StateValidator;
+use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 

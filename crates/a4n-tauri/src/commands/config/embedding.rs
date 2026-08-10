@@ -6,8 +6,9 @@ use a4n_runtime::host_api::config_records::{
     ModelRequestPreview, UpdateEmbeddingInput,
 };
 use a4n_runtime::host_api::embedding_model::{
-    CancelEmbeddingModelDownloadInput, DownloadProgress, EmbeddingModelDownloadInfoSummary,
-    EmbeddingModelInput, LocalEmbeddingModelSummary,
+    CancelEmbeddingModelDownloadInput, DownloadEmbeddingModelInput, DownloadProgress,
+    EMBEDDING_MODEL_DOWNLOAD_INITIAL_MESSAGE, EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL,
+    EmbeddingModelDownloadInfoSummary, EmbeddingModelInput, LocalEmbeddingModelSummary,
 };
 use a4n_runtime::host_api::task_records;
 use std::sync::Arc;
@@ -42,7 +43,7 @@ tauri_id_input_command!(
 );
 tauri_id_command!(
     test_embedding_config,
-    bool,
+    (),
     config_records_actions::test_embedding_config,
 );
 tauri_id_command!(
@@ -82,17 +83,16 @@ pub async fn get_embedding_model_download_info(
 #[tauri::command]
 pub async fn download_embedding_model(
     state: State<'_, AppState>,
-    input: EmbeddingModelInput,
+    input: DownloadEmbeddingModelInput,
 ) -> Result<LocalEmbeddingModelSummary, String> {
-    let scope = a4n_runtime::host_api::embedding_model::embedding_model_download_task_scope();
     let progress_task = Arc::new(WorkflowProgressTask::new(
         state.inner(),
         None,
         input.task_id.clone(),
         TaskKind::EmbeddingDownload,
         None,
-        scope.total,
-        scope.initial_message,
+        EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL,
+        EMBEDDING_MODEL_DOWNLOAD_INITIAL_MESSAGE,
     ));
     let cancel_token = input.task_id.as_ref().map(|_| progress_task.cancel_token());
     let (progress_tx, progress_worker) = if input.task_id.is_some() {
@@ -103,7 +103,7 @@ pub async fn download_embedding_model(
                 progress_task.progress_bytes(
                     progress.downloaded_bytes,
                     progress.total_bytes,
-                    scope.total,
+                    EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL,
                     &progress.message,
                 );
             }
@@ -115,7 +115,7 @@ pub async fn download_embedding_model(
 
     let mut result = a4n_runtime::host_api::embedding_model::download_embedding_model(
         state.inner(),
-        input.clone(),
+        input,
         progress_tx,
         cancel_token,
     )
@@ -157,9 +157,9 @@ pub async fn cancel_embedding_model_download(
 ) -> Result<(), String> {
     let task_id = a4n_runtime::host_api::embedding_model::required_task_id(input)
         .map_err(|e| e.to_string())?;
-    let handle = task_records::get_task_handle(state.inner(), &task_id)
-        .ok_or_else(|| format!("模型下载任务不存在或已结束：{task_id}"))?;
-    handle.cancel();
+    if !task_records::cancel_registered_task(state.inner(), &task_id) {
+        return Err(format!("模型下载任务不存在或已结束：{task_id}"));
+    }
     Ok(())
 }
 

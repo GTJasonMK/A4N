@@ -14,11 +14,7 @@ import {
 } from "../../../api/blueprint";
 import { formatUiDateTime } from "../../../utils/dateTime";
 
-const blueprintVersionLabel = (version: string, index: number): string => {
-  const value = version.trim();
-  if (/^v?\d+(?:\.\d+)*$/i.test(value)) return `版本 ${value}`;
-  return index === 0 ? "最新版本" : `历史版本 ${index}`;
-};
+const blueprintVersionLabel = (version: string): string => `版本 ${version}`;
 
 interface BlueprintVersionsPanelProps {
   projectId: number;
@@ -160,7 +156,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       ) {
         return;
       }
-      setDiff(data);
+      setDiff(data.diff);
     } catch (err) {
       if (
         !mountedRef.current ||
@@ -185,8 +181,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   const handleRestore = async (version: BlueprintVersion) => {
     if (restoringRef.current != null) return;
     const requestProjectId = projectId;
-    const versionIndex = versions.findIndex((item) => item.version === version.version);
-    const versionLabel = blueprintVersionLabel(version.version, Math.max(0, versionIndex));
+    const versionLabel = blueprintVersionLabel(version.version);
     restoringRef.current = version.version;
     const ok = await confirmDialog({
       title: "恢复蓝图版本",
@@ -211,12 +206,17 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
     setDiff(null);
     setRestoring(version.version);
     try {
-      await restoreBlueprintVersion({
+      const result = await restoreBlueprintVersion({
         project_id: projectId,
         version: version.version,
       });
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
-      addToast(`已恢复到${versionLabel}`, "success");
+      addToast(
+        result.warnings.length > 0
+          ? `已恢复到${versionLabel}；${result.warnings.join("；")}`
+          : `已恢复到${versionLabel}`,
+        result.warnings.length > 0 ? "info" : "success",
+      );
       await onMutated();
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
       await load();
@@ -279,9 +279,9 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       ) : (
         <>
           <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
-            {versions.map((version, index) => {
+            {versions.map((version) => {
               const isPicked = picked.includes(version.version);
-              const versionLabel = blueprintVersionLabel(version.version, index);
+              const versionLabel = blueprintVersionLabel(version.version);
               return (
                 <li
                   key={version.id}
@@ -314,9 +314,11 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
                         </span>
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block truncate text-small text-book-text-sub">
-                      {version.change_description || "保存蓝图"}
-                    </span>
+                    {version.change_description ? (
+                      <span className="mt-0.5 block truncate text-small text-book-text-sub">
+                        {version.change_description}
+                      </span>
+                    ) : null}
                   </span>
                   {restoring != null ? (
                     restoring === version.version ? (
@@ -385,10 +387,10 @@ const BlueprintDiffSummary: React.FC<{ diff: unknown }> = ({ diff }) => {
   }
   return (
     <div className="a4n-flat-surface divide-y divide-book-border/40">
-        {entries.slice(0, 16).map(([key, value], index) => (
+        {entries.map(([key, value]) => (
           <div key={key} className="grid gap-1 px-3 py-2 text-small sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3">
             <span className="font-medium text-book-text-muted">
-              {BLUEPRINT_DIFF_LABELS[key] ?? `变化 ${index + 1}`}
+              {BLUEPRINT_DIFF_LABELS[key] ?? key}
             </span>
             <span className="min-w-0 whitespace-pre-wrap break-words text-book-text-sub">
               {formatBlueprintDiffValue(value)}
@@ -408,8 +410,7 @@ function formatBlueprintDiffValue(value: unknown): string {
   }
   if (typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
-      .slice(0, 8)
-      .map(([key, item]) => `${BLUEPRINT_DIFF_LABELS[key] ?? "内容"}：${formatBlueprintDiffValue(item)}`)
+      .map(([key, item]) => `${BLUEPRINT_DIFF_LABELS[key] ?? key}：${formatBlueprintDiffValue(item)}`)
       .join("；");
   }
   return String(value);

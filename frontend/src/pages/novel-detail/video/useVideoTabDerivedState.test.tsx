@@ -68,8 +68,7 @@ const plan: ChapterVideoPrompt = {
     ],
     video_execution_identity: executionIdentity,
   },
-  created_at: null,
-  updated_at: null,
+  updated_at: "2026-07-29T00:00:00Z",
 };
 
 const video = (
@@ -98,6 +97,7 @@ const video = (
   status: "completed",
   provider_job_id: null,
   error_message: null,
+  timeline_item_id: null,
   metadata_json: {
     shot_number: segmentNumber,
     video_execution_identity: {
@@ -111,8 +111,8 @@ const video = (
     },
   },
   is_favorite: false,
-  created_at: null,
-  updated_at: null,
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:01Z",
 });
 
 const videos = [
@@ -204,10 +204,11 @@ const image = (
   file_size: 1,
   ai_score: null,
   is_favorite: false,
+  is_system_managed: true,
   chapter_id: 2,
   panel_id: null,
   metadata_json: metadata,
-  created_at: null,
+  created_at: "2026-01-01T00:00:00Z",
 });
 
 const systemFrameImage = image(201, "video_key_frame", {

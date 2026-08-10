@@ -24,12 +24,12 @@ impl ComfyUiImageProvider {
         })
     }
 
-    fn workflow(req: &ImageGenerationRequest) -> serde_json::Value {
-        json!({
+    fn workflow(req: &ImageGenerationRequest) -> Result<serde_json::Value, AppError> {
+        Ok(json!({
             "3": {
                 "class_type": "KSampler",
                 "inputs": {
-                    "seed": time_seed(),
+                    "seed": time_seed()?,
                     "steps": 24,
                     "cfg": 7.0,
                     "sampler_name": "euler",
@@ -83,7 +83,7 @@ impl ComfyUiImageProvider {
                     "images": ["8", 0]
                 }
             }
-        })
+        }))
     }
 
     fn submit_body(
@@ -100,7 +100,7 @@ impl ComfyUiImageProvider {
         }
         Ok(json!({
             "client_id": client_id,
-            "prompt": Self::workflow(req),
+            "prompt": Self::workflow(req)?,
         }))
     }
 
@@ -117,7 +117,7 @@ impl ImageProvider for ComfyUiImageProvider {
         &self,
         req: ImageGenerationRequest,
     ) -> Result<ImageGenerationResult, AppError> {
-        let client_id = format!("a4n-{}", time_seed());
+        let client_id = format!("a4n-{}", time_seed()?);
         let submit_url = format!("{}/prompt", self.base_url);
         let submit_body = Self::submit_body(&req, client_id)?;
 

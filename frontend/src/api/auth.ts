@@ -3,80 +3,41 @@ import {
   clearCurrentAuth,
   readCurrentRefreshToken,
   readCurrentSessionId,
-  readCurrentUserId,
+  requireCurrentUserId,
   writeCurrentAccessToken,
   writeCurrentRefreshToken,
   writeCurrentSessionId,
   writeCurrentUserId,
 } from "./authStorage";
 import type {
-  AuthResult as GeneratedAuthResult,
+  AuthResult,
   ChangePasswordInput,
   LoginInput,
-  OAuth2LoginResult as GeneratedOAuth2LoginResult,
   RefreshTokenInput,
   RegisterInput,
-  SessionSummary as GeneratedSessionSummary,
+  SessionSummary,
   TokenPairSummary,
   UpdateProfileInput,
-  UserSummary as GeneratedUserSummary,
+  UserSummary,
 } from "./generated/auth";
 
 export type {
+  SessionSummary,
   UpdateProfileInput,
+  UserSummary,
 } from "./generated/auth";
 
-export type UserSummary = Omit<
-  GeneratedUserSummary,
-  | "oauth_provider"
-  | "oauth_subject"
-  | "avatar_url"
-  | "created_at"
-  | "updated_at"
-  | "last_login_at"
-> & {
-  oauth_provider: string | null;
-  oauth_subject: string | null;
-  avatar_url: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  last_login_at: string | null;
-};
-export type SessionSummary = Omit<
-  GeneratedSessionSummary,
-  | "user_agent"
-  | "created_at"
-  | "expires_at"
-  | "revoked_at"
-  | "last_used_at"
-> & {
-  user_agent: string | null;
-  created_at: string | null;
-  expires_at: string | null;
-  revoked_at: string | null;
-  last_used_at: string | null;
-};
 export type TokenPair = TokenPairSummary;
-export type AuthResult = Omit<GeneratedAuthResult, "user" | "session"> & {
-  user: UserSummary;
-  session: SessionSummary;
-};
-export type OAuth2LoginResult = Omit<GeneratedOAuth2LoginResult, "user" | "session"> & {
-  user: UserSummary;
-  session: SessionSummary;
-};
 
-const persistAuthResult = (result: AuthResult | OAuth2LoginResult): void => {
+const persistAuthResult = (result: AuthResult): void => {
   writeCurrentUserId(result.user.id);
-  writeCurrentSessionId(result.tokens.session_id || result.session.id);
+  writeCurrentSessionId(result.tokens.session_id);
   writeCurrentAccessToken(result.tokens.access_token);
   writeCurrentRefreshToken(result.tokens.refresh_token);
 };
 
 export async function getCurrentUser(): Promise<UserSummary> {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录");
-  return apiInvoke<UserSummary>("get_current_user", { userId: id });
+  return apiInvoke<UserSummary>("get_current_user", { userId: requireCurrentUserId() });
 }
 
 export async function loginUser(username: string, password: string): Promise<AuthResult> {
@@ -110,8 +71,8 @@ export async function registerUser(
 export async function logoutUser(): Promise<void> {
   try {
     await apiInvoke<void>("logout_user", {
-      userId: readCurrentUserId(),
-      sessionId: readCurrentSessionId(),
+      userId: requireCurrentUserId(),
+      sessionId: requireCurrentSessionId(),
     });
   } finally {
     clearCurrentAuth();
@@ -122,11 +83,9 @@ export async function changeUserPassword(
   oldPassword: string,
   newPassword: string,
 ): Promise<void> {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录");
   const input: ChangePasswordInput = { old_password: oldPassword, new_password: newPassword };
   await apiInvoke<void>("change_user_password", {
-    userId: id,
+    userId: requireCurrentUserId(),
     input,
   });
 }
@@ -145,11 +104,10 @@ export async function updateUserProfile(
 }
 
 /** 后端 refresh_token(input: { refresh_token, session_id }) */
-export async function refreshToken(refreshToken: string): Promise<TokenPair> {
-  const token = refreshToken || readCurrentRefreshToken();
+export async function refreshToken(): Promise<TokenPair> {
+  const token = readCurrentRefreshToken();
   if (!token) throw new Error("当前刷新令牌不存在，无法刷新令牌");
-  const sessionId = readCurrentSessionId();
-  if (!sessionId) throw new Error("当前会话不存在，无法刷新令牌");
+  const sessionId = requireCurrentSessionId();
   const input: RefreshTokenInput = { refresh_token: token, session_id: sessionId };
   const pair = await apiInvoke<TokenPair>("refresh_token", {
     input,
@@ -162,9 +120,7 @@ export async function refreshToken(refreshToken: string): Promise<TokenPair> {
 
 /** 后端 list_sessions(user_id) */
 export async function listSessions(): Promise<SessionSummary[]> {
-  const userId = readCurrentUserId();
-  if (userId == null) return [];
-  return apiInvoke<SessionSummary[]>("list_sessions", { userId });
+  return apiInvoke<SessionSummary[]>("list_sessions", { userId: requireCurrentUserId() });
 }
 
 export async function oauth2AuthorizeUrl(provider: string): Promise<string> {
@@ -174,8 +130,14 @@ export async function oauth2AuthorizeUrl(provider: string): Promise<string> {
 export async function oauth2Callback(input: {
   provider: string;
   code: string;
-}): Promise<OAuth2LoginResult> {
-  const result = await apiInvoke<OAuth2LoginResult>("oauth2_callback", { input });
+}): Promise<AuthResult> {
+  const result = await apiInvoke<AuthResult>("oauth2_callback", { input });
   persistAuthResult(result);
   return result;
+}
+
+function requireCurrentSessionId(): string {
+  const sessionId = readCurrentSessionId();
+  if (!sessionId) throw new Error("当前会话不存在");
+  return sessionId;
 }

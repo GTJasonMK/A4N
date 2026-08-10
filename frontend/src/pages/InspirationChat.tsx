@@ -38,7 +38,6 @@ export const InspirationChat: React.FC = () => {
         projectTitle={chat.project.title}
         showConversationControls={chat.stage === "conversation"}
         generating={chat.generating}
-        canTryGenerate={chat.canTryGenerate}
         canGenerate={chat.canGenerate}
         onOpenProgress={() => setProgressOpen(true)}
         onGenerateBlueprint={() => void chat.handleGenerateBlueprint()}

@@ -1,4 +1,4 @@
-export interface DownloadableBase64File {
+interface DownloadableBase64File {
   file_name: string;
   mime_type?: string | null;
   data_base64: string;

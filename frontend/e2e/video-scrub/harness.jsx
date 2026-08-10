@@ -18,10 +18,16 @@ const mountHarness = async () => {
   const nativeTauriRuntime = Boolean(window.__TAURI_INTERNALS__?.metadata);
   let fixtureBytes = new Uint8Array();
   let fixtureBase64 = "";
+  let scrubFramesBase64 = "";
   if (!nativeTauriRuntime) {
-    const fixtureResponse = await fetch("./scrub-fixture.mp4");
-    if (!fixtureResponse.ok) {
-      throw new Error(`无法加载视频测试文件：${fixtureResponse.status}`);
+    const [fixtureResponse, scrubFramesResponse] = await Promise.all([
+      fetch("./scrub-fixture.mp4"),
+      fetch("./scrub-fixture.mjpg"),
+    ]);
+    if (!fixtureResponse.ok || !scrubFramesResponse.ok) {
+      throw new Error(
+        `无法加载视频测试文件：${fixtureResponse.status}/${scrubFramesResponse.status}`,
+      );
     }
     fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
     let fixtureBinary = "";
@@ -31,6 +37,16 @@ const mountHarness = async () => {
       );
     }
     fixtureBase64 = btoa(fixtureBinary);
+    const scrubFrameBytes = new Uint8Array(
+      await scrubFramesResponse.arrayBuffer(),
+    );
+    let scrubFramesBinary = "";
+    for (let offset = 0; offset < scrubFrameBytes.length; offset += 0x8000) {
+      scrubFramesBinary += String.fromCharCode(
+        ...scrubFrameBytes.subarray(offset, offset + 0x8000),
+      );
+    }
+    scrubFramesBase64 = btoa(scrubFramesBinary);
   }
 
   const video = {
@@ -65,11 +81,30 @@ const mountHarness = async () => {
     created_at: "2026-08-04T00:00:00Z",
     updated_at: "2026-08-04T00:00:00Z",
   };
+  const videos =
+    new URLSearchParams(window.location.search).get("scenario") ===
+    "multiple-pushes"
+      ? [
+          video,
+          {
+            ...video,
+            id: 9002,
+            metadata_json: {
+              assembly_push: {
+                ...video.metadata_json.assembly_push,
+                push_index: 2,
+              },
+            },
+            created_at: "2026-08-04T01:00:00Z",
+            updated_at: "2026-08-04T01:00:00Z",
+          },
+        ]
+      : [video];
 
   if (!nativeTauriRuntime) {
     let nextCallbackId = 1;
     window.__TAURI_INTERNALS__ = {
-      invoke: async (command) => {
+      invoke: async (command, args) => {
         switch (command) {
           case "get_all_frontend_state":
             return { "a4n:current_user_id": "1" };
@@ -77,7 +112,18 @@ const mountHarness = async () => {
           case "remove_frontend_state_many":
             return null;
           case "load_video_scrub_playback_data":
-            return { mime_type: "video/mp4", data_base64: fixtureBase64 };
+            if (args?.includeAudio !== false) {
+              throw new Error("scrub playback must omit audio");
+            }
+            return {
+              mime_type: "video/mp4",
+              data_base64: fixtureBase64,
+              scrub_frames: {
+                mime_type: "image/jpeg",
+                data_base64: scrubFramesBase64,
+                frames_per_second: 12,
+              },
+            };
           default:
             throw new Error(`unexpected command: ${command}`);
         }
@@ -101,7 +147,7 @@ const mountHarness = async () => {
           title: "剪辑预览测试",
           status: "completed",
         }}
-        videos={[video]}
+        videos={videos}
         onToast={() => undefined}
         onRefresh={() => undefined}
       />

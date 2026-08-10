@@ -6,6 +6,7 @@ import { Dropdown } from "../../components/ui/Dropdown";
 import {
   CHARACTER_ATTRIBUTE_LABELS,
   characterAttributeEntries,
+  characterAttributeText,
   type CharacterAttributeCategory,
 } from "../../utils/characterAttributes";
 import {
@@ -41,9 +42,14 @@ export const CharacterProfileDetailPanel: React.FC<{
     );
   }
 
+  const gender = characterAttributeText(profile, "explicit", "gender");
+  const age = characterAttributeText(profile, "explicit", "age");
+  const personality = characterAttributeText(profile, "implicit", "personality");
+  const background = characterAttributeText(profile, "explicit", "background");
+  const appearance = characterAttributeText(profile, "explicit", "appearance");
   const profileMeta = [
-    profile.gender,
-    profile.age,
+    gender,
+    age,
     profile.last_synced_chapter > 0
       ? `已同步至第 ${profile.last_synced_chapter} 章`
       : "尚未同步章节状态",
@@ -85,9 +91,9 @@ export const CharacterProfileDetailPanel: React.FC<{
               <section className="px-3 py-3 sm:px-4">
                 <h3 className="mb-2 text-small font-semibold text-book-text-main">角色概况</h3>
                 <dl className="space-y-2">
-                  <ProfileField label="性格" value={profile.personality} />
-                  <ProfileField label="背景" value={profile.background} />
-                  <ProfileField label="外观" value={profile.appearance} />
+                  <ProfileField label="性格" value={personality} />
+                  <ProfileField label="背景" value={background} />
+                  <ProfileField label="外观" value={appearance} />
                 </dl>
               </section>
             ) : null}

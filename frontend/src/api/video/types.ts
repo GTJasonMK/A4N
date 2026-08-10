@@ -1,4 +1,3 @@
-export type VideoDurationMode = "range" | "fixed";
 export type PromptOutputLanguage = "zh_cn" | "en";
 export type VideoWorkflowMode =
   | "shared_segment_plan"
@@ -12,35 +11,29 @@ export type VideoWorkflowMode =
   | "canvas_reference_media"
   | "canvas_trim"
   | "canvas_assembly";
-export type { DownstreamConflictStrategy } from "../dependencyConflict";
+export type {
+  ChapterVideoPrompt,
+  DownstreamConflictStrategy,
+} from "../generated/host";
 
-export type VideoGenConfig = Omit<VideoConfigSummary, "duration_mode"> & {
-  duration_mode: VideoDurationMode;
-  supported_durations_json: number[] | null;
+type VideoGenConfigBase = Omit<
+  VideoConfigSummary,
+  "duration_mode" | "supported_durations_json"
+> & {
+  api_key_encrypted?: string | null;
 };
 
-export interface ChapterVideoPrompt {
-  id: number;
-  project_id: number;
-  chapter_id: number;
-  style: string | null;
-  prompt_type: string;
-  workflow_mode: VideoWorkflowMode;
-  shot_number: number;
-  title: string | null;
-  scene_summary: string | null;
-  visual_prompt: string;
-  motion_prompt: string | null;
-  negative_prompt: string | null;
-  duration_secs: number;
-  aspect_ratio: string | null;
-  reference_image_ids_json: unknown | null;
-  status: string;
-  generated_video_id: number | null;
-  metadata_json: unknown | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
+export type VideoGenConfig = VideoGenConfigBase &
+  (
+    | {
+        duration_mode: "range";
+        supported_durations_json: null;
+      }
+    | {
+        duration_mode: "fixed";
+        supported_durations_json: number[];
+      }
+  );
 
 export type GeneratedVideo = Omit<GeneratedVideoSummary, "workflow_mode"> & {
   workflow_mode: VideoWorkflowMode | null;
@@ -71,13 +64,14 @@ export type ApplyAssemblyPostprocessEditInput = Omit<
   source_video_id?: number | string | null;
 };
 
-export type CreateVideoConfigInput = Omit<VideoConfigInput, "duration_mode"> & {
-  duration_mode: VideoDurationMode;
+export type CreateVideoConfigInput = Omit<VideoConfigInput, "supported_durations_json"> & {
   supported_durations_json?: number[] | null;
 };
 
-export type UpdateVideoConfigInput = Omit<ApiUpdateVideoConfigInput, "duration_mode"> & {
-  duration_mode: VideoDurationMode;
+export type UpdateVideoConfigInput = Omit<
+  ApiUpdateVideoConfigInput,
+  "supported_durations_json"
+> & {
   supported_durations_json?: number[] | null;
 };
 
@@ -92,13 +86,16 @@ import type {
   UpdateVideoConfigInput as ApiUpdateVideoConfigInput,
   VideoConfigInput,
   VideoConfigSummary,
+  VideoDurationMode,
 } from "../generated/config";
+export type { VideoDurationMode };
 import type {
   ApplyAssemblyPostprocessEditInput as ApiApplyAssemblyPostprocessEditInput,
   AssembledChapterVideoPreview as ApiAssembledChapterVideoPreview,
   AssemblyPushResult as ApiAssemblyPushResult,
   GeneratedVideoSummary,
   PushAssembledChapterVideoInput as ApiPushAssembledChapterVideoInput,
+  UpdateGeneratedVideoInput as ApiUpdateGeneratedVideoInput,
   UploadAssemblyInsertVideoInput as ApiUploadAssemblyInsertVideoInput,
   UploadChapterVideoInput as ApiUploadChapterVideoInput,
   UploadReferenceMediaVideoInput as ApiUploadReferenceMediaVideoInput,
@@ -109,3 +106,4 @@ import type {
 } from "../generated/generationContracts";
 
 export type ReferenceMediaVideoInput = ApiReferenceMediaVideoInput;
+export type UpdateVideoInput = ApiUpdateGeneratedVideoInput;

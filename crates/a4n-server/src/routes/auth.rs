@@ -48,7 +48,7 @@ pub(super) async fn logout(
     Json(input): Json<LogoutRequest>,
 ) -> Result<(), ApiError> {
     let user = authenticated_user(&state, &headers).await?;
-    auth_records::logout_user(state.runtime(), Some(user.id), Some(&input.session_id)).await?;
+    auth_records::revoke_session(state.runtime(), user.id, &input.session_id).await?;
     Ok(())
 }
 

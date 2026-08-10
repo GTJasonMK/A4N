@@ -1,7 +1,9 @@
 use a4n_capabilities::{
     CapabilityClient, EmbeddingClient, ExportClient, ImageClient, LlmClient, RagClient, VideoClient,
 };
-use a4n_export_core::{ExportDocumentKind, ExportRenderJsonInput};
+use a4n_export_core::{
+    ExportDocumentKind, ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput,
+};
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
     EXPORT_RENDER_CAPABILITY_VERSION, IMAGE_PROVIDER_CAPABILITY_VERSION,
@@ -184,17 +186,21 @@ async fn recording_image_responses_and_request_ledgers_are_operation_specific() 
 #[tokio::test]
 async fn recording_image_unconfigured_operations_fail_explicitly() {
     let client = RecordingImageClient::new();
+    let request = request("image-generate", IMAGE_PROVIDER_CAPABILITY_VERSION);
+    let (events_tx, _events_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
     let error = client
-        .generate(request("image-generate", IMAGE_PROVIDER_CAPABILITY_VERSION))
+        .generate_events(request.clone(), events_tx)
         .await
-        .expect_err("unconfigured image generate must fail");
+        .expect_err("unconfigured image generate events must fail");
 
     assert_eq!(error.code, ServiceErrorCode::Internal);
     assert_eq!(
         error.message,
-        "unexpected RecordingImageClient generate call"
+        "unexpected RecordingImageClient generate_events call"
     );
     assert_eq!(client.generate_call_count(), 1);
+    assert_eq!(client.last_generate_request(), Some(request));
 }
 
 #[tokio::test]
@@ -275,17 +281,21 @@ async fn recording_video_responses_and_request_ledgers_are_operation_specific() 
 #[tokio::test]
 async fn recording_video_unconfigured_operations_fail_explicitly() {
     let client = RecordingVideoClient::new();
+    let request = request("video-generate", VIDEO_PROVIDER_CAPABILITY_VERSION);
+    let (events_tx, _events_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
     let error = client
-        .generate(request("video-generate", VIDEO_PROVIDER_CAPABILITY_VERSION))
+        .generate_events(request.clone(), events_tx)
         .await
-        .expect_err("unconfigured video generate must fail");
+        .expect_err("unconfigured video generate events must fail");
 
     assert_eq!(error.code, ServiceErrorCode::Internal);
     assert_eq!(
         error.message,
-        "unexpected RecordingVideoClient generate call"
+        "unexpected RecordingVideoClient generate_events call"
     );
     assert_eq!(client.generate_call_count(), 1);
+    assert_eq!(client.last_generate_request(), Some(request));
 }
 
 #[tokio::test]
@@ -302,7 +312,6 @@ async fn recording_rag_ingest_events_capture_request_and_bind_task_id() {
         .expect("configured RAG ingest events");
 
     assert_eq!(client.ingest_events_call_count(), 1);
-    assert_eq!(client.ingest_call_count(), 0);
     assert_eq!(client.last_ingest_events_request(), Some(request.clone()));
     let event = events_rx.try_recv().expect("configured completed event");
     assert_eq!(event.task_id, request.request_id);
@@ -313,11 +322,13 @@ async fn recording_rag_ingest_events_capture_request_and_bind_task_id() {
 async fn recording_rag_unconfigured_operations_fail_explicitly() {
     let client = RecordingRagClient::new();
     let ingest_request = request("rag-ingest", RAG_INDEX_CAPABILITY_VERSION);
+    let (events_tx, _events_rx) =
+        tokio::sync::mpsc::channel(a4n_capabilities::EVENT_QUEUE_CAPACITY);
 
     let ingest_error = client
-        .ingest(ingest_request.clone())
+        .ingest_events(ingest_request.clone(), events_tx)
         .await
-        .expect_err("unconfigured RAG ingest must fail");
+        .expect_err("unconfigured RAG ingest events must fail");
     let query_error = client
         .query(request("rag-query", RAG_INDEX_CAPABILITY_VERSION))
         .await
@@ -326,35 +337,35 @@ async fn recording_rag_unconfigured_operations_fail_explicitly() {
     assert_eq!(ingest_error.code, ServiceErrorCode::Internal);
     assert_eq!(
         ingest_error.message,
-        "unexpected RecordingRagClient ingest call"
+        "unexpected RecordingRagClient ingest_events call"
     );
     assert_eq!(query_error.code, ServiceErrorCode::Internal);
     assert_eq!(
         query_error.message,
         "unexpected RecordingRagClient query call"
     );
-    assert_eq!(client.ingest_call_count(), 1);
-    assert_eq!(client.last_ingest_request(), Some(ingest_request));
-    assert_eq!(client.ingest_events_call_count(), 0);
+    assert_eq!(client.ingest_events_call_count(), 1);
+    assert_eq!(client.last_ingest_events_request(), Some(ingest_request));
 }
 
 #[tokio::test]
-async fn recording_export_responses_and_request_ledgers_are_operation_specific() {
-    let json_response = response(serde_json::json!({"operation": "render_json"}));
-    let zip_response = response(serde_json::json!({"operation": "render_zip"}));
-    let client = RecordingExportClient::new()
-        .with_render_json_response(json_response.clone())
-        .with_render_zip_response(zip_response.clone());
-    let json_request = request("export-json", EXPORT_RENDER_CAPABILITY_VERSION);
-    let zip_request = request("export-zip", EXPORT_RENDER_CAPABILITY_VERSION);
-
-    assert_eq!(
-        client
-            .render_json(json_request.clone())
-            .await
-            .expect("configured JSON response"),
-        json_response
+async fn recording_export_zip_response_and_request_ledger_are_typed() {
+    let zip_response = response(ExportRenderZipOutput {
+        bytes_base64: "UEsDBAo=".to_string(),
+        content_type: "application/zip".to_string(),
+    });
+    let client = RecordingExportClient::new().with_render_zip_response(zip_response.clone());
+    let zip_request = export_request(
+        "export-zip",
+        ExportRenderZipInput {
+            manifest_path: "manifest.json".to_string(),
+            manifest_bytes_base64: "e30=".to_string(),
+            manifest_label: "manifest".to_string(),
+            entries: Vec::new(),
+            package_label: "package".to_string(),
+        },
     );
+
     assert_eq!(
         client
             .render_zip(zip_request.clone())
@@ -362,14 +373,12 @@ async fn recording_export_responses_and_request_ledgers_are_operation_specific()
             .expect("configured ZIP response"),
         zip_response
     );
-    assert_eq!(client.render_json_call_count(), 1);
     assert_eq!(client.render_zip_call_count(), 1);
-    assert_eq!(client.last_render_json_request(), Some(json_request));
     assert_eq!(client.last_render_zip_request(), Some(zip_request));
 }
 
 #[tokio::test]
-async fn recording_export_unconfigured_typed_operation_fails_explicitly() {
+async fn recording_export_unconfigured_operation_fails_explicitly() {
     let client = RecordingExportClient::new();
     let request = ServiceRequestContext::deny_all(
         "export-json-typed",
@@ -389,17 +398,28 @@ async fn recording_export_unconfigured_typed_operation_fails_explicitly() {
     .expect("valid typed export request");
 
     let error = client
-        .render_json_typed(request)
+        .render_json(request)
         .await
-        .expect_err("unconfigured typed export must fail");
+        .expect_err("unconfigured export must fail");
 
     assert_eq!(error.code, ServiceErrorCode::Internal);
     assert_eq!(
         error.message,
-        "unexpected RecordingExportClient render_json_typed call"
+        "unexpected RecordingExportClient render_json call"
     );
-    assert_eq!(client.render_json_call_count(), 0);
     assert_eq!(client.render_zip_call_count(), 0);
+}
+
+fn export_request<T>(request_id: &str, payload: T) -> a4n_service_protocol::ServiceRequest<T> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(EXPORT_RENDER_CAPABILITY_VERSION, payload)
+    .expect("valid typed export request")
 }
 
 fn request(request_id: &str, capability_version: &str) -> a4n_capabilities::JsonRequest {
@@ -417,7 +437,7 @@ fn request(request_id: &str, capability_version: &str) -> a4n_capabilities::Json
     .expect("valid test capability request")
 }
 
-fn response(payload: serde_json::Value) -> a4n_capabilities::JsonResponse {
+fn response<T>(payload: T) -> ServiceResponse<T> {
     ServiceResponse {
         status: ServiceStatus::Ok,
         trace_id: Some("trace-response".to_string()),

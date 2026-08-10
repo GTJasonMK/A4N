@@ -36,8 +36,7 @@ macro_rules! character_ai_web_task_command {
                 scope.project_id,
                 scope.total,
                 $start_message,
-            )
-            .await;
+            );
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
             let reporter = web_fire_and_forget_progress_reporter(task.clone());
             let runtime_progress = character_ai_actions::CharacterAiProgress::new(
@@ -54,8 +53,7 @@ macro_rules! character_ai_web_task_command {
                     result,
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),
                 ),
-            )
-            .await?;
+            )?;
             Ok(value)
         }
     };
@@ -104,8 +102,7 @@ pub(in crate::routes::commands) async fn discover_character_profiles(
         scope.project_id,
         scope.total,
         "正在准备角色发现",
-    )
-    .await;
+    );
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
     let reporter = web_fire_and_forget_progress_reporter(task.clone());
     let runtime_progress = character_ai_actions::CharacterAiProgress::new(
@@ -129,7 +126,6 @@ pub(in crate::routes::commands) async fn discover_character_profiles(
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),
         ),
     )
-    .await
 }
 
 character_ai_web_preview_command!(
@@ -246,8 +242,7 @@ pub(in crate::routes::commands) async fn check_character_conflict(
         scope.project_id,
         scope.total,
         "正在准备角色一致性检查",
-    )
-    .await;
+    );
     let progress = web_progress_reporter(task);
     let result = character_conflict_actions::check_character_conflict(
         state.runtime(),
@@ -260,7 +255,7 @@ pub(in crate::routes::commands) async fn check_character_conflict(
         task_id.as_deref(),
     )
     .await;
-    let rows = finish_web_task(state, task_id, result).await?;
+    let rows = finish_web_task(state, task_id, result)?;
     Ok(json!(rows))
 }
 

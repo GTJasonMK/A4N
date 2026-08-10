@@ -20,7 +20,6 @@ pub(super) async fn try_dispatch(
         "prompt_version_history" => prompt_version_history(state, user_id, args).await?,
         "prompt_version_diff" => prompt_version_diff(state, user_id, args).await?,
         "prompt_validate_variables" => prompt_validate_variables(state, user_id, args).await?,
-        "prompt_dependency_graph" => prompt_dependency_graph(state, user_id, args).await?,
         "prompt_render_ab" => prompt_render_ab(state, user_id, args).await?,
         "prompt_get_dependencies" => prompt_get_dependencies(state, user_id, args).await?,
         "prompt_get_reverse_dependencies" => {
@@ -55,6 +54,7 @@ pub(super) async fn try_dispatch(
         }
         "list_profiles" => list_profiles(state, user_id, args).await?,
         "create_profile" => create_profile(state, user_id, args).await?,
+        "update_character_profile" => update_character_profile(state, user_id, args).await?,
         "delete_profile" => delete_profile(state, user_id, args).await?,
         "add_profile_attribute" => add_profile_attribute(state, user_id, args).await?,
         "modify_profile_attribute" => modify_profile_attribute(state, user_id, args).await?,
@@ -124,7 +124,6 @@ pub(super) async fn try_dispatch(
         "get_generation_call_analytics" => {
             get_generation_call_analytics(state, user_id, args).await?
         }
-        "preview_rollback" => preview_rollback(state, user_id, args).await?,
         "update_world_setting" => update_world_setting(state, user_id, args).await?,
         "list_parts" => list_parts(state, user_id, args).await?,
         "preview_generate_parts_request" => {

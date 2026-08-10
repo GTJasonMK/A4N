@@ -62,17 +62,17 @@ export function formatImageItem(config: ImageForm): {
 export function toImageItem(raw: ImageGenConfig): ConfigItem<ImageForm> {
   return {
     id: raw.id,
-    isActive: Boolean(raw.is_default),
+    isActive: raw.is_default,
     config: {
       name: raw.name,
       provider: raw.backend,
       model: raw.model,
-      api_base_url: raw.base_url ?? "",
+      api_base_url: raw.base_url,
       api_key: "",
-      has_api_key: Boolean(raw.has_api_key ?? raw.api_key_encrypted),
+      has_api_key: raw.has_api_key,
       clear_api_key: false,
-      size: imageSizeFromConfig(raw),
-      max_concurrent: imageConcurrencyFromConfig(raw),
+      size: `${raw.default_width}x${raw.default_height}`,
+      max_concurrent: raw.max_concurrent,
     },
   };
 }
@@ -130,29 +130,4 @@ function parseImageSize(value: string): { width: number; height: number } {
     throw new Error("图片尺寸不能超过 2147483647");
   }
   return { width, height };
-}
-
-function imageSizeFromConfig(config: ImageGenConfig): string {
-  if (
-    config.default_width == null ||
-    config.default_height == null ||
-    !Number.isFinite(config.default_width) ||
-    !Number.isFinite(config.default_height) ||
-    config.default_width <= 0 ||
-    config.default_height <= 0
-  ) {
-    throw new Error(`图片配置 ${config.id} 缺少有效默认尺寸`);
-  }
-  return `${config.default_width}x${config.default_height}`;
-}
-
-function imageConcurrencyFromConfig(config: ImageGenConfig): number {
-  if (
-    config.max_concurrent == null ||
-    !Number.isInteger(config.max_concurrent) ||
-    config.max_concurrent <= 0
-  ) {
-    throw new Error(`图片配置 ${config.id} 缺少有效并发上限`);
-  }
-  return config.max_concurrent;
 }

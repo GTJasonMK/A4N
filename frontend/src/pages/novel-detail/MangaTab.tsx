@@ -28,8 +28,8 @@ import {
   previewStartMangaPipelineRequest,
   resumeMangaPipeline,
   startMangaPipeline,
-  type MangaPanel,
-  type PipelineStatus,
+  type MangaPipelineStatusSummary,
+  type MangaPromptSummary,
 } from "../../api/manga";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import {
@@ -88,7 +88,7 @@ const createMangaPipelineProgressState = (): MangaPipelineProgressState => ({
 });
 
 const pipelineStatusToProgressStatus = (
-  status: PipelineStatus["pipeline_status"],
+  status: MangaPipelineStatusSummary["pipeline_status"],
 ): ProgressDialogStatus => {
   switch (status) {
     case "completed":
@@ -104,10 +104,12 @@ const pipelineStatusToProgressStatus = (
   }
 };
 
-const pipelineStatusIsTerminal = (status: PipelineStatus["pipeline_status"]): boolean =>
+const pipelineStatusIsTerminal = (
+  status: MangaPipelineStatusSummary["pipeline_status"],
+): boolean =>
   status === "completed" || status === "failed" || status === "cancelled";
 
-const pipelineProgressMessage = (status: PipelineStatus): string => {
+const pipelineProgressMessage = (status: MangaPipelineStatusSummary): string => {
   const message = status.message?.trim();
   if (message) return explainMangaPipelineAiConfigError(message);
   const stage = status.stage ? mangaStageLabel(status.stage) : "";
@@ -115,7 +117,7 @@ const pipelineProgressMessage = (status: PipelineStatus): string => {
 };
 
 const progressStateFromPipelineStatus = (
-  status: PipelineStatus,
+  status: MangaPipelineStatusSummary,
   title: string,
 ): MangaPipelineProgressState => {
   const nextStatus = pipelineStatusToProgressStatus(status.pipeline_status);
@@ -157,11 +159,11 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const { runProgressTask: runPortraitProgressTask } = useProgressTask();
   const hasFixedChapterContext = fixedChapter !== undefined;
   const [chapters, setChapters] = useState<ChapterRow[]>([]);
-  const [statuses, setStatuses] = useState<Record<number, PipelineStatus | null>>({});
+  const [statuses, setStatuses] = useState<Record<number, MangaPipelineStatusSummary | null>>({});
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<ChapterRow | null>(fixedChapter ?? null);
-  const [panels, setPanels] = useState<MangaPanel[]>([]);
+  const [panels, setPanels] = useState<MangaPromptSummary[]>([]);
   const [panelsLoading, setPanelsLoading] = useState(false);
   const [currentContentHash, setCurrentContentHash] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
@@ -505,7 +507,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         rows.map(async (row) => [row.id, await getMangaPipelineStatus(requestProjectId, row.id)] as const),
       );
       if (!isProjectCurrent(requestProjectId) || chapterLoadSeqRef.current !== requestSeq) return;
-      const map: Record<number, PipelineStatus | null> = {};
+      const map: Record<number, MangaPipelineStatusSummary | null> = {};
       for (const [id, status] of entries) map[id] = status;
       const previousChapterId = selectedChapterIdRef.current;
       const nextSelectedChapter =

@@ -10,6 +10,15 @@ import type { EmbeddingForm } from "./types";
 export const DEFAULT_FASTEMBED_MODEL = "BGESmallZHV15";
 export const DEFAULT_FASTEMBED_DIMENSION = 512;
 
+export function preferredFastembedModel(
+  models: LocalEmbeddingModel[],
+): LocalEmbeddingModel | null {
+  return models.find((model) => model.name === DEFAULT_FASTEMBED_MODEL)
+    ?? models.find((model) => model.downloaded)
+    ?? models[0]
+    ?? null;
+}
+
 export const DEFAULT_FORM: EmbeddingForm = {
   name: "基础本地哈希向量",
   backend: "local_hash",
@@ -26,14 +35,14 @@ export const DEFAULT_FORM: EmbeddingForm = {
 export function toItem(raw: EmbeddingConfig): ConfigItem<EmbeddingForm> {
   return {
     id: raw.id,
-    isActive: Boolean(raw.is_default),
+    isActive: raw.is_default,
     config: {
       name: raw.name,
       backend: raw.backend,
       model: raw.model,
       api_base_url: raw.base_url ?? "",
-      api_key: raw.api_key_encrypted ?? "",
-      has_api_key: Boolean(raw.has_api_key ?? raw.api_key_encrypted),
+      api_key: "",
+      has_api_key: raw.has_api_key,
       clear_api_key: false,
       dimension: raw.dimension,
       batch_size: raw.batch_size,

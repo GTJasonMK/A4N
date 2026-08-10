@@ -48,28 +48,6 @@ const IMAGE_DIALOG_TABS: Array<{
   { id: "manage", label: "管理" },
 ];
 
-const SYSTEM_MANAGED_IMAGE_TYPES = new Set([
-  "scene",
-  "manga_page",
-  "scene_material",
-  "object_material",
-  "video_key_frame",
-  "video_start_frame",
-  "video_storyboard_frame",
-  "video_end_frame",
-  "video_tail_frame",
-  "canvas_image",
-  "canvas_frame",
-  "portrait",
-  "portrait_reference",
-  "chapter_reference",
-  "project_reference",
-]);
-
-function isSystemManagedImageType(imageType: string): boolean {
-  return SYSTEM_MANAGED_IMAGE_TYPES.has(imageType.trim());
-}
-
 export function ImageActionDialog({
   image,
   busyId,
@@ -130,7 +108,7 @@ export function ImageActionDialog({
     { title: "正文来源", fields: sourceFields },
     { title: "提示词快照", fields: snapshotFields },
   ].filter((section) => section.fields.length > 0);
-  const systemManagedImageType = isSystemManagedImageType(image.image_type);
+  const systemManagedImageType = image.is_system_managed;
   const overviewFields = imageBaseMetadataFields(image).filter(
     (field) => !["图片类型", "模型", "尺寸"].includes(field.label),
   );

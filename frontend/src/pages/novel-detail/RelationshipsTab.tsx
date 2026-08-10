@@ -7,19 +7,31 @@ import React, {
   useState,
 } from "react";
 import { Network,
+  Pencil,
+  Plus,
   RefreshCcw,
   RotateCcw,
+  Trash2,
   ZoomIn,
   ZoomOut, } from "lucide-react";
+import { extractErrorMessage } from "../../api";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useToast } from "../../components/feedback/Toast";
+import { BookButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
-import { listProfiles, type CharacterProfile } from "../../api/character";
+import {
+  listProfiles,
+  updateCharacterProfile,
+  type CharacterProfile,
+} from "../../api/character";
 import {
   characterAttributeEntries,
   characterAttributeValueText,
 } from "../../utils/characterAttributes";
+import { readCssRgbVariable, rgba } from "../../utils/cssColor";
 import {
   readPortableItem,
   removePortableItem,
@@ -28,6 +40,7 @@ import {
 import { EmptyHint } from "./shared";
 import { useChapterAnalysisLoader } from "./useNovelDetailLoader";
 import { THEME_APPLIED_EVENT } from "../../theme/activeTheme";
+import { profileRelationshipBaseAttributes } from "../writing-desk/CharacterProfileEditorModal";
 
 interface CurrentRelationship {
   id: string;
@@ -36,6 +49,14 @@ interface CurrentRelationship {
   character_b: string;
   description: string;
   last_synced_chapter: number;
+  editable: boolean;
+}
+
+interface RelationshipEditorState {
+  profileId: number;
+  target: string;
+  description: string;
+  editing: boolean;
 }
 
 interface RelationshipNode {
@@ -167,6 +188,8 @@ const currentRelationshipsFromProfiles = (
           character_b: characterB,
           description,
           last_synced_chapter: profile.last_synced_chapter,
+          editable:
+            profile.last_synced_chapter <= 0 && typeof value === "string",
         };
       })
       .filter((item): item is CurrentRelationship => item != null);
@@ -175,10 +198,18 @@ const currentRelationshipsFromProfiles = (
 export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   projectId,
 }) => {
+  const { addToast } = useToast();
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [currentDetail, setCurrentDetail] =
     useState<CurrentRelationship | null>(null);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
+  const [editor, setEditor] = useState<RelationshipEditorState | null>(null);
+  const [saving, setSaving] = useState(false);
+  const activeProjectIdRef = useRef(projectId);
+  const mutationSeqRef = useRef(0);
+  const mutationInFlightRef = useRef(false);
+
+  activeProjectIdRef.current = projectId;
 
   const loadRelationships = useCallback(
     async (isCurrent: () => boolean) => {
@@ -197,20 +228,28 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     },
     [projectId],
   );
-  const { loading } = useChapterAnalysisLoader(
+  const { loading, load } = useChapterAnalysisLoader(
     projectId,
     loadRelationships,
     "加载关系失败",
   );
 
   useEffect(() => {
+    mutationSeqRef.current += 1;
+    mutationInFlightRef.current = false;
     setCurrentDetail(null);
+    setEditor(null);
+    setSaving(false);
   }, [projectId]);
 
   const displayProfiles = loadedProjectId === projectId ? profiles : [];
   const displayLoading = loading || loadedProjectId !== projectId;
   const currentRels = useMemo(
     () => currentRelationshipsFromProfiles(displayProfiles),
+    [displayProfiles],
+  );
+  const editableProfiles = useMemo(
+    () => displayProfiles.filter((profile) => profile.last_synced_chapter <= 0),
     [displayProfiles],
   );
 
@@ -224,6 +263,179 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     });
   }, [currentRels]);
 
+  const persistInitialRelationship = async (
+    profile: CharacterProfile,
+    target: string,
+    description: string | null,
+    successMessage: string,
+  ): Promise<boolean> => {
+    if (mutationInFlightRef.current) return false;
+    mutationInFlightRef.current = true;
+    const requestProjectId = projectId;
+    const requestSeq = mutationSeqRef.current + 1;
+    mutationSeqRef.current = requestSeq;
+    setSaving(true);
+    try {
+      const result = await updateCharacterProfile({
+        project_id: requestProjectId,
+        profile_id: profile.id,
+        expected_current_state: profile.current_state,
+        base_attributes: profileRelationshipBaseAttributes(
+          profile.current_state,
+          target,
+          description,
+        ),
+      });
+      if (
+        activeProjectIdRef.current !== requestProjectId ||
+        mutationSeqRef.current !== requestSeq
+      ) {
+        return false;
+      }
+      setProfiles((current) =>
+        current.map((item) => (item.id === result.profile.id ? result.profile : item)),
+      );
+      addToast(
+        result.warnings.length > 0
+          ? `${successMessage}；${result.warnings.join("；")}`
+          : successMessage,
+        result.warnings.length > 0 ? "info" : "success",
+      );
+      await load({ silent: true, force: true });
+      return true;
+    } catch (error) {
+      if (
+        activeProjectIdRef.current === requestProjectId &&
+        mutationSeqRef.current === requestSeq
+      ) {
+        addToast(extractErrorMessage(error, "保存初始关系失败"), "error");
+      }
+      return false;
+    } finally {
+      if (
+        activeProjectIdRef.current === requestProjectId &&
+        mutationSeqRef.current === requestSeq
+      ) {
+        mutationInFlightRef.current = false;
+        setSaving(false);
+      }
+    }
+  };
+
+  const openCreate = () => {
+    const profile = editableProfiles[0];
+    if (!profile) {
+      addToast(
+        displayProfiles.length === 0
+          ? "请先建立至少一个角色档案"
+          : "现有角色均已进入章节时间线，请在角色详情中按章节记录关系变化",
+        "info",
+      );
+      return;
+    }
+    setEditor({
+      profileId: profile.id,
+      target: "",
+      description: "",
+      editing: false,
+    });
+  };
+
+  const openEdit = (relationship: CurrentRelationship) => {
+    if (!relationship.editable) {
+      addToast(
+        relationship.last_synced_chapter > 0
+          ? "该关系已进入章节时间线，请在角色详情中记录后续变化"
+          : "该关系包含结构化资料，不能用文本表单直接覆盖",
+        "info",
+      );
+      return;
+    }
+    setEditor({
+      profileId: relationship.profile_id,
+      target: relationship.character_b,
+      description: relationship.description,
+      editing: true,
+    });
+  };
+
+  const saveRelationship = async () => {
+    if (!editor) return;
+    const profile = displayProfiles.find((item) => item.id === editor.profileId);
+    const target = editor.target.trim();
+    const description = editor.description.trim();
+    if (!profile) {
+      addToast("关系所属角色已经不存在，请刷新后重试", "error");
+      return;
+    }
+    if (!target || !description) {
+      addToast("请填写关系对象和关系描述", "error");
+      return;
+    }
+    if (relationshipNodeId(profile.name) === relationshipNodeId(target)) {
+      addToast("关系对象不能与所属角色相同", "error");
+      return;
+    }
+    if (
+      !editor.editing &&
+      currentRels.some(
+        (relationship) =>
+          relationship.profile_id === profile.id &&
+          relationshipNodeId(relationship.character_b) === relationshipNodeId(target),
+      )
+    ) {
+      addToast("该角色已经存在同名关系，请直接编辑现有关系", "error");
+      return;
+    }
+    if (
+      await persistInitialRelationship(
+        profile,
+        target,
+        description,
+        editor.editing ? "初始关系已更新" : "初始关系已创建",
+      )
+    ) {
+      setEditor(null);
+    }
+  };
+
+  const deleteRelationship = async (relationship: CurrentRelationship) => {
+    if (!relationship.editable) {
+      addToast(
+        relationship.last_synced_chapter > 0
+          ? "该关系已进入章节时间线，不能直接删除初始值"
+          : "该关系包含结构化资料，不能通过文本关系入口删除",
+        "info",
+      );
+      return;
+    }
+    const confirmed = await confirmDialog({
+      title: "删除初始关系",
+      message: `删除「${relationship.character_a} → ${relationship.character_b}」的初始关系？`,
+      confirmText: "删除",
+      dialogType: "danger",
+    });
+    if (!confirmed) return;
+    const profile = displayProfiles.find(
+      (item) => item.id === relationship.profile_id,
+    );
+    if (!profile) {
+      addToast("关系所属角色已经不存在，请刷新后重试", "error");
+      return;
+    }
+    if (
+      await persistInitialRelationship(
+        profile,
+        relationship.character_b,
+        null,
+        "初始关系已删除",
+      )
+    ) {
+      setCurrentDetail(null);
+      setEditor(null);
+    }
+  };
+
   if (displayLoading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
@@ -233,7 +445,26 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   }
 
   return (
-    <div className="content-wide flex h-full min-h-0 flex-col">
+    <div className="content-wide flex h-full min-h-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-small leading-relaxed text-book-text-muted">
+          正文时间线开始前可直接维护初始关系；同步章节后请在角色详情中按章节记录关系变化。
+        </div>
+        <BookButton
+          variant="primary"
+          size="sm"
+          onClick={openCreate}
+          disabled={saving || editableProfiles.length === 0}
+          title={
+            editableProfiles.length > 0
+              ? "新增初始角色关系"
+              : "没有可直接修改初始关系的角色"
+          }
+        >
+          <Plus size={12} /> 新增初始关系
+        </BookButton>
+      </div>
+
       <CurrentRelationshipsCard
         projectId={projectId}
         relationships={currentRels}
@@ -243,9 +474,22 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
       {currentDetail && (
         <CurrentRelationshipDetailDialog
           relationship={currentDetail}
+          saving={saving}
+          onEdit={() => openEdit(currentDetail)}
+          onDelete={() => void deleteRelationship(currentDetail)}
           onClose={() => setCurrentDetail(null)}
         />
       )}
+
+      <RelationshipEditorModal
+        state={editor}
+        profiles={editableProfiles}
+        allProfiles={displayProfiles}
+        saving={saving}
+        onChange={setEditor}
+        onSave={() => void saveRelationship()}
+        onClose={() => !saving && setEditor(null)}
+      />
     </div>
   );
 };
@@ -786,29 +1030,159 @@ const InitialBadge: React.FC<{ value: string }> = ({ value }) => (
   </div>
 );
 
+const RelationshipEditorModal: React.FC<{
+  state: RelationshipEditorState | null;
+  profiles: CharacterProfile[];
+  allProfiles: CharacterProfile[];
+  saving: boolean;
+  onChange: (state: RelationshipEditorState | null) => void;
+  onSave: () => void;
+  onClose: () => void;
+}> = ({ state, profiles, allProfiles, saving, onChange, onSave, onClose }) => {
+  if (!state) return null;
+  const profile = profiles.find((item) => item.id === state.profileId);
+  const targetOptions = allProfiles.filter((item) => item.id !== state.profileId);
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={state.editing ? "编辑初始关系" : "新增初始关系"}
+      subtitle="直接更新正式角色档案，不创建虚假的章节事件"
+      icon={state.editing ? <Pencil size={15} /> : <Plus size={15} />}
+      maxWidthClassName="max-w-lg"
+      bodyClassName="px-4 py-4"
+      closeOnBackdrop={!saving}
+      closeOnEscape={!saving}
+      showCloseButton={!saving}
+      footer={
+        <BookButton
+          variant="primary"
+          onClick={onSave}
+          disabled={
+            saving ||
+            !profile ||
+            !state.target.trim() ||
+            !state.description.trim()
+          }
+        >
+          {saving ? (
+            <span className="inline-flex items-center gap-2">
+              <LoadingSpinner size="sm" /> 保存中…
+            </span>
+          ) : state.editing ? (
+            "保存修改"
+          ) : (
+            "保存"
+          )}
+        </BookButton>
+      }
+    >
+      <div className="grid gap-3">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-book-text-sub">所属角色 *</span>
+          <select
+            value={state.profileId}
+            onChange={(event) =>
+              onChange({
+                ...state,
+                profileId: Number(event.target.value),
+              })
+            }
+            disabled={saving || state.editing}
+            className="pyqt-input"
+          >
+            {profiles.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-book-text-sub">关系对象 *</span>
+          <input
+            type="text"
+            list="initial-relationship-targets"
+            value={state.target}
+            onChange={(event) => onChange({ ...state, target: event.target.value })}
+            disabled={saving || state.editing}
+            className="pyqt-input"
+            placeholder="角色、组织或阵营名称"
+          />
+          <datalist id="initial-relationship-targets">
+            {targetOptions.map((item) => (
+              <option key={item.id} value={item.name} />
+            ))}
+          </datalist>
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-book-text-sub">关系描述 *</span>
+          <textarea
+            value={state.description}
+            onChange={(event) =>
+              onChange({ ...state, description: event.target.value })
+            }
+            disabled={saving}
+            className="pyqt-input min-h-28 resize-y"
+            placeholder="例如：旧友，彼此信任但对过去有所隐瞒"
+          />
+        </label>
+      </div>
+    </Modal>
+  );
+};
+
 const CurrentRelationshipDetailDialog: React.FC<{
   relationship: CurrentRelationship;
+  saving: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
   onClose: () => void;
-}> = ({ relationship, onClose }) => (
-  <Modal
-    isOpen
-    onClose={onClose}
-    title={`${relationship.character_a} / ${relationship.character_b}`}
-    subtitle={`社会关系 · ${syncedChapterText(relationship.last_synced_chapter)}`}
-    icon={<Network size={15} />}
-    maxWidthClassName="max-w-3xl"
-    bodyClassName="px-4 py-4"
-  >
-    <div>
-      <div className="mb-1 text-xs font-semibold text-book-text-main">
-        关系描述
+}> = ({ relationship, saving, onEdit, onDelete, onClose }) => {
+  const editable = relationship.editable;
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={`${relationship.character_a} / ${relationship.character_b}`}
+      subtitle={`社会关系 · ${syncedChapterText(relationship.last_synced_chapter)}`}
+      icon={<Network size={15} />}
+      maxWidthClassName="max-w-3xl"
+      bodyClassName="px-4 py-4"
+      footer={
+        editable ? (
+          <div className="flex items-center gap-2">
+            <BookButton variant="secondary" onClick={onEdit} disabled={saving}>
+              <Pencil size={12} /> 编辑
+            </BookButton>
+            <BookButton variant="danger" onClick={onDelete} disabled={saving}>
+              <Trash2 size={12} /> 删除
+            </BookButton>
+          </div>
+        ) : undefined
+      }
+    >
+      <div>
+        <div className="mb-1 text-xs font-semibold text-book-text-main">
+          关系描述
+        </div>
+        <div className="whitespace-pre-wrap text-sm leading-7 text-book-text-sub">
+          {relationship.description}
+        </div>
+        {!editable ? (
+          <div className="mt-4 rounded-xl border border-book-border/60 bg-book-bg-tertiary/45 px-3 py-2 text-small leading-relaxed text-book-text-muted">
+            {relationship.last_synced_chapter > 0
+              ? "该角色已经进入章节时间线。后续关系变化应在角色详情中按实际章节记录，不能直接重写初始关系。"
+              : "该关系包含结构化资料，文本表单不会将其压平成普通描述。"}
+          </div>
+        ) : null}
       </div>
-      <div className="whitespace-pre-wrap text-sm leading-7 text-book-text-sub">
-        {relationship.description}
-      </div>
-    </div>
-  </Modal>
-);
+    </Modal>
+  );
+};
 
 function buildRelationshipGraph(
   relationships: CurrentRelationship[],
@@ -1653,15 +2027,15 @@ function clampGraphViewport(
 
 function canvasPalette() {
   const root = getComputedStyle(document.documentElement);
-  const primary = cssRgb(root, "--color-primary", [139, 69, 19]);
-  const accent = cssRgb(root, "--color-accent", [160, 82, 45]);
-  const info = cssRgb(root, "--status-info", [74, 141, 179]);
-  const success = cssRgb(root, "--status-success", [74, 159, 110]);
-  const warning = cssRgb(root, "--status-warning", [212, 146, 58]);
-  const bg = cssRgb(root, "--color-bg-primary", [249, 245, 240]);
-  const border = cssRgb(root, "--color-border", [215, 204, 200]);
-  const text = cssRgb(root, "--color-text-primary", [44, 24, 16]);
-  const muted = cssRgb(root, "--color-text-secondary", [93, 64, 55]);
+  const primary = readCssRgbVariable(root, "--color-primary", [139, 69, 19]);
+  const accent = readCssRgbVariable(root, "--color-accent", [160, 82, 45]);
+  const info = readCssRgbVariable(root, "--status-info", [74, 141, 179]);
+  const success = readCssRgbVariable(root, "--status-success", [74, 159, 110]);
+  const warning = readCssRgbVariable(root, "--status-warning", [212, 146, 58]);
+  const bg = readCssRgbVariable(root, "--color-bg-primary", [249, 245, 240]);
+  const border = readCssRgbVariable(root, "--color-border", [215, 204, 200]);
+  const text = readCssRgbVariable(root, "--color-text-primary", [44, 24, 16]);
+  const muted = readCssRgbVariable(root, "--color-text-secondary", [93, 64, 55]);
   const colors = [primary, info, success, warning, accent];
   return {
     background: rgba(bg, 1),
@@ -1680,22 +2054,6 @@ function canvasPalette() {
       text: rgba(rgb, 1),
     })),
   };
-}
-
-type Rgb = [number, number, number];
-
-function cssRgb(style: CSSStyleDeclaration, name: string, fallback: Rgb): Rgb {
-  const raw = style.getPropertyValue(name).trim();
-  const parts = raw
-    .split(/\s+/)
-    .map((part) => Number.parseFloat(part))
-    .filter((value) => Number.isFinite(value));
-  if (parts.length >= 3) return [parts[0], parts[1], parts[2]];
-  return fallback;
-}
-
-function rgba([r, g, b]: Rgb, alpha: number): string {
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function relationshipNodeId(name: string): string {

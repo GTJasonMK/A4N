@@ -1,7 +1,5 @@
-use a4n_core::{
-    models::chapter::chapter_shooting_script,
-    shooting_script::{CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptV1},
-};
+use a4n_core::models::chapter::chapter_shooting_script;
+use a4n_domain::shooting_script::{CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptV1};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 

@@ -1,9 +1,11 @@
 import { apiInvoke } from "./index";
-import { readCurrentUserId } from "./authStorage";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import { idNum, type ApiId as Id } from "./shared";
-import type { DownstreamConflictStrategy } from "./dependencyConflict";
+import type { DownstreamConflictStrategy } from "./generated/host";
 import type {
+  SceneProfileDeleteResult,
   SceneProfileInput as ApiSceneProfileInput,
+  SceneProfileMutationResult,
   SceneProfileSummary,
 } from "./generated/host";
 
@@ -34,12 +36,6 @@ interface SceneProfileImagePromptOutput {
   prompt: string;
 }
 
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问场景档案");
-  return id;
-};
-
 export async function listSceneProfiles(projectId: Id): Promise<SceneProfile[]> {
   return apiInvoke<SceneProfile[]>("list_scene_profiles", {
     userId: currentUserId(),
@@ -50,8 +46,8 @@ export async function listSceneProfiles(projectId: Id): Promise<SceneProfile[]> 
 export async function createSceneProfile(
   projectId: Id,
   input: SceneProfileInput,
-): Promise<SceneProfile> {
-  return apiInvoke<SceneProfile>("create_scene_profile", {
+): Promise<SceneProfileMutationResult> {
+  return apiInvoke<SceneProfileMutationResult>("create_scene_profile", {
     userId: currentUserId(),
     projectId: idNum(projectId),
     input: normalizeSceneProfileInput(input),
@@ -61,8 +57,8 @@ export async function createSceneProfile(
 export async function updateSceneProfile(
   sceneProfileId: Id,
   input: SceneProfileInput,
-): Promise<SceneProfile> {
-  return apiInvoke<SceneProfile>("update_scene_profile", {
+): Promise<SceneProfileMutationResult> {
+  return apiInvoke<SceneProfileMutationResult>("update_scene_profile", {
     userId: currentUserId(),
     sceneProfileId: idNum(sceneProfileId),
     input: normalizeSceneProfileInput(input),
@@ -72,8 +68,8 @@ export async function updateSceneProfile(
 export async function deleteSceneProfile(
   sceneProfileId: Id,
   downstreamStrategy: DownstreamConflictStrategy = "reject",
-): Promise<void> {
-  return apiInvoke<void>("delete_scene_profile", {
+): Promise<SceneProfileDeleteResult> {
+  return apiInvoke<SceneProfileDeleteResult>("delete_scene_profile", {
     userId: currentUserId(),
     sceneProfileId: idNum(sceneProfileId),
     downstreamStrategy,

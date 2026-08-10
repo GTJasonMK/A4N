@@ -1,8 +1,7 @@
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, ServerState, command_input, downstream_strategy_arg, i64_arg, required_arg, to_value,
-    video_prompt_actions,
+    ApiError, ServerState, command_input, i64_arg, required_arg, to_value, video_prompt_actions,
 };
 
 pub(in crate::routes::commands) async fn list_chapter_video_prompts(
@@ -21,6 +20,60 @@ pub(in crate::routes::commands) async fn list_chapter_video_prompts(
     .await
     .map_err(ApiError::bad_request)?;
     to_value(prompts)
+}
+
+pub(in crate::routes::commands) async fn get_chapter_video_timeline(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: video_prompt_actions::GetVideoTimelineInput =
+        command_input(args, "get_chapter_video_timeline")?;
+    let timeline =
+        video_prompt_actions::get_chapter_video_timeline(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(timeline)
+}
+
+pub(in crate::routes::commands) async fn move_inserted_segment(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: video_prompt_actions::MoveInsertedSegmentInput =
+        command_input(args, "move_inserted_segment")?;
+    let timeline = video_prompt_actions::move_inserted_segment(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
+    to_value(timeline)
+}
+
+pub(in crate::routes::commands) async fn commit_inserted_segment_draft(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: video_prompt_actions::CommitInsertedSegmentDraftInput =
+        command_input(args, "commit_inserted_segment_draft")?;
+    let timeline =
+        video_prompt_actions::commit_inserted_segment_draft(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(timeline)
+}
+
+pub(in crate::routes::commands) async fn delete_inserted_segment(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: video_prompt_actions::DeleteInsertedSegmentInput =
+        command_input(args, "delete_inserted_segment")?;
+    let timeline = video_prompt_actions::delete_inserted_segment(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
+    to_value(timeline)
 }
 
 pub(in crate::routes::commands) async fn load_video_segment_plan_draft(
@@ -44,14 +97,10 @@ pub(in crate::routes::commands) async fn update_video_segment_plan_draft_recipe(
 ) -> Result<Value, ApiError> {
     let input: video_prompt_actions::UpdateVideoSegmentPlanDraftRecipeInput =
         command_input(args, "update_video_segment_plan_draft_recipe")?;
-    let result = video_prompt_actions::update_video_segment_plan_draft_recipe(
-        state.runtime(),
-        user_id,
-        input,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
-    to_value(result)
+    video_prompt_actions::update_video_segment_plan_draft_recipe(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
+    Ok(Value::Null)
 }
 
 pub(in crate::routes::commands) async fn update_chapter_video_segment_recipe(
@@ -117,15 +166,10 @@ pub(in crate::routes::commands) async fn delete_chapter_video_prompt(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let prompt_id = i64_arg(args, "promptId")?;
-    let downstream_strategy = downstream_strategy_arg(args)?;
-    video_prompt_actions::delete_chapter_video_prompt(
-        state.runtime(),
-        user_id,
-        prompt_id,
-        downstream_strategy,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
+    let input: video_prompt_actions::DeleteChapterVideoPromptInput =
+        command_input(args, "delete_chapter_video_prompt")?;
+    video_prompt_actions::delete_chapter_video_prompt(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
     Ok(Value::Null)
 }

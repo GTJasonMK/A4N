@@ -36,8 +36,7 @@ pub async fn set_log_level(
     logging_actions::ensure_log_diagnostics_admin(&state, caller_user_id)
         .await
         .map_err(|err| err.to_string())?;
-    let new_filter =
-        logging_actions::build_log_filter(&input.filter).map_err(|err| err.to_string())?;
+    let new_filter = logging_actions::build_log_filter(&input.filter)?;
     reload_filter(new_filter)?;
     tracing::info!(target: "a4n::logging", filter = %input.filter, "日志级别已更新");
     Ok(())

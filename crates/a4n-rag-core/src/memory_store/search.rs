@@ -8,7 +8,7 @@ use super::records::{checked_cosine_sim, vector_store_error};
 use super::{MemoryVectorStore, filters, scoring};
 
 impl MemoryVectorStore {
-    pub(super) async fn query_memory(
+    pub(super) fn query_memory(
         &self,
         collection: &str,
         query_embedding: Vec<f32>,
@@ -45,7 +45,7 @@ impl MemoryVectorStore {
             .collect())
     }
 
-    pub(super) async fn search_memory_text(
+    pub(super) fn search_memory_text(
         &self,
         collection: &str,
         query_text: &str,
@@ -102,7 +102,7 @@ impl MemoryVectorStore {
         Ok(search_results)
     }
 
-    pub(super) async fn hybrid_memory_search(
+    pub(super) fn hybrid_memory_search(
         &self,
         collection: &str,
         query_text: &str,
@@ -110,12 +110,9 @@ impl MemoryVectorStore {
         top_k: usize,
         filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, AppError> {
-        let vector_results = self
-            .query_memory(collection, query_embedding, top_k * 2, filters.clone())
-            .await?;
-        let bm25_results = self
-            .search_memory_text(collection, query_text, top_k * 2, filters)
-            .await?;
+        let vector_results =
+            self.query_memory(collection, query_embedding, top_k * 2, filters.clone())?;
+        let bm25_results = self.search_memory_text(collection, query_text, top_k * 2, filters)?;
         let coll = self
             .collections
             .get(collection)

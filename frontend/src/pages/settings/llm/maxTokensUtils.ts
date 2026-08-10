@@ -1,6 +1,5 @@
 import type { LlmMaxTokensConfig } from "../../../api/config";
-
-export const MAX_TOKEN_LIMIT = 262_144;
+import { LLM_MAX_TOKEN_LIMIT } from "../../../api/generated/config";
 
 type TokenFieldKey = keyof LlmMaxTokensConfig;
 
@@ -46,8 +45,8 @@ export function validateMaxTokensConfig(
     if (!Number.isInteger(numberValue) || numberValue <= 0) {
       return `${tokenLabel(key)} 必须为正整数`;
     }
-    if (numberValue > MAX_TOKEN_LIMIT) {
-      return `${tokenLabel(key)} 不能超过 ${MAX_TOKEN_LIMIT}`;
+    if (numberValue > LLM_MAX_TOKEN_LIMIT) {
+      return `${tokenLabel(key)} 不能超过 ${LLM_MAX_TOKEN_LIMIT}`;
     }
     if (
       modelMaxOutputTokens != null &&

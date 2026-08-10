@@ -22,6 +22,7 @@ import type {
   GeneratedVideo,
   UpdateVideoInput,
   VideoSegmentExecutionRecipe,
+  VideoTimelineSummary,
 } from "../../../api/video";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -38,7 +39,7 @@ import {
   promptCharCount,
   staleVideoPromptMessage,
   videoGuidanceConfigurationError,
-  videoPromptUnitFrameNumbers,
+  videoPromptSourceFrameNumbers,
   videoImageGenerationPromptId,
   videoTailFrameSourceVideoId,
   videoTailFrameBoundaryNumber,
@@ -50,6 +51,7 @@ import {
   type VideoSegmentCardPlan,
 } from "./videoTabUtils";
 import { VideoPromptSetupPanel } from "./VideoPromptSetupPanel";
+import type { InsertedSegmentGap } from "./InsertedSegmentTimelinePanel";
 import { VideoResultsPane } from "./VideoResultsPane";
 import {
   directorSections,
@@ -63,6 +65,7 @@ interface VideoGenerationWorkspaceProps {
   selectedSegmentNumber: number | null;
   planningDraftVisible: boolean;
   finalPromptBlockedReasons: Map<number, string>;
+  timeline: VideoTimelineSummary | null;
   selectedPrompt: ChapterVideoPrompt | null;
   selectedPromptId: number | null;
   selectedPromptStale: boolean;
@@ -93,9 +96,18 @@ interface VideoGenerationWorkspaceProps {
   onActivateSegment: (segmentNumber: number) => void | Promise<void>;
   onCloseSegmentConfig: () => void | Promise<void>;
   onDeletePrompt: (prompt: ChapterVideoPrompt) => void | Promise<void>;
+  onInsertSegment: (gap: InsertedSegmentGap) => void;
+  onOpenInsertedSegment: (timelineItemId: number) => void;
   onWorkflowModeChange: (
     mode: ChapterVideoWorkflowMode,
     shotNumber: number,
+  ) => void | Promise<void>;
+  onFirstFrameSourceChange: (
+    segmentNumber: number,
+    guidanceMode: Extract<
+      VideoSegmentExecutionRecipe["guidance_mode"],
+      "continuity" | "system_frames"
+    >,
   ) => void | Promise<void>;
   onContinuitySourceChange: (
     segmentNumber: number,
@@ -156,6 +168,7 @@ export const VideoGenerationWorkspace: React.FC<
   selectedSegmentNumber,
   planningDraftVisible,
   finalPromptBlockedReasons,
+  timeline,
   selectedPrompt,
   selectedPromptId,
   selectedPromptStale,
@@ -186,7 +199,10 @@ export const VideoGenerationWorkspace: React.FC<
   onActivateSegment,
   onCloseSegmentConfig,
   onDeletePrompt,
+  onInsertSegment,
+  onOpenInsertedSegment,
   onWorkflowModeChange,
+  onFirstFrameSourceChange,
   onContinuitySourceChange,
   onGenerateFramePrompts,
   onPreviewFrameImage,
@@ -481,6 +497,47 @@ export const VideoGenerationWorkspace: React.FC<
     );
   };
 
+  const renderFirstFrameSourceSelector = () => {
+    if (
+      workflowMode !== "first_frame_chain" ||
+      segmentRecipe == null ||
+      selectedSegmentNumber == null ||
+      selectedSegmentNumber <= 1
+    ) {
+      return null;
+    }
+    const value =
+      segmentRecipe.guidance_mode === "system_frames"
+        ? "system_frames"
+        : "continuity";
+    const disabled =
+      acting != null || savingRecipeSegments.has(selectedSegmentNumber);
+    return (
+      <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-book-border/45 bg-book-bg-paper/45 px-3 py-2.5">
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-book-text-main">
+            首帧来源
+          </div>
+          <div className="mt-0.5 text-caption text-book-text-muted">
+            选择沿用更早视频尾帧，或为当前片段单独生成首帧。
+          </div>
+        </div>
+        <SegmentedControl<"continuity" | "system_frames">
+          ariaLabel="首帧来源"
+          value={value}
+          options={[
+            { id: "continuity", label: "尾帧续接", disabled },
+            { id: "system_frames", label: "独立生成", disabled },
+          ]}
+          onChange={(guidanceMode) =>
+            void onFirstFrameSourceChange(selectedSegmentNumber, guidanceMode)
+          }
+          className={disabled ? "opacity-60" : ""}
+        />
+      </div>
+    );
+  };
+
   const frameInputStateForPrompt = (
     prompt: ChapterVideoPrompt,
     recipe: VideoSegmentExecutionRecipe,
@@ -488,10 +545,17 @@ export const VideoGenerationWorkspace: React.FC<
     const firstFrameChainMode = workflowMode === "first_frame_chain";
     const chatVideoMode = workflowMode === "chat_video";
     const storyboardMode = workflowMode === "storyboard";
-    const { startFrameNumber, endFrameNumber } =
-      videoPromptUnitFrameNumbers(prompt);
-    const startFramePrompt =
-      framePromptByNumber.get(startFrameNumber ?? prompt.shot_number) ?? null;
+    const usesContinuity =
+      firstFrameChainMode && recipe.guidance_mode === "continuity";
+    const { startFrameNumber, endFrameNumber } = videoPromptSourceFrameNumbers(
+      prompt,
+      workflowMode,
+      recipe.guidance_mode,
+    );
+    const startFramePrompt = usesContinuity
+      ? null
+      : (framePromptByNumber.get(startFrameNumber ?? prompt.shot_number) ??
+        null);
     const endFramePrompt =
       firstFrameChainMode || storyboardMode
         ? null
@@ -504,19 +568,17 @@ export const VideoGenerationWorkspace: React.FC<
         : (frameImageIndexes.boundaryByFrameNumber.get(
             startFramePrompt.shot_number,
           ) ?? null);
-    const continuitySourceVideoId =
-      firstFrameChainMode && prompt.shot_number > 1
-        ? recipe.continuity_source_video_id
-        : null;
+    const continuitySourceVideoId = usesContinuity
+      ? recipe.continuity_source_video_id
+      : null;
     const continuityTailFrameImage =
       continuitySourceVideoId == null
         ? null
         : (frameImageIndexes.tailByVideoId.get(continuitySourceVideoId) ??
           null);
-    const actualStartFrameImage =
-      firstFrameChainMode && prompt.shot_number > 1
-        ? continuityTailFrameImage
-        : generatedStartFrameImage;
+    const actualStartFrameImage = usesContinuity
+      ? continuityTailFrameImage
+      : generatedStartFrameImage;
     const endFrameImage =
       endFramePrompt == null
         ? null
@@ -525,11 +587,11 @@ export const VideoGenerationWorkspace: React.FC<
           ) ?? null);
     const startFrameMissingMessage =
       firstFrameChainMode && !actualStartFrameImage
-        ? prompt.shot_number <= 1
-          ? "请先点击首帧槽位生成第 1 段首帧图片。"
-          : continuitySourceVideoId == null
+        ? usesContinuity
+          ? continuitySourceVideoId == null
             ? "请先点击续接首帧槽位，选择一个更早片段已采用的视频。"
             : `续接来源视频 #${continuitySourceVideoId} 尚无可用尾帧，请等待尾帧采集完成或重新选择来源。`
+          : "请先点击首帧槽位生成当前片段首帧图片。"
         : null;
     const boundaryFrameMissingMessage =
       workflowMode === "boundary_frames"
@@ -572,6 +634,7 @@ export const VideoGenerationWorkspace: React.FC<
       endFrameImage,
       startFrameMissingMessage,
       frameInputMissingMessage,
+      usesContinuity,
     };
   };
 
@@ -627,7 +690,9 @@ export const VideoGenerationWorkspace: React.FC<
       const mode = segmentRecipe.workflow_mode;
       const startFramePrompt =
         framePromptByNumber.get(
-          mode === "boundary_frames" ? 1 : selectedSegmentNumber,
+          mode === "boundary_frames" || mode === "first_frame_chain"
+            ? 1
+            : selectedSegmentNumber,
         ) ?? null;
       const endFramePrompt =
         mode === "boundary_frames"
@@ -704,6 +769,7 @@ export const VideoGenerationWorkspace: React.FC<
                     点击对应槽位生成、导入或选择素材。
                   </div>
                 </div>
+                {renderFirstFrameSourceSelector()}
                 <div className={MEDIA_SLOT_GRID_CLASS}>
                   {mode === "boundary_frames" ? (
                     <>
@@ -721,7 +787,7 @@ export const VideoGenerationWorkspace: React.FC<
                       startFrameImage,
                       "等待分镜板生成",
                     )
-                  ) : selectedSegmentNumber === 1 ? (
+                  ) : segmentRecipe.guidance_mode === "system_frames" ? (
                     renderFrameSlot(
                       "首帧",
                       startFramePrompt,
@@ -776,6 +842,7 @@ export const VideoGenerationWorkspace: React.FC<
       endFrameImage,
       startFrameMissingMessage,
       frameInputMissingMessage,
+      usesContinuity,
     } = frameInputStateForPrompt(selectedPrompt, segmentRecipe);
     const selectedPromptHasVideo = selectedPrompt.generated_video_id != null;
     const selectedPromptLockedReason = selectedPromptRunning
@@ -993,269 +1060,263 @@ export const VideoGenerationWorkspace: React.FC<
         )}
 
         {selectedPromptRunning ? (
-          <div className="a4n-flat-surface flex min-h-40 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
-            <LoadingSpinner size="md" />
-            <div className="text-sm font-medium text-book-text-main">
-              当前提示词正在运行
-            </div>
-            <div className="max-w-md text-small leading-relaxed text-book-text-muted">
-              运行结束后再继续编辑。生成前设置和辅助操作已暂时收起，避免误改当前任务输入。
-            </div>
+          <div className="a4n-flat-surface mb-3 flex items-center gap-2 px-3 py-2.5 text-small text-book-text-muted">
+            <LoadingSpinner size="sm" />
+            当前提示词正在运行，以下内容暂时只读。
           </div>
-        ) : (
-          <>
-            {chatVideoMode ? null : firstFrameChainMode ? (
-              <div className="a4n-flat-surface mb-3 p-3">
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="inline-flex items-center gap-1.5 text-xs text-book-text-main">
-                    <ImageIcon size={12} className="text-book-primary" />
-                    起始帧
-                    <span className="text-caption text-book-text-muted">
-                      · {actualStartFrameImage ? "已生成" : "等待生成"}
-                    </span>
-                  </div>
-                </div>
-                {startFrameMissingMessage && (
-                  <div className="mb-2 text-caption text-warning">
-                    {startFrameMissingMessage}
-                  </div>
-                )}
-                <div className={MEDIA_SLOT_GRID_CLASS}>
-                  {selectedPrompt.shot_number <= 1
-                    ? renderFrameSlot(
-                        "首帧",
-                        startFramePrompt,
-                        actualStartFrameImage,
-                        "等待首帧生成",
-                      )
-                    : renderContinuitySlot()}
-                </div>
-              </div>
-            ) : storyboardMode ? (
-              <div className="a4n-flat-surface mb-3 p-3">
-                <div className="mb-2 flex min-w-0 items-center gap-2">
-                  <ImageIcon size={12} className="shrink-0 text-book-primary" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium text-book-text-main">
-                      分镜板
-                    </div>
-                    <div className="mt-0.5 text-caption text-book-text-muted">
-                      {generatedStartFrameImage ? "已生成" : "等待生成"}
-                    </div>
-                  </div>
-                </div>
-                {frameInputMissingMessage && (
-                  <div className="mb-2 text-caption text-warning">
-                    {frameInputMissingMessage}
-                  </div>
-                )}
-                <div className={MEDIA_SLOT_GRID_CLASS}>
-                  {renderFrameSlot(
-                    "分镜板",
-                    startFramePrompt,
-                    generatedStartFrameImage,
-                    "等待分镜板生成",
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="a4n-flat-surface mb-3 p-3">
-                <div className="mb-2 flex min-w-0 items-center gap-2">
-                  <PanelTop size={12} className="shrink-0 text-book-primary" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium text-book-text-main">
-                      首尾帧
-                    </div>
-                    <div className="mt-0.5 text-caption text-book-text-muted">
-                      {Number(Boolean(generatedStartFrameImage)) +
-                        Number(Boolean(endFrameImage))}{" "}
-                      / 2 已生成
-                    </div>
-                  </div>
-                </div>
-                <div className={MEDIA_SLOT_GRID_CLASS}>
-                  {renderFrameSlot(
-                    "首帧",
-                    startFramePrompt,
-                    generatedStartFrameImage,
-                  )}
-                  {renderFrameSlot("尾帧", endFramePrompt, endFrameImage)}
-                </div>
-              </div>
-            )}
-
-            {staleSavedReferenceCount > 0 ? (
-              <div className="mb-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
-                最终提示词冻结的参考图里有 {staleSavedReferenceCount}{" "}
-                张已失效。请调整下方参考素材并重新生成最终提示词。
-              </div>
-            ) : null}
-            {savedReferenceIdsError ? (
-              <div className="mb-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
-                已保存参考图数据异常：{savedReferenceIdsError}
-                。请调整下方参考素材并重新生成最终提示词。
-              </div>
-            ) : null}
-            {referenceInputs ? (
-              <div className="mb-3">{referenceInputs}</div>
-            ) : null}
-
-            {selectedPromptSceneSummary ? (
-              <div className="mb-3 text-xs">
-                <span className="text-book-text-muted">场景摘要</span>
-                <div className="mt-1 min-h-[34px] border-l-2 border-book-border/55 py-1 pl-2.5 leading-relaxed text-book-text-sub">
-                  {selectedPromptSceneSummary}
-                </div>
-              </div>
-            ) : null}
-
-            {sections.length > 0 && (
-              <details className="a4n-flat-surface mb-3 p-2">
-                <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-xs text-book-text-main [&::-webkit-details-marker]:hidden">
-                  <span className="inline-flex min-w-0 items-center gap-1.5">
-                    <ListChecks size={12} className="text-book-primary" />
-                    导演约束
-                  </span>
+        ) : null}
+        <fieldset
+          disabled={selectedPromptRunning}
+          className="m-0 min-w-0 border-0 p-0"
+        >
+          {chatVideoMode ? null : firstFrameChainMode ? (
+            <div className="a4n-flat-surface mb-3 p-3">
+              {renderFirstFrameSourceSelector()}
+              <div className="mb-2 flex items-center gap-2">
+                <div className="inline-flex items-center gap-1.5 text-xs text-book-text-main">
+                  <ImageIcon size={12} className="text-book-primary" />
+                  起始帧
                   <span className="text-caption text-book-text-muted">
-                    {sections.length} 项
-                  </span>
-                </summary>
-                <dl className="mt-2 divide-y divide-book-border/40 border-y border-book-border/40">
-                  {sections.map((section) => (
-                    <div
-                      key={section.key}
-                      className="grid min-w-0 gap-1 px-2.5 py-2 md:grid-cols-[110px_minmax(0,1fr)] md:gap-3"
-                    >
-                      <dt className="text-caption text-book-text-muted">
-                        {section.label}
-                      </dt>
-                      <dd className="line-clamp-4 whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">
-                        {section.text}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </details>
-            )}
-
-            {selectedPromptCharStats && (
-              <details className="mb-3 text-caption text-book-text-muted">
-                <summary className="w-fit cursor-pointer hover:text-book-text-main">
-                  诊断信息
-                </summary>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-l-2 border-book-border/60 pl-2 text-caption">
-                  <span className="text-book-text-muted">
-                    {chatVideoMode ? "Chat 提示词" : "画面"}{" "}
-                    {promptLengthText(
-                      selectedPromptCharStats.visualChars,
-                      selectedPromptCharStats.visualBytes,
-                    )}
-                  </span>
-                  {!chatVideoMode && (
-                    <span className="text-book-text-muted">
-                      运动{" "}
-                      {promptLengthText(
-                        selectedPromptCharStats.motionChars,
-                        selectedPromptCharStats.motionBytes,
-                      )}
-                    </span>
-                  )}
-                  <span className="text-book-text-muted">
-                    限制{" "}
-                    {promptLengthText(
-                      selectedPromptCharStats.negativeChars,
-                      selectedPromptCharStats.negativeBytes,
-                    )}
+                    · {actualStartFrameImage ? "已生成" : "等待生成"}
                   </span>
                 </div>
-              </details>
-            )}
-
-            <div className="grid gap-3">
-              <label className="flex min-w-0 flex-col gap-1">
-                <span className="text-xs text-book-text-muted">视频时长</span>
-                {durationLimits.durationMode === "fixed" ? (
-                  <select
-                    value={draft.duration_secs}
-                    onChange={(event) =>
-                      updateDraft({ duration_secs: Number(event.target.value) })
-                    }
-                    disabled={selectedPromptRunning}
-                    className="book-control h-9 px-2 text-xs"
-                  >
-                    {!isDurationAllowed(draft.duration_secs, durationLimits) && (
-                      <option value={draft.duration_secs} disabled>
-                        {draft.duration_secs} 秒（当前配置不支持）
-                      </option>
-                    )}
-                    {durationChoicesForLimits(durationLimits).map((duration) => (
-                      <option key={duration} value={duration}>
-                        {duration} 秒
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="number"
-                    min={durationLimits.minDurationSecs}
-                    max={durationLimits.maxDurationSecs}
-                    step={1}
-                    value={draft.duration_secs}
-                    onChange={(event) =>
-                      updateDraft({ duration_secs: Number(event.target.value) })
-                    }
-                    disabled={selectedPromptRunning}
-                    className="book-control h-9 px-2 text-xs"
-                  />
-                )}
-                <span className="text-caption text-book-text-muted">
-                  当前模型支持：{durationLimitsLabel(durationLimits)}
-                </span>
-              </label>
-              <label className="flex min-w-0 flex-col gap-1">
-                <span className="text-xs text-book-text-muted">
-                  {chatVideoMode ? "Chat 视频提示词" : "画面提示词"}
-                </span>
-                <textarea
-                  value={draft.visual_prompt}
-                  onChange={(event) =>
-                    updateDraft({ visual_prompt: event.target.value })
-                  }
-                  disabled={selectedPromptRunning}
-                  className="book-control min-h-[220px] resize-y p-2 text-xs leading-relaxed"
-                />
-              </label>
-              {!chatVideoMode && (
-                <label className="flex min-w-0 flex-col gap-1">
-                  <span className="text-xs text-book-text-muted">
-                    运动提示词
-                  </span>
-                  <textarea
-                    value={draft.motion_prompt}
-                    onChange={(event) =>
-                      updateDraft({ motion_prompt: event.target.value })
-                    }
-                    disabled={selectedPromptRunning}
-                    className="book-control min-h-[140px] resize-y p-2 text-xs leading-relaxed"
-                  />
-                </label>
+              </div>
+              {startFrameMissingMessage && (
+                <div className="mb-2 text-caption text-warning">
+                  {startFrameMissingMessage}
+                </div>
               )}
-              <label className="flex min-w-0 flex-col gap-1">
-                <span className="text-xs text-book-text-muted">
-                  限制与避免项
+              <div className={MEDIA_SLOT_GRID_CLASS}>
+                {usesContinuity
+                  ? renderContinuitySlot()
+                  : renderFrameSlot(
+                      "首帧",
+                      startFramePrompt,
+                      actualStartFrameImage,
+                      "等待首帧生成",
+                    )}
+              </div>
+            </div>
+          ) : storyboardMode ? (
+            <div className="a4n-flat-surface mb-3 p-3">
+              <div className="mb-2 flex min-w-0 items-center gap-2">
+                <ImageIcon size={12} className="shrink-0 text-book-primary" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium text-book-text-main">
+                    分镜板
+                  </div>
+                  <div className="mt-0.5 text-caption text-book-text-muted">
+                    {generatedStartFrameImage ? "已生成" : "等待生成"}
+                  </div>
+                </div>
+              </div>
+              {frameInputMissingMessage && (
+                <div className="mb-2 text-caption text-warning">
+                  {frameInputMissingMessage}
+                </div>
+              )}
+              <div className={MEDIA_SLOT_GRID_CLASS}>
+                {renderFrameSlot(
+                  "分镜板",
+                  startFramePrompt,
+                  generatedStartFrameImage,
+                  "等待分镜板生成",
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="a4n-flat-surface mb-3 p-3">
+              <div className="mb-2 flex min-w-0 items-center gap-2">
+                <PanelTop size={12} className="shrink-0 text-book-primary" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium text-book-text-main">
+                    首尾帧
+                  </div>
+                  <div className="mt-0.5 text-caption text-book-text-muted">
+                    {Number(Boolean(generatedStartFrameImage)) +
+                      Number(Boolean(endFrameImage))}{" "}
+                    / 2 已生成
+                  </div>
+                </div>
+              </div>
+              <div className={MEDIA_SLOT_GRID_CLASS}>
+                {renderFrameSlot(
+                  "首帧",
+                  startFramePrompt,
+                  generatedStartFrameImage,
+                )}
+                {renderFrameSlot("尾帧", endFramePrompt, endFrameImage)}
+              </div>
+            </div>
+          )}
+
+          {staleSavedReferenceCount > 0 ? (
+            <div className="mb-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+              最终提示词冻结的参考图里有 {staleSavedReferenceCount}{" "}
+              张已失效。请调整下方参考素材并重新生成最终提示词。
+            </div>
+          ) : null}
+          {savedReferenceIdsError ? (
+            <div className="mb-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+              已保存参考图数据异常：{savedReferenceIdsError}
+              。请调整下方参考素材并重新生成最终提示词。
+            </div>
+          ) : null}
+          {referenceInputs ? (
+            <div className="mb-3">{referenceInputs}</div>
+          ) : null}
+
+          {selectedPromptSceneSummary ? (
+            <div className="mb-3 text-xs">
+              <span className="text-book-text-muted">场景摘要</span>
+              <div className="mt-1 min-h-[34px] border-l-2 border-book-border/55 py-1 pl-2.5 leading-relaxed text-book-text-sub">
+                {selectedPromptSceneSummary}
+              </div>
+            </div>
+          ) : null}
+
+          {sections.length > 0 && (
+            <details className="a4n-flat-surface mb-3 p-2">
+              <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-xs text-book-text-main [&::-webkit-details-marker]:hidden">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <ListChecks size={12} className="text-book-primary" />
+                  导演约束
                 </span>
-                <textarea
-                  value={draft.negative_prompt}
+                <span className="text-caption text-book-text-muted">
+                  {sections.length} 项
+                </span>
+              </summary>
+              <dl className="mt-2 divide-y divide-book-border/40 border-y border-book-border/40">
+                {sections.map((section) => (
+                  <div
+                    key={section.key}
+                    className="grid min-w-0 gap-1 px-2.5 py-2 md:grid-cols-[110px_minmax(0,1fr)] md:gap-3"
+                  >
+                    <dt className="text-caption text-book-text-muted">
+                      {section.label}
+                    </dt>
+                    <dd className="line-clamp-4 whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">
+                      {section.text}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          )}
+
+          {selectedPromptCharStats && (
+            <details className="mb-3 text-caption text-book-text-muted">
+              <summary className="w-fit cursor-pointer hover:text-book-text-main">
+                诊断信息
+              </summary>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-l-2 border-book-border/60 pl-2 text-caption">
+                <span className="text-book-text-muted">
+                  {chatVideoMode ? "Chat 提示词" : "画面"}{" "}
+                  {promptLengthText(
+                    selectedPromptCharStats.visualChars,
+                    selectedPromptCharStats.visualBytes,
+                  )}
+                </span>
+                {!chatVideoMode && (
+                  <span className="text-book-text-muted">
+                    运动{" "}
+                    {promptLengthText(
+                      selectedPromptCharStats.motionChars,
+                      selectedPromptCharStats.motionBytes,
+                    )}
+                  </span>
+                )}
+                <span className="text-book-text-muted">
+                  限制{" "}
+                  {promptLengthText(
+                    selectedPromptCharStats.negativeChars,
+                    selectedPromptCharStats.negativeBytes,
+                  )}
+                </span>
+              </div>
+            </details>
+          )}
+
+          <div className="grid gap-3">
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs text-book-text-muted">视频时长</span>
+              {durationLimits.durationMode === "fixed" ? (
+                <select
+                  value={draft.duration_secs}
                   onChange={(event) =>
-                    updateDraft({ negative_prompt: event.target.value })
+                    updateDraft({ duration_secs: Number(event.target.value) })
                   }
                   disabled={selectedPromptRunning}
-                  className="book-control min-h-[96px] resize-y p-2 text-xs leading-relaxed"
+                  className="book-control h-9 px-2 text-xs"
+                >
+                  {!isDurationAllowed(draft.duration_secs, durationLimits) && (
+                    <option value={draft.duration_secs} disabled>
+                      {draft.duration_secs} 秒（当前配置不支持）
+                    </option>
+                  )}
+                  {durationChoicesForLimits(durationLimits).map((duration) => (
+                    <option key={duration} value={duration}>
+                      {duration} 秒
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  min={durationLimits.minDurationSecs}
+                  max={durationLimits.maxDurationSecs}
+                  step={1}
+                  value={draft.duration_secs}
+                  onChange={(event) =>
+                    updateDraft({ duration_secs: Number(event.target.value) })
+                  }
+                  disabled={selectedPromptRunning}
+                  className="book-control h-9 px-2 text-xs"
+                />
+              )}
+              <span className="text-caption text-book-text-muted">
+                当前模型支持：{durationLimitsLabel(durationLimits)}
+              </span>
+            </label>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs text-book-text-muted">
+                {chatVideoMode ? "Chat 视频提示词" : "画面提示词"}
+              </span>
+              <textarea
+                value={draft.visual_prompt}
+                onChange={(event) =>
+                  updateDraft({ visual_prompt: event.target.value })
+                }
+                disabled={selectedPromptRunning}
+                className="book-control min-h-[220px] resize-y p-2 text-xs leading-relaxed"
+              />
+            </label>
+            {!chatVideoMode && (
+              <label className="flex min-w-0 flex-col gap-1">
+                <span className="text-xs text-book-text-muted">运动提示词</span>
+                <textarea
+                  value={draft.motion_prompt}
+                  onChange={(event) =>
+                    updateDraft({ motion_prompt: event.target.value })
+                  }
+                  disabled={selectedPromptRunning}
+                  className="book-control min-h-[140px] resize-y p-2 text-xs leading-relaxed"
                 />
               </label>
-            </div>
-          </>
-        )}
+            )}
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs text-book-text-muted">限制与避免项</span>
+              <textarea
+                value={draft.negative_prompt}
+                onChange={(event) =>
+                  updateDraft({ negative_prompt: event.target.value })
+                }
+                disabled={selectedPromptRunning}
+                className="book-control min-h-[96px] resize-y p-2 text-xs leading-relaxed"
+              />
+            </label>
+          </div>
+        </fieldset>
       </div>
     );
   };
@@ -1291,12 +1352,15 @@ export const VideoGenerationWorkspace: React.FC<
             loading={loading}
             savingRecipeSegments={savingRecipeSegments}
             finalPromptBlockedReasons={finalPromptBlockedReasons}
+            timeline={timeline}
             layout="index"
             onLoad={onLoad}
             onSelectPrompt={onSelectPrompt}
             onSelectSegment={onActivateSegment}
             onWorkflowModeChange={onWorkflowModeChange}
             onDeletePrompt={onDeletePrompt}
+            onInsertSegment={onInsertSegment}
+            onOpenInsertedSegment={onOpenInsertedSegment}
           />
         </div>
 
@@ -1361,12 +1425,15 @@ export const VideoGenerationWorkspace: React.FC<
                   loading={loading}
                   savingRecipeSegments={savingRecipeSegments}
                   finalPromptBlockedReasons={finalPromptBlockedReasons}
+                  timeline={timeline}
                   layout="selected"
                   onLoad={onLoad}
                   onSelectPrompt={onSelectPrompt}
                   onSelectSegment={onActivateSegment}
                   onWorkflowModeChange={onWorkflowModeChange}
                   onDeletePrompt={onDeletePrompt}
+                  onInsertSegment={onInsertSegment}
+                  onOpenInsertedSegment={onOpenInsertedSegment}
                 />
               </div>
             </section>

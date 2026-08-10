@@ -329,7 +329,12 @@ export const ImplicitReviewManager: React.FC<{
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
 
       if (result.action === "modify") {
-        addToast("已应用隐性属性修改", "success");
+        addToast(
+          result.warnings.length > 0
+            ? `已应用隐性属性修改；${result.warnings.join("；")}`
+            : "已应用隐性属性修改",
+          result.warnings.length > 0 ? "info" : "success",
+        );
       } else if (result.action === "mark_deletion" && result.deletion_mark) {
         addToast(
           result.ready_for_deletion

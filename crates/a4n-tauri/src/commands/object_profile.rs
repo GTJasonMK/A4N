@@ -6,7 +6,8 @@ use a4n_runtime::AppState;
 use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
 use a4n_runtime::host_api::object_profile_records as object_profile_records_actions;
 use object_profile_records_actions::{
-    ListObjectProfilesInput, ObjectProfileInput, ObjectProfileSummary,
+    ListObjectProfilesInput, ObjectProfileDeleteResult, ObjectProfileInput,
+    ObjectProfileMutationResult, ObjectProfileSummary,
 };
 use tauri::State;
 
@@ -26,7 +27,7 @@ pub async fn create_object_profile(
     user_id: i64,
     project_id: i64,
     input: ObjectProfileInput,
-) -> Result<ObjectProfileSummary, String> {
+) -> Result<ObjectProfileMutationResult, String> {
     object_profile_records_actions::create_object_profile(state.inner(), user_id, project_id, input)
         .await
 }
@@ -37,7 +38,7 @@ pub async fn update_object_profile(
     user_id: i64,
     object_profile_id: i64,
     input: ObjectProfileInput,
-) -> Result<ObjectProfileSummary, String> {
+) -> Result<ObjectProfileMutationResult, String> {
     object_profile_records_actions::update_object_profile(
         state.inner(),
         user_id,
@@ -53,7 +54,7 @@ pub async fn delete_object_profile(
     user_id: i64,
     object_profile_id: i64,
     downstream_strategy: Option<String>,
-) -> Result<(), String> {
+) -> Result<ObjectProfileDeleteResult, String> {
     let downstream_strategy =
         DownstreamConflictStrategy::from_optional_str(downstream_strategy.as_deref())?;
     object_profile_records_actions::delete_object_profile(

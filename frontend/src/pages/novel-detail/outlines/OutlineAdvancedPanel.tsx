@@ -175,6 +175,12 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   onBusyChange,
 }) => {
   const { addToast } = useToast();
+  const showGenerationSuccess = (message: string, warnings: string[]) => {
+    addToast(
+      warnings.length > 0 ? `${message}；${warnings.join("；")}` : message,
+      warnings.length > 0 ? "info" : "success",
+    );
+  };
 
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const [progressLoading, setProgressLoading] = useState(false);
@@ -505,7 +511,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setBeatBusy(true);
     try {
-      await runGeneration(
+      const warnings = await runGeneration(
         {
           title: "应用节拍映射",
           startMessage: "模型正在把节拍映射到章节大纲…",
@@ -529,7 +535,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast("节拍映射已应用", "success");
+      showGenerationSuccess("节拍映射已应用", warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
@@ -575,7 +581,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setPartGenBusy(true);
     try {
-      await runGeneration(
+      const warnings = await runGeneration(
         {
           title: `生成第 ${requestPart.part_number} 部章纲`,
           startMessage: `模型正在为第 ${requestPart.part_number} 部生成章纲…`,
@@ -598,7 +604,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast(`已为第 ${requestPart.part_number} 部生成章纲`, "success");
+      showGenerationSuccess(`已为第 ${requestPart.part_number} 部生成章纲`, warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
@@ -642,7 +648,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setBatchBusy(true);
     try {
-      await runGeneration(
+      const warnings = await runGeneration(
         {
           title: "批量生成各部章纲",
           startMessage: `正在生成 ${partIds.length} 个分部的章纲…`,
@@ -665,7 +671,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast("批量生成已完成", "success");
+      showGenerationSuccess("批量生成已完成", warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
@@ -709,7 +715,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setPartRegenBusy(true);
     try {
-      await runGeneration(
+      const warnings = await runGeneration(
         {
           title: `重新生成第 ${requestPart.part_number} 部`,
           startMessage: `模型正在重写第 ${requestPart.part_number} 部大纲…`,
@@ -733,7 +739,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast("已重新生成部大纲", "success");
+      showGenerationSuccess("已重新生成部大纲", warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         showGenerationError(err, "重新生成失败");
@@ -786,7 +792,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     finishConfirmAction();
     setRegenPartsBusy(true);
     try {
-      await runGeneration(
+      const warnings = await runGeneration(
         {
           title: "重新生成所有部",
           startMessage: "模型正在重新生成所有分部大纲，耗时可能较长…",
@@ -811,7 +817,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast("已重新生成所有部", "success");
+      showGenerationSuccess("已重新生成所有部", warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
@@ -865,7 +871,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setContinueBusy(true);
     try {
-      await runGeneration(
+      const warnings = await runGeneration(
         {
           title: `续作第 ${lastPart.part_number + 1} 部`,
           startMessage:
@@ -892,7 +898,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast(`已续作第 ${lastPart.part_number + 1} 部`, "success");
+      showGenerationSuccess(`已续作第 ${lastPart.part_number + 1} 部`, warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();

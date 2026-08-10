@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePersistedTab } from "../hooks/usePersistedTab";
+import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import {
   getProjectHomeEntryRoute,
   getProjectPrimaryRoute,
@@ -11,6 +12,8 @@ import { useToast } from "../components/feedback/Toast";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../api";
+import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
+import { cancelWorkflow } from "../api/streaming";
 import {
   acceptProjectInvite,
   branchProject,
@@ -23,7 +26,6 @@ import {
   exportDerivedProjectData,
   exportProjectFamilyData,
   exportVideoStudioProjectData,
-  getProjectStatusHistory,
   importProjectFamilyUpload,
   importProjectFullUpload,
   importVideoStudioProjectUpload,
@@ -33,13 +35,11 @@ import {
   type ProjectAccessScope,
   type ProjectInvite,
   type ProjectKind,
-  type ProjectStatusHistory,
 } from "../api/project";
 import { NovelListSidebar } from "./novel-list/NovelListSidebar";
 import {
   ProjectCreationDialog,
   ProjectImportDialog,
-  ProjectStatusHistoryDialog,
   ProjectTextImportDialog,
   type CreateMode,
 } from "./novel-list/NovelListDialogs";
@@ -51,6 +51,7 @@ import {
   pickRandomQuote,
   PROJECT_KIND_FILTERS,
   PROJECT_TABS,
+  trySyncTextProjectMaterials,
   type ProjectKindFilter,
   type ProjectTab,
   type Quote,
@@ -85,6 +86,7 @@ const DEFAULT_TEXT_PROJECT_TITLE = "未命名小说项目";
 export const NovelList: React.FC<NovelListProps> = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { runProgressTask } = useProgressTask();
 
   const [projects, setProjects] = useState<NovelProject[]>([]);
   const [accessScope, setAccessScope] = useState<ProjectAccessScope>("all");
@@ -107,9 +109,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const refreshSeqRef = useRef(0);
   const inviteSeqRef = useRef(0);
   const createSeqRef = useRef(0);
-  const historySeqRef = useRef(0);
-  const historyForIdRef = useRef<number | null>(null);
-  const historyInFlightProjectIdRef = useRef<number | null>(null);
   const importDialogOpenRef = useRef(false);
   const importFileSeqRef = useRef(0);
   const importSeqRef = useRef(0);
@@ -124,16 +123,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const [importTextProjectId, setImportTextProjectId] = useState<number | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [historyForId, setHistoryForId] = useState<number | null>(null);
-  const [history, setHistory] = useState<ProjectStatusHistory[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const quote = useMemo<Quote>(() => pickRandomQuote(), []);
-  const setHistoryForIdState = (projectId: number | null) => {
-    historyForIdRef.current = projectId;
-    setHistoryForId(projectId);
-  };
 
   const setImportDialogOpenState = (open: boolean) => {
     importDialogOpenRef.current = open;
@@ -219,8 +211,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
       refreshSeqRef.current += 1;
       inviteSeqRef.current += 1;
       createSeqRef.current += 1;
-      historySeqRef.current += 1;
-      historyInFlightProjectIdRef.current = null;
       importFileSeqRef.current += 1;
       importSeqRef.current += 1;
       createBusyRef.current = false;
@@ -267,6 +257,36 @@ export const NovelList: React.FC<NovelListProps> = () => {
     projectActionKeysRef.current.delete(key);
   };
 
+  const syncCreatedProjectMaterials = async (project: NovelProject) => {
+    const warning = await trySyncTextProjectMaterials(project, async (projectId) => {
+      const taskId = allocateHostTaskId("new-project-rag-ingest", projectId);
+      await runProgressTask(
+        {
+          cancelTaskId: taskId,
+          cancelTask: cancelWorkflow,
+          pollTaskProgress: true,
+          title: `同步「${project.title}」资料索引`,
+          startMessage: "正在读取新项目的正式资料…",
+          successMessage: "新项目资料索引已同步",
+          errorMessage: "新项目资料索引同步失败",
+          total: 1,
+          cancelLabel: "停止同步",
+          runningHint: "项目已经创建；索引失败或停止后可稍后重新同步",
+        },
+        async ({ setProgress }) => {
+          const result = await ragIngestAll(projectId, taskId);
+          if (!result.success) {
+            throw new Error(result.errors.join("；") || "资料索引同步未完成");
+          }
+          setProgress(`资料索引同步完成：${formatRagIngestResultSummary(result)}`, 1, 1);
+        },
+      );
+    });
+    if (warning && mountedRef.current) {
+      addToast(`「${project.title}」正式资料已保存；${warning}`, "info");
+    }
+  };
+
   const beginInviteAction = (inviteId: number): boolean => {
     if (!mountedRef.current || inviteActionIdsRef.current.has(inviteId)) return false;
     const next = new Set(inviteActionIdsRef.current);
@@ -284,7 +304,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     if (mountedRef.current) setInviteActionIds(next);
   };
 
-  const handleCreate = async (requestMode: Exclude<CreateMode, "import">) => {
+  const handleCreate = async (requestMode: CreateMode) => {
     if (!mountedRef.current || createBusyRef.current) return;
     createBusyRef.current = true;
     const requestSeq = createSeqRef.current + 1;
@@ -309,6 +329,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
       if (requestMode === "ai") {
         navigate(`/inspiration/${project.id}`);
+      } else if (requestMode === "free") {
+        navigate(`/novel/${project.id}`);
       } else if (requestMode === "video_canvas") {
         navigate(`/video-project/${project.id}/studio`);
       }
@@ -326,11 +348,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
 
   const handleSelectMode = (mode: CreateMode) => {
     if (creating || createBusyRef.current) return;
-    if (mode === "import") {
-      setCreateDialogOpen(false);
-      setImportDialogOpenState(true);
-      return;
-    }
     void handleCreate(mode);
   };
 
@@ -358,6 +375,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
       if (!mountedRef.current) return;
       addToast(`已复制为：${np.title}`, "success");
       await refresh(activeTabRef.current);
+      if (!mountedRef.current) return;
+      await syncCreatedProjectMaterials(np);
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, "复制失败"), "error");
@@ -391,6 +410,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
       if (!mountedRef.current) return;
       addToast(`已创建分支：${np.title}`, "success");
       await refresh(activeTabRef.current);
+      if (!mountedRef.current) return;
+      await syncCreatedProjectMaterials(np);
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, "分支失败"), "error");
@@ -542,50 +563,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
     }
   };
 
-  const handleShowHistory = async (project: NovelProject) => {
-    const requestProjectId = project.id;
-    if (historyInFlightProjectIdRef.current === requestProjectId) return;
-    historyInFlightProjectIdRef.current = requestProjectId;
-    const requestSeq = historySeqRef.current + 1;
-    historySeqRef.current = requestSeq;
-    setHistoryForIdState(requestProjectId);
-    setHistory([]);
-    setHistoryLoading(true);
-    try {
-      const data = await getProjectStatusHistory(requestProjectId);
-      if (
-        !mountedRef.current ||
-        historySeqRef.current !== requestSeq ||
-        historyForIdRef.current !== requestProjectId
-      ) {
-        return;
-      }
-      setHistory(data);
-    } catch (err) {
-      if (
-        mountedRef.current &&
-        historySeqRef.current === requestSeq &&
-        historyForIdRef.current === requestProjectId
-      ) {
-        addToast(extractErrorMessage(err, "加载历史失败"), "error");
-        setHistory([]);
-      }
-    } finally {
-      if (
-        historyInFlightProjectIdRef.current === requestProjectId &&
-        historySeqRef.current === requestSeq
-      ) {
-        historyInFlightProjectIdRef.current = null;
-      }
-      if (
-        mountedRef.current &&
-        historySeqRef.current === requestSeq &&
-        historyForIdRef.current === requestProjectId
-      ) {
-        setHistoryLoading(false);
-      }
-    }
-  };
 
   const handleImport = async () => {
     if (!mountedRef.current || importBusyRef.current) return;
@@ -599,6 +576,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     importSeqRef.current = requestSeq;
     setImporting(true);
     try {
+      let importedTextProject: NovelProject | null = null;
       const fileName = selectedFile.name.trim();
       const dataBase64 = await readFileAsBase64(selectedFile);
       if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
@@ -607,6 +585,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         try {
           const imported = await importProjectFamilyUpload(input);
           if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+          importedTextProject = imported.find((item) => item.project_kind === "text") ?? null;
           addToast(`已导入项目包：${imported.map((item) => item.title).join(" / ")}`, "success");
         } catch (familyErr) {
           try {
@@ -622,12 +601,15 @@ export const NovelList: React.FC<NovelListProps> = () => {
       } else if (fileName.toLowerCase().endsWith(".json")) {
         const np = await importProjectFullUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+        importedTextProject = np;
         addToast(`已导入项目：${np.title}`, "success");
       } else {
         throw new Error("项目导入文件必须是 .zip 项目包或 .json 文本项目备份");
       }
       setImportDialogOpenState(false);
       await refresh(activeTabRef.current);
+      if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+      if (importedTextProject) await syncCreatedProjectMaterials(importedTextProject);
     } catch (err) {
       if (mountedRef.current && importSeqRef.current === requestSeq) {
         addToast(extractErrorMessage(err, "导入失败"), "error");
@@ -727,15 +709,11 @@ export const NovelList: React.FC<NovelListProps> = () => {
     }
   };
 
-  const handleCloseHistory = () => {
-    historySeqRef.current += 1;
-    historyInFlightProjectIdRef.current = null;
-    setHistoryForIdState(null);
-    setHistory([]);
-    setHistoryLoading(false);
-  };
-
   const handleOpenProject = (project: NovelProject) => {
+    if (project.lifecycle_gate !== "active" && project.project_kind === "text") {
+      navigate(`/novel/${project.id}`);
+      return;
+    }
     navigate(getProjectHomeEntryRoute(project));
   };
 
@@ -752,7 +730,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
       onCreateDerivedProject: (item, kind) => void handleCreateDerivedProject(item, kind),
       onExport: (item) => void handleExport(item),
       onImportText: (item) => setImportTextProjectId(item.id),
-      onShowHistory: (item) => void handleShowHistory(item),
       onDelete: (item) => void handleDelete(item),
     });
 
@@ -787,13 +764,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
           getActions={projectActions}
         />
       </div>
-
-      <ProjectStatusHistoryDialog
-        projectId={historyForId}
-        history={history}
-        loading={historyLoading}
-        onClose={handleCloseHistory}
-      />
 
       <ProjectCreationDialog
         open={createDialogOpen}

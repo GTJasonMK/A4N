@@ -16,7 +16,11 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { CharacterProfile } from "../../../api/character";
 import type { GeneratedImage } from "../../../api/image";
 import type { Portrait } from "../../../api/portrait";
-import type { BindMangaReferenceImageInput, MangaPanel, PipelineStatus } from "../../../api/manga";
+import type {
+  BindMangaReferenceImageInput,
+  MangaPipelineStatusSummary,
+  MangaPromptSummary,
+} from "../../../api/manga";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
@@ -40,7 +44,7 @@ import {
 } from "./mangaPagePromptModel";
 
 interface MangaPanelListProps {
-  panels: MangaPanel[];
+  panels: MangaPromptSummary[];
   panelsLoading: boolean;
   currentContentHash: string | null;
   chapterLocked?: boolean;
@@ -49,16 +53,18 @@ interface MangaPanelListProps {
   portraits: Portrait[];
   projectImages: GeneratedImage[];
   assetsLoading?: boolean;
-  pipelineStatus?: PipelineStatus | null;
+  pipelineStatus?: MangaPipelineStatusSummary | null;
   optimizingPromptId?: number | null;
   actionsDisabled?: boolean;
   canEditManga: boolean;
   onPreviewPageImage?: (pageNumber: number) => void | Promise<void>;
   onGeneratePageImage?: (pageNumber: number) => void | Promise<void>;
-  onBindReferenceImage?: (input: BindMangaReferenceImageInput) => void | Promise<void>;
+  onBindReferenceImage?: (
+    input: Omit<BindMangaReferenceImageInput, "downstream_strategy">,
+  ) => void | Promise<void>;
   onUpdatePrompt?: (promptId: number, imagePrompt: string) => void | Promise<void>;
-  onOptimizePrompt?: (prompt: MangaPanel) => void | Promise<void>;
-  onDeletePrompt?: (prompt: MangaPanel) => void | Promise<void>;
+  onOptimizePrompt?: (prompt: MangaPromptSummary) => void | Promise<void>;
+  onDeletePrompt?: (prompt: MangaPromptSummary) => void | Promise<void>;
 }
 
 export const MangaPanelList: React.FC<MangaPanelListProps> = ({

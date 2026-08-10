@@ -12,6 +12,12 @@ character_web_input_command!(
 );
 
 character_web_input_command!(
+    update_character_profile,
+    character_records_actions::UpdateCharacterProfileInput,
+    character_records_actions::update_character_profile,
+);
+
+character_web_input_command!(
     list_profiles,
     character_records_actions::ListProfilesInput,
     character_records_actions::list_profiles,

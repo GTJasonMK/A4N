@@ -1,40 +1,27 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
-import type { BindMangaReferenceImageInput, DownstreamConflictStrategy, MangaPanel } from "./types";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
+import type * as Host from "../generated/host";
 import { idNum, type ApiId as Id } from "../shared";
 
-interface UpdateMangaPromptInput {
-  prompt_id: number;
-  image_prompt: string;
-  downstream_strategy?: DownstreamConflictStrategy;
-}
-
-interface OptimizeMangaPromptInput {
-  prompt_id: number;
-  instruction: string;
-  downstream_strategy?: DownstreamConflictStrategy;
-}
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问漫画面板");
-  return id;
-};
-
 /** 后端 list_manga_panels(project_id, chapter_id) */
-export async function listMangaPanels(projectId: Id, chapterId: Id): Promise<MangaPanel[]> {
-  return apiInvoke<MangaPanel[]>("list_manga_panels", {
+export async function listMangaPanels(
+  projectId: Id,
+  chapterId: Id,
+): Promise<Host.MangaPromptSummary[]> {
+  return apiInvoke<Host.MangaPromptSummary[]>("list_manga_panels", {
     userId: currentUserId(),
-    projectId: idNum(projectId),
-    chapterId: idNum(chapterId),
+    input: {
+      project_id: idNum(projectId),
+      chapter_id: idNum(chapterId),
+    } satisfies Host.MangaChapterInput,
   });
 }
 
 /** 后端 bind_manga_reference_image(input) */
 export async function bindMangaReferenceImage(
-  input: BindMangaReferenceImageInput,
-): Promise<MangaPanel> {
-  return apiInvoke<MangaPanel>("bind_manga_reference_image", {
+  input: Host.BindMangaReferenceImageInput,
+): Promise<Host.MangaPromptSummary> {
+  return apiInvoke<Host.MangaPromptSummary>("bind_manga_reference_image", {
     userId: currentUserId(),
     input: {
       ...input,
@@ -46,9 +33,9 @@ export async function bindMangaReferenceImage(
 
 /** 后端 update_manga_prompt(input) */
 export async function updateMangaPrompt(
-  input: UpdateMangaPromptInput,
-): Promise<MangaPanel> {
-  return apiInvoke<MangaPanel>("update_manga_prompt", {
+  input: Host.UpdateMangaPromptInput,
+): Promise<Host.MangaPromptSummary> {
+  return apiInvoke<Host.MangaPromptSummary>("update_manga_prompt", {
     userId: currentUserId(),
     input: {
       ...input,
@@ -58,9 +45,9 @@ export async function updateMangaPrompt(
 }
 
 export async function optimizeMangaPrompt(
-  input: OptimizeMangaPromptInput,
-): Promise<MangaPanel> {
-  return apiInvoke<MangaPanel>("optimize_manga_prompt", {
+  input: Host.OptimizeMangaPromptInput,
+): Promise<Host.MangaPromptSummary> {
+  return apiInvoke<Host.MangaPromptSummary>("optimize_manga_prompt", {
     userId: currentUserId(),
     input: {
       ...input,
@@ -71,12 +58,14 @@ export async function optimizeMangaPrompt(
 
 export async function deleteMangaPrompt(
   promptId: Id,
-  downstreamStrategy: DownstreamConflictStrategy = "reject",
+  downstreamStrategy: Host.DownstreamConflictStrategy,
 ): Promise<void> {
   return apiInvoke<void>("delete_manga_prompt", {
     userId: currentUserId(),
-    promptId: idNum(promptId),
-    downstreamStrategy,
+    input: {
+      prompt_id: idNum(promptId),
+      downstream_strategy: downstreamStrategy,
+    } satisfies Host.DeleteMangaPromptInput,
   });
 }
 
@@ -84,7 +73,9 @@ export async function deleteMangaPrompt(
 export async function deleteMangaByChapter(projectId: Id, chapterId: Id): Promise<void> {
   return apiInvoke<void>("delete_manga_by_chapter", {
     userId: currentUserId(),
-    projectId: idNum(projectId),
-    chapterId: idNum(chapterId),
+    input: {
+      project_id: idNum(projectId),
+      chapter_id: idNum(chapterId),
+    } satisfies Host.MangaChapterInput,
   });
 }

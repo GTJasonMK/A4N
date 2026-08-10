@@ -74,13 +74,9 @@ pub(in crate::routes::commands) async fn change_user_password(
 pub(in crate::routes::commands) async fn list_sessions(
     state: &ServerState,
     user_id: i64,
-    args: &Value,
+    _args: &Value,
 ) -> Result<Value, ApiError> {
-    let target_user_id = i64_arg(args, "userId")?;
-    to_value(
-        auth_records_actions::list_sessions_for_user(state.runtime(), user_id, target_user_id)
-            .await?,
-    )
+    to_value(auth_records_actions::list_sessions(state.runtime(), user_id).await?)
 }
 
 pub(in crate::routes::commands) async fn revoke_session(
@@ -88,14 +84,7 @@ pub(in crate::routes::commands) async fn revoke_session(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let target_user_id = i64_arg(args, "userId")?;
     let session_id = string_arg(args, "sessionId")?;
-    auth_records_actions::revoke_session_for_user(
-        state.runtime(),
-        user_id,
-        target_user_id,
-        &session_id,
-    )
-    .await?;
+    auth_records_actions::revoke_session(state.runtime(), user_id, &session_id).await?;
     Ok(Value::Null)
 }

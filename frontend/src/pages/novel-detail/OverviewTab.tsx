@@ -1,21 +1,51 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, FileText, GitBranch, Users } from "lucide-react";
+import { ChevronRight, FileText, GitBranch, Pencil, Users } from "lucide-react";
 import { Modal } from "../../components/ui/Modal";
+import { BookButton } from "../../components/ui/BookButton";
+import { BookInput, BookTextarea } from "../../components/ui/BookInput";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
-import type { NovelProject } from "../../api/project";
-import { getBlueprint, refineBlueprint, type Blueprint } from "../../api/blueprint";
+import { canEditProjectMaterials, type NovelProject } from "../../api/project";
+import {
+  getBlueprint,
+  loadBlueprintTaskResult,
+  refineBlueprint,
+  saveBlueprint,
+  syncBlueprintMaterials,
+  type Blueprint,
+} from "../../api/blueprint";
+import { generationClient } from "../../api/generationTasks";
 import { BlueprintVersionsPanel } from "./overview/BlueprintVersionsPanel";
 import { ProjectCollaborationPanel } from "./overview/ProjectCollaborationPanel";
 import { ProjectOverviewCard } from "./overview/ProjectOverviewCard";
 import { SynopsisCard } from "./overview/SynopsisCard";
-import { getProjectAccessRoleLabel } from "../../utils/projectRouting";
+import { PROJECT_ACCESS_ROLE_LABELS } from "../../utils/projectRouting";
 
 interface OverviewTabProps {
   project: NovelProject;
   onRefresh: () => Promise<void>;
 }
+
+interface BlueprintEditorDraft {
+  genre: string;
+  style: string;
+  tone: string;
+  targetAudience: string;
+  oneSentenceSummary: string;
+  fullSynopsis: string;
+  totalChapters: string;
+}
+
+const EMPTY_BLUEPRINT_DRAFT: BlueprintEditorDraft = {
+  genre: "",
+  style: "",
+  tone: "",
+  targetAudience: "",
+  oneSentenceSummary: "",
+  fullSynopsis: "",
+  totalChapters: "",
+};
 
 /**
  * 项目概览：项目进度与故事摘要是主信息，版本和协作是次级入口。
@@ -29,11 +59,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
   const [synopsisOpen, setSynopsisOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [collabOpen, setCollabOpen] = useState(false);
+  const [blueprintEditorOpen, setBlueprintEditorOpen] = useState(false);
+  const [blueprintSaving, setBlueprintSaving] = useState(false);
+  const [blueprintDraft, setBlueprintDraft] = useState(EMPTY_BLUEPRINT_DRAFT);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
   const activeProjectIdRef = useRef(project.id);
   const loadSeqRef = useRef(0);
   const refineSeqRef = useRef(0);
   const refiningRef = useRef(false);
+  const blueprintSaveBusyRef = useRef(false);
   const mountedRef = useRef(false);
 
   activeProjectIdRef.current = project.id;
@@ -56,10 +90,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
     [isCurrentProject],
   );
 
-  const canEditProject =
-    project.my_role === "owner" ||
-    project.my_role === "manager" ||
-    project.my_role === "editor";
+  const canEditProject = canEditProjectMaterials(project);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -68,6 +99,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
       loadSeqRef.current += 1;
       refineSeqRef.current += 1;
       refiningRef.current = false;
+      blueprintSaveBusyRef.current = false;
     };
   }, []);
 
@@ -102,6 +134,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
     setSynopsisOpen(false);
     setVersionsOpen(false);
     setCollabOpen(false);
+    setBlueprintEditorOpen(false);
+    setBlueprintSaving(false);
+    blueprintSaveBusyRef.current = false;
     setRefining(false);
   }, [project.id]);
 
@@ -117,15 +152,26 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
     refiningRef.current = true;
     setRefining(true);
     try {
-      await refineBlueprint({
+      const handle = await refineBlueprint({
         project_id: requestProjectId,
         focus: null,
         variables: null,
       });
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      addToast("蓝图已优化", "success");
+      const task = await generationClient.waitForTerminal(handle);
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      await loadBlueprintTaskResult(requestProjectId, task.resultRef);
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      const syncWarnings = await syncBlueprintMaterials(requestProjectId);
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
       await load();
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      addToast(
+        syncWarnings.length > 0
+          ? `蓝图已优化；${syncWarnings.join("；")}`
+          : "蓝图已优化",
+        syncWarnings.length > 0 ? "info" : "success",
+      );
       await onRefresh();
     } catch (err) {
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
@@ -147,8 +193,84 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
   const displayBlueprint = loadedProjectId === project.id ? blueprint : null;
   const displayLoading = loading || loadedProjectId !== project.id;
 
+  const handleOpenBlueprintEditor = () => {
+    if (!canEditProject) {
+      addToast("当前账号没有编辑此项目的权限", "error");
+      return;
+    }
+    setBlueprintDraft({
+      genre: displayBlueprint?.genre ?? "",
+      style: displayBlueprint?.style ?? "",
+      tone: displayBlueprint?.tone ?? "",
+      targetAudience: displayBlueprint?.target_audience ?? "",
+      oneSentenceSummary: displayBlueprint?.one_sentence_summary ?? "",
+      fullSynopsis: displayBlueprint?.full_synopsis ?? "",
+      totalChapters: String(
+        Math.max(
+          5,
+          project.current_chapter,
+          displayBlueprint?.total_chapters ??
+            project.total_chapters ??
+            project.target_chapters,
+        ),
+      ),
+    });
+    setBlueprintEditorOpen(true);
+  };
+
+  const handleSaveBlueprint = async () => {
+    const genre = blueprintDraft.genre.trim();
+    const totalChapters = Number(blueprintDraft.totalChapters);
+    if (!genre) {
+      addToast("请填写蓝图题材", "error");
+      return;
+    }
+    if (!Number.isInteger(totalChapters) || totalChapters < 5 || totalChapters > 10_000) {
+      addToast("总章节数必须是 5 到 10000 之间的整数", "error");
+      return;
+    }
+    if (blueprintSaveBusyRef.current) return;
+    const requestProjectId = project.id;
+    blueprintSaveBusyRef.current = true;
+    setBlueprintSaving(true);
+    try {
+      const optional = (value: string): string | null => value.trim() || null;
+      const result = await saveBlueprint({
+        project_id: requestProjectId,
+        genre,
+        style: optional(blueprintDraft.style),
+        tone: optional(blueprintDraft.tone),
+        target_audience: optional(blueprintDraft.targetAudience),
+        one_sentence_summary: optional(blueprintDraft.oneSentenceSummary),
+        full_synopsis: optional(blueprintDraft.fullSynopsis),
+        total_chapters: totalChapters,
+      });
+      if (!isCurrentProject(requestProjectId)) return;
+      setBlueprintEditorOpen(false);
+      await load();
+      if (!isCurrentProject(requestProjectId)) return;
+      await onRefresh();
+      if (!isCurrentProject(requestProjectId)) return;
+      addToast(
+        result.warnings.length > 0
+          ? `蓝图已保存；${result.warnings.join("；")}`
+          : "蓝图已保存",
+        result.warnings.length > 0 ? "info" : "success",
+      );
+    } catch (err) {
+      if (isCurrentProject(requestProjectId)) {
+        addToast(extractErrorMessage(err, "保存蓝图失败"), "error");
+      }
+    } finally {
+      if (isCurrentProject(requestProjectId)) {
+        blueprintSaveBusyRef.current = false;
+        setBlueprintSaving(false);
+      }
+    }
+  };
+
   const blueprintVersion = displayBlueprint?.current_version || "—";
-  const memberCount = project.member_count ?? 1;
+  const memberCount = project.member_count;
 
   return (
     <div className="content-main flex min-h-0 flex-col gap-3">
@@ -161,8 +283,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
             <ProjectOverviewCard
               project={project}
               blueprint={displayBlueprint}
-              canEditProject={canEditProject}
-              onRefresh={onRefresh}
               embedded
             />
           </div>
@@ -175,6 +295,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
           canEditBlueprint={canEditProject}
           onOpenSynopsis={() => setSynopsisOpen(true)}
           onRefine={() => void handleRefine()}
+          onEditBlueprint={handleOpenBlueprintEditor}
           onCreateBlueprint={handleCreateBlueprint}
         />
 
@@ -193,7 +314,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
           <OverviewActionCard
             icon={<Users size={14} />}
             title="协作成员"
-            description={`${memberCount} 位成员 · ${getProjectAccessRoleLabel(project.my_role)}${
+            description={`${memberCount} 位成员 · ${PROJECT_ACCESS_ROLE_LABELS[project.my_role]}${
               project.pending_invite_count
                 ? ` · ${project.pending_invite_count} 个邀请待处理`
                 : ""
@@ -202,6 +323,114 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ project, onRefresh }) 
           />
         </nav>
       </div>
+
+      <Modal
+        isOpen={blueprintEditorOpen}
+        onClose={() => {
+          if (!blueprintSaving) setBlueprintEditorOpen(false);
+        }}
+        title={displayBlueprint ? "编辑正式蓝图" : "直接录入正式蓝图"}
+        subtitle="保存后立即成为当前正式版本；世界观、角色和关系可在各自资料页继续补充"
+        icon={<Pencil size={15} />}
+        maxWidthClassName="max-w-3xl"
+        bodyClassName="px-5 py-5"
+      >
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <BookInput
+              label="题材 *"
+              value={blueprintDraft.genre}
+              maxLength={256}
+              disabled={blueprintSaving}
+              onChange={(event) =>
+                setBlueprintDraft((current) => ({ ...current, genre: event.target.value }))
+              }
+            />
+            <BookInput
+              label="总章节数 *"
+              type="number"
+              min={5}
+              max={10000}
+              value={blueprintDraft.totalChapters}
+              disabled={blueprintSaving}
+              onChange={(event) =>
+                setBlueprintDraft((current) => ({
+                  ...current,
+                  totalChapters: event.target.value,
+                }))
+              }
+            />
+            <BookInput
+              label="写作风格"
+              value={blueprintDraft.style}
+              maxLength={1024}
+              disabled={blueprintSaving}
+              onChange={(event) =>
+                setBlueprintDraft((current) => ({ ...current, style: event.target.value }))
+              }
+            />
+            <BookInput
+              label="情感基调"
+              value={blueprintDraft.tone}
+              maxLength={1024}
+              disabled={blueprintSaving}
+              onChange={(event) =>
+                setBlueprintDraft((current) => ({ ...current, tone: event.target.value }))
+              }
+            />
+          </div>
+          <BookInput
+            label="目标读者"
+            value={blueprintDraft.targetAudience}
+            maxLength={1024}
+            disabled={blueprintSaving}
+            onChange={(event) =>
+              setBlueprintDraft((current) => ({
+                ...current,
+                targetAudience: event.target.value,
+              }))
+            }
+          />
+          <BookTextarea
+            label="一句话概要"
+            rows={2}
+            value={blueprintDraft.oneSentenceSummary}
+            maxLength={4096}
+            disabled={blueprintSaving}
+            onChange={(event) =>
+              setBlueprintDraft((current) => ({
+                ...current,
+                oneSentenceSummary: event.target.value,
+              }))
+            }
+          />
+          <BookTextarea
+            label="完整梗概"
+            rows={8}
+            value={blueprintDraft.fullSynopsis}
+            maxLength={131072}
+            disabled={blueprintSaving}
+            onChange={(event) =>
+              setBlueprintDraft((current) => ({
+                ...current,
+                fullSynopsis: event.target.value,
+              }))
+            }
+          />
+          <div className="flex justify-end gap-2 border-t border-book-border/40 pt-4">
+            <BookButton
+              variant="secondary"
+              disabled={blueprintSaving}
+              onClick={() => setBlueprintEditorOpen(false)}
+            >
+              取消
+            </BookButton>
+            <BookButton disabled={blueprintSaving} onClick={() => void handleSaveBlueprint()}>
+              {blueprintSaving ? "保存中…" : "保存为正式蓝图"}
+            </BookButton>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={synopsisOpen}

@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
 use a4n_llm::provider::ChatRequest;
 use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode};
 use axum::{
@@ -17,8 +18,6 @@ use super::{
     FakeProviderObservation, TestHttpServer, build_router, collect_stream_events, json_request,
     observe_fake_provider_request, service_request,
 };
-use crate::contracts::{HttpLlmProviderConfig, LlmChatPayload};
-
 fn malformed_fake_provider_router(observation: FakeProviderObservation) -> Router {
     Router::new()
         .route("/chat/completions", post(malformed_fake_chat_completions))
@@ -156,8 +155,8 @@ async fn malformed_provider_sse_emits_one_redacted_failed_terminal_event() {
     let provider_base_url = provider.base_url();
     let gateway = TestHttpServer::start(build_router()).await;
     let client = gateway.client();
-    let request = service_request(LlmChatPayload {
-        provider: HttpLlmProviderConfig {
+    let request = service_request(LlmGatewayPayload {
+        provider: LlmGatewayProviderConfig {
             provider: "openai".to_string(),
             base_url: provider_base_url.clone(),
             model: "fake-malformed-model".to_string(),
@@ -262,8 +261,8 @@ async fn provider_http_status_errors_map_to_redacted_failed_terminal_events() {
     let client = gateway.client();
 
     for case in cases {
-        let request = service_request(LlmChatPayload {
-            provider: HttpLlmProviderConfig {
+        let request = service_request(LlmGatewayPayload {
+            provider: LlmGatewayProviderConfig {
                 provider: "openai".to_string(),
                 base_url: provider_base_url.clone(),
                 model: case.model.to_string(),
@@ -318,8 +317,8 @@ async fn provider_body_error_after_done_keeps_completed_result() {
     .await;
     let gateway = TestHttpServer::start(build_router()).await;
     let client = gateway.client();
-    let request = service_request(LlmChatPayload {
-        provider: HttpLlmProviderConfig {
+    let request = service_request(LlmGatewayPayload {
+        provider: LlmGatewayProviderConfig {
             provider: "openai".to_string(),
             base_url: provider.base_url(),
             model: "body-error-after-done".to_string(),
@@ -354,8 +353,8 @@ async fn provider_body_error_after_finish_preserves_truncation_contract() {
     .await;
     let gateway = TestHttpServer::start(build_router()).await;
     let client = gateway.client();
-    let request = service_request(LlmChatPayload {
-        provider: HttpLlmProviderConfig {
+    let request = service_request(LlmGatewayPayload {
+        provider: LlmGatewayProviderConfig {
             provider: "openai".to_string(),
             base_url: provider.base_url(),
             model: "body-error-after-length-finish".to_string(),
@@ -390,8 +389,8 @@ async fn provider_body_error_before_terminal_marker_remains_failed() {
         .await;
         let gateway = TestHttpServer::start(build_router()).await;
         let client = gateway.client();
-        let request = service_request(LlmChatPayload {
-            provider: HttpLlmProviderConfig {
+        let request = service_request(LlmGatewayPayload {
+            provider: LlmGatewayProviderConfig {
                 provider: "openai".to_string(),
                 base_url: provider.base_url(),
                 model: model.to_string(),

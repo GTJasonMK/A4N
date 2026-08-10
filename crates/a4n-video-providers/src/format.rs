@@ -22,6 +22,31 @@ pub(crate) fn video_format_from_url(url: &str) -> Option<String> {
     }
 }
 
+pub(crate) fn video_format_from_content_type(content_type: &str) -> Option<String> {
+    let media_type = content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .to_ascii_lowercase();
+    match media_type.as_str() {
+        "video/mp4" => Some("mp4".into()),
+        "video/webm" => Some("webm".into()),
+        "video/quicktime" => Some("mov".into()),
+        "video/x-m4v" => Some("m4v".into()),
+        _ => None,
+    }
+}
+
+pub(crate) fn video_format_from_content_type_or_bytes(
+    content_type: Option<&str>,
+    bytes: &[u8],
+) -> Option<String> {
+    content_type
+        .and_then(video_format_from_content_type)
+        .or_else(|| detect_video_format_from_bytes(bytes).ok())
+}
+
 /// 用字节魔数嗅探 MP4 / WebM；MOV 与 MP4 共享 `ftyp` 容器，统一返回 `mp4`。
 pub(crate) fn detect_video_format_from_bytes(bytes: &[u8]) -> Result<String, AppError> {
     if bytes.len() >= 12 && &bytes[4..8] == b"ftyp" {
@@ -80,5 +105,30 @@ mod tests {
         );
         assert_eq!(video_format_from_url("https://e.com/streaming"), None);
         assert_eq!(video_format_from_url("https://e.com/x.gif"), None);
+    }
+
+    #[test]
+    fn video_format_from_content_type_handles_parameters() {
+        assert_eq!(
+            video_format_from_content_type("video/mp4; charset=utf-8"),
+            Some("mp4".into())
+        );
+        assert_eq!(
+            video_format_from_content_type("video/quicktime"),
+            Some("mov".into())
+        );
+        assert_eq!(video_format_from_content_type("application/json"), None);
+    }
+
+    #[test]
+    fn video_format_from_content_type_or_bytes_rejects_unknown_data() {
+        assert_eq!(
+            video_format_from_content_type_or_bytes(Some("application/json"), b"not-a-video"),
+            None
+        );
+        assert_eq!(
+            video_format_from_content_type_or_bytes(Some("video/webm"), b"not-a-video"),
+            Some("webm".into())
+        );
     }
 }

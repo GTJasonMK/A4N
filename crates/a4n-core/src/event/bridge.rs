@@ -2,6 +2,7 @@
 //!
 //! 服务间通过事件通信实现松耦合。基于 tokio::sync::broadcast 实现发布/订阅模式。
 
+use a4n_domain::project::ProjectStatus;
 use serde::Serialize;
 
 /// 内部事件类型
@@ -10,11 +11,11 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
 pub enum InternalEvent {
-    /// 项目状态变更（记录历史、通知 UI）
+    /// 项目状态变更通知。
     ProjectStatusChanged {
         project_id: i64,
-        from: String,
-        to: String,
+        from: ProjectStatus,
+        to: ProjectStatus,
         timestamp: chrono::NaiveDateTime,
     },
     /// 蓝图已更新
@@ -65,8 +66,8 @@ mod tests {
     fn status_event() -> InternalEvent {
         InternalEvent::ProjectStatusChanged {
             project_id: 1,
-            from: "draft".to_string(),
-            to: "blueprint_ready".to_string(),
+            from: ProjectStatus::Draft,
+            to: ProjectStatus::BlueprintReady,
             timestamp: chrono::Utc::now().naive_utc(),
         }
     }

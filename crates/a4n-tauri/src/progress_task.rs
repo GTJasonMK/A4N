@@ -104,7 +104,8 @@ impl WorkflowProgressTask {
         }
     }
 
-    pub(crate) fn progress_bytes(        &self,
+    pub(crate) fn progress_bytes(
+        &self,
         current: u64,
         total: u64,
         progress_total: u32,

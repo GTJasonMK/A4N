@@ -138,7 +138,7 @@ fn nested_llm_contracts_reject_unknown_fields() {
         "tool_calls": null,
         "finish_reason": null,
         "index": 0,
-        "usage": usage.clone(),
+        "usage": usage,
         "legacy_chunk": true
     }))
     .expect_err("chat chunk must reject unknown fields");

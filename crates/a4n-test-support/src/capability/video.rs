@@ -125,11 +125,6 @@ impl CapabilityClient for RecordingVideoClient {
 
 #[async_trait]
 impl VideoClient for RecordingVideoClient {
-    async fn generate(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.state.generate_requests.record(request);
-        Err(unexpected_call("RecordingVideoClient", "generate"))
-    }
-
     async fn generate_events(
         &self,
         request: JsonRequest,

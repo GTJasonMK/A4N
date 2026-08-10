@@ -2,9 +2,8 @@ import React from "react";
 import { X } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { Dropdown } from "../../../components/ui/Dropdown";
-import type { TaskInfo } from "../../../api/task";
+import type { TaskInfoSummary } from "../../../api/task";
 import { taskProgressDisplay } from "./queueTabUtils";
-import { ProgressEventList } from "./ProgressEventList";
 import {
   getOperationStatusLabel,
   getTaskPriorityLabel,
@@ -12,7 +11,7 @@ import {
 } from "../../../utils/workflowPresentation";
 
 interface TaskHistoryPanelProps {
-  tasks: TaskInfo[];
+  tasks: TaskInfoSummary[];
   loading: boolean;
   cancellingTaskIds: ReadonlySet<string>;
   onCancel: (taskId: string) => void;
@@ -104,7 +103,6 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
                   />
                 ) : null}
               </div>
-              <ProgressEventList events={task.progress_events} limit={2} />
               <details className="mt-1 text-caption text-book-text-muted">
                 <summary className="cursor-pointer">诊断信息</summary>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono">
@@ -129,8 +127,7 @@ function taskStatusTone(status: string): string {
   return "text-book-text-muted";
 }
 
-function formatTaskTime(value: string | null): string {
-  if (!value) return "";
+function formatTaskTime(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toLocaleString("zh-CN", {

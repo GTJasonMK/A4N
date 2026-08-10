@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
 };
 
-use crate::handlers::{discovery, events, generation, healthz};
+use crate::handlers::{discovery, events, healthz};
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     a4n_sidecar_bootstrap::init_tracing(
@@ -18,12 +18,6 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .expect("image sidecar must have a resource policy");
     let app = Router::new()
         .route("/healthz", get(healthz))
-        .route(
-            "/image/generate",
-            post(generation::generate).layer(DefaultBodyLimit::max(
-                policy.body_limit(a4n_service_protocol::BodyLimitKind::Media),
-            )),
-        )
         .route(
             "/image/generate/events",
             post(events::generate_events).layer(DefaultBodyLimit::max(

@@ -1,3 +1,7 @@
+use a4n_api_contract::character::{
+    CharacterProfileSyncedResult, CharacterProfileSyncRange, CharacterProfileSyncSkipReason,
+    SyncCharacterProfileResult,
+};
 use a4n_core::error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
@@ -14,8 +18,8 @@ use super::{
         CharacterProfileSyncStageProgress, CharacterProfileSyncStageTracePort,
         CharacterSyncChapterStateRecordInput, CharacterSyncImplicitReviewInput,
         CharacterSyncPersistenceInput, CharacterSyncRangeMode, RecordCompletedGenerationRunInput,
-        analysis_profile_sync_skip_reason, pending_character_sync_attribute_events,
-        profile_sync_skip_reason, sync_skip_summary_with_reason,
+        analysis_profile_sync_skip_reason, character_profile_skipped_result,
+        pending_character_sync_attribute_events, profile_sync_skip_reason,
     },
     context::PreparedCharacterProfileSync,
     contracts::{
@@ -63,7 +67,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         progress: Option<CharacterProfileSyncProgress<'_>>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<SyncCharacterProfileResult, AppError> {
         let range_mode = input.range_mode;
         let prepared = self.prepare_character_profile_sync_context(input).await?;
         let name = prepared.profile.name.clone();
@@ -77,10 +81,12 @@ impl OrchestratorContext {
                 CHARACTER_PROFILE_SYNC_PROGRESS_TOTAL,
                 &format!("{name}：无需同步到第 {} 章，跳过", prepared.target_chapter),
             )?;
-            return Ok(sync_skip_summary_with_reason(
-                &prepared.profile,
-                prepared.target_chapter,
-                reason,
+            return Ok(SyncCharacterProfileResult::Skipped(
+                character_profile_skipped_result(
+                    &prepared.profile,
+                    prepared.target_chapter,
+                    reason,
+                ),
             ));
         }
 
@@ -121,7 +127,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         progress: Option<CharacterProfileSyncProgress<'_>>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<SyncCharacterProfileResult, AppError> {
         let staged = self
             .run_character_profile_sync_stages_validated(
                 prepared.stage_input(Some(workflow_run_id)),
@@ -239,13 +245,15 @@ impl OrchestratorContext {
             CHARACTER_PROFILE_SYNC_PROGRESS_TOTAL,
             &format!("{}：角色同步完成", prepared.profile.name),
         )?;
-        Ok(character_profile_sync_summary(
-            &prepared,
-            selected_chapter_count,
-            implicit_review_decisions.len(),
-            applied,
-            rag_summary,
-            staged.llm_trace_paths,
+        Ok(SyncCharacterProfileResult::Synced(
+            character_profile_sync_summary(
+                &prepared,
+                selected_chapter_count,
+                implicit_review_decisions.len(),
+                applied,
+                rag_summary,
+                staged.llm_trace_paths,
+            ),
         ))
     }
 }
@@ -254,7 +262,7 @@ fn profile_sync_skip_reason_for_mode(
     profile: &a4n_core::models::character::protagonist_profile::Model,
     target_chapter: i32,
     range_mode: CharacterSyncRangeMode,
-) -> Option<&'static str> {
+) -> Option<CharacterProfileSyncSkipReason> {
     match range_mode {
         CharacterSyncRangeMode::Incremental => profile_sync_skip_reason(profile, target_chapter),
         CharacterSyncRangeMode::AnalysisResyncFromTarget => {
@@ -345,35 +353,36 @@ fn character_profile_sync_summary(
     applied: AppliedCharacterSyncPersistenceRecord,
     rag: CharacterSyncRagSummary,
     llm_trace_paths: Vec<String>,
-) -> Value {
-    json!({
-        "status": "synced",
-        "name": prepared.profile.name,
-        "chapters_analyzed": selected_chapter_count,
-        "sync_range": {
-            "from": prepared.start_chapter,
-            "to": prepared.target_chapter,
+) -> CharacterProfileSyncedResult {
+    CharacterProfileSyncedResult {
+        name: prepared.profile.name.clone(),
+        chapters_analyzed: selected_chapter_count,
+        sync_range: CharacterProfileSyncRange {
+            from: prepared.start_chapter,
+            to: prepared.target_chapter,
         },
-        "synced_chapter": prepared.target_chapter,
-        "changes_applied": applied.write_summary.changes_applied,
-        "behaviors_recorded": applied.write_summary.behaviors_recorded,
-        "classification_suggestions_applied": applied.write_summary.classification_suggestions_applied,
-        "deletions_marked": applied.write_summary.deletions_marked,
-        "deletions_executed": applied.write_summary.deletions_executed,
-        "deleted_deletion_marks": applied.deletion_mark_rewind.deleted,
-        "rewound_deletion_marks": applied.deletion_mark_rewind.rewound,
-        "implicit_reviews_checked": implicit_reviews_checked,
-        "implicit_reviews_applied": applied.write_summary.implicit_reviews_applied,
-        "snapshot_hash": applied.target_snapshot_hash,
-        "state_indexes_upserted": applied.state_indexes.len(),
-        "deleted_state_rag": rag.deleted_state_rag,
-        "state_rag_indexed_count": rag.state_rag_indexed_count,
-        "state_rag_indexed": rag.state_rag_indexed,
-        "state_rag_error": rag.state_rag_error,
-        "deleted_attribute_event_rag": rag.deleted_attribute_event_rag,
-        "attribute_event_rag_indexed_count": rag.attribute_event_rag_indexed_count,
-        "attribute_event_rag_indexed": rag.attribute_event_rag_indexed,
-        "attribute_event_rag_error": rag.attribute_event_rag_error,
-        "llm_trace_paths": llm_trace_paths,
-    })
+        synced_chapter: prepared.target_chapter,
+        changes_applied: applied.write_summary.changes_applied,
+        behaviors_recorded: applied.write_summary.behaviors_recorded,
+        classification_suggestions_applied: applied
+            .write_summary
+            .classification_suggestions_applied,
+        deletions_marked: applied.write_summary.deletions_marked,
+        deletions_executed: applied.write_summary.deletions_executed,
+        deleted_deletion_marks: applied.deletion_mark_rewind.deleted,
+        rewound_deletion_marks: applied.deletion_mark_rewind.rewound,
+        implicit_reviews_checked,
+        implicit_reviews_applied: applied.write_summary.implicit_reviews_applied,
+        snapshot_hash: applied.target_snapshot_hash,
+        state_indexes_upserted: applied.state_indexes.len(),
+        deleted_state_rag: rag.deleted_state_rag,
+        state_rag_indexed_count: rag.state_rag_indexed_count,
+        state_rag_indexed: rag.state_rag_indexed,
+        state_rag_error: rag.state_rag_error,
+        deleted_attribute_event_rag: rag.deleted_attribute_event_rag,
+        attribute_event_rag_indexed_count: rag.attribute_event_rag_indexed_count,
+        attribute_event_rag_indexed: rag.attribute_event_rag_indexed,
+        attribute_event_rag_error: rag.attribute_event_rag_error,
+        llm_trace_paths,
+    }
 }

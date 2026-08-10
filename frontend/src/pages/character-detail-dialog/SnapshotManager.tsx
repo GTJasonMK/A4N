@@ -393,8 +393,10 @@ export const SnapshotManager: React.FC<{
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
       addToast(
-        `已删除 ${r.deleted_events} 个事件 / ${r.deleted_behaviors} 条行为 / ${r.deleted_state_indexes} 个状态索引 / ${r.deleted_state_rag} 条状态 RAG / ${r.deleted_attribute_event_rag} 条属性事件 RAG / ${r.deleted_snapshots} 个快照引用；删除标记 ${r.deleted_deletion_marks} 个删除 / ${r.rewound_deletion_marks} 个截断`,
-        "success",
+        r.warnings.length > 0
+          ? `角色状态已回滚；${r.warnings.join("；")}`
+          : `已删除 ${r.deleted_events} 个事件 / ${r.deleted_behaviors} 条行为 / ${r.deleted_state_indexes} 个状态索引 / ${r.deleted_state_rag} 条状态 RAG / ${r.deleted_attribute_event_rag} 条属性事件 RAG / ${r.deleted_snapshots} 个快照引用；删除标记 ${r.deleted_deletion_marks} 个删除 / ${r.rewound_deletion_marks} 个截断`,
+        r.warnings.length > 0 ? "info" : "success",
       );
       await load();
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))

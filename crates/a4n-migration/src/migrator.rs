@@ -62,6 +62,15 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::chapter_video_prompt_execution_identity::Migration),
             Box::new(crate::migrations::drop_chapter_video_prompt_identity_unique::Migration),
             Box::new(crate::migrations::unified_model_provider_requests::Migration),
+            Box::new(crate::migrations::system_settings_key_unique::Migration),
+            Box::new(crate::migrations::chapter_outline_provenance::Migration),
+            Box::new(crate::migrations::character_timeline_provenance::Migration),
+            Box::new(crate::migrations::chapter_video_timeline::Migration),
+            Box::new(crate::migrations::chapter_video_timeline_cleanup::Migration),
+            Box::new(crate::migrations::character_deletion_mark_provenance::Migration),
+            Box::new(crate::migrations::profile_record_ownership::Migration),
+            Box::new(crate::migrations::blueprint_version_snapshot_cleanup::Migration),
+            Box::new(crate::migrations::canvas_node_ref_contract_cleanup::Migration),
         ]
     }
 }
@@ -111,12 +120,11 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(12)
+                .take(20)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
             [
-                "neutral_video_segment_plan",
                 "shooting_script_transition_type_canonicalization",
                 "generation_task_persistence",
                 "cleanup_outbox_generation_scope",
@@ -128,6 +136,15 @@ mod tests {
                 "chapter_video_prompt_execution_identity",
                 "drop_chapter_video_prompt_identity_unique",
                 "unified_model_provider_requests",
+                "system_settings_key_unique",
+                "chapter_outline_provenance",
+                "character_timeline_provenance",
+                "chapter_video_timeline",
+                "chapter_video_timeline_cleanup",
+                "character_deletion_mark_provenance",
+                "profile_record_ownership",
+                "blueprint_version_snapshot_cleanup",
+                "canvas_node_ref_contract_cleanup",
             ],
             "deployed migration history must remain registered in execution order"
         );

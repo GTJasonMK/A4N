@@ -11,7 +11,7 @@ pub async fn start_outline_generation(
     user_id: i64,
     input: StartOutlineGenerationInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    outline_records::start_outline_generation_typed(state.inner(), user_id, input)
+    outline_records::start_outline_generation(state.inner(), user_id, input)
         .await
         .map_err(crate::commands::generation_tasks::map_access_error)
 }

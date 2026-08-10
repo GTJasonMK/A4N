@@ -1,6 +1,6 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
-import { idNum, integerNum, type ApiId as Id } from "../shared";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
+import { idNum, type ApiId as Id } from "../shared";
 import { generationClient } from "../generationTasks";
 import {
   generationTaskKey,
@@ -13,21 +13,9 @@ import type {
   StartVideoGenerationInput,
   VideoGenerationOperation,
 } from "../generated/generationContracts";
-import { SYSTEM_VIDEO_CONFIG_ID } from "./configs";
+import { normalizeVideoConfigId } from "./configs";
 import { listVideosByChapter } from "./records";
 import type { GeneratedVideo } from "./types";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法生成视频");
-  return id;
-};
-
-function normalizeVideoConfigId(configId?: Id | null): number | null {
-  if (configId == null) return null;
-  const id = integerNum(configId, "视频配置 ID");
-  return id === SYSTEM_VIDEO_CONFIG_ID ? null : idNum(id, "视频配置 ID");
-}
 
 type VideoGenerationInput = Omit<StartVideoGenerationInput, "meta">;
 
@@ -169,6 +157,7 @@ function normalizeVideoGenerationOperation(
       };
     }
     case "prompt_segment_plan":
+    case "prompt_inserted_segment":
     case "prompt_frames":
     case "prompt_videos":
       return {

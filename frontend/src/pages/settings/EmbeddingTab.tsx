@@ -36,6 +36,7 @@ import {
   DEFAULT_FORM,
   formatBytesProgress,
   formatDownloadStartMessage,
+  preferredFastembedModel,
   toItem,
 } from "./embedding/embeddingTabUtils";
 import type { EmbeddingForm } from "./embedding/types";
@@ -58,18 +59,15 @@ export const EmbeddingTab: React.FC = () => {
   const { addToast } = useToast();
   const usesRemoteBackend = shouldUseHttpBackend();
   const usesLocalDesktopEmbedding = canUseLocalDesktopEmbedding();
-  const modelHostLabel = usesLocalDesktopEmbedding
-    ? "本机"
-    : usesRemoteBackend
-      ? "远程服务器"
-      : "本机";
+  const modelHostLabel = usesRemoteBackend && !usesLocalDesktopEmbedding
+    ? "远程服务器"
+    : "本机";
   const { runProgressTask } = useProgressTask();
   const [items, setItems] = useState<ConfigItem<EmbeddingForm>[]>([]);
   const [catalog, setCatalog] = useState<ModelProviderCatalog | null>(null);
   const [localModels, setLocalModels] = useState<LocalEmbeddingModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyModel, setBusyModel] = useState<string | null>(null);
-  const [downloadTaskId, setDownloadTaskId] = useState<string | null>(null);
   const [downloadInfoByModel, setDownloadInfoByModel] = useState<
     Record<string, EmbeddingModelDownloadInfo>
   >({});
@@ -132,7 +130,7 @@ export const EmbeddingTab: React.FC = () => {
   }, [refresh]);
 
   useEffect(() => {
-    if (downloadTaskId) return;
+    if (busyModel) return;
 
     let cancelled = false;
     const models = localModels.filter(
@@ -141,26 +139,20 @@ export const EmbeddingTab: React.FC = () => {
     if (models.length === 0) return;
 
     void (async () => {
-      const queue = [...models];
-      const workerCount = 1;
-      const workers = Array.from({ length: workerCount }, async () => {
-        while (!cancelled) {
-          const model = queue.shift();
-          if (!model) return;
-          try {
-            const info = await getEmbeddingModelDownloadInfo(model.name);
-            if (cancelled) return;
-            rememberDownloadInfo(info);
-          } catch (err) {
-            if (cancelled) return;
-            rememberDownloadInfoError(
-              model,
-              extractErrorMessage(err, "模型大小获取失败"),
-            );
-          }
+      for (const model of models) {
+        if (cancelled) return;
+        try {
+          const info = await getEmbeddingModelDownloadInfo(model.name);
+          if (cancelled) return;
+          rememberDownloadInfo(info);
+        } catch (err) {
+          if (cancelled) return;
+          rememberDownloadInfoError(
+            model,
+            extractErrorMessage(err, "模型大小获取失败"),
+          );
         }
-      });
-      await Promise.all(workers);
+      }
     })();
 
     return () => {
@@ -168,13 +160,9 @@ export const EmbeddingTab: React.FC = () => {
     };
     // 后台补齐模型大小；downloadInfoByModel 只用作本轮筛选，避免每次写入都重启循环。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localModels, downloadTaskId]);
+  }, [localModels, busyModel]);
 
-  const pickFastembedModel = () =>
-    localModels.find((model) => model.name === DEFAULT_FASTEMBED_MODEL) ??
-    localModels.find((model) => model.downloaded) ??
-    localModels[0] ??
-    null;
+  const pickFastembedModel = () => preferredFastembedModel(localModels);
 
   const selectableProviders = useMemo(
     () =>
@@ -190,10 +178,7 @@ export const EmbeddingTab: React.FC = () => {
 
   const defaultEmbeddingForm = useMemo((): EmbeddingForm => {
     if (!usesLocalDesktopEmbedding) return DEFAULT_FORM;
-    const model = localModels.find((item) => item.name === DEFAULT_FASTEMBED_MODEL)
-      ?? localModels.find((item) => item.downloaded)
-      ?? localModels[0]
-      ?? null;
+    const model = preferredFastembedModel(localModels);
     return {
       ...DEFAULT_FORM,
       name: "本机 fastembed",
@@ -231,21 +216,16 @@ export const EmbeddingTab: React.FC = () => {
     });
   };
 
-  const rememberDownloadInfoError = (model: LocalEmbeddingModel | string, message: string) => {
-    const modelName = typeof model === "string" ? model : model.name;
-    const modelCode = typeof model === "string" ? model : model.model_code;
+  const rememberDownloadInfoError = (model: LocalEmbeddingModel, message: string) => {
     setDownloadInfoErrors((prev) => ({
       ...prev,
-      [modelName.toLowerCase()]: message,
-      [modelCode.toLowerCase()]: message,
+      [model.name.toLowerCase()]: message,
+      [model.model_code.toLowerCase()]: message,
     }));
   };
 
-  const fetchDownloadInfo = async (
-    model: LocalEmbeddingModel | string,
-  ): Promise<EmbeddingModelDownloadInfo> => {
-    const modelName = typeof model === "string" ? model : model.name;
-    const info = await getEmbeddingModelDownloadInfo(modelName);
+  const fetchDownloadInfo = async (model: string): Promise<EmbeddingModelDownloadInfo> => {
+    const info = await getEmbeddingModelDownloadInfo(model);
     rememberDownloadInfo(info);
     return info;
   };
@@ -276,7 +256,6 @@ export const EmbeddingTab: React.FC = () => {
     setBusyModel(model);
     const cachedInfo = resolveDownloadInfo(model);
     const taskId = allocateHostTaskId("embedding-download", 0);
-    setDownloadTaskId(taskId);
     try {
       await runProgressTask(
         {
@@ -287,7 +266,7 @@ export const EmbeddingTab: React.FC = () => {
             : "正在读取模型文件大小…",
           successMessage: "模型已下载并可用于 RAG",
           errorMessage: "模型下载失败",
-          total: cachedInfo ? Math.max(1, cachedInfo.total_size_bytes) : 1,
+          total: cachedInfo ? cachedInfo.total_size_bytes : 1,
           cancelLabel: "停止下载",
           runningHint: "下载过程中请保持当前窗口打开",
           formatProgress: formatBytesProgress,
@@ -298,7 +277,7 @@ export const EmbeddingTab: React.FC = () => {
             control.setProgress(
               formatDownloadStartMessage(cachedInfo),
               cachedInfo.downloaded_size_bytes,
-              Math.max(1, cachedInfo.total_size_bytes),
+              cachedInfo.total_size_bytes,
             );
           }
           await runTaskWithPolling(
@@ -310,7 +289,7 @@ export const EmbeddingTab: React.FC = () => {
               control.setProgress(
                 `正在下载${modelHostLabel}嵌入模型…`,
                 info.downloaded_size_bytes,
-                Math.max(1, info.total_size_bytes),
+                info.total_size_bytes,
               );
             },
           );
@@ -318,7 +297,7 @@ export const EmbeddingTab: React.FC = () => {
           control.setProgress(
             `正在刷新${modelHostLabel}模型状态…`,
             latestInfo.downloaded_size_bytes,
-            Math.max(1, latestInfo.total_size_bytes),
+            latestInfo.total_size_bytes,
           );
           await refresh();
         },
@@ -334,7 +313,6 @@ export const EmbeddingTab: React.FC = () => {
     } finally {
       if (modelActionRef.current === actionKey && mountedRef.current) {
         setBusyModel(null);
-        setDownloadTaskId(null);
       }
       finishModelAction(actionKey);
     }
@@ -357,20 +335,7 @@ export const EmbeddingTab: React.FC = () => {
 
       setBusyModel(model);
       await deleteLocalEmbeddingModel(model);
-      try {
-        const info = await getEmbeddingModelDownloadInfo(model);
-        setDownloadInfoByModel((prev) => ({
-          ...prev,
-          [info.model_name.toLowerCase()]: info,
-          [info.model_code.toLowerCase()]: info,
-        }));
-      } catch {
-        setDownloadInfoByModel((prev) => {
-          const next = { ...prev };
-          delete next[model.toLowerCase()];
-          return next;
-        });
-      }
+      await fetchDownloadInfo(model);
       await refresh();
       addToast(`${modelHostLabel}模型缓存已删除`, "success");
     } catch (err) {

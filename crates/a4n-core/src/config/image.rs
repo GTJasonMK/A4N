@@ -28,6 +28,36 @@ pub struct UpdateImageConfigParams {
     pub default_height: i32,
 }
 
+pub fn image_backend_requires_api_key(backend: &str) -> bool {
+    matches!(
+        backend,
+        "openai-compatible-image"
+            | "openai-compatible-image-edit"
+            | "openai-chat-image"
+            | "cliproxy-image"
+    )
+}
+
+pub fn image_backend_supports_reference_images(backend: &str) -> bool {
+    matches!(
+        backend,
+        "openai-compatible-image-edit" | "openai-chat-image" | "cliproxy-image"
+    )
+}
+
+pub fn image_backend_api_key<'a>(
+    backend: &str,
+    api_key: Option<&'a str>,
+) -> Result<&'a str, AppError> {
+    if image_backend_requires_api_key(backend) {
+        return api_key
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| AppError::InvalidArgument("图片生成配置缺少 api_key_encrypted".into()));
+    }
+    Ok(api_key.unwrap_or(""))
+}
+
 pub fn validate_image_config_params(
     mut params: CreateImageConfigParams,
 ) -> Result<CreateImageConfigParams, AppError> {
@@ -65,11 +95,10 @@ fn normalize_image_backend_api_key(
     backend: &str,
     api_key_encrypted: Option<String>,
 ) -> Result<Option<String>, AppError> {
+    if image_backend_requires_api_key(backend) {
+        return Ok(normalize_optional_config_value(api_key_encrypted));
+    }
     match backend {
-        "openai-compatible-image"
-        | "openai-compatible-image-edit"
-        | "openai-chat-image"
-        | "cliproxy-image" => Ok(normalize_optional_config_value(api_key_encrypted)),
         "stable-diffusion" | "comfyui" => Ok(None),
         other => Err(AppError::InvalidArgument(format!(
             "未知图片生成后端: {other}"
@@ -160,5 +189,52 @@ mod tests {
             validate_image_config_params(unsupported),
             Err(AppError::InvalidArgument(_))
         ));
+    }
+
+    #[test]
+    fn image_backend_capabilities_have_one_canonical_rule_set() {
+        for backend in [
+            "openai-compatible-image",
+            "openai-compatible-image-edit",
+            "openai-chat-image",
+            "cliproxy-image",
+        ] {
+            assert!(image_backend_requires_api_key(backend));
+        }
+        for backend in ["stable-diffusion", "comfyui", "unknown-image-backend"] {
+            assert!(!image_backend_requires_api_key(backend));
+        }
+        for backend in [
+            "openai-compatible-image-edit",
+            "openai-chat-image",
+            "cliproxy-image",
+        ] {
+            assert!(image_backend_supports_reference_images(backend));
+        }
+        for backend in [
+            "openai-compatible-image",
+            "stable-diffusion",
+            "comfyui",
+            "unknown-image-backend",
+        ] {
+            assert!(!image_backend_supports_reference_images(backend));
+        }
+
+        assert_eq!(
+            image_backend_api_key("openai-compatible-image", Some("  secret  "))
+                .expect("remote backend key"),
+            "secret"
+        );
+        assert!(image_backend_api_key("openai-compatible-image", None).is_err());
+        let error = image_backend_api_key("openai-compatible-image", Some("  "))
+            .expect_err("blank remote backend key");
+        assert_eq!(
+            crate::config::app_error_plain_message(error),
+            "图片生成配置缺少 api_key_encrypted"
+        );
+        assert_eq!(
+            image_backend_api_key("stable-diffusion", None).expect("local backend key"),
+            ""
+        );
     }
 }

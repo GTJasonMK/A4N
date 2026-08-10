@@ -4,6 +4,7 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use a4n_core::error::AppError;
+use a4n_llm::gateway::LlmGatewayPayload;
 use a4n_llm::provider::ChatChunk;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, SIDECAR_STREAM_IDLE_TIMEOUT, ServiceRequest,
@@ -15,14 +16,13 @@ use tokio::time::{Instant, Interval, MissedTickBehavior};
 
 use super::super::provider_from_config;
 use super::projection::{chunk_event, completed_event, failed_event};
-use crate::contracts::LlmChatPayload;
 use crate::protocol::service_error;
 
 pub(super) type EventLineStream = Pin<Box<dyn Stream<Item = Result<Bytes, Infallible>> + Send>>;
 type ChatChunkStream = Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>;
 type ProviderStreamFuture = Pin<Box<dyn Future<Output = Result<ChatChunkStream, AppError>> + Send>>;
 
-pub(super) fn stream_with_provider(request: ServiceRequest<LlmChatPayload>) -> EventLineStream {
+pub(super) fn stream_with_provider(request: ServiceRequest<LlmGatewayPayload>) -> EventLineStream {
     let task_id = request.request_id.clone();
     let provider_stream = Box::pin(async move {
         let provider = provider_from_config(request.payload.provider)?;

@@ -5,13 +5,11 @@ import type {
   SetLogLevelInput,
 } from "./generated/host";
 
-export type { LogReadResult, SetLogLevelInput } from "./generated/host";
-
-export type ReadRecentLogsInput = ReadLogsInput;
+export type { LogReadResult, ReadLogsInput, SetLogLevelInput } from "./generated/host";
 
 export async function readRecentLogs(
   callerUserId: number,
-  input: ReadRecentLogsInput,
+  input: ReadLogsInput,
 ): Promise<LogReadResult> {
   return apiInvoke<LogReadResult>("read_recent_logs", { callerUserId, input });
 }

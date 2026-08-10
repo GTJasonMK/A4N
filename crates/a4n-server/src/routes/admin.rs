@@ -9,7 +9,7 @@ use axum::http::HeaderMap;
 pub async fn list_users(
     State(state): State<ServerState>,
     headers: HeaderMap,
-) -> Result<Json<Vec<admin_records::AdminUserSummary>>, ApiError> {
+) -> Result<Json<Vec<admin_records::UserSummary>>, ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
     Ok(Json(
         admin_records::list_all_users_for_admin(state.runtime(), caller.id).await?,
@@ -20,7 +20,7 @@ pub async fn create_user(
     State(state): State<ServerState>,
     headers: HeaderMap,
     Json(input): Json<admin_records::CreateUserInput>,
-) -> Result<Json<admin_records::AdminUserSummary>, ApiError> {
+) -> Result<Json<admin_records::UserSummary>, ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
     Ok(Json(
         admin_records::create_user_for_admin(state.runtime(), caller.id, input).await?,
@@ -53,7 +53,7 @@ pub async fn update_user_role(
     headers: HeaderMap,
     Path(user_id): Path<i64>,
     Json(input): Json<admin_records::UpdateUserRoleInput>,
-) -> Result<Json<admin_records::AdminUserSummary>, ApiError> {
+) -> Result<Json<admin_records::UserSummary>, ApiError> {
     let caller = authenticated_user(&state, &headers).await?;
     Ok(Json(
         admin_records::update_user_role_for_admin(state.runtime(), caller.id, user_id, input)

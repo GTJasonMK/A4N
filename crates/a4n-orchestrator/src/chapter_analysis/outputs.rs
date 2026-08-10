@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use a4n_api_contract::character::CharacterProfileSyncFailure;
 use a4n_core::{
     chapter_analysis::{
         foreshadowing_entries, priority_to_importance, validate_saved_chapter_analysis,
@@ -38,11 +39,11 @@ pub enum ChapterAnalysisOutputError {
         source: AppError,
     },
     #[error(
-        "分析后角色档案同步未完全成功：失败 {failed} 个{details_suffix}；已成功写入的角色会保留，重新同步会从未完成角色的断点继续"
+        "分析后角色档案同步未完全成功：失败 {failed} 个：{details}；已成功写入的角色会保留，重新同步会从未完成角色的断点继续"
     )]
     CharacterSyncIncomplete {
         failed: usize,
-        details_suffix: String,
+        details: String,
     },
     #[error(transparent)]
     Persistence(AppError),
@@ -91,39 +92,22 @@ pub fn chapter_analysis_foreshadowing_drafts(
         .collect()
 }
 
-pub fn ensure_chapter_analysis_character_sync_completed(
-    sync_result: &Value,
+pub(super) fn ensure_chapter_analysis_character_sync_completed(
+    failed_items: &[CharacterProfileSyncFailure],
 ) -> Result<(), ChapterAnalysisOutputError> {
-    let failed_items = sync_result.get("failed").and_then(Value::as_array);
-    let failed = failed_items.map_or(0, Vec::len);
-    if failed == 0 {
+    if failed_items.is_empty() {
         return Ok(());
     }
 
     let details = failed_items
-        .into_iter()
-        .flatten()
-        .map(|item| {
-            let name = item
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or("未知角色");
-            let error = item
-                .get("error")
-                .and_then(Value::as_str)
-                .unwrap_or("未知错误");
-            format!("{name}: {error}")
-        })
+        .iter()
+        .map(|item| format!("{}: {}", item.name, item.error))
         .take(5)
         .collect::<Vec<_>>()
         .join("；");
     Err(ChapterAnalysisOutputError::CharacterSyncIncomplete {
-        failed,
-        details_suffix: if details.is_empty() {
-            String::new()
-        } else {
-            format!("：{details}")
-        },
+        failed: failed_items.len(),
+        details,
     })
 }
 

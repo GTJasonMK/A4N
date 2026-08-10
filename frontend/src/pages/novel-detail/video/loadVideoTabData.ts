@@ -5,8 +5,9 @@ import {
 import { listWorkflowRuns, type WorkflowRun } from "../../../api/streaming";
 import {
   loadVideoSegmentPlanDraftDetail,
+  getChapterVideoTimeline,
   listChapterVideoPrompts,
-  listEffectiveVideoConfigs,
+  listVideoConfigs,
   listVideosByChapter,
   type ChapterVideoPrompt,
   type GeneratePromptOptions,
@@ -14,6 +15,7 @@ import {
   type VideoGenConfig,
   type VideoSegmentExecutionRecipe,
   type VideoSegmentPlanDraftDetail,
+  type VideoTimelineSummary,
 } from "../../../api/video";
 import type { ChapterRow } from "../shared";
 import type { GenerationTaskSummary } from "../../../api/generated/generationContracts";
@@ -33,11 +35,17 @@ export interface LoadedSegmentPlanDraft {
   totalShotCount: number;
 }
 
+export const loadedSegmentPlanDraftIsActive = (
+  draft: LoadedSegmentPlanDraft | null,
+  generationActive: boolean,
+): boolean => draft?.workflowStatus === "running" || generationActive;
+
 interface VideoTabData {
   prompts: ChapterVideoPrompt[];
   videos: GeneratedVideo[];
   images: GeneratedImage[];
   activeVideoConfig: VideoGenConfig | null;
+  timeline: VideoTimelineSummary;
 }
 
 const invalidSegmentPlanWorkflowInput = (
@@ -205,6 +213,7 @@ export const loadVideoSegmentPlanDraft = async (
     project_id: projectId,
     chapter_id: chapterId,
     workflow_kind: "video_segment_plan",
+    resumable_only: false,
     limit: 1,
   });
   const run = runs[0];
@@ -306,11 +315,12 @@ export const loadVideoTabData = async (
   const uniqueImageProjectIds = Array.from(
     new Set(imageProjectIds.filter((id) => Number.isFinite(id) && id > 0)),
   );
-  const [prompts, videos, images, configs] = await Promise.all([
+  const [prompts, videos, images, configs, timeline] = await Promise.all([
     listChapterVideoPrompts(projectId, chapter.id),
     listVideosByChapter(projectId, chapter.id),
     listVideoReferenceImages(projectId, chapter.id, uniqueImageProjectIds),
-    listEffectiveVideoConfigs(),
+    listVideoConfigs(),
+    getChapterVideoTimeline({ project_id: projectId, chapter_id: chapter.id }),
   ]);
 
   return {
@@ -318,5 +328,6 @@ export const loadVideoTabData = async (
     videos,
     images,
     activeVideoConfig: configs.find((config) => config.is_default) ?? null,
+    timeline,
   };
 };

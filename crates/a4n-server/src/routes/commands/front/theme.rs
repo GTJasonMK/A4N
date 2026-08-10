@@ -1,7 +1,6 @@
 use serde_json::{Value, json};
 
 use super::super::{ApiError, ServerState, command_input, i64_arg, theme_actions, to_value};
-use super::config::require_global_config_admin;
 
 macro_rules! theme_web_command {
     ($name:ident($state:ident, $user_id:ident, $args:ident) $body:block) => {
@@ -15,12 +14,6 @@ macro_rules! theme_web_command {
 
 theme_web_command!(list_themes(state, user_id, _args) {
     to_value(theme_actions::list_themes_for_user(state.runtime(), user_id).await?)
-});
-theme_web_command!(list_user_themes(state, user_id, args) {
-    let target_user_id = i64_arg(args, "userId")?;
-    let themes =
-        theme_actions::list_user_themes_for_user(state.runtime(), user_id, target_user_id).await?;
-    to_value(themes)
 });
 theme_web_command!(create_theme(state, user_id, args) {
     let input: theme_actions::CreateThemeInput = command_input(args, "create_theme")?;
@@ -49,7 +42,7 @@ theme_web_command!(export_theme(state, user_id, args) {
     ))
 });
 theme_web_command!(import_theme(state, user_id, args) {
-    let input: theme_actions::ImportThemeInput = command_input(args, "import_theme")?;
+    let input: theme_actions::CreateThemeInput = command_input(args, "import_theme")?;
     to_value(theme_actions::import_theme_for_user(state.runtime(), user_id, input).await?)
 });
 theme_web_command!(get_theme_css_variables(state, user_id, args) {
@@ -64,9 +57,9 @@ pub(in crate::routes::commands) async fn export_all_configs_json(
     user_id: i64,
     _args: &Value,
 ) -> Result<Value, ApiError> {
-    require_global_config_admin(state, user_id).await?;
     Ok(json!(
-        a4n_runtime::host_api::settings_all::export_all_configs_to_json(state.runtime()).await?
+        a4n_runtime::host_api::settings_all::export_all_configs_to_json(state.runtime(), user_id)
+            .await?
     ))
 }
 
@@ -75,10 +68,10 @@ pub(in crate::routes::commands) async fn import_all_configs(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    require_global_config_admin(state, user_id).await?;
     let input: a4n_runtime::host_api::settings_all::ImportAllConfigsInput =
         command_input(args, "import_all_configs")?;
     Ok(json!(
-        a4n_runtime::host_api::settings_all::import_all_configs(state.runtime(), input).await?
+        a4n_runtime::host_api::settings_all::import_all_configs(state.runtime(), user_id, input)
+            .await?
     ))
 }

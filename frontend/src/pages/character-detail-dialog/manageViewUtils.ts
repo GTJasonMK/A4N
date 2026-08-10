@@ -82,6 +82,12 @@ const DECISION_LABELS: Record<string, string> = {
   delete: "删除",
 };
 
+const SOURCE_KIND_LABELS: Record<string, string> = {
+  user: "用户记录",
+  ai_sync: "AI 同步",
+  legacy_unknown: "历史记录",
+};
+
 export const categoryLabel = (value: string | null | undefined): string =>
   CATEGORY_LABELS[String(value ?? "").trim().toLowerCase()] ?? "其他属性";
 
@@ -110,6 +116,9 @@ export const decisionLabel = (value: string | null | undefined): string => {
   const normalized = String(value ?? "").trim().toLowerCase();
   return DECISION_LABELS[normalized] ?? "未知建议";
 };
+
+export const sourceKindLabel = (value: string | null | undefined): string =>
+  SOURCE_KIND_LABELS[String(value ?? "").trim().toLowerCase()] ?? "未知来源";
 
 export const ATTRIBUTE_CATEGORY_OPTIONS = [
   { value: "explicit", label: "显性" },

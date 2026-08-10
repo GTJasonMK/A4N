@@ -1,7 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { RefreshCw, Search } from "lucide-react";
+import { Plus, RefreshCw, Search } from "lucide-react";
 import { type ChapterData } from "../../api/chapter";
-import { type ChapterOutline } from "../../api/outline";
+import {
+  chapterOutlineSourceLabel,
+  isDerivedChapterOutline,
+  type ChapterOutline,
+} from "../../api/outline";
 import { BookIconButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import { ChapterCard } from "./ChapterCard";
@@ -24,8 +28,8 @@ interface ChapterSidebarProps {
   onClearChapterQuery: () => void;
   onOpenProfiles: () => void;
   onRefreshChapters: () => void | Promise<unknown>;
+  onCreateChapter: () => void | Promise<unknown>;
   onSelectChapter: (chapterNumber: number) => void | Promise<unknown>;
-  onOpenProjectDetail: () => void | Promise<void>;
 }
 
 const chapterTitle = (
@@ -67,8 +71,8 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
   onClearChapterQuery,
   onOpenProfiles,
   onRefreshChapters,
+  onCreateChapter,
   onSelectChapter,
-  onOpenProjectDetail,
 }) => {
   const [outlineDetailOpen, setOutlineDetailOpen] = useState(false);
   const chaptersByNumber = useMemo(
@@ -81,6 +85,9 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
   );
   const currentOutlineTitle = activeOutline ? outlineTitle(activeOutline) : null;
   const currentOutlineSummary = activeOutline ? outlineSummary(activeOutline) : null;
+  const currentOutlineLabel = activeOutline
+    ? `本章${chapterOutlineSourceLabel(activeOutline)}`
+    : "本章章纲";
 
   return (
     <aside
@@ -90,7 +97,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
       <WritingContextCards
         projectId={projectId}
         chapterCount={chapters.length}
-        totalChapters={outlines.length}
+        totalChapters={outlines.filter((outline) => !isDerivedChapterOutline(outline)).length}
         refreshKey={profilesRefreshKey}
         onOpenProfiles={onOpenProfiles}
       />
@@ -107,6 +114,14 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
                 : `${filteredChapterNumbers.length} / ${chapterNumbers.length} 章`}
             </span>
           ) : null}
+          <BookIconButton
+            label="新建章节"
+            onClick={() => void onCreateChapter()}
+            variant="secondary"
+            size="sm"
+          >
+            <Plus size={12} />
+          </BookIconButton>
           <BookIconButton
             label="刷新章节"
             onClick={() => void onRefreshChapters()}
@@ -156,6 +171,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
                     title={chapterTitle(chapter, outline)}
                     wordCount={wordCount}
                     status={chapter?.status}
+                    materialSync={chapter?.material_sync}
                     hasDraft={draftSet.has(chapterNumber)}
                     selected={chapterNumber === activeNumber}
                     onClick={() => void onSelectChapter(chapterNumber)}
@@ -167,17 +183,9 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
           {chapterNumbers.length > 0 && filteredChapterNumbers.length === 0 && (
             <div className="mt-4 text-center text-xs text-book-text-muted">没有匹配的章节</div>
           )}
-          {!chapters.length && !outlines.length && (
+          {!chapters.length && !outlines.length && chapterNumbers.length === 0 && (
             <div className="mt-4 text-center text-xs text-book-text-muted">
-              暂无章节，去&nbsp;
-              <button
-                type="button"
-                onClick={() => void onOpenProjectDetail()}
-                className="text-book-primary hover:underline"
-              >
-                项目详情
-              </button>
-              &nbsp;生成大纲
+              暂无章节，点击上方“新建章节”即可开始写作。
             </div>
           )}
         </div>
@@ -189,10 +197,12 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             type="button"
             onClick={() => setOutlineDetailOpen(true)}
             className="w-full rounded-xl px-2 py-2 text-left text-small leading-snug text-book-text-sub transition-colors hover:bg-book-bg-tertiary/55"
-            title="查看本章章纲"
+            title={`查看${currentOutlineLabel}`}
           >
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="shrink-0 font-semibold text-book-text-muted">本章章纲</span>
+              <span className="shrink-0 font-semibold text-book-text-muted">
+                {currentOutlineLabel}
+              </span>
               <span className="min-w-0 flex-1 truncate font-semibold text-book-text-main">
                 {currentOutlineTitle ?? `第 ${activeOutline.chapter_number} 章`}
               </span>
@@ -211,7 +221,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
       <Modal
         isOpen={outlineDetailOpen && !!activeOutline}
         onClose={() => setOutlineDetailOpen(false)}
-        title="本章章纲"
+        title={currentOutlineLabel}
         maxWidthClassName="max-w-xl"
       >
         {activeOutline && (
@@ -227,6 +237,11 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             <div className="whitespace-pre-wrap text-book-text-main">
               {currentOutlineSummary ?? "本章章纲暂无摘要。"}
             </div>
+            {isDerivedChapterOutline(activeOutline) ? (
+              <div className="text-caption text-book-text-muted">
+                {chapterOutlineSourceLabel(activeOutline)}来自自动分析，不会自动作为下一次正文生成计划。
+              </div>
+            ) : null}
           </div>
         )}
       </Modal>

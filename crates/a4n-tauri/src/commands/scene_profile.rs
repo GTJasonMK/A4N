@@ -7,7 +7,8 @@ use a4n_runtime::AppState;
 use a4n_runtime::host_api::dependency_conflict::DownstreamConflictStrategy;
 use a4n_runtime::host_api::scene_profile_records as scene_profile_records_actions;
 use scene_profile_records_actions::{
-    ListSceneProfilesInput, SceneProfileInput, SceneProfileSummary,
+    ListSceneProfilesInput, SceneProfileDeleteResult, SceneProfileInput,
+    SceneProfileMutationResult, SceneProfileSummary,
 };
 use tauri::State;
 
@@ -27,7 +28,7 @@ pub async fn create_scene_profile(
     user_id: i64,
     project_id: i64,
     input: SceneProfileInput,
-) -> Result<SceneProfileSummary, String> {
+) -> Result<SceneProfileMutationResult, String> {
     scene_profile_records_actions::create_scene_profile(state.inner(), user_id, project_id, input)
         .await
 }
@@ -38,7 +39,7 @@ pub async fn update_scene_profile(
     user_id: i64,
     scene_profile_id: i64,
     input: SceneProfileInput,
-) -> Result<SceneProfileSummary, String> {
+) -> Result<SceneProfileMutationResult, String> {
     scene_profile_records_actions::update_scene_profile(
         state.inner(),
         user_id,
@@ -54,7 +55,7 @@ pub async fn delete_scene_profile(
     user_id: i64,
     scene_profile_id: i64,
     downstream_strategy: Option<String>,
-) -> Result<(), String> {
+) -> Result<SceneProfileDeleteResult, String> {
     let downstream_strategy =
         DownstreamConflictStrategy::from_optional_str(downstream_strategy.as_deref())?;
     scene_profile_records_actions::delete_scene_profile(

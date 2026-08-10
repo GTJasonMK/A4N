@@ -5,8 +5,9 @@ use std::{
 };
 
 use a4n_media::{
-    VideoAssemblyClip, VideoAssemblyRequest, VideoPostprocessOperation, VideoPostprocessRequest,
-    assemble_videos, check_ffmpeg_available, extract_video_frame, extract_video_tail_frame,
+    VIDEO_SCRUB_FRAMES_PER_SECOND, VideoAssemblyClip, VideoAssemblyRequest,
+    VideoPostprocessOperation, VideoPostprocessRequest, assemble_videos, check_ffmpeg_available,
+    extract_video_frame, extract_video_tail_frame, generate_video_scrub_frames,
     generate_video_scrub_proxy, generate_video_thumbnail, postprocess_video,
     probe_audio_duration_secs, probe_video_has_audio, probe_video_properties, trim_video_segment,
 };
@@ -52,6 +53,8 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
     let deleted = temp_dir.join("deleted.mp4");
     let replaced = temp_dir.join("replaced.mp4");
     let scrub_proxy = temp_dir.join("scrub-proxy.mp4");
+    let preview_proxy = temp_dir.join("preview-proxy.mp4");
+    let scrub_frames = temp_dir.join("scrub-frames.mjpg");
 
     create_fixture_video(&input, true);
     create_fixture_video(&silent_input, false);
@@ -59,10 +62,26 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
     extract_video_frame(&input, &frame, 0.2).expect("extract fixture frame");
     extract_video_tail_frame(&input, &tail).expect("extract fixture tail frame");
     generate_video_thumbnail(&input, &thumbnail).expect("generate fixture thumbnail");
-    generate_video_scrub_proxy(&input, &scrub_proxy).expect("generate scrub proxy");
+    generate_video_scrub_proxy(&input, &scrub_proxy, false).expect("generate scrub proxy");
+    generate_video_scrub_proxy(&input, &preview_proxy, true).expect("generate preview proxy");
+    generate_video_scrub_frames(&input, &scrub_frames).expect("generate scrub frames");
+    let scrub_frame_bytes = std::fs::read(&scrub_frames).expect("read scrub frames");
+    assert!(scrub_frame_bytes.starts_with(&[0xff, 0xd8]));
+    assert!(scrub_frame_bytes.ends_with(&[0xff, 0xd9]));
     assert!(
-        probe_video_has_audio(&scrub_proxy).expect("probe scrub proxy audio"),
-        "scrub proxy should preserve source audio"
+        scrub_frame_bytes
+            .windows(2)
+            .filter(|pair| *pair == [0xff, 0xd8])
+            .count()
+            >= VIDEO_SCRUB_FRAMES_PER_SECOND as usize
+    );
+    assert!(
+        !probe_video_has_audio(&scrub_proxy).expect("probe scrub proxy audio"),
+        "scrub proxy should omit audio for stable WebKitGTK seeking"
+    );
+    assert!(
+        probe_video_has_audio(&preview_proxy).expect("probe preview proxy audio"),
+        "preview proxy should preserve source audio packets"
     );
     let input_properties = probe_video_properties(&input).expect("probe scrub source properties");
     let scrub_properties =
@@ -73,7 +92,7 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
         "scrub proxy should preserve source resolution"
     );
     assert_webkit_compatible_codec(&scrub_proxy);
-    assert_keyframe_gap(&scrub_proxy, 0.2);
+    assert_keyframe_gap(&scrub_proxy, 0.05);
     let assembly_clips = [
         VideoAssemblyClip {
             path: &input,
@@ -170,6 +189,8 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
         &deleted,
         &replaced,
         &scrub_proxy,
+        &preview_proxy,
+        &scrub_frames,
     ] {
         let metadata = std::fs::metadata(output)
             .unwrap_or_else(|error| panic!("read {} metadata: {error}", output.display()));

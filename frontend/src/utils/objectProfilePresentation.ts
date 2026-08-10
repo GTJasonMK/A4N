@@ -17,7 +17,7 @@ export const OBJECT_PROFILE_IMPORTANCE_LABELS: Record<string, string> = {
 };
 
 export const getObjectProfileTypeLabel = (value: string): string =>
-  OBJECT_PROFILE_TYPE_LABELS[value] ?? "其他";
+  value ? (OBJECT_PROFILE_TYPE_LABELS[value] ?? "其他") : "未确定";
 
 export const getObjectProfileImportanceLabel = (value: string): string =>
   OBJECT_PROFILE_IMPORTANCE_LABELS[value] ?? "未标注";

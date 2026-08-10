@@ -1,47 +1,33 @@
 import { apiInvoke } from "./index";
-import { readCurrentUserId } from "./authStorage";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import { idNum, type ApiId as Id } from "./shared";
 import type {
   CreateThemeInput,
-  ImportThemeInput,
   Theme,
   UpdateThemeInput,
 } from "./generated/theme";
 
-export type { CreateThemeInput, Theme, UpdateThemeInput } from "./generated/theme";
+export type { CreateThemeInput, Theme, ThemeMode, UpdateThemeInput } from "./generated/theme";
 
 /**
  * Theme API wrapper —— 对齐 crates/a4n-tauri/src/commands/theme.rs
  *
  * 关键约定：
  *  - theme 由当前登录用户、name、mode、css_variables 描述，不是 css_variables only
- *  - mode: "light" / "dark" 等
+ *  - mode 仅允许 "light" / "dark"
  *  - update_theme(theme_id, input: { name?, mode?, css_variables? }) 平铺 + input
  *  - delete_theme / activate_theme / export_theme / get_theme_css_variables 用 theme_id
  *  - create_theme / import_theme 的主题 owner 来自当前登录用户
  *  - list_themes(user_id) 返回当前用户可见主题：当前用户主题 + 全局主题
- *  - list_user_themes(user_id) 只返回当前用户主题
- *  - import_all_settings(input: { settings_json })
+ *  - import_all_configs(input: { settings_json, overwrite })
  */
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问主题");
-  return id;
-};
 
 // ============================================================================
 // 主题查询
 // ============================================================================
 
-export async function listThemes(userId?: Id | null): Promise<Theme[]> {
-  const visibleUserId = userId == null ? currentUserId() : idNum(userId);
-  return apiInvoke<Theme[]>("list_themes", { userId: visibleUserId });
-}
-
-/** 后端 list_user_themes(user_id) —— 必须传 user_id */
-export async function listUserThemes(userId: Id): Promise<Theme[]> {
-  return apiInvoke<Theme[]>("list_user_themes", { userId: idNum(userId) });
+export async function listThemes(userId: Id): Promise<Theme[]> {
+  return apiInvoke<Theme[]>("list_themes", { userId: idNum(userId) });
 }
 
 /** 后端 get_theme_css_variables(theme_id) —— 返回 CSS 文本 */
@@ -92,9 +78,9 @@ export async function exportTheme(themeId: Id): Promise<string> {
   return apiInvoke<string>("export_theme", { userId: currentUserId(), themeId: idNum(themeId) });
 }
 
-/** 后端 import_theme(input: { theme_json }) */
+/** 后端 import_theme(input: CreateThemeInput) */
 export async function importTheme(themeJson: string): Promise<Theme> {
-  const input: ImportThemeInput = { theme_json: themeJson };
+  const input = JSON.parse(themeJson) as unknown;
   return apiInvoke<Theme>("import_theme", {
     userId: currentUserId(),
     input,
@@ -113,15 +99,18 @@ interface ImportAllConfigsResult {
 }
 
 export async function exportAllConfigsJson(): Promise<string> {
-  return apiInvoke<string>("export_all_configs_json");
+  return apiInvoke<string>("export_all_configs_json", {
+    callerUserId: currentUserId(),
+  });
 }
 
-/** 后端 import_all_configs(input: { settings_json, overwrite? }) */
+/** 后端 import_all_configs(input: { settings_json, overwrite }) */
 export async function importAllConfigs(
   settingsJson: string,
-  overwrite: boolean = false,
+  overwrite: boolean,
 ): Promise<ImportAllConfigsResult> {
   return apiInvoke<ImportAllConfigsResult>("import_all_configs", {
+    callerUserId: currentUserId(),
     input: { settings_json: settingsJson, overwrite },
   });
 }

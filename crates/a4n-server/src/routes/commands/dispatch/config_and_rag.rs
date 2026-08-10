@@ -8,7 +8,6 @@ pub(super) async fn try_dispatch(
 ) -> Result<Option<Value>, ApiError> {
     let result = match cmd {
         "list_themes" => list_themes(state, user_id, args).await?,
-        "list_user_themes" => list_user_themes(state, user_id, args).await?,
         "create_theme" => create_theme(state, user_id, args).await?,
         "update_theme" => update_theme(state, user_id, args).await?,
         "delete_theme" => delete_theme(state, user_id, args).await?,
@@ -24,9 +23,11 @@ pub(super) async fn try_dispatch(
         "set_default_llm_config" => set_default_llm_config(state, user_id, args).await?,
         "delete_llm_config" => delete_llm_config(state, user_id, args).await?,
         "get_llm_max_tokens_config" => get_llm_max_tokens_config(state, user_id, args).await?,
+        "get_usage_guide" => get_usage_guide(state, user_id, args).await?,
         "update_llm_max_tokens_config" => {
             update_llm_max_tokens_config(state, user_id, args).await?
         }
+        "update_usage_guide" => update_usage_guide(state, user_id, args).await?,
         "list_embedding_config" => list_embedding_config(state, user_id, args).await?,
         "create_embedding_config" => create_embedding_config(state, user_id, args).await?,
         "update_embedding_config" => update_embedding_config(state, user_id, args).await?,
@@ -68,9 +69,6 @@ pub(super) async fn try_dispatch(
         "get_storage_paths" => get_storage_paths(state, user_id, args).await?,
         "prepare_chapter_generation_rag_embedding" => {
             prepare_chapter_generation_rag_embedding(state, user_id, args).await?
-        }
-        "finish_chapter_generation_rag_context" => {
-            finish_chapter_generation_rag_context(state, user_id, args).await?
         }
         _ => return Ok(None),
     };

@@ -2,15 +2,14 @@ import React from "react";
 import { ChevronRight, Undo2 } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
-import type { RollbackPreview } from "../../api/project";
-import type { ProjectStatus } from "../../utils/projectStatus";
+import type { ProjectRollbackPreview, ProjectStatus } from "../../api/project";
 import { RollbackPreviewView } from "./RollbackPreviewView";
-import { statusLabel, type StatusFlowStep } from "./statusMachineUtils";
+import { getProjectStatusText } from "../../utils/projectStatus";
 
 interface RollbackCardProps {
-  targets: StatusFlowStep[];
+  targets: ProjectStatus[];
   target: ProjectStatus | null;
-  preview: RollbackPreview | null;
+  preview: ProjectRollbackPreview | null;
   acting: string | null;
   onPreview: (target: ProjectStatus) => void | Promise<void>;
   onCancel: () => void;
@@ -62,9 +61,9 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
             className="pyqt-input !px-2 !py-1 text-xs"
           >
             <option value="">选择要恢复的阶段</option>
-            {targets.map((step) => (
-              <option key={step.id} value={step.id}>
-                {step.label}
+            {targets.map((status) => (
+              <option key={status} value={status}>
+                {getProjectStatusText(status)}
               </option>
             ))}
           </select>
@@ -72,7 +71,7 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
         {target ? (
           <div className="border-l-2 border-warning/55 py-1 pl-3">
             <div className="mb-1.5 text-xs text-warning">
-              回滚到「{statusLabel(target)}」将影响以下内容：
+              回滚到「{getProjectStatusText(target)}」将影响以下内容：
             </div>
             {preview == null ? (
               <div className="inline-flex items-center gap-1.5 text-xs text-book-text-muted">
@@ -81,7 +80,7 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
             ) : (
               <RollbackPreviewView preview={preview} />
             )}
-            {preview?.can_rollback ? (
+            {preview ? (
               <div className="mt-2 flex justify-end">
                 <BookButton
                   variant="danger"

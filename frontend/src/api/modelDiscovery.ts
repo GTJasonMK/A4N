@@ -1,17 +1,13 @@
 import { usesLocalRuntimeSettings } from "../utils/runtimeMode";
-import type { ModelDiscoveryInput as ApiModelDiscoveryInput } from "./generated/config";
+export type {
+  DiscoveredModel,
+  ModelDiscoveryInput,
+  ModelDiscoveryResult,
+} from "./generated/config";
 
-export type ModelDiscoveryInput = ApiModelDiscoveryInput;
-
-export interface DiscoveredModel {
-  id: string;
-  name?: string | null;
-  owned_by?: string | null;
-}
-
-export interface ModelDiscoveryResult {
-  models: DiscoveredModel[];
-}
+import type {
+  ModelDiscoveryInput,
+} from "./generated/config";
 
 interface LocalRuntimeDiscoveryKeyOptions {
   systemConfigId: number;
@@ -38,7 +34,7 @@ export function withLocalRuntimeDiscoveryKey(
   }
   return {
     ...input,
-    api_key_encrypted: options.getLocalConfigApiKey(input.config_id)?.trim() || input.api_key_encrypted,
+    api_key_encrypted: options.getLocalConfigApiKey(input.config_id)?.trim() || undefined,
     use_saved_api_key: false,
   };
 }

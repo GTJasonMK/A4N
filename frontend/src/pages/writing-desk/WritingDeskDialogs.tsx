@@ -12,11 +12,14 @@ interface WritingDeskDialogsProps {
   previewOpen: boolean;
   profilesOpen: boolean;
   profilesRefreshKey: number;
+  sceneAiBlockedReason: string | null;
+  characterAiBlockedReason: string | null;
   previewing: boolean;
   previewData: ModelRequestPreview | null;
   onScenesClose: () => void;
   onPreviewClose: () => void;
   onProfilesClose: () => void;
+  onCharacterMaterialSync: (projectId: number) => void | Promise<void>;
 }
 
 export const WritingDeskDialogs: React.FC<WritingDeskDialogsProps> = ({
@@ -27,11 +30,14 @@ export const WritingDeskDialogs: React.FC<WritingDeskDialogsProps> = ({
   previewOpen,
   profilesOpen,
   profilesRefreshKey,
+  sceneAiBlockedReason,
+  characterAiBlockedReason,
   previewing,
   previewData,
   onScenesClose,
   onPreviewClose,
   onProfilesClose,
+  onCharacterMaterialSync,
 }) => (
   <>
     <ScenesDialog
@@ -39,6 +45,7 @@ export const WritingDeskDialogs: React.FC<WritingDeskDialogsProps> = ({
       onClose={onScenesClose}
       chapterId={activeChapterId}
       chapterNumber={activeNumber}
+      aiActionBlockedReason={sceneAiBlockedReason}
     />
 
     <RequestPreviewModal
@@ -55,6 +62,8 @@ export const WritingDeskDialogs: React.FC<WritingDeskDialogsProps> = ({
       projectId={projectId}
       currentChapterNumber={activeNumber}
       refreshKey={profilesRefreshKey}
+      aiActionBlockedReason={characterAiBlockedReason}
+      onMaterialSync={onCharacterMaterialSync}
     />
   </>
 );

@@ -38,7 +38,7 @@ pub fn context_aware_system_user_llm_request(
     if let Some(map) = source_refs.as_object_mut() {
         map.insert(
             "stable_context_sha256".to_string(),
-            json!(stable_context_sha256.clone()),
+            json!(stable_context_sha256),
         );
     }
 

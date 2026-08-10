@@ -1,5 +1,5 @@
 import { apiInvoke } from "./index";
-import { readCurrentUserId } from "./authStorage";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
 import type {
@@ -18,22 +18,10 @@ import type {
 
 export interface InspirationMessage {
   id: number;
-  conversation_id: number;
   role: string;
   content: string;
-  tool_calls: unknown | null;
-  prompt_tokens: number | null;
-  completion_tokens: number | null;
-  chapter_number: number | null;
-  is_important: boolean;
-  created_at: string | null;
+  created_at: string;
 }
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问灵感对话");
-  return id;
-};
 
 // ============================================================================
 // 对话历史

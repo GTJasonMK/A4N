@@ -10,6 +10,7 @@ test-support = []
 [dependencies]
 a4n-export-core = { path = "../a4n-export-core" }
 a4n-import-core = { path = "../a4n-import-core" }
+a4n-prompt = { path = "../a4n-prompt" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
 async-trait = { workspace = true }

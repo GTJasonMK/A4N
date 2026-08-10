@@ -2,9 +2,9 @@ use a4n_runtime::AppState;
 use a4n_runtime::host_api::canvas_workflow as canvas_actions;
 use a4n_runtime::host_api::canvas_workflow::{
     CanvasGraphDocument, CanvasNodeContract, CanvasNodeRequestPreview, CanvasRunSummary,
-    GetCanvasGraphInput, GetCanvasNodeContractsInput, ImportCanvasMediaInput, ImportedCanvasMedia,
-    PreviewCanvasNodeRequestInput, RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput,
-    SaveCanvasTextAssetInput,
+    CanvasTextAssetSummary, GetCanvasGraphInput, GetCanvasNodeContractsInput,
+    ImportCanvasMediaInput, ImportedCanvasMedia, PreviewCanvasNodeRequestInput,
+    RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
 };
 use tauri::State;
 
@@ -40,7 +40,7 @@ pub async fn save_canvas_text_asset(
     state: State<'_, AppState>,
     user_id: i64,
     input: SaveCanvasTextAssetInput,
-) -> Result<a4n_core::models::canvas::canvas_text_asset::Model, String> {
+) -> Result<CanvasTextAssetSummary, String> {
     canvas_actions::save_canvas_text_asset(&state, user_id, input).await
 }
 

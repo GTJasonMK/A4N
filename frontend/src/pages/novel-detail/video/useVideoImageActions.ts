@@ -9,8 +9,6 @@ import {
 import { extractErrorMessage } from "../../../api";
 import {
   deleteImage,
-  scoreImage,
-  toggleImageFavorite,
   updateImage,
   type GeneratedImage,
   type UpdateImageInput,
@@ -64,7 +62,7 @@ export const useVideoImageActions = ({
       const requestScope = actionScopeKey;
       setImageBusyId(image.id);
       try {
-        const updated = await toggleImageFavorite(image.id);
+        const updated = await updateImage(image.id, { is_favorite: !image.is_favorite });
         if (!isCurrentActionScope(requestScope)) return;
         setImages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
         setImageDetails((current) => (current?.id === updated.id ? updated : current));
@@ -100,7 +98,7 @@ export const useVideoImageActions = ({
       }
       setImageScoringId(image.id);
       try {
-        const updated = await scoreImage(image.id, score);
+        const updated = await updateImage(image.id, { ai_score: score });
         if (!isCurrentActionScope(requestScope)) return;
         setImages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
         setImageDetails((current) => (current?.id === updated.id ? updated : current));

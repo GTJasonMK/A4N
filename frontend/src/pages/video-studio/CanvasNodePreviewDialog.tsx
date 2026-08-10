@@ -6,7 +6,7 @@ import type { CanvasNodeRequestPreview } from "../../api/canvas";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import { copyTextToClipboard } from "../../utils/clipboard";
-import { nodeKindMeta, stateLabel } from "./StudioCanvasNode";
+import { nodeKindMeta } from "./StudioCanvasNode";
 
 interface CanvasNodePreviewDialogProps {
   open: boolean;
@@ -50,7 +50,7 @@ export const CanvasNodePreviewDialog: React.FC<CanvasNodePreviewDialogProps> = (
       title={title}
       subtitle={
         preview
-          ? `${stateLabel(preview.status)} · 仅预览，不会执行节点`
+          ? "仅预览，不会执行节点"
           : "构造将用于运行节点的请求，不执行节点、不调用外部模型"
       }
       icon={loading ? <LoadingSpinner size="sm" /> : <Eye size={15} />}

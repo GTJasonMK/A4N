@@ -12,7 +12,7 @@ use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, Vi
 
 use crate::download::download_video_url;
 use crate::format::{detect_video_format_from_bytes, normalize_video_format_str};
-use crate::response::{parse_json_response, parse_json_response_allow_not_found};
+use crate::transport::{self, ApiKeyAuth};
 
 pub struct NewApiVideoProvider {
     base_url: String,
@@ -50,6 +50,7 @@ impl NewApiVideoProvider {
     }
 
     pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
+        req.validate_dimensions()?;
         if req.media.last_frame().is_some() {
             return Err(AppError::InvalidArgument(
                 "New API 视频接口只有一个 image 输入槽，只能作为首帧使用，不支持尾帧输入"
@@ -90,50 +91,6 @@ impl NewApiVideoProvider {
 
     pub fn request_body_preview(req: &VideoGenerationRequest) -> Result<Value, AppError> {
         Self::request_body(req)
-    }
-
-    async fn send_json(
-        &self,
-        url: &str,
-        body: Value,
-        provider_idempotency_key_sha256: Option<&str>,
-    ) -> Result<Value, AppError> {
-        let mut req = self.client.post(url).json(&body);
-        if !self.api_key.is_empty() {
-            req = req.bearer_auth(&self.api_key);
-        }
-        let req = crate::idempotency::with_provider_idempotency_key(
-            req,
-            provider_idempotency_key_sha256,
-        )?;
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("New API 视频生成请求失败：{e}")))?;
-        parse_json_response(resp, "New API 视频生成").await
-    }
-
-    async fn get_json(&self, url: &str) -> Result<Value, AppError> {
-        let mut req = self.client.get(url);
-        if !self.api_key.is_empty() {
-            req = req.bearer_auth(&self.api_key);
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("New API 视频任务查询失败：{e}")))?;
-        parse_json_response(resp, "New API 视频任务查询").await
-    }
-
-    async fn get_status_json(&self, url: &str) -> Result<Option<Value>, AppError> {
-        let mut req = self.client.get(url);
-        if !self.api_key.is_empty() {
-            req = req.bearer_auth(&self.api_key);
-        }
-        let resp = req.send().await.map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("New API 视频任务状态查询失败：{e}"))
-        })?;
-        parse_json_response_allow_not_found(resp, "New API 视频任务状态查询").await
     }
 
     async fn decode_result(
@@ -184,9 +141,16 @@ impl VideoProvider for NewApiVideoProvider {
         let url = self.generation_url();
         let body = Self::request_body(&req)?;
         tracing::debug!("newapi video generate POST {url} model={}", req.model);
-        let v = self
-            .send_json(&url, body, provider_idempotency_key_sha256)
-            .await?;
+        let v = transport::post_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::Bearer,
+            &url,
+            &body,
+            provider_idempotency_key_sha256,
+            "New API 视频生成",
+        )
+        .await?;
         let task_id = extract_task_id(&v)?;
 
         if let Some(result) = self.decode_result(&v, task_id.clone()).await? {
@@ -212,7 +176,14 @@ impl VideoProvider for NewApiVideoProvider {
             return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
         }
         let url = self.job_url(job_id);
-        let v = self.get_json(&url).await?;
+        let v = transport::get_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::Bearer,
+            &url,
+            "New API 视频任务查询",
+        )
+        .await?;
 
         if let Some(result) = self.decode_result(&v, Some(job_id.to_string())).await? {
             return Ok(VideoJobState::Completed(result));
@@ -254,7 +225,14 @@ impl VideoProvider for NewApiVideoProvider {
         if self.base_url.is_empty() {
             return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
         }
-        let value = self.get_status_json(&self.job_url(job_id)).await?;
+        let value = transport::get_status_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::Bearer,
+            &self.job_url(job_id),
+            "New API 视频任务状态查询",
+        )
+        .await?;
         let Some(value) = value else {
             return Ok(a4n_video::VideoJobStatus::NotFound);
         };

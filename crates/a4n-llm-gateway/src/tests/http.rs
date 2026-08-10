@@ -8,6 +8,7 @@ use std::{
 use a4n_capabilities::{
     CapabilityClient, EVENT_QUEUE_CAPACITY, HttpLlmClient, JsonRequest, LlmClient,
 };
+use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
 use a4n_llm::provider::ChatRequest;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, HealthStatus, LLM_CHAT_CAPABILITY_VERSION,
@@ -32,7 +33,7 @@ use tokio::{
 };
 
 use super::{service_request, test_provider_config};
-use crate::{app::build_router, contracts::LlmChatPayload};
+use crate::app::build_router;
 
 mod errors;
 
@@ -100,9 +101,9 @@ async fn collect_stream_events(
     events
 }
 
-fn invalid_provider_payload() -> LlmChatPayload {
-    LlmChatPayload {
-        provider: super::HttpLlmProviderConfig {
+fn invalid_provider_payload() -> LlmGatewayPayload {
+    LlmGatewayPayload {
+        provider: LlmGatewayProviderConfig {
             provider: "openai".to_string(),
             base_url: "not a provider URL".to_string(),
             api_key: Some("payload-provider-secret".to_string()),
@@ -341,8 +342,8 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks_and_final_usage() {
     let gateway = TestHttpServer::start(build_router()).await;
     let client = gateway.client();
 
-    let request = service_request(LlmChatPayload {
-        provider: super::HttpLlmProviderConfig {
+    let request = service_request(LlmGatewayPayload {
+        provider: LlmGatewayProviderConfig {
             provider: "openai".to_string(),
             base_url: provider_base_url.clone(),
             model: "fake-stream-model".to_string(),
@@ -435,8 +436,8 @@ async fn closed_typed_event_receiver_drops_gateway_and_provider_http_streams() {
     .await;
     let gateway = TestHttpServer::start(build_router()).await;
     let client = gateway.client();
-    let request = service_request(LlmChatPayload {
-        provider: super::HttpLlmProviderConfig {
+    let request = service_request(LlmGatewayPayload {
+        provider: LlmGatewayProviderConfig {
             provider: "openai".to_string(),
             base_url: provider.base_url(),
             model: "fake-cancel-model".to_string(),
@@ -531,8 +532,8 @@ async fn run_stream_baseline(
     let provider = TestHttpServer::start(baseline_fake_provider_router(chunks)).await;
     let gateway = TestHttpServer::start(build_router()).await;
     let client = gateway.client();
-    let request = service_request(LlmChatPayload {
-        provider: super::HttpLlmProviderConfig {
+    let request = service_request(LlmGatewayPayload {
+        provider: LlmGatewayProviderConfig {
             provider: "openai".to_string(),
             base_url: provider.base_url(),
             model: "fake-baseline-model".to_string(),

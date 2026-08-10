@@ -3,6 +3,7 @@ import type {
   AssetGraphEdge,
   AssetGraphNode,
 } from "../../../api/project";
+import { readCssRgbVariable, rgb, rgba, type Rgb } from "../../../utils/cssColor";
 
 export interface PositionedNode extends AssetGraphNode {
   x: number;
@@ -27,12 +28,6 @@ interface GraphLayout {
   layers: PositionedLayer[];
   width: number;
   height: number;
-}
-
-interface Rgb {
-  r: number;
-  g: number;
-  b: number;
 }
 
 interface Point {
@@ -794,51 +789,20 @@ function readGraphTheme(): GraphTheme {
   const style = getComputedStyle(document.documentElement);
   return {
     isDark: document.documentElement.classList.contains("dark"),
-    primary: readRgbVar(style, "--color-primary", { r: 139, g: 69, b: 19 }),
-    accent: readRgbVar(style, "--color-accent", { r: 160, g: 82, b: 45 }),
-    bg: readRgbVar(style, "--color-bg-primary", { r: 249, g: 245, b: 240 }),
-    paper: readRgbVar(style, "--color-bg-secondary", { r: 255, g: 251, b: 240 }),
-    tertiary: readRgbVar(style, "--color-bg-tertiary", { r: 240, g: 235, b: 229 }),
-    border: readRgbVar(style, "--color-border", { r: 215, g: 204, b: 200 }),
-    borderDark: readRgbVar(style, "--color-border-dark", { r: 196, g: 192, b: 188 }),
-    text: readRgbVar(style, "--color-text-primary", { r: 44, g: 24, b: 16 }),
-    muted: readRgbVar(style, "--color-text-tertiary", { r: 109, g: 101, b: 96 }),
-    subtle: readRgbVar(style, "--color-text-disabled", { r: 176, g: 168, b: 160 }),
-    success: readRgbVar(style, "--status-success", { r: 74, g: 159, b: 110 }),
-    warning: readRgbVar(style, "--status-warning", { r: 212, g: 146, b: 58 }),
-    info: readRgbVar(style, "--status-info", { r: 74, g: 141, b: 179 }),
+    primary: readCssRgbVariable(style, "--color-primary", [139, 69, 19]),
+    accent: readCssRgbVariable(style, "--color-accent", [160, 82, 45]),
+    bg: readCssRgbVariable(style, "--color-bg-primary", [249, 245, 240]),
+    paper: readCssRgbVariable(style, "--color-bg-secondary", [255, 251, 240]),
+    tertiary: readCssRgbVariable(style, "--color-bg-tertiary", [240, 235, 229]),
+    border: readCssRgbVariable(style, "--color-border", [215, 204, 200]),
+    borderDark: readCssRgbVariable(style, "--color-border-dark", [196, 192, 188]),
+    text: readCssRgbVariable(style, "--color-text-primary", [44, 24, 16]),
+    muted: readCssRgbVariable(style, "--color-text-tertiary", [109, 101, 96]),
+    subtle: readCssRgbVariable(style, "--color-text-disabled", [176, 168, 160]),
+    success: readCssRgbVariable(style, "--status-success", [74, 159, 110]),
+    warning: readCssRgbVariable(style, "--status-warning", [212, 146, 58]),
+    info: readCssRgbVariable(style, "--status-info", [74, 141, 179]),
   };
-}
-
-function readRgbVar(style: CSSStyleDeclaration, name: string, fallback: Rgb): Rgb {
-  const raw = style.getPropertyValue(name).trim();
-  if (!raw) return fallback;
-  const rgbMatch = raw.match(/rgba?\(([^)]+)\)/);
-  const value = rgbMatch ? rgbMatch[1] : raw;
-  const parts = value
-    .replace(/,/g, " ")
-    .replace(/\//g, " ")
-    .split(/\s+/)
-    .map((part) => Number.parseFloat(part))
-    .filter((part) => Number.isFinite(part));
-  if (parts.length >= 3) return { r: parts[0], g: parts[1], b: parts[2] };
-  const hex = raw.match(/^#?([0-9a-f]{6})$/i)?.[1];
-  if (hex) {
-    return {
-      r: Number.parseInt(hex.slice(0, 2), 16),
-      g: Number.parseInt(hex.slice(2, 4), 16),
-      b: Number.parseInt(hex.slice(4, 6), 16),
-    };
-  }
-  return fallback;
-}
-
-function rgb(color: Rgb): string {
-  return `rgb(${color.r}, ${color.g}, ${color.b})`;
-}
-
-function rgba(color: Rgb, alpha: number): string {
-  return `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`;
 }
 
 function roundRect(

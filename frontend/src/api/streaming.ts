@@ -1,6 +1,18 @@
 import { apiInvoke } from "./index";
-import { readCurrentUserId } from "./authStorage";
-import type { ProgressEventRecord, ProgressMeta, ProgressSnapshot } from "./progress";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
+import type {
+  CancelWorkflowInput,
+  ResumeWorkflowRunInput,
+  WorkflowProgressEventsInput,
+  WorkflowStateSummary,
+} from "./generated/host";
+import type {
+  ProgressEventRecord,
+  ProgressMeta,
+  WorkflowProgressEventsResponse,
+} from "./progress";
+
+export type { WorkflowStateSummary };
 
 /**
  * Streaming workflow API wrapper —— 对齐 crates/a4n-tauri/src/commands/streaming.rs
@@ -8,32 +20,13 @@ import type { ProgressEventRecord, ProgressMeta, ProgressSnapshot } from "./prog
  * 后端工作流状态来自 task_queue 的 running/completed/failed 任务子集。
  */
 
-interface WorkflowProgress extends ProgressSnapshot {
-  task_id: string;
-  stage?: string | null;
-}
-
-export interface WorkflowState {
-  task_id: string;
-  status: string; // idle / running / paused / completed / failed
-  project_id: number | null;
-  root_project_id: number | null;
-  source_snapshot_id: number | null;
-  task_scope: string | null;
-  stage: string | null;
-  progress: WorkflowProgress | null;
-  progress_events?: ProgressEventRecord[];
-  started_at: string | null;
-  completed_at: string | null;
-}
-
 interface WorkflowRunProgress {
   current: number;
   total: number;
   message: string;
   percent: number;
   meta: ProgressMeta | null;
-  updated_at: string | null;
+  updated_at: string;
 }
 
 export interface WorkflowRun {
@@ -111,20 +104,16 @@ export interface ListWorkflowRunsInput {
   chapter_id?: number | null;
   workflow_kind?: string | null;
   status?: string | null;
-  resumable_only?: boolean | null;
-  limit?: number | null;
+  resumable_only: boolean;
+  limit: number;
 }
 
-export interface GetWorkflowRunDetailOptions {
-  include_generation_runs?: boolean | null;
-}
-
-export async function listActiveWorkflows(): Promise<WorkflowState[]> {
-  return apiInvoke<WorkflowState[]>("list_active_workflows", { userId: currentUserId() });
+export async function listActiveWorkflows(): Promise<WorkflowStateSummary[]> {
+  return apiInvoke<WorkflowStateSummary[]>("list_active_workflows", { userId: currentUserId() });
 }
 
 export async function listWorkflowRuns(
-  input: ListWorkflowRunsInput = {},
+  input: ListWorkflowRunsInput,
 ): Promise<WorkflowRun[]> {
   return apiInvoke<WorkflowRun[]>("list_workflow_runs", {
     userId: currentUserId(),
@@ -134,36 +123,40 @@ export async function listWorkflowRuns(
 
 export async function getWorkflowRunDetail(
   workflowRunId: number,
-  options: GetWorkflowRunDetailOptions = {},
+  includeGenerationRuns: boolean,
 ): Promise<WorkflowRunDetail> {
   return apiInvoke<WorkflowRunDetail>("get_workflow_run_detail", {
     userId: currentUserId(),
-    input: { workflow_run_id: workflowRunId, ...options },
+    input: {
+      workflow_run_id: workflowRunId,
+      include_generation_runs: includeGenerationRuns,
+    },
   });
 }
 
 export async function resumeWorkflowRun(workflowRunId: number): Promise<WorkflowRun> {
   return apiInvoke<WorkflowRun>("resume_workflow_run", {
     userId: currentUserId(),
-    input: { workflow_run_id: workflowRunId },
+    input: { workflow_run_id: workflowRunId } satisfies ResumeWorkflowRunInput,
   });
 }
 
 export async function getWorkflowRunProgressEvents(
   workflowRunId: number,
-  limit = 50,
+  limit: number,
 ): Promise<ProgressEventRecord[]> {
-  return apiInvoke<ProgressEventRecord[]>("get_workflow_progress_events", {
-    userId: currentUserId(),
-    input: { workflow_run_id: workflowRunId, limit },
-  });
+  const response = await apiInvoke<WorkflowProgressEventsResponse>(
+    "get_workflow_progress_events",
+    {
+      userId: currentUserId(),
+      input: {
+        workflow_run_id: workflowRunId,
+        limit,
+      } satisfies WorkflowProgressEventsInput,
+    },
+  );
+  return response.events;
 }
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问工作流");
-  return id;
-};
 
 export async function cancelWorkflow(input: string | {
   taskId?: string | null;
@@ -175,16 +168,6 @@ export async function cancelWorkflow(input: string | {
     input: {
       task_id: payload.taskId ?? null,
       workflow_run_id: payload.workflowRunId ?? null,
-    },
+    } satisfies CancelWorkflowInput,
   });
 }
-
-/**
- * Host workflow 任务的取消函数，供 `runProgressTask` 的 `cancelTask` 显式传入。
- *
- * 仅用于仍走旧 Host workflow 通道的任务（由 `allocateHostTaskId` 分配身份）。
- * generation 任务必须改用 `runGenerationProgressTaskThen`，它会传
- * `generationClient.cancel`。
- */
-export const cancelHostWorkflowTask = (taskId: string): Promise<void> =>
-  cancelWorkflow(taskId);

@@ -14,3 +14,9 @@ pub struct ReverseEngineerInput {
     pub context_limit: Option<usize>,
     pub variables: Option<Value>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ConfirmReverseEngineeringCandidateInput {
+    pub workflow_run_id: i64,
+}

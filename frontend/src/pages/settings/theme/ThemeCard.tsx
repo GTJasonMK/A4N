@@ -1,10 +1,10 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Check, Code2, Download, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { type Theme } from "../../../api/theme";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
-import { getThemeCssVariable } from "../../../theme/themeCssVariables";
+import { parseCssRgb, rgb } from "../../../utils/cssColor";
 
 interface ThemeCardProps {
   theme: Theme;
@@ -47,17 +47,16 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
 }) => {
   const renameReady =
     renameValue.trim().length > 0 && renameValue.trim() !== theme.name.trim();
-  const previewColors = useMemo(() => {
-    const safeRgb = (raw: string | undefined): string =>
-      raw ? `rgb(${raw})` : "#ccc";
-    return {
-      primary: safeRgb(getThemeCssVariable(theme.css_variables, "color-primary")),
-      bg: safeRgb(getThemeCssVariable(theme.css_variables, "color-bg-primary")),
-      bgPaper: safeRgb(getThemeCssVariable(theme.css_variables, "color-bg-secondary")),
-      text: safeRgb(getThemeCssVariable(theme.css_variables, "color-text-primary")),
-      border: safeRgb(getThemeCssVariable(theme.css_variables, "color-border")),
-    };
-  }, [theme]);
+  const previewColor = (key: string): string =>
+    rgb(parseCssRgb(theme.css_variables[key] ?? "", [204, 204, 204]));
+  const previewColors = {
+    primary: previewColor("--color-primary"),
+    bg: previewColor("--color-bg-primary"),
+    bgPaper: previewColor("--color-bg-secondary"),
+    text: previewColor("--color-text-primary"),
+    border: previewColor("--color-border"),
+  };
+  const isOwned = theme.user_id != null;
   const moreItems: DropdownItem[] = [
     {
       label: "导出主题",
@@ -70,7 +69,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
       onClick: onViewCss,
     },
   ];
-  if (!theme.is_system_default && !theme.is_active) {
+  if (isOwned && !theme.is_active) {
     moreItems.push({ type: "divider" });
     moreItems.push({
       label: "删除主题",
@@ -132,21 +131,31 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
           ) : (
             <>
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <button
-                  type="button"
-                  onClick={onRenameStart}
-                  disabled={mutationBusy}
-                  className="min-w-0 truncate text-left text-sm font-semibold text-book-text-main hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-55"
-                  title="重命名主题"
-                >
-                  {theme.name}
-                </button>
+                {isOwned ? (
+                  <button
+                    type="button"
+                    onClick={onRenameStart}
+                    disabled={mutationBusy}
+                    className="min-w-0 truncate text-left text-sm font-semibold text-book-text-main hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-55"
+                    title="重命名主题"
+                  >
+                    {theme.name}
+                  </button>
+                ) : (
+                  <span className="min-w-0 truncate text-sm font-semibold text-book-text-main">
+                    {theme.name}
+                  </span>
+                )}
                 {theme.is_active ? (
                   <span className="text-caption font-medium text-book-primary">使用中</span>
                 ) : null}
               </div>
               <div className="mt-0.5 text-small text-book-text-muted">
-                {theme.is_system_default ? "系统默认" : "用户自定义"} ·{" "}
+                {isOwned
+                  ? "用户自定义"
+                  : theme.is_system_default
+                    ? "系统默认"
+                    : "系统主题"} ·{" "}
                 {theme.mode === "dark" ? "暗色" : "亮色"}
               </div>
             </>
@@ -154,7 +163,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
         </div>
         {!renaming ? (
           <div className="flex shrink-0 items-center gap-2">
-            {!theme.is_active ? (
+            {isOwned && !theme.is_active ? (
               <BookButton
                 variant="secondary"
                 size="sm"

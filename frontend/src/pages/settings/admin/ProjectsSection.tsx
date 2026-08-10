@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import { listAllProjects, type AdminProject } from "../../../api/admin";
+import { listAllProjects, type AdminProjectSummary } from "../../../api/admin";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 import { getProjectTypeLabel } from "../../../utils/projectRouting";
 import { getProjectStatusText } from "../../../utils/projectStatus";
 
 export const ProjectsSection: React.FC<{ callerUserId: number }> = ({ callerUserId }) => {
-  const [projects, setProjects] = useState<AdminProject[]>([]);
+  const [projects, setProjects] = useState<AdminProjectSummary[]>([]);
   const loadProjects = useCallback(() => listAllProjects(callerUserId), [callerUserId]);
   const { loading, load } = useAdminSectionLoader(
     callerUserId,

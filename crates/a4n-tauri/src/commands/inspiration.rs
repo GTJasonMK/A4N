@@ -31,7 +31,7 @@ pub async fn start_inspiration_generation(
     user_id: i64,
     input: StartInspirationGenerationInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    inspiration_actions::start_inspiration_generation_typed(state.inner(), user_id, input)
+    inspiration_actions::start_inspiration_generation(state.inner(), user_id, input)
         .await
         .map_err(crate::commands::generation_tasks::map_access_error)
 }

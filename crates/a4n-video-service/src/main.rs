@@ -30,12 +30,6 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route(
-            "/video/generate",
-            post(handlers::generate).layer(DefaultBodyLimit::max(
-                policy.body_limit(a4n_service_protocol::BodyLimitKind::Media),
-            )),
-        )
-        .route(
             "/video/generate/events",
             post(handlers::generate_events).layer(DefaultBodyLimit::max(
                 policy.body_limit(a4n_service_protocol::BodyLimitKind::Streaming),

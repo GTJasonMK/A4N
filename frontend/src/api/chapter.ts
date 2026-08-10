@@ -1,5 +1,5 @@
-import { apiInvoke } from "./index";
-import { readCurrentUserId } from "./authStorage";
+import { apiInvoke, extractErrorMessage } from "./index";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type {
   GenerationTaskHandle,
   GenerationTaskSummary,
@@ -27,6 +27,36 @@ import { canUseLocalDesktopEmbedding } from "../utils/runtimeMode";
 // 类型（对齐后端 *Summary）
 // ============================================================================
 
+export type ChapterMaterialSyncStatus =
+  | "completed"
+  | "needs_analysis"
+  | "pending"
+  | "running"
+  | "failed"
+  | "unknown";
+
+export interface ChapterMaterialSyncState {
+  content_index: ChapterMaterialSyncStatus;
+  outline_and_foreshadowing: ChapterMaterialSyncStatus;
+  objects: ChapterMaterialSyncStatus;
+  characters: ChapterMaterialSyncStatus;
+  scenes: ChapterMaterialSyncStatus;
+}
+
+export type ChapterMaterialUpdateKind = "object" | "character" | "scene";
+export type ChapterMaterialUpdateAction =
+  | "created"
+  | "updated"
+  | "existing"
+  | "preserved"
+  | "synced";
+
+export interface ChapterMaterialUpdate {
+  material_kind: ChapterMaterialUpdateKind;
+  action: ChapterMaterialUpdateAction;
+  name: string;
+}
+
 export interface ChapterData {
   id: number;
   project_id: number;
@@ -41,10 +71,28 @@ export interface ChapterData {
   analysis_data: unknown | null;
   analysis_sync_status: string | null;
   analysis_sync_can_resume: boolean;
+  analysis_sync_has_saved_analysis: boolean;
   analysis_sync_resume_block_reason: string | null;
+  analysis_sync_error: string | null;
+  derived_sync_status: string | null;
+  derived_sync_workflow_run_id: number | null;
+  derived_sync_can_resume: boolean;
+  derived_sync_error: string | null;
+  material_sync: ChapterMaterialSyncState;
+  material_updates: ChapterMaterialUpdate[];
   created_at: string | null;
   updated_at: string | null;
 }
+
+export interface ChapterAnalysisMutationResult {
+  chapter: ChapterData;
+  warnings: string[];
+}
+
+export const chapterContentCommitToastType = (
+  derivedSyncStatus: string | null | undefined,
+): "success" | "info" =>
+  derivedSyncStatus === "failed" || derivedSyncStatus === "running" ? "info" : "success";
 
 export interface ChapterScene {
   id: number;
@@ -59,8 +107,8 @@ export interface ChapterScene {
   location: string | null;
   timeline_position: string | null;
   transition_from_previous: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface PreparedGenerationRagEmbeddingRequest {
@@ -70,10 +118,17 @@ interface PreparedGenerationRagEmbeddingRequest {
     model: string;
     dimension: number;
   };
+  query_fingerprint: string;
 }
 
-interface GenerationRagContext {
-  text?: string | null;
+type ClientGenerationRagQueryVectors = NonNullable<
+  StartChapterGenerationInput["client_rag_query_vectors"]
+>;
+
+interface PreparedClientGenerationRagQuery {
+  embeddingIdentity: PreparedGenerationRagEmbeddingRequest["embedding_identity"];
+  queryFingerprint: string;
+  queryVectors: ClientGenerationRagQueryVectors;
 }
 
 export async function listChapters(projectId: Id): Promise<ChapterData[]> {
@@ -82,12 +137,6 @@ export async function listChapters(projectId: Id): Promise<ChapterData[]> {
     projectId: idNum(projectId),
   });
 }
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问章节");
-  return id;
-};
 
 // ============================================================================
 // 章节生成
@@ -111,43 +160,83 @@ export function chapterGenerationNumber(
     : null;
 }
 
+/** RAG 是可选增强，但合同/权限/身份错误不能被预取 fallback 静默掩盖。 */
+export function shouldPropagateGenerationRagPrefetchError(error: unknown): boolean {
+  const message = extractErrorMessage(error, "").toLowerCase();
+  return (
+    [
+      "参数无效",
+      "invalid argument",
+      "identity",
+      "身份",
+      "权限不足",
+      "未找到",
+      "状态无效",
+      "未认证",
+    ].some((fragment) => message.includes(fragment))
+    || /query vector|向量.*(?:不匹配|非有限|数量|维度)|embedding.*(?:mismatch|不匹配)/i.test(
+      message,
+    )
+    || message.includes("返回数量不匹配")
+  );
+}
+
 export async function startChapterGeneration(
   input: StartChapterGenerationInput,
 ): Promise<GenerationTaskHandle> {
   const projectId = idNum(input.project_id);
-  let clientRagContext = input.client_rag_context ?? null;
+  let clientRagEmbeddingIdentity = input.client_rag_embedding_identity ?? null;
+  let clientRagQueryFingerprint = input.client_rag_query_fingerprint ?? null;
+  let clientRagQueryVectors = input.client_rag_query_vectors ?? null;
   if (
     canUseLocalDesktopEmbedding()
     && input.chapter_number > 1
-    && !clientRagContext?.trim()
+    && clientRagEmbeddingIdentity === null
+    && clientRagQueryFingerprint === null
+    && clientRagQueryVectors === null
   ) {
-    clientRagContext = await prepareClientGenerationRagContext(
-      projectId,
-      input.chapter_number,
-      input.writing_notes,
-      input.min_word_count,
-      input.max_word_count,
-    );
+    try {
+      const preparedQuery = await prepareClientGenerationRagQuery(
+        projectId,
+        input.chapter_number,
+        input.writing_notes,
+        input.min_word_count,
+        input.max_word_count,
+      );
+      clientRagEmbeddingIdentity = preparedQuery?.embeddingIdentity ?? null;
+      clientRagQueryFingerprint = preparedQuery?.queryFingerprint ?? null;
+      clientRagQueryVectors = preparedQuery?.queryVectors ?? null;
+    } catch (error) {
+      // RAG is an optional generation enhancement; apiInvoke has already logged the detail.
+      if (shouldPropagateGenerationRagPrefetchError(error)) throw error;
+      clientRagEmbeddingIdentity = null;
+      clientRagQueryFingerprint = null;
+      clientRagQueryVectors = null;
+    }
   }
   return apiInvoke<GenerationTaskHandle>("start_chapter_generation", {
     userId: currentUserId(),
     input: {
       ...input,
       project_id: projectId,
-      client_rag_context: clientRagContext,
+      client_rag_embedding_identity: clientRagEmbeddingIdentity,
+      client_rag_query_fingerprint: clientRagQueryFingerprint,
+      client_rag_query_vectors: clientRagQueryVectors,
     },
   });
 }
 
-async function prepareClientGenerationRagContext(
+async function prepareClientGenerationRagQuery(
   projectId: number,
   chapterNumber: number,
   writingNotes?: string | null,
   minWordCount?: number | null,
   maxWordCount?: number | null,
-): Promise<string | null> {
+): Promise<PreparedClientGenerationRagQuery | null> {
   const embeddingConfig = activeLocalEmbeddingConfig();
-  if (!embeddingConfig) throw new Error("请先设置默认 Embedding 配置");
+  // 本机没有默认 Embedding 时，RAG 只是可选增强；正文生成继续走服务端
+  // 主链，避免在启动前把用户挡在“必须先配置资料检索”之外。
+  if (!embeddingConfig) return null;
   const prepared = await apiInvoke<PreparedGenerationRagEmbeddingRequest>(
     "prepare_chapter_generation_rag_embedding",
     {
@@ -159,38 +248,34 @@ async function prepareClientGenerationRagContext(
       maxWordCount: maxWordCount ?? null,
     },
   );
-  if (prepared.query_texts.length === 0) return null;
-  const embedded = await embedTextsLocally(embeddingConfig, prepared.query_texts);
+  const embedded = prepared.query_texts.length === 0
+    ? { identity: prepared.embedding_identity, embeddings: [] }
+    : await embedTextsLocally(embeddingConfig, prepared.query_texts);
   ensureEmbeddingIdentityMatches(embedded.identity, prepared.embedding_identity);
   ensureEmbeddingVectorCount(embedded.embeddings, prepared.query_texts.length);
-  const context = await apiInvoke<GenerationRagContext>(
-    "finish_chapter_generation_rag_context",
-    {
-      userId: currentUserId(),
-      input: {
-        project_id: projectId,
-        chapter_number: chapterNumber,
-        writing_notes: writingNotes ?? null,
-        embedding_identity: embedded.identity,
-        query_vectors: embedded.embeddings,
-      },
-    },
-  );
-  return context.text ?? null;
+  if (embedded.embeddings.length > 7) {
+    throw new Error("章节生成 RAG 查询向量最多允许 7 组");
+  }
+  return {
+    embeddingIdentity: embedded.identity,
+    queryFingerprint: prepared.query_fingerprint,
+    queryVectors: embedded.embeddings as ClientGenerationRagQueryVectors,
+  };
 }
 
 // ============================================================================
 // 导入/预览
 // ============================================================================
 
-/** 后端 import_chapter(input: { project_id, chapter_number, content, title? }) */
+/** 后端 import_chapter；写作台首次保存为 true，外部导入为 false。 */
 export async function importChapter(input: {
   project_id: number;
   chapter_number: number;
   content: string;
   title?: string | null;
-}): Promise<unknown> {
-  return apiInvoke<unknown>("import_chapter", {
+  manual: boolean;
+}): Promise<ChapterData> {
+  return apiInvoke<ChapterData>("import_chapter", {
     userId: currentUserId(),
     input,
   });
@@ -211,8 +296,8 @@ export async function updateChapterContent(input: {
 /** 后端 generate_chapter_analysis(input: { chapter_id }) */
 export async function generateChapterAnalysis(input: {
   chapter_id: number;
-}, taskId?: string | null): Promise<ChapterData> {
-  return apiInvoke<ChapterData>("generate_chapter_analysis", {
+}, taskId?: string | null): Promise<ChapterAnalysisMutationResult> {
+  return apiInvoke<ChapterAnalysisMutationResult>("generate_chapter_analysis", {
     userId: currentUserId(),
     input,
     taskId: taskId ?? null,

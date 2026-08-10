@@ -16,7 +16,9 @@ pub(super) use http::{
     build_image_http_client, download_image_url, response_bytes, response_text, send_image_request,
 };
 pub(super) use openai_payload::image_result_from_openai_payload;
-pub(super) use reference::prepare_reference_image_for_upload;
+pub(super) use reference::{
+    prepare_reference_image_for_upload, prompt_with_reference_labels, reference_image_field_name,
+};
 
 pub(super) fn required_non_empty<'a>(
     value: &'a str,
@@ -49,11 +51,16 @@ pub(super) fn required_json_string_field<'a>(
         .ok_or_else(|| internal_error(format!("图片生成响应缺少 {field}")))
 }
 
-pub(super) fn time_seed() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
+fn time_seed_at(now: std::time::SystemTime) -> Result<i64, a4n_core::error::AppError> {
+    now.duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| (duration.as_nanos() % (i64::MAX as u128)) as i64)
+        .map_err(|error| {
+            internal_error(format!(
+                "系统时间早于 Unix epoch，无法生成 ComfyUI 请求标识：{error}"
+            ))
+        })
+}
 
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| (d.as_nanos() % (i64::MAX as u128)) as i64)
-        .unwrap_or(1)
+pub(super) fn time_seed() -> Result<i64, a4n_core::error::AppError> {
+    time_seed_at(std::time::SystemTime::now())
 }

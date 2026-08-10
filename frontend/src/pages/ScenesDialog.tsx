@@ -14,7 +14,7 @@ import {
   type ChapterScene,
 } from "../api/chapter";
 import type { ModelRequestPreview } from "../api/requestPreview";
-import { cancelHostWorkflowTask } from "../api/streaming";
+import { cancelWorkflow } from "../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
@@ -33,6 +33,7 @@ interface ScenesDialogProps {
   onClose: () => void;
   chapterId: number | null;
   chapterNumber: number | null;
+  aiActionBlockedReason: string | null;
 }
 
 export const ScenesDialog: React.FC<ScenesDialogProps> = ({
@@ -40,6 +41,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   onClose,
   chapterId,
   chapterNumber,
+  aiActionBlockedReason,
 }) => {
   const { addToast } = useToast();
   const [scenes, setScenes] = useState<ChapterScene[]>([]);
@@ -257,6 +259,10 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
 
   const handleGenerate = async () => {
     if (chapterId == null) return;
+    if (aiActionBlockedReason) {
+      addToast(aiActionBlockedReason, "error");
+      return;
+    }
     if (generatingRef.current) return;
     generatingRef.current = true;
     const requestScope = scopeKey;
@@ -270,7 +276,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       const s = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: `生成场景 ${nextNumber}`,
           startMessage: "正在准备场景生成",
@@ -308,6 +314,10 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
 
   const handlePreviewGenerateRequest = async () => {
     if (chapterId == null) return;
+    if (aiActionBlockedReason) {
+      addToast(aiActionBlockedReason, "error");
+      return;
+    }
     if (previewingRef.current) return;
     previewingRef.current = true;
     const requestScope = scopeKey;
@@ -434,6 +444,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
             prompt={genPrompt}
             generating={generating}
             previewing={requestPreviewLoading}
+            aiActionBlockedReason={aiActionBlockedReason}
             onPromptChange={setGenPrompt}
             onPreviewRequest={() => void handlePreviewGenerateRequest()}
             onGenerate={() => void handleGenerate()}

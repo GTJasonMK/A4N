@@ -1,6 +1,8 @@
-use a4n_service_protocol::ServiceErrorCode;
+use a4n_service_protocol::{
+    CapabilityTaskEventKind, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
+};
 use a4n_test_support::process::{
-    HttpRagClient, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
+    HttpRagClient, JsonRequest, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
     SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
     assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
     assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
@@ -22,6 +24,28 @@ fn rag_request(label: &str, payload: Value) -> a4n_test_support::process::JsonRe
         RAG_INDEX_CAPABILITY_VERSION,
         payload,
     )
+}
+
+async fn ingest_records(client: &HttpRagClient, request: JsonRequest) -> usize {
+    let (events_tx, mut events_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
+    client
+        .ingest_events(request, events_tx)
+        .await
+        .expect("RAG ingest events should cross the independent process");
+    while let Some(event) = events_rx.recv().await {
+        if event.event_kind == CapabilityTaskEventKind::Completed {
+            let written = event.payload.expect("RAG completed payload")["written"]
+                .as_u64()
+                .expect("RAG completed written count");
+            return usize::try_from(written).expect("RAG written count fits usize");
+        }
+        assert!(
+            !event.event_kind.is_terminal(),
+            "RAG ingest failed: {:?}",
+            event.error
+        );
+    }
+    panic!("RAG ingest event stream ended without completion");
 }
 
 fn canonical_records() -> Vec<Value> {
@@ -47,10 +71,10 @@ fn canonical_records() -> Vec<Value> {
     ]
 }
 
-async fn assert_complete(client: &HttpRagClient, expected_ids: &[&str]) {
+async fn assert_complete<T: AsRef<str>>(client: &HttpRagClient, expected_ids: &[T]) {
     let expected_ids = expected_ids
         .iter()
-        .map(|id| (*id).to_string())
+        .map(|id| id.as_ref().to_string())
         .collect::<Vec<_>>();
     let expected_count = expected_ids.len();
     let payload = tokio::time::timeout(Duration::from_secs(10), async {
@@ -75,33 +99,6 @@ async fn assert_complete(client: &HttpRagClient, expected_ids: &[&str]) {
     })
     .await
     .expect("RAG indexes should become complete before timeout");
-    assert_eq!(payload["actual_vector"], json!(expected_count));
-    assert_eq!(payload["actual_bm25"], json!(expected_count));
-}
-
-async fn assert_count_complete(client: &HttpRagClient, expected_count: usize) {
-    let payload = tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            let response = client
-                .completeness_report(rag_request(
-                    "rag-process-count-completeness",
-                    json!({"collection": COLLECTION, "expected_count": expected_count}),
-                ))
-                .await
-                .expect("RAG count completeness request should cross the independent process");
-            if response.status == ServiceStatus::Ok
-                && response
-                    .payload
-                    .as_ref()
-                    .is_some_and(|payload| payload["is_complete"] == json!(true))
-            {
-                return response.payload.expect("RAG count completeness payload");
-            }
-            tokio::time::sleep(Duration::from_millis(25)).await;
-        }
-    })
-    .await
-    .expect("RAG index counts should become complete before timeout");
     assert_eq!(payload["actual_vector"], json!(expected_count));
     assert_eq!(payload["actual_bm25"], json!(expected_count));
 }
@@ -159,30 +156,30 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         rag_env,
     );
     let process = start_sidecar(&manager, RAG_SERVICE_NAME).await;
-    assert_process_concurrency_saturation(addr, RAG_SERVICE_NAME, "/rag/list_collections").await;
+    assert_process_concurrency_saturation(addr, RAG_SERVICE_NAME, "/rag/metadata_by_ids").await;
     let base_url = sidecar_base_url(addr);
-    assert_protected_route_rejects_invalid_auth(&base_url, "/rag/list_collections").await;
-    assert_route_rejects_malformed_json(&base_url, "/rag/list_collections").await;
-    assert_route_rejects_oversized_json(&base_url, "/rag/list_collections", 16 * 1024 * 1024).await;
+    assert_protected_route_rejects_invalid_auth(&base_url, "/rag/metadata_by_ids").await;
+    assert_route_rejects_malformed_json(&base_url, "/rag/metadata_by_ids").await;
+    assert_route_rejects_oversized_json(&base_url, "/rag/metadata_by_ids", 16 * 1024 * 1024).await;
     let client = HttpRagClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let request = request_context(
-        "rag-process-list",
+        "rag-process-metadata",
         "rag-process-trace",
         RAG_INDEX_CAPABILITY_VERSION,
-        serde_json::json!({}),
+        serde_json::json!({"collection": COLLECTION, "ids": []}),
     );
     assert_route_rejects_version_mismatch(
         &sidecar_base_url(addr),
-        "/rag/list_collections",
+        "/rag/metadata_by_ids",
         &request,
     )
     .await;
     let response = client
-        .list_collections(request)
+        .metadata_by_ids(request)
         .await
-        .expect("typed RAG list should cross the independent process");
+        .expect("typed RAG metadata lookup should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
-    assert!(response.payload.expect("RAG list payload")["collections"].is_array());
+    assert!(response.payload.expect("RAG metadata payload")["metadata"].is_object());
 
     let records = canonical_records();
     let ingest_request = trusted_remote_request_context(
@@ -193,19 +190,11 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
-        "/rag/ingest",
+        "/rag/ingest/events",
         &ingest_request,
     )
     .await;
-    let ingested = client
-        .ingest(ingest_request)
-        .await
-        .expect("RAG ingest should cross the independent process");
-    assert_eq!(ingested.status, ServiceStatus::Ok);
-    assert_eq!(
-        ingested.payload.expect("RAG ingest payload")["written"],
-        json!(2)
-    );
+    assert_eq!(ingest_records(&client, ingest_request).await, 2);
     assert_complete(&client, &["doc-1", "doc-2"]).await;
     assert_eq!(search_ids(&client, "重建").await, vec!["doc-1"]);
 
@@ -256,7 +245,12 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         .await
         .expect("RAG backpressure task should join")
         .expect("RAG stream should finish after queue capacity is released");
-    assert_complete(&client, &["doc-1", "doc-2", "doc-backpressure"]).await;
+    let mut expected_ids = vec![
+        "doc-1".to_string(),
+        "doc-2".to_string(),
+        "doc-backpressure".to_string(),
+    ];
+    assert_complete(&client, &expected_ids).await;
 
     let failed_query = client
         .query(rag_request(
@@ -294,14 +288,15 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
 
     let mut idle_records = Vec::with_capacity(512);
     for index in 0..512 {
+        let id = format!("stream-idle-{index}");
+        expected_ids.push(id.clone());
         idle_records.push(json!({
-            "id": format!("stream-idle-{index}"),
+            "id": id,
             "embedding": [0.0, 0.0, 1.0],
             "metadata": {"project_id": 1, "data_type": "chapter", "chapter_number": 3},
             "content": format!("stream idle 索引一致性哨兵 {index}")
         }));
     }
-    let expected_after_idle = 3 + idle_records.len();
     let idle_client =
         HttpRagClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN)
             .with_test_timeouts(
@@ -336,10 +331,9 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         .expect_err("a stalled RAG event stream must hit the idle deadline");
     assert_eq!(idle_error.code, ServiceErrorCode::ServiceUnavailable);
     assert!(idle_error.message.contains("event stream idle timeout"));
-    assert_count_complete(&client, expected_after_idle).await;
+    assert_complete(&client, &expected_ids).await;
     assert!(!temp_dir.path().join(MUTATION_MARKER).exists());
 
-    let expected_after_disconnect = expected_after_idle + 1;
     let event_client =
         HttpRagClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN);
     let (event_tx, event_rx) = tokio::sync::mpsc::channel(1);
@@ -367,7 +361,8 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         .expect("RAG event client task should join")
         .expect_err("closed event receiver should cancel the HTTP stream");
     assert_eq!(disconnect.code, ServiceErrorCode::Cancelled);
-    assert_count_complete(&client, expected_after_disconnect).await;
+    expected_ids.push("doc-3".to_string());
+    assert_complete(&client, &expected_ids).await;
     assert!(
         search_ids(&client, "第三条")
             .await
@@ -378,7 +373,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     finish_sidecar(process, &manager, RAG_SERVICE_NAME, addr).await;
 
     let restarted = start_sidecar(&manager, RAG_SERVICE_NAME).await;
-    assert_count_complete(&client, expected_after_disconnect).await;
+    assert_complete(&client, &expected_ids).await;
     assert!(
         search_ids(&client, "stream idle")
             .await
@@ -420,14 +415,15 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         .await
         .expect("RAG collection drop should cross the independent process");
     assert_eq!(dropped.status, ServiceStatus::Ok);
-    let rebuilt = client
-        .ingest(rag_request(
+    let rebuilt = ingest_records(
+        &client,
+        rag_request(
             "rag-process-rebuild",
             json!({"collection": COLLECTION, "records": canonical_records()}),
-        ))
-        .await
-        .expect("canonical records should rebuild the RAG process indexes");
-    assert_eq!(rebuilt.status, ServiceStatus::Ok);
+        ),
+    )
+    .await;
+    assert_eq!(rebuilt, 3);
     assert_complete(&client, &["doc-1", "doc-2", "doc-3"]).await;
     force_finish_sidecar(restarted, &manager, RAG_SERVICE_NAME, addr).await;
 
@@ -441,14 +437,15 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     std::fs::remove_file(temp_dir.path().join(MUTATION_MARKER)).unwrap();
 
     let explicit_rebuild = start_sidecar(&manager, RAG_SERVICE_NAME).await;
-    let rebuilt = client
-        .ingest(rag_request(
+    let rebuilt = ingest_records(
+        &client,
+        rag_request(
             "rag-process-explicit-rebuild",
             json!({"collection": COLLECTION, "records": canonical_records()}),
-        ))
-        .await
-        .expect("clean derived indexes should rebuild from canonical records");
-    assert_eq!(rebuilt.status, ServiceStatus::Ok);
+        ),
+    )
+    .await;
+    assert_eq!(rebuilt, 3);
     assert_complete(&client, &["doc-1", "doc-2", "doc-3"]).await;
     finish_sidecar(explicit_rebuild, &manager, RAG_SERVICE_NAME, addr).await;
 

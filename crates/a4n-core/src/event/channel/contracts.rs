@@ -238,11 +238,9 @@ impl TaskProgress {
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskProgressEvent {
     pub id: String,
-    pub task_id: String,
     pub current: u32,
     pub total: u32,
     pub message: String,
-    pub percent: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meta: Option<ProgressMeta>,
     pub timestamp: String,
@@ -252,12 +250,10 @@ pub struct TaskProgressEvent {
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskSnapshot {
     pub task_id: String,
-    pub task_type: TaskKind,
     pub project_id: Option<i64>,
     pub root_project_id: Option<i64>,
     pub source_snapshot_id: Option<i64>,
     pub task_scope: Option<String>,
     pub progress: TaskProgress,
     pub progress_events: Vec<TaskProgressEvent>,
-    pub cancelled: bool,
 }

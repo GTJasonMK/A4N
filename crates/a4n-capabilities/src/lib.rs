@@ -24,4 +24,4 @@ pub use media::{HttpImageClient, HttpVideoClient};
 pub use package_io::{HttpExportClient, HttpImportClient};
 pub use prompt::HttpPromptClient;
 pub use rag::HttpRagClient;
-pub use transport::{HttpClientFactory, HttpSidecarTransport};
+pub use transport::HttpClientFactory;

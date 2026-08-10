@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use serde_json::json;
 
 use crate::error::AppError;
-use crate::state::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 
 use super::{
-    blueprint_stage_previous_context, build_blueprint_generation_payload,
-    increment_blueprint_version, project_status_after_blueprint_generation,
+    PART_OUTLINE_THRESHOLD, blueprint_stage_previous_context, build_blueprint_generation_payload,
+    increment_blueprint_version, needs_part_outlines_for_chapters,
+    project_status_after_blueprint_generation,
 };
 
 #[test]
@@ -115,4 +116,10 @@ fn rejects_blueprint_chapter_count_outside_contract() {
             "参数无效：requested_chapter_count 必须在 5 到 10000 之间"
         );
     }
+}
+
+#[test]
+fn part_outline_threshold_is_strictly_greater_than_limit() {
+    assert!(!needs_part_outlines_for_chapters(PART_OUTLINE_THRESHOLD));
+    assert!(needs_part_outlines_for_chapters(PART_OUTLINE_THRESHOLD + 1));
 }

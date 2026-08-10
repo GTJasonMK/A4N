@@ -27,9 +27,10 @@ use crate::{
 use super::{
     ChapterAnalysisInput, chapter_analysis_phase_fingerprint, chapter_analysis_resume_block_reason,
     chapter_analysis_run_input_matches, chapter_analysis_workflow_business_key,
-    chapter_analysis_workflow_run_input, ensure_chapter_analysis_character_sync_completed,
-    ensure_previous_chapter_analysis_complete_from_rows, require_completed_chapter_analysis_phase,
+    chapter_analysis_workflow_run_input, ensure_previous_chapter_analysis_complete_from_rows,
+    require_completed_chapter_analysis_phase,
 };
+use super::outputs::ensure_chapter_analysis_character_sync_completed;
 
 pub const CHAPTER_ANALYSIS_APPLICATION_PROGRESS_TOTAL: u32 = 100;
 const STEP_FACTS: &str = "chapter_analysis.facts";
@@ -456,11 +457,6 @@ impl OrchestratorContext {
         let mut chapter = self
             .preflight_chapter_analysis_validated(chapter_id, false)
             .await?;
-        self.preflight_analysis_character_profile_sync_validated(
-            chapter.project_id,
-            chapter.chapter_number,
-        )
-        .await?;
 
         if cleanup_before_analysis {
             progress.report(5, "正在清理旧的章节派生数据")?;
@@ -783,7 +779,7 @@ impl OrchestratorContext {
                 trace_port,
             )
             .await?;
-        ensure_chapter_analysis_character_sync_completed(&sync_result)
+        ensure_chapter_analysis_character_sync_completed(&sync_result.batch.failed)
             .map_err(|error| AppError::LlmError(error.to_string()))?;
         self.save_chapter_analysis_phase(
             workflow_run_id,

@@ -13,7 +13,7 @@ pub struct Model {
     /// 主题名称
     pub name: String,
 
-    /// 主题模式：system / light / dark
+    /// 主题模式：light / dark
     pub mode: String,
 
     /// CSS 变量（JSON）

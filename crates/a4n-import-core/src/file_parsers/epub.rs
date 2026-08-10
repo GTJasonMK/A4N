@@ -16,8 +16,17 @@ pub struct EpubParser;
 
 impl EpubParser {
     /// 从 EPUB 字节数据解析文本内容
-    pub fn parse(&self, data: &[u8]) -> Result<ParseResult, ImportTransformError> {
+    pub fn parse(
+        &self,
+        data: &[u8],
+        source_title: &str,
+    ) -> Result<ParseResult, ImportTransformError> {
         let archive = read_epub_archive(data)?;
-        parse_extracted_document(&archive.text_content, archive.metadata, archive.warnings)
+        parse_extracted_document(
+            &archive.text_content,
+            archive.metadata,
+            archive.warnings,
+            source_title,
+        )
     }
 }

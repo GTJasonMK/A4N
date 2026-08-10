@@ -1,5 +1,6 @@
 import React from "react";
 import { FileText, Loader2, type LucideIcon } from "lucide-react";
+import type { ChapterMaterialSyncState } from "../../api/chapter";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
 /** 写作桌侧栏中的连续章节行。 */
@@ -9,6 +10,7 @@ interface ChapterCardProps {
   title: string | null | undefined;
   wordCount?: number | null;
   status?: string | null;
+  materialSync?: ChapterMaterialSyncState | null;
   hasDraft?: boolean;
   selected: boolean;
   onClick: () => void;
@@ -20,11 +22,23 @@ const STATUS_ICON: Record<string, { Icon: LucideIcon; tone: string; title: strin
   imported: { Icon: FileText, tone: "text-info", title: "已导入" },
 };
 
+const materialSyncLabel = (state: ChapterMaterialSyncState | null | undefined): string | null => {
+  if (!state) return null;
+  const statuses = Object.values(state);
+  if (statuses.includes("failed")) return "资料同步失败";
+  if (statuses.includes("running")) return "资料同步中";
+  if (statuses.includes("pending")) return "资料待同步";
+  if (statuses.includes("needs_analysis")) return "资料需更新";
+  if (statuses.includes("unknown")) return "资料待核对";
+  return "资料已同步";
+};
+
 export const ChapterCard: React.FC<ChapterCardProps> = ({
   chapterNumber,
   title,
   wordCount,
   status,
+  materialSync,
   hasDraft = false,
   selected,
   onClick,
@@ -42,6 +56,8 @@ export const ChapterCard: React.FC<ChapterCardProps> = ({
   if (status && status !== "completed" && !iconInfo) {
     metaParts.push(getOperationStatusLabel(status));
   }
+  const syncLabel = materialSyncLabel(materialSync);
+  if (syncLabel) metaParts.push(syncLabel);
 
   return (
     <button

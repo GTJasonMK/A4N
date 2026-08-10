@@ -20,6 +20,7 @@ fn sample_profile() -> scene_profile::Model {
     scene_profile::Model {
         id: 11,
         project_id: 1,
+        ownership_kind: "user".to_string(),
         name: "北城门".to_string(),
         normalized_name: "北城门".to_string(),
         aliases_json: json!(["北门"]),

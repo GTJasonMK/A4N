@@ -4,7 +4,7 @@ import {
   type ModelDiscoveryInput,
   type ModelDiscoveryResult,
 } from "../modelDiscovery";
-import { idNum, integerNum, type ApiId as Id } from "../shared";
+import { idNum, type ApiId as Id } from "../shared";
 import type { CreateVideoConfigInput, UpdateVideoConfigInput, VideoGenConfig } from "./types";
 import {
   createLocalVideoConfig,
@@ -21,6 +21,12 @@ import {
 } from "../localRuntimeSettings";
 import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
+import {
+  mergeLocalRuntimeConfigs,
+  normalizeOptionalProviderConfigId,
+  providerConfigIdOrSystem,
+  rejectSystemDefaultMutation,
+} from "../config/shared";
 
 export const SYSTEM_VIDEO_CONFIG_ID = -1;
 
@@ -28,13 +34,20 @@ function videoConfigId(configId: Id): number {
   return idNum(configId, "视频配置 ID");
 }
 
-function videoConfigIdOrSystem(configId: Id): number {
-  const value = integerNum(configId, "视频配置 ID");
-  return value === SYSTEM_VIDEO_CONFIG_ID ? value : idNum(value, "视频配置 ID");
+function isSystemDefaultVideoConfigId(configId: Id): boolean {
+  return providerConfigIdOrSystem(
+    configId,
+    "视频配置 ID",
+    SYSTEM_VIDEO_CONFIG_ID,
+  ) === SYSTEM_VIDEO_CONFIG_ID;
 }
 
-function isSystemDefaultVideoConfigId(configId: Id): boolean {
-  return videoConfigIdOrSystem(configId) === SYSTEM_VIDEO_CONFIG_ID;
+export function normalizeVideoConfigId(configId?: Id | null): number | null {
+  return normalizeOptionalProviderConfigId(
+    configId,
+    "视频配置 ID",
+    SYSTEM_VIDEO_CONFIG_ID,
+  );
 }
 
 function systemDefaultVideoConfig(configs: VideoGenConfig[]): VideoGenConfig | null {
@@ -44,14 +57,9 @@ function systemDefaultVideoConfig(configs: VideoGenConfig[]): VideoGenConfig | n
     ...config,
     id: SYSTEM_VIDEO_CONFIG_ID,
     name: `系统默认：${config.name}`,
-    api_key_encrypted: null,
     has_api_key: hasSystemDefaultVideoApiKey(),
     is_default: usesSystemDefaultVideoConfig(),
   };
-}
-
-function rejectSystemDefaultMutation(): never {
-  throw new Error("系统默认配置由管理员维护，不能在用户配置页编辑");
 }
 
 function requiredSystemDefaultVideoConfig(configs: VideoGenConfig[]): VideoGenConfig {
@@ -60,26 +68,25 @@ function requiredSystemDefaultVideoConfig(configs: VideoGenConfig[]): VideoGenCo
   return config;
 }
 
-function systemDefaultRuntimeVideoConfig(config: VideoGenConfig, apiKey?: string | null) {
-  const normalizedApiKey = apiKey?.trim();
+function systemDefaultRuntimeVideoConfig(config: VideoGenConfig, apiKey?: string) {
   return {
     ...config,
     id: SYSTEM_VIDEO_CONFIG_ID,
     name: `系统默认：${config.name.replace(/^系统默认：/, "")}`,
-    api_key_encrypted: normalizedApiKey || null,
-    has_api_key: Boolean(normalizedApiKey),
+    api_key_encrypted: apiKey ?? null,
+    has_api_key: apiKey !== undefined,
     is_default: true,
   };
 }
 
 async function loadSystemDefaultRuntimeVideoConfig(options?: { requireApiKey?: boolean }) {
   const requireApiKey = options?.requireApiKey ?? true;
-  const apiKey = getSystemDefaultVideoApiKey()?.trim();
-  if (requireApiKey && !apiKey) {
+  const apiKey = requireApiKey ? getSystemDefaultVideoApiKey() : undefined;
+  if (apiKey === null) {
     throw new Error("使用系统默认视频配置需要先填写并保存你的个人 API Key");
   }
   const config = requiredSystemDefaultVideoConfig(await listServerVideoConfigs());
-  return systemDefaultRuntimeVideoConfig(config, requireApiKey ? apiKey : undefined);
+  return systemDefaultRuntimeVideoConfig(config, apiKey);
 }
 
 export async function listServerVideoConfigs(): Promise<VideoGenConfig[]> {
@@ -90,17 +97,13 @@ export async function listVideoConfigs(): Promise<VideoGenConfig[]> {
   if (!usesLocalRuntimeSettings()) return listServerVideoConfigs();
   const [serverConfigs, localConfigs] = await Promise.all([
     listServerVideoConfigs(),
-    Promise.resolve(listLocalVideoConfigs()),
+    listLocalVideoConfigs(),
   ]);
-  const systemDefault = systemDefaultVideoConfig(serverConfigs);
-  const localItems = usesSystemDefaultVideoConfig()
-    ? localConfigs.map((item) => ({ ...item, is_default: false }))
-    : localConfigs;
-  return systemDefault ? [systemDefault, ...localItems] : localItems;
-}
-
-export async function listEffectiveVideoConfigs(): Promise<VideoGenConfig[]> {
-  return listVideoConfigs();
+  return mergeLocalRuntimeConfigs(
+    localConfigs,
+    systemDefaultVideoConfig(serverConfigs),
+    usesSystemDefaultVideoConfig(),
+  );
 }
 
 export async function addServerVideoConfig(
@@ -150,43 +153,43 @@ export async function removeVideoConfig(configId: Id): Promise<void> {
   return removeServerVideoConfig(configId);
 }
 
-export async function activateServerVideoConfig(configId: Id): Promise<VideoGenConfig> {
-  return apiInvoke<VideoGenConfig>("activate_video_config", {
+export async function activateServerVideoConfig(configId: Id): Promise<void> {
+  return apiInvoke<void>("activate_video_config", {
     configId: videoConfigId(configId),
   });
 }
 
-export async function activateVideoConfig(configId: Id): Promise<VideoGenConfig> {
+export async function activateVideoConfig(configId: Id): Promise<void> {
   if (usesLocalRuntimeSettings() && isSystemDefaultVideoConfigId(configId)) {
     setSystemDefaultVideoConfig();
-    const systemDefault = (await listVideoConfigs()).find(
-      (item) => item.id === SYSTEM_VIDEO_CONFIG_ID,
-    );
-    if (!systemDefault) throw new Error("服务器未设置系统默认视频配置");
-    return systemDefault;
+    requiredSystemDefaultVideoConfig(await listServerVideoConfigs());
+    return;
   }
-  if (usesLocalRuntimeSettings()) return setDefaultLocalVideoConfig(videoConfigId(configId));
+  if (usesLocalRuntimeSettings()) {
+    setDefaultLocalVideoConfig(videoConfigId(configId));
+    return;
+  }
   return activateServerVideoConfig(configId);
 }
 
-export async function testServerVideoConfig(configId: Id): Promise<boolean> {
-  return apiInvoke<boolean>("test_video_config", {
+export async function testServerVideoConfig(configId: Id): Promise<void> {
+  return apiInvoke<void>("test_video_config", {
     configId: videoConfigId(configId),
     runtime_config_snapshot: null,
   });
 }
 
-export async function testVideoConfig(configId: Id): Promise<boolean> {
+export async function testVideoConfig(configId: Id): Promise<void> {
   if (isSystemDefaultVideoConfigId(configId)) {
     const video = await loadSystemDefaultRuntimeVideoConfig();
-    return apiInvoke<boolean>("test_video_config", {
+    return apiInvoke<void>("test_video_config", {
       configId: SYSTEM_VIDEO_CONFIG_ID,
       runtime_config_snapshot: buildRuntimeConfigSnapshot({ video }),
     });
   }
   if (usesLocalRuntimeSettings()) {
     const id = videoConfigId(configId);
-    return apiInvoke<boolean>("test_video_config", {
+    return apiInvoke<void>("test_video_config", {
       configId: id,
       runtime_config_snapshot: buildRuntimeConfigSnapshot({ video: getLocalVideoConfig(id) }),
     });

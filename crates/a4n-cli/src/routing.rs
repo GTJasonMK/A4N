@@ -1,3 +1,4 @@
+use a4n_api_contract::generation_tasks::generation_start_path;
 use anyhow::{Result, anyhow, bail};
 use reqwest::Method;
 use serde_json::{Map, Value, json};
@@ -22,6 +23,9 @@ pub(crate) fn command_request(command: &str, args: Value) -> Result<JsonRequest>
 }
 
 fn special_request(command: &str, args: &Map<String, Value>) -> Result<Option<JsonRequest>> {
+    if let Some(path) = generation_start_path(command) {
+        return Ok(Some(post(path, generation_input(args)?, true)));
+    }
     let request = match command {
         "login_user" => post("/auth/login", input_body(args), false),
         "register_user" => post("/auth/register", input_body(args), false),
@@ -70,17 +74,6 @@ fn special_request(command: &str, args: &Map<String, Value>) -> Result<Option<Js
             ),
             true,
         ),
-        "preview_source_sync" => post(
-            "/source-sync/preview",
-            json!({ "derived_project_id": required(args, "derivedProjectId")? }),
-            true,
-        ),
-        "apply_source_sync_decisions" => post("/source-sync/apply", input_body(args), true),
-        "detach_derived_project" => post(
-            "/source-sync/detach",
-            json!({ "derived_project_id": required(args, "derivedProjectId")? }),
-            true,
-        ),
         "list_all_users" => get("/admin/users", true),
         "create_user" => post("/admin/users", input_body(args), true),
         "list_invite_codes" => get("/admin/invite-codes", true),
@@ -99,45 +92,6 @@ fn special_request(command: &str, args: &Map<String, Value>) -> Result<Option<Js
                 path_segment(required(args, "userId")?)?
             ),
             json!({}),
-            true,
-        ),
-        "start_chapter_generation" => {
-            post("/generation-tasks/chapter", generation_input(args)?, true)
-        }
-        "start_inspiration_generation" => post(
-            "/generation-tasks/inspiration",
-            generation_input(args)?,
-            true,
-        ),
-        "start_blueprint_generation" => {
-            post("/generation-tasks/blueprint", generation_input(args)?, true)
-        }
-        "start_blueprint_refinement" => post(
-            "/generation-tasks/blueprint-refinement",
-            generation_input(args)?,
-            true,
-        ),
-        "start_outline_generation" => {
-            post("/generation-tasks/outline", generation_input(args)?, true)
-        }
-        "start_portrait_generation" => {
-            post("/generation-tasks/portrait", generation_input(args)?, true)
-        }
-        "start_image_generation" => post("/generation-tasks/image", generation_input(args)?, true),
-        "start_video_generation" => post("/generation-tasks/video", generation_input(args)?, true),
-        "start_optimize_chat_generation" => post(
-            "/generation-tasks/optimize-chat",
-            generation_input(args)?,
-            true,
-        ),
-        "start_optimize_analysis_generation" => post(
-            "/generation-tasks/optimize-analysis",
-            generation_input(args)?,
-            true,
-        ),
-        "start_optimize_patch_generation" => post(
-            "/generation-tasks/optimize-patch",
-            generation_input(args)?,
             true,
         ),
         _ => return Ok(None),
@@ -231,6 +185,7 @@ fn validate_command_name(command: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use a4n_api_contract::generation_tasks::GENERATION_START_ROUTES;
     use reqwest::Method;
     use serde_json::json;
 
@@ -242,6 +197,23 @@ mod tests {
         assert_eq!(request.method, Method::POST);
         assert_eq!(request.path, "/commands/list_chapters");
         assert!(request.authenticated);
+    }
+
+    #[test]
+    fn source_sync_uses_the_command_endpoint_and_preserves_runtime_config() {
+        let request = command_request(
+            "apply_source_sync_decisions",
+            json!({
+                "input": { "sync_run_id": 1, "decisions": [] },
+                "runtime_config_snapshot": { "schema_version": 1 }
+            }),
+        )
+        .unwrap();
+        assert_eq!(request.path, "/commands/apply_source_sync_decisions");
+        assert_eq!(
+            request.body.unwrap()["runtime_config_snapshot"]["schema_version"],
+            1
+        );
     }
 
     #[test]
@@ -288,5 +260,15 @@ mod tests {
         let meta = request.body.unwrap()["meta"].clone();
         assert_eq!(meta["retry_of_task_id"], "old-task");
         assert_eq!(meta["start_request_id"].as_str().unwrap().len(), 36);
+    }
+
+    #[test]
+    fn generation_start_routes_use_the_canonical_contract() {
+        for &(command, path) in GENERATION_START_ROUTES {
+            let request = command_request(command, json!({ "input": {} })).unwrap();
+            assert_eq!(request.method, Method::POST, "{command}");
+            assert_eq!(request.path, path, "{command}");
+            assert!(request.authenticated, "{command}");
+        }
     }
 }

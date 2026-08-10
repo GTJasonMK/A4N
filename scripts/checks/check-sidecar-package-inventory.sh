@@ -19,7 +19,7 @@ validate_catalog_fields() {
         puts [entry.fetch("name"), entry.fetch("addr_env"), entry.fetch("url_env"), entry.fetch("health_path"), entry.fetch("default_addr")].join("\t")
       end
     ' "$CATALOG" | while IFS=$'\t' read -r name addr_env url_env health_path default_addr; do
-        for file in scripts/deploy.sh scripts/dev/run-services.sh; do
+        for file in scripts/deploy.sh; do
             rg -q --fixed-strings "$addr_env" "$file" || {
                 printf 'catalog field %s (%s) missing from %s\n' "$addr_env" "$name" "$file" >&2
                 return 1
@@ -40,6 +40,32 @@ validate_catalog_fields() {
             return 1
         }
     done
+}
+
+validate_run_services_catalog_consumer() {
+    local listing
+    rg -q --fixed-strings 'SERVICE_CATALOG_FILE="$PROJECT_ROOT/crates/a4n-service-protocol/service-catalog.json"' \
+        scripts/dev/run-services.sh || {
+        printf 'run-services.sh does not bind the sidecar catalog\n' >&2
+        return 1
+    }
+    rg -q --fixed-strings 'catalog_field "$1" binary' scripts/dev/run-services.sh || {
+        printf 'run-services.sh does not derive package names from the sidecar catalog\n' >&2
+        return 1
+    }
+    listing="$(scripts/dev/run-services.sh --list)" || return 1
+    while IFS=$'\t' read -r name binary; do
+        [[ "$listing" == *"$name"* && "$listing" == *"$binary"* ]] || {
+            printf 'run-services.sh --list is missing catalog entry %s (%s)\n' "$name" "$binary" >&2
+            return 1
+        }
+    done < <(
+        ruby -rjson -e '
+          JSON.parse(File.read(ARGV.fetch(0))).each do |entry|
+            puts [entry.fetch("name"), entry.fetch("binary")].join("\t")
+          end
+        ' "$CATALOG"
+    )
 }
 
 extract_bash_sidecar_packages() {
@@ -117,6 +143,7 @@ require_ruby
 }
 mapfile -t expected < <(extract_catalog_packages)
 validate_catalog_fields
+validate_run_services_catalog_consumer
 
 mapfile -t deploy_packages < <(extract_bash_sidecar_packages "scripts/deploy.sh")
 mapfile -t tauri_prepare_packages < <(extract_bash_sidecar_packages "scripts/dev/prepare-tauri-external-bin.sh")

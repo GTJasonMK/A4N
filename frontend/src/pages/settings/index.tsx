@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from "react";
-import { BackButton } from "../../components/ui/BackButton";
+import React, { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { confirmNavigationSync } from "../../components/feedback/ConfirmDialog";
+import { BackButton, useSmartBack } from "../../components/ui/BackButton";
 import { useAuthStore } from "../../store/auth";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
 import { LlmTab } from "./LlmTab";
@@ -8,12 +10,15 @@ import { ImageTab } from "./ImageTab";
 import { VideoTab } from "./VideoTab";
 import { PromptTab } from "./PromptTab";
 import { ThemeTab } from "./ThemeTab";
+import { GuideTab } from "./GuideTab";
 import { QueueTab } from "./QueueTab";
 import { AdvancedTab } from "./AdvancedTab";
 import { AdminTab } from "./AdminTab";
 import { AboutTab } from "./about/AboutTab";
 import { LogsTab } from "./logs/LogsTab";
 import { TABS, TAB_IDS, type TabId } from "./settingsTabs";
+
+const UNSAVED_GUIDE_MESSAGE = "使用指南有未保存修改，确定离开吗？";
 
 /**
  * 系统设置页。
@@ -25,6 +30,18 @@ export const SettingsPage: React.FC = () => {
   const { user, logout } = useAuthStore();
   const activeTab = TABS.find((item) => item.id === tab);
   const activeTabRef = useRef<HTMLButtonElement>(null);
+  const [guidePending, setGuidePending] = useState(false);
+  const smartBack = useSmartBack();
+  const location = useLocation();
+
+  const confirmGuideExit = () =>
+    !guidePending || confirmNavigationSync(UNSAVED_GUIDE_MESSAGE);
+
+  const selectTab = (nextTab: TabId) => {
+    if (nextTab === tab || !confirmGuideExit()) return;
+    setGuidePending(false);
+    setTab(nextTab);
+  };
 
   useEffect(() => {
     const fromHash = window.location.hash.replace("#", "") as TabId;
@@ -35,7 +52,7 @@ export const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     if (window.location.hash !== `#${tab}`) {
-      window.history.replaceState(null, "", `#${tab}`);
+      window.history.replaceState(window.history.state, "", `#${tab}`);
     }
   }, [tab]);
 
@@ -51,6 +68,42 @@ export const SettingsPage: React.FC = () => {
     return () => window.cancelAnimationFrame(frame);
   }, [tab]);
 
+  useEffect(() => {
+    if (!guidePending) return;
+    const preventUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const historyIndex = (state: PopStateEvent["state"]): number | null =>
+      typeof state?.idx === "number" ? state.idx : null;
+    let currentIndex = historyIndex(window.history.state);
+    let restoring = false;
+    const preventHistoryLeave = (event: PopStateEvent) => {
+      const nextIndex = historyIndex(event.state);
+      if (restoring) {
+        restoring = false;
+        currentIndex = nextIndex;
+        return;
+      }
+      if (confirmNavigationSync(UNSAVED_GUIDE_MESSAGE)) {
+        currentIndex = nextIndex;
+        return;
+      }
+      if (currentIndex == null || nextIndex == null || currentIndex === nextIndex) return;
+
+      // 捕获阶段阻止 BrowserRouter 消费已取消的 POP，再回到原 history 项。
+      event.stopImmediatePropagation();
+      restoring = true;
+      window.history.go(currentIndex - nextIndex);
+    };
+    window.addEventListener("beforeunload", preventUnload);
+    window.addEventListener("popstate", preventHistoryLeave, true);
+    return () => {
+      window.removeEventListener("beforeunload", preventUnload);
+      window.removeEventListener("popstate", preventHistoryLeave, true);
+    };
+  }, [guidePending]);
+
   return (
     <div className="h-full w-full flex flex-col bg-book-bg">
       <div className="a4n-settings-layout min-h-0 flex-1 max-md:grid-cols-1 max-md:grid-rows-[auto_minmax(0,1fr)]">
@@ -60,7 +113,14 @@ export const SettingsPage: React.FC = () => {
         >
           <ul className="flex min-w-max gap-1 p-1.5 md:block md:min-w-0 md:p-2">
             <li className="sticky left-0 z-10 shrink-0 bg-book-bg-paper/95 pr-1 md:static md:mb-2 md:bg-transparent md:pr-0">
-              <BackButton iconOnly title="返回上一页" />
+              <BackButton
+                iconOnly
+                title="返回上一页"
+                onClick={() => {
+                  if (location.key === "default" && !confirmGuideExit()) return;
+                  smartBack();
+                }}
+              />
             </li>
             {["本机设置", "云端管理", "服务器诊断"].map((group) => (
               <React.Fragment key={group}>
@@ -73,7 +133,7 @@ export const SettingsPage: React.FC = () => {
                       ref={tab === item.id ? activeTabRef : undefined}
                       type="button"
                       aria-current={tab === item.id ? "page" : undefined}
-                      onClick={() => setTab(item.id)}
+                      onClick={() => selectTab(item.id)}
                       className={`a4n-sidebar-item inline-flex h-10 w-full items-center gap-2 whitespace-nowrap text-left text-xs md:h-9 ${
                         tab === item.id
                           ? "font-semibold text-book-primary"
@@ -102,6 +162,12 @@ export const SettingsPage: React.FC = () => {
             {tab === "video" && <VideoTab />}
             {tab === "prompt" && <PromptTab />}
             {tab === "theme" && <ThemeTab />}
+            {tab === "guide" && (
+              <GuideTab
+                isAdmin={user?.role === "admin"}
+                onPendingChange={setGuidePending}
+              />
+            )}
             {tab === "queue" && <QueueTab />}
             {tab === "advanced" && <AdvancedTab />}
             {tab === "admin" && <AdminTab />}

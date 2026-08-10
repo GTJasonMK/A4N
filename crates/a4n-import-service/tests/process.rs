@@ -91,7 +91,7 @@ async fn import_service_process_serves_typed_normalize_and_stops() {
     )
     .await;
     let response = client
-        .normalize_json_typed(request)
+        .normalize_json(request)
         .await
         .expect("typed import normalize should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
@@ -102,7 +102,7 @@ async fn import_service_process_serves_typed_normalize_and_stops() {
 
     disconnect_during_request_body(addr, "/import/read_media_package_zip").await;
     let invalid_zip = client
-        .read_media_package_zip_typed(
+        .read_media_package_zip(
             ServiceRequestContext::deny_all(
                 "import-process-invalid-zip",
                 TraceContext {
@@ -131,7 +131,7 @@ async fn import_service_process_serves_typed_normalize_and_stops() {
     assert!(!invalid_error.message.contains("process-import.invalid"));
 
     let malicious = client
-        .read_media_package_zip_typed(
+        .read_media_package_zip(
             ServiceRequestContext::deny_all(
                 "import-process-malicious-path",
                 TraceContext {
@@ -163,7 +163,7 @@ async fn import_service_process_serves_typed_normalize_and_stops() {
     );
 
     let package = client
-        .read_media_package_zip_typed(
+        .read_media_package_zip(
             ServiceRequestContext::deny_all(
                 "import-process-media-package",
                 TraceContext {

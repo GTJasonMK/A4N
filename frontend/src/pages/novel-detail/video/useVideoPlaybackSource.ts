@@ -11,7 +11,10 @@ import {
   loadVideoScrubPlaybackData,
 } from "../../../api/video";
 import type { GeneratedVideo, VideoPlaybackData } from "../../../api/video";
-import { videoPlaybackDataToObjectUrl } from "../../../utils/videoPlayback";
+import {
+  base64ToBytes,
+  videoPlaybackDataToObjectUrl,
+} from "../../../utils/videoPlayback";
 
 const PLAYBACK_LOAD_TIMEOUT_MS = 20_000;
 const SCRUB_PROXY_LOAD_TIMEOUT_MS = 120_000;
@@ -22,6 +25,44 @@ class PlaybackLoadTimeoutError extends Error {
   }
 }
 type PlaybackLoader = (videoId: number) => Promise<VideoPlaybackData>;
+
+export interface VideoScrubFrameSequence {
+  bytes: Uint8Array;
+  framesPerSecond: number;
+  ranges: Array<{ start: number; end: number }>;
+}
+
+const decodeScrubFrames = (
+  data: VideoPlaybackData["scrub_frames"],
+): VideoScrubFrameSequence => {
+  if (!data || data.mime_type !== "image/jpeg" || data.frames_per_second <= 0) {
+    throw new Error("剪辑拖动帧数据无效");
+  }
+  const bytes = base64ToBytes(data.data_base64);
+  const ranges: VideoScrubFrameSequence["ranges"] = [];
+  let start = -1;
+  for (let index = 0; index + 1 < bytes.length; index += 1) {
+    if (bytes[index] === 0xff && bytes[index + 1] === 0xd8) {
+      start = index;
+    } else if (
+      start >= 0 &&
+      bytes[index] === 0xff &&
+      bytes[index + 1] === 0xd9
+    ) {
+      ranges.push({ start, end: index + 2 });
+      start = -1;
+      index += 1;
+    }
+  }
+  if (start >= 0 || ranges.length === 0) {
+    throw new Error("剪辑拖动帧 JPEG 序列损坏");
+  }
+  return {
+    bytes,
+    framesPerSecond: data.frames_per_second,
+    ranges,
+  };
+};
 
 const loadPlaybackDataWithTimeout = async (
   loader: PlaybackLoader,
@@ -46,19 +87,38 @@ const loadPlaybackDataWithTimeout = async (
 
 interface UseVideoPlaybackSourceParams {
   selectedVideo: GeneratedVideo | null;
-  mediaKind: "source" | "scrub";
+  // preview 保留声音用于正常播放；scrub 去掉音轨，避免 WebKitGTK
+  // 在暂停状态连续 seek 时触发 GStreamer data stream error。
+  mediaKind: "source" | "preview" | "scrub";
 }
 
 export const useVideoPlaybackSource = ({
   selectedVideo,
   mediaKind,
 }: UseVideoPlaybackSourceParams) => {
-  const [videoPlaybackSrc, setVideoPlaybackSrc] = useState("");
+  const selectedVideoId = selectedVideo?.id;
+  const selectedVideoPath = selectedVideo?.file_path?.trim();
+  const [playbackSource, setPlaybackSource] = useState<{
+    videoId: number;
+    videoPath: string;
+    mediaKind: UseVideoPlaybackSourceParams["mediaKind"];
+    url: string;
+    scrubFrames: VideoScrubFrameSequence | null;
+  } | null>(null);
+  const videoPlaybackSrc =
+    playbackSource &&
+    playbackSource.videoId === selectedVideoId &&
+    playbackSource.videoPath === selectedVideoPath &&
+    playbackSource.mediaKind === mediaKind
+      ? playbackSource.url
+      : "";
+  const videoScrubFrames = videoPlaybackSrc
+    ? (playbackSource?.scrubFrames ?? null)
+    : null;
   const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const objectUrlRef = useRef<string | null>(null);
   const playbackGenerationRef = useRef(0);
-  const scrubFallbackTriedRef = useRef(false);
   const videoLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -74,62 +134,46 @@ export const useVideoPlaybackSource = ({
     let cancelled = false;
     let objectUrl: string | null = null;
     const generation = ++playbackGenerationRef.current;
-    const selectedVideoId = selectedVideo?.id;
-    const selectedVideoPath = selectedVideo?.file_path?.trim();
 
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
     }
-    scrubFallbackTriedRef.current = false;
     setVideoLoadError(null);
-    setVideoPlaybackSrc("");
+    setPlaybackSource(null);
     if (!selectedVideoId || !selectedVideoPath) {
       setVideoLoading(false);
       return;
     }
 
     setVideoLoading(true);
-    const loadPlaybackData =
-      mediaKind === "scrub"
-        ? loadVideoScrubPlaybackData
-        : loadVideoPlaybackData;
+    const loadPlaybackData: PlaybackLoader =
+      mediaKind === "source"
+        ? loadVideoPlaybackData
+        : (videoId) =>
+            loadVideoScrubPlaybackData(videoId, mediaKind === "preview");
     const loadTimeoutMs =
-      mediaKind === "scrub"
-        ? SCRUB_PROXY_LOAD_TIMEOUT_MS
-        : PLAYBACK_LOAD_TIMEOUT_MS;
-    const load = async () => {
-      let data: VideoPlaybackData;
-      try {
-        data = await loadPlaybackDataWithTimeout(
-          loadPlaybackData,
-          selectedVideoId,
-          loadTimeoutMs,
-        );
-      } catch (error) {
-        if (error instanceof PlaybackLoadTimeoutError) throw error;
-        if (
-          mediaKind !== "scrub" ||
-          scrubFallbackTriedRef.current ||
-          cancelled
-        ) {
-          throw error;
-        }
-        scrubFallbackTriedRef.current = true;
-        data = await loadPlaybackDataWithTimeout(
-          loadVideoPlaybackData,
-          selectedVideoId,
-          PLAYBACK_LOAD_TIMEOUT_MS,
-        );
-      }
-      return data;
-    };
-    void load()
+      mediaKind === "source"
+        ? PLAYBACK_LOAD_TIMEOUT_MS
+        : SCRUB_PROXY_LOAD_TIMEOUT_MS;
+    void loadPlaybackDataWithTimeout(
+      loadPlaybackData,
+      selectedVideoId,
+      loadTimeoutMs,
+    )
       .then((data) => {
         if (cancelled || generation !== playbackGenerationRef.current) return;
+        const scrubFrames =
+          mediaKind === "scrub" ? decodeScrubFrames(data.scrub_frames) : null;
         objectUrl = videoPlaybackDataToObjectUrl(data);
         objectUrlRef.current = objectUrl;
-        setVideoPlaybackSrc(objectUrl);
+        setPlaybackSource({
+          videoId: selectedVideoId,
+          videoPath: selectedVideoPath,
+          mediaKind,
+          url: objectUrl,
+          scrubFrames,
+        });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -169,40 +213,14 @@ export const useVideoPlaybackSource = ({
   }, [clearVideoLoadTimeout]);
 
   const handleVideoError = useCallback(
-    (event: SyntheticEvent<HTMLVideoElement>) => {
+    (event: SyntheticEvent<HTMLVideoElement>): boolean => {
+      const eventSource =
+        event.currentTarget.currentSrc || event.currentTarget.src;
+      if (eventSource !== objectUrlRef.current) return false;
+      // WebKitGTK 在快速 seek 时可能发出 error 事件但 media error 为空。
+      // 这类假错误不应清掉当前可用的视频源。
+      if (!event.currentTarget.error) return false;
       clearVideoLoadTimeout();
-      const selectedVideoId = selectedVideo?.id;
-      if (
-        mediaKind === "scrub" &&
-        selectedVideoId &&
-        !scrubFallbackTriedRef.current
-      ) {
-        scrubFallbackTriedRef.current = true;
-        const generation = playbackGenerationRef.current;
-        setVideoLoading(true);
-        setVideoLoadError(null);
-        void loadPlaybackDataWithTimeout(
-          loadVideoPlaybackData,
-          selectedVideoId,
-          PLAYBACK_LOAD_TIMEOUT_MS,
-        )
-          .then((data) => {
-            if (generation !== playbackGenerationRef.current) return;
-            const nextObjectUrl = videoPlaybackDataToObjectUrl(data);
-            if (objectUrlRef.current) {
-              URL.revokeObjectURL(objectUrlRef.current);
-            }
-            objectUrlRef.current = nextObjectUrl;
-            setVideoPlaybackSrc(nextObjectUrl);
-          })
-          .catch((err) => {
-            setVideoLoading(false);
-            setVideoLoadError(
-              extractErrorMessage(err, "无法读取原视频文件"),
-            );
-          });
-        return;
-      }
       setVideoLoading(false);
       const detail = event.currentTarget.error?.message?.trim();
       setVideoLoadError(
@@ -210,12 +228,14 @@ export const useVideoPlaybackSource = ({
           ? `内置播放器无法播放该视频：${detail}`
           : "内置播放器无法解码该视频，文件已保存，可用本地播放器进一步检查。",
       );
+      return true;
     },
-    [clearVideoLoadTimeout, mediaKind, selectedVideo?.id],
+    [clearVideoLoadTimeout],
   );
 
   return {
     videoPlaybackSrc,
+    videoScrubFrames,
     videoLoadError,
     videoLoading,
     handleVideoLoadStart,

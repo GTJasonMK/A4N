@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::state::ServerState;
 
 use super::super::{
-    ApiError, command_input, finish_web_task, register_web_task, sanitize_optional_task_id,
+    ApiError, command_input, finish_web_task, register_web_task, sanitize_task_id,
     string_action_result, to_value,
 };
 
@@ -42,18 +42,17 @@ pub(in crate::routes::commands) async fn start_galgame_pipeline(
 ) -> Result<Value, ApiError> {
     let mut input: galgame_records_actions::StartGalgamePipelineInput =
         command_input(args, "start_galgame_pipeline")?;
-    input.task_id = sanitize_optional_task_id(input.task_id)?;
+    input.task_id = sanitize_task_id(input.task_id)?;
     let task_id = input.task_id.clone();
     let task = register_web_task(
         state,
         user_id,
-        task_id.clone(),
+        Some(task_id.clone()),
         TaskKind::GalgameGeneration,
         Some(input.project_id),
         galgame_records_actions::GALGAME_PIPELINE_TOTAL_STEPS,
         "正在准备 Galgame 管线",
-    )
-    .await;
+    );
     let progress_reporter = web_galgame_progress_reporter(task.clone());
     let result = string_action_result(
         galgame_records_actions::start_galgame_pipeline_with_progress(
@@ -65,7 +64,7 @@ pub(in crate::routes::commands) async fn start_galgame_pipeline(
         .await,
         task.as_ref().is_some_and(|handle| handle.is_cancelled()),
     );
-    to_value(finish_web_task(state, task_id, result).await?)
+    to_value(finish_web_task(state, Some(task_id), result)?)
 }
 
 pub(in crate::routes::commands) async fn cancel_galgame_pipeline(

@@ -1,9 +1,9 @@
 import { apiInvoke } from "../index";
-import type { AdminTaskInfo } from "./types";
+import type { TaskQueueSummary } from "../generated/host";
 import { type ApiId as Id, idNum } from "../shared";
 
-export async function listPendingTasks(callerUserId: Id): Promise<AdminTaskInfo[]> {
-  return apiInvoke<AdminTaskInfo[]>("list_pending_tasks", {
+export async function listPendingTasks(callerUserId: Id): Promise<TaskQueueSummary[]> {
+  return apiInvoke<TaskQueueSummary[]>("list_pending_tasks", {
     callerUserId: idNum(callerUserId),
   });
 }

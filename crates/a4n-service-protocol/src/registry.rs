@@ -1,16 +1,15 @@
 use crate::EgressDataType;
-use crate::compatibility::{capability_major, capability_name};
+use crate::compatibility::{capability_major, capability_name, service_compatibility_for_host};
 use crate::health::{HealthStatus, ServiceHealth, ServiceVersion};
-use crate::service_compatibility_for_host;
 use crate::validation::RequiredSecretPolicy;
 
 pub const PROTOCOL_VERSION: u32 = 2;
-pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v2";
-pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v5";
-pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v3";
-pub const RAG_INDEX_CAPABILITY_VERSION: &str = "rag-index-v2";
-pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v3";
-pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v6";
+pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v4";
+pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v6";
+pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v5";
+pub const RAG_INDEX_CAPABILITY_VERSION: &str = "rag-index-v3";
+pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v4";
+pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v7";
 pub const IMPORT_TRANSFORM_CAPABILITY_VERSION: &str = "import-transform-v2";
 pub const EXPORT_RENDER_CAPABILITY_VERSION: &str = "export-render-v2";
 
@@ -69,14 +68,6 @@ pub fn egress_data_type_for_service(service: &str) -> Option<EgressDataType> {
     }
 }
 
-pub fn known_service_health(
-    service: &'static str,
-    service_version: impl Into<String>,
-    status: HealthStatus,
-) -> ServiceHealth {
-    known_service_health_for_host(service, service_version, status, Some(PROTOCOL_VERSION))
-}
-
 pub fn known_service_health_for_host(
     service: &'static str,
     service_version: impl Into<String>,
@@ -116,13 +107,12 @@ pub fn required_secret_policy_for_service(service: &str) -> Option<RequiredSecre
         PROMPT_SERVICE_NAME => Some(RequiredSecretPolicy::DenyAll {
             rejection_message: "prompt render sidecar 不接收 secret forwarding policy",
         }),
-        LLM_SERVICE_NAME => Some(RequiredSecretPolicy::AllowAny),
-        EMBEDDING_SERVICE_NAME => Some(RequiredSecretPolicy::AllowAny),
+        LLM_SERVICE_NAME | EMBEDDING_SERVICE_NAME | IMAGE_SERVICE_NAME | VIDEO_SERVICE_NAME => {
+            Some(RequiredSecretPolicy::AllowAny)
+        }
         RAG_SERVICE_NAME => Some(RequiredSecretPolicy::DenyAll {
             rejection_message: "rag index sidecar 不接收 secret forwarding policy",
         }),
-        IMAGE_SERVICE_NAME => Some(RequiredSecretPolicy::AllowAny),
-        VIDEO_SERVICE_NAME => Some(RequiredSecretPolicy::AllowAny),
         IMPORT_SERVICE_NAME => Some(RequiredSecretPolicy::DenyAll {
             rejection_message: "import transform sidecar 不接收 secret forwarding policy",
         }),
@@ -140,10 +130,10 @@ mod tests {
     #[test]
     fn additive_capability_suffix_resolves_to_the_registered_service() {
         assert_eq!(
-            service_for_capability_version("prompt-render-v2.1"),
+            service_for_capability_version("prompt-render-v4.1"),
             Some(PROMPT_SERVICE_NAME)
         );
-        assert_eq!(service_for_capability_version("prompt-render-v3"), None);
+        assert_eq!(service_for_capability_version("prompt-render-v5"), None);
         assert_eq!(service_for_capability_version("unknown-v2.1"), None);
     }
 }

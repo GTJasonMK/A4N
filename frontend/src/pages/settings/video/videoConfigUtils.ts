@@ -1,10 +1,11 @@
 import type {
   CreateVideoConfigInput,
   UpdateVideoConfigInput,
+  VideoDurationMode,
   VideoGenConfig,
 } from "../../../api/video";
 import type { ConfigItem } from "../ConfigListPanel";
-import type { VideoDurationMode, VideoForm } from "./types";
+import type { VideoForm } from "./types";
 import type { VideoProviderDescriptor } from "../../../api/generated/config";
 
 export const DEFAULT_VIDEO_FORM: VideoForm = {
@@ -38,14 +39,6 @@ export const VIDEO_DURATION_MODES: Array<{ value: VideoDurationMode; label: stri
   { value: "fixed", label: "固定时间档位" },
 ];
 
-function parseVideoDurationMode(
-  value: string | null | undefined,
-): VideoDurationMode {
-  const normalized = value?.trim().toLowerCase();
-  if (normalized === "range" || normalized === "fixed") return normalized;
-  throw new Error(`视频配置 duration_mode 无效：${value ?? "<missing>"}`);
-}
-
 export function validateVideoForm(
   form: VideoForm,
   provider: VideoProviderDescriptor | undefined,
@@ -77,41 +70,28 @@ export function formatVideoItem(config: VideoForm): {
 }
 
 export function toVideoItem(raw: VideoGenConfig): ConfigItem<VideoForm> {
-  const durationMode = parseVideoDurationMode(raw.duration_mode);
-  if (durationMode === "range") {
-    ensureRangeModeHasNoSupportedDurations(raw.supported_durations_json, raw.id);
-  }
-  const supportedText =
-    durationMode === "fixed" ? supportedDurationsText(raw.supported_durations_json, raw.id) : "";
   return {
     id: raw.id,
-    isActive: Boolean(raw.is_default),
+    isActive: raw.is_default,
     config: {
       name: raw.name,
       provider: raw.backend,
       model: raw.model,
-      api_base_url: raw.base_url ?? "",
+      api_base_url: raw.base_url,
       api_key: "",
-      has_api_key: Boolean(raw.has_api_key ?? raw.api_key_encrypted),
+      has_api_key: raw.has_api_key,
       clear_api_key: false,
-      size: videoSizeFromConfig(raw),
-      duration_secs: ensureIntRange(raw.default_duration_secs, `视频配置 ${raw.id} 默认时长`, 1, 60),
-      min_duration_secs: ensureIntRange(
-        raw.min_duration_secs,
-        `视频配置 ${raw.id} 最小时长`,
-        1,
-        60,
-      ),
-      max_duration_secs: ensureIntRange(
-        raw.max_duration_secs,
-        `视频配置 ${raw.id} 最大时长`,
-        1,
-        60,
-      ),
-      duration_mode: durationMode,
-      supported_durations_text: supportedText,
-      fps: ensureIntRange(raw.default_fps, `视频配置 ${raw.id} 默认 FPS`, 1, 120),
-      max_concurrent: ensureIntRange(raw.max_concurrent, `视频配置 ${raw.id} 并发上限`, 1, 8),
+      size: `${raw.default_width}x${raw.default_height}`,
+      duration_secs: raw.default_duration_secs,
+      min_duration_secs: raw.min_duration_secs,
+      max_duration_secs: raw.max_duration_secs,
+      duration_mode: raw.duration_mode,
+      supported_durations_text:
+        raw.duration_mode === "fixed"
+          ? raw.supported_durations_json.join(", ")
+          : "",
+      fps: raw.default_fps,
+      max_concurrent: raw.max_concurrent,
     },
   };
 }
@@ -284,32 +264,7 @@ function parseSupportedDurationsText(form: VideoForm): number[] {
   return validateSupportedDurations(values, "固定时长档位");
 }
 
-function supportedDurationsText(value: number[] | null, configId: number): string {
-  if (value == null) {
-    throw new Error(`视频配置 ${configId} 固定模式必须填写 supported_durations_json`);
-  }
-  const supported = validateSupportedDurations(
-    value,
-    `视频配置 ${configId} supported_durations_json`,
-  );
-  if (supported.length === 0) {
-    throw new Error(`视频配置 ${configId} 固定模式必须填写 supported_durations_json`);
-  }
-  return supported.join(", ");
-}
-
-function ensureRangeModeHasNoSupportedDurations(
-  value: number[] | null,
-  configId: number,
-): void {
-  if (value == null) return;
-  throw new Error(`视频配置 ${configId} range 模式不能填写 supported_durations_json`);
-}
-
 function validateSupportedDurations(values: number[], label: string): number[] {
-  if (!Array.isArray(values)) {
-    throw new Error(`${label} 必须是整数数组`);
-  }
   const seen = new Set<number>();
   const supported: number[] = [];
   values.forEach((value, index) => {
@@ -341,17 +296,4 @@ function durationCapabilityLabel(config: VideoForm): string {
     return `固定 ${supported.join("/")}s`;
   }
   return `范围 ${config.min_duration_secs}-${config.max_duration_secs}s`;
-}
-
-function videoSizeFromConfig(config: VideoGenConfig): string {
-  const width = positiveInt(config.default_width, `视频配置 ${config.id} 默认宽度`);
-  const height = positiveInt(config.default_height, `视频配置 ${config.id} 默认高度`);
-  return `${width}x${height}`;
-}
-
-function positiveInt(value: number, label: string): number {
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(`${label}必须为正整数`);
-  }
-  return value;
 }

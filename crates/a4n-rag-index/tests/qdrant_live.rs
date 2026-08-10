@@ -53,7 +53,7 @@ fn record(
             "data_type": "chapter",
             "chapter_number": chapter,
         }),
-        content: Some(content.to_string()),
+        content: content.to_string(),
     }
 }
 
@@ -65,6 +65,16 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
     }
     let store = store().await;
     let collection = "42";
+
+    let invalid_collection = "invalid-content";
+    let error = store
+        .add_embeddings(
+            invalid_collection,
+            vec![record(42, "blank", vec![1.0, 0.0, 0.0], "   ", 1)],
+        )
+        .await
+        .expect_err("blank content must reject");
+    assert!(error.to_string().contains("空内容"));
 
     let expected_ids = vec!["not-indexed-yet".to_string()];
     assert!(
@@ -108,8 +118,6 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
         .await
         .expect("ingest");
     assert_eq!(n, 3);
-    assert!(store.collection_exists(collection).await.unwrap());
-    assert_eq!(store.count(collection).await.unwrap(), 3);
 
     let other_collection = "project/43";
     store
@@ -125,12 +133,6 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
         )
         .await
         .expect("ingest second collection with different dimension");
-    assert_eq!(store.count(other_collection).await.unwrap(), 1);
-    assert_eq!(
-        store.list_collections().await.unwrap(),
-        vec![collection.to_string(), other_collection.to_string()]
-    );
-
     let vec_hits = store
         .query(collection, vec![1.0, 0.0, 0.0], 2, None)
         .await
@@ -187,6 +189,8 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
     assert!(!report.missing_vector_ids.is_empty());
     assert!(report.missing_vector_ids.contains(&"missing".to_string()));
     assert!(!report.missing_ids.is_empty());
+    assert_eq!(report.actual_vector, 3);
+    assert_eq!(report.actual_bm25, 3);
 
     let deleted = store
         .delete(
@@ -201,29 +205,9 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
         )
         .await
         .expect("delete chapter 2");
-    assert!(deleted >= 1);
-    assert_eq!(store.count(collection).await.unwrap(), 2);
-
-    let by_prefix = store
-        .delete(
-            collection,
-            DeleteFilter {
-                project_id: 42,
-                data_type: None,
-                chapter_number: None,
-                ids: vec![],
-                id_prefixes: vec!["doc-".into()],
-            },
-        )
-        .await
-        .expect("delete by prefix");
-    // id_prefix payload stores prefixes of chunk ids; "doc-" may match
-    let _ = by_prefix;
+    assert_eq!(deleted, 1);
 
     store.drop_collection(collection).await.expect("drop");
-    assert!(!store.collection_exists(collection).await.unwrap());
-    assert_eq!(store.count(collection).await.unwrap(), 0);
-    assert_eq!(store.count(other_collection).await.unwrap(), 1);
 
     store
         .add_embeddings(
@@ -252,6 +236,4 @@ async fn live_ingest_query_text_hybrid_delete_completeness() {
         .drop_collection(other_collection)
         .await
         .expect("drop second collection");
-
-    assert!(store.health_check().await.unwrap());
 }

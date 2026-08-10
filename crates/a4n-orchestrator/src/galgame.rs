@@ -134,7 +134,6 @@ pub use asset_generation_application::{
     GalgamePortraitImageGenerationInput, GalgameVisualImageGenerationInput,
 };
 pub use media_application::{
-    BindGalgameMediaInput, GalgameAudioHostPort, ImportGalgameAudioInput,
-    PersistedGalgameAudioFile, UnbindGalgameMediaInput,
+    BindGalgameMediaInput, ImportGalgameAudioInput, PersistedGalgameAudioFile,
+    UnbindGalgameMediaInput,
 };
-pub use webgal_export_application::WebgalExportHostPort;

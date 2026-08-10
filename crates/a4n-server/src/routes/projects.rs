@@ -5,20 +5,20 @@ use a4n_core::models::project::novel_project;
 use a4n_runtime::host_api::project_records as project_records_actions;
 use a4n_runtime::host_api::project_records::{
     CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
-    PaginatedProjects, ProjectSummary, SourceSnapshotChapterSummary,
+    PaginatedProjects, ProjectAccessScope, ProjectSummary, SourceSnapshotChapterSummary,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ListProjectsQuery {
     page: Option<u64>,
     page_size: Option<u64>,
     project_kind: Option<String>,
     root_project_id: Option<i64>,
-    access_scope: Option<String>,
+    access_scope: Option<ProjectAccessScope>,
 }
 
 pub(super) async fn list_projects(
@@ -36,7 +36,7 @@ pub(super) async fn list_projects(
         page_size,
         query.project_kind.as_deref(),
         query.root_project_id,
-        query.access_scope.as_deref(),
+        query.access_scope,
     )
     .await
     .map_err(ApiError::bad_request)?;
@@ -141,7 +141,8 @@ mod tests {
             "project_type": "novel_long",
             "extra": true
         }))
-        .expect_err("create project request must reject unknown fields");
+        .err()
+        .expect("create project request must reject unknown fields");
         assert!(create_err.to_string().contains("unknown field"));
 
         let derived_err = serde_json::from_value::<CreateDerivedProjectInput>(json!({
@@ -154,7 +155,8 @@ mod tests {
             "creation_options": {},
             "extra": true
         }))
-        .expect_err("derived project request must reject unknown fields");
+        .err()
+        .expect("derived project request must reject unknown fields");
         assert!(derived_err.to_string().contains("unknown field"));
 
         let freeform_err = serde_json::from_value::<CreateFreeformVideoProjectInput>(json!({
@@ -162,7 +164,8 @@ mod tests {
             "description": "简介",
             "project_type": "novel_long"
         }))
-        .expect_err("freeform video project request must reject project_type");
+        .err()
+        .expect("freeform video project request must reject project_type");
         assert!(freeform_err.to_string().contains("unknown field"));
     }
 
@@ -175,7 +178,15 @@ mod tests {
             "root_project_id": null,
             "recent": true
         }))
-        .expect_err("project list query must reject unknown fields");
+        .err()
+        .expect("project list query must reject unknown fields");
         assert!(err.to_string().contains("unknown field"));
+
+        let err = serde_json::from_value::<ListProjectsQuery>(json!({
+            "access_scope": " shared "
+        }))
+        .err()
+        .expect("project list query must reject non-canonical access scope");
+        assert!(err.to_string().contains("unknown variant"));
     }
 }

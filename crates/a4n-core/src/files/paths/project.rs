@@ -22,36 +22,6 @@ impl ProjectPaths {
         &self.root
     }
 
-    /// 章节目录
-    pub fn chapters_dir(&self) -> PathBuf {
-        self.root.join("chapters")
-    }
-
-    /// 指定章节文件路径
-    pub fn chapter_file(&self, number: u32) -> PathBuf {
-        self.chapters_dir().join(format!("{number}.md"))
-    }
-
-    /// 蓝图目录
-    pub fn blueprints_dir(&self) -> PathBuf {
-        self.root.join("blueprints")
-    }
-
-    /// 指定版本蓝图文件
-    pub fn blueprint_file(&self, version: &str) -> PathBuf {
-        self.blueprints_dir().join(format!("{version}.json"))
-    }
-
-    /// 分部大纲目录
-    pub fn part_outlines_dir(&self) -> PathBuf {
-        self.root.join("outlines").join("parts")
-    }
-
-    /// 章节大纲目录
-    pub fn chapter_outlines_dir(&self) -> PathBuf {
-        self.root.join("outlines").join("chapters")
-    }
-
     /// 图片目录
     pub fn images_dir(&self) -> PathBuf {
         self.root.join("images")
@@ -75,36 +45,6 @@ impl ProjectPaths {
     /// 角色立绘目录
     pub fn portraits_dir(&self) -> PathBuf {
         self.root.join("portraits")
-    }
-
-    /// 导出目录
-    pub fn exports_dir(&self) -> PathBuf {
-        self.root.join("exports")
-    }
-
-    /// 角色快照目录
-    pub fn snapshots_dir(&self) -> PathBuf {
-        self.root.join("snapshots")
-    }
-
-    /// 确保所有子目录存在
-    pub fn ensure_dirs(&self) -> std::io::Result<()> {
-        let dirs = [
-            self.root(),
-            &self.chapters_dir(),
-            &self.blueprints_dir(),
-            &self.part_outlines_dir(),
-            &self.chapter_outlines_dir(),
-            &self.images_dir(),
-            &self.videos_dir(),
-            &self.portraits_dir(),
-            &self.exports_dir(),
-            &self.snapshots_dir(),
-        ];
-        for dir in &dirs {
-            std::fs::create_dir_all(dir)?;
-        }
-        Ok(())
     }
 }
 

@@ -87,6 +87,17 @@ pub struct VideoGenerationRequest {
     pub media: VideoMediaInput,
 }
 
+impl VideoGenerationRequest {
+    pub fn validate_dimensions(&self) -> Result<(), AppError> {
+        if self.width <= 0 || self.height <= 0 {
+            return Err(AppError::InvalidArgument(
+                "视频请求宽度和高度必须为正整数".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct VideoGenerationResult {
     pub bytes: Vec<u8>,
@@ -260,5 +271,20 @@ mod tests {
         assert!(validate_video_provider_idempotency_key(Some(&"a".repeat(64))).is_ok());
         assert!(validate_video_provider_idempotency_key(Some(&"A".repeat(64))).is_err());
         assert!(validate_video_provider_idempotency_key(Some("short")).is_err());
+    }
+
+    #[test]
+    fn request_dimensions_must_be_positive() {
+        let request = VideoGenerationRequest {
+            prompt: "test".into(),
+            negative_prompt: None,
+            width: 0,
+            height: 720,
+            duration_secs: 5,
+            fps: 24,
+            model: "model".into(),
+            media: VideoMediaInput::None,
+        };
+        assert!(request.validate_dimensions().is_err());
     }
 }

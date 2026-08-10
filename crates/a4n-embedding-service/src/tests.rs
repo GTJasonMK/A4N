@@ -5,6 +5,8 @@ use a4n_service_protocol::{
 };
 
 #[cfg(feature = "fastembed")]
+use crate::contracts::ModelPayload;
+#[cfg(feature = "fastembed")]
 use crate::handlers::events::{
     completed_download_event, download_progress_event, event_line, failed_download_event,
 };
@@ -78,7 +80,7 @@ fn embedding_sidecar_rejects_zero_batch_size() {
 }
 
 #[test]
-fn embedding_v3_payload_rejects_removed_host_cache_path() {
+fn embedding_payload_rejects_removed_host_cache_path() {
     let error = serde_json::from_value::<EmbedTextsPayload>(serde_json::json!({
         "backend": "local_hash",
         "model": "local-sha256-hash",
@@ -90,6 +92,36 @@ fn embedding_v3_payload_rejects_removed_host_cache_path() {
     .expect_err("embedding v2 must reject host filesystem paths");
 
     assert!(error.to_string().contains("unknown field `cache_dir`"));
+}
+
+#[test]
+fn embedding_payload_requires_batch_size() {
+    let error = serde_json::from_value::<EmbedTextsPayload>(serde_json::json!({
+        "backend": "local_hash",
+        "model": "local-sha256-hash",
+        "dimension": 64,
+        "texts": ["测试"]
+    }))
+    .expect_err("embedding v4 requires an explicit batch_size");
+
+    assert!(error.to_string().contains("missing field `batch_size`"));
+}
+
+#[test]
+#[cfg(feature = "fastembed")]
+fn model_operation_requires_a_model_when_one_is_used() {
+    let list = serde_json::from_value::<ModelPayload>(serde_json::json!({
+        "operation": "list"
+    }))
+    .expect("list does not need a model");
+    assert!(list.model.is_none());
+    assert!(list.required_model().is_err());
+
+    let delete = serde_json::from_value::<ModelPayload>(serde_json::json!({
+        "operation": "delete"
+    }))
+    .expect("operation payload should deserialize before model validation");
+    assert!(delete.required_model().is_err());
 }
 
 #[test]
@@ -125,7 +157,6 @@ fn download_progress_event_preserves_progress_payload() {
         DownloadProgress {
             downloaded_bytes: 512,
             total_bytes: 1024,
-            percent: 50.0,
             message: "downloading".to_string(),
         },
     )
@@ -137,7 +168,7 @@ fn download_progress_event_preserves_progress_payload() {
     let payload = event.payload.expect("progress payload");
     assert_eq!(payload["downloaded_bytes"], 512);
     assert_eq!(payload["total_bytes"], 1024);
-    assert_eq!(payload["percent"], 50.0);
+    assert!(payload.get("percent").is_none());
     assert_eq!(payload["message"], "downloading");
 }
 
@@ -190,32 +221,6 @@ fn event_line_is_newline_delimited_json() {
         serde_json::from_slice(&line[..line.len() - 1]).expect("event json");
     assert_eq!(event.task_id, "download-1");
     assert_eq!(event.event_kind, CapabilityTaskEventKind::Completed);
-}
-
-#[test]
-fn rejects_secret_forwarding_policy_before_json_or_event_work() {
-    let mut request = service_request(serde_json::json!({}));
-    request.secret_policy = a4n_service_protocol::SecretForwardingPolicy::local_user_secret();
-    let error = validate_service_request(&request).expect_err("secret policy rejection");
-    assert_eq!(error.code, ServiceErrorCode::Unauthorized);
-    assert!(error.message.contains("secret forwarding policy"));
-    let response: ServiceResponse<()> = error_response(&request, error.clone());
-    assert_eq!(response.status, ServiceStatus::Error);
-    assert_eq!(response.trace_id.as_deref(), Some("trace-1"));
-    assert_eq!(
-        response.error.expect("json error").code,
-        ServiceErrorCode::Unauthorized
-    );
-    #[cfg(feature = "fastembed")]
-    {
-        let event = failed_download_event("request-1".to_string(), 1, error);
-        assert_eq!(event.event_kind, CapabilityTaskEventKind::Failed);
-        assert_eq!(event.sequence, 1);
-        assert_eq!(
-            event.error.expect("event error").code,
-            ServiceErrorCode::Unauthorized
-        );
-    }
 }
 
 #[test]

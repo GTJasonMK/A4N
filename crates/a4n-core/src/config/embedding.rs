@@ -37,13 +37,19 @@ pub fn validate_embedding_config_params(
     params.dimension = positive_i32(params.dimension, "嵌入配置 dimension")?;
     params.batch_size = positive_i32(params.batch_size, "嵌入配置 batch_size")?;
     params.base_url = normalize_optional_config_value(params.base_url);
-    params.api_key_encrypted = normalize_optional_config_value(params.api_key_encrypted);
+    params.api_key_encrypted = if params.backend == "api" {
+        normalize_optional_config_value(params.api_key_encrypted)
+    } else {
+        None
+    };
     params.local_model_path = normalize_optional_config_value(params.local_model_path);
     ensure_embedding_backend_endpoint(&params.backend, params.base_url.as_deref())?;
     Ok(params)
 }
 
-pub fn validate_embedding_config_model(model: &embedding_config::Model) -> Result<(), AppError> {
+pub fn validate_embedding_config_model(
+    model: &embedding_config::Model,
+) -> Result<CreateEmbeddingConfigParams, AppError> {
     validate_embedding_config_params(CreateEmbeddingConfigParams {
         name: model.name.clone(),
         backend: model.backend.clone(),
@@ -54,7 +60,6 @@ pub fn validate_embedding_config_model(model: &embedding_config::Model) -> Resul
         batch_size: model.batch_size,
         local_model_path: model.local_model_path.clone(),
     })
-    .map(|_| ())
 }
 
 fn normalize_embedding_backend(value: &str) -> Result<String, AppError> {
@@ -99,7 +104,7 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_supported_local_backends_and_optional_fields() {
+    fn normalizes_supported_local_backends_and_clears_irrelevant_api_keys() {
         for backend in [" FastEmbed ", "LOCAL_HASH"] {
             let params = validate_embedding_config_params(params(backend))
                 .expect("supported local embedding backend");
@@ -109,7 +114,7 @@ mod tests {
             ));
             assert_eq!(params.name, "默认嵌入");
             assert_eq!(params.model, "embedding-model");
-            assert_eq!(params.api_key_encrypted.as_deref(), Some("secret"));
+            assert_eq!(params.api_key_encrypted, None);
             assert_eq!(
                 params.local_model_path.as_deref(),
                 Some("/models/embedding")

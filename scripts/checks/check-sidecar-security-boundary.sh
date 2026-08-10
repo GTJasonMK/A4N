@@ -107,8 +107,8 @@ rg -q --fixed-strings 'from_pkcs8_pem' crates/a4n-service-manager/src/manager.rs
     printf 'remote mTLS client identity loading is missing\n' >&2
     exit 1
 }
-rg -q --fixed-strings 'notify::recommended_watcher' crates/a4n-service-manager/src/manager.rs || {
-    printf 'remote TLS material must have a cross-platform background watcher\n' >&2
+rg -q --fixed-strings 'let fingerprint = remote_client_fingerprint(config)?;' crates/a4n-service-manager/src/manager.rs || {
+    printf 'remote TLS material must be fingerprinted at each capability request boundary\n' >&2
     exit 1
 }
 rg -q --fixed-strings 'validate_egress_scope' crates/a4n-service-protocol/src/egress.rs || {
@@ -123,8 +123,12 @@ rg -q --fixed-strings 'compatibility: Option<ServiceCompatibility>' crates/a4n-s
     printf 'health contract must advertise protocol/capability compatibility\n' >&2
     exit 1
 }
-rg -q --fixed-strings 'negotiate_deployment_version' crates/a4n-service-protocol/src/compatibility.rs || {
-    printf 'local atomic and remote rolling version rules are missing\n' >&2
+rg -q --fixed-strings 'matches!(config.mode, ServiceMode::Sidecar)' crates/a4n-service-manager/src/health.rs || {
+    printf 'local sidecar build parity must be scoped to managed sidecars\n' >&2
+    exit 1
+}
+rg -q --fixed-strings 'health.version.service_version != env!("CARGO_PKG_VERSION")' crates/a4n-service-manager/src/health.rs || {
+    printf 'local sidecar build parity enforcement is missing\n' >&2
     exit 1
 }
 rg -q --fixed-strings 'auth_token_configured' crates/a4n-capabilities/src/transport.rs || {

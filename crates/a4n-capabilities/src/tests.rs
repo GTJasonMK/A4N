@@ -498,10 +498,6 @@ fn embedding_model_operation_paths_are_explicit() {
         "/embedding/model/download_info"
     );
     assert_eq!(
-        embedding_model_operation_path("download").expect("download path"),
-        "/embedding/model/download"
-    );
-    assert_eq!(
         embedding_model_operation_path("delete").expect("delete path"),
         "/embedding/model/delete"
     );
@@ -513,7 +509,7 @@ fn embedding_model_operation_paths_are_explicit() {
 
 #[test]
 fn embedding_model_operation_path_rejects_unknown_operation() {
-    for operation in ["models", "download_events"] {
+    for operation in ["", "models", "download", "download_events"] {
         let err = embedding_model_operation_path(operation).unwrap_err();
 
         assert_eq!(err.code, ServiceErrorCode::ConfigurationError);

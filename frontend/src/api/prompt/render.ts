@@ -1,16 +1,7 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
+import type { RenderInput } from "../generated/host";
 
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法渲染提示词");
-  return id;
-};
-
-export async function promptRender(input: {
-  template_name: string;
-  variables?: Record<string, unknown> | null;
-  project_id?: number | null;
-}): Promise<string> {
+export async function promptRender(input: RenderInput): Promise<string> {
   return apiInvoke<string>("prompt_render", { userId: currentUserId(), input });
 }

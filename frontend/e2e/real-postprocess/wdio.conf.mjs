@@ -31,7 +31,7 @@ export const config = {
   path: "/",
   framework: "mocha",
   reporters: ["spec"],
-  mochaOpts: { timeout: 120_000 },
+  mochaOpts: { timeout: process.env.A4N_REAL_STRESS === "1" ? 300_000 : 120_000 },
   waitforTimeout: 30_000,
   logLevel: "warn",
   onPrepare: async () => {

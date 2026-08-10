@@ -1,6 +1,6 @@
 use super::config::{ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode};
 use super::errors::ServiceManagerError;
-use super::health::{expected_capability_version, validate_service_health};
+use super::health::validate_service_health;
 use super::manager::{HttpClientFactory, ServiceManager};
 use super::process::ManagedSidecarState;
 use a4n_service_protocol::{
@@ -10,6 +10,7 @@ use a4n_service_protocol::{
     LLM_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PROTOCOL_VERSION,
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, SIDECAR_AUTH_TOKEN_ENV, ServiceErrorCode,
     ServiceHealth, ServiceVersion, VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME,
+    expected_capability_version_for_service,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -106,7 +107,7 @@ fn generate_test_identity(dir: &MtlstestDir, stem: &str, common_name: &str, usag
         "rsa:2048".into(),
         "-nodes".into(),
         "-keyout".into(),
-        key.clone(),
+        key,
         "-out".into(),
         csr.clone(),
         "-subj".into(),
@@ -175,7 +176,7 @@ fn request_mtls_status_with_factory(
     let mut last_error = String::new();
     for _ in 0..40 {
         let result = runtime.block_on(async {
-            let client = factory().map_err(|error| error.to_string())?;
+            let client = factory()?;
             client
                 .get(url)
                 .send()
@@ -343,9 +344,10 @@ fn remote_http_client_uses_the_declared_credential_without_serializing_it() {
         "remote-deployment-secret".to_string(),
     );
     let manager = ServiceManager::new(vec![config]).expect("remote config should be valid");
-    manager
-        .http_client(PROMPT_SERVICE_NAME)
-        .expect("remote HTTP client should use system TLS plus the declared credential");
+    let factory = manager
+        .capability_http_client_factory(PROMPT_SERVICE_NAME)
+        .expect("remote HTTP client factory should be available");
+    factory().expect("remote HTTP client should use system TLS plus the declared credential");
     assert_eq!(
         manager.auth_token(PROMPT_SERVICE_NAME).as_deref(),
         Some("remote-deployment-secret")
@@ -361,9 +363,10 @@ fn missing_mtls_files_fail_closed_without_exposing_paths() {
     config.remote_security.client_key_path = Some("key-secret-name.pem".into());
     let manager =
         ServiceManager::new(vec![config]).expect("complete mTLS paths pass shape validation");
-    let error = manager
-        .http_client(PROMPT_SERVICE_NAME)
-        .expect_err("unreadable mTLS files must fail closed");
+    let factory = manager
+        .capability_http_client_factory(PROMPT_SERVICE_NAME)
+        .expect("remote HTTP client factory should be available");
+    let error = factory().expect_err("unreadable mTLS files must fail closed");
     let message = error.to_string();
     assert!(!message.contains("client-secret-name"));
     assert!(!message.contains("key-secret-name"));
@@ -514,38 +517,38 @@ fn unknown_embedded_config_requires_registered_capability_version() {
 #[test]
 fn known_services_have_expected_capability_versions() {
     assert_eq!(
-        expected_capability_version(PROMPT_SERVICE_NAME),
+        expected_capability_version_for_service(PROMPT_SERVICE_NAME),
         Some(PROMPT_RENDER_CAPABILITY_VERSION)
     );
     assert_eq!(
-        expected_capability_version(LLM_SERVICE_NAME),
+        expected_capability_version_for_service(LLM_SERVICE_NAME),
         Some(LLM_CHAT_CAPABILITY_VERSION)
     );
     assert_eq!(
-        expected_capability_version(EMBEDDING_SERVICE_NAME),
+        expected_capability_version_for_service(EMBEDDING_SERVICE_NAME),
         Some(EMBEDDING_CAPABILITY_VERSION)
     );
     assert_eq!(
-        expected_capability_version(RAG_SERVICE_NAME),
+        expected_capability_version_for_service(RAG_SERVICE_NAME),
         Some(RAG_INDEX_CAPABILITY_VERSION)
     );
     assert_eq!(
-        expected_capability_version(IMAGE_SERVICE_NAME),
+        expected_capability_version_for_service(IMAGE_SERVICE_NAME),
         Some(IMAGE_PROVIDER_CAPABILITY_VERSION)
     );
     assert_eq!(
-        expected_capability_version(VIDEO_SERVICE_NAME),
+        expected_capability_version_for_service(VIDEO_SERVICE_NAME),
         Some(VIDEO_PROVIDER_CAPABILITY_VERSION)
     );
     assert_eq!(
-        expected_capability_version(IMPORT_SERVICE_NAME),
+        expected_capability_version_for_service(IMPORT_SERVICE_NAME),
         Some(IMPORT_TRANSFORM_CAPABILITY_VERSION)
     );
     assert_eq!(
-        expected_capability_version(EXPORT_SERVICE_NAME),
+        expected_capability_version_for_service(EXPORT_SERVICE_NAME),
         Some(EXPORT_RENDER_CAPABILITY_VERSION)
     );
-    assert_eq!(expected_capability_version("demo"), None);
+    assert_eq!(expected_capability_version_for_service("demo"), None);
 }
 
 #[test]

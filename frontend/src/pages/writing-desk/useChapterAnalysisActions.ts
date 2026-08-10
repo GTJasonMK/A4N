@@ -16,17 +16,13 @@ import {
 } from "../../api/chapter";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { ToastType } from "../../components/feedback/Toast";
-import { cancelHostWorkflowTask } from "../../api/streaming";
+import { cancelWorkflow } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 
 type AddToast = (message: unknown, type: ToastType) => void;
 
-const CHAPTER_ANALYSIS_MODEL_FAILURE_PREFIX = "章节结构化分析失败:";
 const CHAPTER_ANALYSIS_PROGRESS_TOTAL = 100;
-
-const isChapterAnalysisModelFailure = (message: string): boolean =>
-  message.startsWith(CHAPTER_ANALYSIS_MODEL_FAILURE_PREFIX);
 
 interface UseChapterAnalysisActionsParams {
   projectId: number;
@@ -37,6 +33,7 @@ interface UseChapterAnalysisActionsParams {
   dirtyRef: { current: boolean };
   addToast: AddToast;
   reloadChapters: (options?: { force?: boolean }) => Promise<ChapterData[] | null>;
+  reloadOutlines: () => Promise<void>;
   setChapters: Dispatch<SetStateAction<ChapterData[]>>;
   refreshProfiles: () => void;
 }
@@ -50,6 +47,7 @@ export function useChapterAnalysisActions({
   dirtyRef,
   addToast,
   reloadChapters,
+  reloadOutlines,
   setChapters,
   refreshProfiles,
 }: UseChapterAnalysisActionsParams) {
@@ -120,7 +118,7 @@ export function useChapterAnalysisActions({
         addToast(
           operation === "generate"
             ? "请先保存正文，再生成结构化分析"
-            : "请先保存正文，再继续同步结构化分析",
+            : "请先保存正文，再继续章节结构化分析",
           "error",
         );
         return null;
@@ -129,7 +127,7 @@ export function useChapterAnalysisActions({
         addToast(
           operation === "generate"
             ? "章节正文为空，不能生成结构化分析"
-            : "章节正文为空，不能继续同步结构化分析",
+            : "章节正文为空，不能继续章节结构化分析",
           "error",
         );
         return null;
@@ -138,14 +136,10 @@ export function useChapterAnalysisActions({
         addToast(analysisBlockedReason, "error");
         return null;
       }
-      if (operation === "resume" && !activeChapter.analysis_data) {
-        addToast("当前章节还没有已保存的结构化分析", "error");
-        return null;
-      }
       if (operation === "resume" && !activeChapter.analysis_sync_can_resume) {
         addToast(
           activeChapter.analysis_sync_resume_block_reason ||
-            "当前章节结构化分析派生数据已同步完成，无需继续同步",
+            "当前章节分析无需继续",
           "error",
         );
         return null;
@@ -174,14 +168,14 @@ export function useChapterAnalysisActions({
 
       const taskId = allocateHostTaskId("chapter-analysis", projectId);
       setAnalysisBusy(true);
-      const updated = await runProgressTask(
+      const mutation = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: "章节结构化分析",
           startMessage: "正在准备章节分析",
-          successMessage: "结构化分析和项目状态已同步",
+          successMessage: "结构化分析已保存",
           errorMessage: "结构化分析失败",
           total: CHAPTER_ANALYSIS_PROGRESS_TOTAL,
           cancelLabel: "停止分析",
@@ -195,15 +189,25 @@ export function useChapterAnalysisActions({
             taskId,
           ),
       );
+      const updated = mutation.chapter;
       setChapters((prev) =>
         prev.map((item) => (item.id === updated.id ? updated : item)),
       );
       await reloadChapters({ force: true });
+      await reloadOutlines();
       refreshProfiles();
-      addToast("结构化分析已生成，项目状态已同步", "success");
+      if (mutation.warnings.length > 0) {
+        addToast(
+          `${mutation.warnings.join("\n")}\n请点击「继续分析」重试`,
+          "info",
+        );
+      } else {
+        addToast("结构化分析已保存，项目状态已同步", "success");
+      }
     } catch (err) {
       const errorMessage = extractErrorMessage(err, "结构化分析失败");
       const refreshed = await reloadChapters({ force: true });
+      await reloadOutlines();
       refreshProfiles();
       const refreshedChapter =
         refreshed?.find((item) => item.id === activeChapterIdRef.current) ?? null;
@@ -211,13 +215,12 @@ export function useChapterAnalysisActions({
         addToast("章节结构化分析已停止", "info");
         return;
       }
-      if (
-        refreshedChapter?.analysis_data != null &&
-        !isChapterAnalysisModelFailure(errorMessage)
-      ) {
+      if (refreshedChapter?.analysis_sync_can_resume) {
         addToast(
-          `结构化分析已保存，但派生数据同步失败。请点击「继续同步」重试：${errorMessage}`,
-          "error",
+          refreshedChapter.analysis_sync_has_saved_analysis
+            ? `结构化分析已保存，但派生数据同步未完成。请点击「继续分析」重试：${errorMessage}`
+            : `章节分析已有可恢复进度。请点击「继续分析」从断点恢复：${errorMessage}`,
+          "info",
         );
         return;
       }
@@ -231,6 +234,7 @@ export function useChapterAnalysisActions({
     projectId,
     refreshProfiles,
     reloadChapters,
+    reloadOutlines,
     requireSavedAnalyzableChapter,
     runProgressTask,
     setChapters,
@@ -251,12 +255,12 @@ export function useChapterAnalysisActions({
       const updated = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
-          title: "继续同步章节分析",
-          startMessage: "正在准备继续同步",
-          successMessage: "结构化分析派生数据已同步",
-          errorMessage: "继续同步失败",
+          title: "继续章节分析",
+          startMessage: "正在准备恢复章节分析",
+          successMessage: "章节分析已继续完成",
+          errorMessage: "继续分析失败",
           total: CHAPTER_ANALYSIS_PROGRESS_TOTAL,
           cancelLabel: "停止分析",
           runningHint: "结构化分析过程中已写入的数据会保留",
@@ -273,14 +277,16 @@ export function useChapterAnalysisActions({
         prev.map((item) => (item.id === updated.id ? updated : item)),
       );
       await reloadChapters({ force: true });
+      await reloadOutlines();
       refreshProfiles();
-      addToast("结构化分析派生数据已继续同步", "success");
+      addToast("章节分析已继续完成", "success");
     } catch (err) {
-      const errorMessage = extractErrorMessage(err, "继续同步失败");
+      const errorMessage = extractErrorMessage(err, "继续分析失败");
       void reloadChapters({ force: true });
+      void reloadOutlines();
       refreshProfiles();
       addToast(
-        isCancelledOperation(errorMessage) ? "章节分析继续同步已停止" : errorMessage,
+        isCancelledOperation(errorMessage) ? "章节分析恢复已停止" : errorMessage,
         isCancelledOperation(errorMessage) ? "info" : "error",
       );
     } finally {
@@ -292,6 +298,7 @@ export function useChapterAnalysisActions({
     projectId,
     refreshProfiles,
     reloadChapters,
+    reloadOutlines,
     requireSavedAnalyzableChapter,
     runProgressTask,
     setChapters,

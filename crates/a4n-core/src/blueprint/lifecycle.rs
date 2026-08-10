@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::state::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 
 pub fn increment_blueprint_version(current: &str) -> Result<String, AppError> {
     let (major, minor) = current.split_once('.').ok_or_else(|| {

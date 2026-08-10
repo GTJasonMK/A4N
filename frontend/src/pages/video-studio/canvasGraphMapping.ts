@@ -212,7 +212,6 @@ export function mergeCanvasDocumentRuntimeResults(
   return {
     ...current,
     graph: fresh.graph,
-    text_assets: fresh.text_assets,
     nodes: current.nodes.map((node) => {
       const freshNode = freshNodesById.get(node.id);
       if (!freshNode) return node;
@@ -461,7 +460,6 @@ export function toCanvasGraphInput(
     viewport_json: document.graph.viewport_json,
     nodes: nodes.map((node) => ({
       client_id: node.id,
-      id: numericId(node.id),
       node_kind: node.data.nodeKind,
       ref_type: node.data.refType,
       ref_id: node.data.refId,
@@ -476,8 +474,6 @@ export function toCanvasGraphInput(
         return {
           source_client_id: edge.source,
           target_client_id: edge.target,
-          source_node_id: numericId(edge.source),
-          target_node_id: numericId(edge.target),
           source_port: contract?.sourcePort ?? edge.sourceHandle ?? "",
           target_port: contract?.targetPort ?? edge.targetHandle ?? "",
           role: contract?.role ?? edge.data?.role ?? "",

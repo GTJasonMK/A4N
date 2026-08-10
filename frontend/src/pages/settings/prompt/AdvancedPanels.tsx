@@ -5,13 +5,11 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { useToast } from "../../../components/feedback/Toast";
 import { extractErrorMessage } from "../../../api";
 import {
-  promptDependencyGraph,
   promptGetDependencies,
   promptGetReverseDependencies,
   promptRender,
   promptRenderAb,
   promptValidateVariables,
-  type PromptDependencyGraph,
   type PromptEntry,
   type PromptRenderAbResult,
 } from "../../../api/prompt";
@@ -34,7 +32,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
 
   // 依赖图
   const [graphLoading, setGraphLoading] = useState(false);
-  const [graph, setGraph] = useState<PromptDependencyGraph | null>(null);
+  const [graphLoaded, setGraphLoaded] = useState(false);
   const [deps, setDeps] = useState<string[]>([]);
   const [reverseDeps, setReverseDeps] = useState<string[]>([]);
 
@@ -82,7 +80,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
     directRenderBusyRef.current = false;
     abRenderBusyRef.current = false;
     setGraphLoading(false);
-    setGraph(null);
+    setGraphLoaded(false);
     setDeps([]);
     setReverseDeps([]);
     setValidateBusy(false);
@@ -137,13 +135,12 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
     graphLoadingRef.current = true;
     setGraphLoading(true);
     try {
-      const [g, d, rd] = await Promise.all([
-        promptDependencyGraph(),
+      const [d, rd] = await Promise.all([
         promptGetDependencies(targetScope.name),
         promptGetReverseDependencies(targetScope.name),
       ]);
       if (!isCurrentScope(targetScope) || graphSeqRef.current !== requestSeq) return;
-      setGraph(g);
+      setGraphLoaded(true);
       setDeps(d);
       setReverseDeps(rd);
     } catch (err) {
@@ -327,7 +324,7 @@ export const PromptAdvancedPanels: React.FC<{ prompt: PromptEntry }> = ({ prompt
         <summary
           className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5"
           onClick={(e) => {
-            if (!graph && !graphLoading) {
+            if (!graphLoaded && !graphLoading) {
               e.preventDefault();
               void loadGraph();
               const el = e.currentTarget.parentElement as HTMLDetailsElement | null;

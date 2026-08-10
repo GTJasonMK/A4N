@@ -10,6 +10,9 @@ pub struct Model {
     pub id: i64,
     pub project_id: i64,
 
+    #[serde(default = "crate::profile_ownership::legacy_unknown_profile_ownership")]
+    pub ownership_kind: String,
+
     pub name: String,
     pub normalized_name: String,
 

@@ -3,15 +3,11 @@ import type { ProgressEventRecord } from "../../../api/progress";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
 
 interface ProgressEventListProps {
-  events?: ProgressEventRecord[];
-  limit?: number;
+  events: ProgressEventRecord[];
 }
 
-export const ProgressEventList: React.FC<ProgressEventListProps> = ({
-  events,
-  limit = 3,
-}) => {
-  const visibleEvents = (events ?? []).slice(-Math.max(1, limit));
+export const ProgressEventList: React.FC<ProgressEventListProps> = ({ events }) => {
+  const visibleEvents = events.slice(-3);
   if (visibleEvents.length === 0) return null;
 
   return (

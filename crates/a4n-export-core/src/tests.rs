@@ -4,9 +4,10 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Serialize, Serializer, ser::Error as _};
 use zip::ZipArchive;
 
+use crate::archive::ExportZipWriter;
 use crate::{
     ExportRenderZipEntryInput, ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput,
-    ExportZipWriter, render_json_manifest_pretty, render_zip, render_zip_package,
+    render_json_manifest_pretty, render_zip, render_zip_package,
 };
 
 struct FailingManifest;

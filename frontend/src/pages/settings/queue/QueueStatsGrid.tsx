@@ -1,9 +1,9 @@
 import React from "react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import type { QueueStats } from "../../../api/task";
+import type { QueueStatsSummary } from "../../../api/task";
 
 interface QueueStatsGridProps {
-  stats: QueueStats | null;
+  stats: QueueStatsSummary | null;
 }
 
 export const QueueStatsGrid: React.FC<QueueStatsGridProps> = ({ stats }) => (
@@ -52,7 +52,7 @@ const MetricValue: React.FC<{
   </dd>
 );
 
-const QueueTotal: React.FC<{ stats: QueueStats | null }> = ({ stats }) => {
+const QueueTotal: React.FC<{ stats: QueueStatsSummary | null }> = ({ stats }) => {
   if (!stats) return <LoadingSpinner size="sm" className="text-book-text-muted" />;
   const queues = [
     stats.llm_queue,
@@ -72,7 +72,7 @@ const QueueTotal: React.FC<{ stats: QueueStats | null }> = ({ stats }) => {
   );
 };
 
-const PrioritySummary: React.FC<{ stats: QueueStats | null }> = ({ stats }) => {
+const PrioritySummary: React.FC<{ stats: QueueStatsSummary | null }> = ({ stats }) => {
   if (!stats) return <span>正在加载</span>;
   const total =
     stats.high_priority_waiting +

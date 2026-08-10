@@ -10,6 +10,8 @@ pub struct Model {
     pub id: i64,
     pub profile_id: i64,
     pub chapter_number: i32,
+    /// 记录来源：user / ai_sync / legacy_unknown。
+    pub source_kind: String,
 
     #[sea_orm(column_type = "Text")]
     pub behavior_description: String,

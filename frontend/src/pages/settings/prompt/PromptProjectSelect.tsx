@@ -72,7 +72,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
       </option>
       {projects.map((project) => (
         <option key={project.id} value={project.id}>
-          {project.title || "未命名项目"}
+          {project.title}
         </option>
       ))}
     </select>

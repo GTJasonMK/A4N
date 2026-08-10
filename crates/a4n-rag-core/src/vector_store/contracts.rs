@@ -9,7 +9,7 @@ pub struct EmbeddingRecord {
     pub embedding: Vec<f32>,
     pub metadata: serde_json::Value,
     /// 原文内容（用于 BM25 全文索引）
-    pub content: Option<String>,
+    pub content: String,
 }
 
 /// 检索过滤条件

@@ -35,6 +35,11 @@ async fn collect_fastembed_download_info(
             )
         })
     })?;
+    if total_size_bytes == 0 {
+        return Err(format!(
+            "fastembed 模型下载信息未包含有效文件大小：{model_name}（{model_code}）"
+        ));
+    }
     let downloaded_size_bytes = files.iter().try_fold(0_u64, |total, file| {
         total
             .checked_add(file.downloaded_size_bytes)
@@ -57,6 +62,5 @@ async fn collect_fastembed_download_info(
         total_size_bytes,
         downloaded_size_bytes,
         missing_size_bytes,
-        files,
     })
 }

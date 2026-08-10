@@ -5,13 +5,16 @@ import {
   Film,
   Gamepad2,
   GitBranch,
-  History,
   PanelsTopLeft,
   Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
-import type { NovelProject, ProjectKind } from "../../api/project";
+import {
+  canEditProjectMaterials,
+  type NovelProject,
+  type ProjectKind,
+} from "../../api/project";
 import type { ProjectActionItems } from "./ProjectLists";
 
 type DerivedProjectKind = Exclude<ProjectKind, "text">;
@@ -24,7 +27,6 @@ interface ProjectActionHandlers {
   onCreateDerivedProject: (project: NovelProject, kind: DerivedProjectKind) => void;
   onExport: (project: NovelProject) => void;
   onImportText: (project: NovelProject) => void;
-  onShowHistory: (project: NovelProject) => void;
   onDelete: (project: NovelProject) => void;
 }
 
@@ -33,8 +35,7 @@ export const createProjectActions = (
   handlers: ProjectActionHandlers,
 ): ProjectActionItems => {
   const isOwner = project.my_role === "owner";
-  const canEdit =
-    project.my_role === "owner" || project.my_role === "manager" || project.my_role === "editor";
+  const canEdit = canEditProjectMaterials(project);
   const textProjectActions: ProjectActionItems =
     project.project_kind === "text"
       ? [
@@ -83,11 +84,6 @@ export const createProjectActions = (
                 },
               ]
             : []),
-          {
-            label: "查看状态历史",
-            icon: <History size={14} />,
-            onClick: () => handlers.onShowHistory(project),
-          },
         ]
       : [];
 
@@ -106,6 +102,7 @@ export const createProjectActions = (
             label: "删除项目",
             icon: <Trash2 size={14} />,
             onClick: () => handlers.onDelete(project),
+            disabled: project.lifecycle_gate !== "active",
             danger: true,
           },
         ]

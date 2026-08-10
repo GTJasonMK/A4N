@@ -14,6 +14,7 @@ interface SynopsisCardProps {
   canEditBlueprint: boolean;
   onOpenSynopsis: () => void;
   onRefine: () => void;
+  onEditBlueprint: () => void;
   onCreateBlueprint: () => void;
 }
 
@@ -24,6 +25,7 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
   canEditBlueprint,
   onOpenSynopsis,
   onRefine,
+  onEditBlueprint,
   onCreateBlueprint,
 }) => (
   <BookCard className="flex min-h-0 flex-col overflow-hidden">
@@ -41,6 +43,11 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
           {canEditBlueprint ? (
             <Dropdown
               items={[
+                {
+                  label: "编辑蓝图",
+                  onClick: onEditBlueprint,
+                  disabled: refining,
+                },
                 {
                   label: refining ? "正在优化蓝图…" : "优化蓝图",
                   icon: refining ? (
@@ -72,11 +79,23 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
           <LoadingSpinner size="sm" /> 加载蓝图…
         </div>
       ) : !blueprint ? (
-        <EmptyHint
-          text="还没有故事蓝图"
-          actionText={canEditBlueprint ? "开始灵感对话" : undefined}
-          onAction={canEditBlueprint ? onCreateBlueprint : undefined}
-        />
+        canEditBlueprint ? (
+          <div className="flex h-full min-h-28 flex-col items-center justify-center gap-3 text-center">
+            <p className="max-w-md text-xs leading-relaxed text-book-text-muted">
+              已有设定可以直接录入正式蓝图；只有想法时再从灵感对话开始。
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <BookButton size="sm" onClick={onEditBlueprint}>
+                直接录入蓝图
+              </BookButton>
+              <BookButton variant="secondary" size="sm" onClick={onCreateBlueprint}>
+                开始灵感对话
+              </BookButton>
+            </div>
+          </div>
+        ) : (
+          <EmptyHint text="还没有故事蓝图" />
+        )
       ) : (
         <div className="space-y-2">
           {blueprint.one_sentence_summary ? (

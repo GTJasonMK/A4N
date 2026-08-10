@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use a4n_api_contract::command_manifest as catalog;
 
-use crate::client::is_sensitive_field_name;
+use crate::client::{is_sensitive_field_name, visit_sensitive_values};
 use crate::config::write_private_json_unlocked;
 use crate::context::SessionContext;
 
@@ -614,7 +614,25 @@ fn validate_secret_args(command: &str, args: &Value, step_id: &str) -> Result<()
         if value.is_null() {
             continue;
         }
-        let valid_env_reference = value
+        if !is_env_secret_reference(value) {
+            bail!("flow step {step_id} 的敏感参数 {pointer} 不得内联；请使用 ${{env.NAME}} 占位符");
+        }
+    }
+    let mut invalid_field = None;
+    visit_sensitive_values(args, &mut |field, value| {
+        if invalid_field.is_none() && !is_env_secret_reference(value) {
+            invalid_field = Some(field.to_string());
+        }
+    });
+    if let Some(field) = invalid_field {
+        bail!("flow step {step_id} 的敏感字段 {field} 不得内联；请使用 ${{env.NAME}} 占位符");
+    }
+    Ok(())
+}
+
+fn is_env_secret_reference(value: &Value) -> bool {
+    value.is_null()
+        || value
             .as_str()
             .and_then(|value| value.strip_prefix("${env."))
             .and_then(|value| value.strip_suffix('}'))
@@ -623,12 +641,7 @@ fn validate_secret_args(command: &str, args: &Value, step_id: &str) -> Result<()
                     && name
                         .bytes()
                         .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-            });
-        if !valid_env_reference {
-            bail!("flow step {step_id} 的敏感参数 {pointer} 不得内联；请使用 ${{env.NAME}} 占位符");
-        }
-    }
-    Ok(())
+            })
 }
 
 pub(crate) fn redact_result(value: &Value) -> Value {
@@ -769,6 +782,42 @@ mod tests {
         let mut numeric_secret = value.clone();
         numeric_secret["steps"][0]["args"]["input"]["api_key"] = json!(123);
         assert!(validate(&serde_json::from_value(numeric_secret).unwrap()).is_err());
+
+        let nested = serde_json::from_value(json!({
+            "version": 1,
+            "name": "nested-unsafe",
+            "steps": [{
+                "id": "apply",
+                "type": "call",
+                "command": "apply_source_sync_decisions",
+                "allow_destructive": true,
+                "args": {
+                    "runtime_config_snapshot": {
+                        "llm_configs": [{"api_key_encrypted": "plain-text"}]
+                    }
+                }
+            }]
+        }))
+        .unwrap();
+        assert!(validate(&nested).is_err());
+
+        let nested_from_env: FlowSpec = serde_json::from_value(json!({
+            "version": 1,
+            "name": "nested-safe",
+            "steps": [{
+                "id": "apply",
+                "type": "call",
+                "command": "apply_source_sync_decisions",
+                "allow_destructive": true,
+                "args": {
+                    "runtime_config_snapshot": {
+                        "llm_configs": [{"api_key_encrypted": "${env.RUNTIME_KEY}"}]
+                    }
+                }
+            }]
+        }))
+        .unwrap();
+        validate(&nested_from_env).unwrap();
 
         let mut unknown = value;
         unknown["legacy_mode"] = json!(true);

@@ -1,4 +1,6 @@
+import { extractErrorMessage } from "../../api";
 import type { NovelProject, ProjectKind } from "../../api/project";
+import { isCancelledOperation } from "../../utils/cancellation";
 import {
   PROJECT_ACCESS_ROLE_LABELS,
   PROJECT_KIND_LABELS,
@@ -76,18 +78,14 @@ export const pickRandomQuote = (): Quote =>
   CREATIVE_QUOTES[Math.floor(Math.random() * CREATIVE_QUOTES.length)];
 
 const titleSortKey = (title: string): string => {
-  if (!title) return "#";
-  const first = title[0].toUpperCase();
+  const first = title[0]!.toUpperCase();
   if (/[A-Z]/.test(first)) return first;
   if (/[0-9]/.test(first)) return "#";
   return first;
 };
 
-const projectUpdatedAtMs = (project: NovelProject): number => {
-  if (project.updated_at == null) return 0;
-  const timestamp = new Date(project.updated_at).getTime();
-  return Number.isNaN(timestamp) ? 0 : timestamp;
-};
+const projectUpdatedAtMs = (project: NovelProject): number =>
+  new Date(project.updated_at).getTime();
 
 const PROJECT_KIND_ORDER: Record<ProjectKind, number> = {
   text: 0,
@@ -131,8 +129,7 @@ const buildProjectFamilies = (projects: NovelProject[]): ProjectFamily[] => {
       title:
         root?.title ??
         items.find((project) => project.root_project_title?.trim())?.root_project_title?.trim() ??
-        sortedProjects[0]?.title ??
-        "未命名项目",
+        sortedProjects[0]!.title,
       updatedAtMs: Math.max(...items.map(projectUpdatedAtMs)),
     };
   });
@@ -159,4 +156,20 @@ export const groupProjectFamiliesByTitle = (
       }
     });
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+};
+
+export const trySyncTextProjectMaterials = async (
+  project: Pick<NovelProject, "id" | "project_kind">,
+  sync: (projectId: number) => Promise<void>,
+): Promise<string | null> => {
+  if (project.project_kind !== "text") return null;
+  try {
+    await sync(project.id);
+    return null;
+  } catch (err) {
+    const message = extractErrorMessage(err, "资料索引同步失败");
+    return isCancelledOperation(message)
+      ? "资料索引同步已停止，可在项目操作中重新同步"
+      : `资料索引待恢复：${message}；可在项目操作中重新同步`;
+  }
 };

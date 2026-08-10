@@ -1,7 +1,7 @@
 use a4n_video::VideoGenerationRequest;
 
 pub(super) fn size_from_request(req: &VideoGenerationRequest) -> String {
-    format!("{}x{}", req.width.max(1), req.height.max(1))
+    format!("{}x{}", req.width, req.height)
 }
 
 pub(super) fn aspect_ratio_from_size(width: i32, height: i32) -> Option<&'static str> {

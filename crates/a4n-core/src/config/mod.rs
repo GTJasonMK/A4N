@@ -12,8 +12,9 @@ pub use embedding::{
     validate_embedding_config_params,
 };
 pub use image::{
-    CreateImageConfigParams, UpdateImageConfigParams, validate_image_config_model,
-    validate_image_config_params,
+    CreateImageConfigParams, UpdateImageConfigParams, image_backend_api_key,
+    image_backend_requires_api_key, image_backend_supports_reference_images,
+    validate_image_config_model, validate_image_config_params,
 };
 pub use validation::{
     app_error_plain_message, normalize_config_name, normalize_optional_config_value, positive_i32,

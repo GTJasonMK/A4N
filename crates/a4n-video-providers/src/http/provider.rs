@@ -1,11 +1,10 @@
 use async_trait::async_trait;
-use serde_json::Value;
 
 use a4n_core::error::AppError;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
 
-use super::super::response::{parse_json_response, parse_json_response_allow_not_found};
 use super::response::{decode_result, extract_job_id, required_string};
+use crate::transport::{self, ApiKeyAuth};
 
 pub struct HttpVideoProvider {
     base_url: String,
@@ -40,52 +39,7 @@ impl HttpVideoProvider {
         }
     }
 }
-impl HttpVideoProvider {
-    async fn send_json(
-        &self,
-        url: &str,
-        body: Value,
-        provider_idempotency_key_sha256: Option<&str>,
-    ) -> Result<Value, AppError> {
-        let mut req = self.client.post(url).json(&body);
-        if !self.api_key.is_empty() {
-            req = req.bearer_auth(&self.api_key);
-        }
-        let req = crate::idempotency::with_provider_idempotency_key(
-            req,
-            provider_idempotency_key_sha256,
-        )?;
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("视频生成请求失败：{e}")))?;
-        parse_json_response(resp, "视频生成").await
-    }
-
-    async fn get_json(&self, url: &str) -> Result<Value, AppError> {
-        let mut req = self.client.get(url);
-        if !self.api_key.is_empty() {
-            req = req.bearer_auth(&self.api_key);
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("视频任务查询失败：{e}")))?;
-        parse_json_response(resp, "视频任务查询").await
-    }
-
-    async fn get_status_json(&self, url: &str) -> Result<Option<Value>, AppError> {
-        let mut req = self.client.get(url);
-        if !self.api_key.is_empty() {
-            req = req.bearer_auth(&self.api_key);
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("视频任务状态查询失败：{e}")))?;
-        parse_json_response_allow_not_found(resp, "视频任务状态查询").await
-    }
-}
+impl HttpVideoProvider {}
 
 #[async_trait]
 impl VideoProvider for HttpVideoProvider {
@@ -100,9 +54,16 @@ impl VideoProvider for HttpVideoProvider {
         let url = self.generation_url();
         let body = Self::request_body(&req);
         tracing::debug!("video generate POST {url} model={}", req.model);
-        let v = self
-            .send_json(&url, body, provider_idempotency_key_sha256)
-            .await?;
+        let v = transport::post_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::Bearer,
+            &url,
+            &body,
+            provider_idempotency_key_sha256,
+            "视频生成",
+        )
+        .await?;
         let job_id = extract_job_id(&v)?;
 
         if let Some(result) = decode_result(&self.client, &v, job_id.clone()).await? {
@@ -128,7 +89,14 @@ impl VideoProvider for HttpVideoProvider {
             return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
         }
         let url = self.job_url(job_id);
-        let v = self.get_json(&url).await?;
+        let v = transport::get_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::Bearer,
+            &url,
+            "视频任务查询",
+        )
+        .await?;
         let status = required_string(&v, "/status", "视频任务 status")?.to_lowercase();
 
         if let Some(result) = decode_result(&self.client, &v, Some(job_id.to_string())).await? {
@@ -166,7 +134,14 @@ impl VideoProvider for HttpVideoProvider {
         if self.base_url.is_empty() {
             return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
         }
-        let value = self.get_status_json(&self.job_url(job_id)).await?;
+        let value = transport::get_status_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::Bearer,
+            &self.job_url(job_id),
+            "视频任务状态查询",
+        )
+        .await?;
         let Some(value) = value else {
             return Ok(a4n_video::VideoJobStatus::NotFound);
         };

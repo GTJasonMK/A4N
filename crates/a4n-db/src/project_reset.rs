@@ -3,9 +3,9 @@
 use a4n_core::models::project::novel_project;
 use a4n_core::state::{
     rollback::{CleanupAction, rollback_actions},
-    status::ProjectStatus,
     validator::StateValidator,
 };
+use a4n_domain::project::ProjectStatus;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,

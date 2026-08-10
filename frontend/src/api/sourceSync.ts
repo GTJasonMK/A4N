@@ -1,17 +1,11 @@
 import { apiInvoke } from ".";
-import { readCurrentUserId } from "./authStorage";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type {
   ApplySourceSyncInput,
   SourceSyncConflictSummary as ApiSourceSyncConflictSummary,
   SourceSyncPlanSummary as ApiSourceSyncPlanSummary,
   SourceSyncRunSummary,
 } from "./generated/host";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问源文本同步");
-  return id;
-};
 
 export type SourceSyncConflictSummary = Omit<
   ApiSourceSyncConflictSummary,

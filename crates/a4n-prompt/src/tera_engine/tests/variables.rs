@@ -111,9 +111,8 @@ fn test_load_real_prompts_dir() {
     }
 
     // registry 应已加载并通过完整性校验
-    let reg = engine.registry();
     {
-        let reg = reg.read();
+        let reg = engine.registry.read();
         let errors = reg.validate(&prompts_dir);
         assert!(errors.is_empty(), "registry 校验失败：{errors:?}");
     }

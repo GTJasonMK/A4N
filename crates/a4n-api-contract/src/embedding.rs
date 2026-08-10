@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct EmbeddingModelIdentity {
     pub backend: String,
     pub model: String,
+    #[schemars(with = "u32")]
     pub dimension: usize,
 }
 
@@ -16,7 +17,6 @@ pub struct LocalEmbeddingModelSummary {
     pub description: String,
     pub dimension: usize,
     pub downloaded: bool,
-    pub cache_path: String,
     pub size_bytes: u64,
 }
 
@@ -27,20 +27,17 @@ pub struct EmbeddingModelDownloadInfoSummary {
     pub total_size_bytes: u64,
     pub downloaded_size_bytes: u64,
     pub missing_size_bytes: u64,
-    pub files: Vec<EmbeddingModelDownloadFileSummary>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct EmbeddingModelDownloadFileSummary {
-    pub path: String,
-    pub size_bytes: u64,
-    pub downloaded_size_bytes: u64,
-    pub downloaded: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct EmbeddingModelInput {
+    pub model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DownloadEmbeddingModelInput {
     pub model: String,
     pub task_id: Option<String>,
 }
@@ -56,7 +53,7 @@ pub struct LocalEmbeddingConfigInput {
     pub backend: String,
     pub model: String,
     pub dimension: usize,
-    pub batch_size: Option<usize>,
+    pub batch_size: usize,
     pub local_model_path: Option<String>,
 }
 

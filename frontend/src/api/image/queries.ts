@@ -1,13 +1,7 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { GeneratedImage } from "./types";
 import { idNum, type ApiId as Id } from "../shared";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问图片记录");
-  return id;
-};
 
 export async function listImagesByProject(projectId: Id): Promise<GeneratedImage[]> {
   return apiInvoke<GeneratedImage[]>("list_images_by_project", {

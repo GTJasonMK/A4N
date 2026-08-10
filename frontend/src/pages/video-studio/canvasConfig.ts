@@ -1,4 +1,4 @@
-import type { LlmConfig } from "../../api/config/types";
+import type { LlmConfigSummary } from "../../api/generated/config";
 import type { ImageGenConfig } from "../../api/image/types";
 import type { VideoGenConfig } from "../../api/video/types";
 
@@ -51,7 +51,7 @@ export function firstLine(value: string): string {
 }
 
 export function buildStudioConfigOptions(
-  llmConfigs: LlmConfig[],
+  llmConfigs: LlmConfigSummary[],
   imageConfigs: ImageGenConfig[],
   videoConfigs: VideoGenConfig[],
 ): StudioConfigOptionsByKind {

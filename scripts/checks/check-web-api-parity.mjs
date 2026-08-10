@@ -11,6 +11,12 @@ const repoRoot = path.resolve(
 );
 const frontendSrc = path.join(repoRoot, "frontend", "src");
 const webApiIndex = path.join(frontendSrc, "api", "index.ts");
+const generatedHostContract = path.join(
+  frontendSrc,
+  "api",
+  "generated",
+  "host.ts",
+);
 const tauriCommandRegistry = path.join(
   repoRoot,
   "crates",
@@ -104,6 +110,9 @@ const allowedRuntimeModeUiFiles = new Set([
   path.join(frontendSrc, "pages", "settings", "EmbeddingTab.tsx"),
   path.join(frontendSrc, "pages", "settings", "index.tsx"),
 ]);
+const allowedNativeDialogFiles = new Set([
+  path.join(frontendSrc, "components", "feedback", "ConfirmDialog.tsx"),
+]);
 const runtimeModeSymbols = new Set([
   "apiBaseUrl",
   "canUseLocalDesktopEmbedding",
@@ -131,8 +140,25 @@ const frontendCommandRefs = new Map([
 const frontendApiCommands = sortCommands(frontendApiCommandRefs.keys());
 const frontendRuntimeCommands = sortCommands(frontendRuntimeCommandRefs.keys());
 const frontendCommands = sortCommands(frontendCommandRefs.keys());
-const webInvokeCommands = collectWebCommands(webApiIndex);
-const cliSpecialCommands = collectCliSpecialCommands(cliCommandRouting);
+const generationStartRoutes = collectTypeScriptStringMap(
+  generatedHostContract,
+  "GENERATION_START_PATHS",
+);
+const generationStartCommands = sortCommands(generationStartRoutes.keys());
+const webSwitchCommands = collectWebCommands(webApiIndex);
+const cliMatchCommands = collectCliSpecialCommands(cliCommandRouting);
+const webUsesGenerationStartContract = fs
+  .readFileSync(webApiIndex, "utf8")
+  .includes("GENERATION_START_PATHS.get(cmd)");
+const cliUsesGenerationStartContract = fs
+  .readFileSync(cliCommandRouting, "utf8")
+  .includes("generation_start_path(command)");
+const webInvokeCommands = sortCommands(
+  new Set([...webSwitchCommands, ...generationStartCommands]),
+);
+const cliSpecialCommands = sortCommands(
+  new Set([...cliMatchCommands, ...generationStartCommands]),
+);
 const cliHasGenericCommandEndpoint = hasCliGenericCommandEndpoint(cliCommandRouting);
 const cliCatalogCommands = collectRustStringArray(cliCommandCatalog, "API_COMMANDS");
 const cliRuntimeEquivalentCommands = collectRustTupleKeys(
@@ -169,7 +195,15 @@ const nativeDialogCalls = collectNativeDialogCalls(frontendSrc);
 const directBrowserStorageCalls = collectDirectBrowserStorageCalls(frontendSrc);
 const directAppReloadCalls = collectDirectAppReloadCalls(frontendSrc);
 const directDownloadAnchorCalls = collectDirectDownloadAnchorCalls(frontendSrc);
-const webRequests = collectWebRequests(webApiIndex);
+const webRequests = [
+  ...collectWebRequests(webApiIndex),
+  ...Array.from(generationStartRoutes, ([command, path]) => ({
+    command,
+    method: "POST",
+    path,
+    key: `POST ${path}`,
+  })),
+].sort((a, b) => a.key.localeCompare(b.key));
 const serverRequestSet = collectServerRequestSet(serverRoutes);
 
 const missingInWeb = difference(frontendApiCommands, webCommands);
@@ -220,6 +254,14 @@ const unapprovedDownloadAnchorCalls = directDownloadAnchorCalls.filter(
 const missingServerRoutes = webRequests.filter(
   (request) => !serverRequestSet.has(request.key),
 );
+const duplicateWebGenerationRoutes = intersection(
+  webSwitchCommands,
+  generationStartCommands,
+);
+const duplicateCliGenerationRoutes = intersection(
+  cliMatchCommands,
+  generationStartCommands,
+);
 
 printSummary("前端 apiInvoke 命令", frontendApiCommands);
 printSummary("前端 Tauri-only runtimeInvoke 命令", frontendRuntimeCommands);
@@ -230,6 +272,8 @@ printSummary("CLI Web 专用映射命令", cliSpecialCommands);
 printSummary("共享 Host API manifest 命令", cliCatalogCommands);
 printSummary("CLI Tauri-only 等价入口", cliRuntimeEquivalentCommands);
 console.log(`CLI 通用 /commands endpoint: ${cliHasGenericCommandEndpoint ? 1 : 0}`);
+console.log(`Web 使用 generation 路径合同: ${webUsesGenerationStartContract ? 1 : 0}`);
+console.log(`CLI 使用 generation 路径合同: ${cliUsesGenerationStartContract ? 1 : 0}`);
 printSummary("Web server command 分发命令", serverCommandDispatchCommands);
 printSummary("Web server 专用分发命令", serverSpecialDispatchCommands);
 printSummary("Web 总映射命令", webCommands);
@@ -267,6 +311,8 @@ printIssue("未分类的桌面壳层命令", unexpectedTauriInfrastructureComman
 printIssue("约定的桌面壳层命令已不存在", missingTauriInfrastructureCommands);
 printIssue("Web 专用命令缺少 CLI 映射", missingCliSpecialCommands);
 printIssue("CLI 存在过期的 Web 专用映射", staleCliSpecialCommands);
+printIssue("前端 switch 重复定义 generation 路由", duplicateWebGenerationRoutes);
+printIssue("CLI match 重复定义 generation 路由", duplicateCliGenerationRoutes);
 printIssue("共享 Host API manifest 缺少前端业务命令", missingCliCatalogCommands);
 printIssue("共享 Host API manifest 存在过期业务命令", staleCliCatalogCommands);
 printIssue("CLI 缺少 Tauri-only 等价入口", missingCliRuntimeEquivalents);
@@ -328,11 +374,15 @@ if (
   missingTauriInfrastructureCommands.length > 0 ||
   missingCliSpecialCommands.length > 0 ||
   staleCliSpecialCommands.length > 0 ||
+  duplicateWebGenerationRoutes.length > 0 ||
+  duplicateCliGenerationRoutes.length > 0 ||
   missingCliCatalogCommands.length > 0 ||
   staleCliCatalogCommands.length > 0 ||
   missingCliRuntimeEquivalents.length > 0 ||
   staleCliRuntimeEquivalents.length > 0 ||
   !cliHasGenericCommandEndpoint ||
+  !webUsesGenerationStartContract ||
+  !cliUsesGenerationStartContract ||
   missingServerRoutes.length > 0 ||
   unwrappedTauriImports.length > 0 ||
   unapprovedRuntimeModeImports.length > 0 ||
@@ -416,6 +466,26 @@ function collectRustTupleKeys(file, constName) {
       ),
     ),
   );
+}
+
+function collectTypeScriptStringMap(file, constName) {
+  const text = fs.readFileSync(file, "utf8");
+  const start = text.indexOf(`export const ${constName}:`);
+  const open = text.indexOf("([", start);
+  const close = text.indexOf("]);", open);
+  if (start < 0 || open < 0 || close < 0) {
+    throw new Error(`无法读取生成合同 ${constName}: ${file}`);
+  }
+  const entries = Array.from(
+    text
+      .slice(open + 2, close)
+      .matchAll(/\[\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\]/g),
+    (match) => [match[1], match[2]],
+  );
+  if (entries.length === 0) {
+    throw new Error(`生成合同 ${constName} 为空: ${file}`);
+  }
+  return new Map(entries);
 }
 
 function rustConstArrayBody(file, constName) {
@@ -749,8 +819,8 @@ function isAllowedApiInvokeConsumer(file) {
   return isInside(file, path.join(frontendSrc, "api"));
 }
 
-function isAllowedNativeDialogConsumer(_file) {
-  return false;
+function isAllowedNativeDialogConsumer(file) {
+  return allowedNativeDialogFiles.has(file);
 }
 
 function isAllowedBrowserStorageConsumer(file) {
@@ -896,6 +966,11 @@ function lineNumber(text, index) {
 function difference(left, right) {
   const rightSet = new Set(right);
   return left.filter((item) => !rightSet.has(item));
+}
+
+function intersection(left, right) {
+  const rightSet = new Set(right);
+  return left.filter((item) => rightSet.has(item));
 }
 
 function printSummary(label, commands) {

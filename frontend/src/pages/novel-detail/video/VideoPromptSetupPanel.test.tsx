@@ -52,25 +52,33 @@ describe("VideoPromptSetupPanel", () => {
       [3, recipe(3, "storyboard")],
       [4, recipe(4, "chat_video")],
     ]);
-    const renderSelected = (selectedSegmentNumber: number, acting: string | null = null) =>
-      renderToStaticMarkup(<VideoPromptSetupPanel
-        prompts={[]}
-        segmentCards={segmentCards}
-        segmentRecipes={segmentRecipes}
-        selectedSegmentNumber={selectedSegmentNumber}
-        planningDraftVisible={false}
-        selectedPromptId={null}
-        loading={false}
-        acting={acting}
-        savingRecipeSegments={new Set()}
-        finalPromptBlockedReasons={new Map()}
-        layout="selected"
-        onLoad={() => undefined}
-        onSelectPrompt={() => undefined}
-        onSelectSegment={() => undefined}
-        onWorkflowModeChange={() => undefined}
-        onDeletePrompt={() => undefined}
-      />);
+    const renderSelected = (
+      selectedSegmentNumber: number,
+      acting: string | null = null,
+    ) =>
+      renderToStaticMarkup(
+        <VideoPromptSetupPanel
+          prompts={[]}
+          segmentCards={segmentCards}
+          segmentRecipes={segmentRecipes}
+          selectedSegmentNumber={selectedSegmentNumber}
+          planningDraftVisible={false}
+          selectedPromptId={null}
+          loading={false}
+          acting={acting}
+          savingRecipeSegments={new Set()}
+          finalPromptBlockedReasons={new Map()}
+          timeline={null}
+          layout="selected"
+          onLoad={() => undefined}
+          onSelectPrompt={() => undefined}
+          onSelectSegment={() => undefined}
+          onWorkflowModeChange={() => undefined}
+          onDeletePrompt={() => undefined}
+          onInsertSegment={() => undefined}
+          onOpenInsertedSegment={() => undefined}
+        />,
+      );
     const firstSelected = renderSelected(1);
     const secondSelected = renderSelected(2);
 
@@ -80,7 +88,9 @@ describe("VideoPromptSetupPanel", () => {
     expect(firstSelected).not.toContain("首尾帧片段");
     expect(secondSelected).not.toContain("首尾帧片段");
     expect(secondSelected).not.toContain("首帧片段");
-    expect(firstSelected.match(/aria-label="片段 \d+ 生成方案"/g)).toHaveLength(1);
+    expect(firstSelected.match(/aria-label="片段 \d+ 生成方案"/g)).toHaveLength(
+      1,
+    );
     expect(firstSelected).toMatch(
       /aria-label="片段 1 生成方案"[\s\S]*?data-active="1"[^>]*>首帧续接<\/button>/,
     );
@@ -132,21 +142,120 @@ describe("VideoPromptSetupPanel", () => {
         acting={null}
         savingRecipeSegments={new Set()}
         finalPromptBlockedReasons={new Map()}
+        timeline={null}
         layout="index"
         onLoad={() => undefined}
         onSelectPrompt={() => undefined}
         onSelectSegment={() => undefined}
         onWorkflowModeChange={() => undefined}
         onDeletePrompt={() => undefined}
+        onInsertSegment={() => undefined}
+        onOpenInsertedSegment={() => undefined}
       />,
     );
 
     expect(html).toContain("片段一");
     expect(html).toContain("片段二");
     expect(html.match(/无需最终提示词/g)).toHaveLength(2);
-    expect(html).toContain("点击选择片段，再次点击打开配置");
+    expect(html).toContain("使用卡片间的“插入”补充镜头");
     expect(html).not.toContain('aria-label="片段 1 生成方案"');
     expect(html).not.toContain('aria-label="片段 2 生成方案"');
     expect(html).not.toContain("生成最终提示词");
+  });
+
+  it("integrates compact insert controls and inserted items into the segment index", () => {
+    const html = renderToStaticMarkup(
+      <VideoPromptSetupPanel
+        prompts={[]}
+        segmentCards={[
+          {
+            segmentNumber: 1,
+            title: "原生一",
+            sceneSummary: "",
+            durationSecs: 6,
+            aspectRatio: "16:9",
+            raw: {},
+          },
+          {
+            segmentNumber: 2,
+            title: "原生二",
+            sceneSummary: "",
+            durationSecs: 6,
+            aspectRatio: "16:9",
+            raw: {},
+          },
+        ]}
+        segmentRecipes={
+          new Map([
+            [1, recipe(1)],
+            [2, recipe(2)],
+          ])
+        }
+        selectedSegmentNumber={1}
+        planningDraftVisible={false}
+        selectedPromptId={null}
+        loading={false}
+        acting={null}
+        savingRecipeSegments={new Set()}
+        finalPromptBlockedReasons={new Map()}
+        timeline={{
+          id: 7,
+          project_id: 1,
+          chapter_id: 2,
+          revision: 3,
+          items: [
+            {
+              id: 11,
+              kind: "native",
+              status: "active",
+              display_index: 1,
+              segment_number: 1,
+              source_shot_id: "shot-1",
+              segment_index_in_shot: 0,
+              plan_prompt_id: null,
+              generated_video_id: null,
+              title: "原生一",
+            },
+            {
+              id: 18,
+              kind: "inserted",
+              status: "active",
+              display_index: 2,
+              segment_number: null,
+              source_shot_id: null,
+              segment_index_in_shot: null,
+              plan_prompt_id: 81,
+              generated_video_id: null,
+              title: "补充反应镜头",
+            },
+            {
+              id: 12,
+              kind: "native",
+              status: "active",
+              display_index: 3,
+              segment_number: 2,
+              source_shot_id: "shot-2",
+              segment_index_in_shot: 0,
+              plan_prompt_id: null,
+              generated_video_id: null,
+              title: "原生二",
+            },
+          ],
+        }}
+        layout="index"
+        onLoad={() => undefined}
+        onSelectPrompt={() => undefined}
+        onSelectSegment={() => undefined}
+        onWorkflowModeChange={() => undefined}
+        onDeletePrompt={() => undefined}
+        onInsertSegment={() => undefined}
+        onOpenInsertedSegment={() => undefined}
+      />,
+    );
+
+    expect(html).toContain("补充反应镜头");
+    expect(html).toContain("原生 #2");
+    expect(html.match(/aria-label="在[^\"]+插入片段"/g)).toHaveLength(4);
+    expect(html).not.toContain("时间线 · 可插入片段");
   });
 });

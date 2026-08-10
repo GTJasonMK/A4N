@@ -16,8 +16,17 @@ pub struct DocxParser;
 
 impl DocxParser {
     /// 从 DOCX 字节数据解析文本内容
-    pub fn parse(&self, data: &[u8]) -> Result<ParseResult, ImportTransformError> {
+    pub fn parse(
+        &self,
+        data: &[u8],
+        source_title: &str,
+    ) -> Result<ParseResult, ImportTransformError> {
         let archive = read_docx_archive(data)?;
-        parse_extracted_document(&archive.text_content, archive.metadata, Vec::new())
+        parse_extracted_document(
+            &archive.text_content,
+            archive.metadata,
+            Vec::new(),
+            source_title,
+        )
     }
 }

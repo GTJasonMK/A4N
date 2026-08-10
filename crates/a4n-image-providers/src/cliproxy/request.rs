@@ -1,7 +1,10 @@
-use super::super::support::{internal_error, prepare_reference_image_for_upload};
+use super::super::support::{
+    internal_error, prepare_reference_image_for_upload, prompt_with_reference_labels,
+    reference_image_field_name,
+};
 use super::CliProxyImageProvider;
 use a4n_core::error::AppError;
-use a4n_image::{ImageGenerationRequest, ImageReference};
+use a4n_image::ImageGenerationRequest;
 use reqwest::multipart::{Form, Part};
 use serde_json::{Value, json};
 
@@ -27,7 +30,7 @@ impl CliProxyImageProvider {
         if reference_images.is_empty() {
             return Err(internal_error("CLIProxy 图片编辑请求缺少参考图"));
         }
-        let prompt = prompt_with_reference_labels(req, reference_images);
+        let prompt = prompt_with_reference_labels(&req.prompt, reference_images);
         let mut form = Form::new()
             .text("model", req.model.clone())
             .text("prompt", prompt)
@@ -37,11 +40,7 @@ impl CliProxyImageProvider {
         if let Some(aspect_ratio) = image_aspect_ratio(req.width, req.height) {
             form = form.text("aspect_ratio", aspect_ratio);
         }
-        let field_name = if reference_images.len() == 1 {
-            "image"
-        } else {
-            "image[]"
-        };
+        let field_name = reference_image_field_name(reference_images.len());
         for (index, image) in reference_images.iter().enumerate() {
             let decoded = prepare_reference_image_for_upload(&image.data_uri)?;
             let filename = format!("reference_{}.{}", index + 1, decoded.format);
@@ -59,11 +58,7 @@ impl CliProxyImageProvider {
             return Ok(Self::generation_body(req));
         }
         let reference_images = &req.reference_images;
-        let field_name = if reference_images.len() == 1 {
-            "image"
-        } else {
-            "image[]"
-        };
+        let field_name = reference_image_field_name(reference_images.len());
         let files = reference_images
             .iter()
             .enumerate()
@@ -76,7 +71,7 @@ impl CliProxyImageProvider {
                 })
             })
             .collect::<Vec<_>>();
-        let prompt = prompt_with_reference_labels(req, reference_images);
+        let prompt = prompt_with_reference_labels(&req.prompt, reference_images);
         Ok(json!({
             "endpoint": "/images/edits",
             "content_type": "multipart/form-data",
@@ -93,21 +88,6 @@ impl CliProxyImageProvider {
             "files": files,
         }))
     }
-}
-fn prompt_with_reference_labels(
-    req: &ImageGenerationRequest,
-    reference_images: &[ImageReference],
-) -> String {
-    if reference_images.is_empty() {
-        return req.prompt.clone();
-    }
-    let refs = reference_images
-        .iter()
-        .enumerate()
-        .map(|(index, image)| format!("{}. {}", index + 1, image.label))
-        .collect::<Vec<_>>()
-        .join("\n");
-    format!("{}\n\n参考图绑定：\n{}", req.prompt, refs)
 }
 
 fn image_resolution(width: i32, height: i32) -> &'static str {

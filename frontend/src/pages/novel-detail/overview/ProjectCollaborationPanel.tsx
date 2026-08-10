@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { UserPlus } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import {
@@ -49,12 +49,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const mountedRef = useRef(false);
 
   const canManage = project.my_role === "owner" || project.my_role === "manager";
-  const canLeave = project.my_role != null && project.my_role !== "owner";
+  const canLeave = project.my_role !== "owner";
   const rootProjectId = project.collaboration_root_project_id;
-  const visibleInvites = useMemo(
-    () => invites.filter((invite) => invite.status === "pending"),
-    [invites],
-  );
 
   const load = useCallback(async () => {
     const requestSeq = loadSeqRef.current + 1;
@@ -288,7 +284,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
               <div className="truncate text-small text-book-text-muted">{member.email}</div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {canManage && !member.is_owner ? (
+              {canManage && member.role !== "owner" ? (
                 <select
                   value={member.role}
                   aria-label={`调整 ${member.username} 的角色`}
@@ -306,10 +302,10 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                 </select>
               ) : (
                 <span className="text-small text-book-text-muted">
-                  {PROJECT_ACCESS_ROLE_LABELS[member.role] || member.role}
+                  {PROJECT_ACCESS_ROLE_LABELS[member.role]}
                 </span>
               )}
-              {canManage && !member.is_owner ? (
+              {canManage && member.role !== "owner" ? (
                 <Dropdown
                   items={[
                     {
@@ -326,18 +322,18 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
         ))}
       </ul>
 
-      {canManage && visibleInvites.length > 0 && (
+      {canManage && invites.length > 0 && (
         <section className="mt-4">
           <div className="text-small font-semibold text-book-text-muted">待处理邀请</div>
           <ul aria-label="待处理邀请" className="mt-2 space-y-2">
-            {visibleInvites.map((invite) => (
+            {invites.map((invite) => (
               <li
                 key={invite.id}
                 className="a4n-flat-surface grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-small text-book-text-sub"
               >
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-book-text-main">
-                    {invite.invitee_username || invite.invitee_email || `用户 ${invite.invitee_user_id}`}
+                    {invite.invitee_username}
                   </span>
                   <span className="mt-0.5 block text-book-text-muted">
                     {PROJECT_ACCESS_ROLE_LABELS[invite.role]}

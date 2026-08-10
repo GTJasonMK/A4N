@@ -8,17 +8,17 @@ import {
   getThemeCssVariables,
   importTheme,
   listThemes,
-  listUserThemes,
   updateTheme,
   type Theme,
+  type ThemeMode,
 } from "../../../api/theme";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { useAuthStore } from "../../../store/auth";
 import { applyActiveTheme } from "../../../theme/activeTheme";
 import { copyTextToClipboard } from "../../../utils/clipboard";
-import { PRESET_VARS_DARK, PRESET_VARS_LIGHT } from "./presets";
-import { type ThemeMode, type ThemeScope } from "./types";
+import { readThemePreset } from "./presets";
+import { type ThemeScope } from "./types";
 
 export const useThemeTabController = () => {
   const { addToast } = useToast();
@@ -37,11 +37,11 @@ export const useThemeTabController = () => {
   const [exportingId, setExportingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState("");
-  const scopeKey = `${scope}:${user?.id ?? "anonymous"}`;
+  const userKey = String(user?.id ?? "anonymous");
   const mountedRef = useRef(true);
-  const activeScopeKeyRef = useRef(scopeKey);
+  const activeUserKeyRef = useRef(userKey);
   const refreshSeqRef = useRef(0);
-  const refreshInFlightScopeRef = useRef<string | null>(null);
+  const refreshInFlightUserRef = useRef<string | null>(null);
   const activateSeqRef = useRef(0);
   const activatingRef = useRef<number | null>(null);
   const createSeqRef = useRef(0);
@@ -66,7 +66,7 @@ export const useThemeTabController = () => {
     importingRef.current ||
     renamingRef.current != null;
 
-  activeScopeKeyRef.current = scopeKey;
+  activeUserKeyRef.current = userKey;
   renamingIdRef.current = renamingId;
   renameValueRef.current = renameValue;
 
@@ -74,7 +74,7 @@ export const useThemeTabController = () => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      refreshInFlightScopeRef.current = null;
+      refreshInFlightUserRef.current = null;
       activateSeqRef.current += 1;
       activatingRef.current = null;
       createSeqRef.current += 1;
@@ -92,68 +92,74 @@ export const useThemeTabController = () => {
     };
   }, []);
 
-  const isCurrentScope = useCallback((requestScopeKey: string) => {
-    return mountedRef.current && activeScopeKeyRef.current === requestScopeKey;
+  const isCurrentUser = useCallback((requestUserKey: string) => {
+    return mountedRef.current && activeUserKeyRef.current === requestUserKey;
   }, []);
 
-  const isCurrentRefresh = useCallback((requestScopeKey: string, seq: number) => {
-    return isCurrentScope(requestScopeKey) && refreshSeqRef.current === seq;
-  }, [isCurrentScope]);
+  const isCurrentRefresh = useCallback(
+    (requestUserKey: string, seq: number) =>
+      isCurrentUser(requestUserKey) && refreshSeqRef.current === seq,
+    [isCurrentUser],
+  );
 
   const refresh = useCallback(async (options?: { force?: boolean }) => {
-    const requestScopeKey = scopeKey;
-    if (!options?.force && refreshInFlightScopeRef.current === requestScopeKey) return;
-    refreshInFlightScopeRef.current = requestScopeKey;
+    const requestUserKey = userKey;
+    if (!options?.force && refreshInFlightUserRef.current === requestUserKey) return;
+    refreshInFlightUserRef.current = requestUserKey;
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const listPromise = user
-        ? scope === "user"
-          ? listUserThemes(user.id)
-          : listThemes(user.id)
-        : Promise.resolve([]);
+      const listPromise = user ? listThemes(user.id) : Promise.resolve([]);
       const data = await listPromise;
-      if (!isCurrentRefresh(requestScopeKey, requestSeq)) return;
+      if (!isCurrentRefresh(requestUserKey, requestSeq)) return;
       setThemes(data);
     } catch (err) {
-      if (!isCurrentRefresh(requestScopeKey, requestSeq)) return;
+      if (!isCurrentRefresh(requestUserKey, requestSeq)) return;
       addToast(extractErrorMessage(err, "加载主题列表失败"), "error");
     } finally {
       if (
-        refreshInFlightScopeRef.current === requestScopeKey &&
+        refreshInFlightUserRef.current === requestUserKey &&
         refreshSeqRef.current === requestSeq
       ) {
-        refreshInFlightScopeRef.current = null;
+        refreshInFlightUserRef.current = null;
       }
-      if (isCurrentRefresh(requestScopeKey, requestSeq)) setLoading(false);
+      if (isCurrentRefresh(requestUserKey, requestSeq)) setLoading(false);
     }
-  }, [addToast, isCurrentRefresh, scope, scopeKey, user]);
+  }, [addToast, isCurrentRefresh, user, userKey]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   useEffect(() => {
+    activateSeqRef.current += 1;
+    activatingRef.current = null;
+    createSeqRef.current += 1;
+    creatingRef.current = false;
     exportSeqRef.current += 1;
     exportingRef.current = null;
     cssSeqRef.current += 1;
     cssRef.current = null;
-    if (refreshInFlightScopeRef.current !== scopeKey) {
-      refreshInFlightScopeRef.current = null;
+    if (refreshInFlightUserRef.current !== userKey) {
+      refreshInFlightUserRef.current = null;
     }
     deleteSeqRef.current += 1;
     deletingRef.current = null;
+    importSeqRef.current += 1;
+    importingRef.current = false;
     renameSeqRef.current += 1;
     renamingRef.current = null;
     setThemes([]);
     setActivating(null);
     setDeleting(null);
+    setCreating(false);
     setExportingId(null);
+    setImporting(false);
     setRenamingId(null);
     setRenameValue("");
     setRenameSaving(false);
-  }, [scopeKey]);
+  }, [userKey]);
 
   useEffect(() => {
     if (renamingId != null && !themes.some((theme) => theme.id === renamingId)) {
@@ -177,21 +183,22 @@ export const useThemeTabController = () => {
 
   const handleActivate = async (id: number) => {
     if (hasThemeMutationInFlight()) return;
+    const requestUserKey = userKey;
     const requestSeq = activateSeqRef.current + 1;
     activateSeqRef.current = requestSeq;
     activatingRef.current = id;
     setActivating(id);
     try {
       const activated = await activateTheme(id);
-      if (!mountedRef.current || activateSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserKey) || activateSeqRef.current !== requestSeq) return;
       applyActiveTheme(activated);
       addToast("已激活主题", "success");
       await refresh({ force: true });
     } catch (err) {
-      if (!mountedRef.current || activateSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserKey) || activateSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, "激活失败"), "error");
     } finally {
-      if (mountedRef.current && activateSeqRef.current === requestSeq) {
+      if (isCurrentUser(requestUserKey) && activateSeqRef.current === requestSeq) {
         activatingRef.current = null;
         setActivating(null);
       }
@@ -211,8 +218,8 @@ export const useThemeTabController = () => {
       if (deletingRef.current === id) deletingRef.current = null;
       return;
     }
-    const requestScopeKey = scopeKey;
-    if (!isCurrentScope(requestScopeKey)) {
+    const requestUserKey = userKey;
+    if (!isCurrentUser(requestUserKey)) {
       if (deletingRef.current === id) deletingRef.current = null;
       return;
     }
@@ -221,15 +228,15 @@ export const useThemeTabController = () => {
     setDeleting(id);
     try {
       await deleteTheme(id);
-      if (!isCurrentScope(requestScopeKey) || deleteSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserKey) || deleteSeqRef.current !== requestSeq) return;
       addToast("已删除主题", "success");
       await refresh({ force: true });
     } catch (err) {
-      if (!isCurrentScope(requestScopeKey) || deleteSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserKey) || deleteSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, "删除失败"), "error");
     } finally {
       if (deleteSeqRef.current === requestSeq) deletingRef.current = null;
-      if (isCurrentScope(requestScopeKey) && deleteSeqRef.current === requestSeq) setDeleting(null);
+      if (isCurrentUser(requestUserKey) && deleteSeqRef.current === requestSeq) setDeleting(null);
     }
   };
 
@@ -240,6 +247,7 @@ export const useThemeTabController = () => {
       return;
     }
     const trimmedName = newName.trim();
+    const requestUserKey = userKey;
     const requestSeq = createSeqRef.current + 1;
     createSeqRef.current = requestSeq;
     creatingRef.current = true;
@@ -249,18 +257,18 @@ export const useThemeTabController = () => {
       await createTheme({
         name: trimmedName,
         mode: requestMode,
-        css_variables: requestMode === "dark" ? PRESET_VARS_DARK : PRESET_VARS_LIGHT,
+        css_variables: readThemePreset(requestMode),
       });
-      if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserKey) || createSeqRef.current !== requestSeq) return;
       addToast(`已创建主题：${trimmedName}`, "success");
       setNewName((current) => (current.trim() === trimmedName ? "" : current));
       await refresh({ force: true });
     } catch (err) {
-      if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserKey) || createSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, "创建主题失败"), "error");
     } finally {
       if (createSeqRef.current === requestSeq) creatingRef.current = false;
-      if (mountedRef.current && createSeqRef.current === requestSeq) {
+      if (isCurrentUser(requestUserKey) && createSeqRef.current === requestSeq) {
         setCreating(false);
       }
     }
@@ -281,7 +289,7 @@ export const useThemeTabController = () => {
     }
     const currentTheme = themes.find((theme) => theme.id === renamingId);
     if (currentTheme && currentTheme.name.trim() === renameValue.trim()) return;
-    const requestScopeKey = scopeKey;
+    const requestUserKey = userKey;
     const requestRenamingId = renamingId;
     const requestName = renameValue.trim();
     const requestSeq = renameSeqRef.current + 1;
@@ -291,7 +299,7 @@ export const useThemeTabController = () => {
     try {
       await updateTheme(requestRenamingId, { name: requestName });
       if (
-        !isCurrentScope(requestScopeKey) ||
+        !isCurrentUser(requestUserKey) ||
         renameSeqRef.current !== requestSeq
       ) {
         return;
@@ -310,7 +318,7 @@ export const useThemeTabController = () => {
       await refresh({ force: true });
     } catch (err) {
       if (
-        !isCurrentScope(requestScopeKey) ||
+        !isCurrentUser(requestUserKey) ||
         renameSeqRef.current !== requestSeq
       ) {
         return;
@@ -374,26 +382,32 @@ export const useThemeTabController = () => {
     importSeqRef.current = requestSeq;
     importingRef.current = true;
     const requestText = importText.trim();
+    const requestUserKey = userKey;
     setImporting(true);
     try {
       await importTheme(requestText);
-      if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserKey) || importSeqRef.current !== requestSeq) return;
       addToast("已导入主题", "success");
       setImportText((current) => (current.trim() === requestText ? "" : current));
       await refresh({ force: true });
     } catch (err) {
-      if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+      if (!isCurrentUser(requestUserKey) || importSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, "导入失败"), "error");
     } finally {
       if (importSeqRef.current === requestSeq) importingRef.current = false;
-      if (mountedRef.current && importSeqRef.current === requestSeq) {
+      if (isCurrentUser(requestUserKey) && importSeqRef.current === requestSeq) {
         setImporting(false);
       }
     }
   };
 
+  const visibleThemes =
+    scope === "user" && user
+      ? themes.filter((theme) => theme.user_id === user.id)
+      : themes;
+
   return {
-    themes,
+    themes: visibleThemes,
     scope,
     loading,
     activating,

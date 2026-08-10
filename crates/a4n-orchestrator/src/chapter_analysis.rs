@@ -17,7 +17,6 @@ mod workflow;
 
 pub use outputs::{
     ChapterAnalysisOutputError, chapter_analysis_foreshadowing_drafts,
-    ensure_chapter_analysis_character_sync_completed,
 };
 pub use workflow::{
     ChapterAnalysisCheckpointIncomplete, ChapterAnalysisResumeBlockReason,

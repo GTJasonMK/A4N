@@ -5,8 +5,7 @@ use crate::protocol::{
     validate_video_provider_request,
 };
 use crate::providers::{
-    video_delete_output, video_generation_output, video_job_output, video_request_preview,
-    video_status_output,
+    video_delete_output, video_job_output, video_request_preview, video_status_output,
 };
 use a4n_core::error::AppError;
 use a4n_model_discovery::{
@@ -14,33 +13,11 @@ use a4n_model_discovery::{
 };
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use a4n_sidecar_bootstrap::{service_event_ndjson_response, single_service_event_stream};
+use a4n_video::VideoProvider;
 use a4n_video_providers::pick_video_provider;
 use axum::{Json, response::IntoResponse};
 use serde_json::Value;
-
-pub(crate) async fn generate(
-    Json(request): Json<ServiceRequest<VideoProviderPayload>>,
-) -> Json<ServiceResponse<VideoGenerationOutput>> {
-    if let Err(error) = validate_video_provider_request(&request) {
-        return Json(error_response(&request, error));
-    }
-    let result = async {
-        let provider = pick_video_provider(
-            &request.payload.backend,
-            &request.payload.base_url,
-            &request.payload.api_key,
-        )?;
-        provider
-            .generate(
-                request.payload.request.clone(),
-                request.payload.provider_idempotency_key_sha256.as_deref(),
-            )
-            .await
-            .map(video_generation_output)
-    }
-    .await;
-    Json(result_response(&request, result))
-}
+use std::future::Future;
 
 pub(crate) async fn generate_events(
     Json(request): Json<ServiceRequest<VideoProviderPayload>>,
@@ -55,9 +32,14 @@ pub(crate) async fn generate_events(
     service_event_ndjson_response(video_generation_event_stream(request), "video generation")
 }
 
-pub(crate) async fn poll(
-    Json(request): Json<ServiceRequest<VideoPollPayload>>,
-) -> Json<ServiceResponse<VideoJobOutput>> {
+async fn execute_video_job_operation<T, F, Fut>(
+    request: ServiceRequest<VideoPollPayload>,
+    operation: F,
+) -> Json<ServiceResponse<T>>
+where
+    F: FnOnce(Box<dyn VideoProvider>, String) -> Fut,
+    Fut: Future<Output = Result<T, AppError>>,
+{
     if let Err(error) = validate_video_poll_request(&request) {
         return Json(error_response(&request, error));
     }
@@ -67,55 +49,37 @@ pub(crate) async fn poll(
             &request.payload.base_url,
             &request.payload.api_key,
         )?;
-        provider
-            .poll(&request.payload.job_id)
-            .await
-            .map(video_job_output)
+        operation(provider, request.payload.job_id.clone()).await
     }
     .await;
     Json(result_response(&request, result))
+}
+
+pub(crate) async fn poll(
+    Json(request): Json<ServiceRequest<VideoPollPayload>>,
+) -> Json<ServiceResponse<VideoJobOutput>> {
+    execute_video_job_operation(request, |provider, job_id| async move {
+        provider.poll(&job_id).await.map(video_job_output)
+    })
+    .await
 }
 
 pub(crate) async fn status(
     Json(request): Json<ServiceRequest<VideoPollPayload>>,
 ) -> Json<ServiceResponse<VideoStatusOutput>> {
-    if let Err(error) = validate_video_poll_request(&request) {
-        return Json(error_response(&request, error));
-    }
-    let result = async {
-        let provider = pick_video_provider(
-            &request.payload.backend,
-            &request.payload.base_url,
-            &request.payload.api_key,
-        )?;
-        provider
-            .status(&request.payload.job_id)
-            .await
-            .map(video_status_output)
-    }
-    .await;
-    Json(result_response(&request, result))
+    execute_video_job_operation(request, |provider, job_id| async move {
+        provider.status(&job_id).await.map(video_status_output)
+    })
+    .await
 }
 
 pub(crate) async fn delete(
     Json(request): Json<ServiceRequest<VideoPollPayload>>,
 ) -> Json<ServiceResponse<VideoDeleteOutput>> {
-    if let Err(error) = validate_video_poll_request(&request) {
-        return Json(error_response(&request, error));
-    }
-    let result = async {
-        let provider = pick_video_provider(
-            &request.payload.backend,
-            &request.payload.base_url,
-            &request.payload.api_key,
-        )?;
-        provider
-            .delete(&request.payload.job_id)
-            .await
-            .map(video_delete_output)
-    }
-    .await;
-    Json(result_response(&request, result))
+    execute_video_job_operation(request, |provider, job_id| async move {
+        provider.delete(&job_id).await.map(video_delete_output)
+    })
+    .await
 }
 
 pub(crate) async fn request_preview(

@@ -13,6 +13,10 @@ const meta: ProgressMeta = {
   unitLabel: "片段",
   itemIndex: 2,
   itemTotal: 5,
+  parentStageCode: null,
+  severity: "info",
+  estimated: false,
+  persistent: false,
 };
 
 describe("progress presentation", () => {

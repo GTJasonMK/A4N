@@ -1,12 +1,10 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 
-use parking_lot::RwLock;
 use tera::{Context, Tera};
 
 use a4n_core::error::AppError;
 
-use crate::engine::{DependencyGraph, GraphEdge, GraphNode, PromptEntry, PromptVersion};
+use crate::engine::{PromptCategory, PromptEntry, PromptVersion};
 
 use super::state::TeraPromptEngine;
 use super::variables::missing_template_variables;
@@ -77,36 +75,6 @@ impl TeraPromptEngine {
         Ok(history)
     }
 
-    pub(super) fn prompt_at_version(
-        &self,
-        name: &str,
-        version: &str,
-    ) -> Result<PromptEntry, AppError> {
-        let entries = self.entries.read();
-        let current = entries
-            .get(name)
-            .ok_or_else(|| Self::prompt_not_found(name))?;
-        if current.version == version {
-            return Ok(current.clone());
-        }
-        if let Some(history) = self.version_log.read().get(name) {
-            for item in history {
-                if item.version == version
-                    && let Some(content) = &item.content_snapshot
-                {
-                    let mut entry = current.clone();
-                    entry.content = content.clone();
-                    entry.version = item.version.clone();
-                    entry.modified_at = item.timestamp;
-                    return Ok(entry);
-                }
-            }
-        }
-        Err(AppError::NotFound(format!(
-            "版本 {version} 不存在于提示词 {name}"
-        )))
-    }
-
     pub(super) fn prompt_diff(
         &self,
         name: &str,
@@ -153,23 +121,21 @@ impl TeraPromptEngine {
             .map_err(|error| AppError::Internal(anyhow::anyhow!("模板变量解析失败: {error}")))
     }
 
-    pub(super) fn prompt_dependency_graph(&self) -> DependencyGraph {
-        let entries = self.entries.read();
-        let mut nodes = Vec::new();
-        let mut edges = Vec::new();
-        for entry in entries.values() {
-            nodes.push(GraphNode {
-                name: entry.name.clone(),
-                category: entry.category.clone(),
+    pub(super) fn prompt_categories(&self) -> Result<Vec<PromptCategory>, AppError> {
+        let registry = self.registry.read();
+        let mut categories = Vec::with_capacity(registry.categories().len());
+        for (key, value) in registry.categories() {
+            categories.push(PromptCategory {
+                key: key.clone(),
+                label: value.label.clone(),
+                order: value
+                    .order
+                    .ok_or_else(|| AppError::ConfigError(format!("提示词分类 {key} 缺少 order")))?,
+                description: value.description.clone(),
             });
-            for dependency in &entry.dependencies {
-                edges.push(GraphEdge {
-                    from: entry.name.clone(),
-                    to: dependency.clone(),
-                });
-            }
         }
-        DependencyGraph { nodes, edges }
+        categories.sort_by_key(|category| (category.order, category.key.clone()));
+        Ok(categories)
     }
 
     pub(super) fn render_prompt_ab(
@@ -198,9 +164,5 @@ impl TeraPromptEngine {
             .render(template_name, &context)
             .map_err(|error| AppError::Internal(anyhow::anyhow!("渲染失败: {error}")))?;
         Ok((current, original))
-    }
-
-    pub(super) fn prompt_registry(&self) -> Arc<RwLock<crate::registry::PromptRegistry>> {
-        self.registry.clone()
     }
 }

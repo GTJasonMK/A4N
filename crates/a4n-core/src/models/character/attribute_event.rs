@@ -3,6 +3,11 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// 时间线记录来源。旧数据库无法可靠回溯来源，迁移时统一标为未知。
+pub const SOURCE_KIND_LEGACY_UNKNOWN: &str = "legacy_unknown";
+pub const SOURCE_KIND_USER: &str = "user";
+pub const SOURCE_KIND_AI_SYNC: &str = "ai_sync";
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "attribute_event")]
 pub struct Model {
@@ -10,6 +15,7 @@ pub struct Model {
     pub id: i64,
     pub profile_id: i64,
     pub chapter_number: i32,
+    pub source_kind: String,
     pub timestamp: chrono::NaiveDateTime,
 
     /// 属性分类：explicit / implicit / social

@@ -130,24 +130,6 @@ macro_rules! project_web_project_input_value_command {
     };
 }
 
-macro_rules! project_web_project_string_value_command {
-    ($name:ident, $arg:literal, $action:path) => {
-        pub(in crate::routes::commands) async fn $name(
-            state: &$crate::state::ServerState,
-            user_id: i64,
-            args: &serde_json::Value,
-        ) -> Result<serde_json::Value, $crate::routes::commands::ApiError> {
-            let project_id = $crate::routes::commands::i64_arg(args, "projectId")?;
-            let value = $crate::routes::commands::string_arg(args, $arg)?;
-            $crate::routes::commands::to_value(
-                $action(state.runtime(), user_id, project_id, &value)
-                    .await
-                    .map_err($crate::routes::commands::ApiError::bad_request)?,
-            )
-        }
-    };
-}
-
 macro_rules! project_web_status_command {
     ($name:ident, $action:path) => {
         pub(in crate::routes::commands) async fn $name(
@@ -156,8 +138,16 @@ macro_rules! project_web_status_command {
             args: &serde_json::Value,
         ) -> Result<serde_json::Value, $crate::routes::commands::ApiError> {
             let project_id = $crate::routes::commands::i64_arg(args, "projectId")?;
-            let target = $crate::routes::commands::string_arg(args, "target")?;
-            let project = $action(state.runtime(), user_id, project_id, &target)
+            let target = serde_json::from_value::<a4n_api_contract::project::ProjectStatus>(
+                $crate::routes::commands::required_arg(args, "target")?.clone(),
+            )
+            .map_err(|error| {
+                $crate::routes::commands::ApiError::bad_request(format!(
+                    "{}.target 无效: {error}",
+                    stringify!($name)
+                ))
+            })?;
+            let project = $action(state.runtime(), user_id, project_id, target)
                 .await
                 .map_err($crate::routes::commands::ApiError::bad_request)?;
             super::macros::project_summary_value(state, user_id, &project).await
@@ -169,7 +159,6 @@ pub(super) use project_web_input_summary_command;
 pub(super) use project_web_input_value_command;
 pub(super) use project_web_project_input_value_command;
 pub(super) use project_web_project_node_value_command;
-pub(super) use project_web_project_string_value_command;
 pub(super) use project_web_project_unit_command;
 pub(super) use project_web_project_value_command;
 pub(super) use project_web_status_command;

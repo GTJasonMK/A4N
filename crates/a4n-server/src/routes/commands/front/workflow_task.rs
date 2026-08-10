@@ -104,7 +104,7 @@ pub(in crate::routes::commands) async fn cancel_generation_task(
     let input: CancelGenerationTaskInput = command_input(args, "cancel_generation_task")?;
     let handle = generation_task_actions::cancel_generation_task(state.runtime(), user_id, input)
         .await
-        .map_err(ApiError::bad_request)?;
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
     to_value(handle)
 }
 

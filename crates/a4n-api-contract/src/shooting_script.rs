@@ -1,44 +1,58 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
+pub use a4n_domain::shooting_script::{
+    CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1,
+    ShootingBlockingV1, ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
+    ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDialogueCueV1,
+    ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
+    ShootingSceneV1, ShootingScriptValidationError, ShootingShotSizeV1, ShootingShotV1,
+    ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingTransitionContractV1,
+    ShootingViewpointModeV1, ShootingViewpointV1,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct GetChapterShootingScriptInput {
+pub struct ChapterShootingScriptSourceInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
-    pub source_chapter_id: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct GenerateChapterShootingScriptInput {
-    pub project_id: i64,
+    #[schemars(range(min = 1))]
     pub source_chapter_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct EditChapterShootingScriptRecordInput {
+pub struct EditChapterShootingScriptInput {
+    #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(range(min = 1))]
     pub source_chapter_id: i64,
+    #[schemars(range(min = 1))]
     pub record_id: i64,
+    #[schemars(range(min = 1))]
     pub expected_revision: i32,
-    pub script: Value,
+    pub script: ChapterShootingScriptV1,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ChapterShootingScriptRecordSummary {
+    pub id: i64,
+    pub revision: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterShootingScriptView {
-    pub record: Value,
-    pub script: Value,
+    pub record: ChapterShootingScriptRecordSummary,
+    pub script: ChapterShootingScriptV1,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterShootingScriptUnitProgressView {
     pub workflow_run_id: i64,
-    pub script: Value,
+    pub script: ChapterShootingScriptV1,
     pub completed_unit_count: usize,
     pub total_unit_count: usize,
-    pub shooting_script: Option<ChapterShootingScriptView>,
+    pub completed_record: Option<ChapterShootingScriptRecordSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::shooting_script::{
+use a4n_domain::shooting_script::{
     ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingCoverageV1,
     ShootingDialogueCueV1, ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingShotSizeV1,
     ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingTransitionContractV1,

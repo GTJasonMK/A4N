@@ -6,8 +6,8 @@ use a4n_runtime::AppState;
 use a4n_runtime::host_api::auth_records as auth_actions;
 use a4n_runtime::host_api::oauth::{OAuth2AuthorizeInput, OAuth2CallbackInput};
 use auth_actions::{
-    AuthResult, ChangePasswordInput, LoginInput, OAuth2LoginResult, RefreshTokenInput,
-    RegisterInput, SessionSummary, TokenPairSummary, UpdateProfileInput, UserSummary,
+    AuthResult, ChangePasswordInput, LoginInput, RefreshTokenInput, RegisterInput, SessionSummary,
+    TokenPairSummary, UpdateProfileInput, UserSummary,
 };
 use tauri::State;
 
@@ -41,8 +41,8 @@ auth_command!(
     auth_actions::change_user_password_for_user(state.inner(), user_id, user_id, input)
 );
 auth_command!(
-    logout_user(state, user_id: Option<i64>, session_id: Option<String>) -> (),
-    auth_actions::logout_user(state.inner(), user_id, session_id.as_deref())
+    logout_user(state, user_id: i64, session_id: String) -> (),
+    auth_actions::revoke_session(state.inner(), user_id, &session_id)
 );
 auth_command!(
     refresh_token(state, input: RefreshTokenInput) -> TokenPairSummary,
@@ -54,7 +54,7 @@ auth_command!(
 );
 auth_command!(
     list_sessions(state, user_id: i64) -> Vec<SessionSummary>,
-    auth_actions::list_sessions_for_user(state.inner(), user_id, user_id)
+    auth_actions::list_sessions(state.inner(), user_id)
 );
 #[tauri::command]
 pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, String> {
@@ -65,7 +65,7 @@ pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, Strin
 pub async fn oauth2_callback(
     state: State<'_, AppState>,
     input: OAuth2CallbackInput,
-) -> Result<OAuth2LoginResult, String> {
+) -> Result<AuthResult, String> {
     auth_actions::oauth2_callback_login(state.inner(), input, Some("a4n-tauri"))
         .await
         .map_err(|e| e.to_string())

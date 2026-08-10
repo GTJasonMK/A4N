@@ -35,6 +35,12 @@ pub(in crate::routes::commands) fn i64_arg(args: &Value, key: &str) -> Result<i6
         .ok_or_else(|| ApiError::bad_request(format!("{key} 必须是正整数")))
 }
 
+pub(in crate::routes::commands) fn bool_arg(args: &Value, key: &str) -> Result<bool, ApiError> {
+    required_arg(args, key)?
+        .as_bool()
+        .ok_or_else(|| ApiError::bad_request(format!("{key} 必须是布尔值")))
+}
+
 pub(in crate::routes::commands) fn nullable_i64_arg(
     args: &Value,
     key: &str,

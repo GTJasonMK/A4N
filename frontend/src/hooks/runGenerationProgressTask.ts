@@ -52,8 +52,6 @@ export async function runGenerationProgressTaskThen<T>(
       cancelTask: async () => {
         await generationClient.cancel(handle);
       },
-      // generation 任务的进度来自事件订阅，禁止叠加旧 Host 轮询通道。
-      pollTaskProgress: false,
     },
     async (control) => {
       const task = await generationClient.waitForTerminal(handle, (current) => {

@@ -294,33 +294,27 @@ export const SessionManager: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const mountedRef = useRef(false);
-  const loadSeqRef = useRef(0);
-  const refreshSeqRef = useRef(0);
   const refreshBusyRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      loadSeqRef.current += 1;
-      refreshSeqRef.current += 1;
       refreshBusyRef.current = false;
     };
   }, []);
 
   const load = async () => {
-    const requestSeq = loadSeqRef.current + 1;
-    loadSeqRef.current = requestSeq;
     setLoading(true);
     try {
       const nextSessions = await listSessions();
-      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
+      if (!mountedRef.current) return;
       setSessions(nextSessions);
     } catch (err) {
-      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
+      if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, "加载会话失败"), "error");
     } finally {
-      if (mountedRef.current && loadSeqRef.current === requestSeq) setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   };
 
@@ -331,20 +325,18 @@ export const SessionManager: React.FC = () => {
 
   const handleRefresh = async () => {
     if (refreshBusyRef.current) return;
-    const requestSeq = refreshSeqRef.current + 1;
-    refreshSeqRef.current = requestSeq;
     refreshBusyRef.current = true;
     setRefreshBusy(true);
     try {
-      await refreshToken("");
-      if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
+      await refreshToken();
+      if (!mountedRef.current) return;
       addToast("登录凭证已更新", "success");
     } catch (err) {
-      if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
+      if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, "刷新失败"), "error");
     } finally {
-      if (refreshSeqRef.current === requestSeq) refreshBusyRef.current = false;
-      if (mountedRef.current && refreshSeqRef.current === requestSeq) setRefreshBusy(false);
+      refreshBusyRef.current = false;
+      if (mountedRef.current) setRefreshBusy(false);
     }
   };
 
@@ -396,9 +388,8 @@ export const SessionManager: React.FC = () => {
 };
 
 const SessionRow: React.FC<{ session: SessionSummary }> = ({ session }) => {
-  const expiresAt = session.expires_at ? new Date(session.expires_at) : null;
-  const expired = Boolean(expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt <= new Date());
-  const status = session.is_revoked ? "已撤销" : expired ? "已过期" : "活跃";
+  const expiresAt = new Date(session.expires_at);
+  const status = !Number.isNaN(expiresAt.getTime()) && expiresAt <= new Date() ? "已过期" : "活跃";
   return (
     <li className="a4n-flat-surface p-3 text-small">
       <div className="flex min-w-0 items-center gap-2">

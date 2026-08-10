@@ -6,7 +6,6 @@ mod generation;
 mod media;
 mod meta;
 mod projects;
-mod source_sync;
 mod temp_media;
 
 use crate::state::ServerState;
@@ -111,18 +110,6 @@ pub fn api_router(state: ServerState) -> Router {
             get(projects::list_source_snapshot_chapters),
         )
         .route("/projects/{project_id}", get(projects::get_project))
-        .route(
-            "/source-sync/preview",
-            post(source_sync::preview_source_sync),
-        )
-        .route(
-            "/source-sync/apply",
-            post(source_sync::apply_source_sync_decisions),
-        )
-        .route(
-            "/source-sync/detach",
-            post(source_sync::detach_derived_project),
-        )
         .with_state(state)
 }
 

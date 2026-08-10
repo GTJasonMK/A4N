@@ -1,12 +1,30 @@
 use super::errors::internal_error;
 use super::format::{detect_format_from_bytes, format_from_content_type};
 use a4n_core::error::AppError;
+use a4n_image::ImageReference;
 use base64::Engine as _;
 use image::GenericImageView;
 
 const MAX_REFERENCE_IMAGE_SIDE: u32 = 512;
 pub(super) const MAX_REFERENCE_IMAGE_BYTES: usize = 700 * 1024;
 const REFERENCE_JPEG_QUALITY: u8 = 88;
+
+pub(crate) fn reference_image_field_name(count: usize) -> &'static str {
+    if count == 1 { "image" } else { "image[]" }
+}
+
+pub(crate) fn prompt_with_reference_labels(
+    prompt: &str,
+    reference_images: &[ImageReference],
+) -> String {
+    let refs = reference_images
+        .iter()
+        .enumerate()
+        .map(|(index, image)| format!("{}. {}", index + 1, image.label))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("{prompt}\n\n参考图绑定：\n{refs}")
+}
 
 #[derive(Debug)]
 pub(crate) struct DecodedInputImage {

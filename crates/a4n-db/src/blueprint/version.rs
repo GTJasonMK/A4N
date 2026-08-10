@@ -28,16 +28,12 @@ pub async fn insert_blueprint_version_record<C>(
 where
     C: ConnectionTrait,
 {
-    let snapshots = blueprint_version_snapshots(&input.blueprint_data);
+    let _snapshots = blueprint_version_snapshots(&input.blueprint_data);
     Ok(blueprint_version::ActiveModel {
         project_id: Set(input.project_id),
         version: Set(input.version),
         change_description: Set(input.change_description),
         blueprint_data: Set(input.blueprint_data),
-        world_setting_snapshot: Set(snapshots.world_setting),
-        characters_snapshot: Set(snapshots.characters),
-        relationships_snapshot: Set(snapshots.relationships),
-        synopsis_snapshot: Set(snapshots.synopsis),
         created_at: Set(input.now),
         created_by: Set(input.created_by),
         ..Default::default()

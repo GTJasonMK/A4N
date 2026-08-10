@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import {
   formatItemMeta,
+  isGenericWaitingProgress,
   itemClassName,
   kindLabel,
   processStepBehavior,
@@ -567,11 +568,6 @@ function currentProcessStep(steps: StreamItem[] | undefined): StreamItem | null 
 
 function isMeaningfulProcessStep(step: StreamItem): boolean {
   return step.activity === "tool_result" || step.activity === "llm_response";
-}
-
-function isGenericWaitingProgress(step: StreamItem): boolean {
-  if (step.activity !== "progress") return false;
-  return /等待.*Agent.*(决策|回复)/.test(step.content);
 }
 
 function StreamIcon({

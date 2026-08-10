@@ -15,7 +15,7 @@ use response_parser::extract_chat_video_payload;
 
 use super::download::download_video_url;
 use super::format::detect_video_format_from_bytes;
-use super::response::parse_json_response;
+use super::transport::{self, ApiKeyAuth};
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
 
 /// Chat-Completions 视频 provider：把 `/v1/chat/completions` 当作视频生成网关。
@@ -83,22 +83,16 @@ impl VideoProvider for ChatCompletionsVideoProvider {
             req.fps
         );
 
-        let request = self
-            .client
-            .post(&url)
-            .bearer_auth(&self.api_key)
-            .json(&body);
-        let resp = crate::idempotency::with_provider_idempotency_key(
-            request,
+        let raw_value = transport::post_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::Bearer,
+            &url,
+            &body,
             provider_idempotency_key_sha256,
-        )?
-        .send()
-        .await
-        .map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("chat-completions 视频生成请求失败：{e}"))
-        })?;
-
-        let raw_value = parse_json_response(resp, "chat-completions 视频生成").await?;
+            "chat-completions 视频生成",
+        )
+        .await?;
         let raw_text = serde_json::to_string(&raw_value).map_err(|e| {
             AppError::Internal(anyhow::anyhow!(
                 "chat-completions 视频响应重新序列化失败：{e}"

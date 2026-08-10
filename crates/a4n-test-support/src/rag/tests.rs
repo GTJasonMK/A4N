@@ -53,7 +53,7 @@ fn embedding_record_preserves_identity_content_and_scope() {
 
     assert_eq!(record.id, "chapter:1:9:p1");
     assert_eq!(record.embedding, vec![1.0, 0.0]);
-    assert_eq!(record.content.as_deref(), Some("chapter:1:9:p1"));
+    assert_eq!(record.content, "chapter:1:9:p1");
     assert_eq!(record.metadata["project_id"], serde_json::json!(1));
     assert_eq!(record.metadata["data_type"], serde_json::json!("chapter"));
     assert_eq!(record.metadata["chapter_id"], serde_json::json!(9));

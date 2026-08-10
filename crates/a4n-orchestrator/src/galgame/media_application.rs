@@ -1,8 +1,12 @@
 use a4n_core::error::AppError;
-use async_trait::async_trait;
+use a4n_core::files::paths::ProjectPaths;
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     OrchestratorContext,
@@ -13,43 +17,10 @@ use crate::{
 };
 
 use super::{
-    GALGAME_ENTITY_LINE, GalgameMediaBindingResult, GalgameTargetContext,
-    media_rules::{
-        ImportedAudioSource, normalize_audio_role, normalize_galgame_media_role,
-        normalize_galgame_media_target_kind,
-    },
+    BindGalgameMediaInput, GalgameAudioRole, GalgameMediaBindingSummary, GalgameMediaRole,
+    GalgameMediaTargetKind, GalgameTargetContext, ImportGalgameAudioInput, UnbindGalgameMediaInput,
+    media_rules::ImportedAudioSource, read_models::galgame_media_binding_summary,
 };
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BindGalgameMediaInput {
-    pub project_id: i64,
-    pub media_asset_id: i64,
-    pub target_kind: String,
-    pub target_id: i64,
-    pub role: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UnbindGalgameMediaInput {
-    pub project_id: i64,
-    pub target_kind: String,
-    pub target_id: i64,
-    pub role: String,
-    pub media_asset_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ImportGalgameAudioInput {
-    pub project_id: i64,
-    pub target_line_id: i64,
-    pub role: String,
-    pub file_name: String,
-    pub mime_type: String,
-    pub data_base64: String,
-}
 
 #[derive(Debug, Clone)]
 pub struct PersistedGalgameAudioFile {
@@ -58,62 +29,59 @@ pub struct PersistedGalgameAudioFile {
     pub duration_secs: f32,
 }
 
-#[async_trait]
-pub trait GalgameAudioHostPort: Send + Sync {
-    fn persist_audio_file(
-        &self,
-        project_id: i64,
-        extension: &str,
-        bytes: &[u8],
-    ) -> Result<PersistedGalgameAudioFile, String>;
-
-    async fn remove_audio_file(&self, relative_path: &str) -> Result<(), String>;
-}
-
 impl OrchestratorContext {
     pub async fn bind_galgame_media_validated(
         &self,
         input: BindGalgameMediaInput,
-    ) -> Result<GalgameMediaBindingResult, AppError> {
+    ) -> Result<GalgameMediaBindingSummary, AppError> {
         if input.media_asset_id <= 0 {
             return Err(AppError::InvalidArgument(
                 "media_asset_id 必须是正整数".to_string(),
             ));
         }
-        let target_kind = normalize_galgame_media_target_kind(&input.target_kind)
-            .map_err(AppError::InvalidArgument)?;
-        let role = normalize_galgame_media_role(&target_kind, &input.role)
-            .map_err(AppError::InvalidArgument)?;
-        let required_media_kind = galgame_media_binding_required_media_kind(&target_kind, &role)
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "Galgame 媒体绑定目标/角色无效: {target_kind} / {role}"
-                ))
-            })?;
-        self.bind_galgame_media_records(
-            input.project_id,
-            input.media_asset_id,
-            &target_kind,
-            input.target_id,
-            &role,
-            required_media_kind,
+        let required_media_kind = galgame_media_binding_required_media_kind(
+            input.target_kind.as_str(),
+            input.role.as_str(),
         )
-        .await
+        .ok_or_else(|| {
+            AppError::InvalidArgument(format!(
+                "Galgame 媒体绑定目标/角色无效: {} / {}",
+                input.target_kind, input.role
+            ))
+        })?;
+        let result = self
+            .bind_galgame_media_records(
+                input.project_id,
+                input.media_asset_id,
+                input.target_kind.as_str(),
+                input.target_id,
+                input.role.as_str(),
+                required_media_kind,
+            )
+            .await?;
+        galgame_media_binding_summary(result.binding, result.asset)
     }
 
     pub async fn unbind_galgame_media_validated(
         &self,
         input: UnbindGalgameMediaInput,
     ) -> Result<u64, AppError> {
-        let target_kind = normalize_galgame_media_target_kind(&input.target_kind)
-            .map_err(AppError::InvalidArgument)?;
-        let role = normalize_galgame_media_role(&target_kind, &input.role)
-            .map_err(AppError::InvalidArgument)?;
+        if galgame_media_binding_required_media_kind(
+            input.target_kind.as_str(),
+            input.role.as_str(),
+        )
+        .is_none()
+        {
+            return Err(AppError::InvalidArgument(format!(
+                "Galgame 媒体绑定目标/角色无效: {} / {}",
+                input.target_kind, input.role
+            )));
+        }
         self.unbind_galgame_media_records(
             input.project_id,
-            &target_kind,
+            input.target_kind.as_str(),
             input.target_id,
-            &role,
+            input.role.as_str(),
             input.media_asset_id,
         )
         .await
@@ -122,25 +90,25 @@ impl OrchestratorContext {
     pub async fn galgame_media_target_context_validated(
         &self,
         project_id: i64,
-        target_kind: &str,
+        target_kind: GalgameMediaTargetKind,
         target_id: i64,
     ) -> Result<GalgameTargetContext, AppError> {
-        let target_kind =
-            normalize_galgame_media_target_kind(target_kind).map_err(AppError::InvalidArgument)?;
-        self.galgame_media_target_context(project_id, &target_kind, target_id)
+        self.galgame_media_target_context(project_id, target_kind.as_str(), target_id)
             .await
     }
 
     pub async fn import_galgame_audio_validated(
         &self,
-        host_port: &dyn GalgameAudioHostPort,
         input: ImportGalgameAudioInput,
-    ) -> Result<GalgameMediaBindingResult, AppError> {
-        let role = normalize_audio_role(&input.role).map_err(AppError::InvalidArgument)?;
+    ) -> Result<GalgameMediaBindingSummary, AppError> {
+        let role = match input.role {
+            GalgameAudioRole::Bgm => GalgameMediaRole::Bgm,
+            GalgameAudioRole::Sfx => GalgameMediaRole::Sfx,
+        };
         let target_context = self
             .galgame_media_target_context_validated(
                 input.project_id,
-                GALGAME_ENTITY_LINE,
+                GalgameMediaTargetKind::GalgameLine,
                 input.target_line_id,
             )
             .await?;
@@ -150,12 +118,16 @@ impl OrchestratorContext {
             &input.data_base64,
         )
         .map_err(AppError::InvalidArgument)?;
-        let persisted = host_port
-            .persist_audio_file(input.project_id, source.extension, &source.bytes)
-            .map_err(|operation| AppError::InvalidState {
-                current: "galgame_audio_persist".to_string(),
-                operation,
-            })?;
+        let persisted = persist_galgame_audio_file(
+            self.data_dir(),
+            input.project_id,
+            source.extension,
+            &source.bytes,
+        )
+        .map_err(|operation| AppError::InvalidState {
+            current: "galgame_audio_persist".to_string(),
+            operation,
+        })?;
         let asset_result = self
             .create_media_asset(CreateMediaAssetInput {
                 project_id: input.project_id,
@@ -199,10 +171,7 @@ impl OrchestratorContext {
             Err(error) => {
                 return Err(append_cleanup_error(
                     error,
-                    host_port
-                        .remove_audio_file(&persisted.relative_path)
-                        .await
-                        .err(),
+                    remove_galgame_audio_file(self.data_dir(), &persisted.relative_path).err(),
                 ));
             }
         };
@@ -211,7 +180,7 @@ impl OrchestratorContext {
             .bind_galgame_media_validated(BindGalgameMediaInput {
                 project_id: input.project_id,
                 media_asset_id: asset.id,
-                target_kind: GALGAME_ENTITY_LINE.to_string(),
+                target_kind: GalgameMediaTargetKind::GalgameLine,
                 target_id: input.target_line_id,
                 role,
             })
@@ -223,13 +192,110 @@ impl OrchestratorContext {
                     .delete_media_asset_with_provenance_records(asset.id)
                     .await
                 {
-                    Ok(()) => host_port.remove_audio_file(&persisted.relative_path).await,
+                    Ok(()) => remove_galgame_audio_file(self.data_dir(), &persisted.relative_path),
                     Err(error) => Err(error.to_string()),
                 };
                 Err(append_cleanup_error(error, cleanup_result.err()))
             }
         }
     }
+}
+
+fn persist_galgame_audio_file(
+    data_dir: &Path,
+    project_id: i64,
+    extension: &str,
+    bytes: &[u8],
+) -> Result<PersistedGalgameAudioFile, String> {
+    let dir = ProjectPaths::new(data_dir, project_id).root().join("audio");
+    std::fs::create_dir_all(&dir).map_err(|err| format!("无法创建 Galgame 音频目录：{err}"))?;
+    let (path, mut output_file) = create_unique_timestamped_file(&dir, "galgame_audio", extension)
+        .map_err(|error| format!("创建 Galgame 音频文件失败：{error}"))?;
+    output_file
+        .write_all(bytes)
+        .map_err(|err| format!("写入 Galgame 音频文件失败：{err}"))?;
+    let metadata =
+        std::fs::metadata(&path).map_err(|err| format!("无法读取 Galgame 音频文件元数据：{err}"))?;
+    let file_size = i64::try_from(metadata.len())
+        .map_err(|_| "Galgame 音频文件过大，无法记录文件大小".to_string())?;
+    let relative_path = data_dir_relative_path(data_dir, &path)?;
+    let duration_secs = a4n_media::probe_audio_duration_secs(&path).map_err(|error| {
+        let _ = std::fs::remove_file(&path);
+        format!("无法读取 Galgame 音频文件时长：{error}")
+    })?;
+    Ok(PersistedGalgameAudioFile {
+        relative_path,
+        file_size,
+        duration_secs,
+    })
+}
+
+fn remove_galgame_audio_file(data_dir: &Path, relative_path: &str) -> Result<(), String> {
+    let raw = Path::new(relative_path);
+    if raw.is_absolute() {
+        return Err("Galgame 音频路径必须是相对路径".to_string());
+    }
+    let canonical_data_dir = data_dir
+        .canonicalize()
+        .map_err(|error| format!("解析应用数据目录失败：{error}"))?;
+    let path = data_dir
+        .join(raw)
+        .canonicalize()
+        .map_err(|error| format!("解析 Galgame 音频路径失败：{error}"))?;
+    if !path.starts_with(&canonical_data_dir) {
+        return Err("Galgame 音频路径超出应用数据目录".to_string());
+    }
+    if path.is_file() {
+        std::fs::remove_file(&path).map_err(|error| format!("删除 Galgame 音频失败：{error}"))?;
+    }
+    Ok(())
+}
+
+fn data_dir_relative_path(data_dir: &Path, path: &Path) -> Result<String, String> {
+    let canonical_data_dir = data_dir
+        .canonicalize()
+        .map_err(|error| format!("解析应用数据目录失败：{error}"))?;
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|error| format!("解析文件路径失败：{error}"))?;
+    canonical_path
+        .strip_prefix(&canonical_data_dir)
+        .map_err(|_| "文件不在应用数据目录内".to_string())?
+        .to_str()
+        .map(str::to_string)
+        .ok_or_else(|| "文件相对路径包含非 UTF-8 字符".to_string())
+}
+
+fn create_unique_timestamped_file(
+    directory: &Path,
+    prefix: &str,
+    extension: &str,
+) -> Result<(PathBuf, std::fs::File), std::io::Error> {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?
+        .as_nanos();
+    for attempt in 0..20u32 {
+        let suffix = if attempt == 0 {
+            String::new()
+        } else {
+            format!("_{attempt}")
+        };
+        let path = directory.join(format!("{prefix}_{timestamp}{suffix}.{extension}"));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(file) => return Ok((path, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "文件名冲突过多",
+    ))
 }
 
 fn append_cleanup_error(primary: AppError, cleanup_error: Option<String>) -> AppError {

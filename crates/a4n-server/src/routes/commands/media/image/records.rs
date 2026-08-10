@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, ServerState, command_input, f32_arg, i64_arg, image_records_actions, to_value,
+    ApiError, ServerState, command_input, i64_arg, image_records_actions, to_value,
 };
 
 pub(in crate::routes::commands) async fn list_images_by_project(
@@ -49,18 +49,6 @@ pub(in crate::routes::commands) async fn list_video_reference_images(
     to_value(images)
 }
 
-pub(in crate::routes::commands) async fn toggle_image_favorite(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-) -> Result<Value, ApiError> {
-    let image_id = i64_arg(args, "imageId")?;
-    let updated = image_records_actions::toggle_image_favorite(state.runtime(), user_id, image_id)
-        .await
-        .map_err(ApiError::bad_request)?;
-    to_value(updated)
-}
-
 pub(in crate::routes::commands) async fn update_image(
     state: &ServerState,
     user_id: i64,
@@ -98,17 +86,4 @@ pub(in crate::routes::commands) async fn delete_image(
         .await
         .map_err(ApiError::bad_request)?;
     Ok(Value::Null)
-}
-
-pub(in crate::routes::commands) async fn score_image(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-) -> Result<Value, ApiError> {
-    let image_id = i64_arg(args, "imageId")?;
-    let score = f32_arg(args, "score")?;
-    let updated = image_records_actions::score_image(state.runtime(), user_id, image_id, score)
-        .await
-        .map_err(ApiError::bad_request)?;
-    to_value(updated)
 }

@@ -101,6 +101,7 @@ mod tests {
         // L2 归一化
         let norm: f32 = embeddings[0].iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 0.001);
+        provider.test_connection().await.expect("本地嵌入连接测试");
     }
 
     #[tokio::test]

@@ -1,6 +1,6 @@
 import React from "react";
 import { type ChapterData } from "../../api/chapter";
-import { type ChapterOutline } from "../../api/outline";
+import { isDerivedChapterOutline, type ChapterOutline } from "../../api/outline";
 
 interface AssistantContextPanelProps {
   chapters: ChapterData[];
@@ -23,7 +23,10 @@ const nextOutlineText = (
   activeNumber: number | null,
 ): { title: string | null; summary: string | null } | null => {
   if (activeNumber == null) return null;
-  const next = outlines.find((outline) => outline.chapter_number === activeNumber + 1);
+  const next = outlines.find(
+    (outline) =>
+      outline.chapter_number === activeNumber + 1 && !isDerivedChapterOutline(outline),
+  );
   if (!next) return null;
   const title = next.title?.trim();
   const summary = next.summary?.trim();

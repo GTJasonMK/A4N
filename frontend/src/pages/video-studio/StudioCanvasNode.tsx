@@ -1,6 +1,6 @@
 import React from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { loadVideoPlaybackData } from "../../api/video";
+import { loadVideoScrubPlaybackData } from "../../api/video";
 import {
   AlertTriangle,
   Download,
@@ -186,7 +186,7 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
     }
 
     setLoading(true);
-    void loadVideoPlaybackData(preview.generatedVideoId)
+    void loadVideoScrubPlaybackData(preview.generatedVideoId, true)
       .then((data) => {
         if (cancelled) return;
         objectUrl = videoPlaybackDataToObjectUrl(data);

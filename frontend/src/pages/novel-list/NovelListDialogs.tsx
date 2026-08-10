@@ -2,60 +2,15 @@ import React, { useState } from "react";
 import { ChevronRight,
   Film,
   FolderOpen,
-  History,
   Plus,
   Sparkles,
   Upload, } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
-import { ProjectStatusHistoryList } from "../../components/ProjectStatusHistoryList";
 import { ImportsTab } from "../novel-detail/ImportsTab";
-import type { ProjectStatusHistory } from "../../api/project";
 
-export type CreateMode = "ai" | "free" | "video_canvas" | "import";
-
-interface ProjectStatusHistoryDialogProps {
-  projectId: number | null;
-  history: ProjectStatusHistory[];
-  loading: boolean;
-  onClose: () => void;
-}
-
-export const ProjectStatusHistoryDialog: React.FC<ProjectStatusHistoryDialogProps> = ({
-  projectId,
-  history,
-  loading,
-  onClose,
-}) => {
-  if (projectId == null) return null;
-
-  return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title="状态变更历史"
-      icon={<History size={15} />}
-      maxWidthClassName="max-w-lg"
-      bodyClassName="px-4 py-4"
-    >
-      {loading ? (
-        <div className="text-xs text-book-text-muted inline-flex items-center gap-2">
-          <LoadingSpinner size="sm" /> 加载历史…
-        </div>
-      ) : history.length === 0 ? (
-        <div className="text-xs text-book-text-muted py-6 text-center">
-          该项目尚无状态变更记录
-        </div>
-      ) : (
-        <ProjectStatusHistoryList
-          history={history}
-          className="a4n-flat-surface"
-        />
-      )}
-    </Modal>
-  );
-};
+export type CreateMode = "ai" | "free" | "video_canvas";
 
 interface ProjectCreationDialogProps {
   open: boolean;
@@ -73,20 +28,14 @@ const CREATE_MODE_OPTIONS: Array<{
   {
     id: "ai",
     label: "AI 辅助创作",
-    description: "通过灵感对话梳理标题、核心摘要、角色和故事框架",
+    description: "从一个想法开始，由 AI 引导完成灵感、蓝图、大纲和正文",
     icon: <Sparkles size={14} />,
   },
   {
     id: "free",
     label: "自由创作",
-    description: "从空白草稿开始，之后可补充设定或导入已有文本",
+    description: "从已有设定、大纲、正文或空白章节开始，按需要使用 AI 补全",
     icon: <Plus size={14} />,
-  },
-  {
-    id: "import",
-    label: "导入分析",
-    description: "导入小说文件，提取蓝图、角色和章节大纲",
-    icon: <Upload size={14} />,
   },
   {
     id: "video_canvas",

@@ -1,67 +1,65 @@
-// 完整 token 集合（与 index.css :root / .dark 一致）
-// 创建新主题时作为默认值，使新主题颜色完整、不会因缺失 token 而退化。
-export const PRESET_VARS_LIGHT: Record<string, string> = {
-  "--color-primary": "139 69 19",
-  "--color-primary-light": "160 82 45",
-  "--color-primary-dark": "107 52 16",
-  "--color-primary-pale": "253 245 237",
-  "--color-accent": "160 82 45",
-  "--color-accent-light": "184 101 61",
-  "--color-accent-dark": "139 69 19",
-  "--color-accent-pale": "250 245 240",
-  "--color-text-primary": "44 24 16",
-  "--color-text-secondary": "93 64 55",
-  "--color-text-tertiary": "109 101 96",
-  "--color-text-placeholder": "141 133 128",
-  "--color-text-disabled": "176 168 160",
-  "--color-bg-primary": "249 245 240",
-  "--color-bg-secondary": "255 251 240",
-  "--color-bg-tertiary": "240 235 229",
-  "--color-bg-card-hover": "245 240 234",
-  "--color-bg-muted": "240 235 229",
-  "--color-bg-accent": "230 220 205",
-  "--color-border": "215 204 200",
-  "--color-border-light": "232 228 223",
-  "--color-border-dark": "196 192 188",
-  "--color-success": "74 159 110",
-  "--color-success-bg": "240 249 244",
-  "--color-error": "168 84 72",
-  "--color-error-bg": "253 243 242",
-  "--color-warning": "212 146 58",
-  "--color-warning-bg": "253 248 240",
-  "--color-info": "74 141 179",
-  "--color-info-bg": "240 246 250",
-  "--color-button-text": "255 251 240",
-  "--color-button-text-secondary": "44 24 16",
-};
+import { type ThemeMode } from "../../../api/theme";
 
-export const PRESET_VARS_DARK: Record<string, string> = {
-  "--color-primary": "232 155 108",
-  "--color-primary-light": "240 176 136",
-  "--color-primary-dark": "212 132 90",
-  "--color-primary-pale": "42 37 32",
-  "--color-accent": "212 132 90",
-  "--color-accent-light": "232 155 108",
-  "--color-accent-dark": "184 110 72",
-  "--color-accent-pale": "45 33 24",
-  "--color-text-primary": "232 223 212",
-  "--color-text-secondary": "156 139 122",
-  "--color-text-tertiary": "122 107 90",
-  "--color-text-placeholder": "90 77 64",
-  "--color-text-disabled": "74 63 53",
-  "--color-bg-primary": "28 23 20",
-  "--color-bg-secondary": "37 30 25",
-  "--color-bg-tertiary": "61 51 43",
-  "--color-bg-card-hover": "45 37 32",
-  "--color-bg-muted": "61 51 43",
-  "--color-bg-accent": "50 43 36",
-  "--color-border": "74 63 53",
-  "--color-border-light": "61 51 43",
-  "--color-border-dark": "90 77 64",
-  "--color-success-bg": "26 47 34",
-  "--color-error-bg": "45 31 28",
-  "--color-warning-bg": "45 37 24",
-  "--color-info-bg": "26 37 48",
-  "--color-button-text": "28 23 20",
-  "--color-button-text-secondary": "232 223 212",
-};
+const THEME_VARIABLE_NAMES = [
+  "--color-primary",
+  "--color-primary-light",
+  "--color-primary-dark",
+  "--color-primary-pale",
+  "--color-accent",
+  "--color-accent-light",
+  "--color-accent-dark",
+  "--color-accent-pale",
+  "--color-text-primary",
+  "--color-text-secondary",
+  "--color-text-tertiary",
+  "--color-text-placeholder",
+  "--color-text-disabled",
+  "--color-bg-primary",
+  "--color-bg-secondary",
+  "--color-bg-tertiary",
+  "--color-bg-card-hover",
+  "--color-bg-muted",
+  "--color-bg-accent",
+  "--color-border",
+  "--color-border-light",
+  "--color-border-dark",
+  "--status-success",
+  "--status-success-bg",
+  "--status-error",
+  "--status-error-bg",
+  "--status-warning",
+  "--status-warning-bg",
+  "--status-info",
+  "--status-info-bg",
+  "--color-button-text",
+  "--color-button-text-secondary",
+] as const;
+
+export function readThemePreset(mode: ThemeMode): Record<string, string> {
+  const root = document.documentElement;
+  const wasDark = root.classList.contains("dark");
+  const inlineValues = THEME_VARIABLE_NAMES.map((name) => ({
+    name,
+    value: root.style.getPropertyValue(name),
+    priority: root.style.getPropertyPriority(name),
+  }));
+
+  try {
+    for (const { name } of inlineValues) root.style.removeProperty(name);
+    root.classList.toggle("dark", mode === "dark");
+    const styles = getComputedStyle(root);
+    return Object.fromEntries(
+      THEME_VARIABLE_NAMES.map((name) => {
+        const value = styles.getPropertyValue(name).trim();
+        if (!value) throw new Error(`缺少内置主题变量：${name}`);
+        return [name, value];
+      }),
+    );
+  } finally {
+    root.classList.toggle("dark", wasDark);
+    for (const { name, value, priority } of inlineValues) {
+      if (value) root.style.setProperty(name, value, priority);
+      else root.style.removeProperty(name);
+    }
+  }
+}

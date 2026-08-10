@@ -1,4 +1,5 @@
-import type { EmbeddingConfig, LlmConfig, LlmMaxTokensConfig } from "./config";
+import type { LocalEmbeddingConfig } from "./config";
+import type { LlmConfigSummary, LlmMaxTokensConfig } from "./generated/config";
 import type {
   ImageConfigInput,
   ImageGenConfig,
@@ -7,14 +8,33 @@ import type {
 import type {
   CreateVideoConfigInput,
   UpdateVideoConfigInput,
+  VideoDurationMode,
   VideoGenConfig,
 } from "./video";
 import { readPortableItem, writePortableItem } from "../utils/portableStorage";
 import { usesLocalRuntimeSettings as runtimeUsesLocalRuntimeSettings } from "../utils/runtimeMode";
+import {
+  DEFAULT_LLM_MAX_TOKENS_CONFIG,
+  LLM_RESERVED_REQUEST_OPTION_KEYS,
+} from "./generated/config";
 
 const STORE_KEY = "a4n:local-runtime-settings:v1";
+const LOCAL_RUNTIME_SETTINGS_KEYS = [
+  "schema_version",
+  "next_id",
+  "llm",
+  "system_llm_api_key_encrypted",
+  "system_image_api_key_encrypted",
+  "system_video_api_key_encrypted",
+  "embedding",
+  "image",
+  "video",
+  "default_source",
+  "llm_max_tokens",
+] as const;
+const LOCAL_RUNTIME_DEFAULT_SOURCE_KEYS = ["llm", "image", "video"] as const;
 
-interface LocalLlmConfig extends LlmConfig {
+interface LocalLlmConfig extends LlmConfigSummary {
   api_key_encrypted?: string | null;
 }
 
@@ -25,7 +45,7 @@ interface LocalRuntimeSettings {
   system_llm_api_key_encrypted: string | null;
   system_image_api_key_encrypted: string | null;
   system_video_api_key_encrypted: string | null;
-  embedding: EmbeddingConfig[];
+  embedding: LocalEmbeddingConfig[];
   image: ImageGenConfig[];
   video: VideoGenConfig[];
   default_source: LocalRuntimeDefaultSource;
@@ -36,13 +56,13 @@ interface LocalRuntimeSettingsInput {
   schema_version: 1;
   next_id: number;
   llm: unknown[];
-  system_llm_api_key_encrypted?: unknown;
-  system_image_api_key_encrypted?: unknown;
-  system_video_api_key_encrypted?: unknown;
+  system_llm_api_key_encrypted: unknown;
+  system_image_api_key_encrypted: unknown;
+  system_video_api_key_encrypted: unknown;
   embedding: unknown[];
   image: unknown[];
   video: unknown[];
-  default_source?: unknown;
+  default_source: unknown;
   llm_max_tokens: LlmMaxTokensConfig;
 }
 
@@ -52,22 +72,6 @@ interface LocalRuntimeDefaultSource {
   video: "system" | "local";
 }
 
-const DEFAULT_LLM_MAX_TOKENS_CONFIG: LlmMaxTokensConfig = {
-  connection_test: 8,
-  short: 1024,
-  standard: 2048,
-  json_standard: 4096,
-  long: 8192,
-  extra_long: 8192,
-  chapter_generation: 8192,
-  chapter_analysis: 4096,
-  outline: 8192,
-  blueprint: 8192,
-  character_discovery: 8192,
-  character_sync: 8192,
-  media_prompt: 4096,
-};
-
 const LLM_MAX_TOKEN_KEYS = Object.keys(DEFAULT_LLM_MAX_TOKENS_CONFIG) as Array<
   keyof LlmMaxTokensConfig
 >;
@@ -75,31 +79,33 @@ const LLM_MAX_TOKEN_KEYS = Object.keys(DEFAULT_LLM_MAX_TOKENS_CONFIG) as Array<
 const DEFAULT_LOCAL_EMBEDDING_NAME = "基础本地哈希向量";
 const DEFAULT_LOCAL_EMBEDDING_MODEL = "local-sha256-hash";
 const DEFAULT_LOCAL_EMBEDDING_DIMENSION = 384;
-const RESERVED_LLM_EXTRA_BODY_KEYS = new Set([
-  "model",
-  "messages",
-  "stream",
-  "temperature",
-  "max_tokens",
-  "response_format",
-  "tools",
-  "tool_choice",
-  "stop",
-]);
-
 export function usesLocalRuntimeSettings(): boolean {
   return runtimeUsesLocalRuntimeSettings();
 }
 
 function defaultSettings(): LocalRuntimeSettings {
-  const settings: LocalRuntimeSettings = {
+  return {
     schema_version: 1,
-    next_id: 1,
+    next_id: 2,
     llm: [],
     system_llm_api_key_encrypted: null,
     system_image_api_key_encrypted: null,
     system_video_api_key_encrypted: null,
-    embedding: [],
+    embedding: [
+      {
+        id: 1,
+        name: DEFAULT_LOCAL_EMBEDDING_NAME,
+        backend: "local_hash",
+        base_url: null,
+        api_key_encrypted: null,
+        has_api_key: false,
+        model: DEFAULT_LOCAL_EMBEDDING_MODEL,
+        dimension: DEFAULT_LOCAL_EMBEDDING_DIMENSION,
+        batch_size: 100,
+        local_model_path: null,
+        is_default: true,
+      },
+    ],
     image: [],
     video: [],
     default_source: {
@@ -109,12 +115,6 @@ function defaultSettings(): LocalRuntimeSettings {
     },
     llm_max_tokens: { ...DEFAULT_LLM_MAX_TOKENS_CONFIG },
   };
-  ensureBaselineConfigs(settings);
-  return settings;
-}
-
-function nowIso(): string {
-  return new Date().toISOString();
 }
 
 function parseSettings(raw: string | null): LocalRuntimeSettings {
@@ -128,6 +128,11 @@ function parseSettings(raw: string | null): LocalRuntimeSettings {
     );
   }
   const payload = requiredObject(parsed, "本机运行时设置");
+  assertNoUnknownKeys(
+    payload,
+    LOCAL_RUNTIME_SETTINGS_KEYS,
+    "本机运行时设置",
+  );
   if (payload.schema_version !== 1) {
     throw new Error("本机运行时设置 schema_version 必须为 1");
   }
@@ -138,7 +143,7 @@ function parseSettings(raw: string | null): LocalRuntimeSettings {
     system_llm_api_key_encrypted: payload.system_llm_api_key_encrypted,
     system_image_api_key_encrypted: payload.system_image_api_key_encrypted,
     system_video_api_key_encrypted: payload.system_video_api_key_encrypted,
-    embedding: requiredArraySection<EmbeddingConfig>(payload, "embedding"),
+    embedding: requiredArraySection<LocalEmbeddingConfig>(payload, "embedding"),
     image: requiredArraySection<ImageGenConfig>(payload, "image"),
     video: requiredArraySection<VideoGenConfig>(payload, "video"),
     default_source: payload.default_source,
@@ -197,6 +202,21 @@ function optionalTrimmedString(value: unknown, field: string): string | null {
   return trimmed || null;
 }
 
+function requiredNullableCanonicalString(
+  value: unknown,
+  field: string,
+): string | null {
+  if (value === null) return null;
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.trim() !== value
+  ) {
+    throw new Error(`${field} 必须为 null 或首尾无空白的非空字符串`);
+  }
+  return value;
+}
+
 function requiredObject(
   value: unknown,
   field: string,
@@ -205,6 +225,19 @@ function requiredObject(
     throw new Error(`${field} 必须是 JSON 对象`);
   }
   return value as Record<string, unknown>;
+}
+
+function assertNoUnknownKeys(
+  payload: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  field: string,
+): void {
+  const unknownKey = Object.keys(payload).find(
+    (key) => !allowedKeys.includes(key),
+  );
+  if (unknownKey) {
+    throw new Error(`${field} 包含未知字段：${unknownKey}`);
+  }
 }
 
 function requiredArraySection<T>(
@@ -220,13 +253,11 @@ function requiredArraySection<T>(
 
 function normalizeLocalMaxTokensConfig(value: unknown): LlmMaxTokensConfig {
   const payload = requiredObject(value, "本机运行时设置 llm_max_tokens");
-  const allowedKeys = new Set<string>(LLM_MAX_TOKEN_KEYS);
-  const unknownKey = Object.keys(payload).find((key) => !allowedKeys.has(key));
-  if (unknownKey) {
-    throw new Error(
-      `本机运行时设置 llm_max_tokens 包含未知字段：${unknownKey}`,
-    );
-  }
+  assertNoUnknownKeys(
+    payload,
+    LLM_MAX_TOKEN_KEYS,
+    "本机运行时设置 llm_max_tokens",
+  );
   const result = {} as LlmMaxTokensConfig;
   for (const key of LLM_MAX_TOKEN_KEYS) {
     result[key] = requiredPositiveInt(
@@ -240,20 +271,19 @@ function normalizeLocalMaxTokensConfig(value: unknown): LlmMaxTokensConfig {
 function normalizeSettings(
   settings: LocalRuntimeSettingsInput,
 ): LocalRuntimeSettings {
-  ensureBaselineConfigs(settings);
   const normalized: LocalRuntimeSettings = {
     schema_version: 1,
     next_id: settings.next_id,
     llm: settings.llm.map(normalizeLocalLlmConfig),
-    system_llm_api_key_encrypted: optionalTrimmedString(
+    system_llm_api_key_encrypted: requiredNullableCanonicalString(
       settings.system_llm_api_key_encrypted,
       "本机运行时设置 system_llm_api_key_encrypted",
     ),
-    system_image_api_key_encrypted: optionalTrimmedString(
+    system_image_api_key_encrypted: requiredNullableCanonicalString(
       settings.system_image_api_key_encrypted,
       "本机运行时设置 system_image_api_key_encrypted",
     ),
-    system_video_api_key_encrypted: optionalTrimmedString(
+    system_video_api_key_encrypted: requiredNullableCanonicalString(
       settings.system_video_api_key_encrypted,
       "本机运行时设置 system_video_api_key_encrypted",
     ),
@@ -263,14 +293,19 @@ function normalizeSettings(
     default_source: normalizeDefaultSource(settings.default_source, settings),
     llm_max_tokens: settings.llm_max_tokens,
   };
+  if (normalized.embedding.length === 0) {
+    throw new Error("本机运行时设置 embedding 必须至少包含一个配置");
+  }
   ensureSingleDefault(normalized.llm, "llm");
   ensureSingleDefault(normalized.embedding, "embedding");
   ensureSingleDefault(normalized.image, "image");
   ensureSingleDefault(normalized.video, "video");
-  normalized.next_id = Math.max(
-    normalized.next_id,
-    maxExistingId(normalized) + 1,
-  );
+  const maxId = maxExistingId(normalized);
+  if (normalized.next_id <= maxId) {
+    throw new Error(
+      `本机运行时设置 next_id 必须大于当前最大配置 ID ${maxId}`,
+    );
+  }
   return normalized;
 }
 
@@ -278,14 +313,12 @@ function normalizeDefaultSource(
   value: unknown,
   settings: Pick<LocalRuntimeSettingsInput, "llm" | "image" | "video">,
 ): LocalRuntimeDefaultSource {
-  if (value == null) {
-    return {
-      llm: settings.llm.length > 0 ? "local" : "system",
-      image: settings.image.length > 0 ? "local" : "system",
-      video: settings.video.length > 0 ? "local" : "system",
-    };
-  }
   const payload = requiredObject(value, "本机运行时设置 default_source");
+  assertNoUnknownKeys(
+    payload,
+    LOCAL_RUNTIME_DEFAULT_SOURCE_KEYS,
+    "本机运行时设置 default_source",
+  );
   return {
     llm: normalizeDefaultSourceKind(payload.llm, settings.llm.length, "llm"),
     image: normalizeDefaultSourceKind(payload.image, settings.image.length, "image"),
@@ -298,15 +331,17 @@ function normalizeDefaultSourceKind(
   localCount: number,
   section: keyof LocalRuntimeDefaultSource,
 ): "system" | "local" {
-  if (value == null) return localCount > 0 ? "local" : "system";
-  if (typeof value !== "string") {
-    throw new Error(`本机运行时设置 default_source.${section} 必须是字符串`);
+  if (value !== "system" && value !== "local") {
+    throw new Error(
+      `本机运行时设置 default_source.${section} 无效：${String(value ?? "<missing>")}`,
+    );
   }
-  const normalized = value.trim();
-  if (normalized !== "system" && normalized !== "local") {
-    throw new Error(`本机运行时设置 default_source.${section} 无效：${normalized}`);
+  if (value === "local" && localCount === 0) {
+    throw new Error(
+      `本机运行时设置 default_source.${section}=local 时 ${section} 不能为空`,
+    );
   }
-  return normalized === "local" && localCount === 0 ? "system" : normalized;
+  return value;
 }
 
 function itemLabel(item: Record<string, unknown>, fallback: string): string {
@@ -320,6 +355,10 @@ function itemLabel(item: Record<string, unknown>, fallback: string): string {
 function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
   const item = requiredObject(value, "本机 LLM 配置");
   const label = itemLabel(item, "未命名 LLM");
+  const apiKey = optionalTrimmedString(
+    item.api_key_encrypted,
+    `本机 LLM 配置 ${label} api_key_encrypted`,
+  );
   const max_context_tokens = requiredPositiveInt(
     item.max_context_tokens,
     `本机 LLM 配置 ${label} max_context_tokens`,
@@ -344,10 +383,7 @@ function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
       item.base_url,
       `本机 LLM 配置 ${label} base_url`,
     ),
-    api_key_encrypted: optionalTrimmedString(
-      item.api_key_encrypted,
-      `本机 LLM 配置 ${label} api_key_encrypted`,
-    ),
+    api_key_encrypted: apiKey,
     model: requiredTrimmedString(item.model, `本机 LLM 配置 ${label} model`),
     max_concurrent: requiredPositiveInt(
       item.max_concurrent,
@@ -367,12 +403,7 @@ function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
       item.is_default,
       `本机 LLM 配置 ${label} is_default`,
     ),
-    has_api_key: Boolean(
-      optionalTrimmedString(
-        item.api_key_encrypted,
-        `本机 LLM 配置 ${label} api_key_encrypted`,
-      ),
-    ),
+    has_api_key: Boolean(apiKey),
   };
 }
 
@@ -383,7 +414,7 @@ function normalizeLlmExtraBody(
   if (value == null) return null;
   const payload = requiredObject(value, `${label} extra_body_json`);
   const reservedKey = Object.keys(payload).find((key) =>
-    RESERVED_LLM_EXTRA_BODY_KEYS.has(key.toLowerCase()),
+    LLM_RESERVED_REQUEST_OPTION_KEYS.includes(key.toLowerCase()),
   );
   if (reservedKey) {
     throw new Error(
@@ -393,7 +424,7 @@ function normalizeLlmExtraBody(
   return Object.keys(payload).length > 0 ? payload : null;
 }
 
-function normalizeLocalEmbeddingConfig(value: unknown): EmbeddingConfig {
+function normalizeLocalEmbeddingConfig(value: unknown): LocalEmbeddingConfig {
   const item = requiredObject(value, "本机 Embedding 配置");
   const label = itemLabel(item, "未命名 Embedding");
   const backend = requiredTrimmedString(
@@ -404,6 +435,10 @@ function normalizeLocalEmbeddingConfig(value: unknown): EmbeddingConfig {
     item.base_url,
     `本机 Embedding 配置 ${label} base_url`,
   );
+  const apiKey = optionalTrimmedString(
+    item.api_key_encrypted,
+    `本机 Embedding 配置 ${label} api_key_encrypted`,
+  );
   if (backend === "api" && !baseUrl) {
     throw new Error(`本机 Embedding 配置 ${label} api 后端必须填写 base_url`);
   }
@@ -412,10 +447,8 @@ function normalizeLocalEmbeddingConfig(value: unknown): EmbeddingConfig {
     name: requiredTrimmedString(item.name, `本机 Embedding 配置 ${label} name`),
     backend,
     base_url: baseUrl,
-    api_key_encrypted: optionalTrimmedString(
-      item.api_key_encrypted,
-      `本机 Embedding 配置 ${label} api_key_encrypted`,
-    ),
+    api_key_encrypted: apiKey,
+    has_api_key: Boolean(apiKey),
     model: requiredTrimmedString(
       item.model,
       `本机 Embedding 配置 ${label} model`,
@@ -477,14 +510,6 @@ function normalizeLocalImageConfig(value: unknown): ImageGenConfig {
       item.is_default,
       `本机图片配置 ${label} is_default`,
     ),
-    created_at: optionalTrimmedString(
-      item.created_at,
-      `本机图片配置 ${label} created_at`,
-    ),
-    updated_at: optionalTrimmedString(
-      item.updated_at,
-      `本机图片配置 ${label} updated_at`,
-    ),
   };
 }
 
@@ -501,8 +526,11 @@ function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
     1,
     60,
   );
-  const { durationMode, minDuration, maxDuration, supportedDurations } =
-    normalizeVideoDurationCapability(item, label, defaultDuration);
+  const durationCapability = normalizeVideoDurationCapability(
+    item,
+    label,
+    defaultDuration,
+  );
   const apiKey = optionalTrimmedString(
     item.api_key_encrypted,
     `本机视频配置 ${label} api_key_encrypted`,
@@ -533,10 +561,7 @@ function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
       `本机视频配置 ${label} default_height`,
     ),
     default_duration_secs: defaultDuration,
-    min_duration_secs: minDuration,
-    max_duration_secs: maxDuration,
-    duration_mode: durationMode,
-    supported_durations_json: supportedDurations,
+    ...durationCapability,
     default_fps: requiredIntRange(
       item.default_fps,
       `本机视频配置 ${label} default_fps`,
@@ -547,14 +572,6 @@ function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
       item.is_default,
       `本机视频配置 ${label} is_default`,
     ),
-    created_at: optionalTrimmedString(
-      item.created_at,
-      `本机视频配置 ${label} created_at`,
-    ),
-    updated_at: optionalTrimmedString(
-      item.updated_at,
-      `本机视频配置 ${label} updated_at`,
-    ),
   };
 }
 
@@ -562,18 +579,24 @@ function normalizeVideoDurationCapability(
   item: Record<string, unknown>,
   label: string,
   defaultDuration: number,
-): {
-  durationMode: "range" | "fixed";
-  minDuration: number;
-  maxDuration: number;
-  supportedDurations: number[] | null;
-} {
-  const rawMode = requiredTrimmedString(
-    item.duration_mode,
-    `本机视频配置 ${label} duration_mode`,
-  ).toLowerCase();
+):
+  | {
+      duration_mode: Extract<VideoDurationMode, "range">;
+      min_duration_secs: number;
+      max_duration_secs: number;
+      supported_durations_json: null;
+    }
+  | {
+      duration_mode: Extract<VideoDurationMode, "fixed">;
+      min_duration_secs: number;
+      max_duration_secs: number;
+      supported_durations_json: number[];
+    } {
+  const rawMode = item.duration_mode;
   if (rawMode !== "range" && rawMode !== "fixed") {
-    throw new Error(`本机视频配置 ${label} duration_mode 无效：${rawMode}`);
+    throw new Error(
+      `本机视频配置 ${label} duration_mode 无效：${String(rawMode ?? "<missing>")}`,
+    );
   }
   if (rawMode === "range") {
     if (item.supported_durations_json != null) {
@@ -604,10 +627,10 @@ function normalizeVideoDurationCapability(
       );
     }
     return {
-      durationMode: "range",
-      minDuration,
-      maxDuration,
-      supportedDurations: null,
+      duration_mode: "range",
+      min_duration_secs: minDuration,
+      max_duration_secs: maxDuration,
+      supported_durations_json: null,
     };
   }
 
@@ -646,10 +669,10 @@ function normalizeVideoDurationCapability(
     );
   }
   return {
-    durationMode: "fixed",
-    minDuration,
-    maxDuration,
-    supportedDurations,
+    duration_mode: "fixed",
+    min_duration_secs: minDuration,
+    max_duration_secs: maxDuration,
+    supported_durations_json: supportedDurations,
   };
 }
 
@@ -703,23 +726,6 @@ function ensureSingleDefault<T extends { is_default: boolean }>(
   }
 }
 
-function ensureBaselineConfigs(settings: LocalRuntimeSettingsInput): void {
-  if (settings.embedding.length > 0) return;
-  const id = allocateId(settings);
-  settings.embedding.push({
-    id,
-    name: DEFAULT_LOCAL_EMBEDDING_NAME,
-    backend: "local_hash",
-    base_url: null,
-    api_key_encrypted: null,
-    model: DEFAULT_LOCAL_EMBEDDING_MODEL,
-    dimension: DEFAULT_LOCAL_EMBEDDING_DIMENSION,
-    batch_size: 100,
-    local_model_path: null,
-    is_default: true,
-  });
-}
-
 function maxExistingId(settings: LocalRuntimeSettings): number {
   return Math.max(
     0,
@@ -764,18 +770,16 @@ function setSingleDefault<T extends { id: number; is_default: boolean }>(
   return target;
 }
 
-function removeById<T extends { id: number }>(items: T[], id: number): void {
+function removeById<T extends { id: number }>(items: T[], id: number): T {
   const index = items.findIndex((item) => item.id === id);
   if (index < 0) throw new Error(`本机配置不存在: ${id}`);
-  items.splice(index, 1);
+  return items.splice(index, 1)[0];
 }
 
 export function activeLocalLlmConfig(): LocalLlmConfig | null {
   const settings = readLocalRuntimeSettings();
   if (settings.default_source.llm === "system") return null;
-  return (
-    settings.llm.find((item) => item.is_default) ?? settings.llm[0] ?? null
-  );
+  return settings.llm.find((item) => item.is_default)!;
 }
 
 export function usesSystemDefaultLlmConfig(): boolean {
@@ -787,7 +791,7 @@ export function getSystemDefaultLlmApiKey(): string | null {
 }
 
 export function hasSystemDefaultLlmApiKey(): boolean {
-  return Boolean(getSystemDefaultLlmApiKey()?.trim());
+  return getSystemDefaultLlmApiKey() !== null;
 }
 
 export function updateSystemDefaultLlmApiKey(
@@ -804,7 +808,7 @@ export function getSystemDefaultImageApiKey(): string | null {
 }
 
 export function hasSystemDefaultImageApiKey(): boolean {
-  return Boolean(getSystemDefaultImageApiKey()?.trim());
+  return getSystemDefaultImageApiKey() !== null;
 }
 
 export function updateSystemDefaultImageApiKey(
@@ -821,7 +825,7 @@ export function getSystemDefaultVideoApiKey(): string | null {
 }
 
 export function hasSystemDefaultVideoApiKey(): boolean {
-  return Boolean(getSystemDefaultVideoApiKey()?.trim());
+  return getSystemDefaultVideoApiKey() !== null;
 }
 
 export function updateSystemDefaultVideoApiKey(
@@ -877,7 +881,6 @@ export function createLocalLlmConfig(input: {
       max_output_tokens: input.max_output_tokens,
       extra_body_json: input.extra_body_json ?? null,
       is_default: isFirstLlmConfig,
-      has_api_key: Boolean(input.api_key_encrypted?.trim()),
     });
     settings.llm.push(item);
     return item;
@@ -913,13 +916,11 @@ export function updateLocalLlmConfig(
     if (input.base_url != null) item.base_url = input.base_url.trim();
     if (input.api_key_encrypted === null) {
       item.api_key_encrypted = null;
-      item.has_api_key = false;
     } else if (
       input.api_key_encrypted != null &&
       input.api_key_encrypted.trim()
     ) {
       item.api_key_encrypted = input.api_key_encrypted.trim();
-      item.has_api_key = true;
     }
     if (input.model != null) item.model = input.model.trim();
     if (input.max_concurrent != null)
@@ -959,10 +960,8 @@ export function setSystemDefaultLlmConfig(): void {
 
 export function deleteLocalLlmConfig(id: number): void {
   mutateSettings((settings) => {
-    const wasDefault =
-      settings.llm.find((item) => item.id === id)?.is_default ?? false;
-    removeById(settings.llm, id);
-    if (wasDefault && settings.llm[0]) settings.llm[0].is_default = true;
+    const removed = removeById(settings.llm, id);
+    if (removed.is_default && settings.llm[0]) settings.llm[0].is_default = true;
     if (settings.llm.length === 0) settings.default_source.llm = "system";
   });
 }
@@ -976,8 +975,7 @@ export function updateLocalLlmMaxTokensConfig(
 ): LlmMaxTokensConfig {
   return mutateSettings((settings) => {
     const nextConfig = normalizeLocalMaxTokensConfig(input);
-    const activeLlm =
-      settings.llm.find((item) => item.is_default) ?? settings.llm[0] ?? null;
+    const activeLlm = settings.llm.find((item) => item.is_default) ?? null;
     if (activeLlm) {
       assertMaxTokensWithinModelCap(nextConfig, activeLlm.max_output_tokens);
     }
@@ -989,9 +987,7 @@ export function updateLocalLlmMaxTokensConfig(
 export function activeLocalImageConfig(): ImageGenConfig | null {
   const settings = readLocalRuntimeSettings();
   if (settings.default_source.image === "system") return null;
-  return (
-    settings.image.find((item) => item.is_default) ?? settings.image[0] ?? null
-  );
+  return settings.image.find((item) => item.is_default)!;
 }
 
 export function usesSystemDefaultImageConfig(): boolean {
@@ -1025,8 +1021,6 @@ export function createLocalImageConfig(
       default_width: input.default_width,
       default_height: input.default_height,
       is_default: isFirstImageConfig,
-      created_at: nowIso(),
-      updated_at: nowIso(),
     });
     settings.image.push(item);
     return item;
@@ -1052,7 +1046,6 @@ export function updateLocalImageConfig(
     item.max_concurrent = input.max_concurrent;
     item.default_width = input.default_width;
     item.default_height = input.default_height;
-    item.updated_at = nowIso();
     const normalized = normalizeLocalImageConfig(item);
     Object.assign(item, normalized);
     return normalized;
@@ -1074,10 +1067,8 @@ export function setSystemDefaultImageConfig(): void {
 
 export function deleteLocalImageConfig(id: number): void {
   mutateSettings((settings) => {
-    const wasDefault =
-      settings.image.find((item) => item.id === id)?.is_default ?? false;
-    removeById(settings.image, id);
-    if (wasDefault && settings.image[0]) settings.image[0].is_default = true;
+    const removed = removeById(settings.image, id);
+    if (removed.is_default && settings.image[0]) settings.image[0].is_default = true;
     if (settings.image.length === 0) settings.default_source.image = "system";
   });
 }
@@ -1085,9 +1076,7 @@ export function deleteLocalImageConfig(id: number): void {
 export function activeLocalVideoConfig(): VideoGenConfig | null {
   const settings = readLocalRuntimeSettings();
   if (settings.default_source.video === "system") return null;
-  return (
-    settings.video.find((item) => item.is_default) ?? settings.video[0] ?? null
-  );
+  return settings.video.find((item) => item.is_default)!;
 }
 
 export function usesSystemDefaultVideoConfig(): boolean {
@@ -1127,8 +1116,6 @@ export function createLocalVideoConfig(
       supported_durations_json: input.supported_durations_json ?? null,
       default_fps: input.default_fps,
       is_default: isFirstVideoConfig,
-      created_at: nowIso(),
-      updated_at: nowIso(),
     });
     settings.video.push(item);
     return item;
@@ -1157,7 +1144,6 @@ export function updateLocalVideoConfig(
     item.duration_mode = input.duration_mode;
     item.supported_durations_json = input.supported_durations_json ?? null;
     item.default_fps = input.default_fps;
-    item.updated_at = nowIso();
     if (requestedApiKey !== undefined) {
       item.api_key_encrypted = requestedApiKey?.trim() || null;
     }
@@ -1182,24 +1168,18 @@ export function setSystemDefaultVideoConfig(): void {
 
 export function deleteLocalVideoConfig(id: number): void {
   mutateSettings((settings) => {
-    const wasDefault =
-      settings.video.find((item) => item.id === id)?.is_default ?? false;
-    removeById(settings.video, id);
-    if (wasDefault && settings.video[0]) settings.video[0].is_default = true;
+    const removed = removeById(settings.video, id);
+    if (removed.is_default && settings.video[0]) settings.video[0].is_default = true;
     if (settings.video.length === 0) settings.default_source.video = "system";
   });
 }
 
-export function activeLocalEmbeddingConfig(): EmbeddingConfig | null {
+export function activeLocalEmbeddingConfig(): LocalEmbeddingConfig {
   const settings = readLocalRuntimeSettings();
-  return (
-    settings.embedding.find((item) => item.is_default) ??
-    settings.embedding[0] ??
-    null
-  );
+  return settings.embedding.find((item) => item.is_default)!;
 }
 
-export function getLocalEmbeddingConfig(id: number): EmbeddingConfig {
+export function getLocalEmbeddingConfig(id: number): LocalEmbeddingConfig {
   const item = readLocalRuntimeSettings().embedding.find(
     (row) => row.id === id,
   );
@@ -1207,7 +1187,7 @@ export function getLocalEmbeddingConfig(id: number): EmbeddingConfig {
   return item;
 }
 
-export function listLocalEmbeddingConfigs(): EmbeddingConfig[] {
+export function listLocalEmbeddingConfigs(): LocalEmbeddingConfig[] {
   return readLocalRuntimeSettings().embedding;
 }
 
@@ -1220,7 +1200,7 @@ export function createLocalEmbeddingConfig(input: {
   dimension: number;
   batch_size: number;
   local_model_path?: string | null;
-}): EmbeddingConfig {
+}): LocalEmbeddingConfig {
   return mutateSettings((settings) => {
     const item = normalizeLocalEmbeddingConfig({
       id: allocateId(settings),
@@ -1251,7 +1231,7 @@ export function updateLocalEmbeddingConfig(
     batch_size: number | null;
     local_model_path?: string | null;
   }>,
-): EmbeddingConfig {
+): LocalEmbeddingConfig {
   return mutateSettings((settings) => {
     const item = settings.embedding.find((row) => row.id === id);
     if (!item) throw new Error(`本机 Embedding 配置不存在: ${id}`);
@@ -1285,10 +1265,10 @@ export function setDefaultLocalEmbeddingConfig(id: number): void {
 
 export function deleteLocalEmbeddingConfig(id: number): void {
   mutateSettings((settings) => {
-    const wasDefault =
-      settings.embedding.find((item) => item.id === id)?.is_default ?? false;
-    removeById(settings.embedding, id);
-    if (wasDefault && settings.embedding[0])
-      settings.embedding[0].is_default = true;
+    const removed = removeById(settings.embedding, id);
+    if (settings.embedding.length === 0) {
+      throw new Error("本机 Embedding 配置必须至少保留一个");
+    }
+    if (removed.is_default) settings.embedding[0].is_default = true;
   });
 }

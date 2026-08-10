@@ -2,12 +2,16 @@ import React, { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useToast } from "../../components/feedback/Toast";
 import { ProgressDialog } from "../../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../api";
 import {
   acceptImportReview,
+  applyImportAnalysisBlueprintCandidate,
+  applyImportAnalysisPartOutlineCandidate,
   batchAcceptReviews,
   cancelImportAnalysis,
   checkImportDedup,
+  confirmReverseEngineeringCandidate,
   deleteImportReview,
   getImportAnalysisStatus,
   getProjectImportAnalysisProgress,
@@ -21,11 +25,8 @@ import {
   previewReverseEngineerPartOutlineRequest,
   rejectImportReview,
   reverseEngineerBlueprint,
-  reverseEngineerBlueprintAndApply,
   reverseEngineerOutline,
-  reverseEngineerOutlineAndApply,
   reverseEngineerPartOutline,
-  reverseEngineerPartOutlineAndApply,
   runImportProjectAnalysis,
   startImportAnalysis,
   updateImportStatus,
@@ -35,9 +36,14 @@ import {
   type ProjectImportAnalysisProgress,
 } from "../../api/import";
 import type { ModelRequestPreview } from "../../api/requestPreview";
-import { cancelHostWorkflowTask } from "../../api/streaming";
+import {
+  cancelWorkflow,
+  getWorkflowRunDetail,
+  listWorkflowRuns,
+} from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { isJsonRecord } from "../../utils/jsonRecord";
 import { ImportFilePanel } from "./imports/ImportFilePanel";
 import { ImportReviewDetailPanel } from "./imports/ImportReviewDetailPanel";
 import {
@@ -45,12 +51,17 @@ import {
   type ReviewAction,
 } from "./imports/ImportReviewQueuePanel";
 import { ImportToolsPanel } from "./imports/ImportToolsPanel";
+import { ImportBlueprintCandidatePanel } from "./imports/ImportBlueprintCandidatePanel";
+import { ImportPartOutlineCandidatePanel } from "./imports/ImportPartOutlineCandidatePanel";
 import {
   REVERSE_CONTEXT_LIMITS,
   dedupStats,
   delay,
   emptyImportAnalysisDialog,
   importAnalysisDialogFromProgress,
+  parseReverseCandidateEnvelope,
+  reverseCandidateFromCheckpoint,
+  reversePromptName,
   type ImportAnalysisDialogState,
   type ReverseType,
 } from "./imports/importTabUtils";
@@ -82,6 +93,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
   const [importBusy, setImportBusy] = useState(false);
   const [analyzeBusy, setAnalyzeBusy] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [candidateApplyBusy, setCandidateApplyBusy] = useState<"blueprint" | "parts" | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
   const [activeReview, setActiveReview] = useState<ImportReview | null>(null);
@@ -97,6 +109,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
   const importSeqRef = useRef(0);
   const analysisSeqRef = useRef(0);
   const cancelAnalysisSeqRef = useRef(0);
+  const candidateApplySeqRef = useRef(0);
   const batchSeqRef = useRef(0);
   const actSeqRef = useRef(0);
   const detailSeqRef = useRef(0);
@@ -109,10 +122,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
   const importBusyRef = useRef(false);
   const analyzeBusyRef = useRef(false);
   const cancelBusyRef = useRef(false);
+  const candidateApplyBusyRef = useRef<"blueprint" | "parts" | null>(null);
   const batchBusyRef = useRef(false);
   const actBusyRef = useRef<string | null>(null);
   const dedupBusyRef = useRef(false);
   const reverseBusyRef = useRef(false);
+  const reverseConfirmBusyRef = useRef(false);
   const requestPreviewBusyRef = useRef(false);
   const [actBusy, setActBusy] = useState<string | null>(null);
   const [dedupText, setDedupText] = useState("");
@@ -122,7 +137,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
   const [reverseSample, setReverseSample] = useState("");
   const [reverseAutoContext, setReverseAutoContext] = useState(true);
   const [reverseResult, setReverseResult] = useState<unknown>(null);
-  const [reverseBusy, setReverseBusy] = useState<"preview" | "apply" | null>(null);
+  const [reverseBusy, setReverseBusy] = useState<"preview" | null>(null);
+  const [reverseConfirmBusy, setReverseConfirmBusy] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
@@ -136,8 +152,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     analyzeBusy ||
     cancelBusy ||
     batchBusy ||
+    candidateApplyBusy !== null ||
     actBusy !== null ||
-    reverseBusy === "apply";
+    reverseBusy !== null ||
+    reverseConfirmBusy;
 
   // 导入新文件
   const [importFileName, setImportFileName] = useState("");
@@ -195,25 +213,40 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
   const analysisInProgress = canCancelAnalysis();
   const fileExternalBusy =
     analysisInProgress ||
+    candidateApplyBusy !== null ||
     batchBusy ||
     actBusy !== null ||
     dedupBusy ||
-    reverseBusy !== null;
-  const reviewExternalBusy = importBusy || dedupBusy || reverseBusy !== null;
+    reverseBusy !== null ||
+    reverseConfirmBusy;
+  const reviewExternalBusy =
+    importBusy ||
+    candidateApplyBusy !== null ||
+    dedupBusy ||
+    reverseBusy !== null ||
+    reverseConfirmBusy;
   const detailExternalBusy =
     importBusy ||
     analysisInProgress ||
+    candidateApplyBusy !== null ||
     batchBusy ||
     dedupBusy ||
-    reverseBusy !== null;
+    reverseBusy !== null ||
+    reverseConfirmBusy;
   const toolsExternalBusy =
-    importBusy || analysisInProgress || batchBusy || actBusy !== null;
+    importBusy ||
+    analysisInProgress ||
+    candidateApplyBusy !== null ||
+    batchBusy ||
+    actBusy !== null ||
+    reverseConfirmBusy;
 
   const invalidateProjectScopedRequests = () => {
     loadRequestRef.current += 1;
     importSeqRef.current += 1;
     analysisSeqRef.current += 1;
     cancelAnalysisSeqRef.current += 1;
+    candidateApplySeqRef.current += 1;
     batchSeqRef.current += 1;
     actSeqRef.current += 1;
     detailSeqRef.current += 1;
@@ -223,10 +256,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     importBusyRef.current = false;
     analyzeBusyRef.current = false;
     cancelBusyRef.current = false;
+    candidateApplyBusyRef.current = null;
     batchBusyRef.current = false;
     actBusyRef.current = null;
     dedupBusyRef.current = false;
     reverseBusyRef.current = false;
+    reverseConfirmBusyRef.current = false;
     requestPreviewBusyRef.current = false;
   };
 
@@ -279,6 +314,46 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     }
   };
 
+  const restoreLatestReverseCandidate = async (
+    requestProjectId: number,
+    requestReverseType: ReverseType,
+  ) => {
+    const requestSeq = nextSequence(reverseSeqRef);
+    try {
+      const runs = await listWorkflowRuns({
+        project_id: requestProjectId,
+        workflow_kind: "import_reverse_engineer",
+        status: "completed",
+        resumable_only: false,
+        limit: 200,
+      });
+      if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
+      const run = runs.find(
+        (item) =>
+          item.mode === "reverse" &&
+          item.current_step_key === reversePromptName(requestReverseType),
+      );
+      if (!run) {
+        setReverseResult(null);
+        return;
+      }
+      const detail = await getWorkflowRunDetail(run.id, false);
+      if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
+      const checkpoint = detail.checkpoints.find(
+        (item) => item.step_key === reversePromptName(requestReverseType),
+      );
+      setReverseResult(
+        checkpoint
+          ? reverseCandidateFromCheckpoint(checkpoint, requestReverseType)
+          : null,
+      );
+    } catch (err) {
+      if (isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
+        addToast(extractErrorMessage(err, "恢复项目资料归纳候选失败"), "error");
+      }
+    }
+  };
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -301,11 +376,13 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     setImportUploadFile(null);
     setAnalyzeBusy(false);
     setCancelBusy(false);
+    setCandidateApplyBusy(null);
     setBatchBusy(false);
     setActBusy(null);
     setDedupBusy(false);
     setDedupResult(null);
     setReverseBusy(null);
+    setReverseConfirmBusy(false);
     setReverseResult(null);
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
@@ -319,6 +396,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     setActiveReviewJsonError(null);
     setActiveReviewJsonDirty(false);
     void load(projectId);
+    void restoreLatestReverseCandidate(projectId, "blueprint");
     const t = setInterval(() => {
       void load(projectId);
     }, 5000);
@@ -549,6 +627,65 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
       if (cancelAnalysisSeqRef.current === requestSeq) {
         cancelBusyRef.current = false;
       }
+    }
+  };
+
+  const handleApplyCandidate = async (kind: "blueprint" | "parts") => {
+    if (candidateApplyBusyRef.current !== null) return;
+    candidateApplyBusyRef.current = kind;
+    const requestProjectId = projectId;
+    let requestSeq: number | null = null;
+    try {
+      const confirmedByUser = await confirmDialog({
+        title: kind === "blueprint" ? "确认更新正式蓝图" : "确认更新正式分部大纲",
+        message:
+          kind === "blueprint"
+            ? "确认后会用导入章节归纳结果更新正式蓝图、项目标题和章节规划；已有角色与关系不会因候选未包含而被删除。"
+            : "确认后会按分部编号更新候选覆盖的正式分部，并重新关联章节大纲；候选未覆盖的分部会保留。",
+        confirmText: kind === "blueprint" ? "更新正式蓝图" : "更新正式分部",
+        dialogType: "warning",
+      });
+      if (!confirmedByUser || !isCurrentProject(requestProjectId)) return;
+      requestSeq = nextSequence(candidateApplySeqRef);
+      setCandidateApplyBusy(kind);
+      const result =
+        kind === "blueprint"
+          ? await applyImportAnalysisBlueprintCandidate(requestProjectId)
+          : await applyImportAnalysisPartOutlineCandidate(requestProjectId);
+      if (!isCurrentAction(requestProjectId, candidateApplySeqRef, requestSeq)) return;
+      const resultProgress =
+        result && typeof result === "object" && "progress" in result
+          ? (result as { progress?: ProjectImportAnalysisProgress }).progress
+          : undefined;
+      if (resultProgress) setProjectProgress(resultProgress);
+      addToast(
+        kind === "blueprint"
+          ? "蓝图候选已应用到正式蓝图"
+          : "分部大纲候选已应用到正式分部大纲",
+        "success",
+      );
+      await load(requestProjectId);
+    } catch (err) {
+      if (
+        requestSeq !== null &&
+        isCurrentAction(requestProjectId, candidateApplySeqRef, requestSeq)
+      ) {
+        addToast(
+          extractErrorMessage(
+            err,
+            kind === "blueprint" ? "应用蓝图候选失败" : "应用分部大纲候选失败",
+          ),
+          "error",
+        );
+      }
+    } finally {
+      if (
+        requestSeq !== null &&
+        isCurrentAction(requestProjectId, candidateApplySeqRef, requestSeq)
+      ) {
+        setCandidateApplyBusy(null);
+      }
+      candidateApplyBusyRef.current = null;
     }
   };
 
@@ -860,7 +997,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);
-    setRequestPreviewTitle("反推模型请求预览");
+    setRequestPreviewTitle("项目资料归纳请求预览");
     try {
       const preview =
         requestReverseType === "blueprint"
@@ -872,7 +1009,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
       setRequestPreviewData(preview);
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestPreviewSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "预览反推请求失败"), "error");
+        addToast(extractErrorMessage(err, "预览项目资料归纳请求失败"), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -885,7 +1022,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     }
   };
 
-  const handleReverseEngineer = async (apply: boolean) => {
+  const handleReverseEngineer = async () => {
     if (reverseBusyRef.current) return;
     const requestProjectId = projectId;
     const requestReverseType = reverseType;
@@ -898,7 +1035,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     reverseBusyRef.current = true;
     const requestSeq = nextSequence(reverseSeqRef);
     const taskId = allocateHostTaskId(
-      `import-reverse-${requestReverseType}-${apply ? "apply" : "preview"}`,
+      `import-reverse-${requestReverseType}-preview`,
       requestProjectId,
     );
     const reverseLabel =
@@ -913,47 +1050,41 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
       requestSample,
       requestAutoContext,
     );
-    setReverseBusy(apply ? "apply" : "preview");
+    setReverseBusy("preview");
     setReverseResult(null);
     try {
       const result = await runReverseProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
-          title: apply ? `反推并应用${reverseLabel}` : `反推${reverseLabel}`,
-          startMessage: `正在准备反推${reverseLabel}`,
-          successMessage: apply ? `反推${reverseLabel}结果已应用` : `反推${reverseLabel}完成`,
-          errorMessage: "反推失败",
-          total: apply ? 4 : 3,
-          cancelLabel: "停止反推",
-          runningHint: "反推停止后，已经应用的数据会保留",
+          title: `生成${reverseLabel}候选`,
+          startMessage: `正在整理${reverseLabel}所需资料`,
+          successMessage: `${reverseLabel}候选已生成，尚未写入正式资料`,
+          errorMessage: "项目资料归纳失败",
+          total: 3,
+          cancelLabel: "停止归纳",
+          runningHint: "归纳停止后，已生成的结果会保留；正式资料不会被自动修改",
         },
         () => {
           if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
             return Promise.reject(new Error("任务已停止"));
           }
           if (requestReverseType === "blueprint") {
-            return apply
-              ? reverseEngineerBlueprintAndApply(input, taskId)
-              : reverseEngineerBlueprint(input, taskId);
+            return reverseEngineerBlueprint(input, taskId);
           }
           if (requestReverseType === "outline") {
-            return apply
-              ? reverseEngineerOutlineAndApply(input, taskId)
-              : reverseEngineerOutline(input, taskId);
+            return reverseEngineerOutline(input, taskId);
           }
-          return apply
-            ? reverseEngineerPartOutlineAndApply(input, taskId)
-            : reverseEngineerPartOutline(input, taskId);
+          return reverseEngineerPartOutline(input, taskId);
         },
       );
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
       setReverseResult(result);
-      addToast(apply ? "反推结果已应用" : "反推完成", "success");
+      addToast(`${reverseLabel}候选已生成，尚未写入正式资料`, "success");
     } catch (err) {
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
-      const message = extractErrorMessage(err, "反推失败");
+      const message = extractErrorMessage(err, "项目资料归纳失败");
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
@@ -965,17 +1096,88 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
     }
   };
 
+  const handleConfirmReverseCandidate = async () => {
+    if (reverseConfirmBusyRef.current) return;
+    const candidate = parseReverseCandidateEnvelope(reverseResult, reverseType);
+    if (!candidate || candidate.state !== "proposal") {
+      addToast("当前没有可确认的反推候选", "error");
+      return;
+    }
+    reverseConfirmBusyRef.current = true;
+    const requestProjectId = projectId;
+    let requestSeq: number | null = null;
+    try {
+      const reverseLabel =
+        reverseType === "blueprint"
+          ? "故事蓝图"
+          : reverseType === "outline"
+            ? "章节大纲"
+            : "分部大纲";
+      const confirmedByUser = await confirmDialog({
+        title: `确认更新${reverseLabel}`,
+        message:
+          reverseType === "blueprint"
+            ? "确认后会用候选更新正式蓝图的标题、题材、风格、故事梗概、世界观和章节规划；已有角色与关系只补缺失，不会删除候选未返回的资料。"
+            : reverseType === "part_outline"
+              ? "确认后会按分部编号更新候选覆盖的正式分部，并重新关联章节大纲；候选未覆盖的分部会保留。"
+              : "确认后会新增缺失章纲，并刷新已有的自动分析章纲；与手工章纲冲突时会拒绝，不会覆盖。",
+        confirmText: `更新${reverseLabel}`,
+        dialogType: "warning",
+      });
+      if (!confirmedByUser || !isCurrentProject(requestProjectId)) return;
+      requestSeq = nextSequence(reverseSeqRef);
+      setReverseConfirmBusy(true);
+      const confirmed = await confirmReverseEngineeringCandidate({
+        workflow_run_id: candidate.workflow_run_id,
+      });
+      if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
+      const confirmation = parseReverseCandidateEnvelope(confirmed, reverseType);
+      if (!confirmation) throw new Error("确认接口返回的候选状态无效");
+      const previous = isJsonRecord(reverseResult) ? reverseResult : {};
+      setReverseResult({
+        ...previous,
+        ...confirmation,
+        result: previous.result ?? confirmation.result,
+      });
+      addToast(
+        confirmation.warnings.length > 0
+          ? `反推候选已确认并写入正式资料；${confirmation.warnings.join("；")}`
+          : "反推候选已确认并写入正式资料",
+        confirmation.warnings.length > 0 ? "info" : "success",
+      );
+      await load(requestProjectId);
+    } catch (err) {
+      if (
+        requestSeq !== null &&
+        isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)
+      ) {
+        addToast(extractErrorMessage(err, "确认项目资料候选失败"), "error");
+      }
+    } finally {
+      if (
+        requestSeq !== null &&
+        isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)
+      ) {
+        setReverseConfirmBusy(false);
+      }
+      reverseConfirmBusyRef.current = false;
+    }
+  };
+
   const handleReverseTypeChange = (value: ReverseType) => {
     setReverseType(value);
     setReverseResult(null);
+    void restoreLatestReverseCandidate(projectId, value);
   };
 
   const handleReverseSampleChange = (value: string) => {
+    reverseSeqRef.current += 1;
     setReverseSample(value);
     setReverseResult(null);
   };
 
   const handleReverseAutoContextChange = (value: boolean) => {
+    reverseSeqRef.current += 1;
     setReverseAutoContext(value);
     setReverseResult(null);
   };
@@ -998,6 +1200,26 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
   return (
     <>
       <div className="content-wide space-y-4">
+        <ImportToolsPanel
+          dedupText={dedupText}
+          dedupResult={dedupResult}
+          dedupBusy={dedupBusy}
+          reverseType={reverseType}
+          reverseSample={reverseSample}
+          reverseAutoContext={reverseAutoContext}
+          reverseResult={reverseResult}
+          reverseBusy={reverseBusy}
+          reverseConfirmBusy={reverseConfirmBusy}
+          externalBusy={toolsExternalBusy}
+          onDedupTextChange={handleDedupTextChange}
+          onDedup={handleDedup}
+          onReverseTypeChange={handleReverseTypeChange}
+          onReverseSampleChange={handleReverseSampleChange}
+          onReverseAutoContextChange={handleReverseAutoContextChange}
+          onPreviewReverseRequest={handlePreviewReverseRequest}
+          onReverseEngineer={handleReverseEngineer}
+          onConfirmReverse={handleConfirmReverseCandidate}
+        />
         <ImportFilePanel
           fileName={importFileName}
           fileType={fileType}
@@ -1015,26 +1237,56 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
           onChange={handleImportFileChange}
         />
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <ImportReviewQueuePanel
-            reviews={reviews}
-            loading={loading}
-            analysis={analysis}
-            projectProgress={projectProgress}
-            selected={selected}
-            analyzeBusy={analyzeBusy}
-            canCancelAnalysis={analysisInProgress}
-            cancelBusy={cancelBusy}
-            batchBusy={batchBusy}
-            actBusy={actBusy}
-            externalBusy={reviewExternalBusy}
-            onStartAnalysis={handleStartAnalysis}
-            onPreviewAnalysisRequest={handlePreviewImportAnalysisRequest}
-            onCancelAnalysis={handleCancelAnalysis}
-            onBatchAccept={handleBatchAccept}
-            onToggleSelect={toggleSelect}
-            onViewDetail={handleViewDetail}
-            onAct={handleAct}
-          />
+          <div className="space-y-4">
+            <ImportBlueprintCandidatePanel
+              proposal={projectProgress?.stages?.extracting_blueprint?.proposal}
+              projectId={projectId}
+              busy={candidateApplyBusy === "blueprint"}
+              disabled={
+                candidateApplyBusy !== null ||
+                analysisInProgress ||
+                importBusy ||
+                batchBusy ||
+                actBusy !== null ||
+                reverseBusy !== null
+              }
+              onApply={() => handleApplyCandidate("blueprint")}
+            />
+            <ImportPartOutlineCandidatePanel
+              proposal={projectProgress?.stages?.generating_part_outlines?.proposal}
+              projectId={projectId}
+              busy={candidateApplyBusy === "parts"}
+              disabled={
+                candidateApplyBusy !== null ||
+                analysisInProgress ||
+                importBusy ||
+                batchBusy ||
+                actBusy !== null ||
+                reverseBusy !== null
+              }
+              onApply={() => handleApplyCandidate("parts")}
+            />
+            <ImportReviewQueuePanel
+              reviews={reviews}
+              loading={loading}
+              analysis={analysis}
+              projectProgress={projectProgress}
+              selected={selected}
+              analyzeBusy={analyzeBusy}
+              canCancelAnalysis={analysisInProgress}
+              cancelBusy={cancelBusy}
+              batchBusy={batchBusy}
+              actBusy={actBusy}
+              externalBusy={reviewExternalBusy}
+              onStartAnalysis={handleStartAnalysis}
+              onPreviewAnalysisRequest={handlePreviewImportAnalysisRequest}
+              onCancelAnalysis={handleCancelAnalysis}
+              onBatchAccept={handleBatchAccept}
+              onToggleSelect={toggleSelect}
+              onViewDetail={handleViewDetail}
+              onAct={handleAct}
+            />
+          </div>
           <aside className="space-y-4">
             <div ref={detailPanelRef} className="scroll-mt-28">
               <ImportReviewDetailPanel
@@ -1049,24 +1301,6 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({ projectId, onBusyChange 
                 onUpdateStatus={handleUpdateStatus}
               />
             </div>
-            <ImportToolsPanel
-              dedupText={dedupText}
-              dedupResult={dedupResult}
-              dedupBusy={dedupBusy}
-              reverseType={reverseType}
-              reverseSample={reverseSample}
-              reverseAutoContext={reverseAutoContext}
-              reverseResult={reverseResult}
-              reverseBusy={reverseBusy}
-              externalBusy={toolsExternalBusy}
-              onDedupTextChange={handleDedupTextChange}
-              onDedup={handleDedup}
-              onReverseTypeChange={handleReverseTypeChange}
-              onReverseSampleChange={handleReverseSampleChange}
-              onReverseAutoContextChange={handleReverseAutoContextChange}
-              onPreviewReverseRequest={handlePreviewReverseRequest}
-              onReverseEngineer={handleReverseEngineer}
-            />
           </aside>
         </div>
       </div>

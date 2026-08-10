@@ -1,32 +1,18 @@
+import type { CharacterProfileSummary } from "../generated/host";
+
 interface AttributeCounts {
   explicit: number;
   implicit: number;
   social: number;
 }
 
-export interface CharacterProfile {
-  id: number;
-  project_id: number;
-  name: string;
-  gender: string | null;
-  age: string | null;
-  base_attributes: unknown;
-  current_state: unknown;
-  character_arc: unknown | null;
-  voice_fingerprint: unknown | null;
-  appearance: string | null;
-  background: string | null;
-  personality: string | null;
-  last_synced_chapter: number;
-  attribute_counts: AttributeCounts;
-  created_at: string | null;
-  updated_at: string | null;
-}
+export type CharacterProfile = CharacterProfileSummary;
 
 export interface AttributeEvent {
   id: number;
   profile_id: number;
   chapter_number: number;
+  source_kind: string;
   timestamp: string | null;
   category: string;
   key: string;
@@ -40,6 +26,7 @@ export interface AttributeEvent {
 
 export interface AttributeMutationResult {
   event: AttributeEvent;
+  warnings: string[];
 }
 
 export interface SnapshotReference {
@@ -103,6 +90,7 @@ export interface BehaviorRecord {
   id: number;
   profile_id: number;
   chapter_number: number;
+  source_kind: string;
   behavior_description: string;
   behavior_type: string;
   original_text: string;
@@ -116,6 +104,7 @@ export interface BehaviorRecord {
 export interface DeletionMark {
   id: number;
   profile_id: number;
+  source_kind: string;
   category: string;
   key: string;
   chapter_number: number;
@@ -177,6 +166,7 @@ export interface ApplyImplicitUpdateDecisionResult {
   deletion_mark: DeletionMark | null;
   ready_for_deletion: boolean;
   threshold: number;
+  warnings: string[];
 }
 
 export interface DiscoverCharacterProfilesResult {
@@ -184,7 +174,7 @@ export interface DiscoverCharacterProfilesResult {
   chapters_analyzed: number;
   chapter_numbers: number[];
   discovered_count: number;
-  created: CharacterProfile[];
+  created: Array<{ id: number }>;
   existing: Array<{
     name: string;
     aliases: unknown;
@@ -241,11 +231,6 @@ export interface SyncAllCharacterProfilesResult {
   }>;
 }
 
-export interface DeleteProfileResult {
-  deleted_state_rag: number;
-  deleted_attribute_event_rag: number;
-}
-
 export interface RollbackToChapterResult {
   deleted_events: number;
   deleted_snapshots: number;
@@ -255,5 +240,5 @@ export interface RollbackToChapterResult {
   deleted_attribute_event_rag: number;
   deleted_deletion_marks: number;
   rewound_deletion_marks: number;
-  last_synced_chapter: number;
+  warnings: string[];
 }

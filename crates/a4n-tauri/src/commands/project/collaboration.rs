@@ -21,7 +21,7 @@ pub async fn invite_project_member(
     user_id: i64,
     project_id: i64,
     input: InviteProjectMemberInput,
-) -> Result<ProjectInviteSummary, String> {
+) -> Result<(), String> {
     collaboration_actions::invite_project_member(&state, user_id, project_id, input).await
 }
 
@@ -47,7 +47,7 @@ pub async fn accept_project_invite(
     state: State<'_, AppState>,
     user_id: i64,
     invite_id: i64,
-) -> Result<ProjectMemberSummary, String> {
+) -> Result<(), String> {
     collaboration_actions::accept_project_invite(&state, user_id, invite_id).await
 }
 
@@ -56,7 +56,7 @@ pub async fn decline_project_invite(
     state: State<'_, AppState>,
     user_id: i64,
     invite_id: i64,
-) -> Result<ProjectInviteSummary, String> {
+) -> Result<(), String> {
     collaboration_actions::decline_project_invite(&state, user_id, invite_id).await
 }
 
@@ -66,7 +66,7 @@ pub async fn revoke_project_invite(
     user_id: i64,
     project_id: i64,
     invite_id: i64,
-) -> Result<ProjectInviteSummary, String> {
+) -> Result<(), String> {
     collaboration_actions::revoke_project_invite(&state, user_id, project_id, invite_id).await
 }
 
@@ -77,7 +77,7 @@ pub async fn update_project_member_role(
     project_id: i64,
     member_user_id: i64,
     input: UpdateProjectMemberRoleInput,
-) -> Result<ProjectMemberSummary, String> {
+) -> Result<(), String> {
     collaboration_actions::update_project_member_role(
         &state,
         user_id,

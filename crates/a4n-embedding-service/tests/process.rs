@@ -213,6 +213,7 @@ async fn embedding_download_stream_idle_releases_huggingface_request() {
                 "backend": "local_hash",
                 "model": "local-sha256-hash",
                 "dimension": 8,
+                "batch_size": 8,
                 "texts": ["still responsive after stream idle"]
             }),
         ))
@@ -260,6 +261,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             "backend": "local_hash",
             "model": "local-sha256-hash",
             "dimension": 64,
+            "batch_size": 8,
             "texts": ["process test"]
         }),
     );
@@ -296,6 +298,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
                 "backend": "local_hash",
                 "model": "local-sha256-hash",
                 "dimension": 8,
+                "batch_size": 8,
                 "texts": ["trusted remote text egress"]
             }),
         ))
@@ -319,6 +322,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
                 "backend": "unsupported-process-backend",
                 "model": "local-sha256-hash",
                 "dimension": 64,
+                "batch_size": 8,
                 "texts": ["failure then recovery"]
             }),
         ))
@@ -338,6 +342,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
                 "backend": "local_hash",
                 "model": "local-sha256-hash",
                 "dimension": 8,
+                "batch_size": 8,
                 "texts": ["still responsive"]
             }),
         ))
@@ -419,6 +424,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
                     "backend": "local_hash",
                     "model": "local-sha256-hash",
                     "dimension": 8,
+                    "batch_size": 8,
                     "texts": ["still responsive"]
                 }),
             ))
@@ -484,10 +490,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             .await
             .expect("FastEmbed model delete should cross the independent process");
         assert_eq!(deleted.status, ServiceStatus::Ok);
-        assert_eq!(
-            deleted.payload.expect("FastEmbed model delete payload")["deleted"],
-            serde_json::json!(true)
-        );
+        assert_eq!(deleted.payload, Some(serde_json::Value::Null));
         assert!(!cache_path.exists());
         force_finish_sidecar(complete, &manager, EMBEDDING_SERVICE_NAME, addr).await;
 

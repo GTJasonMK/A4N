@@ -28,11 +28,9 @@ pub(super) async fn try_dispatch(
         "upload_profile_material_image" => {
             upload_profile_material_image(state, user_id, args).await?
         }
-        "toggle_image_favorite" => toggle_image_favorite(state, user_id, args).await?,
         "update_image" => update_image(state, user_id, args).await?,
         "upload_image" => upload_image(state, user_id, args).await?,
         "delete_image" => delete_image(state, user_id, args).await?,
-        "score_image" => score_image(state, user_id, args).await?,
         "list_object_profiles" => list_object_profiles(state, user_id, args).await?,
         "create_object_profile" => create_object_profile(state, user_id, args).await?,
         "update_object_profile" => update_object_profile(state, user_id, args).await?,

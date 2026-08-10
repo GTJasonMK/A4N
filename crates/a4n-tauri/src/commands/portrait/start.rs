@@ -11,7 +11,7 @@ pub async fn start_portrait_generation(
     user_id: i64,
     input: StartPortraitGenerationInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    a4n_runtime::host_api::portrait_generation::start_portrait_generation_typed(
+    a4n_runtime::host_api::portrait_generation::start_portrait_generation(
         state.inner(),
         user_id,
         input,

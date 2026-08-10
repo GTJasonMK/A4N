@@ -25,8 +25,7 @@ prompts:
     tags: ["inspiration", "dialogue", "creative"]
     version: "1.0"
     used_by:
-      - "InspirationService.converse"
-      - "InspirationService.converse_stream"
+      - "OrchestratorContext.prepare_inspiration_request_validated"
     dependencies: []
     description: "AI 扮演\"文思\"角色，与作者多轮对话把模糊灵感锻造成完整小说概念蓝图"
 
@@ -37,7 +36,7 @@ prompts:
     tags: ["inspiration", "context", "guard"]
     version: "1.0"
     used_by:
-      - "InspirationService.build_inspiration_messages"
+      - "OrchestratorContext.prepare_inspiration_request_validated"
     dependencies:
       - "inspiration"
     description: "灵感对话追加项目上下文，要求回答优先尊重已有项目事实并忽略数据库技术字段"
@@ -784,6 +783,18 @@ prompts:
     dependencies:
       - "chapter_shooting_design_unit"
     description: "按单个导演镜头生成片段规划，系统再合并为全章连续 segment 列表"
+
+  chapter_video_inserted_segment:
+    path: "novel/08_video/chapter_video_inserted_segment.md"
+    title: "章节视频插入片段草稿"
+    category: "video"
+    tags: ["video", "segment", "inserted"]
+    version: "1.0"
+    used_by:
+      - "VideoService.generate_inserted_segment_draft"
+    dependencies:
+      - "chapter_video_builder_rules"
+    description: "依据时间线邻接项和用户要求生成尚未提交的插入片段视频描述"
 
   chapter_video_frame_prompts:
     path: "novel/08_video/chapter_video_frame_prompts.md"

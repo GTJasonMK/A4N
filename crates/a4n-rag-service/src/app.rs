@@ -1,8 +1,6 @@
 use crate::handlers::{
-    collection_exists, completeness_report, completeness_report_by_ids, count_records,
-    delete_records, drop_collection, health_check, healthz, ingest, ingest_events,
-    list_collections, metadata_by_filter, metadata_by_ids, query, search, search_text,
-    update_metadata,
+    completeness_report_by_ids, delete_records, drop_collection, healthz, ingest_events,
+    metadata_by_filter, metadata_by_ids, query, search, search_text,
 };
 use a4n_core::config::env::optional_non_empty_env_path;
 use a4n_core::error::AppError;
@@ -133,19 +131,12 @@ fn router(state: RagServiceState) -> Router {
         .route("/healthz", get(healthz))
         .route("/rag/query", post(query))
         .route("/rag/search_text", post(search_text))
-        .route("/rag/ingest", post(ingest))
         .route("/rag/ingest/events", post(ingest_events))
         .route("/rag/search", post(search))
         .route("/rag/delete", post(delete_records))
-        .route("/rag/collection_exists", post(collection_exists))
-        .route("/rag/count", post(count_records))
         .route("/rag/drop_collection", post(drop_collection))
-        .route("/rag/list_collections", post(list_collections))
-        .route("/rag/update_metadata", post(update_metadata))
         .route("/rag/metadata_by_ids", post(metadata_by_ids))
         .route("/rag/metadata_by_filter", post(metadata_by_filter))
-        .route("/rag/health_check", post(health_check))
-        .route("/rag/completeness_report", post(completeness_report))
         .route(
             "/rag/completeness_report_by_ids",
             post(completeness_report_by_ids),

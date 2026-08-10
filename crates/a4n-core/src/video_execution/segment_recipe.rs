@@ -157,15 +157,6 @@ impl VideoSegmentExecutionRecipeV1 {
         {
             return Err("续接引导只适用于首帧续接方案".to_string());
         }
-        if self.workflow_mode == VideoSegmentWorkflowModeV1::FirstFrameChain
-            && self.segment_number > 1
-            && self.guidance_mode == VideoSegmentGuidanceModeV1::SystemFrames
-        {
-            return Err(
-                "首帧续接的后续片段必须选择续接视频、关键帧或纯文本，不能隐式猜测系统首帧"
-                    .to_string(),
-            );
-        }
         Ok(())
     }
 
@@ -393,11 +384,6 @@ pub fn carry_forward_video_segment_recipes(
             VideoSegmentWorkflowModeV1::ReferenceMedia | VideoSegmentWorkflowModeV1::ChatVideo
         ) {
             recipe.guidance_mode = VideoSegmentGuidanceModeV1::None;
-        } else if recipe.workflow_mode == VideoSegmentWorkflowModeV1::FirstFrameChain
-            && next.segment_number > 1
-            && recipe.guidance_mode == VideoSegmentGuidanceModeV1::SystemFrames
-        {
-            recipe.guidance_mode = VideoSegmentGuidanceModeV1::Continuity;
         }
         if video_segment_content_fingerprint(previous_segment)?
             != video_segment_content_fingerprint(next)?
@@ -738,9 +724,9 @@ mod tests {
         let mut previous_recipe = recipe(1);
         previous_recipe.adopted_video_id = Some(9);
         let carried = carry_forward_video_segment_recipes(
-            &[previous_segment.clone()],
-            &[previous_recipe.clone()],
-            &[renumbered_segment.clone()],
+            std::slice::from_ref(&previous_segment),
+            std::slice::from_ref(&previous_recipe),
+            std::slice::from_ref(&renumbered_segment),
             "cinematic",
             "zh_cn",
         )
@@ -769,11 +755,26 @@ mod tests {
     }
 
     #[test]
-    fn later_first_frame_segment_rejects_hidden_system_frame_fallback() {
+    fn later_first_frame_segment_allows_explicit_system_frame() {
         let mut recipe = recipe(2);
         recipe.workflow_mode = VideoSegmentWorkflowModeV1::FirstFrameChain;
         recipe.guidance_mode = VideoSegmentGuidanceModeV1::SystemFrames;
-        assert!(recipe.validate().is_err());
+        assert!(recipe.validate_generation_ready().is_ok());
+
+        let target_segment = segment(2);
+        let carried = carry_forward_video_segment_recipes(
+            std::slice::from_ref(&target_segment),
+            std::slice::from_ref(&recipe),
+            std::slice::from_ref(&target_segment),
+            "cinematic",
+            "zh_cn",
+        )
+        .unwrap();
+        assert_eq!(
+            carried[0].guidance_mode,
+            VideoSegmentGuidanceModeV1::SystemFrames
+        );
+
         recipe.guidance_mode = VideoSegmentGuidanceModeV1::Continuity;
         recipe.continuity_source_video_id = Some(7);
         assert!(recipe.validate_generation_ready().is_ok());

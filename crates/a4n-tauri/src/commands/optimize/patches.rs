@@ -17,7 +17,7 @@ pub async fn start_optimize_patch_generation(
     user_id: i64,
     input: StartOptimizePatchGenerationInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    optimize_actions::start_optimize_patch_generation_typed(state.inner(), user_id, input)
+    optimize_actions::start_optimize_patch_generation(state.inner(), user_id, input)
         .await
         .map_err(crate::commands::generation_tasks::map_access_error)
 }

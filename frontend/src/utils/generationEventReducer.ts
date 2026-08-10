@@ -57,6 +57,7 @@ export interface GenerationTaskViewState {
   usage: UsageEvent["usage"] | null;
   error: GenerationError | null;
   resultRef: GenerationTaskSummary["result_ref"];
+  completionSummary: string | null;
   terminalReceived: boolean;
   recoveryState: GenerationRecoveryState;
   pendingEvents: GenerationTaskEvent[];
@@ -89,7 +90,7 @@ type FormalResultRecoveryDomain =
 
 type FormalResultRecoveryKind = "ok" | "readonly" | "unrecoverable";
 
-export interface FormalResultRecoveryInput {
+interface FormalResultRecoveryInput {
   recoveryIssue: GenerationTaskRecoveryIssue | null;
   /** 正式对象存在且 revision/id 与 result_ref 一致 */
   consistent: boolean;
@@ -98,7 +99,7 @@ export interface FormalResultRecoveryInput {
   domain: FormalResultRecoveryDomain;
 }
 
-export interface FormalResultRecoveryOutcome {
+interface FormalResultRecoveryOutcome {
   kind: FormalResultRecoveryKind;
   issueMessage: string;
   /** 是否需要把 client 标为 consistency_error（已有 recoveryIssue 时不再重复标记） */
@@ -228,6 +229,7 @@ export function createGenerationTaskViewState(
     usage: null,
     error: null,
     resultRef: null,
+    completionSummary: null,
     terminalReceived: false,
     recoveryState: "idle",
     pendingEvents: [],
@@ -349,13 +351,14 @@ function applyContiguousEvent(
         null,
         event.event.data.final_usage ?? null,
         event.event.data.result_ref ?? null,
+        event.event.data.summary ?? null,
       );
     case "failed":
-      return applyTerminal(next, "failed", event.event.data.error, null, null);
+      return applyTerminal(next, "failed", event.event.data.error, null, null, null);
     case "cancelled":
-      return applyTerminal(next, "cancelled", null, null, null);
+      return applyTerminal(next, "cancelled", null, null, null, null);
     case "interrupted":
-      return applyTerminal(next, "interrupted", null, null, null);
+      return applyTerminal(next, "interrupted", null, null, null, null);
   }
 }
 
@@ -421,6 +424,7 @@ function applyTerminal(
   error: GenerationError | null,
   usage: UsageEvent["usage"] | null,
   resultRef: GenerationTaskSummary["result_ref"],
+  completionSummary: string | null,
 ): GenerationTaskViewState {
   if (state.terminalReceived) return protocolFailure(state, "重复终态事件");
   return {
@@ -429,6 +433,7 @@ function applyTerminal(
     error,
     usage: usage ?? state.usage,
     resultRef: resultRef ?? state.resultRef,
+    completionSummary,
     terminalReceived: true,
     clientState: "detached",
   };
@@ -472,6 +477,9 @@ function applySnapshot(
     resultRef: snapshot.terminal_event?.event.kind === "completed"
       ? snapshot.terminal_event.event.data.result_ref ?? null
       : state.resultRef,
+    completionSummary: snapshot.terminal_event?.event.kind === "completed"
+      ? snapshot.terminal_event.event.data.summary ?? null
+      : state.completionSummary,
     terminalReceived,
     recoveryState: "idle",
     pendingEvents: state.pendingEvents.slice(),

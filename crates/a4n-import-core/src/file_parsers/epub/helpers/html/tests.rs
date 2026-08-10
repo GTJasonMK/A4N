@@ -18,7 +18,7 @@ fn preserves_block_boundaries_for_chapter_detection() {
     let html = "<h1>第1章 开始</h1><p>开篇正文。</p><h1>第2章 继续</h1><p>后续正文。</p>";
     let text = strip_html_tags(html);
 
-    let result = TxtParser::new().parse(&text).unwrap();
+    let result = TxtParser::new().parse(&text, "HTML 文本测试").unwrap();
 
     assert_eq!(result.chapters.len(), 2);
     assert_eq!(result.chapters[0].title, "第1章 开始");

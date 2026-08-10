@@ -4,39 +4,7 @@ use super::super::{
     ApiError, ServerState, command_input, i64_arg, prompt_records_actions, string_arg, to_value,
 };
 
-macro_rules! prompt_web_sync_value_command {
-    ($name:ident, $action:path $(,)?) => {
-        pub(in crate::routes::commands) async fn $name(
-            state: &ServerState,
-            _user_id: i64,
-            _args: &Value,
-        ) -> Result<Value, ApiError> {
-            to_value(
-                $action(state.runtime())
-                    .await
-                    .map_err(ApiError::bad_request)?,
-            )
-        }
-    };
-}
-
-macro_rules! prompt_web_sync_result_command {
-    ($name:ident, $action:path $(,)?) => {
-        pub(in crate::routes::commands) async fn $name(
-            state: &ServerState,
-            _user_id: i64,
-            _args: &Value,
-        ) -> Result<Value, ApiError> {
-            to_value(
-                $action(state.runtime())
-                    .await
-                    .map_err(ApiError::bad_request)?,
-            )
-        }
-    };
-}
-
-macro_rules! prompt_web_async_result_command {
+macro_rules! prompt_web_no_input_command {
     ($name:ident, $action:path $(,)?) => {
         pub(in crate::routes::commands) async fn $name(
             state: &ServerState,
@@ -69,24 +37,7 @@ macro_rules! prompt_web_user_input_command {
     };
 }
 
-macro_rules! prompt_web_input_async_command {
-    ($name:ident, $input:ty, $action:path $(,)?) => {
-        pub(in crate::routes::commands) async fn $name(
-            state: &ServerState,
-            _user_id: i64,
-            args: &Value,
-        ) -> Result<Value, ApiError> {
-            let input: $input = command_input(args, stringify!($name))?;
-            to_value(
-                $action(state.runtime(), input)
-                    .await
-                    .map_err(ApiError::bad_request)?,
-            )
-        }
-    };
-}
-
-macro_rules! prompt_web_input_sync_command {
+macro_rules! prompt_web_input_command {
     ($name:ident, $input:ty, $action:path $(,)?) => {
         pub(in crate::routes::commands) async fn $name(
             state: &ServerState,
@@ -170,12 +121,12 @@ prompt_web_user_input_command!(
     prompt_records_actions::RenderInput,
     prompt_records_actions::prompt_render,
 );
-prompt_web_sync_value_command!(prompt_list, prompt_records_actions::prompt_list);
-prompt_web_async_result_command!(
+prompt_web_no_input_command!(prompt_list, prompt_records_actions::prompt_list);
+prompt_web_no_input_command!(
     prompt_load_defaults,
     prompt_records_actions::prompt_load_defaults,
 );
-prompt_web_input_async_command!(
+prompt_web_input_command!(
     prompt_update,
     prompt_records_actions::UpdatePromptInput,
     prompt_records_actions::prompt_update,
@@ -185,23 +136,19 @@ prompt_web_name_sync_command!(
     prompt_version_history,
     prompt_records_actions::prompt_version_history,
 );
-prompt_web_input_sync_command!(
+prompt_web_input_command!(
     prompt_version_diff,
     prompt_records_actions::VersionDiffInput,
     prompt_records_actions::prompt_version_diff,
 );
-prompt_web_input_sync_command!(
+prompt_web_input_command!(
     prompt_validate_variables,
     prompt_records_actions::ValidateVarsInput,
     prompt_records_actions::prompt_validate_variables,
 );
-prompt_web_sync_value_command!(
-    prompt_dependency_graph,
-    prompt_records_actions::prompt_dependency_graph,
-);
 prompt_web_user_input_command!(
     prompt_render_ab,
-    prompt_records_actions::AbRenderInput,
+    prompt_records_actions::RenderInput,
     prompt_records_actions::prompt_render_ab,
 );
 prompt_web_name_sync_command!(
@@ -222,7 +169,7 @@ prompt_web_user_input_unit_command!(
     prompt_records_actions::RemoveOverrideInput,
     prompt_records_actions::prompt_remove_project_override,
 );
-prompt_web_sync_result_command!(
+prompt_web_no_input_command!(
     prompt_list_categories,
     prompt_records_actions::prompt_list_categories,
 );

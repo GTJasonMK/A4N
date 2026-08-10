@@ -16,11 +16,11 @@ import {
   type LlmMaxTokensConfig,
 } from "../../../api/config";
 import {
-  MAX_TOKEN_LIMIT,
   TOKEN_GROUPS,
   maxTokensSummary,
   validateMaxTokensConfig,
 } from "./maxTokensUtils";
+import { LLM_MAX_TOKEN_LIMIT } from "../../../api/generated/config";
 
 interface LlmMaxTokensPanelProps {
   modelMaxOutputTokens: number | null;
@@ -235,7 +235,7 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
                       max={
                         modelMaxOutputTokens && modelMaxOutputTokens > 0
                           ? modelMaxOutputTokens
-                          : MAX_TOKEN_LIMIT
+                          : LLM_MAX_TOKEN_LIMIT
                       }
                       step={1}
                       value={String(form[field.key])}

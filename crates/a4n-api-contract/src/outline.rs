@@ -6,6 +6,109 @@ use serde_json::Value;
 
 use super::generation_tasks::GenerationStartRequestMeta;
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChapterOutlineSummary {
+    pub id: i64,
+    pub project_id: i64,
+    pub part_id: Option<i64>,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub beats: Option<Value>,
+    pub key_scenes: Option<Value>,
+    pub pacing_score: Option<f32>,
+    pub foreshadowing_setup: Option<Value>,
+    pub foreshadowing_payoff: Option<Value>,
+    pub characters_involved: Option<Value>,
+    pub word_count_target: Option<i32>,
+    pub status: String,
+    /// 自动派生来源；`null` 表示用户/正式流程拥有的章纲。
+    pub source_kind: Option<String>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct PartOutlineSummary {
+    pub id: i64,
+    pub project_id: i64,
+    pub part_number: i32,
+    pub title: String,
+    pub start_chapter: i32,
+    pub end_chapter: i32,
+    pub summary: Option<String>,
+    pub theme: Option<String>,
+    pub key_events: Option<Value>,
+    pub character_focus: Option<Value>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SaveChapterOutlineInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub outline_id: Option<i64>,
+    #[schemars(range(min = 1))]
+    pub chapter_number: i32,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub summary: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SavePartOutlineInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub part_id: Option<i64>,
+    #[schemars(range(min = 1))]
+    pub part_number: i32,
+    #[schemars(range(min = 1))]
+    pub start_chapter: i32,
+    #[schemars(range(min = 1))]
+    pub end_chapter: i32,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub theme: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct SaveChapterOutlineResult {
+    pub outline: ChapterOutlineSummary,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct SavePartOutlineResult {
+    pub part: PartOutlineSummary,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct UpdateChapterOutlineResult {
+    pub outline: ChapterOutlineSummary,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct OutlineMutationResult {
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct StartOutlineGenerationInput {

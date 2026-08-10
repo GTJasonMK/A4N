@@ -22,8 +22,11 @@ fn decodes_text_node_entities() {
         zip_writer.finish().unwrap();
     }
 
-    let result = DocxParser.parse(&buffer.into_inner()).unwrap();
+    let result = DocxParser
+        .parse(&buffer.into_inner(), "实体解码测试")
+        .unwrap();
 
+    assert_eq!(result.chapters[0].title, "实体解码测试");
     assert_eq!(result.chapters[0].content, "A4N & Co");
 }
 
@@ -54,7 +57,9 @@ fn reads_pretty_printed_paragraph_xml() {
         zip_writer.finish().unwrap();
     }
 
-    let result = DocxParser.parse(&buffer.into_inner()).unwrap();
+    let result = DocxParser
+        .parse(&buffer.into_inner(), "段落解析测试")
+        .unwrap();
 
     assert_eq!(result.chapters[0].content, "A4N body");
 }

@@ -6,7 +6,8 @@
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::character_records as character_records_actions;
 use character_records_actions::{
-    CreateProfileInput, DeleteProfileResultSummary, ListProfilesInput, ProtagonistProfileSummary,
+    CharacterProfileCreateResult, CharacterProfileDeleteResult, CharacterProfileMutationResult,
+    CharacterProfileSummary, CreateProfileInput, ListProfilesInput, UpdateCharacterProfileInput,
 };
 use tauri::State;
 
@@ -15,8 +16,17 @@ pub async fn create_profile(
     state: State<'_, AppState>,
     user_id: i64,
     input: CreateProfileInput,
-) -> Result<ProtagonistProfileSummary, String> {
+) -> Result<CharacterProfileCreateResult, String> {
     character_records_actions::create_profile(state.inner(), user_id, input).await
+}
+
+#[tauri::command]
+pub async fn update_character_profile(
+    state: State<'_, AppState>,
+    user_id: i64,
+    input: UpdateCharacterProfileInput,
+) -> Result<CharacterProfileMutationResult, String> {
+    character_records_actions::update_character_profile(state.inner(), user_id, input).await
 }
 
 #[tauri::command]
@@ -24,7 +34,7 @@ pub async fn delete_profile(
     state: State<'_, AppState>,
     user_id: i64,
     profile_id: i64,
-) -> Result<DeleteProfileResultSummary, String> {
+) -> Result<CharacterProfileDeleteResult, String> {
     character_records_actions::delete_profile(state.inner(), user_id, profile_id).await
 }
 
@@ -33,7 +43,7 @@ pub async fn list_profiles(
     state: State<'_, AppState>,
     user_id: i64,
     input: ListProfilesInput,
-) -> Result<Vec<ProtagonistProfileSummary>, String> {
+) -> Result<Vec<CharacterProfileSummary>, String> {
     character_records_actions::list_profiles(state.inner(), user_id, input).await
 }
 

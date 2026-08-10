@@ -219,6 +219,7 @@ describe("video segment-plan generation actions", () => {
     const chains = [
       { recipe: recipe(2, "boundary_frames"), frameBatchSize: 2 },
       { recipe: recipe(1, "first_frame_chain"), frameBatchSize: 1 },
+      { recipe: recipe(2, "first_frame_chain"), frameBatchSize: 1 },
       { recipe: recipe(3, "storyboard"), frameBatchSize: 1 },
       { recipe: recipe(4, "chat_video"), frameBatchSize: null },
     ];
@@ -237,9 +238,22 @@ describe("video segment-plan generation actions", () => {
       }
       await actions.handleGenerateVideoPrompts(chain.recipe, { targetSegment });
     }
+    await actions.handleGenerateFramePrompts(
+      {
+        ...recipe(2, "first_frame_chain"),
+        guidance_mode: "continuity",
+        continuity_source_video_id: 99,
+      },
+      {
+        targetSegment: {
+          source_shot_id: "shot-2",
+          segment_index_in_shot: 1,
+        },
+      },
+    );
 
-    expect(mocks.startChapterVideoFramePrompts).toHaveBeenCalledTimes(3);
-    chains.slice(0, 3).forEach((chain, index) => {
+    expect(mocks.startChapterVideoFramePrompts).toHaveBeenCalledTimes(4);
+    chains.filter((chain) => chain.frameBatchSize != null).forEach((chain, index) => {
       expect(mocks.startChapterVideoFramePrompts).toHaveBeenNthCalledWith(
         index + 1,
         19,
@@ -261,7 +275,7 @@ describe("video segment-plan generation actions", () => {
       ).not.toHaveProperty("target_shot_number");
     });
 
-    expect(mocks.startChapterVideoPrompts).toHaveBeenCalledTimes(4);
+    expect(mocks.startChapterVideoPrompts).toHaveBeenCalledTimes(5);
     chains.forEach((chain, index) => {
       expect(mocks.startChapterVideoPrompts).toHaveBeenNthCalledWith(
         index + 1,

@@ -29,6 +29,9 @@ tags: "导入分析,大纲,长篇"
     {"chapter_number": 1, "title": "章节标题", "summary": "章节大纲", "content_preview": "缺少大纲时提供的正文摘录"},
     {"chapter_number": 2, "title": "章节标题", "summary": "章节大纲", "content_preview": "缺少大纲时提供的正文摘录"},
     ...
+  ],
+  "existing_part_outlines": [
+    {"part_number": 1, "title": "当前分部标题", "start_chapter": 1, "end_chapter": 25, "summary": "当前正式摘要"}
   ]
 }
 
@@ -76,6 +79,12 @@ tags: "导入分析,大纲,长篇"
 4. **标题命名**：
    - 部分标题应概括该部分的核心内容或主题
    - 避免使用"第一卷"这样的纯序号标题
+
+5. **已有分部处理**：
+   - `existing_part_outlines` 是用户当前确认的正式分部，应作为更新基线
+   - 结构和证据没有变化时保留原编号、范围和核心内容
+   - 只有章节大纲或正文显示出更合理的转折点时才调整范围
+   - 不要因为本次章节样本没有覆盖某个已有分部，就擅自否定或改写该分部
 
 ## 分析要点
 

@@ -11,49 +11,31 @@ use serde_json::Value;
 pub(in crate::routes::commands) enum ReverseEngineerWebCommand {
     Run {
         target: import_reverse_actions::ReverseEngineeringTarget,
-        apply: bool,
     },
     Preview {
         target: import_reverse_actions::ReverseEngineeringTarget,
     },
+    ConfirmCandidate,
 }
 
 pub(in crate::routes::commands) fn reverse_engineer_web_command(
     command: &str,
 ) -> Option<ReverseEngineerWebCommand> {
-    use ReverseEngineerWebCommand::{Preview, Run};
+    use ReverseEngineerWebCommand::{ConfirmCandidate, Preview, Run};
     use import_reverse_actions::ReverseEngineeringTarget::{Blueprint, Outline, PartOutline};
 
     Some(match command {
-        "reverse_engineer_blueprint" => Run {
-            target: Blueprint,
-            apply: false,
-        },
-        "reverse_engineer_blueprint_and_apply" => Run {
-            target: Blueprint,
-            apply: true,
-        },
+        "reverse_engineer_blueprint" => Run { target: Blueprint },
         "preview_reverse_engineer_blueprint_request" => Preview { target: Blueprint },
-        "reverse_engineer_outline" => Run {
-            target: Outline,
-            apply: false,
-        },
-        "reverse_engineer_outline_and_apply" => Run {
-            target: Outline,
-            apply: true,
-        },
+        "reverse_engineer_outline" => Run { target: Outline },
         "preview_reverse_engineer_outline_request" => Preview { target: Outline },
         "reverse_engineer_part_outline" => Run {
             target: PartOutline,
-            apply: false,
-        },
-        "reverse_engineer_part_outline_and_apply" => Run {
-            target: PartOutline,
-            apply: true,
         },
         "preview_reverse_engineer_part_outline_request" => Preview {
             target: PartOutline,
         },
+        "confirm_reverse_engineering_candidate" => ConfirmCandidate,
         _ => return None,
     })
 }
@@ -65,11 +47,14 @@ pub(in crate::routes::commands) async fn run_reverse_engineer_web_command(
     command: ReverseEngineerWebCommand,
 ) -> Result<Value, ApiError> {
     match command {
-        ReverseEngineerWebCommand::Run { target, apply } => {
-            reverse_engineer_command(state, user_id, args, target, apply).await
+        ReverseEngineerWebCommand::Run { target } => {
+            reverse_engineer_command(state, user_id, args, target).await
         }
         ReverseEngineerWebCommand::Preview { target } => {
             preview_reverse_engineer_request_command(state, user_id, args, target).await
+        }
+        ReverseEngineerWebCommand::ConfirmCandidate => {
+            confirm_reverse_engineering_candidate_command(state, user_id, args).await
         }
     }
 }
@@ -96,12 +81,21 @@ struct ReverseEngineerPreviewArgs {
     input: import_reverse_actions::ReverseEngineerInput,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConfirmReverseEngineerCandidateArgs {
+    #[serde(default, rename = "userId")]
+    _user_id: Option<i64>,
+    #[serde(default, rename = "runtime_config_snapshot")]
+    _runtime_config_snapshot: Option<Value>,
+    input: import_reverse_actions::ConfirmReverseEngineeringCandidateInput,
+}
+
 pub(in crate::routes::commands) async fn reverse_engineer_command(
     state: &ServerState,
     user_id: i64,
     args: &Value,
     target: import_reverse_actions::ReverseEngineeringTarget,
-    apply: bool,
 ) -> Result<Value, ApiError> {
     let command: ReverseEngineerCommandArgs = serde_json::from_value(args.clone())
         .map_err(|e| ApiError::bad_request(format!("{} 参数无效: {e}", target.prompt_name())))?;
@@ -109,7 +103,6 @@ pub(in crate::routes::commands) async fn reverse_engineer_command(
         state.runtime(),
         user_id,
         &command.input,
-        apply,
     )
     .await?;
 
@@ -121,32 +114,19 @@ pub(in crate::routes::commands) async fn reverse_engineer_command(
         TaskKind::LlmCall,
         scope.project_id,
         scope.total,
-        target.initial_message(apply),
+        target.initial_message(),
+    );
+    let progress = web_progress_reporter(task);
+    let result = import_reverse_actions::reverse_engineer(
+        state.runtime(),
+        user_id,
+        &command.input,
+        target,
+        &progress,
+        task_id.as_deref(),
     )
     .await;
-    let progress = web_progress_reporter(task);
-    let result = if apply {
-        import_reverse_actions::reverse_engineer_and_apply(
-            state.runtime(),
-            user_id,
-            &command.input,
-            target,
-            &progress,
-            task_id.as_deref(),
-        )
-        .await
-    } else {
-        import_reverse_actions::reverse_engineer(
-            state.runtime(),
-            user_id,
-            &command.input,
-            target,
-            &progress,
-            task_id.as_deref(),
-        )
-        .await
-    };
-    finish_web_task(state, task_id, result).await
+    finish_web_task(state, task_id, result)
 }
 
 pub(in crate::routes::commands) async fn preview_reverse_engineer_request_command(
@@ -170,6 +150,26 @@ pub(in crate::routes::commands) async fn preview_reverse_engineer_request_comman
     )
     .await?;
     to_value(preview)
+}
+
+async fn confirm_reverse_engineering_candidate_command(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let command: ConfirmReverseEngineerCandidateArgs = serde_json::from_value(args.clone())
+        .map_err(|e| {
+            ApiError::bad_request(format!(
+                "confirm_reverse_engineering_candidate 参数无效: {e}"
+            ))
+        })?;
+    import_reverse_actions::confirm_reverse_engineering_candidate(
+        state.runtime(),
+        user_id,
+        &command.input,
+    )
+    .await
+    .map_err(|error| ApiError::bad_request(error.to_string()))
 }
 
 #[cfg(test)]

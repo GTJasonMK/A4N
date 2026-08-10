@@ -6,6 +6,9 @@ const frontendRoot = fileURLToPath(new URL("../..", import.meta.url));
 const fixturePath = fileURLToPath(
   new URL("./scrub-fixture.mp4", import.meta.url),
 );
+const framesFixturePath = fileURLToPath(
+  new URL("./scrub-fixture.mjpg", import.meta.url),
+);
 const sourceFixturePath = process.env.A4N_VIDEO_SCRUB_FIXTURE_PATH;
 const host = "127.0.0.1";
 const port = 4175;
@@ -27,6 +30,35 @@ let tauriDriverOutput = "";
 
 const removeFixture = () => {
   if (existsSync(fixturePath)) unlinkSync(fixturePath);
+  if (existsSync(framesFixturePath)) unlinkSync(framesFixturePath);
+};
+
+const createFramesFixture = (sourcePath) => {
+  const result = spawnSync(
+    "ffmpeg",
+    [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      sourcePath,
+      "-vf",
+      "fps=12,scale=-2:270",
+      "-c:v",
+      "mjpeg",
+      "-q:v",
+      "7",
+      "-an",
+      "-f",
+      "image2pipe",
+      framesFixturePath,
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) {
+    throw new Error(`无法生成视频拖动帧测试文件：${result.stderr}`);
+  }
 };
 
 const createFixture = () => {
@@ -36,6 +68,7 @@ const createFixture = () => {
       throw new Error(`指定的视频剪辑测试文件不存在：${sourceFixturePath}`);
     }
     copyFileSync(sourceFixturePath, fixturePath);
+    createFramesFixture(sourceFixturePath);
     return;
   }
   const result = spawnSync(
@@ -55,10 +88,16 @@ const createFixture = () => {
       "veryfast",
       "-crf",
       "16",
+      "-profile:v",
+      "main",
+      "-bf",
+      "0",
+      "-refs",
+      "1",
       "-g",
-      "3",
+      "1",
       "-keyint_min",
-      "3",
+      "1",
       "-sc_threshold",
       "0",
       "-pix_fmt",
@@ -70,6 +109,7 @@ const createFixture = () => {
   if (result.status !== 0) {
     throw new Error(`无法生成视频剪辑测试文件：${result.stderr}`);
   }
+  createFramesFixture(fixturePath);
 };
 
 const waitForVite = async () => {
@@ -144,6 +184,11 @@ export const config = {
   baseUrl,
   onPrepare: async () => {
     if (useTauri) {
+      if (!sourceFixturePath) {
+        throw new Error("Tauri 视频剪辑测试需要 A4N_VIDEO_SCRUB_FIXTURE_PATH");
+      }
+      createFramesFixture(sourceFixturePath);
+      process.env.A4N_VIDEO_SCRUB_FRAMES_FIXTURE_PATH = framesFixturePath;
       tauriDriverProcess = spawn(
         tauriDriverBinary,
         [
@@ -187,6 +232,6 @@ export const config = {
   onComplete: () => {
     viteProcess?.kill("SIGTERM");
     tauriDriverProcess?.kill("SIGTERM");
-    if (!useTauri) removeFixture();
+    removeFixture();
   },
 };

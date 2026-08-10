@@ -1,7 +1,7 @@
 import React from "react";
 import { ChevronRight } from "lucide-react";
 
-import type { ChapterShootingScript } from "../../../api/shootingScript";
+import type { ChapterShootingScriptV1 } from "../../../api/shootingScript";
 import {
   shootingCameraAngleLabel,
   shootingCameraMovementLabel,
@@ -10,7 +10,7 @@ import {
 } from "../../../utils/shootingScriptPresentation";
 
 export const ScriptContent: React.FC<{
-  script: ChapterShootingScript;
+  script: ChapterShootingScriptV1;
 }> = ({ script }) => (
   <div className="space-y-3">
     <section className="a4n-flat-surface overflow-hidden">

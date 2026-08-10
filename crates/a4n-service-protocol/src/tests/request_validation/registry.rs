@@ -110,8 +110,13 @@ fn provider_api_key_secret_policy_rejects_unknown_service() {
 }
 
 #[test]
-fn known_service_health_uses_service_registry() {
-    let health = known_service_health(PROMPT_SERVICE_NAME, "1.2.3", HealthStatus::Healthy);
+fn known_service_health_for_host_uses_service_registry() {
+    let health = known_service_health_for_host(
+        PROMPT_SERVICE_NAME,
+        "1.2.3",
+        HealthStatus::Healthy,
+        Some(PROTOCOL_VERSION),
+    );
 
     assert_eq!(health.service, PROMPT_SERVICE_NAME);
     assert_eq!(health.status, HealthStatus::Healthy);

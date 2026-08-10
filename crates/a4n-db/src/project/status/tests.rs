@@ -2,10 +2,8 @@ use super::*;
 use crate::project::{
     CreateProjectRecordInput, PROJECT_TYPE_NOVEL_LONG, create_project_record, required_text,
 };
-use a4n_core::{
-    models::project::{novel_project, project_status_history},
-    state::status::ProjectStatus,
-};
+use a4n_core::models::project::{novel_project, project_status_history};
+use a4n_domain::project::ProjectStatus;
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,

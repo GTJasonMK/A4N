@@ -2,13 +2,10 @@ import React from "react";
 import type { NovelProject } from "../../../api/project";
 import type { Blueprint } from "../../../api/blueprint";
 import { formatUiDateTime } from "../../../utils/dateTime";
-import { ProjectStatusInline } from "./ProjectStatusInline";
 
 interface ProjectOverviewCardProps {
   project: NovelProject;
   blueprint: Blueprint | null;
-  canEditProject: boolean;
-  onRefresh: () => Promise<void>;
   /** 嵌入概览主布局时隐藏外层卡片装饰。 */
   embedded?: boolean;
 }
@@ -16,16 +13,14 @@ interface ProjectOverviewCardProps {
 export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
   project,
   blueprint,
-  canEditProject,
-  onRefresh,
   embedded = false,
 }) => {
   const projectDescription = project.description.trim();
-  const chapterCurrent = project.current_chapter ?? project.progress?.current ?? 0;
+  const chapterCurrent = project.current_chapter;
   const chapterTotal =
     project.target_chapters ||
     project.total_chapters ||
-    project.progress?.total ||
+    project.progress.total ||
     blueprint?.total_chapters ||
     0;
   const chapterProgress =
@@ -65,11 +60,14 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
         </div>
       ) : null}
 
-      <ProjectStatusInline
-        project={project}
-        canForwardStatus={canEditProject}
-        onMutated={onRefresh}
-      />
+      {blueprint?.source_review_status === "needs_review" ? (
+        <div
+          role="status"
+          className="mt-3 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200"
+        >
+          正式蓝图需复核：生成依据的章节资料已变化，请重新分析或确认新版本。
+        </div>
+      ) : null}
 
       {blueprintMeta.length > 0 ? (
         <dl className="mt-3 divide-y divide-book-border/35 border-y border-book-border/35 text-xs">

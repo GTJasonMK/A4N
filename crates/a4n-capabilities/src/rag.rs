@@ -24,11 +24,6 @@ impl HttpRagClient {
         }
     }
 
-    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
-        self.transport = self.transport.with_http_client(client);
-        self
-    }
-
     pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
         self.transport = self.transport.with_http_client_factory(factory);
         self
@@ -69,10 +64,6 @@ impl RagClient for HttpRagClient {
         self.transport.post_json("/rag/search_text", request).await
     }
 
-    async fn ingest(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/rag/ingest", request).await
-    }
-
     async fn ingest_events(
         &self,
         request: JsonRequest,
@@ -91,31 +82,9 @@ impl RagClient for HttpRagClient {
         self.transport.post_json("/rag/delete", request).await
     }
 
-    async fn collection_exists(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post_json("/rag/collection_exists", request)
-            .await
-    }
-
-    async fn count(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/rag/count", request).await
-    }
-
     async fn drop_collection(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
         self.transport
             .post_json("/rag/drop_collection", request)
-            .await
-    }
-
-    async fn list_collections(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post_json("/rag/list_collections", request)
-            .await
-    }
-
-    async fn update_metadata(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post_json("/rag/update_metadata", request)
             .await
     }
 
@@ -128,16 +97,6 @@ impl RagClient for HttpRagClient {
     async fn metadata_by_filter(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
         self.transport
             .post_json("/rag/metadata_by_filter", request)
-            .await
-    }
-
-    async fn health_check(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/rag/health_check", request).await
-    }
-
-    async fn completeness_report(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post_json("/rag/completeness_report", request)
             .await
     }
 

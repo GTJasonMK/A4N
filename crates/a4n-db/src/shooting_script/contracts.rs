@@ -1,6 +1,5 @@
-use a4n_core::{
-    models::chapter::chapter_shooting_script, shooting_script::ChapterShootingScriptV1,
-};
+use a4n_core::models::chapter::chapter_shooting_script;
+use a4n_domain::shooting_script::ChapterShootingScriptV1;
 use sea_orm::DbErr;
 
 use crate::project::ResolvedChapterSource;

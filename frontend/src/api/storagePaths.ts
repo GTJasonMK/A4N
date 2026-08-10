@@ -9,8 +9,10 @@ export type {
   StoragePathsSummary,
 } from "./generated/host";
 
-export async function getStoragePaths(): Promise<StoragePathsSummary> {
-  return apiInvoke<StoragePathsSummary>("get_storage_paths");
+export async function getStoragePaths(
+  callerUserId: number,
+): Promise<StoragePathsSummary> {
+  return apiInvoke<StoragePathsSummary>("get_storage_paths", { callerUserId });
 }
 
 export async function listOrphanProjectDataDirs(

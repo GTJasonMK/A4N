@@ -1,8 +1,8 @@
 use super::openai::OpenAiCompatibleImageProvider;
 use super::support::{
     build_image_http_client, image_provider_http_error, image_result_from_openai_payload,
-    internal_error, prepare_reference_image_for_upload, required_non_empty, response_text,
-    send_image_request,
+    internal_error, prepare_reference_image_for_upload, prompt_with_reference_labels,
+    reference_image_field_name, required_non_empty, response_text, send_image_request,
 };
 use a4n_core::error::AppError;
 use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
@@ -38,16 +38,12 @@ impl OpenAiCompatibleImageEditProvider {
             return Err(internal_error("图片编辑请求缺少参考图"));
         }
 
-        let prompt = prompt_with_reference_labels(req);
+        let prompt = prompt_with_reference_labels(&req.prompt, &req.reference_images);
         let mut form = Form::new()
             .text("model", req.model.clone())
             .text("prompt", prompt)
             .text("size", format!("{}x{}", req.width, req.height));
-        let field_name = if req.reference_images.len() == 1 {
-            "image"
-        } else {
-            "image[]"
-        };
+        let field_name = reference_image_field_name(req.reference_images.len());
 
         for (index, image) in req.reference_images.iter().enumerate() {
             let decoded = prepare_reference_image_for_upload(&image.data_uri)?;
@@ -67,11 +63,7 @@ impl OpenAiCompatibleImageEditProvider {
             return OpenAiCompatibleImageProvider::request_body_preview(req);
         }
 
-        let field_name = if req.reference_images.len() == 1 {
-            "image"
-        } else {
-            "image[]"
-        };
+        let field_name = reference_image_field_name(req.reference_images.len());
         let files = req
             .reference_images
             .iter()
@@ -85,7 +77,7 @@ impl OpenAiCompatibleImageEditProvider {
                 })
             })
             .collect::<Vec<_>>();
-        let prompt = prompt_with_reference_labels(req);
+        let prompt = prompt_with_reference_labels(&req.prompt, &req.reference_images);
 
         Ok(json!({
             "endpoint": "/images/edits",
@@ -139,20 +131,6 @@ impl ImageProvider for OpenAiCompatibleImageEditProvider {
 
         image_result_from_openai_payload(&self.client, &text, req.model, "图片编辑").await
     }
-}
-
-fn prompt_with_reference_labels(req: &ImageGenerationRequest) -> String {
-    if req.reference_images.is_empty() {
-        return req.prompt.clone();
-    }
-    let refs = req
-        .reference_images
-        .iter()
-        .enumerate()
-        .map(|(index, image)| format!("{}. {}", index + 1, image.label))
-        .collect::<Vec<_>>()
-        .join("\n");
-    format!("{}\n\n参考图绑定：\n{}", req.prompt, refs)
 }
 
 #[cfg(test)]

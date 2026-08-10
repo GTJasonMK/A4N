@@ -105,7 +105,7 @@ scan() {
 
 scan "llm_stream" '\bchat_stream\s*\(' "${rust_source_roots[@]}"
 scan "llm_full_response" '\bchat_llm\s*\(|\.chat\s*\(' "${rust_source_roots[@]}"
-scan "structured_stream" 'structured_stream|chat_json_stream(_result)?_with_progress' "${rust_source_roots[@]}"
+scan "structured_stream" 'structured_stream|chat_json_stream(_result)?_with_(progress|sink)' "${rust_source_roots[@]}"
 scan "manual_stream_collector" 'collect_stream|while[[:space:]]+let[[:space:]]+Some\(.*\.next\(\)\.await' "${rust_source_roots[@]}"
 scan "service_task_event" 'ServiceTaskEvent' "${rust_source_roots[@]}"
 scan "legacy_sse_progress" '\bSseEvent\b|\bProgressTaskKind\b|emit_chunk' "${rust_source_roots[@]}"

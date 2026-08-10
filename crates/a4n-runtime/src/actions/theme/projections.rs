@@ -1,4 +1,4 @@
-use super::contracts::ThemeSummary;
+use super::ThemeSummary;
 use a4n_core::models::user::theme_config;
 
 pub(super) fn to_summary(theme: &theme_config::Model) -> ThemeSummary {

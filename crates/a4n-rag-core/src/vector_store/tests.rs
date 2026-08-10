@@ -62,28 +62,6 @@ fn search_filter_applies_equals_data_type_and_bounded_chapter() {
 }
 
 #[test]
-fn count_only_completeness_merges_missing_ids_stably() {
-    let report = CompletenessReport::count_only(
-        "project-7",
-        3,
-        3,
-        3,
-        vec!["record-b".to_string(), "record-a".to_string()],
-        vec!["record-c".to_string(), "record-b".to_string()],
-    );
-
-    assert!(!report.is_complete);
-    assert_eq!(
-        report.missing_ids,
-        vec![
-            "record-a".to_string(),
-            "record-b".to_string(),
-            "record-c".to_string()
-        ]
-    );
-}
-
-#[test]
 fn expected_id_completeness_classifies_vector_and_bm25_gaps() {
     let expected = vec![
         "record-c".to_string(),

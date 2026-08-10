@@ -11,13 +11,12 @@ use super::{
     GALGAME_PIPELINE_WORKFLOW_KIND, GalgameAssetPlan, GalgamePipelineRunOptions,
     GalgamePipelineStartStage, GalgamePipelineStatusReadModel, GalgameProgressReporter,
     GalgameScriptDetail, PROJECT_KIND_GALGAME, galgame_pipeline_workflow_run_input,
-    parse_galgame_start_stage,
 };
 
 pub struct GalgamePipelineApplicationInput {
     pub project_id: i64,
-    pub task_id: Option<String>,
-    pub start_from_stage: Option<String>,
+    pub task_id: String,
+    pub start_from_stage: Option<GalgamePipelineStartStage>,
     pub resume_from_checkpoint: bool,
     pub progress_reporter: Option<GalgameProgressReporter>,
 }
@@ -58,8 +57,8 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn super::GalgameAssetGenerationHostPort,
         user_id: i64,
-        input: super::GalgameAssetGenerationApplicationInput,
-    ) -> Result<super::GalgameAssetGenerationApplicationSummary, AppError> {
+        input: super::RunGalgameAssetGenerationInput,
+    ) -> Result<super::GalgameAssetGenerationSummary, AppError> {
         self.verify_galgame_project_access(user_id, input.project_id, ProjectAccessRole::Editor)
             .await?;
         self.run_galgame_asset_generation_validated(host_port, user_id, input)
@@ -82,7 +81,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
-        start_from_stage: Option<&str>,
+        start_from_stage: Option<GalgamePipelineStartStage>,
         resume_from_checkpoint: bool,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<super::GalgamePipelinePreviewRequest>, AppError> {
@@ -112,10 +111,12 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         input: super::InsertGalgameLineInput,
-    ) -> Result<a4n_core::models::galgame::galgame_line::Model, AppError> {
+    ) -> Result<super::GalgameLine, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
-        self.insert_galgame_line(project_id, input).await
+        super::read_models::galgame_line_from_model(
+            self.insert_galgame_line(project_id, input).await?,
+        )
     }
 
     pub async fn update_galgame_line_for_user_validated(
@@ -123,10 +124,12 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         input: super::UpdateGalgameLineInput,
-    ) -> Result<a4n_core::models::galgame::galgame_line::Model, AppError> {
+    ) -> Result<super::GalgameLine, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
-        self.update_galgame_line(project_id, input).await
+        super::read_models::galgame_line_from_model(
+            self.update_galgame_line(project_id, input).await?,
+        )
     }
 
     pub async fn update_galgame_scene_for_user_validated(
@@ -134,10 +137,12 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         input: super::UpdateGalgameSceneInput,
-    ) -> Result<a4n_core::models::galgame::galgame_scene::Model, AppError> {
+    ) -> Result<super::GalgameScene, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
-        self.update_galgame_scene(project_id, input).await
+        super::read_models::galgame_scene_from_model(
+            self.update_galgame_scene(project_id, input).await?,
+        )
     }
 
     pub async fn update_galgame_choices_for_user_validated(
@@ -145,10 +150,15 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         input: super::UpdateGalgameChoicesInput,
-    ) -> Result<Vec<a4n_core::models::galgame::galgame_choice::Model>, AppError> {
+    ) -> Result<Vec<super::GalgameChoice>, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
-        self.update_galgame_choices(project_id, input).await
+        Ok(self
+            .update_galgame_choices(project_id, input)
+            .await?
+            .into_iter()
+            .map(super::read_models::galgame_choice_from_model)
+            .collect())
     }
 
     pub async fn reorder_galgame_lines_for_user_validated(
@@ -156,10 +166,14 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         input: super::ReorderGalgameLinesInput,
-    ) -> Result<Vec<a4n_core::models::galgame::galgame_line::Model>, AppError> {
+    ) -> Result<Vec<super::GalgameLine>, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
-        self.reorder_galgame_lines(project_id, input).await
+        self.reorder_galgame_lines(project_id, input)
+            .await?
+            .into_iter()
+            .map(super::read_models::galgame_line_from_model)
+            .collect()
     }
 
     pub async fn delete_galgame_line_for_user_validated(
@@ -177,7 +191,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         input: super::BindGalgameMediaInput,
-    ) -> Result<super::GalgameMediaBindingResult, AppError> {
+    ) -> Result<super::GalgameMediaBindingSummary, AppError> {
         self.verify_galgame_project_access(user_id, input.project_id, ProjectAccessRole::Editor)
             .await?;
         self.bind_galgame_media_validated(input).await
@@ -195,25 +209,22 @@ impl OrchestratorContext {
 
     pub async fn import_galgame_audio_for_user_validated(
         &self,
-        host_port: &dyn super::GalgameAudioHostPort,
         user_id: i64,
         input: super::ImportGalgameAudioInput,
-    ) -> Result<super::GalgameMediaBindingResult, AppError> {
+    ) -> Result<super::GalgameMediaBindingSummary, AppError> {
         self.verify_galgame_project_access(user_id, input.project_id, ProjectAccessRole::Editor)
             .await?;
-        self.import_galgame_audio_validated(host_port, input).await
+        self.import_galgame_audio_validated(input).await
     }
 
     pub async fn run_export_galgame_webgal_for_user_validated(
         &self,
-        host_port: &dyn super::WebgalExportHostPort,
         user_id: i64,
         project_id: i64,
-    ) -> Result<crate::export::ExportFileData, AppError> {
+    ) -> Result<a4n_api_contract::export::ExportFileData, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
-        self.run_export_galgame_webgal_validated(host_port, project_id)
-            .await
+        self.run_export_galgame_webgal_validated(project_id).await
     }
 
     pub async fn get_galgame_pipeline_status_for_user_validated(
@@ -239,8 +250,8 @@ impl OrchestratorContext {
                 chapter_id: None,
                 workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
                 status: None,
-                resumable_only: None,
-                limit: Some(1),
+                resumable_only: false,
+                limit: 1,
             })
             .await?
             .into_iter()
@@ -280,15 +291,15 @@ impl OrchestratorContext {
                 current: "missing_root_project".to_string(),
                 operation: format!("运行 Galgame 项目 {} 管线", project.id),
             })?;
-        let start_from_stage = parse_galgame_start_stage(input.start_from_stage.as_deref())?;
-        let initial_stage =
-            start_from_stage.unwrap_or(GalgamePipelineStartStage::ShootingScriptProjection);
+        let initial_stage = input
+            .start_from_stage
+            .unwrap_or(GalgamePipelineStartStage::ShootingScriptProjection);
         let workflow_input = galgame_pipeline_workflow_run_input(
             project.id,
             root_project_id,
             source_snapshot_id,
             initial_stage.key(),
-            input.task_id.clone(),
+            Some(input.task_id.clone()),
         )
         .map_err(AppError::InvalidArgument)?;
         let workflow_run = if input.resume_from_checkpoint {
@@ -303,10 +314,10 @@ impl OrchestratorContext {
                 prompt_renderer,
                 GalgamePipelineRunOptions {
                     workflow_run_id: workflow_run.id,
-                    task_id: input.task_id,
+                    task_id: Some(input.task_id),
                     progress_reporter: input.progress_reporter,
                     resume_from_checkpoint: input.resume_from_checkpoint,
-                    start_from_stage,
+                    start_from_stage: input.start_from_stage,
                 },
             )
             .await;
@@ -334,8 +345,8 @@ impl OrchestratorContext {
                 chapter_id: None,
                 workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
                 status: Some(WORKFLOW_STATUS_RUNNING.to_string()),
-                resumable_only: None,
-                limit: Some(1),
+                resumable_only: false,
+                limit: 1,
             })
             .await?
             .into_iter()

@@ -2,50 +2,41 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct ProjectProgressSummary {
-    pub kind: String,
-    pub stage: String,
-    pub label: String,
-    pub current: Option<i64>,
-    pub total: Option<i64>,
-    pub status: String,
-    pub detail: Option<String>,
-}
+use crate::collaboration::ProjectAccessRole;
+pub use a4n_domain::project::{
+    ProjectProgressStatus, ProjectProgressSummary, ProjectRollbackImpactSummary,
+    ProjectRollbackPreview, ProjectStatus, ProjectStatusHistorySummary,
+    ProjectStatusMachineSummary,
+};
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Serialize, JsonSchema)]
 pub struct ProjectSummary {
     pub id: i64,
     pub title: String,
     pub description: String,
+    pub lifecycle_gate: String,
     pub project_type: String,
     pub project_kind: String,
     pub source_mode: String,
     pub root_project_id: Option<i64>,
-    pub parent_project_id: Option<i64>,
-    pub source_snapshot_id: Option<i64>,
     pub source_sync_status: String,
-    pub derived_project_status: Option<String>,
     pub root_project_title: Option<String>,
-    pub source_snapshot_created_at: Option<String>,
     pub derived_chapter_scope: Option<Value>,
-    pub status: String,
+    pub status: ProjectStatus,
     pub current_chapter: i32,
     pub target_chapters: i32,
     pub total_chapters: Option<i32>,
     pub chapters_per_part: Option<i32>,
-    pub owner_user_id: i64,
-    pub owner_username: Option<String>,
-    pub my_role: Option<String>,
+    pub owner_username: String,
+    pub my_role: ProjectAccessRole,
     pub collaboration_root_project_id: i64,
     pub member_count: u64,
     pub pending_invite_count: Option<u64>,
     pub progress: ProjectProgressSummary,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Serialize, JsonSchema)]
 pub struct PaginatedProjects {
     pub items: Vec<ProjectSummary>,
     pub total: u64,
@@ -53,7 +44,7 @@ pub struct PaginatedProjects {
     pub page_size: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateProjectInput {
     pub title: String,
@@ -61,14 +52,14 @@ pub struct CreateProjectInput {
     pub project_type: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateFreeformVideoProjectInput {
     pub title: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateDerivedProjectInput {
     pub root_project_id: i64,
@@ -80,14 +71,14 @@ pub struct CreateDerivedProjectInput {
     pub creation_options: Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateProjectInput {
     pub title: Option<String>,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Serialize, JsonSchema)]
 pub struct ProjectGeneratedDataResetSummary {
     pub project: ProjectSummary,
     pub deleted_galgame_scripts: u64,
@@ -134,4 +125,19 @@ pub struct ProjectGeneratedDataResetSummary {
     pub deleted_tasks: u64,
     pub deleted_task_dependencies: u64,
     pub deleted_media_files: usize,
+}
+
+#[derive(Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectGeneratedDataResetStatus {
+    Completed,
+    Pending,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct ProjectGeneratedDataResetResponse {
+    pub status: ProjectGeneratedDataResetStatus,
+    pub database_committed: bool,
+    pub result: Option<ProjectGeneratedDataResetSummary>,
+    pub warnings: Vec<String>,
 }

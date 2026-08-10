@@ -1,5 +1,4 @@
 mod app;
-mod contracts;
 mod handlers;
 mod protocol;
 #[cfg(test)]

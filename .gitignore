@@ -73,6 +73,7 @@ docs/*
 docs/重构/*
 !docs/重构/rag-qdrant-migration.md
 !docs/重构/全量增量生成迁移清单.md
+!docs/重构/冗余清理记录.md
 # OS/editor noise
 .DS_Store
 Thumbs.db

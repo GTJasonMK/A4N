@@ -7,6 +7,14 @@ use serde::Serialize;
 struct VideoPlaybackData {
     mime_type: &'static str,
     data_base64: String,
+    scrub_frames: Option<VideoScrubFramesData>,
+}
+
+#[derive(Serialize)]
+struct VideoScrubFramesData {
+    mime_type: &'static str,
+    data_base64: String,
+    frames_per_second: u32,
 }
 
 #[tauri::command]
@@ -28,19 +36,29 @@ fn remove_frontend_state_many(keys: Vec<String>) {
 fn load_video_scrub_playback_data(
     user_id: i64,
     video_id: i64,
+    include_audio: bool,
 ) -> Result<VideoPlaybackData, String> {
-    if user_id != 1 || video_id != 9001 {
+    if user_id != 1 || !matches!(video_id, 9001 | 9002) || include_audio {
         return Err(format!(
-            "unexpected scrub fixture request: user={user_id}, video={video_id}"
+            "unexpected scrub fixture request: user={user_id}, video={video_id}, include_audio={include_audio}"
         ));
     }
     let path = std::env::var("A4N_VIDEO_SCRUB_FIXTURE_PATH")
         .map_err(|_| "A4N_VIDEO_SCRUB_FIXTURE_PATH is required".to_string())?;
     let bytes = std::fs::read(&path)
         .map_err(|error| format!("failed to read scrub fixture {path}: {error}"))?;
+    let frames_path = std::env::var("A4N_VIDEO_SCRUB_FRAMES_FIXTURE_PATH")
+        .map_err(|_| "A4N_VIDEO_SCRUB_FRAMES_FIXTURE_PATH is required".to_string())?;
+    let frame_bytes = std::fs::read(&frames_path)
+        .map_err(|error| format!("failed to read scrub frame fixture {frames_path}: {error}"))?;
     Ok(VideoPlaybackData {
         mime_type: "video/mp4",
         data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+        scrub_frames: Some(VideoScrubFramesData {
+            mime_type: "image/jpeg",
+            data_base64: base64::engine::general_purpose::STANDARD.encode(frame_bytes),
+            frames_per_second: 12,
+        }),
     })
 }
 

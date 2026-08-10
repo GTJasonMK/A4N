@@ -4,8 +4,9 @@ use a4n_runtime::AppState;
 use a4n_runtime::host_api::project_records as project_records_actions;
 use a4n_runtime::host_api::project_records::{
     AssetDependencyGraph, AssetGraphNodeDetail, CreateDerivedProjectInput,
-    CreateFreeformVideoProjectInput, CreateProjectInput, ProjectGeneratedDataResetSummary,
-    ProjectSummary, SourceSnapshotChapterSummary, UpdateProjectInput,
+    CreateFreeformVideoProjectInput, CreateProjectInput, PaginatedProjects, ProjectAccessScope,
+    ProjectGeneratedDataResetResponse, ProjectSummary, SourceSnapshotChapterSummary,
+    UpdateProjectInput,
 };
 use tauri::State;
 
@@ -48,21 +49,20 @@ pub async fn list_projects(
     page_size: Option<u64>,
     project_kind: Option<String>,
     root_project_id: Option<i64>,
-    access_scope: Option<String>,
-) -> Result<serde_json::Value, String> {
+    access_scope: Option<ProjectAccessScope>,
+) -> Result<PaginatedProjects, String> {
     let page = required_positive_u64(page, "page")?;
     let limit = required_positive_u64(page_size, "page_size")?;
-    let result = project_records_actions::list_projects(
+    project_records_actions::list_projects(
         &state,
         user_id,
         page,
         limit,
         project_kind.as_deref(),
         root_project_id,
-        access_scope.as_deref(),
+        access_scope,
     )
-    .await?;
-    serde_json::to_value(result).map_err(|e| e.to_string())
+    .await
 }
 
 #[tauri::command]
@@ -125,7 +125,7 @@ pub async fn reset_project_generated_data(
     state: State<'_, AppState>,
     user_id: i64,
     project_id: i64,
-) -> Result<ProjectGeneratedDataResetSummary, String> {
+) -> Result<ProjectGeneratedDataResetResponse, String> {
     project_records_actions::reset_project_generated_data(&state, user_id, project_id).await
 }
 

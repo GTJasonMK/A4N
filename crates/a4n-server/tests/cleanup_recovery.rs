@@ -595,15 +595,15 @@ async fn server_process_recovers_uploaded_image_after_record_and_cleanup_intent_
         .await
         .unwrap();
     let status = response.status();
-    let error = response.json::<serde_json::Value>().await.unwrap()["error"]
+    let message = response.json::<serde_json::Value>().await.unwrap()["message"]
         .as_str()
         .unwrap()
         .to_string();
     stop_server(first);
 
     assert_eq!(status, reqwest::StatusCode::BAD_REQUEST);
-    assert!(error.contains("导入图片记录创建失败"), "{error}");
-    assert!(error.contains("后续清理也失败"), "{error}");
+    assert!(message.contains("导入图片记录创建失败"), "{message}");
+    assert!(message.contains("后续清理也失败"), "{message}");
     let images_dir = data_dir
         .join("projects")
         .join(project.id.to_string())
@@ -1154,15 +1154,15 @@ ORDER BY relation.relname, held_lock.mode, held_lock.pid
 
     let response = delete_request.await.unwrap();
     let status = response.status();
-    let error = response.json::<serde_json::Value>().await.unwrap()["error"]
+    let message = response.json::<serde_json::Value>().await.unwrap()["message"]
         .as_str()
         .unwrap()
         .to_string();
     stop_server(server);
     assert_eq!(status, reqwest::StatusCode::BAD_REQUEST);
     assert!(
-        error.contains("generation_destructive_drain_timeout"),
-        "{error}"
+        message.contains("generation_destructive_drain_timeout"),
+        "{message}"
     );
 }
 
@@ -1237,7 +1237,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
         });
         let config = a4n_db::config::create_video_config_record(
             &db,
-            a4n_db::config::VideoConfigCreateRecordInput {
+            a4n_db::config::VideoConfigRecordInput {
                 name: format!("cleanup-video-{suffix}"),
                 backend: "cliproxy-openai-video".to_string(),
                 base_url: format!("http://{provider_addr}/openai/v1"),
@@ -1249,7 +1249,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
                 default_duration_secs: 5,
                 min_duration_secs: 1,
                 max_duration_secs: 15,
-                duration_mode: "range".to_string(),
+                duration_mode: a4n_db::config::VideoDurationMode::Range,
                 supported_durations_json: None,
                 default_fps: 24,
             },
@@ -1883,7 +1883,9 @@ async fn server_process_streams_chapter_generation_failure_terminal() {
         "writing_notes": null,
         "min_word_count": 100,
         "max_word_count": 200,
-        "client_rag_context": null
+        "client_rag_embedding_identity": null,
+        "client_rag_query_fingerprint": null,
+        "client_rag_query_vectors": null
     });
     let response = client
         .post(format!("http://{addr}/api/generation-tasks/chapter"))
@@ -2922,7 +2924,7 @@ async fn real_chromium_recovers_generation_after_proxy_aborts_sse() {
     let image_config = {
         let config = a4n_db::config::create_image_config_record(
             &db,
-            a4n_db::config::ImageConfigCreateRecordInput {
+            a4n_core::config::CreateImageConfigParams {
                 name: format!("browser-process-image-{suffix}"),
                 backend: "openai-compatible-image".to_string(),
                 base_url: image_provider.base_url(),
@@ -2935,9 +2937,11 @@ async fn real_chromium_recovers_generation_after_proxy_aborts_sse() {
         )
         .await
         .unwrap();
+        let config_id = config.id;
         a4n_db::config::set_default_image_config_record(&db, config)
             .await
-            .unwrap()
+            .unwrap();
+        config_id
     };
 
     let temp = tempfile::tempdir().unwrap();
@@ -2972,7 +2976,7 @@ async fn real_chromium_recovers_generation_after_proxy_aborts_sse() {
         project.id
     );
     #[cfg(feature = "embedded-media-providers")]
-    let browser_url = format!("{browser_url}&image_config={}", image_config.id);
+    let browser_url = format!("{browser_url}&image_config={image_config}");
     let webdriver_addr = unused_local_addr();
     let mut webdriver = Command::new(chromedriver_binary())
         .arg(format!("--port={}", webdriver_addr.port()))
@@ -4081,7 +4085,7 @@ async fn server_process_streams_image_generation_success_terminal() {
     .unwrap();
     let image_config = a4n_db::config::create_image_config_record(
         &db,
-        a4n_db::config::ImageConfigCreateRecordInput {
+        a4n_core::config::CreateImageConfigParams {
             name: format!("image-process-success-{suffix}"),
             backend: "openai-compatible-image".to_string(),
             base_url: provider.base_url(),
@@ -4094,7 +4098,8 @@ async fn server_process_streams_image_generation_success_terminal() {
     )
     .await
     .unwrap();
-    let image_config = a4n_db::config::set_default_image_config_record(&db, image_config)
+    let image_config_id = image_config.id;
+    a4n_db::config::set_default_image_config_record(&db, image_config)
         .await
         .unwrap();
 
@@ -4124,7 +4129,7 @@ async fn server_process_streams_image_generation_success_terminal() {
             "operation": {
                 "kind": "scene",
                 "prompt": "雨夜中的仓库入口，电影感构图",
-                "config_id": image_config.id,
+                "config_id": image_config_id,
                 "chapter_id": null
             }
         }))

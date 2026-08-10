@@ -1,30 +1,30 @@
-import { apiInvoke } from "../index";
+import type { UserSummary } from "../generated/auth";
 import type {
-  AdminInviteCode,
-  AdminUser,
-  CreateAdminUserInput,
   CreateInviteCodeInput,
-} from "./types";
+  CreateUserInput,
+  InviteCodeSummary,
+} from "../generated/host";
+import { apiInvoke } from "../index";
 import { type ApiId as Id, idNum } from "../shared";
 
-export async function listAllUsers(callerUserId: Id): Promise<AdminUser[]> {
-  return apiInvoke<AdminUser[]>("list_all_users", {
+export async function listAllUsers(callerUserId: Id): Promise<UserSummary[]> {
+  return apiInvoke<UserSummary[]>("list_all_users", {
     callerUserId: idNum(callerUserId),
   });
 }
 
 export async function createAdminUser(
   callerUserId: Id,
-  input: CreateAdminUserInput,
-): Promise<AdminUser> {
-  return apiInvoke<AdminUser>("create_user", {
+  input: CreateUserInput,
+): Promise<UserSummary> {
+  return apiInvoke<UserSummary>("create_user", {
     callerUserId: idNum(callerUserId),
     input,
   });
 }
 
-export async function listInviteCodes(callerUserId: Id): Promise<AdminInviteCode[]> {
-  return apiInvoke<AdminInviteCode[]>("list_invite_codes", {
+export async function listInviteCodes(callerUserId: Id): Promise<InviteCodeSummary[]> {
+  return apiInvoke<InviteCodeSummary[]>("list_invite_codes", {
     callerUserId: idNum(callerUserId),
   });
 }
@@ -32,8 +32,8 @@ export async function listInviteCodes(callerUserId: Id): Promise<AdminInviteCode
 export async function createInviteCode(
   callerUserId: Id,
   input: CreateInviteCodeInput,
-): Promise<AdminInviteCode> {
-  return apiInvoke<AdminInviteCode>("create_invite_code", {
+): Promise<InviteCodeSummary> {
+  return apiInvoke<InviteCodeSummary>("create_invite_code", {
     callerUserId: idNum(callerUserId),
     input,
   });
@@ -43,8 +43,8 @@ export async function updateUserRole(
   callerUserId: Id,
   userId: Id,
   role: string,
-): Promise<AdminUser> {
-  return apiInvoke<AdminUser>("update_user_role", {
+): Promise<UserSummary> {
+  return apiInvoke<UserSummary>("update_user_role", {
     callerUserId: idNum(callerUserId),
     userId: idNum(userId),
     input: { role },

@@ -17,7 +17,7 @@ interface UseGenerationTaskOptions {
   autoSubscribe?: boolean;
 }
 
-export interface GenerationTaskController extends GenerationTaskViewState {
+interface GenerationTaskController extends GenerationTaskViewState {
   text: (streamId: string) => string;
   cancel: () => Promise<void>;
   recover: () => Promise<void>;

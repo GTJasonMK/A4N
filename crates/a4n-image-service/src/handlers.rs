@@ -5,7 +5,6 @@ use axum::{Json, http::HeaderMap};
 
 pub(crate) mod discovery;
 pub(crate) mod events;
-pub(crate) mod generation;
 
 pub(crate) async fn healthz(headers: HeaderMap) -> Json<ServiceHealth> {
     Json(known_service_health_for_host(

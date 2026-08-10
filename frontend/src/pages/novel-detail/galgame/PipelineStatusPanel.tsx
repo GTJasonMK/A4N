@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { formatUiDateTime } from "../../../utils/dateTime";
-import type { GalgamePipelineStatus } from "../../../api/galgame";
+import type { GalgamePipelineStatusSummary } from "../../../api/galgame";
 
 /**
  * Galgame 生成状态面板
@@ -10,7 +10,7 @@ import type { GalgamePipelineStatus } from "../../../api/galgame";
  */
 
 interface PipelineStatusPanelProps {
-  status: GalgamePipelineStatus | null;
+  status: GalgamePipelineStatusSummary | null;
   loading: boolean;
 }
 

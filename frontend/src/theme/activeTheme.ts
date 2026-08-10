@@ -1,8 +1,6 @@
-import { listThemes, type Theme } from "../api/theme";
+import { listThemes, type Theme, type ThemeMode } from "../api/theme";
 import { readCurrentAccessToken } from "../api/authStorage";
-import { writePortableItem } from "../utils/portableStorage";
 import { shouldUseHttpBackend } from "../utils/runtimeMode";
-import { themeCssVariableStringMap } from "./themeCssVariables";
 
 /**
  * 后端主题（theme_config 表）应用到 DOM 的工具
@@ -15,11 +13,11 @@ export const THEME_MODE_STORAGE_KEY = "a4n-theme-mode";
 
 const appliedThemeVariables = new Set<string>();
 
-function dispatchThemeApplied(detail: {
-  mode: string | null;
-  themeId: number | null;
-  themeName: string | null;
-}): void {
+export interface ThemeAppliedDetail {
+  mode: ThemeMode | null;
+}
+
+function dispatchThemeApplied(detail: ThemeAppliedDetail): void {
   window.dispatchEvent(
     new CustomEvent(THEME_APPLIED_EVENT, {
       detail,
@@ -34,11 +32,7 @@ function clearAppliedThemeVariables(): void {
   for (const key of appliedThemeVariables) root.style.removeProperty(key);
   appliedThemeVariables.clear();
 
-  dispatchThemeApplied({
-    mode: null,
-    themeId: null,
-    themeName: null,
-  });
+  dispatchThemeApplied({ mode: null });
 }
 
 /**
@@ -48,7 +42,7 @@ function clearAppliedThemeVariables(): void {
 export function applyActiveTheme(theme: Theme): void {
   const root = document.documentElement;
 
-  const vars = themeCssVariableStringMap(theme.css_variables);
+  const vars = theme.css_variables;
   const nextKeys = new Set(Object.keys(vars));
   for (const key of appliedThemeVariables) {
     if (!nextKeys.has(key)) root.style.removeProperty(key);
@@ -60,16 +54,9 @@ export function applyActiveTheme(theme: Theme): void {
   appliedThemeVariables.clear();
   for (const key of nextKeys) appliedThemeVariables.add(key);
 
-  const isDark = theme.mode === "dark";
-  root.classList.toggle("dark", isDark);
+  root.classList.toggle("dark", theme.mode === "dark");
 
-  writePortableItem(THEME_MODE_STORAGE_KEY, isDark ? "dark" : "light");
-
-  dispatchThemeApplied({
-    mode: theme.mode,
-    themeId: theme.id,
-    themeName: theme.name,
-  });
+  dispatchThemeApplied({ mode: theme.mode });
 }
 
 function selectActiveTheme(themes: Theme[], userId?: number | null): Theme | null {

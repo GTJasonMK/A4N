@@ -4,6 +4,7 @@ const WORKFLOW_STATUS_LABELS: Record<string, string> = {
   imported: "已导入",
   ready: "就绪",
   pending: "等待中",
+  needs_analysis: "尚未分析",
   analyzing: "分析中",
   reviewing: "审核中",
   queued: "排队中",
@@ -25,6 +26,7 @@ const WORKFLOW_STATUS_LABELS: Record<string, string> = {
   rejected: "已拒绝",
   modified: "已修改",
   stale: "已过期",
+  unknown: "待核对",
 };
 
 export const getOperationStatusLabel = (value: string | null | undefined): string => {
@@ -57,6 +59,7 @@ const WORKFLOW_KIND_LABELS: Record<string, string> = {
   video_provider_job: "视频任务",
   video_canvas_graph: "视频画布",
   chapter_analysis: "章节分析",
+  chapter_content_sync: "章节资料同步",
   source_sync: "源文本同步",
   import_analysis: "导入分析",
   rag_ingestion: "RAG 入库",
@@ -69,6 +72,7 @@ const WORKFLOW_MODE_LABELS: Record<string, string> = {
   resume: "续传",
   retry: "重试",
   incremental: "增量更新",
+  content_change: "正文变更同步",
   boundary_frames: "首尾帧",
   first_frame_chain: "首帧串联",
   storyboard: "分镜",

@@ -8,6 +8,7 @@ interface WorldReadPanelProps {
   hasWorldContent: boolean;
   normalizedWorld: unknown;
   worldObject: WorldObject | null;
+  onCreateBlueprint?: () => void;
 }
 
 export const WorldReadPanel: React.FC<WorldReadPanelProps> = ({
@@ -15,11 +16,16 @@ export const WorldReadPanel: React.FC<WorldReadPanelProps> = ({
   hasWorldContent,
   normalizedWorld,
   worldObject,
+  onCreateBlueprint,
 }) => {
   if (!hasBlueprint) {
     return (
       <div className="a4n-flat-surface p-3">
-        <EmptyHint text="尚未生成蓝图。蓝图建立后，世界观会显示在这里。" />
+        <EmptyHint
+          text="尚未建立正式蓝图。可以先直接录入基础蓝图，再回来填写世界观。"
+          actionText={onCreateBlueprint ? "前往项目概览" : undefined}
+          onAction={onCreateBlueprint}
+        />
       </div>
     );
   }

@@ -1,9 +1,9 @@
 import React from "react";
-import { ChevronDown, CopyCheck, Eye, GitBranch } from "lucide-react";
+import { Check, ChevronDown, CopyCheck, Eye, GitBranch } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
-import type { ReverseType } from "./importTabUtils";
+import { parseReverseCandidateEnvelope, type ReverseType } from "./importTabUtils";
 
 interface ImportToolsPanelProps {
   dedupText: string;
@@ -13,7 +13,8 @@ interface ImportToolsPanelProps {
   reverseSample: string;
   reverseAutoContext: boolean;
   reverseResult: unknown;
-  reverseBusy: "preview" | "apply" | null;
+  reverseBusy: "preview" | null;
+  reverseConfirmBusy: boolean;
   externalBusy: boolean;
   onDedupTextChange: (value: string) => void;
   onDedup: () => void | Promise<void>;
@@ -21,7 +22,8 @@ interface ImportToolsPanelProps {
   onReverseSampleChange: (value: string) => void;
   onReverseAutoContextChange: (value: boolean) => void;
   onPreviewReverseRequest: () => void | Promise<void>;
-  onReverseEngineer: (apply: boolean) => void | Promise<void>;
+  onReverseEngineer: () => void | Promise<void>;
+  onConfirmReverse: () => void | Promise<void>;
 }
 
 export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
@@ -33,6 +35,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
   reverseAutoContext,
   reverseResult,
   reverseBusy,
+  reverseConfirmBusy,
   externalBusy,
   onDedupTextChange,
   onDedup,
@@ -41,19 +44,29 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
   onReverseAutoContextChange,
   onPreviewReverseRequest,
   onReverseEngineer,
+  onConfirmReverse,
 }) => {
   const reverseActionBusy = reverseBusy !== null;
-  const toolsBusy = externalBusy || dedupBusy || reverseActionBusy;
+  const toolsBusy = externalBusy || dedupBusy || reverseActionBusy || reverseConfirmBusy;
   const dedupReady = dedupText.trim().length > 0;
   const reverseReady = reverseAutoContext || reverseSample.trim().length > 0;
+  const reverseCandidate = parseReverseCandidateEnvelope(reverseResult, reverseType);
+  const reverseLabel =
+    reverseType === "blueprint"
+      ? "故事蓝图"
+      : reverseType === "outline"
+        ? "章节大纲"
+        : "分部大纲";
 
   return (
     <section aria-labelledby="import-tools-title" className="space-y-3 text-xs">
       <div>
         <h3 id="import-tools-title" className="text-sm font-semibold text-book-text-main">
-          辅助工具
+          项目资料归纳与文本工具
         </h3>
-        <p className="mt-0.5 text-small text-book-text-muted">文本检查与项目结构生成</p>
+        <p className="mt-0.5 text-small text-book-text-muted">
+          蓝图和分部大纲只由你主动生成或更新，章节分析不会自动修改它们
+        </p>
       </div>
       <details className="group a4n-flat-surface overflow-hidden">
         <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3 text-book-text-main [&::-webkit-details-marker]:hidden">
@@ -111,9 +124,9 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
         <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3 text-book-text-main [&::-webkit-details-marker]:hidden">
           <GitBranch size={15} className="text-book-text-muted" />
           <span className="min-w-0">
-            <span className="block text-xs font-semibold">结构反推</span>
+            <span className="block text-xs font-semibold">项目资料归纳</span>
             <span className="mt-0.5 block truncate text-small font-normal text-book-text-muted">
-              从样本文本生成蓝图或大纲
+              根据当前正式资料生成可确认的蓝图或大纲候选
             </span>
           </span>
           <ChevronDown
@@ -122,6 +135,9 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
           />
         </summary>
         <div className="space-y-2 border-t border-book-border/45 p-4">
+          <p className="text-small leading-relaxed text-book-text-muted">
+            生成阶段只创建候选，不会修改正式资料；确认前可以先查看候选内容和模型请求。
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={reverseType}
@@ -129,7 +145,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               onChange={(e) => onReverseTypeChange(e.target.value as ReverseType)}
               className="pyqt-input !px-2 !py-1 text-xs"
             >
-              <option value="blueprint">蓝图</option>
+              <option value="blueprint">故事蓝图</option>
               <option value="outline">章节大纲</option>
               <option value="part_outline">分部大纲</option>
             </select>
@@ -153,7 +169,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
                   }`}
                 />
               </span>
-              项目上下文
+              当前项目资料
             </button>
           </div>
           <textarea
@@ -162,7 +178,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             onChange={(e) => onReverseSampleChange(e.target.value)}
             placeholder={
               reverseAutoContext
-                ? "可选：补充章节摘要、正文片段或人工备注"
+                ? "可选：补充当前项目资料中没有体现的创作意图或人工备注"
                 : "粘贴章节摘要、章节内容或章节大纲样本"
             }
             className="pyqt-input h-28 w-full resize-y"
@@ -170,16 +186,12 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
           <div className="flex items-center justify-end gap-2">
             {reverseBusy === "preview" ? (
               <span className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
-                <LoadingSpinner size="sm" /> 正在生成预览…
+                <LoadingSpinner size="sm" /> 正在生成结果…
               </span>
             ) : null}
             {!toolsBusy && reverseReady ? (
               <Dropdown
                 items={[
-                  {
-                    label: "仅预览反推结果",
-                    onClick: () => void onReverseEngineer(false),
-                  },
                   {
                     label: "查看模型请求",
                     icon: <Eye size={11} />,
@@ -190,27 +202,69 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             ) : null}
             <BookButton
               variant="primary"
-              onClick={() => void onReverseEngineer(true)}
+              onClick={() => void onReverseEngineer()}
               disabled={toolsBusy || !reverseReady}
             >
-              {reverseBusy === "apply" ? (
+              {reverseBusy === "preview" ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 应用中…
+                  <LoadingSpinner size="sm" /> 生成中…
                 </span>
               ) : (
-                "反推并应用"
+                `生成${reverseLabel}候选`
               )}
             </BookButton>
           </div>
           {reverseResult != null && (
-            <details className="border-t border-book-border/40 pt-2">
-              <summary className="cursor-pointer py-1 text-small text-book-text-sub">
-                查看反推结果
-              </summary>
-              <div className="pt-2">
-                <ImportToolResult value={reverseResult} />
+            <div className="border-t border-book-border/40 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
+                <span className="text-small text-book-text-sub">
+                  {reverseCandidate?.state === "proposal"
+                    ? `${reverseLabel}候选（尚未写入正式资料）`
+                    : reverseCandidate
+                      ? `${reverseLabel}候选已应用`
+                      : `${reverseLabel}候选`}
+                </span>
+                {reverseCandidate?.state === "proposal" ? (
+                  <BookButton
+                    variant="secondary"
+                    size="sm"
+                    disabled={toolsBusy}
+                    onClick={() => void onConfirmReverse()}
+                    className="!min-h-8 !text-xs"
+                  >
+                    {reverseConfirmBusy ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <LoadingSpinner size="sm" /> 确认中…
+                      </span>
+                    ) : (
+                      `确认更新${reverseLabel}`
+                    )}
+                  </BookButton>
+                ) : reverseCandidate ? (
+                  <span className="inline-flex items-center gap-1 text-small text-emerald-700">
+                    <Check size={13} /> 已确认
+                  </span>
+                ) : null}
               </div>
-            </details>
+              {reverseCandidate?.applied != null ? (
+                <details open className="border-t border-book-border/40 pt-2">
+                  <summary className="cursor-pointer py-1 text-small text-book-text-sub">
+                    查看本次正式更新结果
+                  </summary>
+                  <div className="pt-2">
+                    <ImportToolResult value={reverseCandidate.applied} />
+                  </div>
+                </details>
+              ) : null}
+              <details>
+                <summary className="cursor-pointer py-1 text-small text-book-text-muted">
+                  查看候选内容
+                </summary>
+                <div className="pt-2">
+                  <ImportToolResult value={reverseCandidate?.result ?? reverseResult} />
+                </div>
+              </details>
+            </div>
           )}
         </div>
       </details>
@@ -218,7 +272,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
   );
 };
 
-const RESULT_LABELS: Record<string, string> = {
+export const RESULT_LABELS: Record<string, string> = {
   original_count: "原段落",
   unique_count: "保留段落",
   duplicate_count: "重复段落",
@@ -234,8 +288,29 @@ const RESULT_LABELS: Record<string, string> = {
   tone: "基调",
   style: "风格",
   full_synopsis: "故事梗概",
+  target_audience: "目标读者",
+  one_sentence_summary: "一句话概要",
+  total_chapters: "总章节数",
+  needs_part_outlines: "需要分部",
+  chapters_per_part: "每部章节数",
   world_setting: "世界观",
   characters: "角色",
+  relationships: "角色关系",
+  updated_fields: "已更新字段",
+  blueprint_applied: "蓝图已更新",
+  outline_count: "处理章纲",
+  character_count: "角色总数",
+  relationship_count: "关系总数",
+  character_inserted: "新增角色",
+  character_updated: "补充角色",
+  character_preserved_conflicts: "保留角色冲突",
+  relationship_inserted: "新增关系",
+  relationship_updated: "补充关系",
+  relationship_preserved_conflicts: "保留关系冲突",
+  part_outline_count: "处理分部",
+  inserted_count: "新增",
+  updated_count: "更新",
+  reused_count: "未变化",
 };
 
 const ImportToolResult: React.FC<{ value: unknown }> = ({ value }) => {
@@ -252,7 +327,15 @@ const ImportToolResult: React.FC<{ value: unknown }> = ({ value }) => {
               {RESULT_LABELS[key] ?? `结果 ${index + 1}`}
             </dt>
             <dd className="min-w-0 whitespace-pre-wrap break-words leading-relaxed text-book-text-sub">
-              {formatResultValue(entryValue)}
+              {formatResultValue(
+                key === "updated_fields" && Array.isArray(entryValue)
+                  ? entryValue.length > 0
+                    ? entryValue.map((field) =>
+                        typeof field === "string" ? (RESULT_LABELS[field] ?? field) : field,
+                      )
+                    : "无顶层字段变化"
+                  : entryValue,
+              )}
             </dd>
           </div>
         ))}

@@ -12,13 +12,13 @@ import {
   getServerLlmMaxTokensConfig,
   listServerLlmConfig,
   type EmbeddingConfig,
-  type LlmConfig,
   type LlmMaxTokensConfig,
 } from "../../../api/config";
 import { listServerImageConfigs, type ImageGenConfig } from "../../../api/image";
 import { listServerVideoConfigs, type VideoGenConfig } from "../../../api/video";
 import { listModelProviderCatalog } from "../../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../../api/generated/config";
+import type { LlmConfigSummary } from "../../../api/generated/config";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { EmbeddingTab } from "../EmbeddingTab";
@@ -29,7 +29,7 @@ import { VideoTab } from "../VideoTab";
 type ApiConfigPanel = "overview" | "llm" | "image" | "video" | "embedding";
 
 interface ApiConfigSnapshot {
-  llm: LlmConfig[];
+  llm: LlmConfigSummary[];
   image: ImageGenConfig[];
   video: VideoGenConfig[];
   embedding: EmbeddingConfig[];
@@ -387,10 +387,6 @@ function modelLabel(value: string): string {
 function videoDurationText(config: VideoGenConfig): string {
   if (config.duration_mode === "fixed") {
     return `固定 ${config.default_duration_secs}s`;
-  }
-  const supported = config.supported_durations_json;
-  if (Array.isArray(supported) && supported.length > 0) {
-    return supported.join(", ");
   }
   return `${config.min_duration_secs}-${config.max_duration_secs}s`;
 }

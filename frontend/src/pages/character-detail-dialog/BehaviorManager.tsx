@@ -4,7 +4,12 @@ import { BookButton } from "../../components/ui/BookButton";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { listBehaviors, type BehaviorRecord } from "../../api/character";
-import { behaviorTypeLabel, jsonPreview, listPreview } from "./manageViewUtils";
+import {
+  behaviorTypeLabel,
+  jsonPreview,
+  listPreview,
+  sourceKindLabel,
+} from "./manageViewUtils";
 
 const behaviorLoadKey = (
   profileId: number,
@@ -188,7 +193,8 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
               className="px-3 py-2 text-small"
             >
               <div className="mb-1 text-caption text-book-text-muted">
-                第 {item.chapter_number} 章 · {behaviorTypeLabel(item.behavior_type)}
+                第 {item.chapter_number} 章 · {behaviorTypeLabel(item.behavior_type)} ·{" "}
+                {sourceKindLabel(item.source_kind)}
               </div>
               <div className="leading-relaxed text-book-text-main">{item.behavior_description}</div>
               {item.original_text && (

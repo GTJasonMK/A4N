@@ -18,12 +18,16 @@ pub(crate) async fn download_model_events(
     if let Err(error) = request.payload.validate_operation("download") {
         return failed_response(task_id, service_error(&error));
     }
+    let model = match request.payload.required_model() {
+        Ok(model) => model.to_string(),
+        Err(error) => return failed_response(task_id, service_error(&error)),
+    };
     let cache_dir = match resolve_cache_dir() {
         Ok(cache_dir) => cache_dir,
         Err(error) => return failed_response(task_id, service_error(&error)),
     };
     service_event_ndjson_response(
-        embedding_download_event_stream(task_id, request.payload.model.clone(), cache_dir),
+        embedding_download_event_stream(task_id, model, cache_dir),
         "embedding download",
     )
 }

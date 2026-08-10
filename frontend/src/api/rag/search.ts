@@ -1,5 +1,5 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import { activeLocalEmbeddingConfig } from "../localRuntimeSettings";
 import { embedTextsLocally } from "../config/embedding";
 import {
@@ -12,12 +12,6 @@ import type {
   RagPreparedEnhancedSearchOutput,
 } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法检索 RAG");
-  return id;
-};
 
 export async function ragEnhancedSearch(
   projectId: Id,
@@ -36,7 +30,6 @@ export async function ragEnhancedSearch(
   };
   if (canUseLocalDesktopEmbedding()) {
     const embeddingConfig = activeLocalEmbeddingConfig();
-    if (!embeddingConfig) throw new Error("请先设置默认 Embedding 配置");
     const prepared = await apiInvoke<RagPreparedEnhancedSearchOutput>(
       "rag_prepare_enhanced_search",
       {

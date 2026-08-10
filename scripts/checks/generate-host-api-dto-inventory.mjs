@@ -78,7 +78,7 @@ const rows = declarations
       consumerPaths(item.server),
       consumerPaths(item.tauri),
       consumerPaths(item.frontend),
-    ].join("\t");
+    ].join("\t").replace(/\t+$/, "");
   })
   .sort();
 

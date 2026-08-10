@@ -6,8 +6,8 @@ use a4n_core::error::AppError;
 use a4n_orchestrator::{
     OrchestratorContext,
     profile_material::{
-        ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialUploadHostPort,
-        SetProfilePrimaryMaterialInput, UploadProfileMaterialImageInput,
+        ListProfileMaterialsInput, ProfileMaterialGroup, SetProfilePrimaryMaterialInput,
+        UploadProfileMaterialImageInput,
     },
 };
 
@@ -42,12 +42,11 @@ impl<'a> ProfileMaterialRuntimeFacade<'a> {
 
     pub(crate) async fn upload_profile_material_image_validated(
         &self,
-        host: &dyn ProfileMaterialUploadHostPort,
         user_id: i64,
         input: UploadProfileMaterialImageInput,
     ) -> Result<ProfileMaterialGroup, AppError> {
         self.orchestrator
-            .upload_profile_material_image_validated(host, user_id, input)
+            .upload_profile_material_image_validated(user_id, input)
             .await
     }
 

@@ -7,8 +7,8 @@ use a4n_service_protocol::{
 use axum::{Json, http::HeaderMap};
 
 pub(crate) use read::{
-    categories, dependency_graph, get_prompt, list_prompts, render_prompt, render_prompt_ab,
-    validate_prompt, version_diff, version_get, version_history,
+    categories, get_prompt, list_prompts, render_prompt, render_prompt_ab, validate_prompt,
+    version_diff, version_history,
 };
 pub(crate) use write::{
     hydrate_overrides, load_defaults, remove_project_override, reset_prompt, set_project_override,

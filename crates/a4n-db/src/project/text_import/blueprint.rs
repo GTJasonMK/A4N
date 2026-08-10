@@ -50,10 +50,6 @@ where
             version: Set(version.version.clone()),
             change_description: Set(version.change_description.clone()),
             blueprint_data: Set(version.blueprint_data.clone()),
-            world_setting_snapshot: Set(version.world_setting_snapshot.clone()),
-            characters_snapshot: Set(version.characters_snapshot.clone()),
-            relationships_snapshot: Set(version.relationships_snapshot.clone()),
-            synopsis_snapshot: Set(version.synopsis_snapshot.clone()),
             created_at: Set(now),
             created_by: Set(version.created_by.clone()),
             ..Default::default()

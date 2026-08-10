@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ListChecks, RotateCcw, Trash2, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ChapterVideoPrompt } from "../../../api/video";
-import type { ShootingScene } from "../../../api/shootingScript";
+import type { ShootingSceneV1 } from "../../../api/shootingScript";
 import { BookButton } from "../../../components/ui/BookButton";
 import { asArray, asJsonRecord } from "../../../utils/jsonRecord";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
@@ -26,7 +26,7 @@ interface VideoPlanningWorkspaceProps {
   loadError: string | null;
   dataReady: boolean;
   acting: string | null;
-  shootingScenes: ShootingScene[];
+  shootingScenes: ShootingSceneV1[];
   onGenerate: (
     targetNarrativeUnitIndex: number,
     regenerateExisting: boolean,
@@ -42,8 +42,8 @@ const textValue = (value: unknown): string | null =>
 const numberValue = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
-type PlanningSceneSelection = Pick<ShootingScene, "narrative_unit_index"> & {
-  shots: Array<Pick<ShootingScene["shots"][number], "shot_id">>;
+type PlanningSceneSelection = Pick<ShootingSceneV1, "narrative_unit_index"> & {
+  shots: Array<Pick<ShootingSceneV1["shots"][number], "shot_id">>;
 };
 
 export const selectVideoPlanningUnitIndex = (
@@ -74,6 +74,57 @@ export const selectVideoPlanningUnitIndex = (
     currentScene?.narrative_unit_index ??
     shootingScenes[0]?.narrative_unit_index ??
     null;
+};
+
+const mergeVideoPlanningSegments = (
+  persistedSegments: Record<string, unknown>[],
+  previewSegments: Record<string, unknown>[],
+  shootingScenes: PlanningSceneSelection[],
+): Record<string, unknown>[] => {
+  if (previewSegments.length === 0) return persistedSegments;
+  if (persistedSegments.length === 0) return previewSegments;
+
+  const previewShotIds = new Set(
+    previewSegments
+      .map((segment) => textValue(segment.source_shot_id))
+      .filter((value): value is string => value != null),
+  );
+  const shotOrder = new Map(
+    shootingScenes
+      .flatMap((scene) => scene.shots)
+      .map((shot, index) => [shot.shot_id, index] as const),
+  );
+  return [
+    ...persistedSegments.filter((segment) => {
+      const sourceShotId = textValue(segment.source_shot_id);
+      return sourceShotId == null || !previewShotIds.has(sourceShotId);
+    }),
+    ...previewSegments,
+  ]
+    .sort((left, right) => {
+      const leftShotId = textValue(left.source_shot_id);
+      const rightShotId = textValue(right.source_shot_id);
+      const leftShotOrder =
+        (leftShotId == null ? undefined : shotOrder.get(leftShotId)) ??
+        Number.MAX_SAFE_INTEGER;
+      const rightShotOrder =
+        (rightShotId == null ? undefined : shotOrder.get(rightShotId)) ??
+        Number.MAX_SAFE_INTEGER;
+      if (leftShotOrder !== rightShotOrder) {
+        return leftShotOrder - rightShotOrder;
+      }
+      if (leftShotId != null && leftShotId === rightShotId) {
+        return (
+          (numberValue(left.segment_index_in_shot) ?? Number.MAX_SAFE_INTEGER) -
+          (numberValue(right.segment_index_in_shot) ?? Number.MAX_SAFE_INTEGER)
+        );
+      }
+      return 0;
+    })
+    .map((segment, index) => ({
+      ...segment,
+      segment_number: index + 1,
+    }));
 };
 
 export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
@@ -109,7 +160,15 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   const busy = acting === "generate-segment-plan" || draftRunning;
   const showingPreview = previewSegments.length > 0;
   const generatingPreview = acting === "generate-segment-plan" || draftRunning;
-  const segments = showingPreview ? previewSegments : persistedSegments;
+  const segments = useMemo(
+    () =>
+      mergeVideoPlanningSegments(
+        persistedSegments,
+        previewSegments,
+        shootingScenes,
+      ),
+    [persistedSegments, previewSegments, shootingScenes],
+  );
   const plannedShotIds = useMemo(
     () =>
       new Set(

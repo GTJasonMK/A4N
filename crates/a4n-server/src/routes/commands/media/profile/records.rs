@@ -60,10 +60,11 @@ macro_rules! profile_record_web_commands {
         ) -> Result<Value, ApiError> {
             let $id_var = i64_arg(args, $id_arg)?;
             let downstream_strategy = downstream_strategy_arg(args)?;
-            $delete_action(state.runtime(), user_id, $id_var, downstream_strategy)
-                .await
-                .map_err(ApiError::bad_request)?;
-            Ok(Value::Null)
+            to_value(
+                $delete_action(state.runtime(), user_id, $id_var, downstream_strategy)
+                    .await
+                    .map_err(ApiError::bad_request)?,
+            )
         }
     };
 }

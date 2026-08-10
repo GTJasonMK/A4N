@@ -1,5 +1,5 @@
-import { apiInvoke, type PaginatedResponse } from "./index";
-import { readCurrentUserId } from "./authStorage";
+import { apiInvoke } from "./index";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import { idNum, type ApiId as Id } from "./shared";
 import type {
   CreateDerivedProjectInput,
@@ -10,8 +10,17 @@ import type {
   ExportProjectPackageData,
   ExportVideoStudioProjectDataInput,
   ImportProjectFamilyUploadInput,
+  InviteProjectMemberInput,
+  PaginatedProjects as ApiPaginatedProjects,
+  ProjectAccessScope as ApiProjectAccessScope,
+  ProjectGeneratedDataResetResponse as ApiProjectGeneratedDataResetResponse,
   ProjectGeneratedDataResetSummary as ApiProjectGeneratedDataResetSummary,
-  ProjectProgressSummary as ApiProjectProgressSummary,
+  ProjectInviteSummary,
+  ProjectMemberRole as ApiProjectMemberRole,
+  ProjectMemberSummary,
+  ProjectRollbackPreview,
+  ProjectStatus,
+  ProjectStatusMachineSummary,
   ProjectSummary,
   UpdateProjectInput,
 } from "./generated/host";
@@ -22,6 +31,11 @@ export type {
   ExportProjectPackageData,
   ExportVideoStudioProjectDataInput,
   ImportProjectFamilyUploadInput,
+  ProjectRollbackImpactSummary,
+  ProjectRollbackPreview,
+  ProjectStatus,
+  ProjectStatusHistorySummary,
+  ProjectStatusMachineSummary,
 } from "./generated/host";
 
 // ============================================================================
@@ -30,13 +44,12 @@ export type {
 
 export type NovelProject = Omit<
   ProjectSummary,
-  "project_kind" | "source_mode" | "source_sync_status" | "my_role" | "progress"
+  "lifecycle_gate" | "project_kind" | "source_mode" | "source_sync_status"
 > & {
+  lifecycle_gate: ProjectLifecycleGate;
   project_kind: ProjectKind;
   source_mode: ProjectSourceMode;
   source_sync_status: SourceSyncStatus;
-  my_role: ProjectAccessRole | null;
-  progress: ProjectProgressSummary;
 };
 
 export interface SourceSnapshotChapter {
@@ -54,87 +67,53 @@ export interface SourceSnapshotChapter {
 }
 
 export type ProjectKind = "text" | "comic" | "video" | "galgame";
+export type ProjectLifecycleGate = "active" | "deleting" | "resetting";
 type ProjectSourceMode = "self" | "derived" | "freeform";
 
 type SourceSyncStatus = "current" | "root_updated" | "conflict" | "detached";
 
-type ProjectAccessRole = "owner" | "manager" | "editor" | "viewer";
-export type ProjectMemberRole = "manager" | "editor" | "viewer";
-export type ProjectAccessScope = "all" | "owned" | "collaborating";
-type ProjectProgressStatus = "idle" | "running" | "blocked" | "failed" | "completed";
+export type ProjectMemberRole = ApiProjectMemberRole;
+export type ProjectAccessScope = ApiProjectAccessScope;
 
-type ProjectProgressSummary = Omit<ApiProjectProgressSummary, "status"> & {
-  status: ProjectProgressStatus;
+type PaginatedProjects = Omit<ApiPaginatedProjects, "items"> & {
+  items: NovelProject[];
 };
 
-type ProjectGeneratedDataResetSummary = Omit<
+export type ProjectGeneratedDataResetSummary = Omit<
   ApiProjectGeneratedDataResetSummary,
   "project"
 > & {
   project: NovelProject;
 };
 
-export interface ProjectMember {
-  project_id: number;
-  user_id: number;
-  username: string;
-  email: string;
-  role: ProjectAccessRole;
-  is_owner: boolean;
-  invited_by_user_id: number | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
+export type ProjectGeneratedDataResetResponse = Omit<
+  ApiProjectGeneratedDataResetResponse,
+  "result"
+> & {
+  result: ProjectGeneratedDataResetSummary | null;
+};
 
-export interface ProjectInvite {
-  id: number;
-  project_id: number;
-  project_title: string | null;
-  inviter_user_id: number;
-  inviter_username: string | null;
-  invitee_user_id: number;
-  invitee_username: string | null;
-  invitee_email: string | null;
-  role: ProjectMemberRole;
-  status: "pending" | "accepted" | "declined" | "revoked" | "expired";
-  expires_at: string;
-  accepted_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
+export const hasProjectEditorRole = (project: Pick<NovelProject, "my_role">): boolean =>
+  project.my_role === "owner" ||
+  project.my_role === "manager" ||
+  project.my_role === "editor";
 
-export interface ProjectStatusHistory {
-  id: number;
-  project_id: number;
-  from_status: string;
-  to_status: string;
-  reason: string | null;
-  created_at: string | null;
-}
+export const projectLifecycleBlockedReason = (
+  project: Pick<NovelProject, "lifecycle_gate">,
+): string | null => {
+  if (project.lifecycle_gate === "active") return null;
+  if (project.lifecycle_gate === "resetting") {
+    return "项目正在重置并清理资料索引，完成前暂不可编辑";
+  }
+  return "项目正在删除，不能再修改";
+};
 
-export interface RollbackImpact {
-  kind: string;
-  title: string;
-  tables: string[];
-  count: number | null;
-  chapter_start: number | null;
-  chapter_end: number | null;
-  part_start: number | null;
-  part_end: number | null;
-  note: string | null;
-}
+export const canEditProjectMaterials = (
+  project: Pick<NovelProject, "lifecycle_gate" | "my_role">,
+): boolean => hasProjectEditorRole(project) && project.lifecycle_gate === "active";
 
-export interface RollbackPreview {
-  from_status: string;
-  target_status: string;
-  path: string[];
-  affected_chapters: number;
-  affected_outlines: number;
-  can_rollback: boolean;
-  warning_message: string | null;
-  summary: string;
-  impacts: RollbackImpact[];
-}
+export type ProjectMember = ProjectMemberSummary;
+export type ProjectInvite = ProjectInviteSummary;
 
 export interface AssetGraphNode {
   id: string;
@@ -264,12 +243,6 @@ export interface GenerationInputSource {
   source_record_id: number | null;
 }
 
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问项目");
-  return id;
-};
-
 // ============================================================================
 // API 函数（参数名与后端 CreateProjectInput / UpdateProjectInput 对齐）
 // ============================================================================
@@ -280,10 +253,10 @@ export async function listProjects(
   filters: {
     project_kind?: ProjectKind;
     root_project_id?: number;
-    access_scope?: ProjectAccessScope;
-  } = {},
-): Promise<PaginatedResponse<NovelProject>> {
-  return apiInvoke<PaginatedResponse<NovelProject>>("list_projects", {
+    access_scope: ProjectAccessScope;
+  },
+): Promise<PaginatedProjects> {
+  return apiInvoke<PaginatedProjects>("list_projects", {
     userId: currentUserId(),
     page,
     pageSize,
@@ -375,8 +348,8 @@ export async function deleteProject(id: Id): Promise<void> {
 
 export async function resetProjectGeneratedData(
   id: Id,
-): Promise<ProjectGeneratedDataResetSummary> {
-  return apiInvoke<ProjectGeneratedDataResetSummary>(
+): Promise<ProjectGeneratedDataResetResponse> {
+  return apiInvoke<ProjectGeneratedDataResetResponse>(
     "reset_project_generated_data",
     {
       userId: currentUserId(),
@@ -394,9 +367,9 @@ export async function listProjectMembers(projectId: Id): Promise<ProjectMember[]
 
 export async function inviteProjectMember(
   projectId: Id,
-  input: { username_or_email: string; role: ProjectMemberRole },
-): Promise<ProjectInvite> {
-  return apiInvoke<ProjectInvite>("invite_project_member", {
+  input: InviteProjectMemberInput,
+): Promise<void> {
+  return apiInvoke<void>("invite_project_member", {
     userId: currentUserId(),
     projectId: idNum(projectId),
     input,
@@ -416,22 +389,22 @@ export async function listMyProjectInvites(): Promise<ProjectInvite[]> {
   });
 }
 
-export async function acceptProjectInvite(inviteId: Id): Promise<ProjectMember> {
-  return apiInvoke<ProjectMember>("accept_project_invite", {
+export async function acceptProjectInvite(inviteId: Id): Promise<void> {
+  return apiInvoke<void>("accept_project_invite", {
     userId: currentUserId(),
     inviteId: idNum(inviteId),
   });
 }
 
-export async function declineProjectInvite(inviteId: Id): Promise<ProjectInvite> {
-  return apiInvoke<ProjectInvite>("decline_project_invite", {
+export async function declineProjectInvite(inviteId: Id): Promise<void> {
+  return apiInvoke<void>("decline_project_invite", {
     userId: currentUserId(),
     inviteId: idNum(inviteId),
   });
 }
 
-export async function revokeProjectInvite(projectId: Id, inviteId: Id): Promise<ProjectInvite> {
-  return apiInvoke<ProjectInvite>("revoke_project_invite", {
+export async function revokeProjectInvite(projectId: Id, inviteId: Id): Promise<void> {
+  return apiInvoke<void>("revoke_project_invite", {
     userId: currentUserId(),
     projectId: idNum(projectId),
     inviteId: idNum(inviteId),
@@ -442,8 +415,8 @@ export async function updateProjectMemberRole(
   projectId: Id,
   memberUserId: Id,
   role: ProjectMemberRole,
-): Promise<ProjectMember> {
-  return apiInvoke<ProjectMember>("update_project_member_role", {
+): Promise<void> {
+  return apiInvoke<void>("update_project_member_role", {
     userId: currentUserId(),
     projectId: idNum(projectId),
     memberUserId: idNum(memberUserId),
@@ -466,22 +439,28 @@ export async function leaveProject(projectId: Id): Promise<void> {
   });
 }
 
-export async function getProjectStatusHistory(id: Id): Promise<ProjectStatusHistory[]> {
-  return apiInvoke<ProjectStatusHistory[]>("get_project_status_history", {
+export async function getProjectStatusMachine(id: Id): Promise<ProjectStatusMachineSummary> {
+  return apiInvoke<ProjectStatusMachineSummary>("get_project_status_machine", {
     userId: currentUserId(),
     projectId: idNum(id),
   });
 }
 
-export async function previewRollback(id: Id, target_status: string): Promise<RollbackPreview> {
-  return apiInvoke<RollbackPreview>("preview_rollback", {
+export async function previewRollback(
+  id: Id,
+  target: ProjectStatus,
+): Promise<ProjectRollbackPreview> {
+  return apiInvoke<ProjectRollbackPreview>("preview_rollback", {
     userId: currentUserId(),
     projectId: idNum(id),
-    targetStatus: target_status,
+    target,
   });
 }
 
-export async function rollbackProjectStatus(id: Id, target: string): Promise<NovelProject> {
+export async function rollbackProjectStatus(
+  id: Id,
+  target: ProjectStatus,
+): Promise<NovelProject> {
   return apiInvoke<NovelProject>("rollback_project_status", {
     userId: currentUserId(),
     projectId: idNum(id),
@@ -489,7 +468,10 @@ export async function rollbackProjectStatus(id: Id, target: string): Promise<Nov
   });
 }
 
-export async function forwardProjectStatus(id: Id, target: string): Promise<NovelProject> {
+export async function forwardProjectStatus(
+  id: Id,
+  target: ProjectStatus,
+): Promise<NovelProject> {
   return apiInvoke<NovelProject>("forward_project_status", {
     userId: currentUserId(),
     projectId: idNum(id),
@@ -509,7 +491,7 @@ export async function duplicateProject(id: Id, new_title: string): Promise<Novel
 export async function branchProject(
   id: Id,
   branch_title: string,
-  at_status: string,
+  at_status: ProjectStatus,
 ): Promise<NovelProject> {
   return apiInvoke<NovelProject>("branch_project", {
     userId: currentUserId(),

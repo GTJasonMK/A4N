@@ -17,7 +17,6 @@ pub struct RecordingRagClient {
 
 #[derive(Default)]
 struct RecordingRagClientState {
-    ingest_requests: RequestLedger,
     ingest_event_requests: RequestLedger,
 }
 
@@ -31,16 +30,8 @@ impl RecordingRagClient {
         self
     }
 
-    pub fn ingest_call_count(&self) -> usize {
-        self.state.ingest_requests.count()
-    }
-
     pub fn ingest_events_call_count(&self) -> usize {
         self.state.ingest_event_requests.count()
-    }
-
-    pub fn last_ingest_request(&self) -> Option<JsonRequest> {
-        self.state.ingest_requests.last()
     }
 
     pub fn last_ingest_events_request(&self) -> Option<JsonRequest> {
@@ -63,11 +54,6 @@ impl RagClient for RecordingRagClient {
 
     async fn search_text(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
         Err(unexpected_call("RecordingRagClient", "search_text"))
-    }
-
-    async fn ingest(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.state.ingest_requests.record(request);
-        Err(unexpected_call("RecordingRagClient", "ingest"))
     }
 
     async fn ingest_events(
@@ -94,24 +80,8 @@ impl RagClient for RecordingRagClient {
         Err(unexpected_call("RecordingRagClient", "delete"))
     }
 
-    async fn collection_exists(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        Err(unexpected_call("RecordingRagClient", "collection_exists"))
-    }
-
-    async fn count(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        Err(unexpected_call("RecordingRagClient", "count"))
-    }
-
     async fn drop_collection(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
         Err(unexpected_call("RecordingRagClient", "drop_collection"))
-    }
-
-    async fn list_collections(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        Err(unexpected_call("RecordingRagClient", "list_collections"))
-    }
-
-    async fn update_metadata(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        Err(unexpected_call("RecordingRagClient", "update_metadata"))
     }
 
     async fn metadata_by_ids(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
@@ -120,14 +90,6 @@ impl RagClient for RecordingRagClient {
 
     async fn metadata_by_filter(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
         Err(unexpected_call("RecordingRagClient", "metadata_by_filter"))
-    }
-
-    async fn health_check(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        Err(unexpected_call("RecordingRagClient", "health_check"))
-    }
-
-    async fn completeness_report(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        Err(unexpected_call("RecordingRagClient", "completeness_report"))
     }
 
     async fn completeness_report_by_ids(

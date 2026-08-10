@@ -1,6 +1,5 @@
-use a4n_core::{
-    models::chapter::chapter_shooting_script, shooting_script::CHAPTER_SHOOTING_SCRIPT_V1,
-};
+use a4n_core::models::chapter::chapter_shooting_script;
+use a4n_domain::shooting_script::CHAPTER_SHOOTING_SCRIPT_V1;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{

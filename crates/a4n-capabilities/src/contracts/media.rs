@@ -5,7 +5,6 @@ use super::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse};
 
 #[async_trait]
 pub trait ImageClient: CapabilityClient {
-    async fn generate(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
     async fn generate_events(
         &self,
         request: JsonRequest,
@@ -18,7 +17,6 @@ pub trait ImageClient: CapabilityClient {
 
 #[async_trait]
 pub trait VideoClient: CapabilityClient {
-    async fn generate(&self, request: JsonRequest) -> CapabilityResult<JsonResponse>;
     async fn generate_events(
         &self,
         request: JsonRequest,

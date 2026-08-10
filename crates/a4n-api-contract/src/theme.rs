@@ -1,30 +1,42 @@
+use std::collections::BTreeMap;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
+use crate::serde_update::deserialize_non_null_update_field;
+
+pub use a4n_domain::ThemeMode;
+
+pub type ThemeCssVariables = BTreeMap<String, String>;
 
 /// 创建主题的 Web/Tauri 请求合同。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct CreateThemeInput {
     pub name: String,
-    pub mode: String,
-    pub css_variables: Value,
+    pub mode: ThemeMode,
+    pub css_variables: ThemeCssVariables,
 }
 
 /// 更新主题的 Web/Tauri 请求合同。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateThemeInput {
+    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[schemars(with = "String")]
     pub name: Option<String>,
-    pub mode: Option<String>,
-    pub css_variables: Option<Value>,
+    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[schemars(with = "ThemeMode")]
+    pub mode: Option<ThemeMode>,
+    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[schemars(with = "ThemeCssVariables")]
+    pub css_variables: Option<ThemeCssVariables>,
 }
 
-/// 导入主题的 Web/Tauri 请求合同。
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ImportThemeInput {
-    pub theme_json: String,
+impl UpdateThemeInput {
+    pub fn is_empty(&self) -> bool {
+        self.name.is_none() && self.mode.is_none() && self.css_variables.is_none()
+    }
 }
 
 /// 主题查询/变更响应合同。
@@ -34,19 +46,15 @@ pub struct ThemeSummary {
     #[schemars(extend("x-a4n-required" = true))]
     pub user_id: Option<i64>,
     pub name: String,
-    pub mode: String,
-    pub css_variables: Value,
+    pub mode: ThemeMode,
+    pub css_variables: ThemeCssVariables,
     pub is_system_default: bool,
     pub is_active: bool,
-    #[schemars(extend("x-a4n-required" = true))]
-    pub created_at: Option<String>,
-    #[schemars(extend("x-a4n-required" = true))]
-    pub updated_at: Option<String>,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CreateThemeInput, ThemeSummary, UpdateThemeInput};
+    use super::{CreateThemeInput, ThemeMode, ThemeSummary, UpdateThemeInput};
     use serde_json::json;
 
     #[test]
@@ -58,9 +66,33 @@ mod tests {
         }))
         .expect("valid create input");
         assert_eq!(input.name, "Dark");
+        assert_eq!(input.mode, ThemeMode::Dark);
         assert!(
             serde_json::from_value::<UpdateThemeInput>(json!({
                 "unexpected": true
+            }))
+            .is_err()
+        );
+        assert!(serde_json::from_value::<UpdateThemeInput>(json!({"name": null})).is_err());
+        assert!(serde_json::from_value::<UpdateThemeInput>(json!({"mode": null})).is_err());
+        assert!(
+            serde_json::from_value::<UpdateThemeInput>(json!({"css_variables": null})).is_err()
+        );
+        let empty: UpdateThemeInput = serde_json::from_value(json!({})).unwrap();
+        assert!(empty.is_empty());
+        assert!(
+            serde_json::from_value::<CreateThemeInput>(json!({
+                "name": "Dark",
+                "mode": "dark",
+                "css_variables": {"--radius": 8}
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<CreateThemeInput>(json!({
+                "name": "Dark",
+                "mode": " dark ",
+                "css_variables": {}
             }))
             .is_err()
         );
@@ -72,12 +104,10 @@ mod tests {
             id: 1,
             user_id: None,
             name: "Dark".to_string(),
-            mode: "dark".to_string(),
-            css_variables: json!({}),
+            mode: ThemeMode::Dark,
+            css_variables: Default::default(),
             is_system_default: true,
             is_active: false,
-            created_at: None,
-            updated_at: None,
         };
         let value = serde_json::to_value(summary).expect("serialize summary");
         assert_eq!(value["mode"], "dark");

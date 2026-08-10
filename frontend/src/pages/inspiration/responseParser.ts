@@ -5,8 +5,8 @@ interface ParsedInspirationResponse {
   content: string;
   rawContent: string;
   options?: MessageOption[];
-  isComplete?: boolean;
-  conversationState?: Record<string, unknown>;
+  isComplete: boolean;
+  conversationState: Record<string, unknown>;
   progressSummary?: string;
   nextQuestion?: string;
   placeholder?: string;
@@ -326,6 +326,20 @@ export const parseInspirationResponse = (raw: string): ParsedInspirationResponse
     throw new Error("conversation_state 必须是 JSON 对象");
   }
   const conversationState = conversationStateValue;
+  if (isComplete) {
+    const chapterCount = conversationState.chapter_count;
+    if (
+      typeof chapterCount !== "number"
+      || !Number.isInteger(chapterCount)
+      || chapterCount < 5
+      || chapterCount > 10000
+    ) {
+      throw new Error("完成态 conversation_state.chapter_count 必须是 5-10000 的整数");
+    }
+    if (!asString(conversationState.genre)) {
+      throw new Error("完成态 conversation_state.genre 必须是非空字符串");
+    }
+  }
   const uiControlValue = requireKey(root, "ui_control", "灵感回复");
   if (!isRecord(uiControlValue)) {
     throw new Error("ui_control 必须是 JSON 对象");

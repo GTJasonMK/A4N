@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { Eye, MoreHorizontal } from "lucide-react";
+import { Eye, MoreHorizontal, Plus } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
 import { deleteChapterOutlinesFromAction } from "./outlineTabUtils";
-import type { ChapterOutline } from "../../../api/outline";
+import {
+  chapterOutlineSourceLabel,
+  isDerivedChapterOutline,
+  type ChapterOutline,
+} from "../../../api/outline";
 
 export interface ChapterOutlineEditForm {
   title: string;
@@ -26,6 +30,7 @@ interface ChapterOutlineSectionProps {
   onChapterCountChange: (value: number) => void;
   onGenerate: () => void;
   onPreviewGenerate: () => void;
+  onCreate: () => void;
   onOpenDetail: (outline: ChapterOutline) => void;
   onCancelEdit: () => void;
   onEditFormChange: (form: ChapterOutlineEditForm) => void;
@@ -47,6 +52,7 @@ export function ChapterOutlineSection({
   onChapterCountChange,
   onGenerate,
   onPreviewGenerate,
+  onCreate,
   onOpenDetail,
   onCancelEdit,
   onEditFormChange,
@@ -55,15 +61,33 @@ export function ChapterOutlineSection({
 }: ChapterOutlineSectionProps) {
   const [generationOpen, setGenerationOpen] = useState(outlines.length === 0);
   const hasOutlines = outlines.length > 0;
+  const derivedCount = outlines.filter(isDerivedChapterOutline).length;
   const generationActionLabel = hasOutlines ? "追加章纲" : "生成章纲";
 
   return (
     <section className="space-y-2.5">
-      <header className="px-1">
-        <h2 className="text-sm font-semibold text-book-text-main">章节大纲</h2>
-        <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-          {hasOutlines ? `共 ${outlines.length} 章，按顺序进入写作桌` : "把故事阶段拆成可写作的章节计划"}
-        </p>
+      <header className="flex items-start justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-book-text-main">章节大纲</h2>
+          <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
+            {hasOutlines
+              ? `共 ${outlines.length} 章，按顺序进入写作桌${
+                  derivedCount > 0 ? `；${derivedCount} 条为自动分析结果` : ""
+                }`
+              : "把已有计划直接录入，或交给 AI 从当前资料继续规划"}
+          </p>
+        </div>
+        {canEdit ? (
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={onCreate}
+            disabled={disabled}
+            className="shrink-0"
+          >
+            <Plus size={13} /> 直接录入
+          </BookButton>
+        ) : null}
       </header>
 
       {canEdit ? (
@@ -124,7 +148,7 @@ export function ChapterOutlineSection({
       ) : null}
 
       {outlines.length === 0 ? (
-        <EmptyHint text="尚未生成章节大纲。" />
+        <EmptyHint text="尚未建立章节大纲。" />
       ) : (
         <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
           {outlines.map((outline) => {
@@ -198,9 +222,16 @@ export function ChapterOutlineSection({
                 ) : (
                   <>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-book-text-main">
-                        第 {outline.chapter_number} 章
-                        {nonEmptyText(outline.title) ? ` · ${nonEmptyText(outline.title)}` : ""}
+                      <div className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-book-text-main">
+                        <span className="truncate">
+                          第 {outline.chapter_number} 章
+                          {nonEmptyText(outline.title) ? ` · ${nonEmptyText(outline.title)}` : ""}
+                        </span>
+                        {isDerivedChapterOutline(outline) ? (
+                          <span className="shrink-0 rounded-full bg-book-bg-tertiary px-1.5 py-0.5 text-[10px] font-normal text-book-text-muted">
+                            {chapterOutlineSourceLabel(outline)}
+                          </span>
+                        ) : null}
                       </div>
                       {nonEmptyText(outline.summary) ? (
                         <p className="mt-0.5 line-clamp-2 text-small leading-relaxed text-book-text-muted">

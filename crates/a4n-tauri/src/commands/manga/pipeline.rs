@@ -1,7 +1,8 @@
 use crate::commands::request_preview::ModelRequestPreview;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::manga_pipeline::{
-    self as manga_pipeline_actions, MangaPipelineStartStage,
+    self as manga_pipeline_actions, MangaPipelineResumeInput, MangaPipelineStartInput,
+    MangaPipelineStartStage,
 };
 use tauri::State;
 
@@ -9,18 +10,15 @@ use tauri::State;
 pub async fn start_manga_pipeline(
     state: State<'_, AppState>,
     user_id: i64,
-    project_id: i64,
-    chapter_number: i32,
-    start_from_stage: Option<String>,
+    input: MangaPipelineStartInput,
 ) -> Result<String, String> {
-    let start_from_stage = parse_manga_pipeline_start_stage(start_from_stage)?;
     spawn_manga_pipeline(
         state,
         user_id,
-        project_id,
-        chapter_number,
+        input.project_id,
+        input.chapter_number,
         false,
-        start_from_stage,
+        input.start_from_stage,
     )
     .await
 }
@@ -29,28 +27,32 @@ pub async fn start_manga_pipeline(
 pub async fn resume_manga_pipeline(
     state: State<'_, AppState>,
     user_id: i64,
-    project_id: i64,
-    chapter_number: i32,
+    input: MangaPipelineResumeInput,
 ) -> Result<String, String> {
-    spawn_manga_pipeline(state, user_id, project_id, chapter_number, true, None).await
+    spawn_manga_pipeline(
+        state,
+        user_id,
+        input.project_id,
+        input.chapter_number,
+        true,
+        None,
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn preview_start_manga_pipeline_request(
     state: State<'_, AppState>,
     user_id: i64,
-    project_id: i64,
-    chapter_number: i32,
-    start_from_stage: Option<String>,
+    input: MangaPipelineStartInput,
 ) -> Result<ModelRequestPreview, String> {
-    let start_from_stage = parse_manga_pipeline_start_stage(start_from_stage)?;
     manga_pipeline_actions::preview_manga_pipeline_requests(
         state.inner(),
         user_id,
-        project_id,
-        chapter_number,
+        input.project_id,
+        input.chapter_number,
         false,
-        start_from_stage,
+        input.start_from_stage,
     )
     .await
     .map_err(|err| err.to_string())
@@ -60,14 +62,13 @@ pub async fn preview_start_manga_pipeline_request(
 pub async fn preview_resume_manga_pipeline_request(
     state: State<'_, AppState>,
     user_id: i64,
-    project_id: i64,
-    chapter_number: i32,
+    input: MangaPipelineResumeInput,
 ) -> Result<ModelRequestPreview, String> {
     manga_pipeline_actions::preview_manga_pipeline_requests(
         state.inner(),
         user_id,
-        project_id,
-        chapter_number,
+        input.project_id,
+        input.chapter_number,
         true,
         None,
     )
@@ -121,10 +122,4 @@ async fn spawn_manga_pipeline(
     });
 
     Ok(task_id)
-}
-
-fn parse_manga_pipeline_start_stage(
-    value: Option<String>,
-) -> Result<Option<MangaPipelineStartStage>, String> {
-    manga_pipeline_actions::parse_manga_pipeline_start_stage(value).map_err(|err| err.to_string())
 }

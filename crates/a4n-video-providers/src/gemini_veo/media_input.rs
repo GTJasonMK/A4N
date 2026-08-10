@@ -44,22 +44,22 @@ pub(super) fn image_inline_data(raw: &str, label: &str) -> Result<Value, AppErro
     }))
 }
 
-pub(super) fn image_inline_data_preview(raw: &str, label: &str) -> Result<Value, AppError> {
+pub(super) fn image_inline_data_preview(raw: &str, label: &str) -> Value {
     let raw = raw.trim();
     if let Some((mime_type, payload_chars)) = data_url_preview_parts(raw) {
-        return Ok(json!({
+        return json!({
             "inlineData": {
                 "mimeType": mime_type,
                 "data": format!("[已省略内联媒体数据: label={label}, payload_chars={payload_chars}]"),
             }
-        }));
+        });
     }
-    Ok(json!({
+    json!({
         "inlineData": {
             "mimeType": "image/png",
             "data": format!("[预览媒体占位: label={label}, source={}]", preview_media_source(raw)),
         }
-    }))
+    })
 }
 
 pub(super) fn data_url_preview_parts(raw: &str) -> Option<(&str, usize)> {

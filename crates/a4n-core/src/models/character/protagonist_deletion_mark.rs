@@ -10,6 +10,9 @@ pub struct Model {
     pub id: i64,
     pub profile_id: i64,
 
+    /// 删除候选来源：user / ai_sync / legacy_unknown
+    pub source_kind: String,
+
     /// 属性分类：explicit / implicit / social
     pub category: String,
 

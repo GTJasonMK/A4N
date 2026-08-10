@@ -16,7 +16,6 @@ impl<'a> CharacterProgressScope<'a> {
         total: u32,
         cancelled_message: &'a str,
     ) -> Self {
-        let total = total.max(1);
         Self {
             progress,
             base: 0,
@@ -33,7 +32,6 @@ impl<'a> CharacterProgressScope<'a> {
         message: &str,
     ) -> Result<(), String> {
         if let Some(progress) = self.progress {
-            let local_total = local_total.max(1);
             let current = current.min(local_total);
             let offset = u64::from(current) * u64::from(self.span) / u64::from(local_total);
             let mapped = self.base

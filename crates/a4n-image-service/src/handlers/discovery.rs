@@ -1,9 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_image_providers::{
-    ChatCompletionsImageProvider, CliProxyImageProvider, ComfyUiImageProvider,
-    OpenAiCompatibleImageEditProvider, OpenAiCompatibleImageProvider,
-    StableDiffusionWebUiImageProvider, pick_image_provider,
-};
+use a4n_image_providers::{image_provider_request_body_preview, pick_image_provider};
 use a4n_model_discovery::{
     ModelDiscoveryRequest, ModelDiscoveryResult, discover_models_from_request,
 };
@@ -62,19 +58,6 @@ pub(crate) async fn discover_models(
 }
 
 fn image_request_preview(payload: &ImageProviderPayload) -> Result<Value, AppError> {
-    let request = &payload.request;
-    match payload.backend.as_str() {
-        "openai-compatible-image" => OpenAiCompatibleImageProvider::request_body_preview(request),
-        "openai-compatible-image-edit" => {
-            OpenAiCompatibleImageEditProvider::request_body_preview(request)
-        }
-        "openai-chat-image" => Ok(ChatCompletionsImageProvider::request_body_preview(request)),
-        "cliproxy-image" => CliProxyImageProvider::request_body_preview(request),
-        "stable-diffusion" => StableDiffusionWebUiImageProvider::request_body_preview(request),
-        "comfyui" => ComfyUiImageProvider::request_body_preview(request),
-        other => Err(AppError::InvalidArgument(format!(
-            "未知图片生成后端: {other}"
-        ))),
-    }
-    .map(|body| json!({ "request": body }))
+    image_provider_request_body_preview(&payload.backend, &payload.request)
+        .map(|body| json!({ "request": body }))
 }

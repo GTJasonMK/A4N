@@ -11,11 +11,7 @@ pub async fn start_image_generation(
     user_id: i64,
     input: StartImageGenerationInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    a4n_runtime::host_api::image_generation::start_image_generation_typed(
-        state.inner(),
-        user_id,
-        input,
-    )
-    .await
-    .map_err(crate::commands::generation_tasks::map_access_error)
+    a4n_runtime::host_api::image_generation::start_image_generation(state.inner(), user_id, input)
+        .await
+        .map_err(crate::commands::generation_tasks::map_access_error)
 }

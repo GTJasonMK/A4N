@@ -5,8 +5,8 @@ use a4n_core::error::AppError;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
 
 use super::super::download::download_video_url;
-use super::super::response::{parse_json_response, parse_json_response_allow_not_found};
 use super::response::{extract_status, extract_task_id, failure_message, result_video_url};
+use crate::transport::{self, ApiKeyAuth};
 
 /// Seedance 2.0 provider for the documented `/task/submit` task API.
 ///
@@ -47,48 +47,6 @@ impl Seedance2VideoProvider {
     }
 }
 impl Seedance2VideoProvider {
-    async fn send_json(
-        &self,
-        url: &str,
-        body: Value,
-        provider_idempotency_key_sha256: Option<&str>,
-    ) -> Result<Value, AppError> {
-        let mut req = self.client.post(url).json(&body);
-        if !self.api_key.trim().is_empty() {
-            req = req.bearer_auth(self.api_key.trim());
-        }
-        let req = crate::idempotency::with_provider_idempotency_key(
-            req,
-            provider_idempotency_key_sha256,
-        )?;
-        let resp = req.send().await.map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("Seedance 2.0 视频生成请求失败：{e}"))
-        })?;
-        parse_json_response(resp, "Seedance 2.0 视频生成").await
-    }
-
-    async fn get_json(&self, url: &str) -> Result<Value, AppError> {
-        let mut req = self.client.get(url);
-        if !self.api_key.trim().is_empty() {
-            req = req.bearer_auth(self.api_key.trim());
-        }
-        let resp = req.send().await.map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("Seedance 2.0 视频任务查询失败：{e}"))
-        })?;
-        parse_json_response(resp, "Seedance 2.0 视频任务查询").await
-    }
-
-    async fn get_status_json(&self, url: &str) -> Result<Option<Value>, AppError> {
-        let mut req = self.client.get(url);
-        if !self.api_key.trim().is_empty() {
-            req = req.bearer_auth(self.api_key.trim());
-        }
-        let resp = req.send().await.map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("Seedance 2.0 视频任务状态查询失败：{e}"))
-        })?;
-        parse_json_response_allow_not_found(resp, "Seedance 2.0 视频任务状态查询").await
-    }
-
     pub(super) async fn decode_completed(
         &self,
         v: &Value,
@@ -122,9 +80,16 @@ impl VideoProvider for Seedance2VideoProvider {
         let url = self.submit_url();
         let body = Self::request_body(&req)?;
         tracing::debug!("seedance2 video submit POST {url} model={}", req.model);
-        let v = self
-            .send_json(&url, body, provider_idempotency_key_sha256)
-            .await?;
+        let v = transport::post_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::TrimmedBearer,
+            &url,
+            &body,
+            provider_idempotency_key_sha256,
+            "Seedance 2.0 视频生成",
+        )
+        .await?;
         if matches!(
             extract_status(&v).map(str::to_ascii_lowercase).as_deref(),
             Some("completed")
@@ -147,7 +112,14 @@ impl VideoProvider for Seedance2VideoProvider {
             return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
         }
         let url = self.task_url(job_id);
-        let v = self.get_json(&url).await?;
+        let v = transport::get_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::TrimmedBearer,
+            &url,
+            "Seedance 2.0 视频任务查询",
+        )
+        .await?;
         let status = extract_status(&v)
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Seedance 2.0 任务响应缺少 status")))?
             .to_ascii_lowercase();
@@ -171,7 +143,14 @@ impl VideoProvider for Seedance2VideoProvider {
         if self.base_url.is_empty() {
             return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
         }
-        let value = self.get_status_json(&self.task_url(job_id)).await?;
+        let value = transport::get_status_json(
+            &self.client,
+            &self.api_key,
+            ApiKeyAuth::TrimmedBearer,
+            &self.task_url(job_id),
+            "Seedance 2.0 视频任务状态查询",
+        )
+        .await?;
         let Some(value) = value else {
             return Ok(a4n_video::VideoJobStatus::NotFound);
         };

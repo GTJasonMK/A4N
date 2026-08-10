@@ -2,6 +2,7 @@
 name = "a4n-tauri"
 version = "0.1.0"
 edition = "2024"
+default-run = "a4n-tauri"
 license.workspace = true
 
 [features]

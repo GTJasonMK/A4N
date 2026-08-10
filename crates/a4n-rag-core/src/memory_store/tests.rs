@@ -6,7 +6,7 @@ fn make_record(id: &str, content: &str, embedding: Vec<f32>) -> EmbeddingRecord 
     EmbeddingRecord {
         id: id.to_string(),
         embedding,
-        content: Some(content.to_string()),
+        content: content.to_string(),
         metadata: json!({"project_id": 1}),
     }
 }
@@ -20,7 +20,7 @@ fn make_record_with_metadata(
     EmbeddingRecord {
         id: id.to_string(),
         embedding,
-        content: Some(content.to_string()),
+        content: content.to_string(),
         metadata,
     }
 }
@@ -175,7 +175,13 @@ async fn test_delete_with_filter() {
         .await
         .unwrap();
     assert_eq!(deleted, 2);
-    assert_eq!(store.count("test").await.unwrap(), 0);
+    assert!(
+        store
+            .query("test", make_embedding(1.0, 0.0, 0.0), 1, None)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -236,7 +242,6 @@ async fn test_delete_with_id_prefix_removes_metadata_mismatch_record() {
         .unwrap();
 
     assert_eq!(deleted, 1);
-    assert_eq!(store.count("test").await.unwrap(), 2);
     let remaining = store
         .query("test", make_embedding(0.0, 1.0, 0.0), 10, None)
         .await
@@ -245,6 +250,7 @@ async fn test_delete_with_id_prefix_removes_metadata_mismatch_record() {
         .iter()
         .map(|record| record.id.as_str())
         .collect::<Vec<_>>();
+    assert_eq!(remaining_ids.len(), 2);
     assert!(remaining_ids.contains(&"chapter:1:101:p1"));
     assert!(remaining_ids.contains(&"chapter:1:102:p1"));
 }
@@ -316,8 +322,6 @@ async fn completeness_report_by_ids_marks_all_expected_missing_for_absent_collec
 #[tokio::test]
 async fn collection_lifecycle_follows_persisted_records() {
     let store = MemoryVectorStore::new();
-    assert!(!store.collection_exists("new_coll").await.unwrap());
-
     store
         .add_embeddings(
             "new_coll",
@@ -329,11 +333,10 @@ async fn collection_lifecycle_follows_persisted_records() {
         )
         .await
         .unwrap();
-    assert!(store.collection_exists("new_coll").await.unwrap());
-
-    let collections = store.list_collections().await.unwrap();
-    assert!(collections.contains(&"new_coll".to_string()));
-
     store.drop_collection("new_coll").await.unwrap();
-    assert!(!store.collection_exists("new_coll").await.unwrap());
+    let error = store
+        .query("new_coll", make_embedding(1.0, 0.0, 0.0), 1, None)
+        .await
+        .expect_err("dropped collection must not remain queryable");
+    assert!(error.to_string().contains("集合不存在"));
 }

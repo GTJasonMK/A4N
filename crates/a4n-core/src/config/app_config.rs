@@ -5,17 +5,16 @@
 mod contracts;
 mod defaults;
 mod portable;
-mod tokens;
 
+pub use a4n_domain::{
+    DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LlmMaxTokensConfig,
+    llm_token_profiles,
+};
 pub use contracts::{
     AppConfig, EmbeddingConfig, ImageGenConfig, LlmConfig, SecurityConfig, SystemConfig,
 };
 use defaults::*;
 pub use portable::{portable_home_dir, resolve_path_in_portable_home, resolve_portable_path};
-pub use tokens::{LlmMaxTokensConfig, llm_token_profiles};
-
-pub const DEFAULT_LLM_MAX_CONTEXT_TOKENS: usize = 128_000;
-pub const DEFAULT_LLM_MAX_OUTPUT_TOKENS: usize = 8_192;
 
 #[cfg(test)]
 mod tests;

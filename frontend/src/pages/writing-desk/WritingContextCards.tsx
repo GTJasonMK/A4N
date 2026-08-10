@@ -6,6 +6,7 @@ import { listProfiles, type CharacterProfile } from "../../api/character";
 import { getPrimaryPortrait, type Portrait } from "../../api/portrait";
 import { useToast } from "../../components/feedback/Toast";
 import { Modal } from "../../components/ui/Modal";
+import { characterAttributeText } from "../../utils/characterAttributes";
 import { toMediaSrc } from "../../utils/mediaSrc";
 import { nonEmptyText } from "../../utils/text";
 
@@ -46,6 +47,9 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
   const [profileError, setProfileError] = useState<string | null>(null);
   const [blueprintDetailOpen, setBlueprintDetailOpen] = useState(false);
   const primaryPortraitSrc = toMediaSrc(portrait?.image_path);
+  const primaryPersonality = primaryProfile
+    ? characterAttributeText(primaryProfile, "implicit", "personality")
+    : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -176,7 +180,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
             ) : primaryProfile ? (
               <p className="mt-1 truncate text-book-text-muted">
                 {primaryProfile.name}
-                {primaryProfile.personality ? ` · ${primaryProfile.personality}` : ""}
+                {primaryPersonality ? ` · ${primaryPersonality}` : ""}
               </p>
             ) : (
               <p className="mt-1 text-book-text-muted">打开工作台建立角色档案</p>

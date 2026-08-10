@@ -6,7 +6,7 @@ use a4n_core::models::{
     chapter::chapter,
     project::novel_project,
 };
-use a4n_core::state::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,

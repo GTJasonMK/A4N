@@ -1230,7 +1230,7 @@ async fn invoke_call(
 }
 
 fn request_secret_values(descriptor: &catalog::CommandDescriptor, args: &Value) -> Vec<String> {
-    descriptor
+    let mut secrets = descriptor
         .secret_pointers
         .iter()
         .filter_map(|pointer| args.pointer(pointer))
@@ -1238,9 +1238,15 @@ fn request_secret_values(descriptor: &catalog::CommandDescriptor, args: &Value) 
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect()
+        .collect::<HashSet<_>>();
+    client::visit_sensitive_values(args, &mut |_, value| {
+        if let Value::String(value) = value
+            && !value.trim().is_empty()
+        {
+            secrets.insert(value.clone());
+        }
+    });
+    secrets.into_iter().collect()
 }
 
 fn apply_context_args(
@@ -1372,12 +1378,8 @@ async fn run_auth(
             print_json(&value, output)
         }
         AuthCommand::Sessions => {
-            let user = client.current_user().await?;
             let value = client
-                .send_json(routing::command_request(
-                    "list_sessions",
-                    json!({ "userId": user.id }),
-                )?)
+                .send_json(routing::command_request("list_sessions", json!({}))?)
                 .await?;
             print_json(&value, output)
         }
@@ -1393,11 +1395,10 @@ async fn run_auth(
             }
             validate_non_empty(&session_id, "session_id")?;
             let current_session = client.session_id().map(str::to_string);
-            let user = client.current_user().await?;
             client
                 .send_json(routing::command_request(
                     "revoke_session",
-                    json!({ "userId": user.id, "sessionId": session_id }),
+                    json!({ "sessionId": session_id }),
                 )?)
                 .await?;
             let revoked_current = current_session.as_deref() == Some(session_id.as_str());
@@ -1720,6 +1721,7 @@ async fn run_chapter(
                         "chapter_number": number,
                         "content": content,
                         "title": title,
+                        "manual": false,
                     }
                 }),
             )
@@ -1767,8 +1769,8 @@ async fn run_workflow(
             resumable_only,
             limit,
         } => {
-            if !(1..=500).contains(&limit) {
-                bail!("--limit 必须在 1 到 500 之间");
+            if !(1..=200).contains(&limit) {
+                bail!("--limit 必须在 1 到 200 之间");
             }
             let project_id = project_id.or(runtime.context.project_id);
             let chapter_id = chapter_id.or(runtime.context.chapter_id);
@@ -1813,8 +1815,8 @@ async fn run_workflow(
             limit,
         } => {
             validate_positive_id(workflow_run_id, "workflow_run_id")?;
-            if !(1..=500).contains(&limit) {
-                bail!("--limit 必须在 1 到 500 之间");
+            if !(1..=200).contains(&limit) {
+                bail!("--limit 必须在 1 到 200 之间");
             }
             let user_id = bind_current_user(runtime).await?;
             let value =
@@ -1989,7 +1991,7 @@ async fn watch_workflow(
     let started = std::time::Instant::now();
     let mut seen = HashSet::new();
     loop {
-        let events = workflow_events(client, user_id, workflow_run_id, 500).await?;
+        let events = workflow_events(client, user_id, workflow_run_id, 200).await?;
         // 响应是 { events, stream_text }：stream_text 是当前活体信号快照，
         // 无历史语义，watch 只消费去重后的事件列表。
         let items = events
@@ -3150,7 +3152,8 @@ mod tests {
 
     use super::{
         SessionContext, apply_context_args, catalog, insert_nullable_update, optional_update,
-        prepare_outputs, query_path, read_json_source, save_outputs, set_json_pointer,
+        prepare_outputs, query_path, read_json_source, request_secret_values, save_outputs,
+        set_json_pointer,
     };
 
     #[test]
@@ -3218,5 +3221,28 @@ mod tests {
         let admin_descriptor = catalog::command_descriptor("list_all_users").unwrap();
         apply_context_args(&mut admin_args, &admin_descriptor, &context).unwrap();
         assert_eq!(admin_args["callerUserId"], 7);
+    }
+
+    #[test]
+    fn call_redaction_collects_nested_runtime_config_secrets() {
+        let descriptor = catalog::command_descriptor("apply_source_sync_decisions").unwrap();
+        let secrets = request_secret_values(
+            &descriptor,
+            &json!({
+                "runtime_config_snapshot": {
+                    "llm": { "api_key_encrypted": "active-key" },
+                    "llm_configs": [
+                        { "api_key_encrypted": "first-key" },
+                        { "api_key_encrypted": "second-key" }
+                    ],
+                    "system_llm_api_key_encrypted": "system-key",
+                    "token_count": 4096
+                }
+            }),
+        );
+        for secret in ["active-key", "first-key", "second-key", "system-key"] {
+            assert!(secrets.iter().any(|value| value == secret), "{secret}");
+        }
+        assert!(!secrets.iter().any(|value| value == "4096"));
     }
 }

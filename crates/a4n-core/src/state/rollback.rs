@@ -1,11 +1,11 @@
 //! 回退系统：按状态序号生成清理动作。
 
-use super::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 
 /// 回退时的清理动作
 ///
 /// 每个变体描述回退时需要删除或清理的数据。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum CleanupAction {
     /// 删除已生成章节
     DeleteChapters,
@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn test_total_mapped_edges() {
         // 14 条回退边有清理动作，(Completed, Writing) 也是合法回退但无清理
-        let all_statuses = ProjectStatus::all();
+        let all_statuses = &ProjectStatus::ALL;
         let mut edge_count = 0;
         for from in all_statuses {
             for to in all_statuses {

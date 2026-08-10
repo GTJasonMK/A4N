@@ -1,13 +1,7 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { AttributeEvent, DeletionMark } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问角色删除标记");
-  return id;
-};
 
 export async function listDeletionMarks(
   profileId: Id,
@@ -62,10 +56,12 @@ export async function executeAttributeDeletion(input: {
   event: AttributeEvent;
   consecutive_count: number;
   threshold: number;
+  warnings: string[];
 }> {
   return apiInvoke<{
     event: AttributeEvent;
     consecutive_count: number;
     threshold: number;
+    warnings: string[];
   }>("execute_attribute_deletion", { userId: currentUserId(), input });
 }

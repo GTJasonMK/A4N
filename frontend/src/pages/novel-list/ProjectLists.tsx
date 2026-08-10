@@ -1,7 +1,10 @@
 import React from "react";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { useContextMenu, type ContextMenuEntry } from "../../components/ui/ContextMenu";
-import type { NovelProject } from "../../api/project";
+import {
+  projectLifecycleBlockedReason,
+  type NovelProject,
+} from "../../api/project";
 import { getProjectProgressText } from "../../utils/projectStatus";
 import {
   getProjectHomeEntryLabel,
@@ -154,11 +157,18 @@ const ProjectRow: React.FC<{
   const menu = useContextMenu();
   const ctxItems: ContextMenuEntry[] = actions.map((a) => {
     if ("type" in a && a.type === "divider") return { divider: true };
-    const it = a as { label: string; onClick: () => void; danger?: boolean; icon?: React.ReactNode };
+    const it = a as {
+      label: string;
+      onClick: () => void;
+      danger?: boolean;
+      disabled?: boolean;
+      icon?: React.ReactNode;
+    };
     return {
       label: it.label,
       onClick: it.onClick,
       danger: it.danger,
+      disabled: it.disabled,
       icon: it.icon,
     };
   });
@@ -167,15 +177,23 @@ const ProjectRow: React.FC<{
   const entryRoute = getProjectHomeEntryRoute(project);
   const workspaceLabel = getProjectWorkspaceLabel(project) || getProjectPrimaryLabel(project);
   const workspaceRoute = getProjectWorkspaceRoute(project) || getProjectPrimaryRoute(project);
-  const showWorkspaceEntry = workspaceRoute !== entryRoute;
+  const lifecycleBlockedReason = projectLifecycleBlockedReason(project);
+  const lifecycleLabel =
+    project.lifecycle_gate === "resetting"
+      ? "重置收尾中"
+      : project.lifecycle_gate === "deleting"
+        ? "删除中"
+        : "";
+  const showWorkspaceEntry = !lifecycleBlockedReason && workspaceRoute !== entryRoute;
   const progressText = getProjectProgressText(project);
   const progressDetail = project.progress.detail;
-  const kindLabel = PROJECT_KIND_LABELS[project.project_kind] ?? "项目";
-  const roleLabel = project.my_role ? PROJECT_ROLE_LABELS[project.my_role] : null;
+  const kindLabel = PROJECT_KIND_LABELS[project.project_kind];
+  const roleLabel = PROJECT_ROLE_LABELS[project.my_role];
   const projectMeta = [
     kindLabel,
+    lifecycleLabel,
     progressText,
-    roleLabel && project.my_role !== "owner" ? roleLabel : "",
+    project.my_role !== "owner" ? roleLabel : "",
   ].filter(Boolean).join(" · ");
   const fullItems: ContextMenuEntry[] = [
     { label: entryLabel, onClick: () => onOpen(project), shortcut: "Enter" },
@@ -209,8 +227,7 @@ const ProjectRow: React.FC<{
               {project.title}
             </h3>
             <p className="mt-1 truncate text-small text-book-text-muted">
-              {project.owner_username ? `${project.owner_username} · ` : ""}
-              {formatUiDate(project.updated_at)}
+              {project.owner_username} · {formatUiDate(project.updated_at)}
             </p>
             <p
               className="mt-1 truncate text-small text-book-text-sub"
@@ -220,7 +237,11 @@ const ProjectRow: React.FC<{
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {showWorkspaceEntry ? (
+            {lifecycleBlockedReason ? (
+              <span className="hidden text-body-sm font-semibold text-warning sm:inline">
+                {lifecycleLabel}
+              </span>
+            ) : showWorkspaceEntry ? (
               <button
                 type="button"
                 onClick={(e) => {

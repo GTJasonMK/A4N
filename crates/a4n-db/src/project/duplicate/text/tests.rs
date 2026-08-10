@@ -2,7 +2,7 @@ use super::rules::{
     project_copy_status_includes_blueprint, project_copy_status_includes_chapter_outlines,
     project_copy_status_includes_chapters, project_copy_status_includes_part_outlines,
 };
-use a4n_core::state::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 
 #[test]
 fn draft_branch_excludes_all_generated_text_graphs() {

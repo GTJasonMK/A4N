@@ -1,22 +1,6 @@
 use a4n_core::error::AppError;
+use a4n_domain::LLM_RESERVED_REQUEST_OPTION_KEYS;
 use serde_json::{Map, Value};
-
-const RESERVED_REQUEST_OPTION_KEYS: &[&str] = &[
-    "model",
-    "messages",
-    "stream",
-    "temperature",
-    "max_tokens",
-    "response_format",
-    "prompt_cache_key",
-    "tools",
-    "tool_choice",
-    "stop",
-    "stop_sequences",
-    "system",
-    "anthropic_version",
-    "cache_control",
-];
 
 pub fn normalize_extra_body_json(value: Option<Value>) -> Result<Option<Value>, AppError> {
     let Some(value) = value.filter(|value| !value.is_null()) else {
@@ -28,7 +12,7 @@ pub fn normalize_extra_body_json(value: Option<Value>) -> Result<Option<Value>, 
         ));
     };
     for key in map.keys() {
-        if RESERVED_REQUEST_OPTION_KEYS
+        if LLM_RESERVED_REQUEST_OPTION_KEYS
             .iter()
             .any(|reserved| key.eq_ignore_ascii_case(reserved))
         {

@@ -9,6 +9,7 @@ interface SceneGenerationPanelProps {
   prompt: string;
   generating: boolean;
   previewing: boolean;
+  aiActionBlockedReason: string | null;
   onPromptChange: (prompt: string) => void;
   onPreviewRequest: () => void;
   onGenerate: () => void;
@@ -19,6 +20,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
   prompt,
   generating,
   previewing,
+  aiActionBlockedReason,
   onPromptChange,
   onPreviewRequest,
   onGenerate,
@@ -30,6 +32,9 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
     <div className="mb-2 text-small text-book-text-muted">
       将创建场景 {nextSceneNumber}，可补充本场景需要遵循的方向。
     </div>
+    {aiActionBlockedReason ? (
+      <p className="mb-2 text-small leading-relaxed text-error">{aiActionBlockedReason}</p>
+    ) : null}
     <textarea
       id="scene-generation-prompt"
       value={prompt}
@@ -50,7 +55,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
             {
               label: "查看模型请求",
               icon: <Eye size={12} />,
-              disabled: generating,
+              disabled: generating || aiActionBlockedReason != null,
               onClick: onPreviewRequest,
             },
           ]}
@@ -60,7 +65,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
         variant="primary"
         size="sm"
         onClick={onGenerate}
-        disabled={generating}
+        disabled={generating || aiActionBlockedReason != null}
         className="!min-h-8 !text-xs"
       >
         {generating ? (

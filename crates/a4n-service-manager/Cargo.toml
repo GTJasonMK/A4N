@@ -8,7 +8,6 @@ license.workspace = true
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
 reqwest = { workspace = true }
-notify = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }

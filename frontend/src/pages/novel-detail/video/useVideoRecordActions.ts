@@ -18,7 +18,6 @@ import {
   previewChapterVideoRequest,
   previewVideoProviderRequestByVideoId,
   startVideoGeneration,
-  toggleVideoFavorite,
   trimVideo,
   updateChapterVideoPrompt,
   updateVideo,
@@ -319,24 +318,40 @@ export function useVideoRecordActions({
       if (downstreamStrategy == null || !isCurrentActionScope(requestScope)) {
         return null;
       }
-      const updated = await optimizeChapterVideoPrompt(prompt.id, {
-        instruction: trimmed,
-        downstream_strategy: downstreamStrategy,
-      });
-      if (!isCurrentActionScope(requestScope)) return null;
-      setPrompts((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
+      const updated = await runProgressTask(
+        {
+          title: "优化提示词",
+          startMessage: "正在准备提示词优化",
+          successMessage: "提示词优化完成",
+          errorMessage: "优化提示词失败",
+          total: 3,
+          runningHint: "模型正在重写提示词，完成后会自动更新当前内容",
+        },
+        async ({ setProgress }) => {
+          setProgress("正在调用模型并校验优化结果", 1, 3);
+          const result = await optimizeChapterVideoPrompt(prompt.id, {
+            instruction: trimmed,
+            downstream_strategy: downstreamStrategy,
+          });
+          if (!isCurrentActionScope(requestScope)) return result;
+          setProgress("正在刷新优化后的提示词", 2, 3);
+          setPrompts((prev) =>
+            prev.map((item) => (item.id === result.id ? result : item)),
+          );
+          if (selectedPromptId === result.id) {
+            setDraft({
+              visual_prompt: result.visual_prompt,
+              motion_prompt: result.motion_prompt ?? "",
+              negative_prompt: result.negative_prompt ?? "",
+              duration_secs: result.duration_secs,
+            });
+          }
+          await loadAll();
+          return result;
+        },
       );
-      if (selectedPromptId === updated.id) {
-        setDraft({
-          visual_prompt: updated.visual_prompt,
-          motion_prompt: updated.motion_prompt ?? "",
-          negative_prompt: updated.negative_prompt ?? "",
-          duration_secs: updated.duration_secs,
-        });
-      }
+      if (!isCurrentActionScope(requestScope)) return null;
       addToast("提示词已优化", "success");
-      await loadAll();
       return updated;
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return null;
@@ -686,7 +701,7 @@ export function useVideoRecordActions({
   const handleToggleVideoFavorite = async (video: GeneratedVideo) => {
     await wrapAct(
       `favorite-${video.id}`,
-      () => toggleVideoFavorite(video.id),
+      () => updateVideo(video.id, { is_favorite: !video.is_favorite }),
       video.is_favorite ? "已取消收藏" : "已收藏",
     );
   };

@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Eye, Sparkles } from "lucide-react";
+import type {
+  ChapterMaterialUpdate,
+  ChapterMaterialSyncState,
+  ChapterMaterialSyncStatus,
+} from "../../api/chapter";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { listObjectProfiles, type ObjectProfile } from "../../api/objectProfiles";
 import { BookButton } from "../../components/ui/BookButton";
@@ -32,10 +37,96 @@ const knownLabel = (
 
 const ANALYSIS_CARD_CLASS = "a4n-flat-surface mb-2 break-inside-avoid p-3 sm:p-4";
 
+const MATERIAL_SYNC_ROWS: ReadonlyArray<{
+  key: keyof ChapterMaterialSyncState;
+  label: string;
+}> = [
+  { key: "content_index", label: "正文索引" },
+  { key: "outline_and_foreshadowing", label: "章纲与伏笔" },
+  { key: "objects", label: "物品档案" },
+  { key: "characters", label: "角色资料" },
+  { key: "scenes", label: "场景资料" },
+];
+
+const MATERIAL_SYNC_STATUS: Record<
+  ChapterMaterialSyncStatus,
+  { label: string; className: string }
+> = {
+  completed: { label: "已完成", className: "bg-success/10 text-success" },
+  needs_analysis: { label: "需分析", className: "bg-book-bg-tertiary text-book-text-muted" },
+  pending: { label: "待同步", className: "bg-warning/10 text-warning" },
+  running: { label: "同步中", className: "bg-info/10 text-info" },
+  failed: { label: "同步失败", className: "bg-error/10 text-error" },
+  unknown: { label: "待核对", className: "bg-book-bg-tertiary text-book-text-muted" },
+};
+
+const MATERIAL_UPDATE_LABELS: Record<string, string> = {
+  "object:created": "新增物品",
+  "object:updated": "补充已有物品",
+  "character:created": "新增角色",
+  "character:existing": "关联已有角色",
+  "character:preserved": "保留用户角色资料",
+  "character:synced": "同步角色状态",
+  "scene:synced": "关联场景",
+};
+
+export const materialUpdateSummary = (updates: ChapterMaterialUpdate[]): string | null => {
+  if (updates.length === 0) return null;
+  const visible = updates.slice(0, 8).map((update) => {
+    const label = MATERIAL_UPDATE_LABELS[`${update.material_kind}:${update.action}`] ?? "同步资料";
+    return `${label}「${update.name}」`;
+  });
+  const remaining = updates.length - visible.length;
+  return `${visible.join("；")}${remaining > 0 ? `；另 ${remaining} 项` : ""}`;
+};
+
+const MaterialSyncPanel: React.FC<{
+  state: ChapterMaterialSyncState;
+  updates: ChapterMaterialUpdate[];
+}> = ({ state, updates }) => {
+  const updateSummary = materialUpdateSummary(updates);
+  return (
+    <section className="a4n-flat-surface p-3 sm:p-4" aria-label="本章资料同步状态">
+      <div className="mb-2">
+        <div className="text-small font-semibold text-book-text-main">当前正文的资料更新</div>
+        <p className="mt-0.5 text-caption text-book-text-muted">
+          已完成表示系统已检查并同步，不代表本章一定识别出了对应条目。
+          用户手工资料不会被静默覆盖；分部大纲和蓝图只在你主动操作时更新。
+        </p>
+      </div>
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {MATERIAL_SYNC_ROWS.map(({ key, label }) => {
+          const presentation = MATERIAL_SYNC_STATUS[state[key]] ?? MATERIAL_SYNC_STATUS.unknown;
+          return (
+            <div key={key} className="min-w-0 rounded-lg bg-book-bg/55 px-2.5 py-2">
+              <dt className="truncate text-caption text-book-text-muted">{label}</dt>
+              <dd
+                className={`mt-1 w-fit rounded-full px-2 py-0.5 text-caption font-medium ${presentation.className}`}
+              >
+                {presentation.label}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+      {updateSummary ? (
+        <p className="mt-2 text-caption leading-relaxed text-book-text-sub">
+          本次分析：{updateSummary}
+        </p>
+      ) : null}
+    </section>
+  );
+};
+
 interface AnalysisSubTabProps {
   projectId: number;
   chapterNumber: number;
   analysis: unknown;
+  materialSync: ChapterMaterialSyncState;
+  materialUpdates: ChapterMaterialUpdate[];
+  analysisSyncStatus: string | null;
+  analysisSyncError: string | null;
+  analysisSyncHasSavedAnalysis: boolean;
   analysisBlockedReason: string | null;
   generating: boolean;
   canGenerate: boolean;
@@ -50,6 +141,11 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   projectId,
   chapterNumber,
   analysis,
+  materialSync,
+  materialUpdates,
+  analysisSyncStatus,
+  analysisSyncError,
+  analysisSyncHasSavedAnalysis,
   analysisBlockedReason,
   generating,
   canGenerate,
@@ -103,51 +199,71 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   );
 
   const root = asRecord(analysis);
+  const syncFailure = ["failed", "interrupted", "cancelled"].includes(
+    analysisSyncStatus ?? "",
+  )
+    ? analysisSyncError ?? "本章分析尚未完成，可继续现有进度或重新分析。"
+    : null;
   if (!root) {
     const emptyStateTitle = generating
       ? `正在分析第 ${chapterNumber} 章…`
-      : analysisBlockedReason
-        ? `第 ${chapterNumber} 章暂时无法生成分析`
-        : `第 ${chapterNumber} 章尚未生成分析`;
+      : canResumeSync
+        ? `第 ${chapterNumber} 章分析可继续`
+        : analysisBlockedReason
+          ? `第 ${chapterNumber} 章暂时无法生成分析`
+          : `第 ${chapterNumber} 章尚未生成分析`;
 
     return (
-      <div className="flex h-full min-h-0 items-center justify-center overflow-y-auto p-4 text-xs">
-        <div className="flex w-full max-w-md flex-col items-center text-center">
-          {generating ? (
-            <LoadingSpinner size="lg" className="mb-3" />
-          ) : (
-            <Sparkles size={20} className="mb-3 text-book-text-muted" />
-          )}
-          <h3 className="text-sm font-semibold text-book-text-main">{emptyStateTitle}</h3>
-          <p
-            className={`mt-1.5 max-w-sm leading-relaxed ${
-              analysisBlockedReason ? "text-error" : "text-book-text-muted"
-            }`}
-          >
-            {analysisBlockedReason ?? "生成后可查看摘要、章节要素、关键事件与角色状态。"}
-          </p>
-          {!generating && canGenerate ? (
-            <div className="mt-4 flex w-full max-w-xs items-center gap-2">
-              <Dropdown
-                items={[
-                  {
-                    label: "预览模型请求",
-                    icon: <Eye size={12} />,
-                    onClick: () => void onPreviewGenerate(),
-                  },
-                ]}
-              />
-              <BookButton
-                variant="primary"
-                size="sm"
-                onClick={() => void onGenerate()}
-                className="flex-1"
-              >
-                <Sparkles size={13} />
-                生成分析
-              </BookButton>
-            </div>
-          ) : null}
+      <div className="h-full min-h-0 overflow-y-auto p-4 text-xs">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+          <MaterialSyncPanel state={materialSync} updates={materialUpdates} />
+          <div className="flex flex-col items-center py-4 text-center">
+            {generating ? (
+              <LoadingSpinner size="lg" className="mb-3" />
+            ) : (
+              <Sparkles size={20} className="mb-3 text-book-text-muted" />
+            )}
+            <h3 className="text-sm font-semibold text-book-text-main">{emptyStateTitle}</h3>
+            <p
+              className={`mt-1.5 max-w-sm leading-relaxed ${
+                analysisBlockedReason || syncFailure ? "text-error" : "text-book-text-muted"
+              }`}
+            >
+              {analysisBlockedReason ??
+                syncFailure ??
+                "生成后可查看摘要、章节要素、关键事件与角色状态。"}
+            </p>
+            {!generating && (canResumeSync || canGenerate) ? (
+              <div className="mt-4 flex w-full max-w-xs items-center gap-2">
+                {canGenerate ? (
+                  <Dropdown
+                    items={[
+                      {
+                        label: canResumeSync ? "预览重新分析请求" : "预览模型请求",
+                        icon: <Eye size={12} />,
+                        onClick: () => void onPreviewGenerate(),
+                      },
+                    ]}
+                  />
+                ) : null}
+                <BookButton
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    if (canResumeSync) {
+                      void onResumeSync();
+                      return;
+                    }
+                    void onGenerate();
+                  }}
+                  className="flex-1"
+                >
+                  <Sparkles size={13} />
+                  {canResumeSync ? "继续分析" : "生成分析"}
+                </BookButton>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     );
@@ -181,7 +297,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   const tensions = analysisTextList(foreshadowing?.tensions, { limit: 10 });
   const hasForeshadowing = planted.length > 0 || resolved.length > 0 || tensions.length > 0;
   const secondaryActions: React.ComponentProps<typeof Dropdown>["items"] = [
-    ...(canResumeSync
+    ...(canResumeSync && analysisSyncHasSavedAnalysis
       ? [
           {
             label: "预览同步请求",
@@ -219,6 +335,11 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
             {analysisBlockedReason}
           </p>
         ) : null}
+        {!analysisBlockedReason && syncFailure ? (
+          <p className="min-w-0 text-small leading-relaxed text-error sm:mr-auto sm:flex-1">
+            {syncFailure}
+          </p>
+        ) : null}
         {generating || canResumeSync || canGenerate ? (
           <div className="flex items-center gap-2 sm:contents">
             {!generating && secondaryActions.length > 0 ? (
@@ -243,11 +364,20 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                 ) : (
                   <Sparkles size={13} />
                 )}
-                {generating ? "处理中…" : canResumeSync ? "继续同步" : "重新分析"}
+                {generating
+                  ? "处理中…"
+                  : canResumeSync
+                    ? analysisSyncHasSavedAnalysis
+                      ? "继续同步"
+                      : "继续分析"
+                    : "重新分析"}
               </span>
             </BookButton>
           </div>
         ) : null}
+      </div>
+      <div className="mx-auto mb-2 w-full max-w-5xl">
+        <MaterialSyncPanel state={materialSync} updates={materialUpdates} />
       </div>
       <div className="mx-auto w-full max-w-5xl columns-1 gap-2 sm:columns-2">
         {summary || keywords.length > 0 ? (

@@ -6,7 +6,7 @@ use super::records::{StoredRecord, validate_embedding_vector, vector_store_error
 use super::{MemoryVectorStore, scoring};
 
 impl MemoryVectorStore {
-    pub(super) async fn add_memory_embeddings(
+    pub(super) fn add_memory_embeddings(
         &self,
         collection: &str,
         records: Vec<EmbeddingRecord>,
@@ -18,21 +18,13 @@ impl MemoryVectorStore {
             .get(collection)
             .and_then(|coll| coll.iter().next().map(|record| record.embedding.len()));
         for record in records {
-            let content = match record.content {
-                Some(content) if !content.trim().is_empty() => content,
-                Some(_) => {
-                    return Err(vector_store_error(format!(
-                        "嵌入记录 content 不能为空：collection={collection}, id={}",
-                        record.id
-                    )));
-                }
-                None => {
-                    return Err(vector_store_error(format!(
-                        "嵌入记录缺少 content：collection={collection}, id={}",
-                        record.id
-                    )));
-                }
-            };
+            let content = record.content;
+            if content.trim().is_empty() {
+                return Err(vector_store_error(format!(
+                    "嵌入记录 content 不能为空：collection={collection}, id={}",
+                    record.id
+                )));
+            }
             let dimension = validate_embedding_vector(collection, &record.id, &record.embedding)?;
             match expected_dimension {
                 Some(expected) if expected != dimension => {

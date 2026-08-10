@@ -24,7 +24,7 @@ pub async fn cancel_generation_task(
     user_id: i64,
     input: CancelGenerationTaskInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    generation_tasks::cancel_generation_task_typed(&state, user_id, input)
+    generation_tasks::cancel_generation_task(&state, user_id, input)
         .await
         .map_err(|error| HostErrorResponse {
             code: GenerationErrorCode::registered(error.code())

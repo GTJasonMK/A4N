@@ -1,15 +1,15 @@
 use crate::commands::request_preview::ModelRequestPreview;
 use crate::progress_task::WorkflowProgressTask;
 use a4n_runtime::AppState;
-use a4n_runtime::host_api::chapter_content::{ChapterSummary, chapter_summary};
+use a4n_runtime::host_api::chapter_content::{ChapterSummary, chapter_summary_with_sync_state};
 use a4n_runtime::workflow::{
-    self as chapter_workflow, CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisProgress,
-    GenerateChapterAnalysisInput,
+    self as chapter_workflow, CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisMutationResult,
+    ChapterAnalysisProgress, GenerateChapterAnalysisInput,
 };
 use tauri::{Emitter, State, Window};
 
 tauri_chapter_progress_command!(
-    generate_chapter_analysis(input: GenerateChapterAnalysisInput) -> ChapterSummary,
+    generate_chapter_analysis(input: GenerateChapterAnalysisInput) -> ChapterAnalysisMutationResult,
     {
         let ch = chapter_workflow::preflight_generate_chapter_analysis(
             state.inner(),
@@ -27,8 +27,8 @@ tauri_chapter_progress_command!(
         progress,
         input.chapter_id,
     ),
-    |chapter| {
-        emit_chapter_analysis_updated(&window, chapter, "章节分析完成事件发送失败");
+    |result: &ChapterAnalysisMutationResult| {
+        emit_chapter_analysis_updated(&window, &result.chapter, "章节分析完成事件发送失败");
     },
 );
 
@@ -104,21 +104,23 @@ async fn generate_chapter_analysis_inner(
     user_id: i64,
     progress: &WorkflowProgressTask,
     chapter_id: i64,
-) -> Result<ChapterSummary, String> {
+) -> Result<ChapterAnalysisMutationResult, String> {
     let cancel_token = progress.cancel_token();
     let reporter = |current, total, message: &str| progress.progress(current, total, message);
     let stream_reporter = |text: &str| progress.stream_text(text);
-    let runtime_progress =
-        ChapterAnalysisProgress::new(Some(&reporter), Some(&cancel_token), progress.task_id())
-            .with_stream_reporter(Some(&stream_reporter));
-    let updated = chapter_workflow::generate_chapter_analysis_with_progress(
+    let runtime_progress = ChapterAnalysisProgress::new(
+        Some(&reporter),
+        Some(&stream_reporter),
+        Some(&cancel_token),
+        progress.task_id(),
+    );
+    chapter_workflow::generate_chapter_analysis_with_progress(
         state,
         user_id,
         chapter_id,
         Some(&runtime_progress),
     )
-    .await?;
-    Ok(chapter_summary(&updated))
+    .await
 }
 
 async fn resume_chapter_analysis_sync_inner(
@@ -130,9 +132,12 @@ async fn resume_chapter_analysis_sync_inner(
     let cancel_token = progress.cancel_token();
     let reporter = |current, total, message: &str| progress.progress(current, total, message);
     let stream_reporter = |text: &str| progress.stream_text(text);
-    let runtime_progress =
-        ChapterAnalysisProgress::new(Some(&reporter), Some(&cancel_token), progress.task_id())
-            .with_stream_reporter(Some(&stream_reporter));
+    let runtime_progress = ChapterAnalysisProgress::new(
+        Some(&reporter),
+        Some(&stream_reporter),
+        Some(&cancel_token),
+        progress.task_id(),
+    );
     let updated = chapter_workflow::resume_chapter_analysis_sync_with_progress(
         state,
         user_id,
@@ -140,5 +145,7 @@ async fn resume_chapter_analysis_sync_inner(
         Some(&runtime_progress),
     )
     .await?;
-    Ok(chapter_summary(&updated))
+    chapter_summary_with_sync_state(state, &updated)
+        .await
+        .map_err(|error| error.to_string())
 }

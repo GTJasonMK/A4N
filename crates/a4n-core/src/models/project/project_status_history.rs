@@ -1,9 +1,8 @@
-//! 项目状态历史实体【新增】
+//! 项目状态历史实体。
 
 use sea_orm::entity::prelude::*;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "project_status_history")]
 pub struct Model {
     #[sea_orm(primary_key)]

@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw, X } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
-import { cancelAdminTask, listPendingTasks, type AdminTaskInfo } from "../../../api/admin";
+import {
+  cancelAdminTask,
+  listPendingTasks,
+  type TaskQueueSummary,
+} from "../../../api/admin";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -28,7 +32,7 @@ const formatTaskDate = (value: string | null): string => {
 
 export const TasksSection: React.FC<{ callerUserId: number }> = ({ callerUserId }) => {
   const { addToast } = useToast();
-  const [tasks, setTasks] = useState<AdminTaskInfo[]>([]);
+  const [tasks, setTasks] = useState<TaskQueueSummary[]>([]);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const tasksRef = useRef(tasks);
   const cancellingIdsRef = useRef(cancellingIds);

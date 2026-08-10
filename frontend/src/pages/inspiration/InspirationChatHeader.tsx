@@ -10,7 +10,6 @@ interface InspirationChatHeaderProps {
   projectTitle: string;
   showConversationControls: boolean;
   generating: boolean;
-  canTryGenerate: boolean;
   canGenerate: boolean;
   onOpenProgress: () => void;
   onGenerateBlueprint: () => void;
@@ -22,7 +21,6 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
   projectTitle,
   showConversationControls,
   generating,
-  canTryGenerate,
   canGenerate,
   onOpenProgress,
   onGenerateBlueprint,
@@ -45,10 +43,10 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
               },
               { type: "divider" },
               {
-                label: canGenerate ? "查看蓝图模型请求" : "查看草稿蓝图模型请求",
+                label: "查看蓝图模型请求",
                 icon: <Eye size={12} />,
                 onClick: onPreviewGenerateBlueprint,
-                disabled: !canTryGenerate,
+                disabled: !canGenerate,
               },
             ]}
           />
@@ -57,10 +55,10 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
           <Dropdown
             items={[
               {
-                label: canGenerate ? "查看蓝图模型请求" : "查看草稿蓝图模型请求",
+                label: "查看蓝图模型请求",
                 icon: <Eye size={12} />,
                 onClick: onPreviewGenerateBlueprint,
-                disabled: !canTryGenerate,
+                disabled: !canGenerate,
               },
             ]}
           />
@@ -69,8 +67,8 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
           variant="primary"
           size="sm"
           onClick={onGenerateBlueprint}
-          disabled={!canTryGenerate}
-          title={canGenerate ? "生成首版蓝图" : "信息未完整时可试生成草稿蓝图"}
+          disabled={!canGenerate}
+          title="生成首版蓝图"
           className="min-w-0 flex-1 !min-h-8 !px-2.5 !text-xs sm:flex-none"
         >
           {generating ? (

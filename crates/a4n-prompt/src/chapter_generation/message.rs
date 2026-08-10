@@ -13,7 +13,7 @@ pub(super) fn build_chapter_generation_user_message(
     let payload = json!({
         "task": {
             "name": "chapter_generation",
-            "instruction": "根据章节大纲、前文场景状态和参考上下文生成完整章节正文"
+            "instruction": "根据章节大纲、章节连续性上下文和参考上下文生成完整章节正文"
         },
         "context_refs": {
             "chapter_outline": "稳定上下文包 writing_chapter_outline",

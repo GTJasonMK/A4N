@@ -1,14 +1,16 @@
 import { apiInvoke } from "./index";
-import { readCurrentUserId } from "./authStorage";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
-import { idNum, integerNum, type ApiId as Id } from "./shared";
-import type { DownstreamConflictStrategy } from "./dependencyConflict";
+import { idNum, type ApiId as Id } from "./shared";
+import type { DownstreamConflictStrategy } from "./generated/host";
 import { getLocalImageConfig } from "./localRuntimeSettings";
 import { buildRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../utils/runtimeMode";
-import { SYSTEM_IMAGE_CONFIG_ID } from "./image";
+import { normalizeImageConfigId } from "./image/configs";
 import type {
+  ObjectProfileDeleteResult,
   ObjectProfileInput as ApiObjectProfileInput,
+  ObjectProfileMutationResult,
   ObjectProfileSummary,
 } from "./generated/host";
 
@@ -35,18 +37,6 @@ interface ObjectProfileImagePromptOutput {
   prompt: string;
 }
 
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问物体档案");
-  return id;
-};
-
-function normalizeImageConfigId(configId?: Id | null): number | null {
-  if (configId == null) return null;
-  const id = integerNum(configId, "图片配置 ID");
-  return id === SYSTEM_IMAGE_CONFIG_ID ? null : idNum(id, "图片配置 ID");
-}
-
 export async function listObjectProfiles(projectId: Id): Promise<ObjectProfile[]> {
   return apiInvoke<ObjectProfile[]>("list_object_profiles", {
     userId: currentUserId(),
@@ -57,8 +47,8 @@ export async function listObjectProfiles(projectId: Id): Promise<ObjectProfile[]
 export async function createObjectProfile(
   projectId: Id,
   input: ObjectProfileInput,
-): Promise<ObjectProfile> {
-  return apiInvoke<ObjectProfile>("create_object_profile", {
+): Promise<ObjectProfileMutationResult> {
+  return apiInvoke<ObjectProfileMutationResult>("create_object_profile", {
     userId: currentUserId(),
     projectId: idNum(projectId),
     input: normalizeObjectProfileInput(input),
@@ -68,8 +58,8 @@ export async function createObjectProfile(
 export async function updateObjectProfile(
   objectProfileId: Id,
   input: ObjectProfileInput,
-): Promise<ObjectProfile> {
-  return apiInvoke<ObjectProfile>("update_object_profile", {
+): Promise<ObjectProfileMutationResult> {
+  return apiInvoke<ObjectProfileMutationResult>("update_object_profile", {
     userId: currentUserId(),
     objectProfileId: idNum(objectProfileId),
     input: normalizeObjectProfileInput(input),
@@ -79,8 +69,8 @@ export async function updateObjectProfile(
 export async function deleteObjectProfile(
   objectProfileId: Id,
   downstreamStrategy: DownstreamConflictStrategy = "reject",
-): Promise<void> {
-  return apiInvoke<void>("delete_object_profile", {
+): Promise<ObjectProfileDeleteResult> {
+  return apiInvoke<ObjectProfileDeleteResult>("delete_object_profile", {
     userId: currentUserId(),
     objectProfileId: idNum(objectProfileId),
     downstreamStrategy,

@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use a4n_core::error::AppError;
 
+pub const EMBEDDING_CONNECTIVITY_TEST_TEXT: &str = "test";
+
 /// 嵌入后端类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EmbeddingBackend {
@@ -43,7 +45,6 @@ impl EmbeddingModelIdentity {
 pub struct DownloadProgress {
     pub downloaded_bytes: u64,
     pub total_bytes: u64,
-    pub percent: f32,
     pub message: String,
 }
 
@@ -54,14 +55,6 @@ pub struct DownloadProgress {
 pub trait EmbeddingProvider: Send + Sync {
     /// 批量嵌入文本
     async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError>;
-
-    /// 单个文本嵌入
-    async fn embed_one(&self, text: String) -> Result<Vec<f32>, AppError> {
-        let mut results = self.embed(vec![text]).await?;
-        results
-            .pop()
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("嵌入返回为空")))
-    }
 
     /// 嵌入向量维度
     fn dimension(&self) -> usize;
@@ -96,15 +89,61 @@ pub trait EmbeddingProvider: Send + Sync {
         Ok((embeddings, identity))
     }
 
-    /// 测试连接可用性
-    async fn test_connection(&self) -> Result<bool, AppError> {
-        self.embed_one("测试".to_string()).await.map(|_| true)
+    /// 测试连接可用性，并校验单条测试输入的返回数量与向量维度。
+    async fn test_connection(&self) -> Result<(), AppError> {
+        let expected_dimension = self.dimension();
+        if expected_dimension == 0 {
+            return Err(AppError::ConfigError(
+                "嵌入连接测试配置维度必须为正整数".to_string(),
+            ));
+        }
+        let embeddings = self
+            .embed(vec![EMBEDDING_CONNECTIVITY_TEST_TEXT.to_string()])
+            .await?;
+        let [embedding] = embeddings.as_slice() else {
+            return Err(AppError::EmbeddingError(format!(
+                "嵌入连接测试返回 {} 个向量，期望 1 个",
+                embeddings.len()
+            )));
+        };
+        if embedding.len() != expected_dimension {
+            return Err(AppError::EmbeddingError(format!(
+                "嵌入连接测试向量维度不匹配：返回 {}，期望 {expected_dimension}",
+                embedding.len()
+            )));
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod contract_tests {
     use super::*;
+    use async_trait::async_trait;
+
+    struct FixedEmbeddingProvider {
+        dimension: usize,
+        embeddings: Vec<Vec<f32>>,
+    }
+
+    #[async_trait]
+    impl EmbeddingProvider for FixedEmbeddingProvider {
+        async fn embed(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
+            Ok(self.embeddings.clone())
+        }
+
+        fn dimension(&self) -> usize {
+            self.dimension
+        }
+
+        fn model_name(&self) -> &str {
+            "fixed"
+        }
+
+        fn backend(&self) -> EmbeddingBackend {
+            EmbeddingBackend::LocalHash
+        }
+    }
 
     #[test]
     fn embedding_identity_rejects_unknown_fields() {
@@ -116,5 +155,33 @@ mod contract_tests {
         }))
         .expect_err("embedding identity must reject unknown fields");
         assert!(error.to_string().contains("legacy_backend"));
+    }
+
+    #[tokio::test]
+    async fn connection_test_requires_one_vector_with_configured_dimension() {
+        FixedEmbeddingProvider {
+            dimension: 2,
+            embeddings: vec![vec![0.0, 1.0]],
+        }
+        .test_connection()
+        .await
+        .expect("matching connection response");
+
+        for provider in [
+            FixedEmbeddingProvider {
+                dimension: 2,
+                embeddings: Vec::new(),
+            },
+            FixedEmbeddingProvider {
+                dimension: 2,
+                embeddings: vec![vec![0.0]],
+            },
+            FixedEmbeddingProvider {
+                dimension: 0,
+                embeddings: vec![Vec::new()],
+            },
+        ] {
+            assert!(provider.test_connection().await.is_err());
+        }
     }
 }

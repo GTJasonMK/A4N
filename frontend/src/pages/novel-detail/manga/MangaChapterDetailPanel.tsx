@@ -12,7 +12,7 @@ import { AlertTriangle,
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
-import type { DownstreamConflictStrategy } from "../../../api/dependencyConflict";
+import type { DownstreamConflictStrategy } from "../../../api/generated/host";
 import {
   previewPageImageRequest,
   startImageGeneration,
@@ -33,8 +33,8 @@ import {
   deleteMangaPrompt,
   optimizeMangaPrompt,
   type BindMangaReferenceImageInput,
-  type MangaPanel,
-  type PipelineStatus,
+  type MangaPipelineStatusSummary,
+  type MangaPromptSummary,
   updateMangaPrompt,
 } from "../../../api/manga";
 import { useProgressTask } from "../../../hooks/useProgressTask";
@@ -55,8 +55,8 @@ interface MangaChapterDetailPanelProps {
   projectId: number;
   isSingleMode: boolean;
   selectedChapter: ChapterRow | null;
-  selectedStatus: PipelineStatus | null | undefined;
-  panels: MangaPanel[];
+  selectedStatus: MangaPipelineStatusSummary | null | undefined;
+  panels: MangaPromptSummary[];
   panelsLoading: boolean;
   currentContentHash: string | null;
   characterAssetsLoading: boolean;
@@ -137,7 +137,7 @@ export function MangaChapterDetailPanel({
   const scopeKey = `${projectId}:${selectedChapterId ?? "none"}`;
   const mountedRef = useRef(false);
   const activeScopeRef = useRef(scopeKey);
-  const panelsRef = useRef<MangaPanel[]>(panels);
+  const panelsRef = useRef<MangaPromptSummary[]>(panels);
   const actionSeqRef = useRef(0);
   const actionBusyRef = useRef(false);
   const previewSeqRef = useRef(0);
@@ -422,7 +422,9 @@ export function MangaChapterDetailPanel({
     }
   };
 
-  const handleBindReferenceImage = async (input: BindMangaReferenceImageInput) => {
+  const handleBindReferenceImage = async (
+    input: Omit<BindMangaReferenceImageInput, "downstream_strategy">,
+  ) => {
     if (!canEditManga) {
       addToast("当前账号没有编辑此漫画项目的权限", "error");
       return;
@@ -550,7 +552,7 @@ export function MangaChapterDetailPanel({
     }
   };
 
-  const handleOptimizePrompt = async (prompt: MangaPanel) => {
+  const handleOptimizePrompt = async (prompt: MangaPromptSummary) => {
     if (!canEditManga) {
       addToast("当前账号没有编辑此漫画项目的权限", "error");
       return;
@@ -621,7 +623,7 @@ export function MangaChapterDetailPanel({
     }
   };
 
-  const handleDeletePrompt = async (prompt: MangaPanel) => {
+  const handleDeletePrompt = async (prompt: MangaPromptSummary) => {
     if (!canEditManga) {
       addToast("当前账号没有编辑此漫画项目的权限", "error");
       return;

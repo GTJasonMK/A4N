@@ -30,10 +30,7 @@ pub fn normalize_metadata(
         serde_json::Value::Object(mut object) => {
             family::validate_project_family_metadata(project_id, &object)?;
             object.insert("project_id".to_string(), serde_json::json!(project_id));
-            object.insert(
-                "content_hash".to_string(),
-                serde_json::json!(content_hash.clone()),
-            );
+            object.insert("content_hash".to_string(), serde_json::json!(content_hash));
             object.insert("hash_algorithm".to_string(), serde_json::json!("sha256"));
             object.insert(
                 "source_generation".to_string(),

@@ -1,6 +1,6 @@
 use super::*;
 use crate::project::PROJECT_TYPE_NOVEL_LONG;
-use a4n_core::state::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 use sea_orm::{ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter};
 use std::error::Error;
 

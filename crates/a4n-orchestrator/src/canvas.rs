@@ -24,9 +24,7 @@ pub use a4n_db::canvas::{
     reset_missing_canvas_ref_for_node, validate_canvas_record_document_edge_contract,
     validate_canvas_record_document_is_dag, validate_canvas_record_viewport_json,
 };
-pub use audio_import::{
-    CanvasAudioImportHostInput, CanvasAudioImportHostPort, PersistedCanvasAudioFile,
-};
+pub use audio_import::{CanvasAudioImportHostInput, PersistedCanvasAudioFile};
 pub use audio_rules::{
     canvas_audio_extension, required_canvas_audio_file_name, validate_canvas_audio_mime,
 };
@@ -50,7 +48,7 @@ pub use input_rules::{
     canvas_node_is_operation, i64_to_i32, incoming_edges, validate_canvas_clip_order,
 };
 pub use media_import::{
-    CanvasImageImportApplicationResult, CanvasImageImportHostInput, CanvasImageImportHostPort,
+    CanvasImageImportApplicationResult, CanvasImageImportHostInput,
     CanvasVideoImportApplicationResult, CanvasVideoImportHostInput, CanvasVideoImportHostPort,
 };
 pub(crate) use node_execution::CanvasNodeLifecycle;

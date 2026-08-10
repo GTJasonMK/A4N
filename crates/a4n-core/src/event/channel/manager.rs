@@ -44,12 +44,10 @@ impl TaskManager {
                     .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
                 events.push_back(TaskProgressEvent {
                     id: format!("{}-{}", handle.task_id, timestamp),
-                    task_id: handle.task_id.clone(),
                     current: progress.current,
                     total: progress.total,
                     message: progress.message.clone(),
-                    percent: progress.percent() * 100.0,
-                    meta: progress.meta.clone(),
+                    meta: progress.meta,
                     timestamp,
                 });
             }
@@ -130,14 +128,12 @@ impl TaskManager {
     fn snapshot_from_handle(handle: &TaskHandle) -> TaskSnapshot {
         TaskSnapshot {
             task_id: handle.task_id.clone(),
-            task_type: handle.task_type,
             project_id: handle.project_id,
             root_project_id: handle.root_project_id,
             source_snapshot_id: handle.source_snapshot_id,
             task_scope: handle.task_scope.clone(),
             progress: handle.progress.read().clone(),
             progress_events: handle.progress_events.read().iter().cloned().collect(),
-            cancelled: handle.is_cancelled(),
         }
     }
 

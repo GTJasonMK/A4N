@@ -1,8 +1,8 @@
-import { getProjectCapabilities, resolveWorkflowStage } from "./projectStatus";
+import type { ProjectStatus } from "../api/project";
 
 export interface RoutedProject {
   id?: number | string;
-  status?: string | null;
+  status: ProjectStatus;
   project_kind?: string | null;
   source_mode?: string | null;
 }
@@ -15,6 +15,13 @@ export interface DerivedProjectPresentation {
 
 const PROJECT_KINDS = ["text", "video", "comic", "galgame"] as const;
 export type RoutedProjectKind = (typeof PROJECT_KINDS)[number];
+
+const PROJECT_TYPE_LABELS = {
+  novel_long: "长篇小说",
+  novel_short: "短篇故事",
+  script: "剧本",
+  prose: "散文",
+} as const;
 
 export const PROJECT_KIND_LABELS: Record<RoutedProjectKind, string> = {
   text: "文本项目",
@@ -43,18 +50,17 @@ const projectId = (project: RoutedProject): string => {
   return id;
 };
 
-const isDraftLikeProject = (project: RoutedProject): boolean =>
-  resolveWorkflowStage(project.status) === "draft";
-
 const projectKind = (project: RoutedProject): RoutedProjectKind => {
   const kind = String(project.project_kind ?? "").trim();
   if (PROJECT_KINDS.includes(kind as RoutedProjectKind)) return kind as RoutedProjectKind;
   throw new Error(`项目族类型无效，无法计算项目路由: ${kind || "<empty>"}`);
 };
 
-/** 兼容管理端仍返回的 legacy project_type（如 novel）。 */
+/** 兼容管理端和旧项目记录仍返回的 project_type/project_kind 值。 */
 export const getProjectTypeLabel = (value: string | null | undefined): string => {
   const normalized = String(value ?? "").trim().toLowerCase();
+  const canonical = PROJECT_TYPE_LABELS[normalized as keyof typeof PROJECT_TYPE_LABELS];
+  if (canonical) return canonical;
   if (normalized === "novel" || normalized === "text") return PROJECT_KIND_LABELS.text;
   if (normalized === "video") return PROJECT_KIND_LABELS.video;
   if (normalized === "comic" || normalized === "manga") return PROJECT_KIND_LABELS.comic;
@@ -88,15 +94,6 @@ export const getDerivedProjectSubtitle = (
   return parts.join(" · ") || fallback;
 };
 
-export const getProjectAccessRoleLabel = (value: string | null | undefined): string => {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  return (
-    PROJECT_ACCESS_ROLE_LABELS[
-      normalized as keyof typeof PROJECT_ACCESS_ROLE_LABELS
-    ] ?? (normalized || "成员")
-  );
-};
-
 export const getProjectPrimaryRoute = (project: RoutedProject): string => {
   const id = projectId(project);
   if (projectKind(project) === "video" && project.source_mode === "freeform") {
@@ -105,7 +102,7 @@ export const getProjectPrimaryRoute = (project: RoutedProject): string => {
   if (projectKind(project) === "video") return `/video-project/${id}`;
   if (projectKind(project) === "comic") return `/comic-project/${id}`;
   if (projectKind(project) === "galgame") return `/galgame-project/${id}`;
-  return isDraftLikeProject(project) ? `/inspiration/${id}` : `/novel/${id}`;
+  return `/novel/${id}`;
 };
 
 export const getProjectPrimaryLabel = (project: RoutedProject): string =>
@@ -115,9 +112,7 @@ export const getProjectPrimaryLabel = (project: RoutedProject): string =>
       ? "进入漫画项目"
       : projectKind(project) === "galgame"
         ? "进入 GALGame 项目"
-        : isDraftLikeProject(project)
-          ? "继续灵感对话"
-          : "进入项目详情";
+        : "进入项目详情";
 
 export const getProjectWorkspaceRoute = (project: RoutedProject): string | null => {
   const id = projectId(project);
@@ -127,8 +122,6 @@ export const getProjectWorkspaceRoute = (project: RoutedProject): string | null 
   if (projectKind(project) === "video") return `/video-project/${id}`;
   if (projectKind(project) === "comic") return `/comic-project/${id}`;
   if (projectKind(project) === "galgame") return `/galgame-project/${id}`;
-  const capabilities = getProjectCapabilities(project.status);
-  if (!capabilities.canGenerateChapterContent) return null;
   return `/write/${id}`;
 };
 
@@ -144,12 +137,9 @@ export const getProjectWorkspaceLabel = (project: RoutedProject): string | null 
           : null;
 
 export const getProjectHomeEntryRoute = (project: RoutedProject): string => {
-  const id = projectId(project);
   if (projectKind(project) !== "text") return getProjectPrimaryRoute(project);
-  if (isDraftLikeProject(project)) return `/inspiration/${id}`;
 
-  const stage = resolveWorkflowStage(project.status);
-  if (stage === "writing" || stage === "completed") {
+  if (project.status === "writing" || project.status === "completed") {
     return getProjectWorkspaceRoute(project) || getProjectPrimaryRoute(project);
   }
   return getProjectPrimaryRoute(project);
@@ -157,10 +147,8 @@ export const getProjectHomeEntryRoute = (project: RoutedProject): string => {
 
 export const getProjectHomeEntryLabel = (project: RoutedProject): string => {
   if (projectKind(project) !== "text") return getProjectPrimaryLabel(project);
-  if (isDraftLikeProject(project)) return "继续灵感对话";
 
-  const stage = resolveWorkflowStage(project.status);
-  if (stage === "writing" || stage === "completed") {
+  if (project.status === "writing" || project.status === "completed") {
     return getProjectWorkspaceLabel(project) || getProjectPrimaryLabel(project);
   }
   return getProjectPrimaryLabel(project);

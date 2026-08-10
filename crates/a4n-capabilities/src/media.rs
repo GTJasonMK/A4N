@@ -29,11 +29,6 @@ impl HttpImageClient {
         }
     }
 
-    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
-        self.transport = self.transport.with_http_client(client);
-        self
-    }
-
     pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
         self.transport = self.transport.with_http_client_factory(factory);
         self
@@ -66,10 +61,6 @@ impl CapabilityClient for HttpImageClient {
 
 #[async_trait]
 impl ImageClient for HttpImageClient {
-    async fn generate(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/image/generate", request).await
-    }
-
     async fn generate_events(
         &self,
         request: JsonRequest,
@@ -115,11 +106,6 @@ impl HttpVideoClient {
         }
     }
 
-    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
-        self.transport = self.transport.with_http_client(client);
-        self
-    }
-
     pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
         self.transport = self.transport.with_http_client_factory(factory);
         self
@@ -152,10 +138,6 @@ impl CapabilityClient for HttpVideoClient {
 
 #[async_trait]
 impl VideoClient for HttpVideoClient {
-    async fn generate(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/video/generate", request).await
-    }
-
     async fn generate_events(
         &self,
         request: JsonRequest,

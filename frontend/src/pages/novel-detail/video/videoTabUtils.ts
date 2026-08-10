@@ -61,6 +61,13 @@ export function videoGuidanceConfigurationError(
     segmentNumber,
   );
   if (guidanceMode === requiredMode) return null;
+  if (
+    workflowMode === "first_frame_chain" &&
+    segmentNumber > 1 &&
+    guidanceMode === "system_frames"
+  ) {
+    return null;
+  }
   if (workflowMode === "boundary_frames") {
     return "首尾帧方案固定使用首帧和尾帧输入";
   }
@@ -69,7 +76,7 @@ export function videoGuidanceConfigurationError(
   }
   if (workflowMode === "first_frame_chain") {
     return segmentNumber > 1
-      ? "首帧续接的后续片段固定使用更早片段视频的尾帧"
+      ? "首帧续接的后续片段只能使用更早视频尾帧或独立生成首帧"
       : "首帧续接的首段固定使用首帧输入";
   }
   return "Chat 或参考媒体方案固定使用素材槽输入";
@@ -188,7 +195,7 @@ export const VIDEO_WORKFLOW_MODE_LABELS: Record<
 
 export const ASSEMBLY_WORKFLOW_MODE = "mixed" as const;
 
-export type AssemblyPushStatus = "pending" | "accepted" | "rejected";
+type AssemblyPushStatus = "pending" | "accepted" | "rejected";
 
 export const assemblyPushMetadata = (
   video: GeneratedVideo,
@@ -1305,9 +1312,20 @@ export function isSegmentPlanDraftCheckpointKey(value: string): boolean {
   );
 }
 
-export function videoPromptUnitFrameNumbers(
+export function videoPromptSourceFrameNumbers(
   prompt: ChapterVideoPrompt | null | undefined,
+  workflowMode: ChapterVideoWorkflowMode | null | undefined,
+  guidanceMode?: SegmentGuidanceMode | null,
 ): { startFrameNumber: number | null; endFrameNumber: number | null } {
+  if (workflowMode === "boundary_frames") {
+    return { startFrameNumber: 1, endFrameNumber: 2 };
+  }
+  if (
+    workflowMode === "first_frame_chain" &&
+    guidanceMode === "system_frames"
+  ) {
+    return { startFrameNumber: 1, endFrameNumber: null };
+  }
   const unit = asRecord(asRecord(prompt?.metadata_json)?.video_unit);
   return {
     startFrameNumber: positiveIntegerOrNull(unit?.start_frame_number),
@@ -1865,128 +1883,16 @@ export function videoDurationLimitsFromConfig(
   config: VideoGenConfig | null,
 ): VideoDurationLimits {
   if (!config) return GENERIC_VIDEO_DURATION_LIMITS;
-  const invalid = (message: string): VideoDurationLimits => ({
-    ...GENERIC_VIDEO_DURATION_LIMITS,
-    model: config.model,
-    configError: message,
-  });
-  type DurationIntRead =
-    { ok: true; value: number } | { ok: false; error: string };
-  const readDurationInt = (value: unknown, field: string): DurationIntRead => {
-    if (
-      typeof value !== "number" ||
-      !Number.isInteger(value) ||
-      value < 1 ||
-      value > 60
-    ) {
-      return { ok: false, error: `视频配置 ${field} 必须在 1-60 之间` };
-    }
-    return { ok: true, value };
-  };
-  const rawDurationMode = (config as { duration_mode?: unknown }).duration_mode;
-  if (rawDurationMode !== "range" && rawDurationMode !== "fixed") {
-    return invalid(
-      `视频配置 duration_mode 无效：${String(rawDurationMode ?? "<missing>")}`,
-    );
-  }
-  const defaultDurationSecsRead = readDurationInt(
-    (config as { default_duration_secs?: unknown }).default_duration_secs,
-    "default_duration_secs",
-  );
-  if (!defaultDurationSecsRead.ok)
-    return invalid(defaultDurationSecsRead.error);
-  const defaultDurationSecs = defaultDurationSecsRead.value;
-  const minDurationSecsRead = readDurationInt(
-    (config as { min_duration_secs?: unknown }).min_duration_secs,
-    "min_duration_secs",
-  );
-  if (!minDurationSecsRead.ok) return invalid(minDurationSecsRead.error);
-  const minDurationSecs = minDurationSecsRead.value;
-  const maxDurationSecsRead = readDurationInt(
-    (config as { max_duration_secs?: unknown }).max_duration_secs,
-    "max_duration_secs",
-  );
-  if (!maxDurationSecsRead.ok) return invalid(maxDurationSecsRead.error);
-  const maxDurationSecs = maxDurationSecsRead.value;
-
-  if (rawDurationMode === "range") {
-    if (config.supported_durations_json != null) {
-      return invalid("视频配置 range 模式不应包含 supported_durations_json");
-    }
-    if (minDurationSecs > maxDurationSecs) {
-      return invalid("视频配置 min_duration_secs 不能大于 max_duration_secs");
-    }
-    if (
-      defaultDurationSecs < minDurationSecs ||
-      defaultDurationSecs > maxDurationSecs
-    ) {
-      return invalid(
-        `视频配置 default_duration_secs 必须在模型支持时长 ${minDurationSecs}-${maxDurationSecs} 秒之间`,
-      );
-    }
-    return {
-      model: config.model,
-      durationMode: "range",
-      defaultDurationSecs,
-      minDurationSecs,
-      maxDurationSecs,
-      supportedDurations: [],
-      configError: null,
-    };
-  }
-
-  if (!Array.isArray(config.supported_durations_json)) {
-    return invalid(
-      "视频配置 fixed 模式必须提供 supported_durations_json 正整数数组",
-    );
-  }
-  const supportedDurations: number[] = [];
-  const seen = new Set<number>();
-  for (const [index, value] of config.supported_durations_json.entries()) {
-    const duration = readDurationInt(
-      value,
-      `supported_durations_json[${index}]`,
-    );
-    if (!duration.ok) return invalid(duration.error);
-    const durationSecs = duration.value;
-    if (seen.has(durationSecs)) {
-      return invalid(
-        `视频配置 supported_durations_json 包含重复时长：${durationSecs}`,
-      );
-    }
-    const previous = supportedDurations[supportedDurations.length - 1];
-    if (previous !== undefined && durationSecs <= previous) {
-      return invalid(
-        `视频配置 supported_durations_json 必须按从小到大填写；第 ${index + 1} 项 ${durationSecs} 不大于前一项 ${previous}`,
-      );
-    }
-    seen.add(durationSecs);
-    supportedDurations.push(durationSecs);
-  }
-  if (supportedDurations.length === 0) {
-    return invalid(
-      "视频配置 fixed 模式必须提供 supported_durations_json 正整数数组",
-    );
-  }
-  const supportedMin = supportedDurations[0];
-  const supportedMax = supportedDurations[supportedDurations.length - 1];
-  if (minDurationSecs !== supportedMin || maxDurationSecs !== supportedMax) {
-    return invalid(
-      "视频配置 fixed 模式的 min/max 时长必须等于 supported_durations_json 首尾项",
-    );
-  }
-  if (!supportedDurations.includes(defaultDurationSecs)) {
-    return invalid(
-      "视频配置 default_duration_secs 必须包含在 supported_durations_json 中",
-    );
-  }
   return {
     model: config.model,
-    durationMode: "fixed",
-    defaultDurationSecs,
-    minDurationSecs: supportedMin,
-    maxDurationSecs: supportedMax,
-    supportedDurations,
+    durationMode: config.duration_mode,
+    defaultDurationSecs: config.default_duration_secs,
+    minDurationSecs: config.min_duration_secs,
+    maxDurationSecs: config.max_duration_secs,
+    supportedDurations:
+      config.duration_mode === "fixed"
+        ? config.supported_durations_json
+        : [],
     configError: null,
   };
 }

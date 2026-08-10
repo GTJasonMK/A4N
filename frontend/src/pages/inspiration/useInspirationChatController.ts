@@ -34,13 +34,10 @@ import { isImeCompositionActive } from "../../utils/ime";
 import { getProjectHomeEntryRoute } from "../../utils/projectRouting";
 import {
   DEFAULT_INPUT_PLACEHOLDER,
-  firstString,
   msgId,
   normalizeHistoryMessage,
-  readChatCache,
   splitSummaryLines,
   welcomeMessage,
-  writeChatCache,
 } from "./inspirationChatUtils";
 import {
   getStreamingResponsePreview,
@@ -117,26 +114,15 @@ export const useInspirationChatController = () => {
   }, [messages]);
 
   const latestConversationState = latestAssistant?.conversationState;
-  const progressSummary = firstString(
-    latestAssistant?.progressSummary,
-    latestConversationState?.progress_summary,
-  );
-  const nextQuestion = firstString(
-    latestAssistant?.nextQuestion,
-    latestConversationState?.next_question,
-  );
+  const progressSummary = latestAssistant?.progressSummary;
+  const nextQuestion = latestAssistant?.nextQuestion;
   const progressSummaryLines = useMemo(() => splitSummaryLines(progressSummary), [progressSummary]);
-  const userTurns = useMemo(() => messages.filter((m) => m.role === "user").length, [messages]);
-  const conversationComplete = useMemo(
-    () => messages.some((m) => m.role === "assistant" && m.isComplete),
-    [messages],
-  );
+  const conversationComplete = latestAssistant?.isComplete === true;
 
   const blueprintWorkflow = useBlueprintWorkflow({
     projectId,
     project,
     messages,
-    userTurns,
     conversationComplete,
     sending,
     latestConversationState,
@@ -191,14 +177,8 @@ export const useInspirationChatController = () => {
     sendSeqRef.current += 1;
     requestPreviewSeqRef.current += 1;
 
-    const cached = readChatCache(projectId);
-    if (cached) {
-      setMessages(cached.messages);
-      if (cached.inputPlaceholder) setInputPlaceholder(cached.inputPlaceholder);
-    } else {
-      setMessages([]);
-      setInputPlaceholder(DEFAULT_INPUT_PLACEHOLDER);
-    }
+    setMessages([]);
+    setInputPlaceholder(DEFAULT_INPUT_PLACEHOLDER);
 
     let cancelled = false;
     (async () => {
@@ -218,19 +198,17 @@ export const useInspirationChatController = () => {
 
         const history = await getInspirationHistory(projectId, 80);
         if (cancelled) return;
-        const restored = history
-          .map(normalizeHistoryMessage)
-          .filter((m): m is Message => m !== null);
+        const restored = history.map(normalizeHistoryMessage);
         if (restored.length > 0) {
           setMessages(restored);
-        } else if (!cached) {
+        } else {
           setMessages([welcomeMessage(p.title)]);
         }
 
       } catch (err) {
         if (cancelled) return;
         addToast(extractErrorMessage(err, "加载项目失败"), "error");
-        if (!cached) navigate("/");
+        navigate("/");
       }
     })();
 
@@ -276,11 +254,6 @@ export const useInspirationChatController = () => {
       cancelled = true;
     };
   }, [addToast, isCurrentProject, project, projectId]);
-
-  useEffect(() => {
-    if (!Number.isFinite(projectId) || projectId <= 0) return;
-    writeChatCache(projectId, messages, inputPlaceholder);
-  }, [inputPlaceholder, messages, projectId]);
 
   useEffect(() => {
     if (stage === "conversation") {
@@ -620,7 +593,6 @@ export const useInspirationChatController = () => {
     progressSummaryLines,
     nextQuestion,
     conversationComplete,
-    canTryGenerate: blueprintWorkflow.canTryGenerate,
     canGenerate: blueprintWorkflow.canGenerate,
     canCancelBlueprintGeneration: blueprintWorkflow.canCancelBlueprintGeneration,
     handleSend,

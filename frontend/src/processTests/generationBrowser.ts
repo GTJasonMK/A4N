@@ -38,11 +38,10 @@ async function run(): Promise<void> {
     body: JSON.stringify({ username, password }),
   }) as {
     user: { id: number };
-    session: { id: string };
     tokens: { access_token: string; refresh_token: string; session_id: string };
   };
   writeCurrentUserId(login.user.id);
-  writeCurrentSessionId(login.tokens.session_id || login.session.id);
+  writeCurrentSessionId(login.tokens.session_id);
   writeCurrentAccessToken(login.tokens.access_token);
   writeCurrentRefreshToken(login.tokens.refresh_token);
   accessToken = login.tokens.access_token;

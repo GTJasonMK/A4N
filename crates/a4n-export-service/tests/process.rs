@@ -53,7 +53,7 @@ async fn export_service_process_serves_typed_render_and_stops() {
     assert_route_rejects_version_mismatch(&sidecar_base_url(addr), "/export/render_json", &request)
         .await;
     let response = client
-        .render_json_typed(request)
+        .render_json(request)
         .await
         .expect("typed export render should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
@@ -64,7 +64,7 @@ async fn export_service_process_serves_typed_render_and_stops() {
 
     disconnect_during_request_body(addr, "/export/render_zip").await;
     let invalid_zip = client
-        .render_zip_typed(
+        .render_zip(
             ServiceRequestContext::deny_all(
                 "export-process-invalid-zip",
                 TraceContext {
@@ -123,7 +123,7 @@ async fn export_service_process_serves_typed_render_and_stops() {
         .expect("typed export zip request should be valid")
     };
     let first_zip = client
-        .render_zip_typed(render_zip_request("export-process-zip-first"))
+        .render_zip(render_zip_request("export-process-zip-first"))
         .await
         .expect("export ZIP should cross the independent process");
     assert_eq!(first_zip.status, ServiceStatus::Ok);
@@ -136,7 +136,7 @@ async fn export_service_process_serves_typed_render_and_stops() {
     assert!(first_bytes.starts_with(b"PK"));
 
     let second_zip = client
-        .render_zip_typed(render_zip_request("export-process-zip-second"))
+        .render_zip(render_zip_request("export-process-zip-second"))
         .await
         .expect("second export ZIP should cross the independent process");
     assert_eq!(second_zip.status, ServiceStatus::Ok);

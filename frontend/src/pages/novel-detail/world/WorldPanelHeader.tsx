@@ -33,7 +33,7 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
   const description = editing
     ? "调整世界规则、关键地点、主要阵营和其他扩展设定"
     : !hasBlueprint
-      ? "生成蓝图后，可以在这里维护故事发生世界的基础规则"
+      ? "先录入基础蓝图，再在这里维护世界规则"
       : hasWorldContent
         ? worldObject
           ? "集中查看故事世界的核心规则、地点与阵营"

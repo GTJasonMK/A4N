@@ -366,8 +366,6 @@ fn project_read_runtime_uses_narrow_facade() {
         "project_family_metadata_batch",
         "project_progress_summary",
         "project_progress_summaries",
-        "project_rollback_impacts",
-        "project_status_history",
         "project_ids",
         "project_kind",
         "project_by_id",
@@ -623,6 +621,8 @@ fn project_duplication_runtime_uses_application_owner() {
     let removed_rules_path = manifest_dir.join("src/actions/project_duplication/rules.rs");
     let application_path =
         manifest_dir.join("../a4n-orchestrator/src/context/project_duplication.rs");
+    let db_text_api_path =
+        manifest_dir.join("../a4n-db/src/project/duplicate/text/workflow/api.rs");
 
     let action_root_src =
         std::fs::read_to_string(&action_root).expect("read project_duplication.rs");
@@ -632,6 +632,8 @@ fn project_duplication_runtime_uses_application_owner() {
         std::fs::read_to_string(&media_path).expect("read project duplication media Host Port");
     let application_src = std::fs::read_to_string(&application_path)
         .expect("read orchestrator project duplication application");
+    let db_text_api_src =
+        std::fs::read_to_string(&db_text_api_path).expect("read DB text duplication API");
 
     assert!(
         !removed_rules_path.exists(),
@@ -671,7 +673,6 @@ fn project_duplication_runtime_uses_application_owner() {
         "pub async fn branch_project_validated",
         "resolve_project_duplicate_path",
         "required_project_status",
-        "ensure_text_project_for_copy",
         "duplication_result_with_file_rollback",
         "rollback_copied_media_files",
     ] {
@@ -680,6 +681,8 @@ fn project_duplication_runtime_uses_application_owner() {
             "Orchestrator duplication application 缺少 owner 事实: {required}"
         );
     }
+    assert!(!application_src.contains("ensure_text_project_for_copy"));
+    assert!(db_text_api_src.contains("ensure_text_project_record_for_copy("));
 }
 
 #[test]
@@ -804,10 +807,9 @@ fn video_studio_transfer_runtime_uses_application_owner() {
         "pub async fn export_video_studio_project_validated",
         "pub async fn import_video_studio_project_validated",
         ".verify_project_owner(",
-        ".project_read",
         "video_studio_export_media_files",
         "assemble_video_studio_export_package",
-        ".video_studio_project_export_rows(",
+        ".video_studio_project_export_snapshot(",
         ".import_video_studio_package_validated(",
         "import_result_with_file_rollback",
         "rollback_imported_media_files",
@@ -826,6 +828,8 @@ fn project_status_runtime_uses_narrow_facade() {
     let facade_path = manifest_dir.join("src/state/project_status.rs");
     let status_methods = [
         "forward_project_status_record",
+        "preview_project_status_rollback_record",
+        "project_status_machine_record",
         "rollback_project_status_record",
     ];
     let mut offenders = Vec::new();
@@ -920,7 +924,6 @@ fn project_chapter_records_runtime_uses_narrow_facade() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let facade_path = manifest_dir.join("src/state/project_chapter_records.rs");
     let chapter_record_methods = [
-        "validate_chapter_generation_readiness",
         "chapter_by_id",
         "chapter_by_project_number",
         "character_sync_chapters",
@@ -1247,9 +1250,8 @@ fn project_family_transfer_runtime_uses_application_owner() {
         "pub async fn import_project_family_package_validated",
         ".verify_project_owner(",
         ".project_read",
-        ".export_selection(",
-        ".derived_export_selection(",
-        ".export_rows(",
+        ".export_snapshot(",
+        ".derived_export_snapshot(",
         "project_family_export_media_files",
         "assemble_project_family_export_package",
         "validate_family_package_manifest",
@@ -1271,7 +1273,6 @@ fn settings_runtime_uses_narrow_facade() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let facade_path = manifest_dir.join("src/state/settings.rs");
     let settings_methods = [
-        "list_user_themes",
         "list_themes_visible_to_user",
         "theme_by_id",
         "create_theme",
@@ -1279,7 +1280,6 @@ fn settings_runtime_uses_narrow_facade() {
         "delete_theme",
         "activate_theme",
         "list_llm_config_records",
-        "llm_config_record_by_id",
         "create_llm_config_validated",
         "update_llm_config_validated",
         "set_default_llm_config_validated",
@@ -1287,8 +1287,9 @@ fn settings_runtime_uses_narrow_facade() {
         "resolve_llm_config",
         "llm_max_tokens_config",
         "save_llm_max_tokens_config_validated",
+        "usage_guide_document",
+        "save_usage_guide_document_validated",
         "list_image_config_records",
-        "image_config_record_by_id",
         "create_image_config_validated",
         "update_image_config_validated",
         "set_default_image_config_validated",
@@ -1296,7 +1297,6 @@ fn settings_runtime_uses_narrow_facade() {
         "resolve_image_config",
         "video_config",
         "list_video_config_records",
-        "video_config_record_by_id",
         "create_video_config_validated",
         "update_video_config_validated",
         "set_default_video_config_validated",
@@ -1448,8 +1448,6 @@ fn leaf_domain_runtime_uses_narrow_facades() {
             manifest_dir.join("src/state/chapter_content.rs"),
             &[
                 "chapters_for_project",
-                "preflight_chapter_content_change_validated",
-                "postprocess_chapter_after_content_change_validated",
                 "delete_latest_chapter_outlines_validated",
                 "import_chapter_validated",
                 "update_chapter_content_validated",
@@ -1525,7 +1523,6 @@ fn leaf_domain_runtime_uses_narrow_facades() {
     )
     .expect("read Orchestrator chapter content application");
     for owner in [
-        "preflight_chapter_content_change_validated(",
         "postprocess_chapter_after_content_change_validated(",
         "delete_latest_chapter_outlines_validated(",
         "import_chapter_validated(",
@@ -1536,6 +1533,58 @@ fn leaf_domain_runtime_uses_narrow_facades() {
             "Orchestrator 必须拥有 chapter_content application: {owner}"
         );
     }
+}
+
+#[test]
+fn chapter_content_sync_reindexes_current_rag_after_postprocess() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let application_src = std::fs::read_to_string(
+        manifest_dir.join("../a4n-orchestrator/src/chapter_content/application.rs"),
+    )
+    .expect("read chapter content application");
+    let process_index = application_src
+        .find("self.process_chapter(current.id).await?")
+        .expect("chapter content sync must refresh derived chapter fields");
+    let rag_index = application_src
+        .find("host_port.sync_chapter_rag_records(&current, run.id).await?")
+        .expect("chapter content sync must rebuild current chapter RAG");
+    assert!(
+        process_index < rag_index,
+        "当前章节 RAG 必须使用样式后处理完成后的 updated_at"
+    );
+
+    let context_src = collapse_ws(
+        &std::fs::read_to_string(
+            manifest_dir.join("../a4n-orchestrator/src/context/chapter_content.rs"),
+        )
+        .expect("read chapter content context"),
+    );
+    assert!(
+        context_src.contains("prepare_current_chapter_sync(chapter_id, false)"),
+        "重分析清理不得把旧 analysis_data 重新同步进 RAG"
+    );
+}
+
+#[test]
+fn chapter_content_sync_always_invalidates_character_timeline() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let context_src = std::fs::read_to_string(
+        manifest_dir.join("../a4n-orchestrator/src/context/chapter_content.rs"),
+    )
+    .expect("read chapter content context");
+    let cleanup_src = std::fs::read_to_string(
+        manifest_dir.join("../a4n-orchestrator/src/project/cleanup/derived.rs"),
+    )
+    .expect("read chapter cleanup owner");
+
+    assert!(
+        !context_src.contains("cleanup_character_timeline"),
+        "正文写入入口不得选择性跳过累计角色时间线失效"
+    );
+    assert!(
+        cleanup_src.contains("cleanup_character_profile_timeline_for_chapter_in("),
+        "章节派生资料清理必须统一回退当前章及后续角色时间线"
+    );
 }
 
 /// 导入审核接受、后处理、批量部分失败和去重判断必须由 Orchestrator application 单点拥有。
@@ -1552,6 +1601,9 @@ fn import_review_runtime_uses_application_owner() {
         manifest_dir.join("../a4n-orchestrator/src/context/import_review.rs"),
     )
     .expect("read Orchestrator import review application");
+    let db_acceptance_src =
+        std::fs::read_to_string(manifest_dir.join("../a4n-db/src/import_review/acceptance.rs"))
+            .expect("read DB import review acceptance");
     let rules_src = std::fs::read_to_string(
         manifest_dir.join("../a4n-orchestrator/src/import_review/rules.rs"),
     )
@@ -1592,15 +1644,39 @@ fn import_review_runtime_uses_application_owner() {
         "pub async fn modify_import_review_for_user_validated",
         "pub async fn batch_accept_import_reviews_for_user_validated",
         "pub async fn check_import_dedup_for_user_validated",
-        "finish_import_review_acceptance",
         "verify_project_permission",
-        "postprocess_chapter_after_content_change_validated",
+        "accept_import_review_validated_in_transaction",
+        "modify_import_review_validated_in_transaction",
+        "prepare_chapter_content_sync_in_transaction",
+        "finish_chapter_content_sync_after_save",
     ] {
         assert!(
             application_src.contains(required),
             "Orchestrator import review application 缺少 owner 事实: {required}"
         );
     }
+    for forbidden in [
+        "finish_import_review_acceptance",
+        "postprocess_chapter_after_content_change_validated",
+    ] {
+        assert!(
+            !application_src.contains(forbidden),
+            "导入审核不得在正文提交后再补建同步计划: {forbidden}"
+        );
+    }
+    assert!(
+        db_acceptance_src.contains("accept_import_review_in_transaction")
+            && db_acceptance_src.contains("modify_import_review_in_transaction")
+            && !db_acceptance_src.contains(".begin()")
+            && !db_acceptance_src.contains(".commit()"),
+        "DB 导入审核写入必须使用调用方事务"
+    );
+    let atomic_commit = ".prepare_chapter_content_sync_in_transaction(&tx, &chapter) .await?; tx.commit().await.map_err(AppError::Database)?;";
+    assert_eq!(
+        collapse_ws(&application_src).matches(atomic_commit).count(),
+        2,
+        "接受和修改接受都必须先持久化同步计划，再提交正文事务"
+    );
     assert!(
         rules_src.contains("fn calculate_import_dedup(")
             && rules_src.contains("DUPLICATE_HAMMING_THRESHOLD")
@@ -1625,11 +1701,8 @@ fn project_transfer_import_export_residuals_use_application_owners() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let orchestrator_dir = manifest_dir.join("../a4n-orchestrator/src");
 
-    let export_runtime = walk_rs_files(&manifest_dir.join("src/actions/export_files"))
-        .into_iter()
-        .map(|path| std::fs::read_to_string(path).expect("read export runtime source"))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let export_runtime = std::fs::read_to_string(manifest_dir.join("src/actions/export_files.rs"))
+        .expect("read export runtime source");
     for required in [
         ".run_export_txt_validated(",
         ".run_export_markdown_validated(",
@@ -1648,7 +1721,7 @@ fn project_transfer_import_export_residuals_use_application_owners() {
         "a4n_db::",
         "sea_orm",
         "export_chapter_rows(",
-        "normalize_batch_export_formats(",
+        "validate_batch_export_formats(",
         "render_text_pdf(",
         "EpubBuilder",
     ] {
@@ -1668,7 +1741,9 @@ fn project_transfer_import_export_residuals_use_application_owners() {
         "pub async fn run_export_epub_validated",
         "pub async fn run_export_pdf_validated",
         "pub async fn run_batch_export_validated",
-        "normalize_batch_export_formats",
+        "validate_batch_export_formats",
+        "render_txt_document",
+        "render_markdown_document",
         "render_text_pdf",
         "EpubBuilder",
     ] {
@@ -1744,7 +1819,6 @@ fn project_transfer_import_export_residuals_use_application_owners() {
         "begin_import_reverse_workflow_validated",
         "run_reverse_engineering_workflow",
         "finalize_workflow_run_outcome_validated",
-        "apply_reverse_engineering_result",
     ] {
         assert!(
             reverse_application.contains(required),
@@ -2850,14 +2924,12 @@ fn video_runtime_uses_narrow_facade() {
         "generate_chapter_video_frame_prompts_validated",
         "generate_chapter_video_segment_plan_validated",
         "generate_chapter_video_prompts_validated",
-        "generated_image_by_id",
         "generated_images_by_ids",
         "generated_images_for_project",
         "generated_images_for_valid_chapter",
         "generated_images_for_video_prompt_references",
         "create_generated_image_record_with_generation_run_checkpoint",
         "update_generated_image_record",
-        "toggle_generated_image_favorite",
         "video_reference_candidate_images",
         "delete_manga_page_image_records",
         "generated_video_by_id",
@@ -2870,7 +2942,6 @@ fn video_runtime_uses_narrow_facade() {
         "missing_video_reference_project_ids",
         "project_chapter_video_source",
         "prompt_downstream_dependencies",
-        "toggle_generated_video_favorite",
         "update_chapter_video_prompt_with_policy",
         "update_generated_video_record",
         "update_generated_video_waiting_status_validated",
@@ -2993,7 +3064,7 @@ fn video_generation_runtime_uses_application_owner() {
         ".start_video_generation_task(",
         ".run_video_generation_task(",
         ".run_video_prompt_generation_task(",
-        "start_video_generation_typed(",
+        "start_video_generation(",
         "spawn_generation_execution(",
         "spawn_video_generation_execution(",
     ] {
@@ -3861,13 +3932,16 @@ fn profile_material_runtime_uses_narrow_facade() {
         "profile_material_groups",
         "set_profile_primary_material_validated",
         "upload_profile_material_image_validated",
-        "ProfileMaterialUploadHostPort",
     ] {
         assert!(
             application_src.contains(symbol),
             "Orchestrator 必须拥有 profile material application: {symbol}"
         );
     }
+    assert!(
+        !application_src.contains("ProfileMaterialUploadHostPort"),
+        "单实现 ProfileMaterialUploadHostPort 已内联，不得恢复"
+    );
 }
 
 /// 导入反推 runtime 只能使用窄 facade。
@@ -3876,9 +3950,6 @@ fn import_reverse_runtime_uses_narrow_facade() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let facade_path = manifest_dir.join("src/state/import_reverse.rs");
     let methods = [
-        "apply_reverse_blueprint_data",
-        "apply_reverse_outline_data",
-        "apply_reverse_part_outline_data",
         "reverse_context_rows",
         "reverse_engineer_request",
         "begin_import_reverse_workflow_validated",
@@ -4045,7 +4116,6 @@ fn chapter_generation_runtime_uses_narrow_facade() {
         "run_chapter_generation_task",
         "preview_chapter_generation_request_validated",
         "prepare_chapter_generation_rag_embedding_validated",
-        "finish_chapter_generation_rag_context_validated",
         "active_generation_chapter",
     ];
     let mut offenders = Vec::new();
@@ -4099,7 +4169,6 @@ fn chapter_generation_runtime_uses_application_owner() {
         "run_chapter_generation_task",
         "preview_chapter_generation_request_validated",
         "prepare_chapter_generation_rag_embedding_validated",
-        "finish_chapter_generation_rag_context_validated",
     ] {
         assert!(
             owner_src.contains(&format!("fn {required}(")),
@@ -4111,7 +4180,7 @@ fn chapter_generation_runtime_uses_application_owner() {
         std::fs::read_to_string(runtime_dir.join("src/actions/chapter_generation.rs"))
             .expect("read chapter generation runtime");
     for required in [
-        "start_chapter_generation_typed(",
+        "start_chapter_generation(",
         "run_chapter_generation_task(",
         "StartChapterGenerationInput",
     ] {
@@ -4139,7 +4208,6 @@ fn prompt_records_runtime_uses_application_owner() {
         "set_prompt_project_override_validated",
         "remove_prompt_project_override_validated",
         "list_prompt_project_overrides_validated",
-        "prompt_dependency_graph_validated",
     ];
     let mut offenders = Vec::new();
     for path in walk_rs_files(&manifest_dir.join("src")) {
@@ -4420,7 +4488,6 @@ fn media_runtime_uses_narrow_facade() {
         "prepare_imported_image_upload_for_user_validated",
         "create_imported_image_record_for_user_validated",
         "update_generated_image_for_user_validated",
-        "toggle_generated_image_favorite_for_user_validated",
         "delete_generated_image_for_user_validated",
         "prepare_scene_image_request_validated",
         "generate_scene_image_validated",
@@ -4488,7 +4555,6 @@ fn image_records_runtime_uses_application_owner() {
         ".prepare_imported_image_upload_for_user_validated(",
         ".create_imported_image_record_for_user_validated(",
         ".update_generated_image_for_user_validated(",
-        ".toggle_generated_image_favorite_for_user_validated(",
         ".delete_generated_image_for_user_validated(",
     ] {
         assert!(
@@ -4837,6 +4903,7 @@ fn workflow_runtime_uses_narrow_facade() {
         "upsert_workflow_checkpoint",
         "upsert_workflow_run",
         "workflow_checkpoint_models",
+        "workflow_checkpoint_models_by_run_ids",
         "workflow_progress_events",
         "workflow_run_detail",
         "workflow_run_model_by_id",

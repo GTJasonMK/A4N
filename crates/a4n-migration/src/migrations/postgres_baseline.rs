@@ -10,8 +10,8 @@ use a4n_core::models::{
     asset::{object_profile, profile_primary_material},
     canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
     chapter::{
-        chapter, chapter_manga_prompt, chapter_outline, chapter_scene, chapter_shooting_script,
-        chapter_video_prompt, part_outline,
+        chapter, chapter_manga_prompt, chapter_outline, chapter_outline_provenance, chapter_scene,
+        chapter_shooting_script, chapter_video_prompt, part_outline,
     },
     character::{
         attribute_event, character_portrait, character_state_index, foreshadowing_index,
@@ -642,6 +642,7 @@ impl MigrationTrait for Migration {
 
         create_entity_table!(manager, schema, part_outline::Entity);
         create_entity_table!(manager, schema, chapter_outline::Entity);
+        create_entity_table!(manager, schema, chapter_outline_provenance::Entity);
         create_entity_table!(manager, schema, chapter::Entity);
         create_entity_table!(manager, schema, chapter_scene::Entity);
         create_entity_table!(manager, schema, chapter_shooting_script::Entity);
@@ -673,6 +674,22 @@ impl MigrationTrait for Migration {
         create_entity_table!(manager, schema, protagonist_deletion_mark::Entity);
         create_entity_table!(manager, schema, snapshot_reference::Entity);
         create_entity_table!(manager, schema, foreshadowing_index::Entity);
+
+        execute_pg_sql(
+            manager,
+            "ALTER TABLE attribute_event ALTER COLUMN source_kind SET DEFAULT 'legacy_unknown'",
+        )
+        .await?;
+        execute_pg_sql(
+            manager,
+            "ALTER TABLE protagonist_behavior_record ALTER COLUMN source_kind SET DEFAULT 'legacy_unknown'",
+        )
+        .await?;
+        execute_pg_sql(
+            manager,
+            "ALTER TABLE protagonist_deletion_mark ALTER COLUMN source_kind SET DEFAULT 'legacy_unknown'",
+        )
+        .await?;
 
         create_entity_table!(manager, schema, object_profile::Entity);
         create_entity_table!(manager, schema, profile_primary_material::Entity);
@@ -718,6 +735,13 @@ impl MigrationTrait for Migration {
         create_entity_table!(manager, schema, image_gen_config::Entity);
         create_entity_table!(manager, schema, video_gen_config::Entity);
         create_entity_table!(manager, schema, system_settings::Entity);
+        create_entity_index!(
+            manager,
+            "uidx_system_settings_key",
+            system_settings::Entity,
+            [system_settings::Column::Key],
+            unique
+        );
         create_entity_table!(manager, schema, generated_image::Entity);
         create_entity_table!(manager, schema, generated_video::Entity);
         create_entity_table!(manager, schema, optimization_session::Entity);
@@ -820,6 +844,7 @@ impl MigrationTrait for Migration {
         drop_entity_table!(manager, chapter_manga_prompt::Entity);
         drop_entity_table!(manager, chapter_shooting_script::Entity);
         drop_entity_table!(manager, chapter_scene::Entity);
+        drop_entity_table!(manager, chapter_outline_provenance::Entity);
         drop_entity_table!(manager, chapter::Entity);
         drop_entity_table!(manager, chapter_outline::Entity);
         drop_entity_table!(manager, part_outline::Entity);

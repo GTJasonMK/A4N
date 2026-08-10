@@ -40,6 +40,9 @@ fn parse_video_probe_properties_accepts_valid_video_stream() {
         br#"{
             "streams": [
                 {
+                    "codec_name": "h264",
+                    "profile": "Main",
+                    "has_b_frames": 0,
                     "width": 1920,
                     "height": 1080,
                     "r_frame_rate": "30000/1001"
@@ -56,6 +59,9 @@ fn parse_video_probe_properties_accepts_valid_video_stream() {
     assert_eq!(properties.height, 1080);
     assert!((properties.duration_secs - 12.345).abs() < f32::EPSILON);
     assert_eq!(properties.fps, 30);
+    assert_eq!(properties.codec_name.as_deref(), Some("h264"));
+    assert_eq!(properties.profile.as_deref(), Some("Main"));
+    assert_eq!(properties.has_b_frames, Some(0));
 }
 
 #[test]

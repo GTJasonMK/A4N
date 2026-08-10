@@ -3,7 +3,7 @@ import {
   authenticatedWebFetch,
   extractErrorMessage,
 } from ".";
-import { readCurrentUserId } from "./authStorage";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import {
   parseGenerationTaskEvent,
   parseGenerationTaskHandle,
@@ -583,12 +583,6 @@ async function rollbackOnAttachFailure(
     useGenerationTasksStore.getState().release(key);
     throw error;
   }
-}
-
-function currentUserId(): number {
-  const userId = readCurrentUserId();
-  if (userId == null) throw new Error("未登录，无法访问 generation task");
-  return userId;
 }
 
 async function readResponseJson(response: Response): Promise<unknown> {

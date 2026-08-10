@@ -1,6 +1,6 @@
-export type VideoProvider = string;
+import type { VideoDurationMode } from "../../../api/video";
 
-export type VideoDurationMode = "range" | "fixed";
+export type VideoProvider = string;
 
 export interface VideoForm {
   name: string;

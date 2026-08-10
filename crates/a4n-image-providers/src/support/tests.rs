@@ -1,6 +1,7 @@
 use super::reference::{MAX_REFERENCE_IMAGE_BYTES, decode_data_uri_image};
 use super::*;
 use a4n_core::error::AppError;
+use a4n_image::ImageReference;
 use base64::Engine as _;
 use reqwest::StatusCode;
 #[test]
@@ -142,4 +143,32 @@ fn prepares_large_reference_image_as_compact_jpeg() {
     assert_eq!(prepared.format, "jpg");
     assert!(prepared.bytes.starts_with(b"\xff\xd8\xff"));
     assert!(prepared.bytes.len() < MAX_REFERENCE_IMAGE_BYTES);
+}
+
+#[test]
+fn rejects_system_time_before_unix_epoch_for_provider_seed() {
+    let before_epoch = std::time::UNIX_EPOCH - std::time::Duration::from_secs(1);
+    let error = super::time_seed_at(before_epoch).expect_err("pre-epoch time must fail");
+    assert!(error.to_string().contains("Unix epoch"));
+}
+
+#[test]
+fn shares_reference_prompt_and_multipart_field_rules() {
+    let references = vec![
+        ImageReference {
+            label: "参考图 1".into(),
+            data_uri: "data:image/png;base64,one".into(),
+        },
+        ImageReference {
+            label: "参考图 2".into(),
+            data_uri: "data:image/png;base64,two".into(),
+        },
+    ];
+
+    assert_eq!(reference_image_field_name(1), "image");
+    assert_eq!(reference_image_field_name(2), "image[]");
+    assert_eq!(
+        prompt_with_reference_labels("draw", &references),
+        "draw\n\n参考图绑定：\n1. 参考图 1\n2. 参考图 2"
+    );
 }

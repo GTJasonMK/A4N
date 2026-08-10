@@ -24,7 +24,7 @@ pub async fn start_optimize_chat_generation(
     user_id: i64,
     input: StartOptimizeChatGenerationInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    optimize_actions::start_optimize_chat_generation_typed(state.inner(), user_id, input)
+    optimize_actions::start_optimize_chat_generation(state.inner(), user_id, input)
         .await
         .map_err(crate::commands::generation_tasks::map_access_error)
 }

@@ -45,7 +45,7 @@ fi
 # 2) 禁止隐式取消兜底：cancelWorkflow 不得再作为 useProgressTask 的默认取消
 if rg -q 'cancelTaskRef\.current \?\? cancelWorkflow' "$HOOK"; then
     printf '禁止隐式取消兜底: %s 不得默认落回 cancelWorkflow\n' "$HOOK" >&2
-    printf '调用点必须显式传 cancelTask（generationClient.cancel 或 cancelHostWorkflowTask）\n' >&2
+    printf '调用点必须显式传 cancelTask（generationClient.cancel 或 cancelWorkflow）\n' >&2
     fail=1
 fi
 

@@ -308,6 +308,12 @@ fn response_parses_all_gateway_id_status_and_url_aliases() {
 }
 
 #[test]
+fn required_status_rejects_missing_status_without_defaulting() {
+    let error = required_status(&json!({ "request_id": "job-1" })).expect_err("status is required");
+    assert!(error.to_string().contains("响应缺少 status"));
+}
+
+#[test]
 fn route_detection_and_content_urls_match_base_url() {
     let native = CliProxyOpenAiVideoProvider::new("http://127.0.0.1:8317/v1", "key");
     assert!(!native.uses_openai_route());

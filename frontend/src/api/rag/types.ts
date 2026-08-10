@@ -52,6 +52,7 @@ export interface ClientRagIngestPrepareOutput {
     model: string;
     dimension: number;
   };
+  rebuild: boolean;
   records: PreparedClientRagIngestRecord[];
   expected_count: number;
   skipped_count: number;

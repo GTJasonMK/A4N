@@ -7,6 +7,7 @@ use super::Seedance2VideoProvider;
 
 impl Seedance2VideoProvider {
     pub(super) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
+        req.validate_dimensions()?;
         let VideoMediaInput::References {
             images,
             videos,
@@ -53,9 +54,6 @@ impl Seedance2VideoProvider {
     }
 }
 fn ratio_from_size(width: i32, height: i32) -> &'static str {
-    if width <= 0 || height <= 0 {
-        return "16:9";
-    }
     if width * 9 == height * 21 {
         return "21:9";
     }

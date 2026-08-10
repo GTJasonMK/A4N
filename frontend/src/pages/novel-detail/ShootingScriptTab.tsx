@@ -10,15 +10,15 @@ import {
   generateNextChapterShootingScriptUnit,
   getChapterShootingScript,
   getChapterShootingScriptUnitProgress,
-  type ChapterShootingScript,
   type ChapterShootingScriptUnitProgressView,
+  type ChapterShootingScriptV1,
   type ChapterShootingScriptView,
 } from "../../api/shootingScript";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
-import { cancelHostWorkflowTask } from "../../api/streaming";
+import { cancelWorkflow } from "../../api/streaming";
 import {
   allocateHostTaskId,
   useProgressTask,
@@ -32,6 +32,29 @@ interface ShootingScriptTabProps {
   projectId: number;
   canEdit: boolean;
   chapter: ChapterData | null;
+}
+
+export function assertNextUnitProgressPreservesScenes(
+  previous: ChapterShootingScriptUnitProgressView | null,
+  next: ChapterShootingScriptUnitProgressView,
+): void {
+  const sceneCountMatches =
+    next.completed_unit_count > 0 &&
+    next.script.scenes.length === next.completed_unit_count;
+  const preservesPrevious =
+    previous == null ||
+    (next.workflow_run_id === previous.workflow_run_id &&
+      next.total_unit_count === previous.total_unit_count &&
+      next.completed_unit_count > previous.completed_unit_count &&
+      previous.script.scenes.every(
+        (scene, index) =>
+          JSON.stringify(scene) === JSON.stringify(next.script.scenes[index]),
+      ));
+  if (!sceneCountMatches || !preservesPrevious) {
+    throw new Error(
+      "生成下一个场景返回了倒退或改写已有场景的结果，已拒绝覆盖当前页面数据",
+    );
+  }
 }
 
 export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
@@ -48,7 +71,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const [scriptLoading, setScriptLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState<ChapterShootingScript | null>(null);
+  const [draft, setDraft] = useState<ChapterShootingScriptV1 | null>(null);
   const [invalidatedProjectIds, setInvalidatedProjectIds] = useState<number[]>(
     [],
   );
@@ -115,7 +138,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       const generated = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: "生成结构化拍摄剧本",
           startMessage: "正在准备剧本改编",
@@ -151,7 +174,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       const generated = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: "生成下一个拍摄场景",
           startMessage: "正在准备场景改编",
@@ -163,16 +186,21 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         },
         () => generateNextChapterShootingScriptUnit(projectId, chapterId, taskId),
       );
-      if (generated.shooting_script) {
-        setView(generated.shooting_script);
+      assertNextUnitProgressPreservesScenes(unitProgress, generated);
+      if (generated.completed_record) {
+        const completedView = {
+          record: generated.completed_record,
+          script: generated.script,
+        } satisfies ChapterShootingScriptView;
+        setView(completedView);
         setUnitProgress(null);
-        setDraft(structuredClone(generated.shooting_script.script));
+        setDraft(structuredClone(generated.script));
       } else {
         setUnitProgress(generated);
       }
       setInvalidatedProjectIds([]);
       addToast(
-        generated.shooting_script
+        generated.completed_record
           ? "全部拍摄场景已生成"
           : `已生成 ${generated.completed_unit_count}/${generated.total_unit_count} 个场景`,
         "success",

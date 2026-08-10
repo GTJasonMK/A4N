@@ -15,13 +15,30 @@ const CHARACTER_ATTRIBUTE_KEYS = {
 
 export type CharacterAttributeCategory = keyof typeof CHARACTER_ATTRIBUTE_LABELS;
 
+const characterAttributeRecord = (
+  profile: CharacterProfile,
+  category: CharacterAttributeCategory,
+) => {
+  const state = asJsonRecord(profile.current_state);
+  return state ? asJsonRecord(state[CHARACTER_ATTRIBUTE_KEYS[category]]) : null;
+};
+
 export const characterAttributeEntries = (
   profile: CharacterProfile,
   category: CharacterAttributeCategory,
 ): Array<[string, unknown]> => {
-  const state = asJsonRecord(profile.current_state);
-  const attributes = state ? asJsonRecord(state[CHARACTER_ATTRIBUTE_KEYS[category]]) : null;
+  const attributes = characterAttributeRecord(profile, category);
   return attributes ? Object.entries(attributes) : [];
+};
+
+export const characterAttributeText = (
+  profile: CharacterProfile,
+  category: CharacterAttributeCategory,
+  key: string,
+): string | null => {
+  const value = characterAttributeRecord(profile, category)?.[key];
+  if (typeof value !== "string") return null;
+  return value.trim() || null;
 };
 
 export const characterAttributeValueText = (value: unknown): string => {

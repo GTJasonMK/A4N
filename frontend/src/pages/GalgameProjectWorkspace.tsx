@@ -3,8 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Gamepad2, GitCompare, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
+  canEditProjectMaterials,
   getProject,
   listSourceSnapshotChapters,
+  projectLifecycleBlockedReason,
   resetProjectGeneratedData,
   type NovelProject,
   type SourceSnapshotChapter,
@@ -78,12 +80,47 @@ export const GalgameProjectWorkspace: React.FC = () => {
     };
   }, [refresh]);
 
-  const canEditProject =
-    project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
-  const canResetProject = project?.my_role === "owner";
+  const lifecycleBlockedReason = project
+    ? projectLifecycleBlockedReason(project)
+    : null;
+  const canEditProject = project ? canEditProjectMaterials(project) : false;
+  const canResetProject = project?.my_role === "owner" && !lifecycleBlockedReason;
+  const resetInProgress = resetting || project?.lifecycle_gate === "resetting";
+
+  useEffect(() => {
+    if (project?.lifecycle_gate !== "resetting") return;
+    let checking = false;
+    let errorReported = false;
+    const timer = window.setInterval(() => {
+      if (checking) return;
+      checking = true;
+      void getProject(projectId)
+        .then(async (nextProject) => {
+          if (nextProject.lifecycle_gate !== "active") return;
+          window.clearInterval(timer);
+          await refresh();
+          setWorkspaceVersion((value) => value + 1);
+          addToast("Galgame 项目重置收尾完成，可以继续创作", "success");
+        })
+        .catch((error) => {
+          if (errorReported) return;
+          errorReported = true;
+          addToast(extractErrorMessage(error, "查询项目重置进度失败"), "error");
+        })
+        .finally(() => {
+          checking = false;
+        });
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [addToast, project?.lifecycle_gate, projectId, refresh]);
 
   const handleResetGeneratedData = useCallback(async () => {
     if (!project || resetBusyRef.current) return;
+    const blockedReason = projectLifecycleBlockedReason(project);
+    if (blockedReason) {
+      addToast(blockedReason, "info");
+      return;
+    }
     resetBusyRef.current = true;
     const ok = await confirmDialog({
       title: "重置 Galgame 生成数据",
@@ -101,15 +138,52 @@ export const GalgameProjectWorkspace: React.FC = () => {
     setResetting(true);
     setSourceSyncOpen(false);
     try {
-      const reset = await resetProjectGeneratedData(project.id);
-      const snapshotChapters = await listSourceSnapshotChapters(project.id);
-      setProject(reset.project);
-      setChapters(snapshotChapters);
-      setWorkspaceVersion((value) => value + 1);
-      addToast(
-        `已重置 Galgame：删除 ${reset.deleted_galgame_scripts} 个剧本、${reset.deleted_galgame_scenes} 场、${reset.deleted_galgame_lines} 行、${reset.deleted_generation_specs} 个生成意图、${reset.deleted_media_assets} 个媒体资产。`,
-        "success",
-      );
+      const response = await resetProjectGeneratedData(project.id);
+      const warnings = [...response.warnings];
+      const formalResetCommitted = response.database_committed;
+      let nextProject = response.result?.project ?? null;
+      if (!nextProject) {
+        try {
+          nextProject = await getProject(project.id);
+        } catch (error) {
+          warnings.push(extractErrorMessage(error, "刷新项目状态失败"));
+        }
+      }
+      if (nextProject) {
+        setProject(nextProject);
+      } else if (response.status === "pending") {
+        setProject((current) =>
+          current ? { ...current, lifecycle_gate: "resetting" } : current,
+        );
+      }
+      if (formalResetCommitted) {
+        try {
+          setChapters(await listSourceSnapshotChapters(project.id));
+        } catch (error) {
+          warnings.push(extractErrorMessage(error, "刷新来源章节失败"));
+        }
+        setWorkspaceVersion((value) => value + 1);
+      }
+
+      const warningText = warnings.length > 0 ? `；${warnings.join("；")}` : "";
+      if (response.status === "pending") {
+        addToast(
+          formalResetCommitted
+            ? `Galgame 正式资料已重置，后台正在清理索引并恢复编辑权限${warningText}`
+            : `Galgame 重置请求已接受，后台正在执行；完成前项目暂不可编辑${warningText}`,
+          "info",
+        );
+      } else if (response.result) {
+        addToast(
+          `已重置 Galgame：删除 ${response.result.deleted_galgame_scripts} 个剧本、${response.result.deleted_galgame_scenes} 场、${response.result.deleted_galgame_lines} 行、${response.result.deleted_generation_specs} 个生成意图、${response.result.deleted_media_assets} 个媒体资产${warningText}。`,
+          warnings.length > 0 ? "info" : "success",
+        );
+      } else {
+        addToast(
+          `Galgame 生成数据已重置${warningText}`,
+          warnings.length > 0 ? "info" : "success",
+        );
+      }
     } catch (err) {
       addToast(extractErrorMessage(err, "重置 Galgame 生成数据失败"), "error");
     } finally {
@@ -135,14 +209,14 @@ export const GalgameProjectWorkspace: React.FC = () => {
               <BookIconButton
                 label="同步来源"
                 onClick={() => setSourceSyncOpen(true)}
-                disabled={!project || resetting}
+                disabled={!project || resetInProgress}
                 variant="secondary"
                 size="sm"
               >
                 <GitCompare size={14} />
               </BookIconButton>
             ) : null}
-            {canResetProject && !resetting ? (
+            {canResetProject && !resetInProgress ? (
               <Dropdown
                 items={[
                   {
@@ -154,19 +228,28 @@ export const GalgameProjectWorkspace: React.FC = () => {
                 ]}
               />
             ) : null}
-            {canResetProject && resetting ? (
+            {project?.my_role === "owner" && resetInProgress ? (
               <BookButton
                 variant="secondary"
                 size="sm"
                 disabled
               >
                 <LoadingSpinner size="sm" />
-                重置中
+                重置收尾中
               </BookButton>
             ) : null}
           </>
         }
       />
+
+      {lifecycleBlockedReason ? (
+        <div
+          role="status"
+          className="shrink-0 border-b border-warning/30 bg-warning-bg px-4 py-2 text-small text-book-text-main"
+        >
+          {lifecycleBlockedReason}。页面会在收尾完成后自动恢复。
+        </div>
+      ) : null}
 
       {project ? (
         <SourceSyncDialog

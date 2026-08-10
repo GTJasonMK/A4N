@@ -5,7 +5,7 @@ import { Boxes,
   RefreshCw, } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
-import type { DownstreamConflictStrategy } from "../../api/dependencyConflict";
+import type { DownstreamConflictStrategy } from "../../api/generated/host";
 import {
   createObjectProfile,
   deleteObjectProfile,
@@ -42,15 +42,18 @@ import {
   SelectField,
   TextAreaField,
   TextField,
-  chapterRangeText,
+  profileChapterRangeText,
+  profileOwnershipLabel,
   splitLines,
   stringList,
 } from "./shared";
 import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
 import { useProjectProfileCollection } from "./useProjectProfileCollection";
 
-const OBJECT_TYPE_OPTIONS = Object.keys(OBJECT_PROFILE_TYPE_LABELS);
-const IMPORTANCE_OPTIONS = Object.keys(OBJECT_PROFILE_IMPORTANCE_LABELS);
+const OBJECT_TYPE_INPUT_LABELS = { "": "未确定", ...OBJECT_PROFILE_TYPE_LABELS };
+const IMPORTANCE_INPUT_LABELS = { "": "未确定", ...OBJECT_PROFILE_IMPORTANCE_LABELS };
+const OBJECT_TYPE_OPTIONS = Object.keys(OBJECT_TYPE_INPUT_LABELS);
+const IMPORTANCE_OPTIONS = Object.keys(IMPORTANCE_INPUT_LABELS);
 
 export const ObjectProfilesTab: React.FC<{
   projectId: number;
@@ -189,12 +192,17 @@ export const ObjectProfilesTab: React.FC<{
     }
     setBusyId(requestProfile.id);
     try {
-      await deleteObjectProfile(requestProfile.id, downstreamStrategy);
+      const result = await deleteObjectProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
-      addToast("物体档案已删除", "success");
+      addToast(
+        result.warnings.length > 0
+          ? `物体档案已删除；${result.warnings.join("；")}`
+          : "物体档案已删除",
+        result.warnings.length > 0 ? "info" : "success",
+      );
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, "删除物体档案失败"), "error");
@@ -252,13 +260,14 @@ export const ObjectProfilesTab: React.FC<{
     }
     setBusyId(existingProfile ? existingProfile.id : -1);
     try {
-      const saved =
+      const result =
         existingProfile
           ? await updateObjectProfile(existingProfile.id, {
               ...input,
               downstream_strategy: downstreamStrategy,
             })
           : await createObjectProfile(requestProjectId, input);
+      const saved = result.profile;
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存物体档案返回了其他项目的数据");
@@ -267,7 +276,13 @@ export const ObjectProfilesTab: React.FC<{
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);
-      addToast(editingProfile === "new" ? "物体档案已创建" : "物体档案已更新", "success");
+      const successMessage = editingProfile === "new" ? "物体档案已创建" : "物体档案已更新";
+      addToast(
+        result.warnings.length > 0
+          ? `${successMessage}；${result.warnings.join("；")}`
+          : successMessage,
+        result.warnings.length > 0 ? "info" : "success",
+      );
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, "保存物体档案失败"), "error");
@@ -350,7 +365,7 @@ export const ObjectProfilesTab: React.FC<{
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
                   <div className="mt-0.5 text-caption text-book-text-muted">
-                    {getObjectProfileTypeLabel(profile.object_type)} · {getObjectProfileImportanceLabel(profile.importance)} · {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
+                    {getObjectProfileTypeLabel(profile.object_type)} · {getObjectProfileImportanceLabel(profile.importance)} · {profileOwnershipLabel(profile.ownership_kind)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind)}
                   </div>
                   <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
                     {profile.visual_description || profile.story_usage || "暂无物体摘要。"}
@@ -426,11 +441,12 @@ function ObjectProfileDetailModal({
       {profile ? (
         <div className="space-y-3 text-xs text-book-text-sub">
           <p className="text-small leading-relaxed text-book-text-muted">
-            {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
+            {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind)}
             {aliases.length > 0 ? ` · 别名：${aliases.join("、")}` : ""}
             {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
           </p>
           <dl className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
+            <DetailRow label="资料来源" value={profileOwnershipLabel(profile.ownership_kind)} />
             <DetailRow label="外观" value={profile.visual_description} />
             <DetailRow label="材质状态" value={profile.material_and_state} />
             <DetailRow label="叙事用途" value={profile.story_usage} />
@@ -513,7 +529,7 @@ function ObjectProfileEditModal({
         <BookButton
           variant="primary"
           onClick={() => void submit()}
-          disabled={busy || saving || !draft.name.trim() || !draft.visual_description.trim()}
+          disabled={busy || saving || !draft.name.trim()}
         >
           {saving ? <LoadingSpinner size="sm" /> : null}
           保存
@@ -521,20 +537,23 @@ function ObjectProfileEditModal({
       }
     >
       <fieldset disabled={busy || saving} className="grid gap-3 text-xs disabled:opacity-75">
+        <p className="text-caption leading-relaxed text-book-text-muted">
+          只需名称即可保存；空白字段可在后续手工补充或由章节分析补齐。尚未确定出场章节时可保留默认值。
+        </p>
         <div className="grid gap-2 md:grid-cols-2">
           <TextField label="名称" value={draft.name} onChange={(value) => update("name", value)} />
           <SelectField
             label="类型"
             value={draft.object_type}
             options={OBJECT_TYPE_OPTIONS}
-            labels={OBJECT_PROFILE_TYPE_LABELS}
+            labels={OBJECT_TYPE_INPUT_LABELS}
             onChange={(value) => update("object_type", value)}
           />
           <SelectField
             label="重要性"
             value={draft.importance}
             options={IMPORTANCE_OPTIONS}
-            labels={OBJECT_PROFILE_IMPORTANCE_LABELS}
+            labels={IMPORTANCE_INPUT_LABELS}
             onChange={(value) => update("importance", value)}
           />
           <TextField
@@ -602,8 +621,8 @@ function emptyObjectProfileInput(): ObjectProfileInput {
   return {
     name: "",
     aliases: [],
-    object_type: "prop",
-    importance: "secondary",
+    object_type: "",
+    importance: "",
     visual_description: "",
     material_and_state: "",
     story_usage: "",
@@ -636,15 +655,8 @@ function objectProfileToInput(profile: ObjectProfile): ObjectProfileInput {
   };
 }
 
-function validateObjectProfileDraft(draft: ObjectProfileInput): string | null {
+export function validateObjectProfileDraft(draft: ObjectProfileInput): string | null {
   if (!draft.name.trim()) return "物体名称不能为空";
-  if (!draft.visual_description.trim()) return "物体外观不能为空";
-  if (!draft.material_and_state.trim()) return "物体材质状态不能为空";
-  if (!draft.story_usage.trim()) return "物体叙事用途不能为空";
-  if (!draft.visual_usage.trim()) return "物体视觉用途不能为空";
-  if (!draft.generation_usage.trim()) return "物体生成用途不能为空";
-  if (!draft.image_prompt_seed.trim()) return "物体图片提示词种子不能为空";
-  if (!draft.evidence || draft.evidence.length === 0) return "物体证据不能为空";
   if (!Number.isInteger(draft.first_seen_chapter) || draft.first_seen_chapter <= 0) {
     return "物体首次出现章节必须是正整数";
   }

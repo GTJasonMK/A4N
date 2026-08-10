@@ -3,6 +3,9 @@ mod events;
 mod health;
 mod json;
 
+#[cfg(test)]
+pub(crate) use json::{from_json_response, into_json_request};
+
 use a4n_service_protocol::{
     SIDECAR_AUTH_HEADER, SIDECAR_CONNECT_TIMEOUT, SIDECAR_HEALTH_TIMEOUT,
     SIDECAR_REQUEST_ID_HEADER, SIDECAR_REQUEST_TIMEOUT, SIDECAR_STREAM_IDLE_TIMEOUT,
@@ -22,7 +25,7 @@ pub(super) use events::{drain_event_lines, parse_event_line};
 pub(super) use health::{validate_health_expectation, validate_service_health};
 
 #[derive(Clone)]
-pub struct HttpSidecarTransport {
+pub(crate) struct HttpSidecarTransport {
     base_url: String,
     pub(super) client: reqwest::Client,
     pub(super) connect_timeout: Duration,
@@ -51,7 +54,7 @@ impl std::fmt::Debug for HttpSidecarTransport {
 }
 
 impl HttpSidecarTransport {
-    pub fn new(base_url: impl Into<String>) -> Self {
+    pub(super) fn new(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             client: reqwest::Client::builder()
@@ -69,18 +72,12 @@ impl HttpSidecarTransport {
         }
     }
 
-    pub fn with_auth_token(mut self, token: impl Into<String>) -> Self {
+    pub(super) fn with_auth_token(mut self, token: impl Into<String>) -> Self {
         self.auth_token = Some(token.into());
         self
     }
 
-    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
-        self.client = client;
-        self.client_factory = None;
-        self
-    }
-
-    pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
+    pub(super) fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
         self.client_factory = Some(factory);
         self
     }

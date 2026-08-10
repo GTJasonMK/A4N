@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, ServerState, command_input, i64_arg, to_value, video_records_actions,
+    ApiError, ServerState, bool_arg, command_input, i64_arg, to_value, video_records_actions,
 };
 
 pub(in crate::routes::commands) async fn list_videos_by_chapter(
@@ -20,18 +20,6 @@ pub(in crate::routes::commands) async fn list_videos_by_chapter(
     .await
     .map_err(ApiError::bad_request)?;
     to_value(videos)
-}
-
-pub(in crate::routes::commands) async fn toggle_video_favorite(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-) -> Result<Value, ApiError> {
-    let video_id = i64_arg(args, "videoId")?;
-    let updated = video_records_actions::toggle_video_favorite(state.runtime(), user_id, video_id)
-        .await
-        .map_err(ApiError::bad_request)?;
-    to_value(updated)
 }
 
 pub(in crate::routes::commands) async fn update_video(
@@ -102,9 +90,14 @@ pub(in crate::routes::commands) async fn load_video_scrub_playback_data(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let video_id = i64_arg(args, "videoId")?;
-    let playback =
-        video_records_actions::load_video_scrub_playback_data(state.runtime(), user_id, video_id)
-            .await
-            .map_err(ApiError::bad_request)?;
+    let include_audio = bool_arg(args, "includeAudio")?;
+    let playback = video_records_actions::load_video_scrub_playback_data(
+        state.runtime(),
+        user_id,
+        video_id,
+        include_audio,
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
     to_value(playback)
 }

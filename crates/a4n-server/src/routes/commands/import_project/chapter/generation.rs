@@ -34,24 +34,6 @@ pub(in crate::routes::commands) async fn prepare_chapter_generation_rag_embeddin
     ))
 }
 
-pub(in crate::routes::commands) async fn finish_chapter_generation_rag_context(
-    state: &ServerState,
-    user_id: i64,
-    args: &Value,
-) -> Result<Value, ApiError> {
-    let input: chapter_generation_actions::FinishChapterGenerationRagContextInput =
-        command_input(args, "finish_chapter_generation_rag_context")?;
-    Ok(json!(
-        chapter_generation_actions::finish_chapter_generation_rag_context(
-            state.runtime(),
-            user_id,
-            input
-        )
-        .await
-        .map_err(ApiError::bad_request)?
-    ))
-}
-
 pub(in crate::routes::commands) async fn preview_chapter_prompt(
     state: &ServerState,
     user_id: i64,

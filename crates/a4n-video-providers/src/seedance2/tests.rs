@@ -47,6 +47,16 @@ fn builds_omni_reference_request_body() {
 }
 
 #[test]
+fn rejects_nonpositive_dimensions_instead_of_using_default_ratio() {
+    let mut req = request();
+    req.height = 0;
+
+    let err = Seedance2VideoProvider::request_body(&req).expect_err("invalid dimensions");
+
+    assert!(err.to_string().contains("宽度和高度必须为正整数"));
+}
+
+#[test]
 fn rejects_missing_reference_media() {
     let mut req = request();
     req.media = VideoMediaInput::None;

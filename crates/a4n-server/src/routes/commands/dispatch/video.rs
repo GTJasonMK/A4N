@@ -16,7 +16,6 @@ pub(super) async fn try_dispatch(
         "detect_video_config_models" => detect_video_config_models(state, user_id, args).await?,
         "list_video_reference_images" => list_video_reference_images(state, user_id, args).await?,
         "list_videos_by_chapter" => list_videos_by_chapter(state, user_id, args).await?,
-        "toggle_video_favorite" => toggle_video_favorite(state, user_id, args).await?,
         "update_video" => update_video(state, user_id, args).await?,
         "select_segment_video" => select_segment_video(state, user_id, args).await?,
         "delete_video" => delete_video(state, user_id, args).await?,
@@ -40,6 +39,12 @@ pub(super) async fn try_dispatch(
         }
         "trim_video" => trim_video(state, user_id, args).await?,
         "list_chapter_video_prompts" => list_chapter_video_prompts(state, user_id, args).await?,
+        "get_chapter_video_timeline" => get_chapter_video_timeline(state, user_id, args).await?,
+        "commit_inserted_segment_draft" => {
+            commit_inserted_segment_draft(state, user_id, args).await?
+        }
+        "move_inserted_segment" => move_inserted_segment(state, user_id, args).await?,
+        "delete_inserted_segment" => delete_inserted_segment(state, user_id, args).await?,
         "load_video_segment_plan_draft" => {
             load_video_segment_plan_draft(state, user_id, args).await?
         }

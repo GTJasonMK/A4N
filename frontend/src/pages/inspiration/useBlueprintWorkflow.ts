@@ -5,9 +5,11 @@ import {
   type Blueprint,
   generateBlueprint,
   getBlueprint,
+  matchesBlueprintTaskResult,
   previewGenerateBlueprintRequest,
   previewRefineBlueprintRequest,
   refineBlueprint,
+  syncBlueprintMaterials,
 } from "../../api/blueprint";
 import { generationClient } from "../../api/generationTasks";
 import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
@@ -15,7 +17,6 @@ import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { NovelProject } from "../../api/project";
 import { useGenerationTask } from "../../hooks/useGenerationTask";
 import { useGenerationTasksStore, generationTaskKey } from "../../store/generationTasks";
-import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import type { ToastType } from "../../components/feedback/Toast";
 import { logger } from "../../utils/logger";
 import {
@@ -23,17 +24,8 @@ import {
   resolveFormalResultRecovery,
 } from "../../utils/generationEventReducer";
 import {
-  buildFallbackTranscript,
-  defaultChapterCountForProject,
-  defaultGenreForProject,
-} from "./blueprintDefaults";
-import {
   buildInspirationTranscript,
   createBlueprintProgressState,
-  extractChapterCountFromText,
-  findChapterCountInValue,
-  firstString,
-  inferChapterCountFromMessages,
   type BlueprintProgressState,
   type Stage,
 } from "./inspirationChatUtils";
@@ -46,7 +38,6 @@ interface UseBlueprintWorkflowOptions {
   projectId: number;
   project: NovelProject | null;
   messages: Message[];
-  userTurns: number;
   conversationComplete: boolean;
   sending: boolean;
   latestConversationState: Record<string, unknown> | undefined;
@@ -59,7 +50,6 @@ export const useBlueprintWorkflow = ({
   projectId,
   project,
   messages,
-  userTurns,
   conversationComplete,
   sending,
   latestConversationState,
@@ -154,11 +144,13 @@ export const useBlueprintWorkflow = ({
       setGenerating(nextOperation === "generation");
       setRefining(nextOperation === "refinement");
       setBlueprintProgressOpen(nextOperation === "generation");
-    }).catch(() => undefined);
+    }).catch((error) => {
+      if (active) addToast(extractErrorMessage(error, "恢复蓝图生成任务失败"), "error");
+    });
     return () => {
       active = false;
     };
-  }, [projectId]);
+  }, [addToast, projectId]);
 
   useEffect(() => {
     if (!generationHandle || !generationTask.progress) return;
@@ -189,18 +181,10 @@ export const useBlueprintWorkflow = ({
     const finish = async () => {
       if (generationTask.taskStatus === "completed" || recoveryIssue) {
         const resultRef = generationTask.resultRef;
-        const resultId = resultRef ? Number(resultRef.id) : NaN;
         const canResolveResult = resultRef?.kind === "novel_blueprint"
-          && Number.isSafeInteger(resultId);
+          && Number.isSafeInteger(Number(resultRef.id));
         const persisted = canResolveResult ? await getBlueprint(requestProjectId) : null;
-        const consistent = Boolean(
-          persisted
-          && resultRef?.kind === "novel_blueprint"
-          && Number.isSafeInteger(resultId)
-          && persisted.id === resultId
-          && persisted.project_id === requestProjectId
-          && persisted.current_version === resultRef.revision,
-        );
+        const consistent = matchesBlueprintTaskResult(persisted, requestProjectId, resultRef);
         const recovery = resolveFormalResultRecovery({
           recoveryIssue,
           consistent,
@@ -224,6 +208,9 @@ export const useBlueprintWorkflow = ({
           }
           throw new Error(recovery.message);
         }
+        if (!isCurrentProject(requestProjectId) || !persisted) return;
+        const syncWarnings = await syncBlueprintMaterials(requestProjectId);
+        if (!isCurrentProject(requestProjectId)) return;
         setBlueprintConsistencyWarning(null);
         setBlueprint(persisted);
         if (currentOperation === "generation") {
@@ -235,9 +222,19 @@ export const useBlueprintWorkflow = ({
             message: "首版蓝图已生成",
             error: null,
           }));
-          addToast("首版蓝图已生成，请确认", "success");
+          addToast(
+            syncWarnings.length > 0
+              ? `首版蓝图已生成，请确认；${syncWarnings.join("；")}`
+              : "首版蓝图已生成，请确认",
+            syncWarnings.length > 0 ? "info" : "success",
+          );
         } else {
-          addToast("蓝图已优化", "success");
+          addToast(
+            syncWarnings.length > 0
+              ? `蓝图已优化；${syncWarnings.join("；")}`
+              : "蓝图已优化",
+            syncWarnings.length > 0 ? "info" : "success",
+          );
         }
         return;
       }
@@ -287,17 +284,13 @@ export const useBlueprintWorkflow = ({
     taskKey,
   ]);
 
-  const canTryGenerate = !sending && !generating && stage === "conversation";
-  const canGenerate = (conversationComplete || userTurns >= 2) && !sending && !generating;
+  const canGenerate = conversationComplete
+    && !sending
+    && !generating
+    && stage === "conversation";
   const canCancelBlueprintGeneration = Boolean(
     generationHandle && operation === "generation" && generating && !generationTask.terminalReceived,
   );
-
-  const showBlueprintConfirmation = useCallback((value: Blueprint) => {
-    setBlueprintConsistencyWarning(null);
-    setBlueprint(value);
-    setStage("confirm");
-  }, []);
 
   const handleBackToConversation = useCallback(() => {
     setBlueprintConsistencyWarning(null);
@@ -305,44 +298,38 @@ export const useBlueprintWorkflow = ({
   }, []);
 
   const buildBlueprintGenerateInput = useCallback(() => {
-    if (!project) return null;
-    const transcript = userTurns > 0 ? buildInspirationTranscript(messages) : buildFallbackTranscript(project);
-    const requestedChapterCount =
-      findChapterCountInValue(latestConversationState)
-      ?? (progressSummary ? extractChapterCountFromText(progressSummary) : null)
-      ?? inferChapterCountFromMessages(messages);
-    const genreHint = firstString(
-      latestConversationState?.genre,
-      latestConversationState?.story_genre,
-      latestConversationState?.type,
-    );
-    const resolvedChapterCount = requestedChapterCount ?? defaultChapterCountForProject(project);
-    const resolvedGenre = genreHint ?? defaultGenreForProject(project);
-    const defaultedFields = [
-      requestedChapterCount ? null : `目标章节数按项目默认 ${resolvedChapterCount} 章`,
-      genreHint ? null : `题材类型按项目类型「${resolvedGenre}」`,
-    ].filter((item): item is string => Boolean(item));
+    if (!project || !latestConversationState) return null;
+    const targetLength = latestConversationState.chapter_count;
+    if (
+      typeof targetLength !== "number"
+      || !Number.isInteger(targetLength)
+      || targetLength < 5
+      || targetLength > 10000
+    ) {
+      throw new Error("完成态 conversation_state.chapter_count 必须是 5-10000 的整数");
+    }
+    const genre = typeof latestConversationState.genre === "string"
+      ? latestConversationState.genre.trim()
+      : "";
+    if (!genre) throw new Error("完成态 conversation_state.genre 必须是非空字符串");
+
     return {
-      defaultedFields,
-      input: {
-        project_id: projectId,
-        title: project.title,
-        genre: resolvedGenre,
-        target_length: resolvedChapterCount,
-        variables: {
-          inspiration_transcript: transcript,
-          conversation_state: latestConversationState ?? null,
-          progress_summary: progressSummary ?? null,
-          next_question: nextQuestion ?? null,
-          project: {
-            id: project.id,
-            title: project.title,
-            status: project.status,
-            project_type: project.project_type,
-            description: project.description,
-            target_chapters: project.target_chapters,
-            defaulted_blueprint_fields: defaultedFields,
-          },
+      project_id: projectId,
+      title: project.title,
+      genre,
+      target_length: targetLength,
+      variables: {
+        inspiration_transcript: buildInspirationTranscript(messages),
+        conversation_state: latestConversationState,
+        progress_summary: progressSummary ?? null,
+        next_question: nextQuestion ?? null,
+        project: {
+          id: project.id,
+          title: project.title,
+          status: project.status,
+          project_type: project.project_type,
+          description: project.description,
+          target_chapters: project.target_chapters,
         },
       },
     };
@@ -353,31 +340,20 @@ export const useBlueprintWorkflow = ({
     progressSummary,
     project,
     projectId,
-    userTurns,
   ]);
 
   const handleGenerateBlueprint = useCallback(async () => {
-    if (!project || sending || generatingRef.current) return;
+    if (!project || !canGenerate || generatingRef.current) return;
     const requestProjectId = projectId;
-    generatingRef.current = true;
-    if (!canGenerate) {
-      const ok = await confirmDialog({
-        title: "试生成蓝图",
-        message: "当前信息可能还不完整，是否继续试生成？",
-        confirmText: "继续试生成",
-        dialogType: "warning",
-      });
-      if (!ok || !isCurrentProject(requestProjectId)) {
-        generatingRef.current = false;
-        return;
-      }
-    }
-    const plan = buildBlueprintGenerateInput();
-    if (!plan) {
-      generatingRef.current = false;
+    let input: ReturnType<typeof buildBlueprintGenerateInput>;
+    try {
+      input = buildBlueprintGenerateInput();
+    } catch (error) {
+      addToast(extractErrorMessage(error, "灵感对话完成态无效"), "error");
       return;
     }
-    if (plan.defaultedFields.length) addToast(`已默认补足：${plan.defaultedFields.join("；")}`, "info");
+    if (!input) return;
+    generatingRef.current = true;
     setGenerating(true);
     setBlueprintConsistencyWarning(null);
     setOperation("generation");
@@ -385,7 +361,7 @@ export const useBlueprintWorkflow = ({
     setBlueprintProgress({ ...createBlueprintProgressState(), status: "running", message: "启动蓝图生成…" });
     setBlueprintProgressOpen(true);
     try {
-      const handle = await generateBlueprint(plan.input);
+      const handle = await generateBlueprint(input);
       if (!isCurrentProject(requestProjectId)) return;
       handledTerminalRef.current = null;
       setGenerationHandle(handle);
@@ -395,18 +371,18 @@ export const useBlueprintWorkflow = ({
       setOperation(null);
       addToast(extractErrorMessage(error, "蓝图生成启动失败"), "error");
     }
-  }, [addToast, buildBlueprintGenerateInput, canGenerate, isCurrentProject, project, projectId, sending]);
+  }, [addToast, buildBlueprintGenerateInput, canGenerate, isCurrentProject, project, projectId]);
 
   const handlePreviewGenerateBlueprint = useCallback(async () => {
-    if (!project || sending || generating) return;
-    const plan = buildBlueprintGenerateInput();
-    if (!plan) return;
+    if (!project || !canGenerate) return;
     const requestSeq = ++requestPreviewSeqRef.current;
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);
     try {
-      const preview = await previewGenerateBlueprintRequest(plan.input);
+      const input = buildBlueprintGenerateInput();
+      if (!input) return;
+      const preview = await previewGenerateBlueprintRequest(input);
       if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewData(preview);
     } catch (error) {
       if (requestPreviewSeqRef.current === requestSeq) {
@@ -416,7 +392,7 @@ export const useBlueprintWorkflow = ({
     } finally {
       if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewLoading(false);
     }
-  }, [addToast, buildBlueprintGenerateInput, generating, project, sending]);
+  }, [addToast, buildBlueprintGenerateInput, canGenerate, project]);
 
   const handleCancelBlueprint = useCallback(async () => {
     if (!generationHandle || operation !== "generation" || blueprintCancelling) return;
@@ -503,10 +479,8 @@ export const useBlueprintWorkflow = ({
     requestPreviewLoading,
     requestPreviewData,
     setRequestPreviewOpen,
-    canTryGenerate,
     canGenerate,
     canCancelBlueprintGeneration,
-    showBlueprintConfirmation,
     handleBackToConversation,
     handleGenerateBlueprint,
     handlePreviewGenerateBlueprint,

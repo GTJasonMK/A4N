@@ -1,31 +1,11 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
-
 use crate::vector_store::DeleteFilter;
 
-use super::records::vector_store_error;
 use super::{MemoryVectorStore, filters};
 
 impl MemoryVectorStore {
-    pub(super) async fn update_memory_metadata(
-        &self,
-        collection: &str,
-        id: &str,
-        metadata: serde_json::Value,
-    ) -> Result<(), AppError> {
-        let coll = self
-            .collections
-            .get(collection)
-            .ok_or_else(|| vector_store_error(format!("集合不存在：{collection}")))?;
-        let mut record = coll.get_mut(id).ok_or_else(|| {
-            vector_store_error(format!("集合记录不存在：collection={collection}, id={id}"))
-        })?;
-        record.metadata = metadata;
-        Ok(())
-    }
-
-    pub(super) async fn memory_metadata_by_ids(
+    pub(super) fn memory_metadata_by_ids(
         &self,
         collection: &str,
         ids: &[String],
@@ -44,7 +24,7 @@ impl MemoryVectorStore {
             .collect()
     }
 
-    pub(super) async fn memory_metadata_by_filter(
+    pub(super) fn memory_metadata_by_filter(
         &self,
         collection: &str,
         filter: DeleteFilter,

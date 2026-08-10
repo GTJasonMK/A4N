@@ -1,5 +1,5 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
 import type {
   ImportAnalysisStatus,
@@ -9,12 +9,6 @@ import type {
   StartImportAnalysisInput,
 } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问导入分析");
-  return id;
-};
 
 export async function startImportAnalysis(
   projectId: Id,
@@ -65,6 +59,29 @@ export async function previewImportProjectAnalysisRequest(
 
 export async function cancelImportAnalysis(projectId: Id): Promise<number> {
   return apiInvoke<number>("cancel_import_analysis", {
+    userId: currentUserId(),
+    projectId: idNum(projectId),
+  });
+}
+
+/**
+ * 应用导入分析阶段已经保存的蓝图候选。
+ * 后端只从项目进度读取候选，前端不上传可篡改的蓝图 JSON。
+ */
+export async function applyImportAnalysisBlueprintCandidate(
+  projectId: Id,
+): Promise<unknown> {
+  return apiInvoke<unknown>("apply_import_analysis_blueprint_candidate", {
+    userId: currentUserId(),
+    projectId: idNum(projectId),
+  });
+}
+
+/** 确认服务端保存的分部大纲候选；不上传候选 JSON。 */
+export async function applyImportAnalysisPartOutlineCandidate(
+  projectId: Id,
+): Promise<unknown> {
+  return apiInvoke<unknown>("apply_import_analysis_part_outline_candidate", {
     userId: currentUserId(),
     projectId: idNum(projectId),
   });

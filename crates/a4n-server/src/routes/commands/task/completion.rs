@@ -16,23 +16,13 @@ pub(in crate::routes::commands) fn string_action_result<T>(
     })
 }
 
-pub(in crate::routes::commands) async fn finish_web_task<T>(
+pub(in crate::routes::commands) fn finish_web_task<T>(
     state: &ServerState,
     task_id: Option<String>,
     result: Result<T, AppError>,
 ) -> Result<T, ApiError> {
-    match result {
-        Ok(value) => {
-            if let Some(task_id) = task_id.as_deref() {
-                task_records_actions::remove_task_handle(state.runtime(), task_id);
-            }
-            Ok(value)
-        }
-        Err(err) => {
-            if let Some(task_id) = task_id.as_deref() {
-                task_records_actions::remove_task_handle(state.runtime(), task_id);
-            }
-            Err(err.into())
-        }
+    if let Some(task_id) = task_id.as_deref() {
+        task_records_actions::remove_task_handle(state.runtime(), task_id);
     }
+    result.map_err(ApiError::from)
 }

@@ -33,13 +33,43 @@ APP_LOG_DIR="$(resolve_project_path "${A4N_LOG_DIR:-$APP_DATA_DIR/logs}")"
 APP_TMP_DIR="$(resolve_project_path "${A4N_TEMP_DIR:-$APP_DATA_DIR/tmp}")"
 SERVICE_DIR="$APP_DATA_DIR/services"
 SERVICE_LOG_DIR="$APP_LOG_DIR/services"
+SERVICE_CATALOG_FILE="$PROJECT_ROOT/crates/a4n-service-protocol/service-catalog.json"
 WAIT_FOR_HEALTH=true
 HEALTH_TIMEOUT_SECONDS="${A4N_SERVICE_HEALTH_TIMEOUT_SECONDS:-30}"
 STATUS_ONLY=false
 BUILD_CACHE_GUARDED=false
-SERVICE_MODULES=(prompt llm embedding rag image video import export)
+SERVICE_MODULES=()
 QDRANT_ENDPOINT_HOST=""
 QDRANT_ENDPOINT_PORT=""
+
+catalog_modules() {
+    sed -n 's/.*"name":"\([^"]*\)".*/\1/p' "$SERVICE_CATALOG_FILE"
+}
+
+catalog_entry_line() {
+    local module="$1"
+    [[ "$module" =~ ^[a-z][a-z0-9_-]*$ ]] || return 1
+    sed -n "/\"name\":\"${module}\"/p" "$SERVICE_CATALOG_FILE" | sed -n '1p'
+}
+
+catalog_field() {
+    local module="$1"
+    local field="$2"
+    local line value
+    case "$field" in
+        addr_env|binary|capability_version|default_addr) ;;
+        *) return 1 ;;
+    esac
+    line="$(catalog_entry_line "$module")" || return 1
+    [[ -n "$line" ]] || return 1
+    value="$(printf '%s\n' "$line" | sed -n "s/.*\"${field}\":\"\([^\"]*\)\".*/\1/p")"
+    [[ -n "$value" ]] || return 1
+    printf '%s\n' "$value"
+}
+
+[[ -r "$SERVICE_CATALOG_FILE" ]] || die "缺少 sidecar 服务目录: $SERVICE_CATALOG_FILE"
+mapfile -t SERVICE_MODULES < <(catalog_modules)
+[[ "${#SERVICE_MODULES[@]}" -gt 0 ]] || die "sidecar 服务目录为空: $SERVICE_CATALOG_FILE"
 
 resolve_qdrant_endpoint() {
     local url="${A4N_QDRANT_URL:-}"
@@ -167,48 +197,22 @@ ensure_sidecar_auth_token() {
 
 module_package() {
     case "$1" in
-        prompt) printf '%s\n' "a4n-prompt-service" ;;
-        llm) printf '%s\n' "a4n-llm-gateway" ;;
-        embedding) printf '%s\n' "a4n-embedding-service" ;;
-        rag) printf '%s\n' "a4n-rag-service" ;;
-        image) printf '%s\n' "a4n-image-service" ;;
-        video) printf '%s\n' "a4n-video-service" ;;
-        import) printf '%s\n' "a4n-import-service" ;;
-        export) printf '%s\n' "a4n-export-service" ;;
         demo) printf '%s\n' "a4n-demo-sidecar" ;;
-        *)
-            return 1
-            ;;
+        *) catalog_field "$1" binary ;;
     esac
 }
 
 module_addr_env() {
     case "$1" in
-        prompt) printf '%s\n' "A4N_PROMPT_SERVICE_ADDR" ;;
-        llm) printf '%s\n' "A4N_LLM_GATEWAY_ADDR" ;;
-        embedding) printf '%s\n' "A4N_EMBEDDING_SERVICE_ADDR" ;;
-        rag) printf '%s\n' "A4N_RAG_SERVICE_ADDR" ;;
-        image) printf '%s\n' "A4N_IMAGE_SERVICE_ADDR" ;;
-        video) printf '%s\n' "A4N_VIDEO_SERVICE_ADDR" ;;
-        import) printf '%s\n' "A4N_IMPORT_SERVICE_ADDR" ;;
-        export) printf '%s\n' "A4N_EXPORT_SERVICE_ADDR" ;;
         demo) printf '%s\n' "A4N_DEMO_SIDECAR_ADDR" ;;
-        *) return 1 ;;
+        *) catalog_field "$1" addr_env ;;
     esac
 }
 
 module_default_addr() {
     case "$1" in
-        prompt) printf '%s\n' "127.0.0.1:47641" ;;
-        llm) printf '%s\n' "127.0.0.1:47642" ;;
-        embedding) printf '%s\n' "127.0.0.1:47643" ;;
-        rag) printf '%s\n' "127.0.0.1:47644" ;;
-        image) printf '%s\n' "127.0.0.1:47645" ;;
-        video) printf '%s\n' "127.0.0.1:47646" ;;
-        import) printf '%s\n' "127.0.0.1:47647" ;;
-        export) printf '%s\n' "127.0.0.1:47648" ;;
         demo) printf '%s\n' "127.0.0.1:47631" ;;
-        *) return 1 ;;
+        *) catalog_field "$1" default_addr ;;
     esac
 }
 
@@ -230,30 +234,33 @@ service_binary_path() {
     printf '%s/debug/%s\n' "$target_dir" "$package"
 }
 
+module_expected_capability_version() {
+    local module="$1"
+    [[ "$module" == "demo" ]] && return 0
+    catalog_field "$module" capability_version
+}
+
 print_services() {
-    cat <<'EOF'
-可启动服务:
-  prompt     -> a4n-prompt-service
-  llm        -> a4n-llm-gateway
-  embedding  -> a4n-embedding-service
-  rag        -> a4n-rag-service
-  image      -> a4n-image-service
-  video      -> a4n-video-service
-  import     -> a4n-import-service
-  export     -> a4n-export-service
-  demo       -> a4n-demo-sidecar
-EOF
+    printf '%s\n' "可启动服务:"
+    for module in "${SERVICE_MODULES[@]}"; do
+        printf '  %-10s -> %s\n' "$module" "$(module_package "$module")"
+    done
+    printf '  %-10s -> %s\n' demo a4n-demo-sidecar
 }
 
 health_check() {
     local module="$1"
     local addr="$2"
-    local payload
+    local payload expected_capability_version capability_version
     command -v curl >/dev/null 2>&1 || return 1
     payload="$(curl -fsS --max-time 1 "http://${addr}/healthz" 2>/dev/null)" || return 1
-    [[ "$(json_string_field "$payload" service)" == "$module" ]] && \
-        [[ "$(json_string_field "$payload" status)" == "healthy" ]] && \
-        { [[ "$module" != "rag" ]] || qdrant_reachable; }
+    expected_capability_version="$(module_expected_capability_version "$module")" || \
+        die "服务目录中缺少 $module 的 capability_version: $SERVICE_CATALOG_FILE"
+    [[ "$(json_string_field "$payload" service)" == "$module" ]] || return 1
+    [[ "$(json_string_field "$payload" status)" == "healthy" ]] || return 1
+    capability_version="$(json_string_field "$payload" capability_version)"
+    [[ -z "$expected_capability_version" || "$capability_version" == "$expected_capability_version" ]] || return 2
+    [[ "$module" != "rag" ]] || qdrant_reachable
 }
 
 json_string_field() {
@@ -271,9 +278,11 @@ json_number_field() {
 service_status() {
     local module="$1"
     local package addr pid_file pid process_state payload health_state
-    local reported_service service_version protocol_version capability_version
+    local reported_service service_version protocol_version capability_version expected_capability_version
 
     package="$(module_package "$module")" || die "未知服务: $module；使用 --list 查看可用服务"
+    expected_capability_version="$(module_expected_capability_version "$module")" || \
+        die "服务目录中缺少 $module 的 capability_version: $SERVICE_CATALOG_FILE"
     addr="$(module_addr "$module")"
     pid_file="$SERVICE_DIR/${module}.pid"
     pid="-"
@@ -310,6 +319,8 @@ service_status() {
     [[ -n "$capability_version" ]] || capability_version="unknown"
     if [[ "$reported_service" != "$module" ]]; then
         health_state="wrong-service"
+    elif [[ -n "$expected_capability_version" && "$capability_version" != "$expected_capability_version" ]]; then
+        health_state="capability-mismatch"
     elif [[ "$module" == "rag" && "$health_state" == "healthy" ]] && ! qdrant_reachable; then
         health_state="dependency-unreachable"
     fi
@@ -371,9 +382,20 @@ start_service() {
     fi
 
     if [[ -f "$pid_file" ]]; then
-        local old_pid
+        local old_pid health_result
         old_pid="$(cat "$pid_file" 2>/dev/null || true)"
         if [[ -n "$old_pid" ]] && kill -0 "$old_pid" 2>/dev/null; then
+            if health_check "$module" "$addr"; then
+                log_warn "$module 已在运行，PID: $old_pid"
+                return 0
+            else
+                health_result=$?
+            fi
+            if [[ "$health_result" -eq 2 ]]; then
+                log_warn "$module capability 版本不匹配，重启旧进程，PID: $old_pid"
+                "$SCRIPT_DIR/restart-service.sh" "$module"
+                return 0
+            fi
             log_warn "$module 已在运行，PID: $old_pid"
             if $WAIT_FOR_HEALTH; then
                 wait_for_health "$module" "$old_pid" "$addr"

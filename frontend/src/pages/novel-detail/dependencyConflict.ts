@@ -1,7 +1,5 @@
-import type { DownstreamConflictStrategy } from "../../api/dependencyConflict";
+import type { DownstreamConflictStrategy } from "../../api/generated/host";
 import { choiceDialog } from "../../components/feedback/ConfirmDialog";
-
-type DownstreamConflictChoice = Exclude<DownstreamConflictStrategy, "reject">;
 
 interface DownstreamConflictOptions {
   title: string;
@@ -17,8 +15,8 @@ export async function chooseDownstreamConflictStrategy({
   downstreamLabel,
   downstreamCount,
   operation,
-}: DownstreamConflictOptions): Promise<DownstreamConflictChoice | null> {
-  if (downstreamCount <= 0) return "keep_downstream";
+}: DownstreamConflictOptions): Promise<DownstreamConflictStrategy | null> {
+  if (downstreamCount <= 0) return "reject";
   const result = await choiceDialog({
     title,
     message:

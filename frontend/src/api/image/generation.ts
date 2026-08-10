@@ -1,11 +1,11 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
-import { idNum, integerNum, type ApiId as Id } from "../shared";
+import { idNum, type ApiId as Id } from "../shared";
 import { getLocalImageConfig } from "../localRuntimeSettings";
 import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
-import { SYSTEM_IMAGE_CONFIG_ID } from "./configs";
+import { normalizeImageConfigId } from "./configs";
 import { generationClient } from "../generationTasks";
 import { generationTaskKey, useGenerationTasksStore } from "../../store/generationTasks";
 import { sha256Hex } from "../../utils/contentHash";
@@ -18,19 +18,7 @@ import type {
 import { listImagesByProject } from "./queries";
 import type { GeneratedImage } from "./types";
 
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法生成图片");
-  return id;
-};
-
-function normalizeImageConfigId(configId?: Id | null): number | null {
-  if (configId == null) return null;
-  const id = integerNum(configId, "图片配置 ID");
-  return id === SYSTEM_IMAGE_CONFIG_ID ? null : idNum(id, "图片配置 ID");
-}
-
-export type ImageGenerationInput = Omit<StartImageGenerationInput, "meta">;
+type ImageGenerationInput = Omit<StartImageGenerationInput, "meta">;
 
 export async function startImageGeneration(
   input: ImageGenerationInput,

@@ -71,15 +71,6 @@ pub async fn upload_profile_material_image(
 }
 
 #[tauri::command]
-pub async fn toggle_image_favorite(
-    state: State<'_, AppState>,
-    user_id: i64,
-    image_id: i64,
-) -> Result<GeneratedImageSummary, String> {
-    image_records_actions::toggle_image_favorite(state.inner(), user_id, image_id).await
-}
-
-#[tauri::command]
 pub async fn update_image(
     state: State<'_, AppState>,
     user_id: i64,
@@ -106,14 +97,4 @@ pub async fn delete_image(
     image_id: i64,
 ) -> Result<(), String> {
     image_records_actions::delete_image(state.inner(), user_id, image_id).await
-}
-
-#[tauri::command]
-pub async fn score_image(
-    state: State<'_, AppState>,
-    user_id: i64,
-    image_id: i64,
-    score: f32,
-) -> Result<GeneratedImageSummary, String> {
-    image_records_actions::score_image(state.inner(), user_id, image_id, score).await
 }

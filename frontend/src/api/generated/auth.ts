@@ -39,14 +39,11 @@ export interface ChangePasswordInput {
 }
 
 export interface SessionSummary {
-  created_at: string | null;
-  expires_at: string | null;
+  created_at: string;
+  expires_at: string;
   id: string;
-  is_revoked: boolean;
   last_used_at: string | null;
-  revoked_at: string | null;
   user_agent: string | null;
-  user_id: number;
 }
 
 export interface TokenPairSummary {
@@ -66,11 +63,5 @@ export interface AuthResult {
 export interface RefreshTokenInput {
   refresh_token: string;
   session_id: string;
-}
-
-export interface OAuth2LoginResult {
-  session: SessionSummary;
-  tokens: TokenPairSummary;
-  user: UserSummary;
 }
 

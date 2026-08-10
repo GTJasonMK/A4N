@@ -41,10 +41,6 @@ pub fn list_fastembed_local_models(cache_dir: &Path) -> Result<Vec<FastEmbedLoca
     Ok(models)
 }
 
-pub fn fastembed_model_dimension(model_name: &str) -> Result<usize, AppError> {
-    Ok(resolve_model_info(model_name)?.info.dim)
-}
-
 pub fn delete_fastembed_model(model_name: &str, cache_dir: &Path) -> Result<(), AppError> {
     let resolved = resolve_model_info(model_name)?;
     let repo_path = model_cache_path(&resolved.info, cache_dir);

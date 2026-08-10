@@ -29,7 +29,7 @@ pub use event_stream::{
     service_event_line, service_event_ndjson_response, single_service_event_stream,
 };
 use futures::channel::oneshot;
-pub use metrics::with_runtime_metrics;
+use metrics::with_runtime_metrics;
 use subtle::ConstantTimeEq;
 use tower::limit::concurrency::GlobalConcurrencyLimitLayer;
 
@@ -52,11 +52,11 @@ pub fn host_protocol_version(headers: &HeaderMap) -> Option<u32> {
 }
 
 #[derive(Clone)]
-pub struct SidecarShutdownSignal {
+struct SidecarShutdownSignal {
     sender: Arc<Mutex<Option<oneshot::Sender<()>>>>,
 }
 
-pub fn sidecar_shutdown() -> (
+fn sidecar_shutdown() -> (
     SidecarShutdownSignal,
     impl Future<Output = ()> + Send + 'static,
 ) {
@@ -83,7 +83,7 @@ async fn request_shutdown(Extension(signal): Extension<SidecarShutdownSignal>) -
     StatusCode::ACCEPTED
 }
 
-pub fn shutdown_router(signal: SidecarShutdownSignal) -> Router {
+fn shutdown_router(signal: SidecarShutdownSignal) -> Router {
     Router::new()
         .route("/shutdown", post(request_shutdown))
         .route_layer(axum::middleware::from_fn(require_auth))

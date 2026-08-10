@@ -31,19 +31,14 @@ pub const SIDECAR_RESTART_COUNT_ENV: &str = "A4N_SIDECAR_RESTART_COUNT";
 pub const SIDECAR_LAST_ERROR_ENV: &str = "A4N_SIDECAR_LAST_ERROR";
 pub const RELEASE_MANIFEST_ENV: &str = "A4N_RELEASE_MANIFEST_PATH";
 pub use catalog::{ServiceCatalogEntry, service_catalog, service_catalog_entry};
-pub use compatibility::{
-    DeploymentMode, NegotiatedServiceVersion, ProtocolChangeKind, SUPPORTED_PROTOCOL_RANGE,
-    ServiceCompatibility, VersionNegotiationError, VersionRange, capability_major,
-    negotiate_deployment_version, negotiate_service_version, service_compatibility,
-    service_compatibility_for_host,
-};
+pub use compatibility::{ServiceCompatibility, VersionRange, service_compatibility};
 pub use egress::{
     EgressAuditEvent, EgressDataType, EgressPolicy, egress_policy_for, validate_egress_scope,
 };
 pub use events::*;
 pub use health::{
     HealthStatus, ServiceHealth, ServiceHealthValidationError, ServiceVersion,
-    negotiate_service_health_envelope, validate_service_health_envelope,
+    validate_service_health_envelope,
 };
 pub use registry::{
     EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EXPORT_RENDER_CAPABILITY_VERSION,
@@ -52,7 +47,7 @@ pub use registry::{
     LLM_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PROTOCOL_VERSION,
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, VIDEO_PROVIDER_CAPABILITY_VERSION,
     VIDEO_SERVICE_NAME, egress_data_type_for_service, expected_capability_label_for_service,
-    expected_capability_version_for_service, known_service_health, known_service_health_for_host,
+    expected_capability_version_for_service, known_service_health_for_host,
     required_secret_policy_for_service, service_for_capability_version,
 };
 pub use release::{
@@ -65,7 +60,7 @@ pub use request::{
 pub use resource::{
     BodyLimitKind, SIDECAR_CONNECT_TIMEOUT, SIDECAR_EVENT_QUEUE_CAPACITY, SIDECAR_HEALTH_TIMEOUT,
     SIDECAR_REQUEST_TIMEOUT, SIDECAR_STREAM_IDLE_TIMEOUT, SidecarResourcePolicy,
-    resource_policy_for_service, sidecar_resource_policy,
+    sidecar_resource_policy,
 };
 pub use response::{ServiceError, ServiceErrorCode, ServiceResponse, ServiceStatus};
 pub use runtime::{ServiceOperationMetrics, ServiceRuntimeMetrics};

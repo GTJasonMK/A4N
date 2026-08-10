@@ -1,6 +1,7 @@
 import { apiInvoke } from "../index";
+import type { AdminOverviewSummary } from "../generated/host";
 import { type ApiId as Id, idNum } from "../shared";
-import type { AdminHealthCheck, AdminOverviewSummary } from "./types";
+import type { AdminHealthCheck } from "./types";
 
 export async function getAdminOverview(callerUserId: Id): Promise<AdminOverviewSummary> {
   return apiInvoke<AdminOverviewSummary>("get_admin_overview", {

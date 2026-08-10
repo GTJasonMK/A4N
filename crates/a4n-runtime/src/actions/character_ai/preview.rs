@@ -1,6 +1,7 @@
 use super::{
     CharacterAiPreviewStep, character_discovery_preview_steps, character_sync_preview_steps,
-    sync_all_character_profiles_preview_steps,
+    sync_all_character_profiles_preview_steps, SyncAllCharacterProfilesInput,
+    SyncCharacterProfileInput,
 };
 use crate::{
     AppState,
@@ -35,15 +36,14 @@ pub async fn preview_discover_character_profiles_request(
 pub async fn preview_sync_character_from_chapters_request(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    name: &str,
-    chapter_number: i32,
+    input: SyncCharacterProfileInput,
 ) -> Result<ModelRequestPreview, String> {
+    let title = format!("{} 角色同步 LLM 请求预览", input.name);
     character_ai_preview(
         state,
         "character_profile_sync",
-        format!("{name} 角色同步 LLM 请求预览"),
-        character_sync_preview_steps(state, user_id, project_id, name, chapter_number).await?,
+        title,
+        character_sync_preview_steps(state, user_id, input).await?,
     )
     .await
 }
@@ -51,15 +51,13 @@ pub async fn preview_sync_character_from_chapters_request(
 pub async fn preview_sync_all_character_profiles_request(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    chapter_number: i32,
+    input: SyncAllCharacterProfilesInput,
 ) -> Result<ModelRequestPreview, String> {
     character_ai_preview(
         state,
         "character_profile_sync_all",
         "批量角色同步 LLM 请求预览",
-        sync_all_character_profiles_preview_steps(state, user_id, project_id, chapter_number)
-            .await?,
+        sync_all_character_profiles_preview_steps(state, user_id, input).await?,
     )
     .await
 }

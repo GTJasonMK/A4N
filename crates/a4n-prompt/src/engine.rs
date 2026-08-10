@@ -43,26 +43,13 @@ pub struct PromptVersion {
     pub content_snapshot: Option<String>,
 }
 
-/// 依赖关系图
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DependencyGraph {
-    pub nodes: Vec<GraphNode>,
-    pub edges: Vec<GraphEdge>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GraphNode {
-    pub name: String,
-    pub category: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GraphEdge {
-    pub from: String,
-    pub to: String,
+pub struct PromptCategory {
+    pub key: String,
+    pub label: Option<String>,
+    pub order: i32,
+    pub description: Option<String>,
 }
 
 /// PromptEngine trait
@@ -111,9 +98,6 @@ pub trait PromptEngine: Send + Sync {
     /// 获取提示词版本历史
     fn version_history(&self, name: &str) -> Result<Vec<PromptVersion>, AppError>;
 
-    /// 获取特定版本内容
-    fn get_version(&self, name: &str, version: &str) -> Result<PromptEntry, AppError>;
-
     /// 设置项目级提示词覆盖
     async fn set_project_override(
         &self,
@@ -135,8 +119,8 @@ pub trait PromptEngine: Send + Sync {
         variables: &HashSet<String>,
     ) -> Result<Vec<String>, AppError>;
 
-    /// 获取依赖关系图
-    fn dependency_graph(&self) -> DependencyGraph;
+    /// 获取中央注册表中的提示词分类。
+    fn categories(&self) -> Result<Vec<PromptCategory>, AppError>;
 
     /// A/B 测试：同时渲染两个版本
     fn render_ab(
@@ -145,9 +129,6 @@ pub trait PromptEngine: Send + Sync {
         variables: &HashMap<String, serde_json::Value>,
         project_id: Option<i64>,
     ) -> Result<(String, String), AppError>;
-
-    /// 暴露中央注册表（_registry.yaml）。
-    fn registry(&self) -> std::sync::Arc<parking_lot::RwLock<crate::registry::PromptRegistry>>;
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 use a4n_core::error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, UsageInfo};
+use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
+use a4n_llm::provider::{ChatChunk, ChatMessage, ChatRequest, ChatResponse, UsageInfo};
 use a4n_model_discovery::ModelDiscoveryRequest;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind,
@@ -9,7 +10,6 @@ use a4n_service_protocol::{
 use axum::{Json, body::Bytes};
 use futures::{Stream, StreamExt, stream};
 
-use crate::contracts::{HttpLlmProviderConfig, LlmChatPayload};
 use crate::handlers::{discover_models, llm_event_stream, probe_existing_provider, stream_chat};
 use crate::protocol::validate_provider_secret_policy;
 use a4n_service_protocol::{SchemaVersion, SecretForwardingPolicy, TraceContext};
@@ -19,8 +19,8 @@ use std::time::Duration;
 
 mod http;
 
-fn test_provider_config() -> HttpLlmProviderConfig {
-    HttpLlmProviderConfig {
+fn test_provider_config() -> LlmGatewayProviderConfig {
+    LlmGatewayProviderConfig {
         provider: "openai".to_string(),
         base_url: "http://127.0.0.1:1".to_string(),
         model: "test-model".to_string(),
@@ -30,8 +30,8 @@ fn test_provider_config() -> HttpLlmProviderConfig {
     }
 }
 
-fn test_provider_config_with_api_key() -> HttpLlmProviderConfig {
-    HttpLlmProviderConfig {
+fn test_provider_config_with_api_key() -> LlmGatewayProviderConfig {
+    LlmGatewayProviderConfig {
         provider: "openai".to_string(),
         api_key: Some("secret-key".to_string()),
         ..test_provider_config()
@@ -61,12 +61,10 @@ async fn probe_with_request_calls_stream_once() {
     let provider = CountingLlmProvider::default();
     let request = ChatRequest::system_user("system", "ping", Some(0.0), Some(16), None);
 
-    let output = probe_existing_provider(&provider, Some(request))
+    let output = probe_existing_provider(&provider, request)
         .await
         .expect("probe with request should collect chat_stream");
 
-    assert!(output.ok);
-    assert_eq!(output.response_preview.as_deref(), Some("probe ok"));
     assert_eq!(output.finish_reason.as_deref(), Some("stop"));
     assert_eq!(
         output.usage.as_ref().map(|usage| usage.total_tokens),
@@ -77,16 +75,19 @@ async fn probe_with_request_calls_stream_once() {
 }
 
 #[tokio::test]
-async fn probe_without_request_uses_connection_test_only() {
-    let provider = CountingLlmProvider::default();
+async fn probe_rejects_empty_stream_response() {
+    let provider = CountingLlmProvider::new(ChatResponse {
+        message: ChatMessage::assistant("   "),
+        usage: None,
+        finish_reason: Some("stop".to_string()),
+    });
+    let request = ChatRequest::system_user("system", "ping", Some(0.0), Some(16), None);
 
-    let output = probe_existing_provider(&provider, None)
+    let error = probe_existing_provider(&provider, request)
         .await
-        .expect("probe without request should test connectivity");
+        .expect_err("empty probe response must fail");
 
-    assert!(output.ok);
-    assert_eq!(output.response_preview, None);
-    assert_eq!(provider.test_connection_call_count(), 1);
+    assert!(error.to_string().contains("未收到有效响应"));
 }
 
 #[tokio::test]
@@ -110,7 +111,7 @@ async fn models_reject_api_key_when_user_secret_forwarding_is_denied() {
 
 #[tokio::test]
 async fn stream_rejects_api_key_when_user_secret_forwarding_is_denied() {
-    let mut request = service_request(LlmChatPayload {
+    let mut request = service_request(LlmGatewayPayload {
         provider: test_provider_config_with_api_key(),
         request: ChatRequest::system_user("system", "ping", None, None, None),
     });
@@ -147,7 +148,7 @@ async fn stream_response_headers_do_not_wait_for_provider_connection() {
     });
     let mut config = test_provider_config();
     config.base_url = format!("http://{addr}");
-    let request = service_request(LlmChatPayload {
+    let request = service_request(LlmGatewayPayload {
         provider: config,
         request: ChatRequest::system_user("system", "ping", None, None, None),
     });
@@ -206,7 +207,7 @@ fn secret_policy_rejects_api_key_with_unrelated_secret_permissions() {
 
 #[tokio::test]
 async fn stream_rejects_incompatible_protocol_version_as_failed_event() {
-    let mut request = service_request(LlmChatPayload {
+    let mut request = service_request(LlmGatewayPayload {
         provider: test_provider_config(),
         request: ChatRequest::system_user("system", "ping", None, None, None),
     });

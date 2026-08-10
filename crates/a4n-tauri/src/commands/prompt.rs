@@ -4,10 +4,9 @@
 
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::prompt_records::{
-    self as prompt_records_actions, AbRenderInput, AbRenderResult, CategoryInfo,
-    DependencyGraphOutput, ProjectPromptOverrideSummary, PromptEntrySummary, PromptVersionSummary,
-    RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput, ValidateVarsInput,
-    VersionDiffInput,
+    self as prompt_records_actions, AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary,
+    PromptEntrySummary, PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput,
+    UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
 };
 use tauri::State;
 
@@ -86,17 +85,10 @@ pub async fn prompt_validate_variables(
 }
 
 #[tauri::command]
-pub async fn prompt_dependency_graph(
-    state: State<'_, AppState>,
-) -> Result<DependencyGraphOutput, String> {
-    prompt_records_actions::prompt_dependency_graph(&state).await
-}
-
-#[tauri::command]
 pub async fn prompt_render_ab(
     state: State<'_, AppState>,
     user_id: i64,
-    input: AbRenderInput,
+    input: RenderInput,
 ) -> Result<AbRenderResult, String> {
     prompt_records_actions::prompt_render_ab(&state, user_id, input).await
 }

@@ -1,3 +1,7 @@
+pub use a4n_api_contract::character::{
+    SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult, SyncCharacterProfileInput,
+    SyncCharacterProfileResult,
+};
 use a4n_llm::provider::ChatRequest;
 
 #[derive(Debug, Clone, Copy)]

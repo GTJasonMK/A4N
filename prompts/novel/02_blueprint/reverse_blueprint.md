@@ -24,11 +24,15 @@ tags: "导入分析,蓝图"
 `input.source_context` 的结构通常为：
 {
   "novel_title": "小说标题",
+  "project_description": "用户已经填写的项目简介或创作意图",
   "total_chapters": 50,
   "sampled_chapters_count": 50,
   "chapter_summaries": [
     {"chapter_number": 1, "title": "...", "summary": "...", "content_preview": "...", "key_characters": [...], "key_events": [...]},
     ...
+  ],
+  "chapter_outlines": [
+    {"chapter_number": 1, "title": "章节标题", "summary": "正式章纲", ...}
   ],
   "part_outlines": [
     {"part_number": 1, "title": "...", "summary": "...", "start_chapter": 1, "end_chapter": 25},
@@ -46,7 +50,22 @@ tags: "导入分析,蓝图"
   "extracted_foreshadowing": [
     {"chapter": 1, "content": "伏笔内容", "type": "伏笔类型"},
     ...
-  ]
+  ],
+  "known_objects": [
+    {"name": "物品名", "object_type": "类型", "story_usage": "剧情用途", ...}
+  ],
+  "known_scenes": [
+    {"name": "场景名", "scene_type": "类型", "base_description": "基础描述", ...}
+  ],
+  "existing_relationships": [
+    {"relationship_type": "friend", "character_a": "角色A", "character_b": "角色B", ...}
+  ],
+  "existing_blueprint": {
+    "title": "当前正式蓝图标题",
+    "genre": "当前题材",
+    "full_synopsis": "当前正式故事梗概",
+    "world_setting": {}
+  }
 }
 
 说明：`title` 和 `summary` 只在原数据中存在时提供；如果缺少真实摘要，`chapter_summaries` 会提供 `content_preview` 作为正文摘录参考，不要把它当作既有章节摘要。
@@ -82,6 +101,15 @@ tags: "导入分析,蓝图"
 - **整体故事线**：起承转合
 - **角色出场规律**：谁是真正的主角
 - **情节发展脉络**：主要冲突和解决
+
+没有章节正文时，应优先使用 `project_description`、`chapter_outlines`、`part_outlines` 和已有正式资料完成归纳，不要因为正文为空就忽略用户已经建立的项目结构。
+
+### 5. existing_blueprint 与已有正式资料
+
+- `existing_blueprint` 是用户当前确认的正式蓝图，应作为本次更新基线
+- `known_objects`、`known_scenes` 和 `existing_relationships` 是当前项目资料，不要因为抽样正文没有再次出现就删除或否定
+- 只有当前正文、大纲或资料提供了更完整证据时才调整已有蓝图；证据不足时保留原有信息
+- 场景和物品用于补足世界规则、关键地点、冲突资源与故事功能，不要把档案逐条机械复制进蓝图
 
 ## 输出格式
 
@@ -223,6 +251,7 @@ tags: "导入分析,蓝图"
 7. **不要重新推断章节数**：有 `input.source_context.total_chapters` 时必须原样使用；没有结构化上下文时，只能根据输入样本中明确出现的章节数量填写
 8. **系统派生和下游字段不要输出**：不要输出 `needs_part_outlines`、`chapters_per_part`、`chapter_outline`、`chapter_outlines`、`part_outlines`；这些字段由系统根据 `total_chapters` 计算，或由后续大纲链路生成
 9. **使用当前 canonical 字段**：角色必须包含 gender、age、appearance、background、motivation、arc_stages；关系必须包含 strength、evolution；不要输出 role、identity、goals、abilities、character_from、character_to、relation_type 等旧字段
+10. **正式资料优先**：已有正式蓝图、角色关系、场景和物品没有被新证据否定时必须保留，不要用抽样缺失替代用户已经确认的事实
 
 ## 特殊处理
 

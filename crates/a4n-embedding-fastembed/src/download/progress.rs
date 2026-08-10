@@ -68,15 +68,9 @@ pub(super) fn send_download_progress(
     let Some(tx) = tx else {
         return;
     };
-    let percent = if total_bytes > 0 {
-        (downloaded_bytes.min(total_bytes) as f32 / total_bytes as f32) * 100.0
-    } else {
-        0.0
-    };
     let _ = tx.send(DownloadProgress {
         downloaded_bytes: downloaded_bytes.min(total_bytes),
         total_bytes,
-        percent,
         message: message.to_string(),
     });
 }

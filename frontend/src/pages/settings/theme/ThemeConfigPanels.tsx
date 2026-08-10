@@ -4,7 +4,7 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
-import { type ThemeMode } from "./types";
+import { type ThemeMode } from "../../../api/theme";
 
 interface CreateThemePanelProps {
   name: string;

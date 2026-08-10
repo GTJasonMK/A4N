@@ -2,10 +2,10 @@ import React, { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 
 import type {
-  ChapterShootingScript,
-  ShootingPerformanceBeat,
-  ShootingScene,
-  ShootingShot,
+  ChapterShootingScriptV1,
+  ShootingPerformanceBeatV1,
+  ShootingSceneV1,
+  ShootingShotV1,
 } from "../../../api/shootingScript";
 import {
   shootingCameraAngleLabel,
@@ -84,8 +84,8 @@ const CAMERA_MOVEMENT_OPTIONS = [
 const COVERAGE_OPTIONS = ["must_show", "should_show", "optional"] as const;
 
 interface StructuredScriptEditorProps {
-  script: ChapterShootingScript;
-  onChange: (script: ChapterShootingScript) => void;
+  script: ChapterShootingScriptV1;
+  onChange: (script: ChapterShootingScriptV1) => void;
   disabled?: boolean;
 }
 
@@ -99,7 +99,7 @@ export const StructuredScriptEditor: React.FC<
       cursor = (cursor as Record<string | number, unknown>)[key];
     }
     (cursor as Record<string | number, unknown>)[path[path.length - 1]] = value;
-    onChange(next as unknown as ChapterShootingScript);
+    onChange(next as unknown as ChapterShootingScriptV1);
   };
 
   const directing = script.directing_statement;
@@ -185,7 +185,7 @@ export const StructuredScriptEditor: React.FC<
 };
 
 const SceneEditor: React.FC<{
-  scene: ShootingScene;
+  scene: ShootingSceneV1;
   sceneOffset: number;
   onChange: UpdateValue;
 }> = ({ scene, sceneOffset, onChange }) => {
@@ -474,7 +474,7 @@ const SceneEditor: React.FC<{
 };
 
 const ShotEditor: React.FC<{
-  shot: ShootingShot;
+  shot: ShootingShotV1;
   path: ValuePath;
   onChange: UpdateValue;
 }> = ({ shot, path, onChange }) => (
@@ -640,7 +640,7 @@ const ShotEditor: React.FC<{
 );
 
 const BeatEditor: React.FC<{
-  beat: ShootingPerformanceBeat;
+  beat: ShootingPerformanceBeatV1;
   path: ValuePath;
   onChange: UpdateValue;
 }> = ({ beat, path, onChange }) => (

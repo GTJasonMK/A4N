@@ -24,11 +24,6 @@ impl HttpLlmClient {
         }
     }
 
-    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
-        self.transport = self.transport.with_http_client(client);
-        self
-    }
-
     pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
         self.transport = self.transport.with_http_client_factory(factory);
         self

@@ -1,6 +1,6 @@
 //! 状态转换规则。
 
-use super::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 
 /// 检查从前状态到后状态是否为合法前进转换
 ///
@@ -15,7 +15,7 @@ pub fn is_valid_rollback(from: ProjectStatus, to: ProjectStatus) -> bool {
 }
 
 /// 获取前向转换的所有合法目标状态
-fn valid_forward_targets(from: ProjectStatus) -> &'static [ProjectStatus] {
+pub fn valid_forward_targets(from: ProjectStatus) -> &'static [ProjectStatus] {
     match from {
         ProjectStatus::Draft => &[ProjectStatus::BlueprintReady],
         ProjectStatus::BlueprintReady => &[
@@ -67,8 +67,8 @@ mod tests {
 
     #[test]
     fn rollback_legality_matches_cleanup_table() {
-        for from in ProjectStatus::all() {
-            for to in ProjectStatus::all() {
+        for from in &ProjectStatus::ALL {
+            for to in &ProjectStatus::ALL {
                 if from == to {
                     continue;
                 }

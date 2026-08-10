@@ -101,6 +101,9 @@ export const confirmDialog = (opts: ConfirmDialogOptions): Promise<boolean> => {
     .then((result) => result === "confirm");
 };
 
+/** 浏览器后退等必须同步决策的导航事件。 */
+export const confirmNavigationSync = (message: string): boolean => window.confirm(message);
+
 export const choiceDialog = (
   opts: ChoiceDialogOptions,
 ): Promise<ConfirmDialogResult> => {

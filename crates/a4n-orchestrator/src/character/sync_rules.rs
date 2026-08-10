@@ -2,6 +2,9 @@
 
 use a4n_core::models::chapter::chapter;
 use a4n_core::models::character::protagonist_profile;
+use a4n_api_contract::character::{
+    CharacterProfileSkippedResult, CharacterProfileSyncSkipReason,
+};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
@@ -78,15 +81,15 @@ pub fn profile_first_seen_chapter(profile: &protagonist_profile::Model) -> Optio
 pub fn profile_sync_skip_reason(
     profile: &protagonist_profile::Model,
     target_chapter: i32,
-) -> Option<&'static str> {
+) -> Option<CharacterProfileSyncSkipReason> {
     if profile.last_synced_chapter == target_chapter {
-        Some("already_synced_to_target")
+        Some(CharacterProfileSyncSkipReason::AlreadySyncedToTarget)
     } else if profile.last_synced_chapter > target_chapter {
-        Some("already_synced_past_target")
+        Some(CharacterProfileSyncSkipReason::AlreadySyncedPastTarget)
     } else if profile_first_seen_chapter(profile)
         .is_some_and(|first_seen| first_seen > target_chapter)
     {
-        Some("target_before_first_seen")
+        Some(CharacterProfileSyncSkipReason::TargetBeforeFirstSeen)
     } else {
         None
     }
@@ -96,21 +99,12 @@ pub fn profile_sync_skip_reason(
 pub fn analysis_profile_sync_skip_reason(
     profile: &protagonist_profile::Model,
     target_chapter: i32,
-) -> Option<&'static str> {
+) -> Option<CharacterProfileSyncSkipReason> {
     if profile_first_seen_chapter(profile).is_some_and(|first_seen| first_seen > target_chapter) {
-        Some("target_before_first_seen")
+        Some(CharacterProfileSyncSkipReason::TargetBeforeFirstSeen)
     } else {
         None
     }
-}
-
-/// 跳过摘要 JSON。
-pub fn sync_skip_summary(profile: &protagonist_profile::Model, target_chapter: i32) -> Value {
-    sync_skip_summary_with_reason(
-        profile,
-        target_chapter,
-        profile_sync_skip_reason(profile, target_chapter).unwrap_or("not_skipped"),
-    )
 }
 
 /// 角色档案同步 workflow 输入指纹（纯规则，无 DB）。
@@ -173,19 +167,19 @@ pub fn character_profile_sync_mode_label(start_chapter: i32, target_chapter: i32
     format!("{start_chapter}-{target_chapter}")
 }
 
-/// 带显式 reason 的跳过摘要。
-pub fn sync_skip_summary_with_reason(
+/// 带显式原因的跳过结果。
+pub fn character_profile_skipped_result(
     profile: &protagonist_profile::Model,
     target_chapter: i32,
-    reason: &str,
-) -> Value {
-    json!({
-        "name": profile.name,
-        "synced_chapter": profile.last_synced_chapter,
-        "target_chapter": target_chapter,
-        "first_seen_chapter": profile_first_seen_chapter(profile),
-        "reason": reason,
-    })
+    reason: CharacterProfileSyncSkipReason,
+) -> CharacterProfileSkippedResult {
+    CharacterProfileSkippedResult {
+        name: profile.name.clone(),
+        synced_chapter: profile.last_synced_chapter,
+        target_chapter,
+        first_seen_chapter: profile_first_seen_chapter(profile),
+        reason,
+    }
 }
 
 /// 同步范围模式。
@@ -323,15 +317,15 @@ mod tests {
         let p = profile(3, 1);
         assert_eq!(
             profile_sync_skip_reason(&p, 3),
-            Some("already_synced_to_target")
+            Some(CharacterProfileSyncSkipReason::AlreadySyncedToTarget)
         );
         assert_eq!(
             profile_sync_skip_reason(&p, 2),
-            Some("already_synced_past_target")
+            Some(CharacterProfileSyncSkipReason::AlreadySyncedPastTarget)
         );
         assert_eq!(
             profile_sync_skip_reason(&p, 1),
-            Some("already_synced_past_target")
+            Some(CharacterProfileSyncSkipReason::AlreadySyncedPastTarget)
         );
     }
 
@@ -349,7 +343,7 @@ mod tests {
         let p = profile(0, 4);
         assert_eq!(
             profile_sync_skip_reason(&p, 2),
-            Some("target_before_first_seen")
+            Some(CharacterProfileSyncSkipReason::TargetBeforeFirstSeen)
         );
         assert!(character_sync_range(&p, 2, CharacterSyncRangeMode::Incremental).is_none());
     }

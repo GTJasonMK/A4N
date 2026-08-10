@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Eye, MoreHorizontal, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
 import { nonEmptyText } from "../../../utils/text";
 import {
@@ -7,14 +8,256 @@ import {
   deleteChapterOutlinesFromAction,
   partHeading,
 } from "./outlineTabUtils";
-import type { ChapterOutline, PartOutline } from "../../../api/outline";
+import {
+  chapterOutlineSourceLabel,
+  isDerivedChapterOutline,
+  type ChapterOutline,
+  type PartOutline,
+} from "../../../api/outline";
+
+export interface ManualChapterOutlineForm {
+  chapterNumber: number;
+  title: string;
+  summary: string;
+}
+
+export interface ManualPartOutlineForm {
+  partNumber: number;
+  startChapter: number;
+  endChapter: number;
+  title: string;
+  summary: string;
+  theme: string;
+}
+
+export function ManualChapterOutlineDialog({
+  initial,
+  saving,
+  onClose,
+  onSave,
+}: {
+  initial: ManualChapterOutlineForm;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (form: ManualChapterOutlineForm) => Promise<void>;
+}) {
+  const [form, setForm] = useState(initial);
+  const formId = "manual-chapter-outline-form";
+
+  return (
+    <Modal
+      isOpen
+      onClose={() => {
+        if (!saving) onClose();
+      }}
+      title="直接录入章节大纲"
+      subtitle="保存后立即成为正式写作计划；不会先生成 AI 候选。"
+      maxWidthClassName="max-w-2xl"
+      closeOnBackdrop={!saving}
+      closeOnEscape={!saving}
+      showCloseButton={!saving}
+      footer={
+        <>
+          <BookButton variant="secondary" disabled={saving} onClick={onClose}>
+            取消
+          </BookButton>
+          <BookButton type="submit" form={formId} disabled={saving}>
+            {saving ? "保存中…" : "保存正式章纲"}
+          </BookButton>
+        </>
+      }
+    >
+      <form
+        id={formId}
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onSave(form);
+        }}
+      >
+        <label className="block text-small text-book-text-muted">
+          章节号
+          <input
+            type="number"
+            min={1}
+            step={1}
+            required
+            value={form.chapterNumber}
+            disabled={saving}
+            onChange={(event) =>
+              setForm({ ...form, chapterNumber: Number(event.target.value) })
+            }
+            className="pyqt-input mt-1 h-10 w-full"
+          />
+        </label>
+        <label className="block text-small text-book-text-muted">
+          章节标题（可稍后补充）
+          <input
+            type="text"
+            value={form.title}
+            disabled={saving}
+            onChange={(event) => setForm({ ...form, title: event.target.value })}
+            className="pyqt-input mt-1 h-10 w-full"
+          />
+        </label>
+        <label className="block text-small text-book-text-muted">
+          章节摘要（可稍后补充）
+          <textarea
+            value={form.summary}
+            disabled={saving}
+            onChange={(event) => setForm({ ...form, summary: event.target.value })}
+            placeholder="本章发生什么、人物动机和结尾悬念"
+            className="book-control mt-1 min-h-32 w-full resize-y p-3 text-sm leading-6"
+          />
+        </label>
+        <p className="text-caption leading-relaxed text-book-text-muted">
+          标题和摘要至少填写一项。若章节号落在已有分部范围内，系统会自动建立归属。
+        </p>
+      </form>
+    </Modal>
+  );
+}
+
+export function ManualPartOutlineDialog({
+  part,
+  initial,
+  saving,
+  onClose,
+  onSave,
+}: {
+  part: PartOutline | null;
+  initial: ManualPartOutlineForm;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (form: ManualPartOutlineForm) => Promise<void>;
+}) {
+  const [form, setForm] = useState(initial);
+  const formId = "manual-part-outline-form";
+
+  return (
+    <Modal
+      isOpen
+      onClose={() => {
+        if (!saving) onClose();
+      }}
+      title={part ? `编辑第 ${part.part_number} 部` : "直接录入分部大纲"}
+      subtitle="保存后立即更新正式分部；章节空档允许保留，范围重叠会被拒绝。"
+      maxWidthClassName="max-w-2xl"
+      closeOnBackdrop={!saving}
+      closeOnEscape={!saving}
+      showCloseButton={!saving}
+      footer={
+        <>
+          <BookButton variant="secondary" disabled={saving} onClick={onClose}>
+            取消
+          </BookButton>
+          <BookButton type="submit" form={formId} disabled={saving}>
+            {saving ? "保存中…" : "保存正式分部"}
+          </BookButton>
+        </>
+      }
+    >
+      <form
+        id={formId}
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onSave(form);
+        }}
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="block text-small text-book-text-muted">
+            分部编号
+            <input
+              type="number"
+              min={1}
+              step={1}
+              required
+              value={form.partNumber}
+              disabled={saving}
+              onChange={(event) =>
+                setForm({ ...form, partNumber: Number(event.target.value) })
+              }
+              className="pyqt-input mt-1 h-10 w-full"
+            />
+          </label>
+          <label className="block text-small text-book-text-muted">
+            起始章节
+            <input
+              type="number"
+              min={1}
+              step={1}
+              required
+              value={form.startChapter}
+              disabled={saving}
+              onChange={(event) =>
+                setForm({ ...form, startChapter: Number(event.target.value) })
+              }
+              className="pyqt-input mt-1 h-10 w-full"
+            />
+          </label>
+          <label className="block text-small text-book-text-muted">
+            结束章节
+            <input
+              type="number"
+              min={1}
+              step={1}
+              required
+              value={form.endChapter}
+              disabled={saving}
+              onChange={(event) =>
+                setForm({ ...form, endChapter: Number(event.target.value) })
+              }
+              className="pyqt-input mt-1 h-10 w-full"
+            />
+          </label>
+        </div>
+        <label className="block text-small text-book-text-muted">
+          分部标题（可稍后补充）
+          <input
+            type="text"
+            value={form.title}
+            disabled={saving}
+            onChange={(event) => setForm({ ...form, title: event.target.value })}
+            className="pyqt-input mt-1 h-10 w-full"
+          />
+        </label>
+        <label className="block text-small text-book-text-muted">
+          分部主题（可稍后补充）
+          <input
+            type="text"
+            value={form.theme}
+            disabled={saving}
+            onChange={(event) => setForm({ ...form, theme: event.target.value })}
+            className="pyqt-input mt-1 h-10 w-full"
+          />
+        </label>
+        <label className="block text-small text-book-text-muted">
+          分部摘要（可稍后补充）
+          <textarea
+            value={form.summary}
+            disabled={saving}
+            onChange={(event) => setForm({ ...form, summary: event.target.value })}
+            placeholder="这一阶段的目标、转折和结束状态"
+            className="book-control mt-1 min-h-32 w-full resize-y p-3 text-sm leading-6"
+          />
+        </label>
+        <p className="text-caption leading-relaxed text-book-text-muted">
+          调整范围只会重新计算章纲归属，不会删除已有章节大纲。
+        </p>
+      </form>
+    </Modal>
+  );
+}
 
 export function PartDetailDialog({
   part,
   onClose,
+  onEdit,
 }: {
   part: PartOutline;
   onClose: () => void;
+  onEdit?: (part: PartOutline) => void;
 }) {
   return (
     <Modal
@@ -24,10 +267,27 @@ export function PartDetailDialog({
       subtitle="分部大纲详情"
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-5 py-5"
+      footer={
+        onEdit ? (
+          <BookButton
+            onClick={() => {
+              onClose();
+              onEdit(part);
+            }}
+          >
+            编辑正式分部
+          </BookButton>
+        ) : undefined
+      }
     >
       {nonEmptyText(part.summary) ? (
         <div className="whitespace-pre-wrap text-sm leading-7 text-book-text-sub">
           {nonEmptyText(part.summary)}
+        </div>
+      ) : null}
+      {nonEmptyText(part.theme) ? (
+        <div className="mt-4 text-small leading-6 text-book-text-muted">
+          主题：{nonEmptyText(part.theme)}
         </div>
       ) : null}
     </Modal>
@@ -46,7 +306,11 @@ export function ChapterOutlineDetailDialog({
       isOpen
       onClose={onClose}
       title={chapterOutlineHeading(outline)}
-      subtitle="章节大纲详情"
+      subtitle={
+        isDerivedChapterOutline(outline)
+          ? `自动分析${chapterOutlineSourceLabel(outline)}`
+          : "章节大纲详情"
+      }
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-5 py-5"
     >
@@ -54,6 +318,11 @@ export function ChapterOutlineDetailDialog({
         <div className="whitespace-pre-wrap text-sm leading-7 text-book-text-sub">
           {nonEmptyText(outline.summary)}
         </div>
+      ) : null}
+      {isDerivedChapterOutline(outline) ? (
+        <p className="mt-3 text-small leading-relaxed text-book-text-muted">
+          自动分析结果用于记录已发生内容；编辑后才会作为当前写作计划使用。
+        </p>
       ) : null}
     </Modal>
   );
@@ -106,7 +375,11 @@ export function ChapterOutlineActionDialog({
         <OutlineActionButton
           icon={<Pencil size={14} />}
           title="编辑章纲"
-          description="修改本章标题和摘要。"
+          description={
+            isDerivedChapterOutline(outline)
+              ? "修改后将接管为本章写作计划。"
+              : "修改本章标题和摘要。"
+          }
           disabled={busy}
           onClick={() => {
             onClose();

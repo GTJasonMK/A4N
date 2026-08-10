@@ -1,4 +1,13 @@
-import type { CreateLlmInput, LlmConfig, UpdateLlmInput } from "../../../api/config";
+import type {
+  CreateLlmInput,
+  LlmConfigSummary,
+  UpdateLlmInput,
+} from "../../../api/config";
+import {
+  DEFAULT_LLM_MAX_CONTEXT_TOKENS,
+  DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+  LLM_RESERVED_REQUEST_OPTION_KEYS,
+} from "../../../api/generated/config";
 import type { ConfigItem } from "../ConfigListPanel";
 import type { LlmForm } from "./types";
 
@@ -12,22 +21,10 @@ export const DEFAULT_LLM_FORM: LlmForm = {
   clear_api_key: false,
   max_concurrent: 4,
   timeout_secs: 300,
-  max_context_tokens: 128000,
-  max_output_tokens: 8192,
+  max_context_tokens: DEFAULT_LLM_MAX_CONTEXT_TOKENS,
+  max_output_tokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
   extra_body_text: "",
 };
-
-const RESERVED_EXTRA_BODY_KEYS = new Set([
-  "model",
-  "messages",
-  "stream",
-  "temperature",
-  "max_tokens",
-  "response_format",
-  "tools",
-  "tool_choice",
-  "stop",
-]);
 
 export function validateLlmForm(form: LlmForm): string | null {
   if (!form.name.trim()) return "请填写配置名称";
@@ -91,17 +88,17 @@ export function formatLlmItem(config: LlmForm): {
   };
 }
 
-export function toLlmItem(raw: LlmConfig): ConfigItem<LlmForm> {
+export function toLlmItem(raw: LlmConfigSummary): ConfigItem<LlmForm> {
   return {
     id: raw.id,
-    isActive: Boolean(raw.is_default),
+    isActive: raw.is_default,
     config: {
       name: raw.name,
       provider: raw.provider,
       model: raw.model,
       api_base_url: raw.base_url,
       api_key: "",
-      has_api_key: Boolean(raw.has_api_key),
+      has_api_key: raw.has_api_key,
       clear_api_key: false,
       max_concurrent: raw.max_concurrent,
       timeout_secs: raw.timeout_secs,
@@ -161,7 +158,7 @@ function parseExtraBodyText(text: string): unknown | null {
     throw new Error("高级请求参数必须是 JSON 对象");
   }
   for (const key of Object.keys(value as Record<string, unknown>)) {
-    if (RESERVED_EXTRA_BODY_KEYS.has(key.toLowerCase())) {
+    if (LLM_RESERVED_REQUEST_OPTION_KEYS.includes(key.toLowerCase())) {
       throw new Error(`高级请求参数不能包含系统保留字段：${key}`);
     }
   }

@@ -1,5 +1,5 @@
-import { apiInvoke } from "./index";
-import { readCurrentUserId } from "./authStorage";
+import { apiInvoke, extractErrorMessage } from "./index";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
 import { generationClient } from "./generationTasks";
@@ -7,6 +7,16 @@ import type {
   GenerationTaskHandle,
   StartOutlineGenerationInput,
 } from "./generated/generationContracts";
+import type {
+  ChapterOutlineSummary,
+  OutlineMutationResult,
+  PartOutlineSummary,
+  SaveChapterOutlineInput,
+  SaveChapterOutlineResult,
+  SavePartOutlineInput,
+  SavePartOutlineResult,
+  UpdateChapterOutlineResult,
+} from "./generated/host";
 
 /**
  * Outline API wrapper —— 对齐 crates/a4n-tauri/src/commands/outline.rs
@@ -15,24 +25,26 @@ import type {
  * 前端之前用 partId 是错的。
  */
 
-export interface PartOutline {
-  id: number;
-  project_id: number;
-  part_number: number;
-  start_chapter: number;
-  end_chapter: number;
-  title: string | null;
-  summary: string | null;
-}
+export type PartOutline = PartOutlineSummary;
 
-export interface ChapterOutline {
-  id: number;
-  project_id: number;
-  chapter_number: number;
-  title: string | null;
-  summary: string | null;
-  word_count_target?: number | null;
-}
+export type ChapterOutline = ChapterOutlineSummary;
+
+export const CHAPTER_OUTLINE_SOURCE_RETROSPECTIVE_ANALYSIS = "retrospective_analysis";
+
+export const isDerivedChapterOutline = (outline: ChapterOutline | null | undefined): boolean =>
+  Boolean(outline?.source_kind?.trim());
+
+export const isRetrospectiveChapterOutline = (
+  outline: ChapterOutline | null | undefined,
+): boolean => outline?.source_kind === CHAPTER_OUTLINE_SOURCE_RETROSPECTIVE_ANALYSIS;
+
+export const chapterOutlineSourceLabel = (
+  outline: ChapterOutline | null | undefined,
+): string => {
+  if (isRetrospectiveChapterOutline(outline)) return "回顾摘要";
+  if (isDerivedChapterOutline(outline)) return "分析候选";
+  return "章节大纲";
+};
 
 export interface GenerationProgress {
   total_parts: number;
@@ -55,12 +67,6 @@ export interface ChapterOutlinePacing {
   }>;
 }
 
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问大纲");
-  return id;
-};
-
 // ============================================================================
 // 分部大纲
 // ============================================================================
@@ -70,6 +76,30 @@ export async function listParts(projectId: Id): Promise<PartOutline[]> {
     userId: currentUserId(),
     projectId: idNum(projectId),
   });
+}
+
+export async function savePartOutline(
+  input: SavePartOutlineInput,
+): Promise<SavePartOutlineResult> {
+  return apiInvoke<SavePartOutlineResult>("save_part_outline", {
+    userId: currentUserId(),
+    input,
+  });
+}
+
+export async function syncOutlineMaterials(projectId: Id): Promise<string[]> {
+  const normalizedProjectId = idNum(projectId);
+  try {
+    const result = await apiInvoke<OutlineMutationResult>("sync_outline_materials", {
+      userId: currentUserId(),
+      projectId: normalizedProjectId,
+    });
+    return result.warnings;
+  } catch (error) {
+    return [
+      `资料检索索引更新失败：${extractErrorMessage(error, "同步命令调用失败")}。可在项目操作中重新同步资料索引`,
+    ];
+  }
 }
 
 export type OutlineGenerationInput = Omit<StartOutlineGenerationInput, "meta">;
@@ -143,8 +173,11 @@ export async function previewRegeneratePartOutlineRequest(input: {
   });
 }
 
-export async function deleteLatestParts(projectId: Id, count: number): Promise<void> {
-  return apiInvoke<void>("delete_latest_parts", {
+export async function deleteLatestParts(
+  projectId: Id,
+  count: number,
+): Promise<OutlineMutationResult> {
+  return apiInvoke<OutlineMutationResult>("delete_latest_parts", {
     userId: currentUserId(),
     projectId: idNum(projectId),
     count,
@@ -200,6 +233,15 @@ export async function listChapterOutlines(projectId: Id): Promise<ChapterOutline
   });
 }
 
+export async function saveChapterOutline(
+  input: SaveChapterOutlineInput,
+): Promise<SaveChapterOutlineResult> {
+  return apiInvoke<SaveChapterOutlineResult>("save_chapter_outline", {
+    userId: currentUserId(),
+    input,
+  });
+}
+
 export async function previewGenerateChapterOutlinesByCountRequest(
   input: {
     project_id: number;
@@ -233,15 +275,18 @@ export async function updateChapterOutline(input: {
   summary?: string;
   beats?: unknown[];
   key_scenes?: unknown[];
-}): Promise<ChapterOutline> {
-  return apiInvoke<ChapterOutline>("update_chapter_outline", { userId: currentUserId(), input });
+}): Promise<UpdateChapterOutlineResult> {
+  return apiInvoke<UpdateChapterOutlineResult>("update_chapter_outline", {
+    userId: currentUserId(),
+    input,
+  });
 }
 
 export async function deleteLatestChapterOutlines(
   projectId: Id,
   count: number,
-): Promise<void> {
-  return apiInvoke<void>("delete_latest_chapter_outlines", {
+): Promise<OutlineMutationResult> {
+  return apiInvoke<OutlineMutationResult>("delete_latest_chapter_outlines", {
     userId: currentUserId(),
     projectId: idNum(projectId),
     count,

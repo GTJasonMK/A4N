@@ -4,7 +4,8 @@ use super::contracts::{
     SOURCE_MODE_SELF, SOURCE_SYNC_CURRENT,
 };
 use super::rules::{normalize_project_type, required_project_title};
-use a4n_core::{models::project::novel_project, state::status::ProjectStatus};
+use a4n_core::models::project::novel_project;
+use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 

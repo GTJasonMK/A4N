@@ -7,13 +7,30 @@ use a4n_llm::context::{
 };
 use serde_json::json;
 
+use super::compact_required_text;
+
+const FOCUSED_OUTLINE_HEAD_CHAR_LIMIT: usize = 8_000;
+const FOCUSED_OUTLINE_TAIL_CHAR_LIMIT: usize = 2_000;
+const MINIMAL_OUTLINE_HEAD_CHAR_LIMIT: usize = 4_000;
+const MINIMAL_OUTLINE_TAIL_CHAR_LIMIT: usize = 1_000;
+
 pub(super) fn chapter_outline_pack(outline: &str) -> LlmContextLedgerPackInput {
     let hash = source_content_sha256(outline);
+    let focused_outline = compact_required_text(
+        outline,
+        FOCUSED_OUTLINE_HEAD_CHAR_LIMIT,
+        FOCUSED_OUTLINE_TAIL_CHAR_LIMIT,
+    );
+    let minimal_outline = compact_required_text(
+        outline,
+        MINIMAL_OUTLINE_HEAD_CHAR_LIMIT,
+        MINIMAL_OUTLINE_TAIL_CHAR_LIMIT,
+    );
     LlmContextLedgerPackInput {
         scope_kind: "chapter".into(),
         pack_kind: "writing_chapter_outline".into(),
         source_refs_json: Some(json!({"source":"chapter_outline","content_sha256":hash})),
-        config_identity_json: json!({"ledger_version":"chapter_writing_context_v1","kind":"chapter_outline"}),
+        config_identity_json: json!({"ledger_version":"chapter_writing_context_v2","kind":"chapter_outline"}),
         required: true,
         stable_prefix: true,
         variants: vec![
@@ -23,11 +40,11 @@ pub(super) fn chapter_outline_pack(outline: &str) -> LlmContextLedgerPackInput {
             ),
             LlmContextLedgerPackDraft::new(
                 COMPRESSION_FOCUSED_RAW,
-                json!({"kind":"chapter_outline","chapter_outline":outline}),
+                json!({"kind":"chapter_outline","chapter_outline":focused_outline}),
             ),
             LlmContextLedgerPackDraft::new(
                 COMPRESSION_MINIMAL,
-                json!({"kind":"chapter_outline","content_sha256":hash,"char_count":outline.chars().count()}),
+                json!({"kind":"chapter_outline","chapter_outline":minimal_outline}),
             ),
         ],
     }

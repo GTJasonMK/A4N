@@ -12,6 +12,7 @@ import {
   shouldUseHttpBackend,
 } from "./runtime";
 import { logger } from "../utils/logger";
+import { GENERATION_START_PATHS } from "./generated/host";
 import { withRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
 
 /**
@@ -32,7 +33,7 @@ export interface PaginatedResponse<T> {
   page_size: number;
 }
 
-const SENSITIVE_ARG_RE = /(?:api[_-]?key|password|token|secret|credential|authorization)/i;
+const SENSITIVE_ARG_RE = /(?:api[_-]?key|password|token|secret|credential|authorization|base64)/i;
 
 function redactApiArgs(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -127,6 +128,14 @@ function generationRequestBody(
 }
 
 async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const generationPath = GENERATION_START_PATHS.get(cmd);
+  if (generationPath) {
+    return webRequest<T>(generationPath, {
+      method: "POST",
+      body: generationRequestBody(args),
+      auth: true,
+    });
+  }
   switch (cmd) {
     case "login_user":
       return webRequest<T>("/auth/login", {
@@ -200,24 +209,6 @@ async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promis
           auth: true,
         },
       );
-    case "preview_source_sync":
-      return webRequest<T>("/source-sync/preview", {
-        method: "POST",
-        body: { derived_project_id: args?.derivedProjectId },
-        auth: true,
-      });
-    case "apply_source_sync_decisions":
-      return webRequest<T>("/source-sync/apply", {
-        method: "POST",
-        body: (args?.input ?? {}) as Record<string, unknown>,
-        auth: true,
-      });
-    case "detach_derived_project":
-      return webRequest<T>("/source-sync/detach", {
-        method: "POST",
-        body: { derived_project_id: args?.derivedProjectId },
-        auth: true,
-      });
     case "list_all_users":
       return webRequest<T>("/admin/users", { method: "GET", auth: true });
     case "create_user":
@@ -248,72 +239,6 @@ async function webInvoke<T>(cmd: string, args?: Record<string, unknown>): Promis
           auth: true,
         },
       );
-    case "start_chapter_generation":
-      return webRequest<T>("/generation-tasks/chapter", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_inspiration_generation":
-      return webRequest<T>("/generation-tasks/inspiration", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_blueprint_generation":
-      return webRequest<T>("/generation-tasks/blueprint", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_blueprint_refinement":
-      return webRequest<T>("/generation-tasks/blueprint-refinement", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_outline_generation":
-      return webRequest<T>("/generation-tasks/outline", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_portrait_generation":
-      return webRequest<T>("/generation-tasks/portrait", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_image_generation":
-      return webRequest<T>("/generation-tasks/image", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_video_generation":
-      return webRequest<T>("/generation-tasks/video", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_optimize_chat_generation":
-      return webRequest<T>("/generation-tasks/optimize-chat", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_optimize_analysis_generation":
-      return webRequest<T>("/generation-tasks/optimize-analysis", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
-    case "start_optimize_patch_generation":
-      return webRequest<T>("/generation-tasks/optimize-patch", {
-        method: "POST",
-        body: generationRequestBody(args),
-        auth: true,
-      });
     default:
       return webCommandRequest<T>(cmd, args);
   }
@@ -470,8 +395,7 @@ async function responseErrorMessage(response: Response): Promise<string> {
   const text = await response.text();
   if (!text) return `${response.status} ${response.statusText}`;
   try {
-    const body = JSON.parse(text) as { error?: unknown; message?: unknown };
-    if (typeof body.error === "string" && body.error.trim()) return body.error;
+    const body = JSON.parse(text) as { message?: unknown };
     if (typeof body.message === "string" && body.message.trim()) return body.message;
   } catch {
     return text;

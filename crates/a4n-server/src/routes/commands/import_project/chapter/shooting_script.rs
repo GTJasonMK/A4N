@@ -13,7 +13,7 @@ pub(in crate::routes::commands) async fn get_chapter_shooting_script(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: shooting_script_records_actions::GetChapterShootingScriptInput =
+    let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
         command_input(args, "get_chapter_shooting_script")?;
     Ok(json!(string_action_result(
         shooting_script_records_actions::get_chapter_shooting_script(
@@ -31,7 +31,7 @@ pub(in crate::routes::commands) async fn get_chapter_shooting_script_unit_progre
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: shooting_script_records_actions::GetChapterShootingScriptInput =
+    let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
         command_input(args, "get_chapter_shooting_script_unit_progress")?;
     Ok(json!(string_action_result(
         shooting_script_records_actions::get_chapter_shooting_script_unit_progress(
@@ -49,7 +49,7 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: shooting_script_records_actions::GenerateChapterShootingScriptInput =
+    let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
         command_input(args, "generate_chapter_shooting_script")?;
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
@@ -60,8 +60,7 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
         input.project_id,
         shooting_script_records_actions::CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         "正在准备剧本改编",
-    )
-    .await;
+    );
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
     let reporter = web_fire_and_forget_progress_reporter(task.clone());
     let progress = |current, total, message: &str| {
@@ -91,8 +90,7 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
             result,
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),
         ),
-    )
-    .await?;
+    )?;
     Ok(json!(result))
 }
 
@@ -101,7 +99,7 @@ pub(in crate::routes::commands) async fn generate_next_chapter_shooting_script_u
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: shooting_script_records_actions::GenerateChapterShootingScriptInput =
+    let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
         command_input(args, "generate_next_chapter_shooting_script_unit")?;
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
@@ -112,8 +110,7 @@ pub(in crate::routes::commands) async fn generate_next_chapter_shooting_script_u
         input.project_id,
         shooting_script_records_actions::CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         "正在准备下一个场景改编",
-    )
-    .await;
+    );
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
     let reporter = web_fire_and_forget_progress_reporter(task.clone());
     let progress = |current, total, message: &str| {
@@ -143,8 +140,7 @@ pub(in crate::routes::commands) async fn generate_next_chapter_shooting_script_u
             result,
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),
         ),
-    )
-    .await?;
+    )?;
     Ok(json!(result))
 }
 
@@ -153,7 +149,7 @@ pub(in crate::routes::commands) async fn edit_chapter_shooting_script(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: shooting_script_records_actions::EditChapterShootingScriptRecordInput =
+    let input: shooting_script_records_actions::EditChapterShootingScriptInput =
         command_input(args, "edit_chapter_shooting_script")?;
     Ok(json!(string_action_result(
         shooting_script_records_actions::edit_chapter_shooting_script(

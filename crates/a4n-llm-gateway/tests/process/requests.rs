@@ -294,8 +294,8 @@ async fn typed_stream_crosses_independent_gateway_process() {
         probe_response
             .payload
             .as_ref()
-            .map(|payload| &payload["ok"]),
-        Some(&json!(true))
+            .map(|payload| &payload["finish_reason"]),
+        Some(&json!("stop"))
     );
     assert_eq!(models_response.status, ServiceStatus::Ok);
     assert_eq!(

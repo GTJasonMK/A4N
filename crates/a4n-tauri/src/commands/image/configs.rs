@@ -26,16 +26,14 @@ tauri_id_command!(
     (),
     config_records_actions::remove_image_config,
 );
-#[tauri::command]
-pub async fn activate_image_config(
-    state: tauri::State<'_, a4n_runtime::AppState>,
-    config_id: i64,
-) -> Result<ImageConfigSummary, String> {
-    config_records_actions::activate_image_config(&state, config_id).await
-}
+tauri_id_command!(
+    activate_image_config,
+    (),
+    config_records_actions::activate_image_config,
+);
 tauri_id_command!(
     test_image_config,
-    bool,
+    (),
     config_records_actions::test_image_config,
 );
 tauri_id_command!(

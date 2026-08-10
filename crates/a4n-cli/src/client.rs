@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use a4n_api_contract::auth::{
-    AuthResult, LoginInput, OAuth2LoginResult, RefreshTokenInput, RegisterInput, TokenPairSummary,
-    UserSummary,
+    AuthResult, LoginInput, RefreshTokenInput, RegisterInput, TokenPairSummary, UserSummary,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use reqwest::header::{ACCEPT, HeaderValue};
@@ -280,7 +279,7 @@ impl ApiClient {
         &mut self,
         provider: String,
         code: String,
-    ) -> Result<OAuth2LoginResult> {
+    ) -> Result<AuthResult> {
         self.reject_environment_auth_mutation("OAuth2 登录")?;
         let secrets = [code.clone()];
         let value = self
@@ -290,8 +289,7 @@ impl ApiClient {
             )?)
             .await
             .map_err(|error| redact_error_values(error, &secrets))?;
-        let auth: OAuth2LoginResult =
-            serde_json::from_value(value).context("OAuth2 登录响应合同无效")?;
+        let auth: AuthResult = serde_json::from_value(value).context("OAuth2 登录响应合同无效")?;
         self.store_tokens(&auth.tokens)?;
         Ok(auth)
     }
@@ -664,12 +662,11 @@ fn api_request_error(status: StatusCode, bytes: &[u8]) -> ApiRequestError {
 }
 
 fn error_message(value: Option<&Value>, bytes: &[u8]) -> String {
-    if let Some(value) = value {
-        for key in ["error", "message", "detail"] {
-            if let Some(message) = value.get(key).and_then(Value::as_str) {
-                return message.to_string();
-            }
-        }
+    if let Some(message) = value
+        .and_then(|value| value.get("message"))
+        .and_then(Value::as_str)
+    {
+        return message.to_string();
     }
     let text = String::from_utf8_lossy(bytes);
     let message = text.trim();
@@ -746,6 +743,42 @@ pub(crate) fn is_sensitive_field_name(value: &str) -> bool {
         )
 }
 
+pub(crate) fn visit_sensitive_values(value: &Value, visitor: &mut impl FnMut(&str, &Value)) {
+    visit_sensitive_values_at(value, None, visitor);
+}
+
+fn visit_sensitive_values_at(
+    value: &Value,
+    field: Option<&str>,
+    visitor: &mut impl FnMut(&str, &Value),
+) {
+    match (field, value) {
+        (Some(field), Value::Array(items)) if !items.is_empty() => {
+            for item in items {
+                visit_sensitive_values_at(item, Some(field), visitor);
+            }
+        }
+        (Some(field), Value::Object(object)) if !object.is_empty() => {
+            for value in object.values() {
+                visit_sensitive_values_at(value, Some(field), visitor);
+            }
+        }
+        (Some(field), _) => visitor(field, value),
+        (None, Value::Array(items)) => {
+            for item in items {
+                visit_sensitive_values_at(item, None, visitor);
+            }
+        }
+        (None, Value::Object(object)) => {
+            for (key, value) in object {
+                let field = is_sensitive_field_name(key).then_some(key.as_str());
+                visit_sensitive_values_at(value, field, visitor);
+            }
+        }
+        (None, _) => {}
+    }
+}
+
 fn redact_value(value: &mut Value, secrets: &[&str]) {
     match value {
         Value::Array(items) => {
@@ -781,22 +814,13 @@ mod tests {
     use crate::config::StoredConfig;
 
     #[test]
-    fn extracts_both_api_error_contracts() {
-        assert_eq!(
-            api_request_error(reqwest::StatusCode::BAD_REQUEST, br#"{"error":"bad"}"#).message,
-            "bad"
-        );
-        assert_eq!(
-            api_request_error(reqwest::StatusCode::BAD_REQUEST, br#"{"message":"failed"}"#,)
-                .message,
-            "failed"
-        );
-
+    fn extracts_api_error_contract() {
         let error = api_request_error(
             reqwest::StatusCode::CONFLICT,
             br#"{"code":"state_conflict","message":"failed","retryable":false,"trace_id":"trace-1","details":{"state":"busy"}}"#,
         );
         assert_eq!(error.code.as_deref(), Some("state_conflict"));
+        assert_eq!(error.message, "failed");
         assert_eq!(error.trace_id.as_deref(), Some("trace-1"));
         assert_eq!(error.retryable, Some(false));
         assert_eq!(error.details.unwrap()["state"], "busy");
@@ -941,7 +965,7 @@ mod tests {
                     .to_ascii_lowercase()
                     .contains("authorization: bearer old")
             );
-            write_response(&mut stream, "401 Unauthorized", r#"{"error":"expired"}"#).await;
+            write_response(&mut stream, "401 Unauthorized", r#"{"message":"expired"}"#).await;
 
             let (mut stream, refresh) = accept_request(&listener).await;
             assert!(refresh.starts_with("POST /api/auth/refresh "));
@@ -1021,12 +1045,12 @@ mod tests {
                 write_response(
                     &mut first_stream,
                     "401 Unauthorized",
-                    r#"{"error":"expired"}"#,
+                    r#"{"message":"expired"}"#,
                 ),
                 write_response(
                     &mut second_stream,
                     "401 Unauthorized",
-                    r#"{"error":"expired"}"#,
+                    r#"{"message":"expired"}"#,
                 )
             );
 
@@ -1103,7 +1127,7 @@ mod tests {
             write_response(
                 &mut stream,
                 "500 Internal Server Error",
-                r#"{"error":"failed"}"#,
+                r#"{"message":"failed"}"#,
             )
             .await;
         });

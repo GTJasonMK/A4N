@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 a4n-core = { path = "../a4n-core" }
+a4n-domain = { path = "../a4n-domain" }
 a4n-queue = { path = "../a4n-queue" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 

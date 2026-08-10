@@ -5,6 +5,7 @@ import {
   FileText,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   Save,
   Search,
   Users,
@@ -28,12 +29,14 @@ interface WritingDeskHeaderProps {
   leftSidebarVisible: boolean;
   rightPanel: RightPanel;
   dirty: boolean;
+  editBlockedReason: string | null;
   activeChapterBusy: boolean;
   activeChapterGeneratingMessage: string;
   rightPanelAvailable: boolean;
   rightPanelUnavailableTip: string;
   onSmartBack: () => void | Promise<void>;
   onOpenProjectDetail: () => void | Promise<void>;
+  onCreateChapter: () => void | Promise<void>;
   onPrev: () => void;
   onNext: () => void;
   onToggleLeftSidebar: () => void;
@@ -63,12 +66,14 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
   leftSidebarVisible,
   rightPanel,
   dirty,
+  editBlockedReason,
   activeChapterBusy,
   activeChapterGeneratingMessage,
   rightPanelAvailable,
   rightPanelUnavailableTip,
   onSmartBack,
   onOpenProjectDetail,
+  onCreateChapter,
   onPrev,
   onNext,
   onToggleLeftSidebar,
@@ -165,6 +170,12 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
                 onClick: () => void onOpenProjectDetail(),
               },
               {
+                label: "新建章节",
+                icon: <Plus size={12} />,
+                onClick: () => void onCreateChapter(),
+                disabled: Boolean(editBlockedReason),
+              },
+              {
                 label: "角色档案",
                 icon: <Users size={12} />,
                 onClick: onOpenProfiles,
@@ -178,9 +189,12 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
             variant="primary"
             size="sm"
             onClick={onSaveContent}
-            disabled={activeChapterBusy}
+            disabled={activeChapterBusy || Boolean(editBlockedReason)}
             className="!min-h-8 !w-8 !px-0 !text-xs sm:!w-auto sm:!px-3"
-            title={activeChapterBusy ? activeChapterGeneratingMessage : "保存修改"}
+            title={
+              editBlockedReason ??
+              (activeChapterBusy ? activeChapterGeneratingMessage : "保存修改")
+            }
             aria-label="保存修改"
           >
             <Save size={12} />

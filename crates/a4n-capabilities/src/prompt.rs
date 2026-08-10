@@ -1,8 +1,16 @@
-use super::contracts::{
-    CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, PromptClient,
-};
+use super::contracts::{CapabilityClient, CapabilityResult, PromptClient};
 use super::transport::{HttpClientFactory, HttpSidecarTransport};
-use a4n_service_protocol::{PROMPT_SERVICE_NAME, ServiceHealth};
+use a4n_prompt::{
+    contracts::{
+        CountOutput, PromptEmptyPayload, PromptHydrateOverridesPayload, PromptListOutput,
+        PromptNamePayload, PromptRemoveProjectOverridePayload, PromptRenderAbOutput,
+        PromptRenderOutput, PromptRenderPayload, PromptSetProjectOverridePayload,
+        PromptUpdateManyPayload, PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload,
+        PromptVersionDiffOutput, PromptVersionDiffPayload, PromptVersionHistoryOutput,
+    },
+    engine::{PromptCategory, PromptEntry},
+};
+use a4n_service_protocol::{PROMPT_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
 
 pub struct HttpPromptClient {
@@ -25,11 +33,6 @@ impl HttpPromptClient {
         }
     }
 
-    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
-        self.transport = self.transport.with_http_client(client);
-        self
-    }
-
     pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
         self.transport = self.transport.with_http_client_factory(factory);
         self
@@ -45,97 +48,126 @@ impl CapabilityClient for HttpPromptClient {
 
 #[async_trait]
 impl PromptClient for HttpPromptClient {
-    async fn list(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/prompt/list", request).await
+    async fn list(
+        &self,
+        request: ServiceRequest<PromptEmptyPayload>,
+    ) -> CapabilityResult<ServiceResponse<PromptListOutput>> {
+        self.transport.post_typed("/prompt/list", request).await
     }
 
-    async fn get(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/prompt/get", request).await
+    async fn get(
+        &self,
+        request: ServiceRequest<PromptNamePayload>,
+    ) -> CapabilityResult<ServiceResponse<PromptEntry>> {
+        self.transport.post_typed("/prompt/get", request).await
     }
 
-    async fn render(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/prompt/render", request).await
+    async fn render(
+        &self,
+        request: ServiceRequest<PromptRenderPayload>,
+    ) -> CapabilityResult<ServiceResponse<PromptRenderOutput>> {
+        self.transport.post_typed("/prompt/render", request).await
     }
 
-    async fn validate(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/prompt/validate", request).await
+    async fn validate(
+        &self,
+        request: ServiceRequest<PromptValidatePayload>,
+    ) -> CapabilityResult<ServiceResponse<PromptValidateOutput>> {
+        self.transport.post_typed("/prompt/validate", request).await
     }
 
-    async fn render_ab(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/prompt/render_ab", request).await
+    async fn render_ab(
+        &self,
+        request: ServiceRequest<PromptRenderPayload>,
+    ) -> CapabilityResult<ServiceResponse<PromptRenderAbOutput>> {
+        self.transport
+            .post_typed("/prompt/render_ab", request)
+            .await
     }
 
     async fn hydrate_project_overrides(
         &self,
-        request: JsonRequest,
-    ) -> CapabilityResult<JsonResponse> {
+        request: ServiceRequest<PromptHydrateOverridesPayload>,
+    ) -> CapabilityResult<ServiceResponse<()>> {
         self.transport
-            .post_json("/prompt/override/hydrate", request)
+            .post_typed("/prompt/override/hydrate", request)
             .await
     }
 
-    async fn set_project_override(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn set_project_override(
+        &self,
+        request: ServiceRequest<PromptSetProjectOverridePayload>,
+    ) -> CapabilityResult<ServiceResponse<()>> {
         self.transport
-            .post_json("/prompt/override/set", request)
+            .post_typed("/prompt/override/set", request)
             .await
     }
 
     async fn remove_project_override(
         &self,
-        request: JsonRequest,
-    ) -> CapabilityResult<JsonResponse> {
+        request: ServiceRequest<PromptRemoveProjectOverridePayload>,
+    ) -> CapabilityResult<ServiceResponse<()>> {
         self.transport
-            .post_json("/prompt/override/remove", request)
+            .post_typed("/prompt/override/remove", request)
             .await
     }
 
-    async fn load_defaults(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn load_defaults(
+        &self,
+        request: ServiceRequest<PromptEmptyPayload>,
+    ) -> CapabilityResult<ServiceResponse<CountOutput>> {
         self.transport
-            .post_json("/prompt/load_defaults", request)
+            .post_typed("/prompt/load_defaults", request)
             .await
     }
 
-    async fn update(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/prompt/update", request).await
+    async fn update(
+        &self,
+        request: ServiceRequest<PromptUpdatePayload>,
+    ) -> CapabilityResult<ServiceResponse<PromptEntry>> {
+        self.transport.post_typed("/prompt/update", request).await
     }
 
-    async fn update_many(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn update_many(
+        &self,
+        request: ServiceRequest<PromptUpdateManyPayload>,
+    ) -> CapabilityResult<ServiceResponse<Vec<PromptEntry>>> {
         self.transport
-            .post_json("/prompt/update_many", request)
+            .post_typed("/prompt/update_many", request)
             .await
     }
 
-    async fn reset(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport.post_json("/prompt/reset", request).await
+    async fn reset(
+        &self,
+        request: ServiceRequest<PromptNamePayload>,
+    ) -> CapabilityResult<ServiceResponse<()>> {
+        self.transport.post_typed("/prompt/reset", request).await
     }
 
-    async fn version_history(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn version_history(
+        &self,
+        request: ServiceRequest<PromptNamePayload>,
+    ) -> CapabilityResult<ServiceResponse<PromptVersionHistoryOutput>> {
         self.transport
-            .post_json("/prompt/version_history", request)
+            .post_typed("/prompt/version_history", request)
             .await
     }
 
-    async fn get_version(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn diff(
+        &self,
+        request: ServiceRequest<PromptVersionDiffPayload>,
+    ) -> CapabilityResult<ServiceResponse<PromptVersionDiffOutput>> {
         self.transport
-            .post_json("/prompt/version_get", request)
+            .post_typed("/prompt/version_diff", request)
             .await
     }
 
-    async fn diff(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn categories(
+        &self,
+        request: ServiceRequest<PromptEmptyPayload>,
+    ) -> CapabilityResult<ServiceResponse<Vec<PromptCategory>>> {
         self.transport
-            .post_json("/prompt/version_diff", request)
-            .await
-    }
-
-    async fn dependency_graph(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post_json("/prompt/dependency_graph", request)
-            .await
-    }
-
-    async fn categories(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
-        self.transport
-            .post_json("/prompt/categories", request)
+            .post_typed("/prompt/categories", request)
             .await
     }
 }

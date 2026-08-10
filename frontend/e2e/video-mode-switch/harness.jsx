@@ -19,6 +19,10 @@ const planId = 41;
 const scenario =
   new URLSearchParams(window.location.search).get("scenario") ?? "mode-switch";
 const cancelResumeScenario = scenario === "cancel-resume";
+const planningContentRunningScenario =
+  scenario === "planning-content-running";
+const segmentPlanGenerationScenario =
+  cancelResumeScenario || planningContentRunningScenario;
 const parallelRecipeSavesScenario = scenario === "parallel-recipe-saves";
 const crossModeContinuityScenario = scenario === "cross-mode-continuity";
 const stalePlanAdoptionScenario = scenario === "stale-plan-adoption";
@@ -221,9 +225,27 @@ let plan = cancelResumeScenario
         ],
         segment_recipes: [firstRecipe, secondRecipe],
       },
-      created_at: null,
-      updated_at: null,
+      updated_at: "2026-07-30T00:00:00Z",
     };
+
+if (planningContentRunningScenario && plan) {
+  plan = {
+    ...plan,
+    metadata_json: {
+      ...plan.metadata_json,
+      video_execution_identity: {
+        ...plan.metadata_json.video_execution_identity,
+        segment_identities:
+          plan.metadata_json.video_execution_identity.segment_identities.slice(
+            0,
+            1,
+          ),
+      },
+      segments: plan.metadata_json.segments.slice(0, 1),
+      segment_recipes: plan.metadata_json.segment_recipes.slice(0, 1),
+    },
+  };
+}
 
 const firstRecipeFingerprint =
   crossModeContinuityScenario ||
@@ -276,8 +298,7 @@ let storyboardPrompt = storyboardAssetsScenario
           segment_recipe_fingerprint: secondFrameRecipeFingerprint,
         },
       },
-      created_at: null,
-      updated_at: null,
+      updated_at: "2026-07-30T00:00:00Z",
     }
   : null;
 
@@ -469,7 +490,7 @@ const referenceMediaVideo = referenceMediaAdoptedVideoScenario
     })
   : null;
 
-const finalPrompt = stalePlanAdoptionScenario
+let finalPrompt = stalePlanAdoptionScenario
   ? {
       id: finalPromptId,
       project_id: projectId,
@@ -506,8 +527,7 @@ const finalPrompt = stalePlanAdoptionScenario
           generation_asset_fingerprint: {},
         },
       },
-      created_at: null,
-      updated_at: null,
+      updated_at: "2026-07-30T00:00:00Z",
     }
   : null;
 
@@ -715,6 +735,7 @@ const cancelTask = (task) => {
 const calls = [];
 let referenceMediaVideoPublished = false;
 let releaseParallelFirstSave = null;
+let releaseCrossModeSourceRecipeSave = null;
 const callSnapshot = (value) => JSON.parse(JSON.stringify(value));
 const invoke = async (command, args = {}) => {
   calls.push({ command, args: callSnapshot(args) });
@@ -724,7 +745,7 @@ const invoke = async (command, args = {}) => {
         "a4n:current_user_id": "1",
         [`a4n:video:${projectId}:${chapterId}:prompt:${planId}:selected-segment`]:
           storyboardAssetsScenario ? "2" : "1",
-        ...(cancelResumeScenario
+        ...(segmentPlanGenerationScenario
           ? { [`a4n:video:${projectId}:${chapterId}:workspace-tab`]: "frames" }
           : {}),
         ...(mixedAssemblyScenario
@@ -751,7 +772,7 @@ const invoke = async (command, args = {}) => {
       return [];
     case "list_generation_task_history":
       if (
-        !cancelResumeScenario ||
+        !segmentPlanGenerationScenario ||
         args.input?.project_id !== projectId ||
         args.input?.limit !== 100
       ) {
@@ -776,8 +797,15 @@ const invoke = async (command, args = {}) => {
       return chapterVideos();
     case "list_workflow_runs":
       return run ? [structuredClone(run)] : [];
-    case "list_chapter_video_prompts":
-      return chapterPrompts();
+    case "list_chapter_video_prompts": {
+      const rows = chapterPrompts();
+      if (releaseCrossModeSourceRecipeSave) {
+        calls.push({ command: "post_select_refresh_started", args: {} });
+        releaseCrossModeSourceRecipeSave();
+        releaseCrossModeSourceRecipeSave = null;
+      }
+      return rows;
+    }
     case "load_video_playback_data":
     case "load_video_scrub_playback_data":
       return {
@@ -873,7 +901,11 @@ const invoke = async (command, args = {}) => {
       return structuredClone(video);
     }
     case "load_video_segment_plan_draft":
-      if (!run || args.input?.workflow_run_id !== workflowRunId) {
+      if (
+        !segmentPlanGenerationScenario ||
+        !run ||
+        args.input?.workflow_run_id !== workflowRunId
+      ) {
         throw new Error("unexpected load_video_segment_plan_draft input");
       }
       return segmentPlanDraftDetail();
@@ -912,7 +944,7 @@ const invoke = async (command, args = {}) => {
     }
     case "start_video_generation": {
       if (
-        !cancelResumeScenario ||
+        !segmentPlanGenerationScenario ||
         args.input?.operation?.kind !== "prompt_segment_plan"
       ) {
         throw new Error("unexpected start_video_generation input");
@@ -984,9 +1016,11 @@ const invoke = async (command, args = {}) => {
       task.channel = args.onEvent;
       setTimeout(() => {
         emit(task, "started", startedData(task));
-        const shotIndex = task.generationNumber;
-        if (shotIndex === 1) {
-          checkpoints = [checkpoint(1)];
+        const shotIndex = planningContentRunningScenario
+          ? 2
+          : task.generationNumber;
+        if (task.generationNumber === 1) {
+          checkpoints = [checkpoint(shotIndex)];
           run = {
             ...run,
             current_step_key: checkpoints[0].step_key,
@@ -1001,7 +1035,7 @@ const invoke = async (command, args = {}) => {
           };
         }
         emit(task, "progress", progressData(shotIndex));
-        if (shotIndex === 1) {
+        if (task.generationNumber === 1) {
           emit(task, "checkpoint", {
             checkpoint_key: checkpoints[0].step_key,
             resumable: true,
@@ -1043,6 +1077,14 @@ const invoke = async (command, args = {}) => {
           releaseParallelFirstSave = resolve;
         });
       }
+      if (
+        crossModeContinuityScenario &&
+        nextRecipe.continuity_source_video_id === sourceVideoId
+      ) {
+        await new Promise((resolve) => {
+          releaseCrossModeSourceRecipeSave = resolve;
+        });
+      }
       updatePlanRecipe(nextRecipe);
       calls.push({
         command: "persisted_recipe_snapshot",
@@ -1064,7 +1106,13 @@ const invoke = async (command, args = {}) => {
       return structuredClone(plan.metadata_json.segment_recipes);
     }
     case "update_chapter_video_prompt": {
-      if (!storyboardPrompt || args.promptId !== storyboardPrompt.id) {
+      if (
+        !storyboardPrompt ||
+        args.promptId !== storyboardPrompt.id ||
+        !["reject", "keep_downstream", "delete_downstream"].includes(
+          args.input?.downstream_strategy,
+        )
+      ) {
         throw new Error("unexpected update_chapter_video_prompt input");
       }
       storyboardPrompt = {
@@ -1079,14 +1127,34 @@ const invoke = async (command, args = {}) => {
       return structuredClone(storyboardPrompt);
     }
     case "optimize_chapter_video_prompt": {
-      if (!storyboardPrompt || args.promptId !== storyboardPrompt.id) {
+      if (
+        !storyboardPrompt ||
+        args.promptId !== storyboardPrompt.id ||
+        !["reject", "keep_downstream", "delete_downstream"].includes(
+          args.input?.downstream_strategy,
+        )
+      ) {
         throw new Error("unexpected optimize_chapter_video_prompt input");
       }
+      await new Promise((resolve) => window.setTimeout(resolve, 2_000));
       storyboardPrompt = {
         ...storyboardPrompt,
         visual_prompt: `${storyboardPrompt.visual_prompt}\n优化要求：${args.input?.instruction}`,
       };
       return structuredClone(storyboardPrompt);
+    }
+    case "delete_chapter_video_prompt": {
+      if (
+        !storyboardPrompt ||
+        args.input?.prompt_id !== storyboardPrompt.id ||
+        !["reject", "keep_downstream", "delete_downstream"].includes(
+          args.input?.downstream_strategy,
+        )
+      ) {
+        throw new Error("unexpected delete_chapter_video_prompt input");
+      }
+      storyboardPrompt = null;
+      return null;
     }
     default:
       throw new Error(`unexpected command: ${command}`);
@@ -1103,6 +1171,10 @@ window.__A4N_VIDEO_MODE_E2E__ = {
   calls,
   publishReferenceMediaVideo: () => {
     referenceMediaVideoPublished = true;
+  },
+  setFinalPromptStatus: (status) => {
+    if (!finalPrompt) throw new Error("final prompt missing");
+    finalPrompt = { ...finalPrompt, status };
   },
 };
 await initializePortableStorage();

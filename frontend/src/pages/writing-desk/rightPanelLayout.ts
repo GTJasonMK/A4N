@@ -7,6 +7,7 @@ import {
   type PointerEvent,
 } from "react";
 import { usePersistedState } from "../../hooks/usePersistedState";
+import { clampFiniteRounded } from "../../utils/numberRange";
 import type { RightPanel } from "./WritingDeskHeader";
 
 export type ResizableRightPanel = Exclude<RightPanel, "none">;
@@ -22,19 +23,10 @@ const RIGHT_PANEL_DEFAULT_WIDTH: Record<ResizableRightPanel, number> = {
   optimize: 240,
 };
 
-const clampRightPanelWidth = (
-  value: number,
-  fallback: number,
-  maxWidth = RIGHT_PANEL_MAX_WIDTH,
-): number => {
-  if (!Number.isFinite(value)) return fallback;
-  return Math.min(maxWidth, Math.max(RIGHT_PANEL_MIN_WIDTH, Math.round(value)));
-};
-
 const parseRightPanelWidth =
   (fallback: number) =>
   (raw: string): number =>
-    clampRightPanelWidth(Number(raw), fallback);
+    clampFiniteRounded(Number(raw), RIGHT_PANEL_MIN_WIDTH, RIGHT_PANEL_MAX_WIDTH, fallback);
 
 export const useRightPanelLayout = (rightPanel: RightPanel) => {
   const [ragPanelWidth, setRagPanelWidth] = usePersistedState<number>(
@@ -84,16 +76,22 @@ export const useRightPanelLayout = (rightPanel: RightPanel) => {
   const rightPanelWidth =
     rightPanel === "none"
       ? 0
-      : clampRightPanelWidth(
+      : clampFiniteRounded(
           rightPanelRawWidth,
-          RIGHT_PANEL_DEFAULT_WIDTH[rightPanel],
+          RIGHT_PANEL_MIN_WIDTH,
           rightPanelMaxWidth,
+          RIGHT_PANEL_DEFAULT_WIDTH[rightPanel],
         );
 
   const setRightPanelWidth = useCallback(
     (panel: ResizableRightPanel, width: number) => {
       const fallback = RIGHT_PANEL_DEFAULT_WIDTH[panel];
-      const next = clampRightPanelWidth(width, fallback, rightPanelMaxWidth);
+      const next = clampFiniteRounded(
+        width,
+        RIGHT_PANEL_MIN_WIDTH,
+        rightPanelMaxWidth,
+        fallback,
+      );
       if (panel === "rag") setRagPanelWidth(next);
       else setOptimizePanelWidth(next);
     },

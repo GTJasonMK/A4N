@@ -1,18 +1,20 @@
 use crate::app::PromptServiceState;
-use crate::contracts::{
-    CountOutput, PromptHydrateOverridesPayload, PromptNamePayload, PromptProjectOverridePayload,
-    PromptUpdateManyPayload, PromptUpdatePayload,
-};
 use crate::protocol::{error_response, result_response, validate_service_request};
-use a4n_core::error::AppError;
-use a4n_prompt::engine::{PromptEngine, PromptEntry};
+use a4n_prompt::{
+    contracts::{
+        CountOutput, PromptEmptyPayload, PromptHydrateOverridesPayload, PromptNamePayload,
+        PromptRemoveProjectOverridePayload, PromptSetProjectOverridePayload,
+        PromptUpdateManyPayload, PromptUpdatePayload,
+    },
+    engine::{PromptEngine, PromptEntry},
+};
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
 
 pub(crate) async fn hydrate_overrides(
     State(state): State<PromptServiceState>,
     Json(request): Json<ServiceRequest<PromptHydrateOverridesPayload>>,
-) -> Json<ServiceResponse<CountOutput>> {
+) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
     }
@@ -22,39 +24,33 @@ pub(crate) async fn hydrate_overrides(
         .iter()
         .map(|item| (item.project_id, item.name.clone(), item.content.clone()))
         .collect::<Vec<_>>();
-    let count = overrides.len();
     let result = state
         .engine
         .hydrate_project_overrides(overrides)
-        .map(|_| CountOutput { count });
+        .map(|_| ());
     Json(result_response(&request, result))
 }
 
 pub(crate) async fn set_project_override(
     State(state): State<PromptServiceState>,
-    Json(request): Json<ServiceRequest<PromptProjectOverridePayload>>,
-) -> Json<ServiceResponse<serde_json::Value>> {
+    Json(request): Json<ServiceRequest<PromptSetProjectOverridePayload>>,
+) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
     }
-    let payload = request.payload.clone();
-    let result = match payload.content {
-        Some(content) => state
-            .engine
-            .set_project_override(payload.project_id, &payload.name, content)
-            .await
-            .map(|_| serde_json::json!({})),
-        None => Err(AppError::InvalidArgument(
-            "prompt override content 不能为空".to_string(),
-        )),
-    };
+    let payload = &request.payload;
+    let result = state
+        .engine
+        .set_project_override(payload.project_id, &payload.name, payload.content.clone())
+        .await
+        .map(|_| ());
     Json(result_response(&request, result))
 }
 
 pub(crate) async fn remove_project_override(
     State(state): State<PromptServiceState>,
-    Json(request): Json<ServiceRequest<PromptProjectOverridePayload>>,
-) -> Json<ServiceResponse<serde_json::Value>> {
+    Json(request): Json<ServiceRequest<PromptRemoveProjectOverridePayload>>,
+) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
     }
@@ -63,13 +59,13 @@ pub(crate) async fn remove_project_override(
         .engine
         .remove_project_override(payload.project_id, &payload.name)
         .await
-        .map(|_| serde_json::json!({}));
+        .map(|_| ());
     Json(result_response(&request, result))
 }
 
 pub(crate) async fn load_defaults(
     State(state): State<PromptServiceState>,
-    Json(request): Json<ServiceRequest<serde_json::Value>>,
+    Json(request): Json<ServiceRequest<PromptEmptyPayload>>,
 ) -> Json<ServiceResponse<CountOutput>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
@@ -117,14 +113,10 @@ pub(crate) async fn update_many_prompts(
 pub(crate) async fn reset_prompt(
     State(state): State<PromptServiceState>,
     Json(request): Json<ServiceRequest<PromptNamePayload>>,
-) -> Json<ServiceResponse<serde_json::Value>> {
+) -> Json<ServiceResponse<()>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
     }
-    let result = state
-        .engine
-        .reset(&request.payload.name)
-        .await
-        .map(|_| serde_json::json!({}));
+    let result = state.engine.reset(&request.payload.name).await.map(|_| ());
     Json(result_response(&request, result))
 }

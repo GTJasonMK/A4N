@@ -1,5 +1,6 @@
 use crate::project::PROJECT_KIND_TEXT;
-use a4n_core::{models::project::novel_project, state::status::ProjectStatus};
+use a4n_core::models::project::novel_project;
+use a4n_domain::project::ProjectStatus;
 
 use super::super::ProjectDuplicateError;
 

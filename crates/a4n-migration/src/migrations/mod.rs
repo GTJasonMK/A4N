@@ -1,10 +1,17 @@
 //! PostgreSQL baseline schema.
 
+pub mod blueprint_version_snapshot_cleanup;
 pub mod canvas_assemble_clip_order;
 pub mod canvas_assemble_edge_role;
+pub mod canvas_node_ref_contract_cleanup;
+pub mod chapter_outline_provenance;
 pub mod chapter_shooting_script;
 pub mod chapter_video_prompt_execution_identity;
 pub mod chapter_video_prompt_language_identity;
+pub mod chapter_video_timeline;
+pub mod chapter_video_timeline_cleanup;
+pub mod character_deletion_mark_provenance;
+pub mod character_timeline_provenance;
 pub mod cleanup_outbox;
 pub mod cleanup_outbox_generation_scope;
 pub mod directing_workflow_v2;
@@ -34,6 +41,7 @@ pub mod media_provider_options;
 pub mod neutral_video_segment_plan;
 pub mod object_profile_usage_fields;
 pub mod postgres_baseline;
+pub mod profile_record_ownership;
 pub mod project_collaboration;
 pub mod segment_card_video_workflow;
 pub mod segment_execution_recipe_identity;
@@ -42,6 +50,7 @@ pub mod shared_video_segment_plan;
 pub mod shooting_script_narrative_units;
 pub mod shooting_script_staged_generation;
 pub mod shooting_script_transition_type_canonicalization;
+pub mod system_settings_key_unique;
 pub mod unified_model_provider_requests;
 pub mod user_default_ai_config;
 pub mod video_canvas_workflow;

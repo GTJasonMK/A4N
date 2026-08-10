@@ -2,8 +2,16 @@ export type {
   ImportAnalysisStatus,
   ImportReview,
   ImportReviewStatus,
+  ImportBlueprintCandidate,
+  ImportBlueprintCandidateApplyResult,
+  ImportCandidateIdentity,
+  ImportCandidateSourceScope,
+  ImportPartOutlineCandidate,
+  ImportPartOutlineCandidateApplyResult,
+  ImportPartOutlineCandidateItem,
   ParsedChapter,
   ProjectImportAnalysisProgress,
+  ConfirmReverseEngineeringCandidateInput,
 } from "./import/types";
 export * from "./import/parser";
 export * from "./import/reviews";

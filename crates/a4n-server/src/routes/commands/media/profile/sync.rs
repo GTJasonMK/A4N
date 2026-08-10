@@ -31,8 +31,7 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
         scope.project_id,
         scope.total,
         "正在准备场景档案同步",
-    )
-    .await;
+    );
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
     let reporter = web_fire_and_forget_progress_reporter(task.clone());
     // 与桌面端对称：活体信号必须双端一致，否则浏览器端会缺失流式尾巴。
@@ -58,7 +57,6 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
             result,
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),
         ),
-    )
-    .await?;
+    )?;
     Ok(value)
 }

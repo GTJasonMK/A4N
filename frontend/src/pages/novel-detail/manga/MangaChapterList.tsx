@@ -1,19 +1,21 @@
 import React from "react";
 import { AlertTriangle, CheckCircle2, Clock3 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import type { PipelineStatus } from "../../../api/manga";
+import type { MangaPipelineStatusSummary } from "../../../api/manga";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { mangaStageLabel } from "./mangaTabUtils";
 
 interface MangaChapterListProps {
   chapters: ChapterRow[];
-  statuses: Record<number, PipelineStatus | null>;
+  statuses: Record<number, MangaPipelineStatusSummary | null>;
   selectedChapter: ChapterRow | null;
   onSelect: (chapter: ChapterRow) => void;
 }
 
-const chapterPipelineTone = (status: PipelineStatus | null | undefined): string => {
+const chapterPipelineTone = (
+  status: MangaPipelineStatusSummary | null | undefined,
+): string => {
   if (!status?.pipeline_status) return "text-book-text-muted";
   if (status.pipeline_status === "failed") return "text-error";
   if (status.pipeline_status === "completed") return "text-success";
@@ -21,7 +23,7 @@ const chapterPipelineTone = (status: PipelineStatus | null | undefined): string 
   return "text-book-text-muted";
 };
 
-const chapterPipelineIcon = (status: PipelineStatus | null | undefined) => {
+const chapterPipelineIcon = (status: MangaPipelineStatusSummary | null | undefined) => {
   if (status?.pipeline_status === "failed") return <AlertTriangle size={11} />;
   if (status?.pipeline_status === "completed") return <CheckCircle2 size={11} />;
   if (status?.pipeline_status === "running") return <LoadingSpinner size="sm" />;

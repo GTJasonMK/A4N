@@ -12,7 +12,10 @@ mod sync_types;
 
 pub(crate) use character_discovery_flow::character_discovery_preview_steps;
 pub use character_discovery_flow::discover_character_profiles_for_chapters;
-pub use contracts::{CharacterAiPreviewStep, CharacterAiTaskScope};
+pub use contracts::{
+    CharacterAiPreviewStep, CharacterAiTaskScope, SyncAllCharacterProfilesInput,
+    SyncAllCharacterProfilesResult, SyncCharacterProfileInput, SyncCharacterProfileResult,
+};
 pub use preview::{
     preview_discover_character_profiles_request, preview_sync_all_character_profiles_request,
     preview_sync_character_from_chapters_request,

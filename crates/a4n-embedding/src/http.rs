@@ -8,7 +8,6 @@ use serde_json::Value;
 use std::time::Duration;
 
 use super::provider::{EmbeddingBackend, EmbeddingProvider};
-use a4n_core::config::app_config::EmbeddingConfig;
 use a4n_core::error::AppError;
 
 fn internal_error(message: impl Into<String>) -> AppError {
@@ -47,35 +46,6 @@ pub struct HttpEmbeddingProvider {
 }
 
 impl HttpEmbeddingProvider {
-    /// 从 EmbeddingConfig 创建 Provider
-    pub fn from_config(config: &EmbeddingConfig) -> Self {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(60))
-            .build()
-            .expect("创建 HTTP 客户端失败");
-
-        let base_url = config.base_url.trim_end_matches('/').to_string();
-
-        Self {
-            client,
-            base_url,
-            api_key: config.api_key.clone(),
-            model: config.model.clone(),
-            dim: config.dimension,
-            batch: config.batch_size,
-        }
-    }
-
-    /// 手动创建
-    pub fn new(
-        base_url: impl Into<String>,
-        model: impl Into<String>,
-        dimension: usize,
-        api_key: Option<String>,
-    ) -> Self {
-        Self::new_with_batch(base_url, model, dimension, api_key, 100)
-    }
-
     /// 手动创建，并显式指定批量大小
     pub fn new_with_batch(
         base_url: impl Into<String>,

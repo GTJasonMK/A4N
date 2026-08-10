@@ -10,7 +10,7 @@ interface DerivedContextItem {
   value: React.ReactNode;
 }
 
-export interface DerivedProjectHeaderProps {
+interface DerivedProjectHeaderProps {
   leading?: React.ReactNode;
   icon: React.ReactNode;
   title: React.ReactNode;

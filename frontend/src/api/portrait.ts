@@ -1,5 +1,5 @@
 import { apiInvoke } from "./index";
-import { readCurrentUserId } from "./authStorage";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
 import { generationClient } from "./generationTasks";
@@ -47,13 +47,7 @@ export interface UploadPortraitInput {
   set_primary?: boolean;
 }
 
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问角色立绘");
-  return id;
-};
-
-export type PortraitGenerationInput = Omit<StartPortraitGenerationInput, "meta">;
+type PortraitGenerationInput = Omit<StartPortraitGenerationInput, "meta">;
 export type { PortraitGenerationOperation };
 
 export async function startPortraitGeneration(

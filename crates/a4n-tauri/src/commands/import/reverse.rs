@@ -4,9 +4,10 @@ use a4n_core::error::AppError;
 use a4n_core::event::channel::TaskKind;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::import_reverse::{
-    ReverseEngineerInput, ReverseEngineeringTarget,
+    ConfirmReverseEngineeringCandidateInput, ReverseEngineerInput, ReverseEngineeringTarget,
+    confirm_reverse_engineering_candidate as confirm_reverse_engineering_candidate_action,
     preview_reverse_engineer_request as preview_reverse_engineer_model_request, reverse_engineer,
-    reverse_engineer_and_apply, reverse_engineer_task_scope,
+    reverse_engineer_task_scope,
 };
 use tauri::State;
 
@@ -28,9 +29,8 @@ async fn run_reverse_engineer_command(
     input: ReverseEngineerInput,
     task_id: Option<String>,
     target: ReverseEngineeringTarget,
-    apply: bool,
 ) -> Result<serde_json::Value, String> {
-    let scope = reverse_engineer_task_scope(state.inner(), user_id, &input, apply)
+    let scope = reverse_engineer_task_scope(state.inner(), user_id, &input)
         .await
         .map_err(|e| e.to_string())?;
     let progress = WorkflowProgressTask::new(
@@ -40,33 +40,20 @@ async fn run_reverse_engineer_command(
         TaskKind::LlmCall,
         Some(scope.project_id),
         scope.total,
-        target.initial_message(apply),
+        target.initial_message(),
     );
     let output = {
         let reporter = progress_reporter(&progress, target.cancelled_message());
-        if apply {
-            reverse_engineer_and_apply(
-                state.inner(),
-                user_id,
-                &input,
-                target,
-                &reporter,
-                progress.task_id(),
-            )
-            .await
-            .map_err(|e| e.to_string())
-        } else {
-            reverse_engineer(
-                state.inner(),
-                user_id,
-                &input,
-                target,
-                &reporter,
-                progress.task_id(),
-            )
-            .await
-            .map_err(|e| e.to_string())
-        }
+        reverse_engineer(
+            state.inner(),
+            user_id,
+            &input,
+            target,
+            &reporter,
+            progress.task_id(),
+        )
+        .await
+        .map_err(|e| e.to_string())
     };
     progress.remove(state.inner());
     output
@@ -84,7 +71,7 @@ async fn preview_reverse_engineer_request(
 }
 
 macro_rules! reverse_engineer_commands {
-    ($run:ident, $preview:ident, $apply:ident, $target:expr) => {
+    ($run:ident, $preview:ident, $target:expr) => {
         #[tauri::command]
         pub async fn $run(
             state: State<'_, AppState>,
@@ -92,7 +79,7 @@ macro_rules! reverse_engineer_commands {
             input: ReverseEngineerInput,
             task_id: Option<String>,
         ) -> Result<serde_json::Value, String> {
-            run_reverse_engineer_command(state, user_id, input, task_id, $target, false).await
+            run_reverse_engineer_command(state, user_id, input, task_id, $target).await
         }
 
         #[tauri::command]
@@ -103,34 +90,33 @@ macro_rules! reverse_engineer_commands {
         ) -> Result<ModelRequestPreview, String> {
             preview_reverse_engineer_request(state, user_id, input, $target).await
         }
-
-        #[tauri::command]
-        pub async fn $apply(
-            state: State<'_, AppState>,
-            user_id: i64,
-            input: ReverseEngineerInput,
-            task_id: Option<String>,
-        ) -> Result<serde_json::Value, String> {
-            run_reverse_engineer_command(state, user_id, input, task_id, $target, true).await
-        }
     };
 }
 
 reverse_engineer_commands!(
     reverse_engineer_blueprint,
     preview_reverse_engineer_blueprint_request,
-    reverse_engineer_blueprint_and_apply,
     ReverseEngineeringTarget::Blueprint
 );
 reverse_engineer_commands!(
     reverse_engineer_outline,
     preview_reverse_engineer_outline_request,
-    reverse_engineer_outline_and_apply,
     ReverseEngineeringTarget::Outline
 );
 reverse_engineer_commands!(
     reverse_engineer_part_outline,
     preview_reverse_engineer_part_outline_request,
-    reverse_engineer_part_outline_and_apply,
     ReverseEngineeringTarget::PartOutline
 );
+
+/// 确认已持久化的反推候选；按 workflow_run_id 读取同一 checkpoint，不重新调用模型。
+#[tauri::command]
+pub async fn confirm_reverse_engineering_candidate(
+    state: State<'_, AppState>,
+    user_id: i64,
+    input: ConfirmReverseEngineeringCandidateInput,
+) -> Result<serde_json::Value, String> {
+    confirm_reverse_engineering_candidate_action(state.inner(), user_id, &input)
+        .await
+        .map_err(|error| error.to_string())
+}

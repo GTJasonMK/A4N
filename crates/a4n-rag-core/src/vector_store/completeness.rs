@@ -16,30 +16,6 @@ pub struct CompletenessReport {
 }
 
 impl CompletenessReport {
-    pub fn count_only(
-        collection: impl Into<String>,
-        expected: usize,
-        actual_vector: usize,
-        actual_bm25: usize,
-        missing_vector_ids: Vec<String>,
-        missing_bm25_ids: Vec<String>,
-    ) -> Self {
-        let missing_ids = merged_missing_ids(&missing_vector_ids, &missing_bm25_ids);
-        Self {
-            collection: collection.into(),
-            expected,
-            actual_vector,
-            actual_bm25,
-            is_complete: actual_vector >= expected
-                && actual_bm25 >= expected
-                && missing_vector_ids.is_empty()
-                && missing_bm25_ids.is_empty(),
-            missing_vector_ids,
-            missing_bm25_ids,
-            missing_ids,
-        }
-    }
-
     pub fn by_expected_ids(
         collection: impl Into<String>,
         expected_ids: &[String],
@@ -56,27 +32,6 @@ impl CompletenessReport {
             expected: expected_ids.len(),
             actual_vector: actual_vector_ids.len(),
             actual_bm25: actual_bm25_ids.map(HashSet::len).unwrap_or(0),
-            is_complete: missing_vector_ids.is_empty() && missing_bm25_ids.is_empty(),
-            missing_vector_ids,
-            missing_bm25_ids,
-            missing_ids,
-        }
-    }
-
-    pub fn from_missing_ids(
-        collection: impl Into<String>,
-        expected: usize,
-        actual_vector: usize,
-        actual_bm25: usize,
-        missing_vector_ids: Vec<String>,
-        missing_bm25_ids: Vec<String>,
-    ) -> Self {
-        let missing_ids = merged_missing_ids(&missing_vector_ids, &missing_bm25_ids);
-        Self {
-            collection: collection.into(),
-            expected,
-            actual_vector,
-            actual_bm25,
             is_complete: missing_vector_ids.is_empty() && missing_bm25_ids.is_empty(),
             missing_vector_ids,
             missing_bm25_ids,

@@ -72,8 +72,7 @@ pub(in crate::routes::commands) async fn generate_chapter_scene(
         scope.project_id,
         scope.total,
         "正在准备场景生成",
-    )
-    .await;
+    );
     let progress = web_progress_reporter(task);
     let result = chapter_scene_actions::generate_chapter_scene(
         state.runtime(),
@@ -83,7 +82,7 @@ pub(in crate::routes::commands) async fn generate_chapter_scene(
         task_id.as_deref(),
     )
     .await;
-    let scene = finish_web_task(state, task_id, result).await?;
+    let scene = finish_web_task(state, task_id, result)?;
     Ok(json!(scene))
 }
 

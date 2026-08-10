@@ -12,14 +12,20 @@ import {
   isRecord,
   parseMaybeJsonString,
   type WorldEditMode,
+  worldSettingSaveNotice,
 } from "./world/worldTabUtils";
 
 interface WorldTabProps {
   projectId: number;
   canEditWorld: boolean;
+  onCreateBlueprint: () => void;
 }
 
-export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) => {
+export const WorldTab: React.FC<WorldTabProps> = ({
+  projectId,
+  canEditWorld,
+  onCreateBlueprint,
+}) => {
   const addToast = useToast((state) => state.addToast);
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,10 +73,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
       const bp = await getBlueprint(requestProjectId);
       if (!isCurrentLoad(requestProjectId, requestSeq)) return;
       setBlueprint(bp);
-      const raw = bp as unknown as
-        | { world_setting?: unknown; blueprint_data?: { world_setting?: unknown } }
-        | null;
-      setWorldValue(raw?.world_setting ?? raw?.blueprint_data?.world_setting ?? null);
+      setWorldValue(bp?.world_setting ?? null);
     } catch (err) {
       if (!isCurrentLoad(requestProjectId, requestSeq)) return;
       setBlueprint(null);
@@ -143,9 +146,13 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
     saveBusyRef.current = true;
     setSaving(true);
     try {
-      await updateWorldSetting({ project_id: requestProjectId, world_setting: payload });
+      const result = await updateWorldSetting({
+        project_id: requestProjectId,
+        world_setting: payload,
+      });
       if (!isCurrentProject(requestProjectId)) return;
-      addToast("世界观已保存", "success");
+      const notice = worldSettingSaveNotice(result.warnings);
+      addToast(notice.message, notice.type);
       setEditing(false);
       await load();
     } catch (err) {
@@ -219,6 +226,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({ projectId, canEditWorld }) =
             hasWorldContent={displayHasWorldContent}
             normalizedWorld={displayNormalizedWorld}
             worldObject={displayWorldObject}
+            onCreateBlueprint={canEditWorld ? onCreateBlueprint : undefined}
           />
         </>
       )}

@@ -17,8 +17,19 @@ import { useToast } from "../components/feedback/Toast";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../api";
-import { getProject, updateProject, type NovelProject } from "../api/project";
-import { refineBlueprint } from "../api/blueprint";
+import {
+  canEditProjectMaterials,
+  getProject,
+  projectLifecycleBlockedReason,
+  updateProject,
+  type NovelProject,
+} from "../api/project";
+import {
+  loadBlueprintTaskResult,
+  refineBlueprint,
+  syncBlueprintMaterials,
+} from "../api/blueprint";
+import { generationClient } from "../api/generationTasks";
 import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
 import { OverviewTab } from "./novel-detail/OverviewTab";
 import { ImagesTab } from "./novel-detail/ImagesTab";
@@ -42,7 +53,7 @@ import { BackButton } from "../components/ui/BackButton";
 import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
 import { PageHeader } from "../components/shell/PageHeader";
-import { cancelHostWorkflowTask } from "../api/streaming";
+import { cancelWorkflow } from "../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
@@ -84,7 +95,7 @@ const TABS: { id: Tab; label: string; accessibleLabel: string }[] = [
   { id: "story_events", label: "事件", accessibleLabel: "事件脉络" },
   { id: "chapter_outline", label: "大纲", accessibleLabel: "章节大纲" },
   { id: "images", label: "图像", accessibleLabel: "项目图像" },
-  { id: "imports", label: "导入", accessibleLabel: "内容导入" },
+  { id: "imports", label: "导入/归纳", accessibleLabel: "内容导入与项目资料归纳" },
   { id: "chapters", label: "章节", accessibleLabel: "已生成章节" },
 ];
 const TAB_IDS = TABS.map((t) => t.id) as readonly Tab[];
@@ -122,8 +133,12 @@ export const NovelDetail: React.FC = () => {
   const refineActionBusyRef = useRef(false);
   const titleActionBusyRef = useRef(false);
   const activeTabRef = useRef<HTMLButtonElement | null>(null);
-  const canEditCurrentProject =
-    project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
+  const lifecycleBlockedReason = project
+    ? projectLifecycleBlockedReason(project)
+    : null;
+  const canEditCurrentProject = project
+    ? canEditProjectMaterials(project)
+    : false;
 
   const isCurrentProject = (requestProjectId: number) =>
     mountedRef.current && Object.is(activeProjectIdRef.current, requestProjectId);
@@ -201,6 +216,34 @@ export const NovelDetail: React.FC = () => {
   }, [projectId]);
 
   useEffect(() => {
+    if (project?.lifecycle_gate !== "resetting") return;
+    let checking = false;
+    let errorReported = false;
+    const timer = window.setInterval(() => {
+      if (checking) return;
+      checking = true;
+      void getProject(projectId)
+        .then((nextProject) => {
+          if (!isCurrentProject(projectId) || nextProject.lifecycle_gate !== "active") return;
+          window.clearInterval(timer);
+          setProject(nextProject);
+          addToast("项目重置收尾完成，可以继续创作", "success");
+        })
+        .catch((error) => {
+          if (errorReported || !isCurrentProject(projectId)) return;
+          errorReported = true;
+          addToast(extractErrorMessage(error, "查询项目重置进度失败"), "error");
+        })
+        .finally(() => {
+          checking = false;
+        });
+    }, 1500);
+    return () => window.clearInterval(timer);
+    // isCurrentProject 只读取 ref，不随 render 改变。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addToast, project?.lifecycle_gate, projectId]);
+
+  useEffect(() => {
     if (!project || canEditCurrentProject) return;
     if (tab !== "characters" && tab !== "relationships" && tab !== "imports") return;
     setTab("overview");
@@ -235,9 +278,8 @@ export const NovelDetail: React.FC = () => {
 
   const homeEntryRoute = getProjectHomeEntryRoute(project);
   const homeEntryLabel = getProjectHomeEntryLabel(project);
-  const canEditProject =
-    project.my_role === "owner" || project.my_role === "manager" || project.my_role === "editor";
-  const canOwnProject = project.my_role === "owner";
+  const canEditProject = canEditProjectMaterials(project);
+  const canOwnProject = project.my_role === "owner" && !lifecycleBlockedReason;
   const visibleTabs = canEditProject
     ? TABS
     : TABS.filter(
@@ -281,7 +323,7 @@ export const NovelDetail: React.FC = () => {
       const result = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: "同步资料索引",
           startMessage: "正在统计待同步内容…",
@@ -359,14 +401,26 @@ export const NovelDetail: React.FC = () => {
       requestSeq = refineSeqRef.current + 1;
       refineSeqRef.current = requestSeq;
       setRefining(true);
-      await refineBlueprint({
+      const handle = await refineBlueprint({
         project_id: requestProjectId,
         focus: nonEmptyText(focus),
         variables: null,
       });
       if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      addToast("蓝图已优化", "success");
+      const task = await generationClient.waitForTerminal(handle);
+      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
+      await loadBlueprintTaskResult(requestProjectId, task.resultRef);
+      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
+      const syncWarnings = await syncBlueprintMaterials(requestProjectId);
+      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
       await refresh(requestProjectId);
+      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
+      addToast(
+        syncWarnings.length > 0
+          ? `蓝图已优化；${syncWarnings.join("；")}`
+          : "蓝图已优化",
+        syncWarnings.length > 0 ? "info" : "success",
+      );
     } catch (err) {
       if (requestSeq == null) {
         if (isCurrentProject(requestProjectId)) {
@@ -491,6 +545,15 @@ export const NovelDetail: React.FC = () => {
         }
       />
 
+      {lifecycleBlockedReason ? (
+        <div
+          role="status"
+          className="shrink-0 border-b border-warning/30 bg-warning-bg px-[var(--a4n-content-gutter)] py-2 text-small text-book-text-main"
+        >
+          {lifecycleBlockedReason}。页面会在收尾完成后自动恢复。
+        </div>
+      ) : null}
+
       <nav
         className="tab-bar a4n-mobile-scroll-rail shrink-0 scroll-px-[var(--a4n-content-gutter)] border-b border-book-border/80 bg-book-bg-paper/90 px-[var(--a4n-content-gutter)]"
         role="tablist"
@@ -514,9 +577,18 @@ export const NovelDetail: React.FC = () => {
         ))}
       </nav>
 
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar a4n-page-container">
+      <div
+        key={project.lifecycle_gate}
+        className="flex-1 min-h-0 overflow-y-auto custom-scrollbar a4n-page-container"
+      >
         {tab === "overview" && <OverviewTab project={project} onRefresh={refresh} />}
-        {tab === "world" && <WorldTab projectId={projectId} canEditWorld={canEditProject} />}
+        {tab === "world" && (
+          <WorldTab
+            projectId={projectId}
+            canEditWorld={canEditProject}
+            onCreateBlueprint={() => setTab("overview")}
+          />
+        )}
         {tab === "characters" && canEditProject && <CharactersTab projectId={projectId} />}
         {tab === "object_profiles" && (
           <ObjectProfilesTab projectId={projectId} canEditProfiles={canEditProject} />

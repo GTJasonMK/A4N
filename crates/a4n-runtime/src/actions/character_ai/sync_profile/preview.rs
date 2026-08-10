@@ -1,20 +1,22 @@
-use super::super::CharacterAiPreviewStep;
+use super::super::{CharacterAiPreviewStep, SyncCharacterProfileInput};
 use crate::{AppState, actions::access, prompt_renderer::RuntimePromptRenderer};
 use a4n_orchestrator::character::CharacterProfileSyncApplicationInput;
 
 pub(crate) async fn character_sync_preview_steps(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    name: &str,
-    chapter_number: i32,
+    input: SyncCharacterProfileInput,
 ) -> Result<Vec<CharacterAiPreviewStep>, String> {
-    access::verify_project_editor(state, user_id, project_id)
+    access::verify_project_editor(state, user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
     character_sync_preview_steps_for_input(
         state,
-        CharacterProfileSyncApplicationInput::preview_by_name(project_id, name, chapter_number),
+        CharacterProfileSyncApplicationInput::preview_by_name(
+            input.project_id,
+            input.name,
+            input.chapter_number,
+        ),
     )
     .await
 }

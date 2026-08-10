@@ -5,6 +5,41 @@ use a4n_service_protocol::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub const GENERATION_START_ROUTES: &[(&str, &str)] = &[
+    ("start_blueprint_generation", "/generation-tasks/blueprint"),
+    (
+        "start_blueprint_refinement",
+        "/generation-tasks/blueprint-refinement",
+    ),
+    ("start_chapter_generation", "/generation-tasks/chapter"),
+    ("start_image_generation", "/generation-tasks/image"),
+    (
+        "start_inspiration_generation",
+        "/generation-tasks/inspiration",
+    ),
+    (
+        "start_optimize_analysis_generation",
+        "/generation-tasks/optimize-analysis",
+    ),
+    (
+        "start_optimize_chat_generation",
+        "/generation-tasks/optimize-chat",
+    ),
+    (
+        "start_optimize_patch_generation",
+        "/generation-tasks/optimize-patch",
+    ),
+    ("start_outline_generation", "/generation-tasks/outline"),
+    ("start_portrait_generation", "/generation-tasks/portrait"),
+    ("start_video_generation", "/generation-tasks/video"),
+];
+
+pub fn generation_start_path(command: &str) -> Option<&'static str> {
+    GENERATION_START_ROUTES
+        .iter()
+        .find_map(|(candidate, path)| (*candidate == command).then_some(*path))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct GenerationStartRequestMeta {

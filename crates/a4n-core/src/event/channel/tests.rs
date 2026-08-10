@@ -96,7 +96,6 @@ fn task_progress_updates_snapshot_and_history() {
     assert_eq!(progress.current, service_event.current);
     assert_eq!(progress.total, service_event.total);
     assert_eq!(progress.message, service_event.message);
-    assert_eq!(progress.percent() * 100.0, service_event.percent);
     assert_eq!(
         serde_json::to_value(&progress.meta).unwrap(),
         serde_json::to_value(&service_event.meta).unwrap()

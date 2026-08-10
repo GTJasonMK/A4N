@@ -9,11 +9,11 @@ export function nodeGeneratedImageRefId(data: StudioNodeData): number | null {
 }
 
 export function nodeGeneratedVideoRefId(data: StudioNodeData): number | null {
-  return nodeRefId(data, "generated_video", "legacy_generated_video");
+  return nodeRefId(data, "generated_video");
 }
 
-function nodeRefId(data: StudioNodeData, ...refTypes: string[]): number | null {
-  return data.refType && refTypes.includes(data.refType) && typeof data.refId === "number"
+function nodeRefId(data: StudioNodeData, refType: string): number | null {
+  return data.refType === refType && typeof data.refId === "number"
     ? data.refId
     : null;
 }

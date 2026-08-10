@@ -34,12 +34,14 @@ import {
   type GalgameLine,
   type GalgameLinePresentationDocumentV2,
   type GalgameLineType,
+  type GalgameCgImportance,
+  type GalgameTransition,
   type GalgameStagePositionV2,
   type GalgameVisibleCastMemberV2,
   type GalgameAssetPlan,
   type GalgameAssetPlanItem,
   type GalgameMediaBindingSummary,
-  type GalgamePipelineStatus,
+  type GalgamePipelineStatusSummary,
   type GalgameScene,
   type GalgameScriptDetail,
   type GalgameSceneDetail,
@@ -79,7 +81,10 @@ const LINE_TYPES: Array<{ value: GalgameLineType; label: string }> = [
 
 const SPEAKING_LINE_TYPES = new Set(["dialogue", "monologue"]);
 
-const POSITIONS = [
+const POSITIONS: Array<{
+  value: GalgameStagePositionV2 | "";
+  label: string;
+}> = [
   { value: "", label: "无站位" },
   { value: "left", label: "左" },
   { value: "center", label: "中" },
@@ -107,8 +112,10 @@ const POSE_SUGGESTIONS = [
 ];
 
 const DEFAULT_CG_IMPORTANCE = "normal" as const;
-const CG_IMPORTANCE_VALUES = ["normal", "high", "critical"];
-const CG_IMPORTANCE_OPTIONS = [
+const CG_IMPORTANCE_OPTIONS: Array<{
+  value: GalgameCgImportance | "";
+  label: string;
+}> = [
   { value: "", label: "CG 优先级" },
   { value: "normal", label: "普通" },
   { value: "high", label: "重要" },
@@ -159,7 +166,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const { runProgressTask } = useProgressTask();
   const [detail, setDetail] = useState<GalgameScriptDetail | null>(null);
   const [pipelineStatus, setPipelineStatus] =
-    useState<GalgamePipelineStatus | null>(null);
+    useState<GalgamePipelineStatusSummary | null>(null);
   const [selectedSceneId, setSelectedSceneId] = useState<number | null>(null);
   const [mobileWorkspaceView, setMobileWorkspaceView] = useState<
     "scenes" | "editor"
@@ -342,10 +349,11 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         },
         async ({ setProgress }) => {
           setProgress("正在提交 Galgame 管线...", 0, 7);
-          const result = await startGalgamePipeline(projectId, {
-            taskId,
-            startFromStage: currentPipelineStartStage(),
-            resumeFromCheckpoint,
+          const result = await startGalgamePipeline({
+            project_id: projectId,
+            task_id: taskId,
+            start_from_stage: currentPipelineStartStage(),
+            resume_from_checkpoint: resumeFromCheckpoint,
           });
           setProgress("正在刷新 Galgame 管线状态...", 7, 7);
           return result;
@@ -394,9 +402,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);
     try {
-      const preview = await previewGalgamePipelineRequest(projectId, {
-        startFromStage: currentPipelineStartStage(),
-        resumeFromCheckpoint: false,
+      const preview = await previewGalgamePipelineRequest({
+        project_id: projectId,
+        start_from_stage: currentPipelineStartStage(),
+        resume_from_checkpoint: false,
       });
       if (previewSeqRef.current !== seq) return;
       setRequestPreviewData(preview);
@@ -438,7 +447,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     if (!canEditGalgame || generatingAssets || !detail) return;
     setGeneratingAssets(true);
     try {
-      const result = await runGalgameAssetGeneration(projectId);
+      const result = await runGalgameAssetGeneration({ project_id: projectId });
       const nextDetail = await getGalgameScript(projectId);
       setDetail(nextDetail);
       addToast(
@@ -462,7 +471,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       return;
     setGeneratingAssetSpecId(generationSpecId);
     try {
-      const result = await runGalgameAssetGeneration(projectId, {
+      const result = await runGalgameAssetGeneration({
+        project_id: projectId,
         generation_spec_ids: [generationSpecId],
       });
       setAssetPlan(await planGalgameAssets(projectId));
@@ -562,7 +572,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     if (!canEditGalgame || busyTarget != null) return;
     setBusyTarget(lineBusyTarget(line.id));
     try {
-      await deleteGalgameLine(projectId, line.id);
+      await deleteGalgameLine(projectId, { line_id: line.id });
       await load();
     } catch (err) {
       addToast(extractErrorMessage(err, "删除剧本行失败"), "error");
@@ -584,7 +594,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     [lineIds[index], lineIds[nextIndex]] = [lineIds[nextIndex], lineIds[index]];
     setBusyTarget(lineBusyTarget(line.id));
     try {
-      await reorderGalgameLines(projectId, scene.scene.id, lineIds);
+      await reorderGalgameLines(projectId, {
+        scene_id: scene.scene.id,
+        line_ids: lineIds,
+      });
       await load();
     } catch (err) {
       addToast(extractErrorMessage(err, "调整剧本行顺序失败"), "error");
@@ -618,6 +631,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       "audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg",
     );
     if (!file) return;
+    if (!file.type) {
+      addToast("无法识别音频 MIME 类型", "error");
+      return;
+    }
     setBusyTarget(audioBusyTarget(line.id, role));
     try {
       await importGalgameAudio({
@@ -625,7 +642,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         target_line_id: line.id,
         role,
         file_name: file.name,
-        mime_type: file.type || fallbackAudioMime(file.name),
+        mime_type: file.type,
         data_base64: await readFileAsBase64(file),
       });
       await load();
@@ -1714,9 +1731,10 @@ const LineEditor: React.FC<LineEditorProps> = ({
             className="pyqt-input text-xs text-book-text-main"
             value={line.position ?? ""}
             disabled={disabled}
-            onChange={(event) =>
-              onPatch({ position: event.target.value || null })
-            }
+            onChange={(event) => {
+              const position = event.target.value as GalgameStagePositionV2 | "";
+              onPatch({ position: position || null });
+            }}
           >
             {POSITIONS.map((item) => (
               <option key={item.value} value={item.value}>
@@ -1882,27 +1900,20 @@ const PresentationEditor: React.FC<{
   disabled: boolean;
   onPatch: (presentationJson: GalgameLinePresentationDocumentV2) => void;
 }> = ({ line, disabled, onPatch }) => {
-  const presentation = useMemo(
-    () =>
-      requireGalgamePresentation(
-        line.presentation_json,
-        `Galgame 行 ${line.id} presentation_json`,
-      ),
-    [line.id, line.presentation_json],
-  );
+  const presentation = line.presentation_json;
   const currentCgEnabled =
-    presentation["cg"] === true || presentationCgNote(presentation).length > 0;
-  const currentCgImportance =
-    selectValue(presentation["cg_importance"], CG_IMPORTANCE_OPTIONS) ||
+    presentation.cg === true || presentationCgNote(presentation).length > 0;
+  const currentCgImportance: GalgameCgImportance | "" =
+    presentation.cg_importance ||
     (currentCgEnabled ? DEFAULT_CG_IMPORTANCE : "");
-  const currentTransition = selectValue(
-    presentation["transition"],
-    TRANSITION_OPTIONS,
-  );
+  const currentTransition: GalgameTransition | "" =
+    presentation.transition || "";
   const [cgNote, setCgNote] = useState(presentationCgNote(presentation));
   const [cgEnabled, setCgEnabled] = useState(currentCgEnabled);
-  const [cgImportance, setCgImportance] = useState(currentCgImportance);
-  const [transition, setTransition] = useState(currentTransition);
+  const [cgImportance, setCgImportance] =
+    useState<GalgameCgImportance | "">(currentCgImportance);
+  const [transition, setTransition] =
+    useState<GalgameTransition | "">(currentTransition);
 
   useEffect(() => {
     setCgNote(presentationCgNote(presentation));
@@ -1959,8 +1970,9 @@ const PresentationEditor: React.FC<{
             value={cgImportance}
             disabled={disabled}
             onChange={(event) => {
-              setCgImportance(event.target.value);
-              update({ cgImportance: event.target.value });
+              const importance = event.target.value as GalgameCgImportance | "";
+              setCgImportance(importance);
+              update({ cgImportance: importance });
             }}
           >
             {CG_IMPORTANCE_OPTIONS.map((item) => (
@@ -1975,8 +1987,9 @@ const PresentationEditor: React.FC<{
           value={transition}
           disabled={disabled}
           onChange={(event) => {
-            setTransition(event.target.value);
-            update({ transition: event.target.value });
+            const nextTransition = event.target.value as GalgameTransition | "";
+            setTransition(nextTransition);
+            update({ transition: nextTransition });
           }}
         >
           {TRANSITION_OPTIONS.map((item) => (
@@ -2547,12 +2560,23 @@ function buildPortraitExpressionCells(
     speakerProfiles.map((profile) => [profile.id, profile.name]),
   );
   return items.map((item) => {
-    const params = recordValue(item.params_json);
-    const profileId =
-      numberValue(params.character_profile_id) ?? item.target_entity_id;
-    const profileName = speakerNameById.get(profileId) ?? "未知角色";
-    const expression = stringValue(params.expression);
-    const pose = stringValue(params.pose);
+    const params = requireRecordValue(
+      item.params_json,
+      `Galgame 资产规划 ${item.generation_spec_id} params_json`,
+    );
+    const profileId = item.target_entity_id;
+    const profileName = speakerNameById.get(profileId);
+    if (!profileName) {
+      throw new Error(`Galgame 资产规划引用不存在的角色 ${profileId}`);
+    }
+    const expression = requireStringValue(
+      params.expression,
+      `Galgame 资产规划 ${item.generation_spec_id} expression`,
+    );
+    const pose = optionalStringValue(
+      params.pose,
+      `Galgame 资产规划 ${item.generation_spec_id} pose`,
+    );
     return {
       rowKey: `${profileId}:${pose}`,
       profileId,
@@ -2615,12 +2639,6 @@ function poseStoredValue(pose: string): string {
   );
 }
 
-function recordValue(value: unknown): Record<string, unknown> {
-  return value != null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 function requireRecordValue(
   value: unknown,
   fieldName: string,
@@ -2631,8 +2649,25 @@ function requireRecordValue(
   throw new Error(`${fieldName} 必须是 JSON 对象`);
 }
 
+function requireStringValue(value: unknown, fieldName: string): string {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  throw new Error(`${fieldName} 必须是非空字符串`);
+}
+
+function optionalStringValue(value: unknown, fieldName: string): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  throw new Error(`${fieldName} 必须是字符串或 null`);
+}
+
 function emptyGalgamePresentation(): GalgameLinePresentationDocumentV2 {
   return {
+    after_beat_ref: null,
+    branch: null,
+    branch_id: null,
+    cg: null,
+    cg_importance: null,
+    cg_note: null,
     schema_version: "galgame_line_presentation_v2",
     visible_cast: [],
     enter: [],
@@ -2640,63 +2675,16 @@ function emptyGalgamePresentation(): GalgameLinePresentationDocumentV2 {
     focus_character_profile_id: null,
     hold: false,
     player_knowledge: [],
+    returns_to_scene_index: null,
+    transition: null,
   };
-}
-
-function requireGalgamePresentation(
-  value: unknown,
-  fieldName: string,
-): GalgameLinePresentationDocumentV2 {
-  const record = requireRecordValue(value, fieldName);
-  const allowed = new Set([
-    "schema_version",
-    "visible_cast",
-    "enter",
-    "exit",
-    "focus_character_profile_id",
-    "hold",
-    "player_knowledge",
-    "cg",
-    "cg_note",
-    "cg_importance",
-    "transition",
-    "branch",
-    "branch_id",
-    "returns_to_scene_index",
-    "after_beat_ref",
-  ]);
-  const unknownField = Object.keys(record).find((key) => !allowed.has(key));
-  if (unknownField)
-    throw new Error(`${fieldName} 包含未知字段 ${unknownField}`);
-  if (record.schema_version !== "galgame_line_presentation_v2") {
-    throw new Error(
-      `${fieldName}.schema_version 必须是 galgame_line_presentation_v2`,
-    );
-  }
-  if (!Array.isArray(record.visible_cast))
-    throw new Error(`${fieldName}.visible_cast 必须是数组`);
-  if (!Array.isArray(record.enter) || !Array.isArray(record.exit)) {
-    throw new Error(`${fieldName}.enter/exit 必须是数组`);
-  }
-  if (!Array.isArray(record.player_knowledge)) {
-    throw new Error(`${fieldName}.player_knowledge 必须是数组`);
-  }
-  if (typeof record.hold !== "boolean")
-    throw new Error(`${fieldName}.hold 必须是布尔值`);
-  return record as unknown as GalgameLinePresentationDocumentV2;
 }
 
 function presentationForLinePatch(
   line: GalgameLine,
   patch: Partial<GalgameLine>,
 ): GalgameLinePresentationDocumentV2 {
-  const direct =
-    "presentation_json" in patch
-      ? requireGalgamePresentation(patch.presentation_json, "presentation_json")
-      : requireGalgamePresentation(
-          line.presentation_json,
-          `Galgame 行 ${line.id} presentation_json`,
-        );
+  const direct = patch.presentation_json ?? line.presentation_json;
   const presentation: GalgameLinePresentationDocumentV2 = {
     ...direct,
     visible_cast: direct.visible_cast.map((member) => ({ ...member })),
@@ -2750,19 +2738,15 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function numberValue(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
 interface PresentationPatch {
   cgEnabled?: boolean;
   cgNote?: string;
-  cgImportance?: string;
-  transition?: string;
+  cgImportance?: GalgameCgImportance | "";
+  transition?: GalgameTransition | "";
 }
 
 function presentationCgNote(value: GalgameLinePresentationDocumentV2): string {
-  return stringValue(value.cg_note);
+  return value.cg_note ?? "";
 }
 
 function updatePresentationJson(
@@ -2788,29 +2772,18 @@ function updatePresentationJson(
   }
 
   if (patch.cgImportance != null) {
-    const importance = patch.cgImportance.trim();
-    if (isValidCgImportance(importance)) {
-      next.cg_importance = importance;
-    } else {
-      delete next.cg_importance;
-    }
+    next.cg_importance = patch.cgImportance || null;
   }
 
   if (presentationCgNote(next)) {
     next.cg = true;
-    if (!isValidCgImportance(stringValue(next.cg_importance))) {
-      next.cg_importance = DEFAULT_CG_IMPORTANCE;
-    }
+    next.cg_importance ??= DEFAULT_CG_IMPORTANCE;
   } else {
     clearEventCgPresentation(next);
   }
 
   if (patch.transition != null) {
-    if (isValidTransition(patch.transition)) {
-      next.transition = patch.transition;
-    } else {
-      delete next.transition;
-    }
+    next.transition = patch.transition || null;
   }
 
   return next;
@@ -2819,21 +2792,9 @@ function updatePresentationJson(
 function clearEventCgPresentation(
   value: GalgameLinePresentationDocumentV2,
 ): void {
-  delete value.cg;
-  delete value.cg_note;
-  delete value.cg_importance;
-}
-
-function isValidCgImportance(
-  value: string,
-): value is NonNullable<GalgameLinePresentationDocumentV2["cg_importance"]> {
-  return CG_IMPORTANCE_VALUES.includes(value);
-}
-
-function isValidTransition(
-  value: string,
-): value is NonNullable<GalgameLinePresentationDocumentV2["transition"]> {
-  return ["cut", "fade", "dissolve"].includes(value);
+  value.cg = null;
+  value.cg_note = null;
+  value.cg_importance = null;
 }
 
 function selectValue(
@@ -2842,12 +2803,4 @@ function selectValue(
 ): string {
   const normalized = stringValue(value);
   return options.some((item) => item.value === normalized) ? normalized : "";
-}
-
-function fallbackAudioMime(fileName: string): string {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".mp3")) return "audio/mpeg";
-  if (lower.endsWith(".wav")) return "audio/wav";
-  if (lower.endsWith(".ogg")) return "audio/ogg";
-  return "application/octet-stream";
 }

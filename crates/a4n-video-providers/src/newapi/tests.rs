@@ -33,6 +33,16 @@ fn builds_newapi_request_body() {
 }
 
 #[test]
+fn rejects_nonpositive_dimensions_instead_of_clamping_them() {
+    let mut req = request();
+    req.width = 0;
+
+    let err = NewApiVideoProvider::request_body(&req).expect_err("invalid dimensions");
+
+    assert!(err.to_string().contains("宽度和高度必须为正整数"));
+}
+
+#[test]
 fn rejects_material_reference_images_instead_of_dropping_them() {
     let mut req = request();
     req.media =

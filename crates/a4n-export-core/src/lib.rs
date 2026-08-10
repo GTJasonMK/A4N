@@ -11,7 +11,7 @@ mod errors;
 mod json;
 pub mod pdf;
 
-pub use archive::{ExportZipWriter, render_zip, render_zip_package, write_zip_package_to_writer};
+pub use archive::{render_zip, render_zip_package};
 pub use contracts::*;
 pub use errors::ExportRenderError;
 pub use json::{render_json, render_json_manifest_pretty};

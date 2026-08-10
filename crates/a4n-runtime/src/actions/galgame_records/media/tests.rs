@@ -7,31 +7,6 @@ use a4n_orchestrator::media::{
     MEDIA_KIND_AUDIO, MEDIA_KIND_IMAGE, MEDIA_ORIGIN_IMPORTED, MEDIA_STATUS_COMPLETED,
 };
 use chrono::NaiveDateTime;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
-
-fn unique_temp_dir(prefix: &str) -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock after UNIX_EPOCH")
-        .as_nanos();
-    std::env::temp_dir().join(format!("{prefix}_{}_{}", std::process::id(), stamp))
-}
-
-#[test]
-fn imported_galgame_audio_persistence_keeps_output_and_reports_actual_size() {
-    let data_dir = unique_temp_dir("a4n_galgame_audio_persist");
-
-    let (path, relative_path, file_size) =
-        persist_imported_galgame_audio(&data_dir, 7, "mp3", b"audio-bytes")
-            .expect("persist imported Galgame audio");
-
-    assert!(path.is_file());
-    assert!(relative_path.starts_with("projects/7/audio/galgame_audio_"));
-    assert!(relative_path.ends_with(".mp3"));
-    assert_eq!(file_size, 11);
-    let _ = std::fs::remove_dir_all(&data_dir);
-}
 
 #[test]
 fn galgame_media_asset_source_context_accepts_same_snapshot_without_chapter() {

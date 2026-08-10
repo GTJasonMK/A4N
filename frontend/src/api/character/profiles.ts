@@ -1,37 +1,48 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
+import type {
+  CharacterProfileCreateResult,
+  CharacterProfileDeleteResult,
+  CharacterProfileMutationResult,
+  CreateProfileInput,
+  ListProfilesInput,
+  UpdateCharacterProfileInput,
+} from "../generated/host";
 import type { ModelRequestPreview } from "../requestPreview";
 import type {
   CharacterProfile,
-  DeleteProfileResult,
   DiscoverCharacterProfilesResult,
   SyncAllCharacterProfilesResult,
 } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
 
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问角色档案");
-  return id;
-};
-
 export async function listProfiles(projectId: Id): Promise<CharacterProfile[]> {
   return apiInvoke<CharacterProfile[]>("list_profiles", {
     userId: currentUserId(),
-    input: { project_id: idNum(projectId) },
+    input: { project_id: idNum(projectId) } satisfies ListProfilesInput,
   });
 }
 
-export async function createProfile(input: {
-  project_id: number;
-  name: string;
-  base_attributes: unknown;
-}): Promise<CharacterProfile> {
-  return apiInvoke<CharacterProfile>("create_profile", { userId: currentUserId(), input });
+export async function createProfile(
+  input: CreateProfileInput,
+): Promise<CharacterProfileCreateResult> {
+  return apiInvoke<CharacterProfileCreateResult>("create_profile", {
+    userId: currentUserId(),
+    input,
+  });
 }
 
-export async function deleteProfile(profileId: Id): Promise<DeleteProfileResult> {
-  return apiInvoke<DeleteProfileResult>("delete_profile", {
+export async function updateCharacterProfile(
+  input: UpdateCharacterProfileInput,
+): Promise<CharacterProfileMutationResult> {
+  return apiInvoke<CharacterProfileMutationResult>("update_character_profile", {
+    userId: currentUserId(),
+    input,
+  });
+}
+
+export async function deleteProfile(profileId: Id): Promise<CharacterProfileDeleteResult> {
+  return apiInvoke<CharacterProfileDeleteResult>("delete_profile", {
     userId: currentUserId(),
     profileId: idNum(profileId),
   });

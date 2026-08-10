@@ -30,16 +30,9 @@ impl ManagedServiceConfig {
 
     pub fn remote(name: impl Into<String>, url: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
             mode: ServiceMode::Remote,
-            binary: None,
-            args: Vec::new(),
             url: Some(url.into()),
-            health_path: default_health_path(),
-            env: HashMap::new(),
-            startup_timeout_ms: default_startup_timeout_ms(),
-            restart_policy: Default::default(),
-            remote_security: Default::default(),
+            ..Self::embedded(name)
         }
     }
 
@@ -49,16 +42,10 @@ impl ManagedServiceConfig {
         url: impl Into<String>,
     ) -> Self {
         Self {
-            name: name.into(),
             mode: ServiceMode::Sidecar,
             binary: Some(binary.into()),
-            args: Vec::new(),
             url: Some(url.into()),
-            health_path: default_health_path(),
-            env: HashMap::new(),
-            startup_timeout_ms: default_startup_timeout_ms(),
-            restart_policy: Default::default(),
-            remote_security: Default::default(),
+            ..Self::embedded(name)
         }
     }
 }

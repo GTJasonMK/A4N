@@ -1,8 +1,14 @@
 use std::collections::BTreeSet;
 
+use a4n_api_contract::character::{
+    CharacterProfileSkippedResult, CharacterProfileSyncBatchStatus,
+    CharacterProfileSyncFailure, CharacterProfileSyncedResult, SyncAllCharacterProfilesResult,
+    SyncCharacterProfileResult,
+};
 use a4n_core::{error::AppError, models::character::protagonist_profile};
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::{Value, json};
+use serde::Serialize;
+use serde_json::Value;
 
 use crate::OrchestratorContext;
 
@@ -11,7 +17,7 @@ use super::{
     CharacterProfileSyncPreviewStep, CharacterProfileSyncProgress,
     CharacterProfileSyncStageTracePort, CharacterProfileSyncSubject, CharacterSyncRangeMode,
     analysis_profile_sync_skip_reason, character_identity_key, profile_character_keys,
-    profile_sync_skip_reason, sync_skip_summary, sync_skip_summary_with_reason,
+    character_profile_skipped_result, profile_sync_skip_reason,
     validate_character_sync_target_chapter,
 };
 
@@ -29,43 +35,13 @@ pub struct CharacterProfileBatchProgress<'a> {
 impl CharacterProfileBatchProgress<'_> {
     fn report(&self, current: u32, total: u32, message: &str) -> Result<(), AppError> {
         if let Some(reporter) = self.reporter {
-            reporter(current, total.max(1), message)?;
+            reporter(current, total, message)?;
         }
         Ok(())
     }
 }
 
 impl OrchestratorContext {
-    pub async fn preflight_analysis_character_profile_sync_validated(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-    ) -> Result<(), AppError> {
-        let chapters = self.character_sync_chapters(project_id).await?;
-        let target_chapter =
-            validate_character_sync_target_chapter(&chapters, project_id, chapter_number)
-                .map_err(AppError::InvalidArgument)?;
-        let profiles = self.protagonist_profiles_for_project(project_id).await?;
-        let failures = analysis_character_profile_sync_preflight_failures(
-            &profiles,
-            &chapters,
-            target_chapter,
-        );
-        if failures.is_empty() {
-            return Ok(());
-        }
-        let details = failures
-            .iter()
-            .take(5)
-            .map(|(name, error)| format!("{name}: {error}"))
-            .collect::<Vec<_>>()
-            .join("；");
-        Err(AppError::InvalidState {
-            current: format!("角色档案同步预检失败：{} 个", failures.len()),
-            operation: format!("生成章节分析前请先补齐缺失章节或调整角色同步断点：{details}"),
-        })
-    }
-
     pub async fn run_all_character_profile_sync_validated(
         &self,
         project_id: i64,
@@ -73,7 +49,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         progress: CharacterProfileBatchProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<SyncAllCharacterProfilesResult, AppError> {
         progress.report(0, 1, "正在校验同步目标章节")?;
         let target_chapter = self
             .resolve_character_profile_sync_target_chapter(project_id, chapter_number)
@@ -82,37 +58,31 @@ impl OrchestratorContext {
 
         if profiles.is_empty() {
             progress.report(1, 1, "当前没有可同步的角色档案")?;
-            return Ok(json!({
-                "status": "skipped",
-                "target_chapter": target_chapter,
-                "total": 0,
-                "synced": [],
-                "skipped": [],
-                "failed": [],
-            }));
+            return Ok(character_profile_sync_batch_result(
+                target_chapter,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            ));
         }
 
-        let profile_count = profiles.len();
         let (synced, skipped, failed) = self
             .run_character_profile_sync_batch(
                 profiles,
                 target_chapter,
                 CharacterSyncRangeMode::Incremental,
                 CharacterProfileSyncAnchorMode::EnsureCurrent,
-                false,
                 prompt_renderer,
                 progress,
                 trace_port,
             )
             .await?;
-        Ok(json!({
-            "status": batch_status(&synced, &skipped, &failed),
-            "target_chapter": target_chapter,
-            "total": profile_count,
-            "synced": synced,
-            "skipped": skipped,
-            "failed": failed,
-        }))
+        Ok(character_profile_sync_batch_result(
+            target_chapter,
+            synced,
+            skipped,
+            failed,
+        ))
     }
 
     pub async fn prepare_all_character_profile_sync_preview_validated(
@@ -143,7 +113,7 @@ impl OrchestratorContext {
         Ok(steps)
     }
 
-    pub async fn run_analysis_character_profile_sync_validated(
+    pub(crate) async fn run_analysis_character_profile_sync_validated(
         &self,
         project_id: i64,
         chapter_number: i32,
@@ -152,7 +122,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         progress: CharacterProfileBatchProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<AnalysisCharacterProfileSyncResult, AppError> {
         progress.report(0, 1, "正在按章节分析结果选择待同步角色")?;
         let target_chapter = self
             .resolve_character_profile_sync_target_chapter(project_id, chapter_number)
@@ -174,15 +144,11 @@ impl OrchestratorContext {
         let sync_characters = sync_character_names.iter().cloned().collect::<Vec<_>>();
 
         if sync_character_keys.is_empty() {
-            return Ok(analysis_sync_summary(
+            return Ok(analysis_sync_result(
                 target_chapter,
-                &analysis_character_names,
                 analysis_characters,
-                &discovery_character_names,
                 discovery_characters,
-                &sync_character_names,
                 sync_characters,
-                0,
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
@@ -214,18 +180,13 @@ impl OrchestratorContext {
             .filter(|name| !all_profile_keys.contains(&character_identity_key(name)))
             .cloned()
             .collect::<Vec<_>>();
-        let matched_count = matched_profiles.len();
 
         if matched_profiles.is_empty() {
-            return Ok(analysis_sync_summary(
+            return Ok(analysis_sync_result(
                 target_chapter,
-                &analysis_character_names,
                 analysis_characters,
-                &discovery_character_names,
                 discovery_characters,
-                &sync_character_names,
                 sync_characters,
-                0,
                 unmatched_analysis_characters,
                 unmatched_sync_characters,
                 Vec::new(),
@@ -240,21 +201,16 @@ impl OrchestratorContext {
                 target_chapter,
                 CharacterSyncRangeMode::AnalysisResyncFromTarget,
                 CharacterProfileSyncAnchorMode::EnsureCurrent,
-                true,
                 prompt_renderer,
                 progress,
                 trace_port,
             )
             .await?;
-        Ok(analysis_sync_summary(
+        Ok(analysis_sync_result(
             target_chapter,
-            &analysis_character_names,
             analysis_characters,
-            &discovery_character_names,
             discovery_characters,
-            &sync_character_names,
             sync_characters,
-            matched_count,
             unmatched_analysis_characters,
             unmatched_sync_characters,
             synced,
@@ -280,11 +236,17 @@ impl OrchestratorContext {
         target_chapter: i32,
         range_mode: CharacterSyncRangeMode,
         anchor_mode: CharacterProfileSyncAnchorMode,
-        analysis_mode: bool,
         prompt_renderer: &dyn PromptRenderer,
         progress: CharacterProfileBatchProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<(Vec<Value>, Vec<Value>, Vec<Value>), AppError> {
+    ) -> Result<
+        (
+            Vec<CharacterProfileSyncedResult>,
+            Vec<CharacterProfileSkippedResult>,
+            Vec<CharacterProfileSyncFailure>,
+        ),
+        AppError,
+    > {
         let mut synced = Vec::new();
         let mut skipped = Vec::new();
         let mut failed = Vec::new();
@@ -298,19 +260,22 @@ impl OrchestratorContext {
                 total,
                 &format!("角色 {}/{} · {name}：准备同步", index + 1, total / 10),
             )?;
-            let skip_reason = if analysis_mode {
-                analysis_profile_sync_skip_reason(&profile, target_chapter)
-            } else {
-                profile_sync_skip_reason(&profile, target_chapter)
+            let skip_reason = match range_mode {
+                CharacterSyncRangeMode::Incremental => {
+                    profile_sync_skip_reason(&profile, target_chapter)
+                }
+                CharacterSyncRangeMode::AnalysisResyncFromTarget => {
+                    analysis_profile_sync_skip_reason(&profile, target_chapter)
+                }
             };
             if let Some(reason) = skip_reason {
-                skipped.push(if analysis_mode {
-                    sync_skip_summary_with_reason(&profile, target_chapter, reason)
-                } else {
-                    sync_skip_summary(&profile, target_chapter)
-                });
+                skipped.push(character_profile_skipped_result(
+                    &profile,
+                    target_chapter,
+                    reason,
+                ));
                 progress.report(
-                    base.saturating_add(CHARACTER_PROFILE_SYNC_STEPS),
+                    base + CHARACTER_PROFILE_SYNC_STEPS,
                     total,
                     &format!("角色 {} · {name}：无需同步，跳过", index + 1),
                 )?;
@@ -318,14 +283,13 @@ impl OrchestratorContext {
             }
 
             let profile_reporter = |current: u32, local_total: u32, message: &str| {
-                let local_total = local_total.max(1);
                 let offset = u64::from(current.min(local_total))
                     * u64::from(CHARACTER_PROFILE_SYNC_STEPS)
                     / u64::from(local_total);
-                let mapped = base.saturating_add(u32::try_from(offset).map_err(|_| {
+                let mapped = base + u32::try_from(offset).map_err(|_| {
                     AppError::InvalidArgument("角色同步进度超出 u32 范围".to_string())
-                })?);
-                progress.report(mapped.min(total), total, message)
+                })?;
+                progress.report(mapped, total, message)
             };
             let result = self
                 .run_character_profile_sync_validated(
@@ -344,12 +308,16 @@ impl OrchestratorContext {
                 )
                 .await;
             match result {
-                Ok(result) => synced.push(json!({ "name": name, "result": result })),
+                Ok(SyncCharacterProfileResult::Synced(result)) => synced.push(result),
+                Ok(SyncCharacterProfileResult::Skipped(result)) => skipped.push(result),
                 Err(AppError::Cancelled) => return Err(AppError::Cancelled),
-                Err(error) => failed.push(json!({ "name": name, "error": error.to_string() })),
+                Err(error) => failed.push(CharacterProfileSyncFailure {
+                    name: name.clone(),
+                    error: error.to_string(),
+                }),
             }
             progress.report(
-                base.saturating_add(CHARACTER_PROFILE_SYNC_STEPS),
+                base + CHARACTER_PROFILE_SYNC_STEPS,
                 total,
                 &format!("角色 {} · {name}：处理完成", index + 1),
             )?;
@@ -365,44 +333,6 @@ fn batch_progress_total(profile_count: usize) -> Result<u32, AppError> {
         .ok_or_else(|| AppError::InvalidArgument("批量角色同步进度超出 u32 范围".to_string()))
 }
 
-fn analysis_character_profile_sync_preflight_failures(
-    profiles: &[protagonist_profile::Model],
-    chapters: &[a4n_core::models::chapter::chapter::Model],
-    target_chapter: i32,
-) -> Vec<(String, String)> {
-    profiles
-        .iter()
-        .filter_map(|profile| {
-            if analysis_profile_sync_skip_reason(profile, target_chapter).is_some() {
-                return None;
-            }
-            let range = super::character_sync_range(
-                profile,
-                target_chapter,
-                CharacterSyncRangeMode::AnalysisResyncFromTarget,
-            )?;
-            let selected_chapter_numbers = chapters
-                .iter()
-                .map(|chapter| chapter.chapter_number)
-                .filter(|chapter| *chapter >= range.start_chapter && *chapter <= target_chapter)
-                .collect::<Vec<_>>();
-            let result = if selected_chapter_numbers.is_empty() {
-                Err(format!(
-                    "第 {} 到第 {} 章没有可同步内容",
-                    range.start_chapter, target_chapter
-                ))
-            } else {
-                super::validate_contiguous_character_sync_range(
-                    range.start_chapter,
-                    target_chapter,
-                    &selected_chapter_numbers,
-                )
-            };
-            result.err().map(|error| (profile.name.clone(), error))
-        })
-        .collect()
-}
-
 fn batch_progress_base(index: usize) -> Result<u32, AppError> {
     u32::try_from(index)
         .map_err(|_| AppError::InvalidArgument("角色序号超出 u32 范围".to_string()))?
@@ -410,54 +340,71 @@ fn batch_progress_base(index: usize) -> Result<u32, AppError> {
         .ok_or_else(|| AppError::InvalidArgument("角色同步进度基数超出 u32 范围".to_string()))
 }
 
-fn batch_status(synced: &[Value], skipped: &[Value], failed: &[Value]) -> &'static str {
+fn batch_status(
+    synced: &[CharacterProfileSyncedResult],
+    skipped: &[CharacterProfileSkippedResult],
+    failed: &[CharacterProfileSyncFailure],
+) -> CharacterProfileSyncBatchStatus {
     if failed.is_empty() {
         if synced.is_empty() {
-            "skipped"
+            CharacterProfileSyncBatchStatus::Skipped
         } else {
-            "synced"
+            CharacterProfileSyncBatchStatus::Synced
         }
     } else if synced.is_empty() && skipped.is_empty() {
-        "failed"
+        CharacterProfileSyncBatchStatus::Failed
     } else {
-        "completed_with_errors"
+        CharacterProfileSyncBatchStatus::CompletedWithErrors
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn analysis_sync_summary(
+fn character_profile_sync_batch_result(
     target_chapter: i32,
-    analysis_character_names: &BTreeSet<String>,
+    synced: Vec<CharacterProfileSyncedResult>,
+    skipped: Vec<CharacterProfileSkippedResult>,
+    failed: Vec<CharacterProfileSyncFailure>,
+) -> SyncAllCharacterProfilesResult {
+    SyncAllCharacterProfilesResult {
+        status: batch_status(&synced, &skipped, &failed),
+        target_chapter,
+        total: synced.len() + skipped.len() + failed.len(),
+        synced,
+        skipped,
+        failed,
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct AnalysisCharacterProfileSyncResult {
+    pub(crate) analysis_characters: Vec<String>,
+    pub(crate) discovery_characters: Vec<String>,
+    pub(crate) sync_characters: Vec<String>,
+    pub(crate) unmatched_analysis_characters: Vec<String>,
+    pub(crate) unmatched_sync_characters: Vec<String>,
+    #[serde(flatten)]
+    pub(crate) batch: SyncAllCharacterProfilesResult,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn analysis_sync_result(
+    target_chapter: i32,
     analysis_characters: Vec<String>,
-    discovery_character_names: &BTreeSet<String>,
     discovery_characters: Vec<String>,
-    sync_character_names: &BTreeSet<String>,
     sync_characters: Vec<String>,
-    matched: usize,
     unmatched_analysis_characters: Vec<String>,
     unmatched_sync_characters: Vec<String>,
-    synced: Vec<Value>,
-    skipped: Vec<Value>,
-    failed: Vec<Value>,
-) -> Value {
-    json!({
-        "status": batch_status(&synced, &skipped, &failed),
-        "scope": "analysis_characters",
-        "target_chapter": target_chapter,
-        "analysis_character_count": analysis_character_names.len(),
-        "analysis_characters": analysis_characters,
-        "discovery_character_count": discovery_character_names.len(),
-        "discovery_characters": discovery_characters,
-        "sync_character_count": sync_character_names.len(),
-        "sync_characters": sync_characters,
-        "matched": matched,
-        "unmatched_analysis_characters": unmatched_analysis_characters,
-        "unmatched_sync_characters": unmatched_sync_characters,
-        "total": matched,
-        "synced": synced,
-        "skipped": skipped,
-        "failed": failed,
-    })
+    synced: Vec<CharacterProfileSyncedResult>,
+    skipped: Vec<CharacterProfileSkippedResult>,
+    failed: Vec<CharacterProfileSyncFailure>,
+) -> AnalysisCharacterProfileSyncResult {
+    AnalysisCharacterProfileSyncResult {
+        analysis_characters,
+        discovery_characters,
+        sync_characters,
+        unmatched_analysis_characters,
+        unmatched_sync_characters,
+        batch: character_profile_sync_batch_result(target_chapter, synced, skipped, failed),
+    }
 }
 
 pub fn analysis_sync_character_names(

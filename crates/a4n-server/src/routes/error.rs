@@ -16,7 +16,7 @@ pub struct ApiError {
     details: Value,
 }
 
-/// Generation 固定路由使用的规范 Host 错误体；不污染旧 API 的 `{error}` 合同。
+/// Generation 固定路由使用生成合同的规范 Host 错误体。
 #[derive(Debug)]
 pub struct GenerationApiError {
     status: StatusCode,
@@ -82,8 +82,6 @@ struct ErrorBody {
     retryable: bool,
     trace_id: Option<String>,
     details: Value,
-    /// 兼容旧 Web 客户端；新调用方应读取 `message`。
-    error: String,
 }
 
 impl ApiError {
@@ -161,16 +159,14 @@ impl From<AppError> for ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let message = self.message;
         (
             self.status,
             Json(ErrorBody {
                 code: self.code,
-                message: message.clone(),
+                message: self.message,
                 retryable: self.retryable,
                 trace_id: None,
                 details: self.details,
-                error: message,
             }),
         )
             .into_response()
@@ -181,4 +177,16 @@ impl IntoResponse for GenerationApiError {
     fn into_response(self) -> Response {
         (self.status, Json(self.body)).into_response()
     }
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn api_error_serializes_only_the_canonical_message() {
+    let response = ApiError::bad_request("failed").into_response();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(value["message"], "failed");
+    assert!(value.get("error").is_none());
 }

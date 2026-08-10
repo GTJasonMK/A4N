@@ -842,7 +842,7 @@ jobs:
         env:
           A4N_REQUIRE_OPENSSL_MTLS: "1"
         run: |
-          cargo test -p a4n-service-manager --lib remote_tls_watcher_marks_certificate_directory_changes -- --nocapture
+          cargo test -p a4n-service-manager --lib remote_tls_fingerprint_detects_same_length_content_rotation -- --nocapture
           cargo test -p a4n-service-manager --lib remote_mtls_process_handshake_and_certificate_reload -- --nocapture
 
   sidecar-version-matrix:

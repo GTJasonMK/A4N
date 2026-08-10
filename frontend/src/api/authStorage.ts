@@ -17,6 +17,12 @@ export const readCurrentUserId = (): number | null => {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 };
 
+export const requireCurrentUserId = (): number => {
+  const id = readCurrentUserId();
+  if (id == null) throw new Error("未登录");
+  return id;
+};
+
 export const writeCurrentUserId = (id: number | null): void => {
   if (typeof window === "undefined") return;
   if (id == null) {

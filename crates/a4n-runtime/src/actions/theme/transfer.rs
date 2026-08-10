@@ -1,4 +1,4 @@
-use super::contracts::{ImportThemeInput, ThemeSummary};
+use super::{ImportThemeInput, ThemeSummary};
 use super::projections::to_summary;
 use crate::AppState;
 use a4n_core::error::AppError;

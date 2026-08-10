@@ -25,7 +25,9 @@ mapfile -t contract_modules < <(
 )
 for module in "${contract_modules[@]}"; do
     # Generation DTOs land before runtime's generation Host API in IG-CORE-01.
-    [[ "$module" == "generation_tasks" ]] && continue
+    # The command catalog is consumed by the server metadata route and CLI,
+    # not by runtime action handlers.
+    [[ "$module" == "generation_tasks" || "$module" == "command_manifest" ]] && continue
     if ! rg -q "a4n_api_contract::${module}[:{]" "$RUNTIME_ACTIONS"; then
         printf 'runtime does not consume canonical contract module: %s\n' "$module" >&2
         exit 1

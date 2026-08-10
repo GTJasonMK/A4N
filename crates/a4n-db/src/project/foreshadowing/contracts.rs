@@ -4,6 +4,19 @@ use serde_json::Value;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ForeshadowingDbError {
+    #[error("项目不存在，不能同步伏笔: project_id={project_id}")]
+    ProjectNotFound { project_id: i64 },
+    #[error("第 {chapter_number} 章不能回收伏笔 {foreshadowing_id}：{reason}")]
+    InvalidResolutionTarget {
+        foreshadowing_id: i64,
+        chapter_number: i32,
+        reason: String,
+    },
+    #[error("第 {chapter_number} 章重复回收伏笔 {foreshadowing_id}")]
+    DuplicateResolutionTarget {
+        foreshadowing_id: i64,
+        chapter_number: i32,
+    },
     #[error(transparent)]
     Database(#[from] DbErr),
 }

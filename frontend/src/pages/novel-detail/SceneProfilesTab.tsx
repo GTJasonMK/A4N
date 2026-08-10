@@ -6,7 +6,7 @@ import { ChevronRight,
   Route, } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
-import type { DownstreamConflictStrategy } from "../../api/dependencyConflict";
+import type { DownstreamConflictStrategy } from "../../api/generated/host";
 import {
   createSceneProfile,
   deleteSceneProfile,
@@ -27,7 +27,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
 import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
-import { cancelHostWorkflowTask } from "../../api/streaming";
+import { cancelWorkflow } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
@@ -40,7 +40,8 @@ import {
   SelectField,
   TextAreaField,
   TextField,
-  chapterRangeText,
+  profileChapterRangeText,
+  profileOwnershipLabel,
   splitLines,
   stringList,
 } from "./shared";
@@ -64,11 +65,14 @@ const IMPORTANCE_LABELS: Record<string, string> = {
   minor: "次要",
 };
 
-const sceneTypeLabel = (value: string): string => SCENE_TYPE_LABELS[value] ?? "其他";
+const sceneTypeLabel = (value: string): string =>
+  value ? (SCENE_TYPE_LABELS[value] ?? "其他") : "未确定";
 const importanceLabel = (value: string): string => IMPORTANCE_LABELS[value] ?? "未标注";
 
-const SCENE_TYPE_OPTIONS = Object.keys(SCENE_TYPE_LABELS);
-const IMPORTANCE_OPTIONS = Object.keys(IMPORTANCE_LABELS);
+const SCENE_TYPE_INPUT_LABELS = { "": "未确定", ...SCENE_TYPE_LABELS };
+const IMPORTANCE_INPUT_LABELS = { "": "未确定", ...IMPORTANCE_LABELS };
+const SCENE_TYPE_OPTIONS = Object.keys(SCENE_TYPE_INPUT_LABELS);
+const IMPORTANCE_OPTIONS = Object.keys(IMPORTANCE_INPUT_LABELS);
 
 export const SceneProfilesTab: React.FC<{
   projectId: number;
@@ -138,7 +142,7 @@ export const SceneProfilesTab: React.FC<{
       await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: "同步场景档案",
           startMessage: "正在准备场景档案同步",
@@ -274,12 +278,17 @@ export const SceneProfilesTab: React.FC<{
     }
     setBusyId(requestProfile.id);
     try {
-      await deleteSceneProfile(requestProfile.id, downstreamStrategy);
+      const result = await deleteSceneProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
-      addToast("场景档案已删除", "success");
+      addToast(
+        result.warnings.length > 0
+          ? `场景档案已删除；${result.warnings.join("；")}`
+          : "场景档案已删除",
+        result.warnings.length > 0 ? "info" : "success",
+      );
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, "删除场景档案失败"), "error");
@@ -337,13 +346,14 @@ export const SceneProfilesTab: React.FC<{
     }
     setBusyId(existingProfile ? existingProfile.id : -1);
     try {
-      const saved =
+      const result =
         existingProfile
           ? await updateSceneProfile(existingProfile.id, {
               ...input,
               downstream_strategy: downstreamStrategy,
             })
           : await createSceneProfile(requestProjectId, input);
+      const saved = result.profile;
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存场景档案返回了其他项目的数据");
@@ -352,7 +362,13 @@ export const SceneProfilesTab: React.FC<{
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);
-      addToast(editingProfile === "new" ? "场景档案已创建" : "场景档案已更新", "success");
+      const successMessage = editingProfile === "new" ? "场景档案已创建" : "场景档案已更新";
+      addToast(
+        result.warnings.length > 0
+          ? `${successMessage}；${result.warnings.join("；")}`
+          : successMessage,
+        result.warnings.length > 0 ? "info" : "success",
+      );
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, "保存场景档案失败"), "error");
@@ -445,7 +461,7 @@ export const SceneProfilesTab: React.FC<{
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
                   <div className="mt-0.5 text-caption text-book-text-muted">
-                    {sceneTypeLabel(profile.scene_type)} · {importanceLabel(profile.importance)} · {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
+                    {sceneTypeLabel(profile.scene_type)} · {importanceLabel(profile.importance)} · {profileOwnershipLabel(profile.ownership_kind)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind)}
                   </div>
                   <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
                     {profile.visual_description || profile.base_description || "暂无场景摘要。"}
@@ -523,12 +539,13 @@ function SceneProfileDetailModal({
       {profile ? (
         <div className="space-y-3 text-xs text-book-text-sub">
           <p className="text-small leading-relaxed text-book-text-muted">
-            {chapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter)}
+            {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind)}
             {aliases.length > 0 ? ` · 别名：${aliases.join("、")}` : ""}
             {profile.occurrence_count > 0 ? ` · ${profile.occurrence_count} 次出场` : ""}
             {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
           </p>
           <dl className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
+            <DetailRow label="资料来源" value={profileOwnershipLabel(profile.ownership_kind)} />
             <DetailRow label="基础定义" value={profile.base_description} />
             <DetailRow label="视觉特征" value={profile.visual_description} />
             <DetailRow label="空间布局" value={profile.spatial_layout} />
@@ -610,7 +627,7 @@ function SceneProfileEditModal({
         <BookButton
           variant="primary"
           onClick={() => void submit()}
-          disabled={busy || saving || !draft.name.trim() || !draft.visual_description.trim()}
+          disabled={busy || saving || !draft.name.trim()}
         >
           {saving ? <LoadingSpinner size="sm" /> : null}
           保存
@@ -618,20 +635,23 @@ function SceneProfileEditModal({
       }
     >
       <fieldset disabled={busy || saving} className="grid gap-3 text-xs disabled:opacity-75">
+        <p className="text-caption leading-relaxed text-book-text-muted">
+          只需名称即可保存；空白字段可在后续手工补充或由章节分析补齐。尚未确定出场章节时可保留默认值。
+        </p>
         <div className="grid gap-2 md:grid-cols-2">
           <TextField label="名称" value={draft.name} onChange={(value) => update("name", value)} />
           <SelectField
             label="类型"
             value={draft.scene_type}
             options={SCENE_TYPE_OPTIONS}
-            labels={SCENE_TYPE_LABELS}
+            labels={SCENE_TYPE_INPUT_LABELS}
             onChange={(value) => update("scene_type", value)}
           />
           <SelectField
             label="重要性"
             value={draft.importance}
             options={IMPORTANCE_OPTIONS}
-            labels={IMPORTANCE_LABELS}
+            labels={IMPORTANCE_INPUT_LABELS}
             onChange={(value) => update("importance", value)}
           />
           <label className="flex flex-col gap-1">
@@ -779,8 +799,8 @@ function emptySceneProfileInput(): SceneProfileInput {
   return {
     name: "",
     aliases: [],
-    scene_type: "room",
-    importance: "secondary",
+    scene_type: "",
+    importance: "",
     parent_scene_id: null,
     base_description: "",
     visual_description: "",
@@ -815,14 +835,8 @@ function sceneProfileToInput(profile: SceneProfile): SceneProfileInput {
   };
 }
 
-function validateSceneProfileDraft(draft: SceneProfileInput): string | null {
+export function validateSceneProfileDraft(draft: SceneProfileInput): string | null {
   if (!draft.name.trim()) return "场景名称不能为空";
-  if (!draft.base_description.trim()) return "场景基础定义不能为空";
-  if (!draft.visual_description.trim()) return "场景视觉特征不能为空";
-  if (!draft.spatial_layout.trim()) return "场景空间布局不能为空";
-  if (!draft.atmosphere.trim()) return "场景氛围不能为空";
-  if (!draft.image_prompt_seed.trim()) return "场景图像描述不能为空";
-  if (!draft.evidence || draft.evidence.length === 0) return "场景证据不能为空";
   if (!Number.isInteger(draft.first_seen_chapter) || draft.first_seen_chapter <= 0) {
     return "场景首次出现章节必须是正整数";
   }

@@ -1,5 +1,5 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import { activeLocalEmbeddingConfig } from "../localRuntimeSettings";
 import { embedTextsLocally } from "../config/embedding";
 import {
@@ -12,12 +12,6 @@ import type {
   RagIngestResult,
 } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法同步 RAG");
-  return id;
-};
 
 export const formatRagIngestResultSummary = (result: RagIngestResult): string =>
   `写入 ${result.chunk_count}，新增 ${result.added_count}，更新 ${result.updated_count}，跳过 ${result.skipped_count}，删除 ${result.deleted_count}`;
@@ -44,7 +38,6 @@ async function ragIngestAllWithLocalDesktopEmbedding(
 ): Promise<RagIngestResult> {
   const projectIdNum = idNum(projectId);
   const embeddingConfig = activeLocalEmbeddingConfig();
-  if (!embeddingConfig) throw new Error("请先设置默认 Embedding 配置");
 
   const prepared = await apiInvoke<ClientRagIngestPrepareOutput>("rag_prepare_ingest_all", {
     userId: currentUserId(),
@@ -52,8 +45,12 @@ async function ragIngestAllWithLocalDesktopEmbedding(
     rebuild,
   });
 
-  const uploaded: Array<{ chunk_id: string; embedding: number[] }> = [];
-  const batchSize = Math.max(1, embeddingConfig.batch_size || 32);
+  const uploaded: Array<{
+    chunk_id: string;
+    content_hash: string;
+    embedding: number[];
+  }> = [];
+  const batchSize = embeddingConfig.batch_size;
   for (let start = 0; start < prepared.records.length; start += batchSize) {
     const batch = prepared.records.slice(start, start + batchSize);
     const embedded = await embedTextsLocally(
@@ -65,6 +62,7 @@ async function ragIngestAllWithLocalDesktopEmbedding(
     for (let index = 0; index < batch.length; index += 1) {
       uploaded.push({
         chunk_id: batch[index].chunk_id,
+        content_hash: batch[index].content_hash,
         embedding: embedded.embeddings[index],
       });
     }
@@ -76,6 +74,7 @@ async function ragIngestAllWithLocalDesktopEmbedding(
     input: {
       operation_trace_id: prepared.operation_trace_id,
       embedding_identity: prepared.embedding_identity,
+      rebuild: prepared.rebuild,
       embeddings: uploaded,
     },
   });

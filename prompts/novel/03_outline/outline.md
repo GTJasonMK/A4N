@@ -26,6 +26,12 @@ tags: outline, planning, chapter
     "chapters_per_part": 20,
     "characters": [],
     "relationships": [],
+    "formal_materials": {
+      "character_profiles": [],
+      "objects": [],
+      "scenes": [],
+      "foreshadowing": []
+    },
     "chapter_outline": []
   },
   "part_outlines": [],
@@ -40,7 +46,9 @@ tags: outline, planning, chapter
 
 字段含义：
 
-- `novel_blueprint` 是最高优先级的世界观、角色、关系和主线约束。
+- `novel_blueprint.formal_materials` 是用户编辑或正文分析形成的当前正式资料；与其他字段冲突时，以这里的当前事实为准。
+- `novel_blueprint.characters` 和 `novel_blueprint.relationships` 是蓝图中的长期角色规划与关系走向，不代表这些状态在当前章节已经发生。
+- 当 `novel_blueprint.blueprint_available` 为 `false` 时，输入只是已有项目资料的请求级投影，不是暂定蓝图；只能基于已经提供的事实规划，不要假装全书主线已经确定。
 - `novel_blueprint.chapter_outline` 是已经存在的章节大纲，只能作为承接上下文，不能重复生成。
 - `part_outlines` 是全书分部结构，用于保证当前章节在全书结构中的位置正确。
 - `active_part_outline` 是当前生成范围所属分部；如果为 `null`，仍必须根据 `wait_to_generate` 生成章节。
@@ -49,7 +57,7 @@ tags: outline, planning, chapter
 
 ## 生成规则
 
-1. 严格承接 `novel_blueprint`、已有 `chapter_outline`、`part_outlines` 和 `active_part_outline`，不能引入与世界观、角色动机、关系网络矛盾的新设定。
+1. 严格承接 `novel_blueprint`、已有 `chapter_outline`、`part_outlines` 和 `active_part_outline`，不能引入与世界观、正式资料、角色动机或关系网络矛盾的新设定。正式资料描述当前事实，蓝图关系演化只能约束后续走向，不能被提前写成已经发生。
 2. `chapters` 数组顺序必须对应 `wait_to_generate.start_chapter` 到 `wait_to_generate.end_chapter`，不要输出章节号字段。
 3. `chapters` 数组长度必须等于 `wait_to_generate.num_chapters`。
 4. 每章必须有清晰的剧情功能：推进主线、制造冲突、深化角色、埋设或回收伏笔。

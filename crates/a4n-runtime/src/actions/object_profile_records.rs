@@ -1,11 +1,12 @@
 mod conflicts;
-mod contracts;
 mod draft;
 mod mutations;
 mod projections;
 mod queries;
 
-pub use contracts::*;
+pub use a4n_api_contract::profile::{
+    ListObjectProfilesInput, ObjectProfileInput, ObjectProfileSummary,
+};
 pub use mutations::*;
 pub use queries::list_object_profiles;
 

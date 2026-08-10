@@ -85,7 +85,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
                 api_key_encrypted: form.clear_api_key
                   ? null
                   : form.api_key.trim() || undefined,
-                config_id: configId,
+                config_id: configId ?? null,
                 use_saved_api_key: Boolean(
                   !readonly &&
                     configId != null &&

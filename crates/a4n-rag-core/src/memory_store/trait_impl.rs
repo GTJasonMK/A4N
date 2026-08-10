@@ -17,7 +17,7 @@ impl VectorStore for MemoryVectorStore {
         collection: &str,
         records: Vec<EmbeddingRecord>,
     ) -> Result<usize, AppError> {
-        self.add_memory_embeddings(collection, records).await
+        self.add_memory_embeddings(collection, records)
     }
 
     async fn query(
@@ -28,7 +28,6 @@ impl VectorStore for MemoryVectorStore {
         filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, AppError> {
         self.query_memory(collection, query_embedding, top_k, filters)
-            .await
     }
 
     async fn search_text(
@@ -39,7 +38,6 @@ impl VectorStore for MemoryVectorStore {
         filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, AppError> {
         self.search_memory_text(collection, query_text, top_k, filters)
-            .await
     }
 
     async fn hybrid_search(
@@ -52,37 +50,15 @@ impl VectorStore for MemoryVectorStore {
         _vector_weight: Option<f32>,
     ) -> Result<Vec<SearchResult>, AppError> {
         self.hybrid_memory_search(collection, query_text, query_embedding, top_k, filters)
-            .await
     }
 
     async fn delete(&self, collection: &str, filter: DeleteFilter) -> Result<usize, AppError> {
-        self.delete_memory_records(collection, filter).await
-    }
-
-    async fn collection_exists(&self, collection: &str) -> Result<bool, AppError> {
-        Ok(self.memory_collection_exists(collection).await)
-    }
-
-    async fn count(&self, collection: &str) -> Result<usize, AppError> {
-        self.memory_collection_count(collection).await
+        Ok(self.delete_memory_records(collection, filter))
     }
 
     async fn drop_collection(&self, collection: &str) -> Result<(), AppError> {
-        self.drop_memory_collection(collection).await;
+        self.drop_memory_collection(collection);
         Ok(())
-    }
-
-    async fn list_collections(&self) -> Result<Vec<String>, AppError> {
-        Ok(self.list_memory_collections().await)
-    }
-
-    async fn update_metadata(
-        &self,
-        collection: &str,
-        id: &str,
-        metadata: serde_json::Value,
-    ) -> Result<(), AppError> {
-        self.update_memory_metadata(collection, id, metadata).await
     }
 
     async fn metadata_by_ids(
@@ -90,7 +66,7 @@ impl VectorStore for MemoryVectorStore {
         collection: &str,
         ids: &[String],
     ) -> Result<HashMap<String, serde_json::Value>, AppError> {
-        Ok(self.memory_metadata_by_ids(collection, ids).await)
+        Ok(self.memory_metadata_by_ids(collection, ids))
     }
 
     async fn metadata_by_filter(
@@ -98,20 +74,7 @@ impl VectorStore for MemoryVectorStore {
         collection: &str,
         filter: DeleteFilter,
     ) -> Result<HashMap<String, serde_json::Value>, AppError> {
-        Ok(self.memory_metadata_by_filter(collection, filter).await)
-    }
-
-    async fn health_check(&self) -> Result<bool, AppError> {
-        Ok(true)
-    }
-
-    async fn completeness_report(
-        &self,
-        collection: &str,
-        expected_count: usize,
-    ) -> Result<CompletenessReport, AppError> {
-        self.memory_completeness_report(collection, expected_count)
-            .await
+        Ok(self.memory_metadata_by_filter(collection, filter))
     }
 
     async fn completeness_report_by_ids(
@@ -119,8 +82,6 @@ impl VectorStore for MemoryVectorStore {
         collection: &str,
         expected_ids: &[String],
     ) -> Result<CompletenessReport, AppError> {
-        Ok(self
-            .memory_completeness_report_by_ids(collection, expected_ids)
-            .await)
+        Ok(self.memory_completeness_report_by_ids(collection, expected_ids))
     }
 }

@@ -9,7 +9,6 @@ use a4n_orchestrator::{
         chapter_analysis_resume_block_reason, chapter_analysis_run_input_matches,
         chapter_analysis_workflow_business_key, chapter_analysis_workflow_fingerprint,
         chapter_analysis_workflow_run_input, ensure_chapter_analysis_character_sync_completed,
-        ensure_previous_chapter_analysis_complete_from_rows,
         require_completed_chapter_analysis_phase,
     },
     workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING},
@@ -62,46 +61,6 @@ fn valid_analysis_data() -> Value {
 }
 
 #[test]
-fn previous_analysis_preflight_rejects_unanalyzed_prior_chapters() {
-    let previous = vec![
-        chapter_row(1, "正文", chapter::STATUS_DRAFT, true),
-        chapter_row(2, "正文", chapter::STATUS_DRAFT, false),
-    ];
-
-    let error = ensure_previous_chapter_analysis_complete_from_rows("生成结构化分析", 3, &previous)
-        .expect_err("missing previous analysis should block later chapter");
-
-    let message = error.to_string();
-    assert!(message.contains("第2章未生成结构化分析"));
-    assert!(message.contains("不能跳过前序章节"));
-}
-
-#[test]
-fn previous_analysis_preflight_rejects_invalid_prior_analysis_data() {
-    let mut invalid = chapter_row(1, "正文", chapter::STATUS_DRAFT, true);
-    invalid.analysis_data = Some(json!({"metadata": {}}));
-
-    let error =
-        ensure_previous_chapter_analysis_complete_from_rows("生成结构化分析", 2, &[invalid])
-            .expect_err("invalid previous analysis should block later chapter");
-
-    let message = error.to_string();
-    assert!(message.contains("第1章结构化分析数据无效"));
-    assert!(message.contains("chapter_analysis"));
-}
-
-#[test]
-fn previous_analysis_preflight_accepts_analyzed_prior_chapters() {
-    let previous = vec![
-        chapter_row(1, "正文", chapter::STATUS_DRAFT, true),
-        chapter_row(2, "正文", chapter::STATUS_IMPORTED, true),
-    ];
-
-    ensure_previous_chapter_analysis_complete_from_rows("生成结构化分析", 3, &previous)
-        .expect("all previous chapters are analyzed");
-}
-
-#[test]
 fn workflow_input_uses_stable_business_key_and_content_fingerprint() {
     let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
     let input = chapter_analysis_workflow_run_input(
@@ -127,9 +86,18 @@ fn workflow_input_uses_stable_business_key_and_content_fingerprint() {
         .input_fingerprint_json
         .expect("workflow input should include fingerprint");
     assert_eq!(fingerprint["workflow_kind"], "chapter_analysis");
-    assert_eq!(fingerprint["project_id"], 1);
-    assert_eq!(fingerprint["chapter_id"], 3);
-    assert_eq!(fingerprint["content_sha256"], source_content_sha256("正文"));
+    assert_eq!(fingerprint["schema_version"], 2);
+    assert!(fingerprint["analysis_revision"].as_str().is_some());
+    assert_eq!(fingerprint["source_fingerprint"]["project_id"], 1);
+    assert_eq!(fingerprint["source_fingerprint"]["chapter_id"], 3);
+    assert_eq!(
+        fingerprint["source_fingerprint"]["content_sha256"],
+        source_content_sha256("正文")
+    );
+    assert!(chapter_analysis_run_input_matches(
+        &Some(fingerprint),
+        &chapter
+    ));
 }
 
 #[test]

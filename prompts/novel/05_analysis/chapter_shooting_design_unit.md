@@ -20,6 +20,7 @@ tags: [analysis, directing, shot, blocking, design-unit]
 - `scene_identity`、`title`、`slugline`、`dramatic_question`、`scene_objective`、`scene_obstacle`、`relationship_before`、`relationship_after`、`sound_strategy`、`entry_state`、`exit_state`：非空 string。
 - `participants`、`source_span_ids`、`audience_knowledge_before`、`audience_knowledge_after`、`withheld_information`：string[]，即使只有一句话也必须写成 `["一句话"]`，没有内容时写 `[]`，禁止直接输出 string。
 - `transition_contracts`、`shots`：object[]。
+- `transition_contracts[].to_narrative_unit_index`：正整数；`transition_type`：非空 string；`preserved_action`、`preserved_sound`、`required_cut_point`：string|null。
 - `transition_contracts[].preserved_knowledge`、`shots[].source_span_ids`、`shots[].spatial_anchors`、`shots[].continuity_requirements`：string[]。
 - `shots[].performance_beats`、`shots[].dialogue_cues`：object[]。
 - `shots[].performance_beats[].source_span_ids`、`shots[].performance_beats[].knowledge_delta`：string[]。
@@ -127,6 +128,7 @@ tags: [analysis, directing, shot, blocking, design-unit]
 
 - 原样复制 design unit 的身份、编排、转场、来源、人物、戏剧目标和状态字段；后端会以改编合同覆盖这些字段并重建所有序号与 ID。
 - 只设计当前 unit；不得输出相邻 unit 的镜头。
+- performance beat 的 `actor` 只能为 `null`，或逐字复制 `participants` 中的一个数组项；多人动作拆成多个 beat，禁止拼接 participant 名称。
 - required performance fact 必须且只能被一个 `required: true` 的 performance beat 覆盖；该 beat 必须带上该 fact 的 source span。
 - 镜头和表演只能引用输入 source spans；不能制造正文中不存在的动作、对白、反应、认知变化或空间事实。
 - 回切到同一 `scene_identity` 时，从完整 `shooting_screenplay_plan` 中查找时间线上最近的同场景前序 unit，延续轴线、屏幕方向、人物位置、动作相位、道具状态、光线和环境声；若有意打破连续性，必须在 `spatial_continuity` 和 `continuity_requirements` 中显式说明。

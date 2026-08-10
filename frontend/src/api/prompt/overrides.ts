@@ -1,26 +1,17 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import { type ApiId as Id, idNum } from "../shared";
-import type { ProjectPromptOverrideSummary } from "./types";
+import type {
+  ProjectPromptOverrideSummary,
+  RemoveOverrideInput,
+  SetOverrideInput,
+} from "../generated/host";
 
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法管理项目提示词覆盖");
-  return id;
-};
-
-export async function promptSetProjectOverride(input: {
-  project_id: number;
-  name: string;
-  content: string;
-}): Promise<void> {
+export async function promptSetProjectOverride(input: SetOverrideInput): Promise<void> {
   return apiInvoke<void>("prompt_set_project_override", { userId: currentUserId(), input });
 }
 
-export async function promptRemoveProjectOverride(input: {
-  project_id: number;
-  name: string;
-}): Promise<void> {
+export async function promptRemoveProjectOverride(input: RemoveOverrideInput): Promise<void> {
   return apiInvoke<void>("prompt_remove_project_override", { userId: currentUserId(), input });
 }
 

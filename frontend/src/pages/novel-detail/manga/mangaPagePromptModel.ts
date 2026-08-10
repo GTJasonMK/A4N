@@ -2,10 +2,10 @@ import type { CharacterProfile } from "../../../api/character";
 import type { GeneratedImage } from "../../../api/image";
 import type {
   MangaBoundReferenceAsset,
-  MangaPanel,
+  MangaPipelineStatusSummary,
+  MangaPromptSummary,
   MangaReferenceAssetKind,
-  MangaReferenceBinding,
-  PipelineStatus,
+  MangaReferenceBindingSummary,
 } from "../../../api/manga";
 import type { Portrait } from "../../../api/portrait";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
@@ -24,7 +24,7 @@ export type LayoutSummaryItem = {
 
 export type MangaPagePrompt = {
   pageNumber: number;
-  prompt: MangaPanel;
+  prompt: MangaPromptSummary;
   promptCount: number;
   source: MangaPanelSource;
   sourceStale: boolean;
@@ -39,7 +39,7 @@ type ReferenceBindingSlot = {
   label: string;
   targetType: string;
   targetName: string | null;
-  purpose: string | null;
+  purpose: string;
   required: boolean;
   assetKind: MangaReferenceAssetKind;
   status: string;
@@ -56,7 +56,9 @@ type ReferenceCandidate = {
   rank: number;
 };
 
-export const sumPipelinePrompts = (status: PipelineStatus | null | undefined): number => {
+export const sumPipelinePrompts = (
+  status: MangaPipelineStatusSummary | null | undefined,
+): number => {
   if (!status) return 0;
   return status.pending + status.generating + status.completed + status.failed + status.cancelled;
 };
@@ -65,13 +67,13 @@ const numberValue = (value: unknown): number | null => {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 };
 
-const pageCharacterNames = (panel: MangaPanel): string[] => {
+const pageCharacterNames = (panel: MangaPromptSummary): string[] => {
   return [...new Set(panel.page_plan.panels.flatMap((item) => item.participants))].sort((a, b) =>
     a.localeCompare(b, "zh-Hans-CN"),
   );
 };
 
-const referenceBinding = (binding: MangaReferenceBinding): ReferenceBindingSlot => ({
+const referenceBinding = (binding: MangaReferenceBindingSummary): ReferenceBindingSlot => ({
   slotId: binding.slot_id,
   label: binding.label,
   targetType: binding.target_type,
@@ -114,7 +116,7 @@ const READING_FLOW_LABELS: Record<string, string> = {
   diagonal: "对角线",
 };
 
-const buildLayoutItems = (panel: MangaPanel): LayoutSummaryItem[] => [
+const buildLayoutItems = (panel: MangaPromptSummary): LayoutSummaryItem[] => [
   {
     key: "role",
     label: "页面功能",
@@ -148,7 +150,7 @@ const buildLayoutItems = (panel: MangaPanel): LayoutSummaryItem[] => [
 ];
 
 export const buildPagePrompts = (
-  panels: MangaPanel[],
+  panels: MangaPromptSummary[],
   currentContentHash: string | null,
 ): MangaPagePrompt[] => {
   return [...panels]

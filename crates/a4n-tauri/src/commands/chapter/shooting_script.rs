@@ -3,10 +3,9 @@ use a4n_core::event::channel::TaskKind;
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::shooting_script_records as shooting_script_records_actions;
 use shooting_script_records_actions::{
-    CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterShootingScriptUnitProgressView,
-    ChapterShootingScriptView, EditChapterShootingScriptRecordInput,
-    EditedChapterShootingScriptView, GenerateChapterShootingScriptInput,
-    GetChapterShootingScriptInput,
+    CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterShootingScriptSourceInput,
+    ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
+    EditChapterShootingScriptInput, EditedChapterShootingScriptView,
 };
 use tauri::State;
 
@@ -14,7 +13,7 @@ use tauri::State;
 pub async fn get_chapter_shooting_script(
     state: State<'_, AppState>,
     user_id: i64,
-    input: GetChapterShootingScriptInput,
+    input: ChapterShootingScriptSourceInput,
 ) -> Result<Option<ChapterShootingScriptView>, String> {
     shooting_script_records_actions::get_chapter_shooting_script(state.inner(), user_id, input)
         .await
@@ -24,7 +23,7 @@ pub async fn get_chapter_shooting_script(
 pub async fn get_chapter_shooting_script_unit_progress(
     state: State<'_, AppState>,
     user_id: i64,
-    input: GetChapterShootingScriptInput,
+    input: ChapterShootingScriptSourceInput,
 ) -> Result<Option<ChapterShootingScriptUnitProgressView>, String> {
     shooting_script_records_actions::get_chapter_shooting_script_unit_progress(
         state.inner(),
@@ -38,7 +37,7 @@ pub async fn get_chapter_shooting_script_unit_progress(
 pub async fn generate_next_chapter_shooting_script_unit(
     state: State<'_, AppState>,
     user_id: i64,
-    input: GenerateChapterShootingScriptInput,
+    input: ChapterShootingScriptSourceInput,
     task_id: Option<String>,
 ) -> Result<ChapterShootingScriptUnitProgressView, String> {
     let progress_task = WorkflowProgressTask::new(
@@ -77,7 +76,7 @@ pub async fn generate_next_chapter_shooting_script_unit(
 pub async fn generate_chapter_shooting_script(
     state: State<'_, AppState>,
     user_id: i64,
-    input: GenerateChapterShootingScriptInput,
+    input: ChapterShootingScriptSourceInput,
     task_id: Option<String>,
 ) -> Result<ChapterShootingScriptView, String> {
     let progress_task = WorkflowProgressTask::new(
@@ -116,7 +115,7 @@ pub async fn generate_chapter_shooting_script(
 pub async fn edit_chapter_shooting_script(
     state: State<'_, AppState>,
     user_id: i64,
-    input: EditChapterShootingScriptRecordInput,
+    input: EditChapterShootingScriptInput,
 ) -> Result<EditedChapterShootingScriptView, String> {
     shooting_script_records_actions::edit_chapter_shooting_script(state.inner(), user_id, input)
         .await

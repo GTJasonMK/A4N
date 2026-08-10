@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, Suspense, lazy } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { Moon, Network, Sun } from "lucide-react";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Moon, Network, Settings, Sun } from "lucide-react";
 import { ToastContainer } from "./components/feedback/Toast";
 import { ErrorBoundary } from "./components/feedback/ErrorBoundary";
 import { ConfirmDialogHost } from "./components/feedback/ConfirmDialog";
@@ -17,6 +17,7 @@ import {
   loadAndApplyActiveTheme,
   THEME_MODE_STORAGE_KEY,
   THEME_APPLIED_EVENT,
+  type ThemeAppliedDetail,
 } from "./theme/activeTheme";
 import { logger } from "./utils/logger";
 import { readPortableItem } from "./utils/portableStorage";
@@ -78,11 +79,14 @@ function currentProjectIdFromPath(pathname: string): number | null {
 function Layout({ children }: { children: (ctx: { isDark: boolean }) => React.ReactNode }) {
   const { initialized, user } = useAuthStore();
   const location = useLocation();
+  const navigate = useNavigate();
   const projectId = currentProjectIdFromPath(location.pathname);
   const dependencyGraphAvailable =
     projectId != null && !/^\/video-project\/\d+\/studio(?:\/|$)/.test(location.pathname);
+  const settingsShortcutAvailable =
+    location.pathname !== "/" && location.pathname !== "/settings";
   const [dependencyGraphOpen, setDependencyGraphOpen] = useState(false);
-  const [isDark, setIsDark] = usePersistedState<boolean>("a4n-theme-mode", false, {
+  const [isDark, setIsDark] = usePersistedState<boolean>(THEME_MODE_STORAGE_KEY, false, {
     parse: (raw) => String(raw).trim().toLowerCase() === "dark",
     serialize: (value) => (value ? "dark" : "light"),
   });
@@ -131,7 +135,7 @@ function Layout({ children }: { children: (ctx: { isDark: boolean }) => React.Re
   // 监听 ThemeTab 激活主题事件，同步 Layout 的 isDark 状态
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ mode?: string }>).detail;
+      const detail = (e as CustomEvent<ThemeAppliedDetail>).detail;
       if (detail?.mode === "dark") setIsDark(true);
       else if (detail?.mode === "light") setIsDark(false);
     };
@@ -173,6 +177,17 @@ function Layout({ children }: { children: (ctx: { isDark: boolean }) => React.Re
             >
               {isDark ? <Sun size={12} /> : <Moon size={12} />}
             </button>
+            {settingsShortcutAvailable ? (
+              <button
+                type="button"
+                aria-label="打开设置"
+                title="打开设置"
+                onClick={() => navigate("/settings")}
+                className="a4n-status-bar-action"
+              >
+                <Settings size={12} />
+              </button>
+            ) : null}
           </>
         }
       />

@@ -1,31 +1,21 @@
 use serde_json::Value;
 
-use super::super::super::{
-    ApiError, ServerState, i64_arg, manga_pipeline_actions, optional_string_field,
-    required_json_i32, to_value,
-};
+use super::super::super::{ApiError, ServerState, command_input, manga_pipeline_actions, to_value};
 
 pub(in crate::routes::commands) async fn preview_start_manga_pipeline_request(
     state: &ServerState,
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_number = required_json_i32(
-        args,
-        "chapterNumber",
-        "preview_start_manga_pipeline_request",
-    )?;
-    let start_from_stage = manga_pipeline_actions::parse_manga_pipeline_start_stage(
-        optional_string_field(args, "startFromStage")?,
-    )?;
+    let input: manga_pipeline_actions::MangaPipelineStartInput =
+        command_input(args, "preview_start_manga_pipeline_request")?;
     preview_manga_pipeline_request(
         state,
         user_id,
-        project_id,
-        chapter_number,
+        input.project_id,
+        input.chapter_number,
         false,
-        start_from_stage,
+        input.start_from_stage,
     )
     .await
 }
@@ -35,13 +25,17 @@ pub(in crate::routes::commands) async fn preview_resume_manga_pipeline_request(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_number = required_json_i32(
-        args,
-        "chapterNumber",
-        "preview_resume_manga_pipeline_request",
-    )?;
-    preview_manga_pipeline_request(state, user_id, project_id, chapter_number, true, None).await
+    let input: manga_pipeline_actions::MangaPipelineResumeInput =
+        command_input(args, "preview_resume_manga_pipeline_request")?;
+    preview_manga_pipeline_request(
+        state,
+        user_id,
+        input.project_id,
+        input.chapter_number,
+        true,
+        None,
+    )
+    .await
 }
 
 pub(in crate::routes::commands) async fn preview_manga_pipeline_request(

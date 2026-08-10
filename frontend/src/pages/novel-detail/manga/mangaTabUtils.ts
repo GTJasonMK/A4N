@@ -1,4 +1,4 @@
-import type { MangaPanel, MangaPipelineStartStage } from "../../../api/manga";
+import type { MangaPipelineStartStage, MangaPromptSummary } from "../../../api/manga";
 import type { ChapterRow } from "../shared";
 import { nonEmptyText } from "../../../utils/text";
 
@@ -41,7 +41,7 @@ export const chapterHeading = (chapter: ChapterRow): string => {
   return title ? `第 ${chapter.chapter_number} 章 · ${title}` : `第 ${chapter.chapter_number} 章`;
 };
 
-export const extractMangaPanelSource = (panel: MangaPanel): MangaPanelSource => {
+export const extractMangaPanelSource = (panel: MangaPromptSummary): MangaPanelSource => {
   return {
     content_sha256: panel.source.content_sha256,
     source_revision_key: panel.source.source_revision_key,
@@ -59,7 +59,7 @@ export const isMangaPanelSourceStale = (
 };
 
 export const summarizePanelSources = (
-  panels: MangaPanel[],
+  panels: MangaPromptSummary[],
   currentContentHash: string | null,
 ): MangaPanelSourceStatus => {
   let sourcedCount = 0;

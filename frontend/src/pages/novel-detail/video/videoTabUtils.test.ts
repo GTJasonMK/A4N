@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type {
   ChapterVideoPrompt,
   GeneratedVideo,
+  VideoGenConfig,
   VideoSegmentExecutionRecipe,
 } from "../../../api/video";
 import {
@@ -20,8 +21,65 @@ import {
   videoExecutionPromptsShareGenerationChain,
   videoExecutionSegmentIdentityMatchesVideo,
   videoGuidanceConfigurationError,
+  videoPromptSourceFrameNumbers,
+  videoDurationLimitsFromConfig,
   videoSegmentRecipeGenerationFingerprintJson,
 } from "./videoTabUtils";
+
+const videoConfigBase = {
+  api_key_encrypted: null,
+  backend: "openai-compatible-video",
+  base_url: "https://video.example/v1",
+  created_at: null,
+  default_fps: 24,
+  default_height: 720,
+  default_width: 1280,
+  has_api_key: false,
+  id: 1,
+  is_default: true,
+  max_concurrent: 1,
+  model: "video-model",
+  name: "视频配置",
+  updated_at: null,
+};
+
+it("maps validated range and fixed video duration capabilities", () => {
+  const rangeConfig: VideoGenConfig = {
+    ...videoConfigBase,
+    default_duration_secs: 6,
+    min_duration_secs: 1,
+    max_duration_secs: 12,
+    duration_mode: "range",
+    supported_durations_json: null,
+  };
+  const fixedConfig: VideoGenConfig = {
+    ...videoConfigBase,
+    default_duration_secs: 10,
+    min_duration_secs: 5,
+    max_duration_secs: 15,
+    duration_mode: "fixed",
+    supported_durations_json: [5, 10, 15],
+  };
+
+  expect(videoDurationLimitsFromConfig(rangeConfig)).toEqual({
+    model: "video-model",
+    durationMode: "range",
+    defaultDurationSecs: 6,
+    minDurationSecs: 1,
+    maxDurationSecs: 12,
+    supportedDurations: [],
+    configError: null,
+  });
+  expect(videoDurationLimitsFromConfig(fixedConfig)).toEqual({
+    model: "video-model",
+    durationMode: "fixed",
+    defaultDurationSecs: 10,
+    minDurationSecs: 5,
+    maxDurationSecs: 15,
+    supportedDurations: [5, 10, 15],
+    configError: null,
+  });
+});
 
 it("parses assembly push metadata without defaulting an invalid status", () => {
   const video = (assemblyPush: unknown) =>
@@ -38,9 +96,7 @@ it("parses assembly push metadata without defaulting an invalid status", () => {
   expect(
     assemblyPushSourceIds(video({ source_video_ids: [3, 0, "4", 5] })),
   ).toBeNull();
-  expect(
-    assemblyPushSourceIds(video({ source_video_ids: [3, 3] })),
-  ).toBeNull();
+  expect(assemblyPushSourceIds(video({ source_video_ids: [3, 3] }))).toBeNull();
 });
 
 it("classifies every supported video frame prompt type", () => {
@@ -128,7 +184,7 @@ describe("videoGuidanceConfigurationError", () => {
     ).toBe("首尾帧方案固定使用首帧和尾帧输入");
     expect(
       videoGuidanceConfigurationError("first_frame_chain", 2, "system_frames"),
-    ).toBe("首帧续接的后续片段固定使用更早片段视频的尾帧");
+    ).toBeNull();
   });
 
   it("maps every visible workflow mode to one input contract", () => {
@@ -146,6 +202,29 @@ describe("videoGuidanceConfigurationError", () => {
     );
     expect(guidanceModeForWorkflowChange("chat_video", 1)).toBe("none");
     expect(guidanceModeForWorkflowChange("reference_media", 1)).toBe("none");
+  });
+});
+
+it("maps segment-local boundary prompts back to frame numbers 1 and 2", () => {
+  const prompt = {
+    metadata_json: {
+      video_unit: { start_frame_number: 4, end_frame_number: 5 },
+    },
+  } as ChapterVideoPrompt;
+
+  expect(videoPromptSourceFrameNumbers(prompt, "boundary_frames")).toEqual({
+    startFrameNumber: 1,
+    endFrameNumber: 2,
+  });
+  expect(videoPromptSourceFrameNumbers(prompt, "storyboard")).toEqual({
+    startFrameNumber: 4,
+    endFrameNumber: 5,
+  });
+  expect(
+    videoPromptSourceFrameNumbers(prompt, "first_frame_chain", "system_frames"),
+  ).toEqual({
+    startFrameNumber: 1,
+    endFrameNumber: null,
   });
 });
 
@@ -200,8 +279,7 @@ describe("video execution generation chain", () => {
       ],
       video_execution_identity: executionIdentity,
     },
-    created_at: null,
-    updated_at: null,
+    updated_at: "2026-07-29T00:00:00Z",
   });
 
   it("requires plan, segment, and recipe identity instead of the old weak workflow match", () => {
@@ -344,6 +422,7 @@ describe("video execution generation chain", () => {
       status: "completed",
       provider_job_id: null,
       error_message: null,
+      timeline_item_id: null,
       metadata_json: {
         shot_number: 1,
         video_execution_identity: {
@@ -355,8 +434,8 @@ describe("video execution generation chain", () => {
         },
       },
       is_favorite: false,
-      created_at: null,
-      updated_at: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:01Z",
     });
 
     expect(
@@ -374,12 +453,7 @@ describe("video execution generation chain", () => {
       }
     ).video_execution_identity.duration_secs = 10;
     expect(
-      videoExecutionSegmentIdentityMatchesVideo(
-        retimed,
-        plan,
-        1,
-        "recipe-1",
-      ),
+      videoExecutionSegmentIdentityMatchesVideo(retimed, plan, 1, "recipe-1"),
     ).toBe(true);
   });
 
@@ -454,6 +528,7 @@ describe("video execution generation chain", () => {
       status: "completed",
       provider_job_id: null,
       error_message: null,
+      timeline_item_id: null,
       metadata_json: {
         shot_number: 1,
         video_execution_identity: {
@@ -465,8 +540,8 @@ describe("video execution generation chain", () => {
         },
       },
       is_favorite: false,
-      created_at: null,
-      updated_at: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:01Z",
     };
 
     expect(
@@ -582,8 +657,7 @@ describe("segment cards and recipes", () => {
         },
       ],
     },
-    created_at: null,
-    updated_at: null,
+    updated_at: "2026-07-29T00:00:00Z",
   });
 
   it("builds cards from the shared plan before any final prompt exists", () => {
@@ -661,11 +735,12 @@ describe("segment cards and recipes", () => {
   it("does not expose a legacy plan without stable segment identities", () => {
     const prompt = planPrompt();
     const metadata = prompt.metadata_json as Record<string, unknown>;
-    const identity = metadata.video_execution_identity as Record<string, unknown>;
+    const identity = metadata.video_execution_identity as Record<
+      string,
+      unknown
+    >;
     delete identity.segment_identities;
-    expect(
-      latestVideoSegmentPlanPrompt([prompt], "source-current"),
-    ).toBeNull();
+    expect(latestVideoSegmentPlanPrompt([prompt], "source-current")).toBeNull();
   });
 });
 

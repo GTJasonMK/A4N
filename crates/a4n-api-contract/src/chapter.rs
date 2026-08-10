@@ -1,9 +1,9 @@
-use super::generation_tasks::GenerationStartRequestMeta;
+use super::{embedding::EmbeddingModelIdentity, generation_tasks::GenerationStartRequestMeta};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Start a chapter body generation through the canonical generation task path.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct StartChapterGenerationInput {
     pub meta: GenerationStartRequestMeta,
@@ -17,6 +17,9 @@ pub struct StartChapterGenerationInput {
     pub min_word_count: Option<i32>,
     #[schemars(range(min = 1))]
     pub max_word_count: Option<i32>,
-    #[schemars(length(max = 262144))]
-    pub client_rag_context: Option<String>,
+    pub client_rag_embedding_identity: Option<EmbeddingModelIdentity>,
+    #[schemars(length(equal = 64))]
+    pub client_rag_query_fingerprint: Option<String>,
+    #[schemars(length(max = 7))]
+    pub client_rag_query_vectors: Option<Vec<Vec<f32>>>,
 }

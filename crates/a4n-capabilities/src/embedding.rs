@@ -29,11 +29,6 @@ impl HttpEmbeddingClient {
         }
     }
 
-    pub fn with_http_client(mut self, client: reqwest::Client) -> Self {
-        self.transport = self.transport.with_http_client(client);
-        self
-    }
-
     pub fn with_http_client_factory(mut self, factory: HttpClientFactory) -> Self {
         self.transport = self.transport.with_http_client_factory(factory);
         self
@@ -77,7 +72,12 @@ impl EmbeddingClient for HttpEmbeddingClient {
             .payload
             .get("operation")
             .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
+            .ok_or_else(|| {
+                ServiceError::non_retryable(
+                    ServiceErrorCode::ConfigurationError,
+                    "embedding model operation is required",
+                )
+            })?;
         let path = embedding_model_operation_path(operation)?;
         self.transport.post_json(path, request).await
     }
@@ -99,7 +99,6 @@ pub(super) fn embedding_model_operation_path(operation: &str) -> CapabilityResul
     match operation {
         "list" => Ok("/embedding/models"),
         "download_info" => Ok("/embedding/model/download_info"),
-        "download" => Ok("/embedding/model/download"),
         "delete" => Ok("/embedding/model/delete"),
         _ => Err(ServiceError::non_retryable(
             ServiceErrorCode::ConfigurationError,

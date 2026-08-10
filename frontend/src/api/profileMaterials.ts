@@ -1,5 +1,5 @@
 import { apiInvoke } from "./index";
-import { readCurrentUserId } from "./authStorage";
+import { requireCurrentUserId as currentUserId } from "./authStorage";
 import type { GeneratedImage } from "./image";
 import { idNum } from "./shared";
 
@@ -69,12 +69,6 @@ interface UploadProfileMaterialImageInput {
   style_template_version?: string | null;
   custom_style?: string | null;
 }
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问素材管理");
-  return id;
-};
 
 export async function listProfileMaterials(
   input: ListProfileMaterialsInput,

@@ -7,8 +7,13 @@ use tauri::State;
 use a4n_runtime::AppState;
 
 #[tauri::command]
-pub fn get_storage_paths(state: State<'_, AppState>) -> Result<StoragePathsSummary, String> {
-    Ok(storage_paths::get_storage_paths(&state))
+pub async fn get_storage_paths(
+    state: State<'_, AppState>,
+    caller_user_id: i64,
+) -> Result<StoragePathsSummary, String> {
+    storage_paths::get_storage_paths(&state, caller_user_id)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

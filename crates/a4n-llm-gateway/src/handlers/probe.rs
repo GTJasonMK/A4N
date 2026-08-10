@@ -1,16 +1,16 @@
 use a4n_core::error::AppError;
+use a4n_llm::gateway::{LlmGatewayPayload, LlmProbeOutput};
 use a4n_llm::provider::{ChatRequest, LlmProvider, collect_chat_stream};
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 
 use super::provider_from_config;
-use crate::contracts::{LlmProbeOutput, LlmProbePayload};
 use crate::protocol::{
     error_response, result_response, validate_provider_secret_policy, validate_service_request,
 };
 
 pub(crate) async fn probe(
-    Json(request): Json<ServiceRequest<LlmProbePayload>>,
+    Json(request): Json<ServiceRequest<LlmGatewayPayload>>,
 ) -> Json<ServiceResponse<LlmProbeOutput>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
@@ -25,37 +25,16 @@ pub(crate) async fn probe(
     Json(result_response(&request, result))
 }
 
-async fn probe_with_provider(payload: LlmProbePayload) -> Result<LlmProbeOutput, AppError> {
+async fn probe_with_provider(payload: LlmGatewayPayload) -> Result<LlmProbeOutput, AppError> {
     let provider = provider_from_config(payload.provider)?;
     probe_existing_provider(provider.as_ref(), payload.request).await
 }
 
 pub(crate) async fn probe_existing_provider(
     provider: &dyn LlmProvider,
-    request: Option<ChatRequest>,
+    request: ChatRequest,
 ) -> Result<LlmProbeOutput, AppError> {
-    match request {
-        Some(request) => {
-            // 探测只收集最小真实 stream，不调用完整响应 chat()。
-            let response = collect_chat_stream(provider, request).await?;
-            let preview = response
-                .message
-                .content
-                .chars()
-                .take(200)
-                .collect::<String>();
-            Ok(LlmProbeOutput {
-                ok: !response.message.content.trim().is_empty(),
-                response_preview: (!preview.is_empty()).then_some(preview),
-                usage: response.usage,
-                finish_reason: response.finish_reason,
-            })
-        }
-        None => provider.test_connection().await.map(|ok| LlmProbeOutput {
-            ok,
-            response_preview: None,
-            usage: None,
-            finish_reason: None,
-        }),
-    }
+    // 探测只收集最小真实 stream，不调用完整响应 chat()。
+    let response = collect_chat_stream(provider, request).await?;
+    LlmProbeOutput::from_chat_response(response)
 }

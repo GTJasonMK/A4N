@@ -21,15 +21,6 @@ pub async fn list_videos_by_chapter(
 }
 
 #[tauri::command]
-pub async fn toggle_video_favorite(
-    state: State<'_, AppState>,
-    user_id: i64,
-    video_id: i64,
-) -> Result<GeneratedVideoSummary, String> {
-    video_records_actions::toggle_video_favorite(state.inner(), user_id, video_id).await
-}
-
-#[tauri::command]
 pub async fn update_video(
     state: State<'_, AppState>,
     user_id: i64,
@@ -73,8 +64,15 @@ pub async fn load_video_scrub_playback_data(
     state: State<'_, AppState>,
     user_id: i64,
     video_id: i64,
+    include_audio: bool,
 ) -> Result<VideoPlaybackData, String> {
-    video_records_actions::load_video_scrub_playback_data(state.inner(), user_id, video_id).await
+    video_records_actions::load_video_scrub_playback_data(
+        state.inner(),
+        user_id,
+        video_id,
+        include_audio,
+    )
+    .await
 }
 
 #[tauri::command]

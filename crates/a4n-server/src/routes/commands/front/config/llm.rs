@@ -29,7 +29,7 @@ config_web_no_arg_command!(
 );
 config_web_input_command!(
     update_llm_max_tokens_config,
-    a4n_core::config::app_config::LlmMaxTokensConfig,
+    config_records_actions::LlmMaxTokensConfig,
     config_records_actions::update_llm_max_tokens_config,
 );
 

@@ -46,7 +46,7 @@ impl<'a> CharacterAiProgress<'a> {
         cancelled_message: &str,
     ) -> Result<(), String> {
         if let Some(reporter) = self.reporter {
-            reporter(current, total.max(1), message);
+            reporter(current, total, message);
         }
         if self
             .cancel_token

@@ -3,8 +3,9 @@ use reqwest::header::CONTENT_TYPE;
 use a4n_core::error::AppError;
 
 use super::format::{
-    detect_video_format_from_bytes, normalize_video_format_str, video_format_from_url,
+    normalize_video_format_str, video_format_from_content_type_or_bytes, video_format_from_url,
 };
+use super::transport::{self, ApiKeyAuth};
 
 pub(crate) async fn download_video_url(
     client: &reqwest::Client,
@@ -20,10 +21,11 @@ pub(crate) async fn download_video_url_with_api_key(
     hint_format: Option<&str>,
     api_key: &str,
 ) -> Result<(Vec<u8>, String), AppError> {
-    let mut request = client.get(url);
-    if !api_key.trim().is_empty() {
-        request = request.header("x-goog-api-key", api_key.trim());
-    }
+    let request = transport::apply_api_key(
+        client.get(url),
+        api_key,
+        ApiKeyAuth::TrimmedHeader("x-goog-api-key"),
+    );
     download_video_request(request, url, hint_format).await
 }
 
@@ -61,8 +63,7 @@ async fn download_video_request(
     let format = match hint_format {
         Some(format) => normalize_video_format_str(format)?,
         None => video_format_from_url(url)
-            .or_else(|| content_type.as_deref().and_then(format_from_content_type))
-            .or_else(|| detect_video_format_from_bytes(&bytes).ok())
+            .or_else(|| video_format_from_content_type_or_bytes(content_type.as_deref(), &bytes))
             .ok_or_else(|| {
                 AppError::Internal(anyhow::anyhow!(
                     "无法从 URL、Content-Type 或字节推断视频格式：{url}"
@@ -71,38 +72,4 @@ async fn download_video_request(
     };
 
     Ok((bytes, format))
-}
-
-fn format_from_content_type(content_type: &str) -> Option<String> {
-    let media_type = content_type
-        .split(';')
-        .next()
-        .unwrap_or(content_type)
-        .trim()
-        .to_ascii_lowercase();
-    match media_type.as_str() {
-        "video/mp4" => Some("mp4".into()),
-        "video/webm" => Some("webm".into()),
-        "video/quicktime" => Some("mov".into()),
-        "video/x-m4v" => Some("m4v".into()),
-        _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn detects_format_from_content_type() {
-        assert_eq!(
-            format_from_content_type("video/mp4; charset=utf-8"),
-            Some("mp4".into())
-        );
-        assert_eq!(
-            format_from_content_type("video/quicktime"),
-            Some("mov".into())
-        );
-        assert_eq!(format_from_content_type("application/json"), None);
-    }
 }

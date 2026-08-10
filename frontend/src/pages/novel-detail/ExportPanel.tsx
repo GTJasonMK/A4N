@@ -6,7 +6,11 @@ import {
   exportBatchData,
   exportCharactersJsonData,
   exportEpubData,
+  type BatchExportInput,
   type ExportFileData,
+  type ExportProjectInput,
+  type ExportPublicationInput,
+  type ExportPublicationMetadata,
   exportMarkdownData,
   exportOutlineJsonData,
   exportPdfData,
@@ -15,7 +19,7 @@ import {
 import type { NovelProject } from "../../api/project";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
-import { cancelHostWorkflowTask } from "../../api/streaming";
+import { cancelWorkflow } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
@@ -68,8 +72,8 @@ const downloadExportFiles = (files: ExportFileData[]): string[] => {
 };
 
 const exportMetadata = (
-  meta: { title: string; author: string },
-): { title: string; author: string } | null => {
+  meta: ExportPublicationMetadata,
+): ExportPublicationMetadata | null => {
   const title = meta.title.trim();
   const author = meta.author.trim();
   if (!title || !author) return null;
@@ -94,10 +98,11 @@ export const ExportPanel: React.FC<{
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("txt");
   const [lastResult, setLastResult] = useState<string[] | null>(null);
   const exportBusy = acting !== null;
-  const selectedFormatOption =
-    EXPORT_FORMATS.find((format) => format.value === selectedFormat) ??
-    EXPORT_FORMATS[0];
+  const selectedFormatOption = EXPORT_FORMATS.find(
+    (format) => format.value === selectedFormat,
+  )!;
   const selectedMetadata = exportMetadata(meta);
+  const projectInput: ExportProjectInput = { project_id: project.id };
   const selectedExportReady =
     !selectedFormatOption.requiresMetadata || selectedMetadata != null;
 
@@ -149,7 +154,7 @@ export const ExportPanel: React.FC<{
       const r = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: `导出${label}`,
           startMessage: `正在准备导出${label}`,
@@ -157,7 +162,7 @@ export const ExportPanel: React.FC<{
           errorMessage: "导出失败",
           total: 4,
           cancelLabel: "停止导出",
-          runningHint: "导出停止后，已经写入完成的文件会保留",
+          runningHint: "停止后不会下载未完成的导出结果",
         },
         () => {
           if (!isCurrentExport(requestProjectId, requestSeq)) {
@@ -189,13 +194,19 @@ export const ExportPanel: React.FC<{
     if (!selectedExportReady) return;
     switch (selectedFormat) {
       case "txt":
-        void wrap("txt", "TXT", (taskId) => exportTxtData(project.id, taskId));
+        void wrap("txt", "TXT", (taskId) => exportTxtData(projectInput, taskId));
         return;
       case "markdown": {
         const metadata = selectedMetadata;
         if (!metadata) return;
         void wrap("markdown", "Markdown", (taskId) =>
-          exportMarkdownData(project.id, metadata, taskId),
+          exportMarkdownData(
+            {
+              project_id: project.id,
+              metadata,
+            } satisfies ExportPublicationInput,
+            taskId,
+          ),
         );
         return;
       }
@@ -204,16 +215,17 @@ export const ExportPanel: React.FC<{
         if (!metadata) return;
         void wrap("epub", "EPUB", (taskId) =>
           exportEpubData(
-            project.id,
-            metadata.title,
-            metadata.author,
+            {
+              project_id: project.id,
+              metadata,
+            } satisfies ExportPublicationInput,
             taskId,
           ),
         );
         return;
       }
       case "pdf":
-        void wrap("pdf", "PDF", (taskId) => exportPdfData(project.id, taskId));
+        void wrap("pdf", "PDF", (taskId) => exportPdfData(projectInput, taskId));
         return;
       case "batch": {
         const metadata = selectedMetadata;
@@ -223,9 +235,8 @@ export const ExportPanel: React.FC<{
             {
               project_id: project.id,
               formats: ["txt", "markdown"],
-              title: metadata.title,
-              author: metadata.author,
-            },
+              metadata,
+            } satisfies BatchExportInput,
             taskId,
           ),
         );
@@ -345,7 +356,7 @@ export const ExportPanel: React.FC<{
             className="!justify-start !text-xs"
             onClick={() =>
               void wrap("outline", "大纲 JSON", (taskId) =>
-                exportOutlineJsonData(project.id, taskId),
+                exportOutlineJsonData(projectInput, taskId),
               )
             }
             disabled={exportBusy}
@@ -358,7 +369,7 @@ export const ExportPanel: React.FC<{
             className="!justify-start !text-xs"
             onClick={() =>
               void wrap("characters", "角色 JSON", (taskId) =>
-                exportCharactersJsonData(project.id, taskId),
+                exportCharactersJsonData(projectInput, taskId),
               )
             }
             disabled={exportBusy}

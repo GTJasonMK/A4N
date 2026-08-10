@@ -16,22 +16,24 @@ macro_rules! tauri_export_read_command {
             $state: tauri::State<'_, a4n_runtime::AppState>,
             $user_id: i64,
             $($arg: $arg_ty,)*
-            task_id: Option<String>,
+            task_id: String,
         ) -> Result<$output, String> {
             let $scope = $scope_expr;
+            let project_id = $scope.project_id();
+            let total = $scope.total();
             let progress = crate::progress_task::WorkflowProgressTask::new(
                 $state.inner(),
                 Some($user_id),
-                task_id,
+                Some(task_id),
                 a4n_core::event::channel::TaskKind::ExportGeneration,
-                Some($scope.project_id),
-                $scope.total,
+                Some(project_id),
+                total,
                 $start_message,
             );
-            progress.progress(0, $scope.total, $progress_message);
+            progress.progress(0, total, $progress_message);
             let result = $run.await;
             if result.is_ok() {
-                progress.progress($scope.total, $scope.total, $success_message);
+                progress.progress(total, total, $success_message);
             }
             progress.remove($state.inner());
             result
@@ -51,24 +53,26 @@ macro_rules! tauri_export_read_command {
             $state: tauri::State<'_, a4n_runtime::AppState>,
             $user_id: i64,
             $($arg: $arg_ty,)*
-            task_id: Option<String>,
+            task_id: String,
         ) -> Result<$output, String> {
             let $scope = $scope_expr;
+            let project_id = $scope.project_id();
+            let total = $scope.total();
             let progress = crate::progress_task::WorkflowProgressTask::new(
                 $state.inner(),
                 Some($user_id),
-                task_id,
+                Some(task_id),
                 a4n_core::event::channel::TaskKind::ExportGeneration,
-                Some($scope.project_id),
-                $scope.total,
+                Some(project_id),
+                total,
                 $start_message,
             );
             let result: Result<$output, String> = async {
-                progress.progress(0, $scope.total, $progress_message);
+                progress.progress(0, total, $progress_message);
                 progress.check_cancelled($cancel_message)?;
                 let value = $run.await?;
                 progress.check_cancelled($cancel_message)?;
-                progress.progress($scope.total, $scope.total, $success_message);
+                progress.progress(total, total, $success_message);
                 Ok(value)
             }
             .await;
@@ -90,16 +94,18 @@ macro_rules! tauri_export_progress_command {
             $state: tauri::State<'_, a4n_runtime::AppState>,
             $user_id: i64,
             $($arg: $arg_ty,)*
-            task_id: Option<String>,
+            task_id: String,
         ) -> Result<$output, String> {
             let $scope = $scope_expr;
+            let project_id = $scope.project_id();
+            let total = $scope.total();
             let progress_task = crate::progress_task::WorkflowProgressTask::new(
                 $state.inner(),
                 Some($user_id),
-                task_id,
+                Some(task_id),
                 a4n_core::event::channel::TaskKind::ExportGeneration,
-                Some($scope.project_id),
-                $scope.total,
+                Some(project_id),
+                total,
                 $start_message,
             );
             let result = {

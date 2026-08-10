@@ -321,3 +321,10 @@ export const createWorldEditDraft = (value: unknown): WorldEditDraft => {
     text: String(value),
   };
 };
+
+export const worldSettingSaveNotice = (warnings: string[]) => {
+  const warning = warnings.map((item) => item.trim()).filter(Boolean).join("；");
+  return warning
+    ? { message: `世界观已保存；${warning}`, type: "info" as const }
+    : { message: "世界观已保存", type: "success" as const };
+};

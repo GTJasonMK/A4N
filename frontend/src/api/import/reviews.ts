@@ -1,13 +1,7 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { ImportReview, ImportReviewStatus, ModifyImportReviewInput } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问导入审核");
-  return id;
-};
 
 export async function listImportQueue(projectId: Id): Promise<ImportReview[]> {
   return apiInvoke<ImportReview[]>("list_import_queue", {

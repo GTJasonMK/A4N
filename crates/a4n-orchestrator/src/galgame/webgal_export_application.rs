@@ -1,35 +1,22 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        character::character_portrait,
-        galgame::{galgame_choice, galgame_line},
-    },
-};
+use a4n_api_contract::export::ExportFileData;
+use a4n_core::{error::AppError, models::character::character_portrait};
 use a4n_export_core::{ExportZipEntryBytes, ExportZipPackageInput, render_zip_package};
 use base64::Engine as _;
 
-use crate::{OrchestratorContext, export::ExportFileData};
+use crate::OrchestratorContext;
 
 use super::{
-    GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE, GalgameSceneDetail, GalgameScriptDetail,
-    LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE, LINE_TYPE_NARRATION,
-    LINE_TYPE_STAGE_DIRECTION, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN,
+    GalgameChoice, GalgameLine, GalgameLineType, GalgameMediaRole, GalgameMediaTargetKind,
+    GalgameSceneDetail, GalgameSceneEntryKind, GalgameScriptDetail,
     webgal_export_rules::{
         media_file_extension, media_file_extension_for_webgal_role, sanitize_export_file_stem,
-        webgal_arg, webgal_figure_position, webgal_narration, webgal_speaker, webgal_text,
-        webgal_transition_args,
+        webgal_arg, webgal_narration, webgal_speaker, webgal_text, webgal_transition_args,
     },
 };
-use crate::media::{
-    MEDIA_BINDING_ROLE_BACKGROUND, MEDIA_BINDING_ROLE_BGM, MEDIA_BINDING_ROLE_CG,
-    MEDIA_BINDING_ROLE_SFX, galgame_media_binding_required_media_kind,
-};
-
-pub trait WebgalExportHostPort: Send + Sync {
-    fn read_data_file(&self, relative_path: &str, label: &str) -> Result<Vec<u8>, String>;
-}
+use crate::media::galgame_media_binding_required_media_kind;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 struct WebgalExportAsset {
@@ -57,7 +44,6 @@ struct WebgalExportAssets {
 impl OrchestratorContext {
     pub async fn run_export_galgame_webgal_validated(
         &self,
-        host_port: &dyn WebgalExportHostPort,
         project_id: i64,
     ) -> Result<ExportFileData, AppError> {
         let detail = self.get_script_detail(project_id).await?;
@@ -68,14 +54,12 @@ impl OrchestratorContext {
             });
         }
         let portraits = self
-            .galgame_webgal_portraits(detail.script.root_project_id)
+            .galgame_webgal_portraits(detail.root_project_id)
             .await?;
-        let bytes = build_webgal_package(host_port, &detail, &portraits)?;
+        let bytes = build_webgal_package(self.data_dir(), &detail, &portraits)?;
+        let file_stem = sanitize_export_file_stem(&detail.title).map_err(invalid_webgal)?;
         Ok(ExportFileData {
-            file_name: format!(
-                "{}-webgal.zip",
-                sanitize_export_file_stem(&detail.script.title)
-            ),
+            file_name: format!("{file_stem}-webgal.zip"),
             mime_type: "application/zip".to_string(),
             data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
         })
@@ -83,11 +67,10 @@ impl OrchestratorContext {
 }
 
 fn build_webgal_package(
-    host_port: &dyn WebgalExportHostPort,
+    data_dir: &Path,
     detail: &GalgameScriptDetail,
     portraits: &[character_portrait::Model],
 ) -> Result<Vec<u8>, AppError> {
-    validate_webgal_scene_entry_kinds(detail)?;
     let scene_file_by_id = detail
         .scenes
         .iter()
@@ -102,7 +85,7 @@ fn build_webgal_package(
     let scene_entry_by_id = detail
         .scenes
         .iter()
-        .map(|scene| (scene.scene.id, scene.scene.entry_kind.clone()))
+        .map(|scene| (scene.scene.id, scene.scene.entry_kind))
         .collect::<BTreeMap<_, _>>();
     let speaker_name_by_id = detail
         .speaker_profiles
@@ -159,9 +142,7 @@ fn build_webgal_package(
         if written_assets.insert(asset.zip_path.clone()) {
             entries.push(ExportZipEntryBytes {
                 path: asset.zip_path.clone(),
-                bytes: host_port
-                    .read_data_file(&asset.data_path, "WebGAL 媒体文件")
-                    .map_err(invalid_webgal)?,
+                bytes: read_webgal_data_file(data_dir, &asset.data_path)?,
                 label: format!("WebGAL 媒体 {}", asset.zip_path),
             });
         }
@@ -180,9 +161,9 @@ fn build_webgal_package(
 fn render_webgal_scene(
     scene: &GalgameSceneDetail,
     scene_file_by_id: &BTreeMap<i64, String>,
-    scene_entry_by_id: &BTreeMap<i64, String>,
+    scene_entry_by_id: &BTreeMap<i64, GalgameSceneEntryKind>,
     speaker_name_by_id: &BTreeMap<i64, String>,
-    choices_by_line: &BTreeMap<i64, Vec<&galgame_choice::Model>>,
+    choices_by_line: &BTreeMap<i64, Vec<&GalgameChoice>>,
     assets: &WebgalExportAssets,
 ) -> Result<String, AppError> {
     let mut output = String::new();
@@ -191,8 +172,7 @@ fn render_webgal_scene(
         output.push_str(&format!("changeBg:{} -next;\n", background.script_name));
     }
     for line in &scene.lines {
-        let transition_args =
-            webgal_transition_args(&line.presentation_json, line.id).map_err(invalid_webgal)?;
+        let transition_args = webgal_transition_args(line.presentation_json.transition);
         if let Some(bgm) = assets.line_bgms.get(&line.id) {
             output.push_str(&format!("bgm:{};\n", bgm.script_name));
         }
@@ -210,7 +190,7 @@ fn render_webgal_scene(
                 webgal_arg(&format!("{} #{} CG", scene.scene.title, line.line_index))
             ));
         }
-        if let Some((position, figure)) = webgal_line_figure(line, assets)? {
+        if let Some((position, figure)) = webgal_line_figure(line, assets) {
             let changed = current_figure_by_position
                 .get(position)
                 .is_none_or(|current| current != &figure.script_name);
@@ -222,8 +202,8 @@ fn render_webgal_scene(
                 current_figure_by_position.insert(position.to_string(), figure.script_name.clone());
             }
         }
-        match line.line_type.as_str() {
-            LINE_TYPE_DIALOGUE | LINE_TYPE_MONOLOGUE => {
+        match line.line_type {
+            GalgameLineType::Dialogue | GalgameLineType::Monologue => {
                 let speaker_profile_id = line.speaker_profile_id.ok_or_else(|| {
                     invalid_webgal(format!(
                         "Galgame {} 行 {} 缺少 speaker_profile_id，无法导出 WebGAL",
@@ -241,10 +221,10 @@ fn render_webgal_scene(
                     })?;
                 output.push_str(&format!("{}:{};\n", speaker, webgal_text(&line.text)));
             }
-            LINE_TYPE_NARRATION | LINE_TYPE_STAGE_DIRECTION => {
+            GalgameLineType::Narration | GalgameLineType::StageDirection => {
                 output.push_str(&format!("{};\n", webgal_narration(&line.text)));
             }
-            LINE_TYPE_CHOICE => {
+            GalgameLineType::Choice => {
                 let choices = choices_by_line
                     .get(&line.id)
                     .filter(|choices| !choices.is_empty())
@@ -277,12 +257,6 @@ fn render_webgal_scene(
                     .join("|");
                 output.push_str(&format!("choose:{options};\n"));
             }
-            other => {
-                return Err(invalid_webgal(format!(
-                    "Galgame 行 {} line_type 无效，无法导出 WebGAL: {other}",
-                    line.id
-                )));
-            }
         }
     }
     match scene.scene.next_scene_id {
@@ -293,9 +267,8 @@ fn render_webgal_scene(
                     scene.scene.id
                 ))
             })?;
-            if scene.scene.entry_kind == SCENE_ENTRY_BRANCH
-                && scene_entry_by_id.get(&next_scene_id).map(String::as_str)
-                    != Some(SCENE_ENTRY_MAIN)
+            if scene.scene.entry_kind == GalgameSceneEntryKind::Branch
+                && scene_entry_by_id.get(&next_scene_id) != Some(&GalgameSceneEntryKind::Main)
             {
                 return Err(invalid_webgal(format!(
                     "Galgame branch 场 {} next_scene_id 必须指向主线场，当前指向 {next_scene_id}",
@@ -304,7 +277,7 @@ fn render_webgal_scene(
             }
             output.push_str(&format!("changeScene:{next_file};\n"));
         }
-        None if scene.scene.entry_kind == SCENE_ENTRY_BRANCH => {
+        None if scene.scene.entry_kind == GalgameSceneEntryKind::Branch => {
             return Err(invalid_webgal(format!(
                 "Galgame branch 场 {} 缺少 next_scene_id，无法导出 WebGAL",
                 scene.scene.id
@@ -316,33 +289,27 @@ fn render_webgal_scene(
 }
 
 fn webgal_line_figure<'a>(
-    line: &galgame_line::Model,
+    line: &GalgameLine,
     assets: &'a WebgalExportAssets,
-) -> Result<Option<(&'static str, &'a WebgalExportAsset)>, AppError> {
-    let Some(profile_id) = line.speaker_profile_id else {
-        return Ok(None);
-    };
-    let Some(position) =
-        webgal_figure_position(line.position.as_deref(), line.id).map_err(invalid_webgal)?
-    else {
-        return Ok(None);
-    };
+) -> Option<(&'static str, &'a WebgalExportAsset)> {
+    let profile_id = line.speaker_profile_id?;
+    let position = line.position.map(|position| position.as_str())?;
     let key = WebgalFigureKey {
         profile_id,
         expression: line.expression.clone(),
         pose: line.pose.clone(),
     };
     if key.expression.is_some() || key.pose.is_some() {
-        return Ok(assets.figures.get(&key).map(|asset| (position, asset)));
+        return assets.figures.get(&key).map(|asset| (position, asset));
     }
-    Ok(assets
+    assets
         .figures
         .get(&WebgalFigureKey {
             profile_id,
             expression: None,
             pose: None,
         })
-        .map(|asset| (position, asset)))
+        .map(|asset| (position, asset))
 }
 
 fn webgal_export_assets(
@@ -353,14 +320,16 @@ fn webgal_export_assets(
     for item in &detail.media_bindings {
         let binding = &item.binding;
         let asset = &item.asset;
-        let expected_media_kind =
-            galgame_media_binding_required_media_kind(&binding.target_kind, &binding.role)
-                .ok_or_else(|| {
-                    invalid_webgal(format!(
-                        "Galgame 媒体绑定目标/角色无效，无法导出 WebGAL: binding_id={}, target_kind={}, role={}",
-                        binding.id, binding.target_kind, binding.role
-                    ))
-                })?;
+        let expected_media_kind = galgame_media_binding_required_media_kind(
+            binding.target_kind.as_str(),
+            binding.role.as_str(),
+        )
+        .ok_or_else(|| {
+            invalid_webgal(format!(
+                "Galgame 媒体绑定目标/角色无效，无法导出 WebGAL: binding_id={}, target_kind={}, role={}",
+                binding.id, binding.target_kind, binding.role
+            ))
+        })?;
         if asset.media_kind != expected_media_kind {
             return Err(invalid_webgal(format!(
                 "Galgame 媒体绑定资产类型不匹配，无法导出 WebGAL: binding_id={}, media_asset_id={}, role={}, expected_media_kind={}, actual_media_kind={}",
@@ -371,65 +340,43 @@ fn webgal_export_assets(
             .file_path
             .as_deref()
             .ok_or_else(|| invalid_webgal(format!("媒体资产 {} 缺少文件路径", asset.id)))?;
-        let extension = media_file_extension_for_webgal_role(file_path, &binding.role)
+        let extension = media_file_extension_for_webgal_role(file_path, binding.role)
             .map_err(invalid_webgal)?;
-        let exported = match (binding.target_kind.as_str(), binding.role.as_str()) {
-            (GALGAME_ENTITY_SCENE, MEDIA_BINDING_ROLE_BACKGROUND) => WebgalExportAsset {
-                script_name: format!(
-                    "background_{}_{}.{}",
-                    binding.target_id, asset.id, extension
-                ),
-                zip_path: format!(
-                    "game/background/background_{}_{}.{}",
-                    binding.target_id, asset.id, extension
-                ),
-                data_path: file_path.to_string(),
-            },
-            (GALGAME_ENTITY_LINE, MEDIA_BINDING_ROLE_CG) => WebgalExportAsset {
-                script_name: format!("cg_{}_{}.{}", binding.target_id, asset.id, extension),
-                zip_path: format!(
-                    "game/background/cg_{}_{}.{}",
-                    binding.target_id, asset.id, extension
-                ),
-                data_path: file_path.to_string(),
-            },
-            (GALGAME_ENTITY_LINE, MEDIA_BINDING_ROLE_BGM) => WebgalExportAsset {
-                script_name: format!("bgm_{}_{}.{}", binding.target_id, asset.id, extension),
-                zip_path: format!(
-                    "game/bgm/bgm_{}_{}.{}",
-                    binding.target_id, asset.id, extension
-                ),
-                data_path: file_path.to_string(),
-            },
-            (GALGAME_ENTITY_LINE, MEDIA_BINDING_ROLE_SFX) => WebgalExportAsset {
-                script_name: format!("sfx_{}_{}.{}", binding.target_id, asset.id, extension),
-                zip_path: format!(
-                    "game/vocal/sfx_{}_{}.{}",
-                    binding.target_id, asset.id, extension
-                ),
-                data_path: file_path.to_string(),
-            },
+        let exported = |directory: &str, prefix: &str| WebgalExportAsset {
+            script_name: format!("{prefix}_{}_{}.{}", binding.target_id, asset.id, extension),
+            zip_path: format!(
+                "game/{directory}/{prefix}_{}_{}.{}",
+                binding.target_id, asset.id, extension
+            ),
+            data_path: file_path.to_string(),
+        };
+        match (binding.target_kind, binding.role) {
+            (GalgameMediaTargetKind::GalgameScene, GalgameMediaRole::Background) => {
+                assets
+                    .scene_backgrounds
+                    .insert(binding.target_id, exported("background", "background"));
+            }
+            (GalgameMediaTargetKind::GalgameLine, GalgameMediaRole::Cg) => {
+                assets
+                    .line_cgs
+                    .insert(binding.target_id, exported("background", "cg"));
+            }
+            (GalgameMediaTargetKind::GalgameLine, GalgameMediaRole::Bgm) => {
+                assets
+                    .line_bgms
+                    .insert(binding.target_id, exported("bgm", "bgm"));
+            }
+            (GalgameMediaTargetKind::GalgameLine, GalgameMediaRole::Sfx) => {
+                assets
+                    .line_sfx
+                    .insert(binding.target_id, exported("vocal", "sfx"));
+            }
             _ => {
                 return Err(invalid_webgal(format!(
                     "Galgame 媒体绑定目标/角色无效，无法导出 WebGAL: binding_id={}, target_kind={}, role={}",
                     binding.id, binding.target_kind, binding.role
                 )));
             }
-        };
-        match (binding.target_kind.as_str(), binding.role.as_str()) {
-            (GALGAME_ENTITY_SCENE, MEDIA_BINDING_ROLE_BACKGROUND) => {
-                assets.scene_backgrounds.insert(binding.target_id, exported);
-            }
-            (GALGAME_ENTITY_LINE, MEDIA_BINDING_ROLE_CG) => {
-                assets.line_cgs.insert(binding.target_id, exported);
-            }
-            (GALGAME_ENTITY_LINE, MEDIA_BINDING_ROLE_BGM) => {
-                assets.line_bgms.insert(binding.target_id, exported);
-            }
-            (GALGAME_ENTITY_LINE, MEDIA_BINDING_ROLE_SFX) => {
-                assets.line_sfx.insert(binding.target_id, exported);
-            }
-            _ => unreachable!("validated media binding pair"),
         }
     }
     for portrait in portraits {
@@ -466,21 +413,6 @@ fn webgal_export_assets(
     Ok(assets)
 }
 
-fn validate_webgal_scene_entry_kinds(detail: &GalgameScriptDetail) -> Result<(), AppError> {
-    for scene in &detail.scenes {
-        match scene.scene.entry_kind.as_str() {
-            SCENE_ENTRY_MAIN | SCENE_ENTRY_BRANCH => {}
-            other => {
-                return Err(invalid_webgal(format!(
-                    "Galgame 场 {} entry_kind 无效，无法导出 WebGAL: {other}",
-                    scene.scene.id
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
 fn validate_webgal_choice_contract(
     detail: &GalgameScriptDetail,
     scene_file_by_id: &BTreeMap<i64, String>,
@@ -489,12 +421,12 @@ fn validate_webgal_choice_contract(
         let line_type_by_id = scene
             .lines
             .iter()
-            .map(|line| (line.id, line.line_type.as_str()))
+            .map(|line| (line.id, line.line_type))
             .collect::<BTreeMap<_, _>>();
-        let mut choices_by_line = BTreeMap::<i64, Vec<&galgame_choice::Model>>::new();
+        let mut choices_by_line = BTreeMap::<i64, Vec<&GalgameChoice>>::new();
         for choice in &scene.choices {
             match line_type_by_id.get(&choice.line_id).copied() {
-                Some(LINE_TYPE_CHOICE) => {}
+                Some(GalgameLineType::Choice) => {}
                 Some(line_type) => {
                     return Err(invalid_webgal(format!(
                         "Galgame choice {} 挂在非 choice 行下，无法导出 WebGAL: line_id={}, line_type={line_type}",
@@ -529,12 +461,14 @@ fn validate_webgal_choice_contract(
         for line in scene
             .lines
             .iter()
-            .filter(|line| line.line_type == LINE_TYPE_CHOICE)
+            .filter(|line| line.line_type == GalgameLineType::Choice)
         {
-            let choices = choices_by_line
-                .get(&line.id)
-                .map(Vec::as_slice)
-                .unwrap_or(&[]);
+            let choices = choices_by_line.get(&line.id).ok_or_else(|| {
+                invalid_webgal(format!(
+                    "Galgame choice 行 {} 缺少选项，无法导出 WebGAL",
+                    line.id
+                ))
+            })?;
             if !(2..=3).contains(&choices.len()) {
                 return Err(invalid_webgal(format!(
                     "Galgame choice 行 {} 选项数量必须是 2 到 3 个，无法导出 WebGAL: choice_count={}",
@@ -578,9 +512,32 @@ fn validate_webgal_choice_contract(
 fn webgal_config_text(detail: &GalgameScriptDetail) -> String {
     format!(
         "Game_name:{};\nGame_key:a4n_galgame_{};\n",
-        webgal_arg(&detail.script.title),
-        detail.script.id
+        webgal_arg(&detail.title),
+        detail.id
     )
+}
+
+fn read_webgal_data_file(data_dir: &Path, relative_path: &str) -> Result<Vec<u8>, AppError> {
+    let raw = Path::new(relative_path);
+    if raw.is_absolute() {
+        return Err(invalid_webgal("WebGAL 媒体文件必须是应用数据目录内的相对路径"));
+    }
+    let canonical_data_dir = data_dir
+        .canonicalize()
+        .map_err(|error| invalid_webgal(format!("解析应用数据目录失败：{error}")))?;
+    let canonical_file = data_dir
+        .join(raw)
+        .canonicalize()
+        .map_err(|error| invalid_webgal(format!("解析 WebGAL 媒体路径失败：{error}")))?;
+    if !canonical_file.starts_with(&canonical_data_dir) || !canonical_file.is_file() {
+        return Err(invalid_webgal("WebGAL 媒体文件不在应用数据目录内或不是文件"));
+    }
+    std::fs::read(&canonical_file).map_err(|error| {
+        invalid_webgal(format!(
+            "读取 WebGAL 媒体文件失败: {}: {error}",
+            canonical_file.display()
+        ))
+    })
 }
 
 fn invalid_webgal(message: impl Into<String>) -> AppError {

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ChapterVideoPrompt } from "../../../api/video";
-import type { ShootingScene } from "../../../api/shootingScript";
+import type { ShootingSceneV1 } from "../../../api/shootingScript";
 import {
   selectVideoPlanningUnitIndex,
   VideoPlanningWorkspace,
@@ -19,7 +19,7 @@ const shootingScenes = [
     title: "场景一",
     shots: [{ shot_id: "shot-1" }],
   },
-] as ShootingScene[];
+] as ShootingSceneV1[];
 
 const persistedPrompt = {
   id: 1,
@@ -40,8 +40,7 @@ const persistedPrompt = {
   status: "completed",
   generated_video_id: null,
   metadata_json: { segments: [{ segment_number: 1, title: "正式片段" }] },
-  created_at: null,
-  updated_at: null,
+  updated_at: "2026-07-29T00:00:00Z",
 } satisfies ChapterVideoPrompt;
 
 describe("VideoPlanningWorkspace", () => {
@@ -157,6 +156,66 @@ describe("VideoPlanningWorkspace", () => {
 
     expect(html).toContain("正式片段");
     expect(html).not.toContain("正在加载已保存的片段规划");
+  });
+
+  it("keeps unaffected segments visible while a draft replaces its shot", () => {
+    const html = renderToStaticMarkup(
+      <VideoPlanningWorkspace
+        prompt={{
+          ...persistedPrompt,
+          metadata_json: {
+            segments: [
+              {
+                segment_number: 1,
+                segment_index_in_shot: 1,
+                source_shot_id: "shot-1",
+                title: "已发布片段",
+              },
+              {
+                segment_number: 2,
+                segment_index_in_shot: 1,
+                source_shot_id: "shot-2",
+                title: "旧片段",
+              },
+            ],
+          },
+        }}
+        previewSegments={[
+          {
+            segment_number: 1,
+            segment_index_in_shot: 1,
+            source_shot_id: "shot-2",
+            title: "重新生成片段",
+          },
+        ]}
+        draft={null}
+        options={DEFAULT_VIDEO_OPTIONS}
+        durationLimits={durationLimits}
+        loading={false}
+        loadError={null}
+        dataReady
+        acting="generate-segment-plan"
+        shootingScenes={[
+          {
+            narrative_unit_index: 1,
+            scene_index: 1,
+            title: "场景一",
+            shots: [{ shot_id: "shot-1" }, { shot_id: "shot-2" }],
+          },
+        ] as ShootingSceneV1[]}
+        onGenerate={vi.fn()}
+        onOptionsChange={vi.fn()}
+        onRetryLoad={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("已发布片段");
+    expect(html).toContain("重新生成片段");
+    expect(html).not.toContain("旧片段");
+    expect(html.indexOf("已发布片段")).toBeLessThan(
+      html.indexOf("重新生成片段"),
+    );
   });
 
   it("ends draft loading with an explicit retry state", () => {

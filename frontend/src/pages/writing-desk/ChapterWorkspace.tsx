@@ -8,6 +8,7 @@ import { AnalysisSubTab } from "./AnalysisSubTab";
 import { InlineOptimizationPatchPreview } from "./InlineOptimizationPatchPreview";
 import type { OptimizationPatchPreviewController } from "../novel-detail/optimize/patchPreviewTypes";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
+import { BookButton } from "../../components/ui/BookButton";
 
 export type BottomTab =
   | "content"
@@ -17,6 +18,7 @@ export type BottomTab =
 
 interface ChapterWorkspaceProps {
   projectId: number;
+  activeNumber: number | null;
   activeChapter: ChapterData | null;
   activeOutline: ChapterOutline | null;
   activeChapterContext: ChapterRow | null;
@@ -35,6 +37,7 @@ interface ChapterWorkspaceProps {
   onPreviewGenerateAnalysis: () => void | Promise<void>;
   onResumeAnalysisSync: () => void | Promise<void>;
   onPreviewResumeAnalysisSync: () => void | Promise<void>;
+  onResumeDerivedSync: () => void | Promise<void>;
   canEdit: boolean;
 }
 
@@ -60,6 +63,7 @@ const selectedChapterTitle = (
 
 export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   projectId,
+  activeNumber,
   activeChapter,
   activeOutline,
   activeChapterContext,
@@ -78,11 +82,18 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   onPreviewGenerateAnalysis,
   onResumeAnalysisSync,
   onPreviewResumeAnalysisSync,
+  onResumeDerivedSync,
   canEdit,
 }) => {
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const lastScrollTopRef = useRef(0);
+  const derivedSyncIncomplete = Boolean(
+    activeChapter?.derived_sync_status &&
+      activeChapter.derived_sync_status !== "completed",
+  );
+  const derivedSyncFailed = derivedSyncIncomplete &&
+    activeChapter?.derived_sync_status !== "running";
 
   const editorIsNearBottom = () => {
     const editor = editorRef.current;
@@ -125,7 +136,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
 
   return (
     <section aria-label="章节编辑区" className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-book-bg p-2.5 sm:p-3">
-      {activeChapter == null && activeOutline == null ? (
+      {activeNumber == null ? (
         <div className="a4n-empty-state a4n-empty-state--compact m-auto text-sm">
           请从左侧选择一章
         </div>
@@ -133,7 +144,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
         <>
           <div className="mb-2.5 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
             <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-body-lg font-semibold text-book-text-main">
-              {selectedChapterTitle(activeChapter, activeOutline) || `第 ${activeChapter?.chapter_number ?? activeOutline?.chapter_number ?? "—"} 章`}
+              {selectedChapterTitle(activeChapter, activeOutline) || `第 ${activeNumber} 章`}
             </h2>
             <div className="flex min-w-0 shrink-0 items-center gap-2">
               <span className="text-small text-book-text-muted">
@@ -144,6 +155,32 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
               </span>
             </div>
           </div>
+
+          {activeChapter && derivedSyncIncomplete ? (
+            <div
+              className={`mb-2.5 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+                derivedSyncFailed
+                  ? "border-error/35 bg-error/5 text-error"
+                  : "border-book-border bg-book-bg-paper text-book-text-muted"
+              }`}
+            >
+              <span className="min-w-0 flex-1">
+                {derivedSyncFailed
+                  ? activeChapter.derived_sync_error ||
+                    "正文已保存，但角色状态、场景索引或资料检索副本尚未同步完成。"
+                  : "正文已保存，正在使旧角色状态、场景和检索索引失效。"}
+              </span>
+              {activeChapter.derived_sync_can_resume ? (
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={onResumeDerivedSync}
+                >
+                  重试资料同步
+                </BookButton>
+              ) : null}
+            </div>
+          ) : null}
 
           <nav
             className="tab-bar flex min-w-0 shrink-0 flex-wrap border-b border-book-border/80 bg-book-bg-paper/70"
@@ -194,6 +231,13 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                 projectId={projectId}
                 chapterNumber={activeChapter.chapter_number}
                 analysis={activeChapter.analysis_data}
+                materialSync={activeChapter.material_sync}
+                materialUpdates={activeChapter.material_updates}
+                analysisSyncStatus={activeChapter.analysis_sync_status}
+                analysisSyncError={activeChapter.analysis_sync_error}
+                analysisSyncHasSavedAnalysis={
+                  activeChapter.analysis_sync_has_saved_analysis
+                }
                 generating={generatingAnalysis}
                 analysisBlockedReason={analysisBlockedReason}
                 canGenerate={

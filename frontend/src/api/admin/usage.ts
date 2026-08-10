@@ -1,13 +1,13 @@
 import { apiInvoke } from "../index";
-import type { DailyUsagePoint, UsageLog } from "./types";
+import type { DailyUsagePoint, UsageLogSummary } from "../generated/host";
 import { type ApiId as Id, idNum } from "../shared";
 
 export async function getUserUsage(
   callerUserId: Id,
   userId: Id,
   limit: number,
-): Promise<UsageLog[]> {
-  return apiInvoke<UsageLog[]>("get_user_usage", {
+): Promise<UsageLogSummary[]> {
+  return apiInvoke<UsageLogSummary[]>("get_user_usage", {
     callerUserId: idNum(callerUserId),
     userId: idNum(userId),
     limit,

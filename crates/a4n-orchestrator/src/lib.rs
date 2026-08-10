@@ -5,7 +5,7 @@
 
 pub mod admin;
 pub mod asset;
-pub mod asset_lineage_sync;
+pub use a4n_db::asset_lineage_sync;
 pub mod auth;
 pub mod blueprint;
 pub mod canvas;
@@ -23,7 +23,7 @@ pub mod import_analysis;
 pub mod import_reverse;
 pub mod import_review;
 pub mod inspiration;
-pub mod llm_context;
+pub use a4n_db::llm_context;
 pub mod manga;
 pub mod media;
 pub mod object_discovery;
@@ -56,7 +56,7 @@ pub(crate) mod test_support;
 pub use context::dynamic_provider::DynamicProviderFacade;
 pub use context::{
     GenerationTaskAccessError, GenerationTaskHistorySummaries, GenerationTaskStart,
-    OrchestratorContext, OrchestratorScope, PromptRegistryCategory, generation_task_summary,
+    OrchestratorContext, PromptRegistryCategory, generation_task_summary,
 };
 pub use service_health::{
     CapabilityHealthSnapshot, ManagedServiceHealthSummary, ManagedServicePidStatus,

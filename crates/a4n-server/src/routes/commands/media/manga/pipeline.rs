@@ -1,8 +1,7 @@
 use serde_json::{Value, json};
 
 use super::super::super::{
-    ApiError, ServerState, i64_arg, manga_pipeline_actions, manga_records_actions,
-    optional_string_field, required_json_i32, to_value,
+    ApiError, ServerState, command_input, manga_pipeline_actions, manga_records_actions, to_value,
 };
 
 pub(in crate::routes::commands) async fn get_manga_pipeline_status(
@@ -10,16 +9,11 @@ pub(in crate::routes::commands) async fn get_manga_pipeline_status(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_id = i64_arg(args, "chapterId")?;
-    let status = manga_records_actions::get_manga_pipeline_status(
-        state.runtime(),
-        user_id,
-        project_id,
-        chapter_id,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
+    let input: manga_records_actions::MangaChapterInput =
+        command_input(args, "get_manga_pipeline_status")?;
+    let status = manga_records_actions::get_manga_pipeline_status(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
     to_value(status)
 }
 
@@ -28,16 +22,11 @@ pub(in crate::routes::commands) async fn cancel_manga_pipeline(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_id = i64_arg(args, "chapterId")?;
-    let cancelled = manga_records_actions::cancel_manga_pipeline(
-        state.runtime(),
-        user_id,
-        project_id,
-        chapter_id,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
+    let input: manga_records_actions::MangaChapterInput =
+        command_input(args, "cancel_manga_pipeline")?;
+    let cancelled = manga_records_actions::cancel_manga_pipeline(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
     Ok(json!(cancelled))
 }
 
@@ -46,18 +35,15 @@ pub(in crate::routes::commands) async fn start_manga_pipeline(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_number = required_json_i32(args, "chapterNumber", "start_manga_pipeline")?;
-    let start_from_stage = manga_pipeline_actions::parse_manga_pipeline_start_stage(
-        optional_string_field(args, "startFromStage")?,
-    )?;
+    let input: manga_pipeline_actions::MangaPipelineStartInput =
+        command_input(args, "start_manga_pipeline")?;
     start_or_resume_manga_pipeline(
         state,
         user_id,
-        project_id,
-        chapter_number,
+        input.project_id,
+        input.chapter_number,
         false,
-        start_from_stage,
+        input.start_from_stage,
     )
     .await
 }
@@ -67,9 +53,17 @@ pub(in crate::routes::commands) async fn resume_manga_pipeline(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_number = required_json_i32(args, "chapterNumber", "resume_manga_pipeline")?;
-    start_or_resume_manga_pipeline(state, user_id, project_id, chapter_number, true, None).await
+    let input: manga_pipeline_actions::MangaPipelineResumeInput =
+        command_input(args, "resume_manga_pipeline")?;
+    start_or_resume_manga_pipeline(
+        state,
+        user_id,
+        input.project_id,
+        input.chapter_number,
+        true,
+        None,
+    )
+    .await
 }
 
 pub(in crate::routes::commands) async fn start_or_resume_manga_pipeline(

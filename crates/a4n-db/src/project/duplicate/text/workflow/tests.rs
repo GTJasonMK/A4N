@@ -1,4 +1,4 @@
-use a4n_core::state::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 
 use super::rules::{ensure_branch_status_allowed, parse_project_status};
 use crate::project::duplicate::ProjectDuplicateError;

@@ -161,6 +161,14 @@ import_web_string_project_command!(
     run_import_project_analysis,
     import_analysis_actions::run_import_project_analysis,
 );
+import_web_string_project_command!(
+    apply_import_analysis_blueprint_candidate,
+    import_analysis_actions::apply_import_analysis_blueprint_candidate,
+);
+import_web_string_project_command!(
+    apply_import_analysis_part_outline_candidate,
+    import_analysis_actions::apply_import_analysis_part_outline_candidate,
+);
 
 pub(in crate::routes::commands) async fn preview_import_project_analysis_request(
     state: &ServerState,

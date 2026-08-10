@@ -7,8 +7,9 @@ use a4n_runtime::host_api::admin_records;
 use tauri::State;
 
 use admin_records::{
-    AdminUserSummary, CreateInviteCodeInput, CreateUserInput, DailyUsagePoint, InviteCodeSummary,
-    ProjectSummary, TaskQueueSummary, UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput,
+    AdminProjectSummary, CreateInviteCodeInput, CreateUserInput, DailyUsagePoint,
+    InviteCodeSummary, TaskQueueSummary, UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput,
+    UserSummary,
 };
 
 macro_rules! admin_command {
@@ -66,12 +67,12 @@ admin_command!(
 );
 
 admin_command!(
-    list_all_users() -> Vec<AdminUserSummary>,
+    list_all_users() -> Vec<UserSummary>,
     |state, caller_user_id| admin_records::list_all_users_for_admin(&state, caller_user_id),
 );
 
 admin_command!(
-    create_user(input: CreateUserInput) -> AdminUserSummary,
+    create_user(input: CreateUserInput) -> UserSummary,
     |state, caller_user_id| admin_records::create_user_for_admin(&state, caller_user_id, input),
 );
 
@@ -90,7 +91,7 @@ admin_command!(
 );
 
 admin_command!(
-    update_user_role(user_id: i64, input: UpdateUserRoleInput) -> AdminUserSummary,
+    update_user_role(user_id: i64, input: UpdateUserRoleInput) -> UserSummary,
     |state, caller_user_id| admin_records::update_user_role_for_admin(
         &state,
         caller_user_id,
@@ -105,7 +106,7 @@ admin_command!(
 );
 
 admin_command!(
-    list_all_projects() -> Vec<ProjectSummary>,
+    list_all_projects() -> Vec<AdminProjectSummary>,
     |state, caller_user_id| admin_records::list_all_projects_for_admin(&state, caller_user_id),
 );
 

@@ -5,24 +5,26 @@ use crate::routes::commands::{
 };
 use crate::state::ServerState;
 use a4n_core::event::channel::TaskKind;
-use serde_json::{Value, json};
+use serde_json::Value;
 
-fn chapter_summary_value(ch: &a4n_core::models::chapter::chapter::Model) -> Value {
-    json!({
-        "id": ch.id,
-        "project_id": ch.project_id,
-        "outline_id": ch.outline_id,
-        "chapter_number": ch.chapter_number,
-        "title": ch.title,
-        "content": ch.content,
-        "word_count": ch.word_count,
-        "status": ch.status,
-        "summary": ch.summary,
-        "style_tags": ch.style_tags,
-        "analysis_data": ch.analysis_data,
-        "created_at": ch.created_at.to_string(),
-        "updated_at": ch.updated_at.to_string(),
-    })
+async fn chapter_summary_value(
+    state: &ServerState,
+    chapter: a4n_core::models::chapter::chapter::Model,
+) -> Result<Value, ApiError> {
+    let summary = a4n_runtime::host_api::chapter_content::chapter_summary_with_sync_state(
+        state.runtime(),
+        &chapter,
+    )
+    .await
+    .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    to_value(summary)
+}
+
+async fn chapter_analysis_mutation_value(
+    _state: &ServerState,
+    result: a4n_runtime::workflow::ChapterAnalysisMutationResult,
+) -> Result<Value, ApiError> {
+    to_value(result)
 }
 
 macro_rules! chapter_analysis_web_task_command {
@@ -32,7 +34,8 @@ macro_rules! chapter_analysis_web_task_command {
         $preflight:path,
         $run:path,
         $start_message:expr,
-        $success_message:expr $(,)?
+        $success_message:expr,
+        $response:path $(,)?
     ) => {
         pub(in crate::routes::commands) async fn $name(
             state: &ServerState,
@@ -53,29 +56,27 @@ macro_rules! chapter_analysis_web_task_command {
                 ch.project_id,
                 a4n_runtime::workflow::CHAPTER_ANALYSIS_PROGRESS_TOTAL,
                 $start_message,
-            )
-            .await;
+            );
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
             let reporter = web_fire_and_forget_progress_reporter(task.clone());
             // 与桌面端对称：活体信号必须双端一致。
             let stream_reporter = web_stream_reporter(task.clone());
             let progress = a4n_runtime::workflow::ChapterAnalysisProgress::new(
                 Some(&reporter),
+                Some(&stream_reporter),
                 cancel_token.as_ref(),
                 task_id.as_deref(),
-            )
-            .with_stream_reporter(Some(&stream_reporter));
+            );
             let result = $run(state.runtime(), user_id, input.chapter_id, Some(&progress)).await;
-            let chapter = finish_web_task(
+            let value = finish_web_task(
                 state,
                 task_id,
                 string_action_result(
                     result,
                     task.as_ref().is_some_and(|handle| handle.is_cancelled()),
                 ),
-            )
-            .await?;
-            Ok(chapter_summary_value(&chapter))
+            )?;
+            $response(state, value).await
         }
     };
 }
@@ -104,6 +105,7 @@ chapter_analysis_web_task_command!(
     a4n_runtime::workflow::generate_chapter_analysis_with_progress,
     "正在准备章节结构化分析",
     "章节结构化分析完成",
+    chapter_analysis_mutation_value,
 );
 
 chapter_analysis_web_preview_command!(
@@ -119,6 +121,7 @@ chapter_analysis_web_task_command!(
     a4n_runtime::workflow::resume_chapter_analysis_sync_with_progress,
     "正在准备继续同步章节分析",
     "章节分析派生数据已继续同步",
+    chapter_summary_value,
 );
 
 chapter_analysis_web_preview_command!(

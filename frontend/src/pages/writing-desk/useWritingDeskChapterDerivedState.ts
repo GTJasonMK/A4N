@@ -35,16 +35,13 @@ export function useWritingDeskChapterDerivedState({
     () => (activeNumber == null ? null : outlinesByNumber.get(activeNumber) ?? null),
     [activeNumber, outlinesByNumber],
   );
-  const activeOutlineTitle = useMemo(() => {
-    const title = activeOutline?.title?.trim();
-    return title ? title : null;
-  }, [activeOutline]);
   const activeOutlineText = useMemo(() => {
     if (!activeOutline) return null;
     const summary = activeOutline.summary?.trim();
     if (summary) return summary;
-    return activeOutlineTitle;
-  }, [activeOutline, activeOutlineTitle]);
+    const title = activeOutline.title?.trim();
+    return title || null;
+  }, [activeOutline]);
   const visibleOptimizationPatchPreview =
     optimizationPatchPreview?.proposal.chapter_id === activeChapter?.id
       ? optimizationPatchPreview
@@ -68,14 +65,16 @@ export function useWritingDeskChapterDerivedState({
     () =>
       Array.from(
         new Set(
-          [...chapters, ...outlines].map((item) =>
-            "chapter_number" in item ? item.chapter_number : 0,
-          ),
+          [
+            ...chapters.map((chapter) => chapter.chapter_number),
+            ...outlines.map((outline) => outline.chapter_number),
+            activeNumber ?? 0,
+          ],
         ),
       )
         .filter((number) => number > 0)
         .sort((left, right) => left - right),
-    [chapters, outlines],
+    [activeNumber, chapters, outlines],
   );
   const deferredChapterQuery = useDeferredValue(chapterQuery);
   const filteredChapterNumbers = useMemo(() => {
@@ -105,7 +104,6 @@ export function useWritingDeskChapterDerivedState({
   return {
     activeChapter,
     activeOutline,
-    activeOutlineTitle,
     activeOutlineText,
     visibleOptimizationPatchPreview,
     activeChapterContext,

@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-const openHarness = async () => {
+const openHarness = async (query = "") => {
   if (process.env.A4N_WDIO_APP_BINARY)
-    await browser.url("http://localhost:5173/e2e/video-scrub/");
-  else await browser.url("/e2e/video-scrub/");
+    await browser.url(`http://localhost:5173/e2e/video-scrub/${query}`);
+  else await browser.url(`/e2e/video-scrub/${query}`);
   await browser.waitUntil(
     () =>
       browser
@@ -29,6 +29,42 @@ const openHarness = async () => {
 };
 
 describe("video timeline scrubbing", () => {
+  it("keeps the active source isolated when switching push batches", async () => {
+    await openHarness("?scenario=multiple-pushes");
+    const readState = () =>
+      browser.execute(() => {
+        const video = document.querySelector("video");
+        return {
+          videoId: video?.getAttribute("data-video-id") ?? null,
+          readyState: video?.readyState ?? null,
+          error: video?.error?.message ?? null,
+          alert: document.querySelector('[role="alert"]')?.textContent ?? null,
+        };
+      });
+    const waitForVideo = async (videoId, timeoutMsg) => {
+      try {
+        await browser.waitUntil(
+          async () => {
+            const state = await readState();
+            return (
+              state.videoId === videoId && state.readyState >= 2 && !state.alert
+            );
+          },
+          { timeout: 10_000, timeoutMsg },
+        );
+      } catch (error) {
+        throw new Error(
+          `${timeoutMsg}: ${JSON.stringify(await readState())}; ${error}`,
+        );
+      }
+    };
+    await waitForVideo("9002", "latest push did not initialize");
+    await $('[data-video-push-id="9001"]').click();
+    await waitForVideo("9001", "first push did not initialize");
+    await $('[data-video-push-id="9002"]').click();
+    await waitForVideo("9002", "latest push did not recover");
+  });
+
   it("uses one video element and follows every requested position", async () => {
     await openHarness();
     const result = await browser.executeAsync((done) => {
@@ -62,6 +98,7 @@ describe("video timeline scrubbing", () => {
         for (let attempt = 0; attempt < 100; attempt += 1) {
           if (
             !video.seeking &&
+            video.dataset.scrubSeekPending !== "true" &&
             Math.abs(video.currentTime - expected) < 0.05 &&
             video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
           ) {
@@ -73,44 +110,33 @@ describe("video timeline scrubbing", () => {
           `seek did not settle: ${video.currentTime} vs ${expected}; readyState=${video.readyState}; seeking=${video.seeking}; networkState=${video.networkState}; duration=${video.duration}; error=${video.error?.code ?? "none"}`,
         );
       };
-      const readFrame = () => {
-        const preview = document.querySelector(
-          'canvas[data-scrub-preview-visible="true"]',
-        );
-        if (!(preview instanceof HTMLCanvasElement)) {
-          return {
-            nativeVideo: true,
-            frameHash: Math.round(video.currentTime * 1000),
-            blackRatio: 0,
-          };
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = 160;
-        canvas.height = 90;
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-        if (!context) throw new Error("frame sampling context unavailable");
-        context.drawImage(preview, 0, 0, canvas.width, canvas.height);
-        const pixels = context.getImageData(
-          0,
-          0,
-          canvas.width,
-          canvas.height,
-        ).data;
-        let hash = 2166136261;
-        let blackPixels = 0;
-        for (let index = 0; index < pixels.length; index += 4) {
-          hash = Math.imul(hash ^ pixels[index], 16777619);
-          hash = Math.imul(hash ^ pixels[index + 1], 16777619);
-          hash = Math.imul(hash ^ pixels[index + 2], 16777619);
-          if (pixels[index] + pixels[index + 1] + pixels[index + 2] < 18) {
-            blackPixels += 1;
+      const waitForPreview = async (ratio) => {
+        const expectedTime = video.duration * ratio;
+        const expectedFrame = Math.round(expectedTime * 12);
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          const image = document.querySelector(
+            'img[data-scrub-preview-visible="true"]',
+          );
+          const markerValue = Number(
+            document
+              .querySelector('[aria-label="剪辑竖线 1"]')
+              ?.getAttribute("aria-valuenow"),
+          );
+          const frameIndex = Number(
+            image?.getAttribute("data-scrub-frame-index"),
+          );
+          if (
+            image instanceof HTMLImageElement &&
+            image.complete &&
+            image.naturalWidth > 0 &&
+            Math.abs(frameIndex - expectedFrame) <= 1 &&
+            Math.abs(markerValue - expectedTime) < 0.05
+          ) {
+            return { frameIndex, markerValue, nativeTime: video.currentTime };
           }
+          await wait(10);
         }
-        return {
-          frameHash: hash >>> 0,
-          blackRatio: blackPixels / (pixels.length / 4),
-          nativeVideo: false,
-        };
+        throw new Error(`scrub preview did not reach ${expectedFrame}`);
       };
 
       void (async () => {
@@ -128,35 +154,33 @@ describe("video timeline scrubbing", () => {
         const marker = document.querySelector('[aria-label="剪辑竖线 1"]');
         if (!(marker instanceof HTMLElement)) throw new Error("marker missing");
         await settle(0.12);
+        let seekedDuringDrag = 0;
+        const countSeeked = () => {
+          seekedDuringDrag += 1;
+        };
+        video.addEventListener("seeked", countSeeked);
         dispatch("pointerdown", 0.12);
         await wait(20);
         const ratios = [0.28, 0.52, 0.81, 0.44, 0.17, 0.69];
         const samples = [];
         for (const ratio of ratios) {
           dispatch("pointermove", ratio);
-          await settle(ratio);
-          samples.push({
-            ratio,
-            currentTime: video.currentTime,
-            expectedTime: video.duration * ratio,
-            seeking: video.seeking,
-            ...readFrame(),
-          });
+          samples.push({ ratio, ...(await waitForPreview(ratio)) });
         }
+        const seekedBeforeRelease = seekedDuringDrag;
         dispatch("pointerup", ratios.at(-1), 1, 0);
         await settle(ratios.at(-1));
+        video.removeEventListener("seeked", countSeeked);
         const finalTime = video.currentTime;
         const markerValue = Number(marker.getAttribute("aria-valuenow"));
         done({
           samples,
+          seekedBeforeRelease,
           finalTime,
           expectedFinalTime: video.duration * ratios.at(-1),
           markerValue,
           videoCount: document.querySelectorAll("video").length,
           canvasCount: document.querySelectorAll("canvas").length,
-          canvasVisible: Boolean(
-            document.querySelector('canvas[data-scrub-preview-visible="true"]'),
-          ),
           paused: video.paused,
         });
       })().catch((error) => done({ error: String(error) }));
@@ -165,25 +189,24 @@ describe("video timeline scrubbing", () => {
     process.stdout.write(`A4N_VIDEO_SCRUB_RESULT=${JSON.stringify(result)}\n`);
     assert.equal(result.error, undefined, result.error);
     assert.equal(result.videoCount, 1);
-    assert.equal(result.canvasCount, 1);
+    assert.equal(result.canvasCount, 0);
     assert.ok(result.samples.length >= 5);
+    assert.equal(
+      result.seekedBeforeRelease,
+      0,
+      `native video was still seeking during drag: ${JSON.stringify(result)}`,
+    );
     assert.ok(
       result.samples.every(
         (sample) =>
-          !sample.seeking &&
-          Math.abs(sample.currentTime - sample.expectedTime) < 0.05,
+          Number.isInteger(sample.frameIndex) &&
+          Number.isFinite(sample.markerValue),
       ),
-      `video did not follow intermediate markers: ${JSON.stringify(result)}`,
+      `JPEG scrub preview did not follow markers: ${JSON.stringify(result)}`,
     );
     assert.ok(
-      result.samples.every(
-        (sample) => sample.nativeVideo || sample.blackRatio < 0.9,
-      ),
-      `video rendered a black frame: ${JSON.stringify(result)}`,
-    );
-    assert.ok(
-      new Set(result.samples.map((sample) => sample.frameHash)).size >= 5,
-      `rendered video frame remained frozen: ${JSON.stringify(result)}`,
+      new Set(result.samples.map((sample) => sample.frameIndex)).size >= 5,
+      `JPEG scrub preview remained frozen: ${JSON.stringify(result)}`,
     );
     assert.ok(
       Math.abs(result.finalTime - result.expectedFinalTime) < 0.05,
@@ -223,36 +246,6 @@ describe("video timeline scrubbing", () => {
           }),
         );
       };
-      const readCanvasHash = () => {
-        const video = document.querySelector("video");
-        const preview = document.querySelector(
-          'canvas[data-scrub-preview-visible="true"]',
-        );
-        if (!(preview instanceof HTMLCanvasElement)) {
-          return video instanceof HTMLVideoElement
-            ? Math.round(video.currentTime * 1000)
-            : null;
-        }
-        const probe = document.createElement("canvas");
-        probe.width = 80;
-        probe.height = 45;
-        const context = probe.getContext("2d", { willReadFrequently: true });
-        if (!context) return null;
-        context.drawImage(preview, 0, 0, probe.width, probe.height);
-        const pixels = context.getImageData(
-          0,
-          0,
-          probe.width,
-          probe.height,
-        ).data;
-        let hash = 2166136261;
-        for (let index = 0; index < pixels.length; index += 4) {
-          hash = Math.imul(hash ^ pixels[index], 16777619);
-          hash = Math.imul(hash ^ pixels[index + 1], 16777619);
-          hash = Math.imul(hash ^ pixels[index + 2], 16777619);
-        }
-        return hash >>> 0;
-      };
       void (async () => {
         timeline.dispatchEvent(
           new MouseEvent("click", {
@@ -267,38 +260,62 @@ describe("video timeline scrubbing", () => {
         }
         if (!document.querySelector('[aria-label="剪辑竖线 1"]'))
           throw new Error("marker missing");
+        const initialExpected = video.duration * 0.9;
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          if (
+            !video.seeking &&
+            video.dataset.scrubSeekPending !== "true" &&
+            Math.abs(video.currentTime - initialExpected) < 0.05
+          ) {
+            break;
+          }
+          await wait(20);
+        }
+        let seekedDuringDrag = 0;
+        const countSeeked = () => {
+          seekedDuringDrag += 1;
+        };
+        video.addEventListener("seeked", countSeeked);
         fire("pointerdown", 0.9, 1);
         await wait(10);
         const ratios = Array.from(
           { length: 70 },
           (_, index) => 0.9 - (0.84 * index) / 69,
         );
-        const dragFrameHashes = [readCanvasHash()];
-        for (const [index, ratio] of ratios.entries()) {
+        const observedFrames = [];
+        for (const ratio of ratios) {
           fire("pointermove", ratio, 1);
           await wait(5);
-          if (index % 5 === 0) dragFrameHashes.push(readCanvasHash());
+          observedFrames.push(
+            Number(
+              document
+                .querySelector('img[data-scrub-preview-visible="true"]')
+                ?.getAttribute("data-scrub-frame-index"),
+            ),
+          );
         }
+        const seekedBeforeRelease = seekedDuringDrag;
         fire("pointerup", ratios.at(-1), 0);
         const expected = video.duration * ratios.at(-1);
         for (let attempt = 0; attempt < 100; attempt += 1) {
-          if (!video.seeking && Math.abs(video.currentTime - expected) < 0.05)
+          if (
+            !video.seeking &&
+            video.dataset.scrubSeekPending !== "true" &&
+            Math.abs(video.currentTime - expected) < 0.05
+          )
             break;
           await wait(20);
         }
-        dragFrameHashes.push(readCanvasHash());
+        video.removeEventListener("seeked", countSeeked);
         done({
           currentTime: video.currentTime,
           expected,
           seeking: video.seeking,
+          observedFrameCount: new Set(observedFrames.filter(Number.isFinite))
+            .size,
+          seekedBeforeRelease,
           videoCount: document.querySelectorAll("video").length,
           canvasCount: document.querySelectorAll("canvas").length,
-          canvasVisible: Boolean(
-            document.querySelector('canvas[data-scrub-preview-visible="true"]'),
-          ),
-          dragFrameHashes: dragFrameHashes.filter(
-            (hash) => typeof hash === "number",
-          ),
         });
       })().catch((error) => done({ error: String(error) }));
     });
@@ -308,11 +325,16 @@ describe("video timeline scrubbing", () => {
     );
     assert.equal(result.error, undefined, result.error);
     assert.equal(result.videoCount, 1);
-    assert.equal(result.canvasCount, 1);
+    assert.equal(result.canvasCount, 0);
     assert.equal(result.seeking, false);
+    assert.equal(
+      result.seekedBeforeRelease,
+      0,
+      `high-frequency drag still sought native video: ${JSON.stringify(result)}`,
+    );
     assert.ok(
-      new Set(result.dragFrameHashes).size >= 3,
-      `visible preview did not update during drag: ${JSON.stringify(result)}`,
+      result.observedFrameCount >= 6,
+      `drag preview did not update continuously: ${JSON.stringify(result)}`,
     );
     assert.ok(
       Math.abs(result.currentTime - result.expected) < 0.05,
@@ -356,59 +378,347 @@ describe("video timeline scrubbing", () => {
     ]);
     const marker = await browser.$('[aria-label="剪辑竖线 1"]');
     await marker.waitForDisplayed({ timeout: 10_000 });
-    await browser.performActions([
-      {
-        type: "pointer",
-        id: "native-marker-drag",
-        parameters: { pointerType: "mouse" },
-        actions: [
-          { type: "pointerMove", x: Math.round(xAt(0.2)), y: Math.round(y) },
-          { type: "pointerDown", button: 0 },
-          {
-            type: "pointerMove",
-            x: Math.round(xAt(0.76)),
-            y: Math.round(y),
-            duration: 300,
-          },
-          { type: "pointerUp", button: 0 },
-        ],
-      },
-    ]);
-    await browser.waitUntil(
-      () =>
-        browser
-          .execute(() => {
-            const video = document.querySelector("video");
-            const canvas = document.querySelector(
-              'canvas[data-scrub-preview-visible="true"]',
-            );
-            return {
-              currentTime: video?.currentTime ?? null,
-              duration: video?.duration ?? null,
-              seeking: video?.seeking ?? null,
-              canvasVisible: canvas instanceof HTMLCanvasElement,
-            };
-          })
-          .then((value) =>
-            value.currentTime != null &&
-            value.duration != null &&
-            !value.seeking &&
-            Math.abs(value.currentTime - value.duration * 0.76) < 0.2
-              ? value
-              : false,
-          ),
-      { timeout: 10_000, timeoutMsg: "native pointer drag did not settle" },
-    );
     const nativeVideo = await browser.$("video");
     const screenshotHash = async (path) => {
       await nativeVideo.saveScreenshot(path);
-      return createHash("sha256")
-        .update(readFileSync(path))
-        .digest("hex");
+      return createHash("sha256").update(readFileSync(path)).digest("hex");
     };
-    const forwardFrameHash = await screenshotHash(
-      "/tmp/a4n-webkit-forward.png",
+    const waitForRatio = (ratio, timeoutMsg) =>
+      browser.waitUntil(
+        () =>
+          browser
+            .execute((targetRatio) => {
+              const video = document.querySelector("video");
+              const marker = Number(
+                document
+                  .querySelector('[aria-label="剪辑竖线 1"]')
+                  ?.getAttribute("aria-valuenow"),
+              );
+              const expected = (video?.duration ?? 0) * targetRatio;
+              return Boolean(
+                video &&
+                !video.seeking &&
+                video.dataset.scrubSeekPending !== "true" &&
+                Math.abs(video.currentTime - expected) < 0.2 &&
+                Math.abs(marker - expected) < 0.2,
+              );
+            }, ratio)
+            .then(Boolean),
+        { timeout: 10_000, timeoutMsg },
+      );
+    const waitForPreviewRatio = (ratio, timeoutMsg) =>
+      browser.waitUntil(
+        () =>
+          browser
+            .execute((targetRatio) => {
+              const video = document.querySelector("video");
+              const image = document.querySelector(
+                'img[data-scrub-preview-visible="true"]',
+              );
+              const marker = Number(
+                document
+                  .querySelector('[aria-label="剪辑竖线 1"]')
+                  ?.getAttribute("aria-valuenow"),
+              );
+              const expectedTime = (video?.duration ?? 0) * targetRatio;
+              const expectedFrame = Math.round(expectedTime * 12);
+              const frameIndex = Number(
+                image?.getAttribute("data-scrub-frame-index"),
+              );
+              return Boolean(
+                image instanceof HTMLImageElement &&
+                image.complete &&
+                image.naturalWidth > 0 &&
+                Math.abs(frameIndex - expectedFrame) <= 1 &&
+                Math.abs(marker - expectedTime) < 0.2,
+              );
+            }, ratio)
+            .then(Boolean),
+        { timeout: 10_000, timeoutMsg },
+      );
+    const isNativeWebKit = await browser.execute(
+      () =>
+        /AppleWebKit/i.test(navigator.userAgent) &&
+        !/Chrome|Chromium/i.test(navigator.userAgent),
     );
+    let forwardFrameHash;
+    if (isNativeWebKit) {
+      await browser.execute(() => {
+        const video = document.querySelector("video");
+        if (video) video.controls = false;
+      });
+      await waitForRatio(0.2, "initial marker did not settle");
+      await browser.execute(() => {
+        const video = document.querySelector("video");
+        window.__A4N_NATIVE_DRAG_SEEKED__ = 0;
+        video?.addEventListener("seeked", () => {
+          window.__A4N_NATIVE_DRAG_SEEKED__ += 1;
+        });
+      });
+      await browser.performActions([
+        {
+          type: "pointer",
+          id: "native-marker-drag",
+          parameters: { pointerType: "mouse" },
+          actions: [
+            { type: "pointerMove", x: Math.round(xAt(0.2)), y: Math.round(y) },
+            { type: "pointerDown", button: 0 },
+          ],
+        },
+      ]);
+      const dragSamples = [];
+      const dragRatios = [0.38, 0.76, 0.18, 0.76, 0.18, 0.9, 0.12, 0.82];
+      for (const [index, ratio] of dragRatios.entries()) {
+        await browser.performActions([
+          {
+            type: "pointer",
+            id: "native-marker-drag",
+            parameters: { pointerType: "mouse" },
+            actions: [
+              {
+                type: "pointerMove",
+                x: Math.round(xAt(ratio)),
+                y: Math.round(y),
+                duration: 150,
+              },
+            ],
+          },
+        ]);
+        try {
+          await waitForPreviewRatio(ratio, "held JPEG preview did not settle");
+        } catch (error) {
+          const state = await browser.execute(() => {
+            const video = document.querySelector("video");
+            return {
+              currentTime: video?.currentTime ?? null,
+              duration: video?.duration ?? null,
+              paused: video?.paused ?? null,
+              seeking: video?.seeking ?? null,
+              pending: video?.dataset.scrubSeekPending ?? null,
+              marker: document
+                .querySelector('[aria-label="剪辑竖线 1"]')
+                ?.getAttribute("aria-valuenow"),
+            };
+          });
+          throw new Error(`${error}; state=${JSON.stringify(state)}`);
+        }
+        dragSamples.push({
+          ratio,
+          hash: await screenshotHash(`/tmp/a4n-webkit-drag-${index}.png`),
+          state: await browser.execute(() => {
+            const video = document.querySelector("video");
+            return {
+              currentTime: video?.currentTime ?? null,
+              paused: video?.paused ?? null,
+              seeking: video?.seeking ?? null,
+              readyState: video?.readyState ?? null,
+              error: video?.error?.message ?? null,
+              frameIndex: document
+                .querySelector('img[data-scrub-preview-visible="true"]')
+                ?.getAttribute("data-scrub-frame-index"),
+              marker: document
+                .querySelector('[aria-label="剪辑竖线 1"]')
+                ?.getAttribute("aria-valuenow"),
+            };
+          }),
+        });
+      }
+      const rapidVisualSamples = [];
+      for (const [index, ratio] of [
+        0.14, 0.86, 0.22, 0.78, 0.3, 0.7,
+      ].entries()) {
+        await browser.performActions([
+          {
+            type: "pointer",
+            id: "native-marker-drag",
+            parameters: { pointerType: "mouse" },
+            actions: [
+              {
+                type: "pointerMove",
+                x: Math.round(xAt(ratio)),
+                y: Math.round(y),
+                duration: 5,
+              },
+            ],
+          },
+        ]);
+        await waitForPreviewRatio(ratio, "rapid JPEG preview did not settle");
+        const screenshotPath = `/tmp/a4n-webkit-rapid-${index}.png`;
+        rapidVisualSamples.push({
+          ratio,
+          hash: await screenshotHash(screenshotPath),
+          bytes: readFileSync(screenshotPath).length,
+          ...(await browser.execute(() => ({
+            currentTime: document.querySelector("video")?.currentTime ?? null,
+            frameIndex: document
+              .querySelector('img[data-scrub-preview-visible="true"]')
+              ?.getAttribute("data-scrub-frame-index"),
+          }))),
+        });
+      }
+      process.stdout.write(
+        `A4N_VIDEO_SCRUB_WEBKIT_RAPID=${JSON.stringify(rapidVisualSamples)}\n`,
+      );
+      const stressRatios = Array.from({ length: 8 }, () => [
+        0.12, 0.22, 0.32, 0.42, 0.52, 0.62, 0.72, 0.82, 0.92, 0.82, 0.72, 0.62,
+        0.52, 0.42, 0.32, 0.22, 0.18,
+      ]).flat();
+      await browser.performActions([
+        {
+          type: "pointer",
+          id: "native-marker-drag",
+          parameters: { pointerType: "mouse" },
+          actions: stressRatios.map((ratio) => ({
+            type: "pointerMove",
+            x: Math.round(xAt(ratio)),
+            y: Math.round(y),
+            duration: 25,
+          })),
+        },
+      ]);
+      await browser.performActions([
+        {
+          type: "pointer",
+          id: "native-marker-drag",
+          parameters: { pointerType: "mouse" },
+          actions: [
+            {
+              type: "pointerMove",
+              x: Math.round(xAt(0.18)),
+              y: Math.round(y),
+              duration: 150,
+            },
+          ],
+        },
+      ]);
+      try {
+        await waitForPreviewRatio(0.18, "rapid held JPEG drag did not settle");
+      } catch (error) {
+        let state;
+        try {
+          state = await browser.execute(() => {
+            const video = document.querySelector("video");
+            return {
+              currentTime: video?.currentTime ?? null,
+              duration: video?.duration ?? null,
+              paused: video?.paused ?? null,
+              seeking: video?.seeking ?? null,
+              readyState: video?.readyState ?? null,
+              networkState: video?.networkState ?? null,
+              error: video?.error?.message ?? null,
+              frameIndex: document
+                .querySelector('img[data-scrub-preview-visible="true"]')
+                ?.getAttribute("data-scrub-frame-index"),
+              marker: document
+                .querySelector('[aria-label="剪辑竖线 1"]')
+                ?.getAttribute("aria-valuenow"),
+            };
+          });
+        } catch (stateError) {
+          state = { webdriverError: String(stateError) };
+        }
+        throw new Error(`${error}; state=${JSON.stringify(state)}`);
+      }
+      dragSamples.push({
+        ratio: 0.18,
+        hash: await screenshotHash("/tmp/a4n-webkit-drag-stress.png"),
+        state: await browser.execute(() => {
+          const video = document.querySelector("video");
+          return {
+            currentTime: video?.currentTime ?? null,
+            paused: video?.paused ?? null,
+            seeking: video?.seeking ?? null,
+            readyState: video?.readyState ?? null,
+            error: video?.error?.message ?? null,
+            marker: document
+              .querySelector('[aria-label="剪辑竖线 1"]')
+              ?.getAttribute("aria-valuenow"),
+          };
+        }),
+      });
+      await browser.performActions([
+        {
+          type: "pointer",
+          id: "native-marker-drag",
+          parameters: { pointerType: "mouse" },
+          actions: [
+            {
+              type: "pointerMove",
+              x: Math.round(xAt(0.76)),
+              y: Math.round(y),
+              duration: 150,
+            },
+          ],
+        },
+      ]);
+      await waitForPreviewRatio(0.76, "final held JPEG drag did not settle");
+      forwardFrameHash = await screenshotHash(
+        "/tmp/a4n-webkit-drag-forward.png",
+      );
+      const heldSeekedCount = await browser.execute(
+        () => window.__A4N_NATIVE_DRAG_SEEKED__,
+      );
+      await browser.performActions([
+        {
+          type: "pointer",
+          id: "native-marker-drag",
+          parameters: { pointerType: "mouse" },
+          actions: [{ type: "pointerUp", button: 0 }],
+        },
+      ]);
+      await waitForRatio(0.76, "released native drag did not settle");
+      process.stdout.write(
+        `A4N_VIDEO_SCRUB_WEBKIT_DRAG=${JSON.stringify(dragSamples)}\n`,
+      );
+      assert.equal(heldSeekedCount, 0, "按住竖线拖动时仍在连续 seek 原生视频");
+      assert.ok(
+        new Set(rapidVisualSamples.map((sample) => sample.hash)).size >= 5,
+        `快速拖动时 JPEG 画面卡在同一帧：${JSON.stringify(rapidVisualSamples)}`,
+      );
+      assert.ok(
+        rapidVisualSamples.every((sample) => sample.bytes > 20_000),
+        `快速拖动时出现黑帧：${JSON.stringify(rapidVisualSamples)}`,
+      );
+      for (const ratio of [0.76, 0.18]) {
+        const matching = dragSamples.filter((sample) => sample.ratio === ratio);
+        assert.equal(
+          new Set(matching.map((sample) => sample.hash)).size,
+          1,
+          `往返拖回同一位置时画面不一致：${JSON.stringify(matching)}`,
+        );
+      }
+      assert.notEqual(
+        dragSamples[1].hash,
+        dragSamples[2].hash,
+        "按住竖线反向拖动时视频画面没有回退",
+      );
+      assert.equal(
+        forwardFrameHash,
+        dragSamples.find((sample) => sample.ratio === 0.76)?.hash,
+        "压力拖动后画面没有恢复到最终竖线位置",
+      );
+    } else {
+      await browser.performActions([
+        {
+          type: "pointer",
+          id: "native-marker-drag",
+          parameters: { pointerType: "mouse" },
+          actions: [
+            { type: "pointerMove", x: Math.round(xAt(0.2)), y: Math.round(y) },
+            { type: "pointerDown", button: 0 },
+            {
+              type: "pointerMove",
+              x: Math.round(xAt(0.76)),
+              y: Math.round(y),
+              duration: 300,
+            },
+            { type: "pointerUp", button: 0 },
+          ],
+        },
+      ]);
+      await waitForRatio(0.76, "native pointer drag did not settle");
+      forwardFrameHash = await screenshotHash("/tmp/a4n-chromium-forward.png");
+    }
     await browser.performActions([
       {
         type: "pointer",
@@ -433,7 +743,9 @@ describe("video timeline scrubbing", () => {
           .execute(() => {
             const video = document.querySelector("video");
             return video
-              ? !video.seeking && Math.abs(video.currentTime - video.duration * 0.2) < 0.2
+              ? !video.seeking &&
+                  video.dataset.scrubSeekPending !== "true" &&
+                  Math.abs(video.currentTime - video.duration * 0.2) < 0.2
               : false;
           })
           .then(Boolean),
@@ -450,12 +762,7 @@ describe("video timeline scrubbing", () => {
     await browser.execute(() => {
       document.querySelector("video")?.pause();
     });
-    const playButton = await browser.$('[aria-label="播放后处理预览"]');
-    if (await playButton.isExisting()) {
-      await playButton.click();
-    } else {
-      await browser.execute(() => void document.querySelector("video")?.play());
-    }
+    await browser.execute(() => void document.querySelector("video")?.play());
     const startPlaybackTime = await browser.execute(
       () => document.querySelector("video")?.currentTime ?? null,
     );
@@ -463,15 +770,13 @@ describe("video timeline scrubbing", () => {
     const playbackState = await browser.execute(() => ({
       currentTime: document.querySelector("video")?.currentTime ?? null,
       paused: document.querySelector("video")?.paused ?? true,
-      canvasVisible: Boolean(
-        document.querySelector('canvas[data-scrub-preview-visible="true"]'),
-      ),
+      canvasCount: document.querySelectorAll("canvas").length,
       playbackHeadVisible: Boolean(
         document.querySelector('[data-playback-head="true"]'),
       ),
     }));
     assert.equal(playbackState.paused, false);
-    assert.equal(playbackState.canvasVisible, false);
+    assert.equal(playbackState.canvasCount, 0);
     assert.equal(playbackState.playbackHeadVisible, true);
     assert.ok(
       startPlaybackTime != null &&

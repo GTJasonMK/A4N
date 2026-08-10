@@ -133,6 +133,25 @@ export function chapterRangeText(first: number, last: number): string {
   return first === last ? `第 ${first} 章` : `第 ${first}-${last} 章`;
 }
 
+export function profileChapterRangeText(
+  first: number,
+  last: number,
+  evidence: unknown,
+  ownershipKind: string,
+): string {
+  if (ownershipKind === "user" && stringList(evidence).length === 0) {
+    return "出场章节待正文确认";
+  }
+  return chapterRangeText(first, last);
+}
+
+export function profileOwnershipLabel(value: string): string {
+  if (value === "user") return "用户资料";
+  if (value === "ai_sync") return "AI 同步资料";
+  if (value === "legacy_unknown") return "历史来源";
+  return "来源异常";
+}
+
 export function TextField({
   label,
   value,

@@ -136,13 +136,10 @@ function blueprint(): Blueprint {
     tone: null,
     target_audience: null,
     one_sentence_summary: null,
+    world_setting: null,
     current_version: "revision-1",
-    needs_part_outlines: false,
     total_chapters: null,
     chapters_per_part: null,
-    avatar_svg: null,
-    avatar_animal: null,
-    created_at: null,
-    updated_at: null,
+    source_review_status: "not_applicable",
   };
 }

@@ -23,7 +23,7 @@ vi.mock(".", () => ({
 }));
 
 vi.mock("./authStorage", () => ({
-  readCurrentUserId: () => 1,
+  requireCurrentUserId: () => 1,
 }));
 
 vi.mock("./runtime", () => ({

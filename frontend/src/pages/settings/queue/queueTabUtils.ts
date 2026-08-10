@@ -1,10 +1,10 @@
-import type { TaskInfo } from "../../../api/task";
+import type { TaskInfoSummary } from "../../../api/task";
 import {
   progressDisplayModel,
   type ProgressDisplayModel,
 } from "../../../utils/progressPresentation";
 
-export const taskProgressDisplay = (task: TaskInfo): ProgressDisplayModel => {
+export const taskProgressDisplay = (task: TaskInfoSummary): ProgressDisplayModel => {
   if (task.progress?.message?.trim()) {
     return progressDisplayModel({
       ...task.progress,
@@ -17,12 +17,11 @@ export const taskProgressDisplay = (task: TaskInfo): ProgressDisplayModel => {
     total: 1,
     message: formatTaskCreatedAt(task.created_at),
     status: task.status === "cancelled" ? "cancelled" : "idle",
-    fallbackStage: task.created_at == null ? "暂无进度" : "任务已创建",
+    fallbackStage: "任务已创建",
   });
 };
 
-const formatTaskCreatedAt = (value: string | null): string => {
-  if (!value) return "";
+const formatTaskCreatedAt = (value: string): string => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString([], {

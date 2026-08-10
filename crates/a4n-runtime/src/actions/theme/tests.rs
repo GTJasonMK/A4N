@@ -1,4 +1,4 @@
-use super::contracts::{CreateThemeInput, ImportThemeInput};
+use super::{CreateThemeInput, ImportThemeInput};
 use serde_json::json;
 
 #[test]

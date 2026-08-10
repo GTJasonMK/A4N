@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
 import { usePersistedState } from "../../hooks/usePersistedState";
+import { clampFiniteRounded } from "../../utils/numberRange";
 
 type CanvasSidebarSide = "left" | "right";
 
@@ -15,15 +16,10 @@ const CANVAS_WORKSPACE_PREFERRED_MIN_WIDTH = 520;
 const CANVAS_MOBILE_BREAKPOINT = 768;
 const CANVAS_RIGHT_SIDEBAR_BREAKPOINT = 1100;
 
-const clampCanvasSidebarWidth = (value: number, minWidth: number, maxWidth: number, fallback: number): number => {
-  if (!Number.isFinite(value)) return fallback;
-  return Math.min(maxWidth, Math.max(minWidth, Math.round(value)));
-};
-
 const parseCanvasSidebarWidth =
   (minWidth: number, maxWidth: number, fallback: number) =>
   (raw: string): number =>
-    clampCanvasSidebarWidth(Number(raw), minWidth, maxWidth, fallback);
+    clampFiniteRounded(Number(raw), minWidth, maxWidth, fallback);
 
 export const useVideoCanvasSidebarLayout = () => {
   const [storedLeftWidth, setStoredLeftWidth] = usePersistedState<number>(
@@ -78,7 +74,7 @@ export const useVideoCanvasSidebarLayout = () => {
       Math.min(CANVAS_LEFT_SIDEBAR_MAX_WIDTH, available),
     );
   }, [rightSidebarVisible, viewportWidth]);
-  const leftSidebarWidth = clampCanvasSidebarWidth(
+  const leftSidebarWidth = clampFiniteRounded(
     storedLeftWidth,
     CANVAS_LEFT_SIDEBAR_MIN_WIDTH,
     leftSidebarMaxWidth,
@@ -95,7 +91,7 @@ export const useVideoCanvasSidebarLayout = () => {
       Math.min(CANVAS_RIGHT_SIDEBAR_MAX_WIDTH, available),
     );
   }, [leftSidebarWidth, viewportWidth]);
-  const rightSidebarWidth = clampCanvasSidebarWidth(
+  const rightSidebarWidth = clampFiniteRounded(
     storedRightWidth,
     CANVAS_RIGHT_SIDEBAR_MIN_WIDTH,
     rightSidebarMaxWidth,
@@ -111,7 +107,7 @@ export const useVideoCanvasSidebarLayout = () => {
     (side: CanvasSidebarSide, width: number) => {
       if (side === "left") {
         setStoredLeftWidth(
-          clampCanvasSidebarWidth(
+          clampFiniteRounded(
             width,
             CANVAS_LEFT_SIDEBAR_MIN_WIDTH,
             leftSidebarMaxWidth,
@@ -121,7 +117,7 @@ export const useVideoCanvasSidebarLayout = () => {
         return;
       }
       setStoredRightWidth(
-        clampCanvasSidebarWidth(
+        clampFiniteRounded(
           width,
           CANVAS_RIGHT_SIDEBAR_MIN_WIDTH,
           rightSidebarMaxWidth,

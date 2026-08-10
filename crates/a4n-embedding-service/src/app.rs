@@ -47,10 +47,6 @@ pub(crate) async fn run() -> anyhow::Result<()> {
             post(crate::handlers::models::model_download_info),
         )
         .route(
-            "/embedding/model/download",
-            post(crate::handlers::models::download_model),
-        )
-        .route(
             "/embedding/model/download/events",
             post(crate::handlers::events::download_model_events),
         )

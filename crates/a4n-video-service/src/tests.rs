@@ -163,6 +163,18 @@ fn allows_blank_api_key_when_user_secret_forwarding_is_denied() {
 }
 
 #[test]
+fn rejects_nonpositive_video_dimensions_at_service_boundary() {
+    let mut payload = video_payload("");
+    payload.request.width = 0;
+    let request = provider_request(payload, false);
+
+    let error = validate_video_provider_request(&request).expect_err("invalid dimensions");
+
+    assert_eq!(error.code, ServiceErrorCode::ConfigurationError);
+    assert!(error.message.contains("宽度和高度必须为正整数"));
+}
+
+#[test]
 fn validates_generate_project_scope_against_request_envelope() {
     let mut request = provider_request(video_payload(""), false);
     request.project_id = Some(42);

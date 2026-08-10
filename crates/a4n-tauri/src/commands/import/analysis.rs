@@ -23,7 +23,7 @@ pub async fn get_project_import_analysis_progress(
     .await
 }
 
-/// 对已导入章节执行项目级导入分析，补齐结构化分析、章节大纲、基础蓝图和分部大纲。
+/// 对已导入章节执行项目级导入分析，补齐结构化资料并生成高层资料候选。
 #[tauri::command]
 pub async fn run_import_project_analysis(
     state: State<'_, AppState>,
@@ -60,6 +60,36 @@ pub async fn cancel_import_analysis(
     project_id: i64,
 ) -> Result<u64, String> {
     a4n_runtime::host_api::import_analysis::cancel_import_analysis(
+        state.inner(),
+        user_id,
+        project_id,
+    )
+    .await
+}
+
+/// 应用用户确认的导入分析蓝图候选；候选内容由后端从项目进度读取。
+#[tauri::command]
+pub async fn apply_import_analysis_blueprint_candidate(
+    state: State<'_, AppState>,
+    user_id: i64,
+    project_id: i64,
+) -> Result<Value, String> {
+    a4n_runtime::host_api::import_analysis::apply_import_analysis_blueprint_candidate(
+        state.inner(),
+        user_id,
+        project_id,
+    )
+    .await
+}
+
+/// 应用用户确认的导入分析分部大纲候选；候选内容由后端从项目进度读取。
+#[tauri::command]
+pub async fn apply_import_analysis_part_outline_candidate(
+    state: State<'_, AppState>,
+    user_id: i64,
+    project_id: i64,
+) -> Result<Value, String> {
+    a4n_runtime::host_api::import_analysis::apply_import_analysis_part_outline_candidate(
         state.inner(),
         user_id,
         project_id,

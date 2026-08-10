@@ -1,5 +1,5 @@
 use super::super::{
-    CharacterAiProgress,
+    CharacterAiProgress, SyncCharacterProfileInput, SyncCharacterProfileResult,
     sync_trace::RuntimeCharacterProfileSyncStageTracePort,
     sync_types::{CHARACTER_PROFILE_SYNC_STEPS, CharacterProgressScope},
 };
@@ -11,40 +11,24 @@ use a4n_core::error::AppError;
 use a4n_orchestrator::character::{
     CharacterProfileSyncApplicationInput, CharacterProfileSyncProgress, CharacterProfileSyncSubject,
 };
-use serde_json::Value;
 
 pub async fn sync_character_profile_from_chapters(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    name: &str,
-    chapter_number: i32,
+    input: SyncCharacterProfileInput,
     progress: Option<&CharacterAiProgress<'_>>,
-) -> Result<Value, String> {
-    access::verify_project_editor(state, user_id, project_id)
+) -> Result<SyncCharacterProfileResult, String> {
+    access::verify_project_editor(state, user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
-    sync_character_profile_from_chapters_with_scope(
-        state,
-        project_id,
-        name,
-        chapter_number,
-        CharacterProgressScope::root(progress, CHARACTER_PROFILE_SYNC_STEPS, "角色同步已停止"),
-    )
-    .await
-}
-
-pub(in crate::actions::character_ai) async fn sync_character_profile_from_chapters_with_scope(
-    state: &AppState,
-    project_id: i64,
-    name: &str,
-    chapter_number: i32,
-    progress: CharacterProgressScope<'_>,
-) -> Result<Value, String> {
     sync_character_profile_input_with_scope(
         state,
-        CharacterProfileSyncApplicationInput::incremental_by_name(project_id, name, chapter_number),
-        progress,
+        CharacterProfileSyncApplicationInput::incremental_by_name(
+            input.project_id,
+            input.name,
+            input.chapter_number,
+        ),
+        CharacterProgressScope::root(progress, CHARACTER_PROFILE_SYNC_STEPS, "角色同步已停止"),
     )
     .await
 }
@@ -53,7 +37,7 @@ pub(in crate::actions::character_ai) async fn sync_character_profile_input_with_
     state: &AppState,
     input: CharacterProfileSyncApplicationInput,
     progress: CharacterProgressScope<'_>,
-) -> Result<Value, String> {
+) -> Result<SyncCharacterProfileResult, String> {
     let display_name = match &input.subject {
         CharacterProfileSyncSubject::ByName { name, .. } => name.clone(),
         CharacterProfileSyncSubject::Profile(profile) => profile.name.clone(),

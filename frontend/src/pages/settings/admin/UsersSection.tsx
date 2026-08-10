@@ -11,10 +11,10 @@ import {
   listInviteCodes,
   listAllUsers,
   updateUserRole,
-  type AdminInviteCode,
-  type AdminUser,
-  type CreateAdminUserInput,
-  type UsageLog,
+  type CreateUserInput,
+  type InviteCodeSummary,
+  type UserSummary,
+  type UsageLogSummary,
 } from "../../../api/admin";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { promptDialog } from "../../../components/feedback/PromptDialog";
@@ -24,7 +24,7 @@ import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 
-const emptyCreateUserForm: CreateAdminUserInput = {
+const emptyCreateUserForm: CreateUserInput = {
   username: "",
   email: "",
   password: "",
@@ -81,17 +81,17 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
   callerUserId,
 }) => {
   const { addToast } = useToast();
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [inviteCodes, setInviteCodes] = useState<AdminInviteCode[]>([]);
+  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [inviteCodes, setInviteCodes] = useState<InviteCodeSummary[]>([]);
   const [actingKeys, setActingKeys] = useState<Set<string>>(() => new Set());
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] =
-    useState<CreateAdminUserInput>(emptyCreateUserForm);
+    useState<CreateUserInput>(emptyCreateUserForm);
   const [tokenFor, setTokenFor] = useState<number | null>(null);
   const [tokenInfo, setTokenInfo] = useState<unknown>(null);
   const [tokenLoadingFor, setTokenLoadingFor] = useState<number | null>(null);
   const [usageFor, setUsageFor] = useState<number | null>(null);
-  const [usageInfo, setUsageInfo] = useState<UsageLog[] | null>(null);
+  const [usageInfo, setUsageInfo] = useState<UsageLogSummary[] | null>(null);
   const [usageLoadingFor, setUsageLoadingFor] = useState<number | null>(null);
   const actingKeysRef = useRef<Set<string>>(new Set());
   const tokenSeqRef = useRef(0);
@@ -127,7 +127,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     [callerUserId],
   );
   const applyUsers = useCallback(
-    ([nextUsers, nextInviteCodes]: [AdminUser[], AdminInviteCode[]]) => {
+    ([nextUsers, nextInviteCodes]: [UserSummary[], InviteCodeSummary[]]) => {
       setUsers(nextUsers);
       setInviteCodes(nextInviteCodes);
     },
@@ -185,7 +185,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     createFormVersionRef.current += 1;
   };
 
-  const updateCreateForm = (patch: Partial<CreateAdminUserInput>) => {
+  const updateCreateForm = (patch: Partial<CreateUserInput>) => {
     createFormVersionRef.current += 1;
     setCreateForm((prev) => ({ ...prev, ...patch }));
   };
@@ -255,7 +255,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     }
   };
 
-  const handleRole = async (u: AdminUser) => {
+  const handleRole = async (u: UserSummary) => {
     const requestCallerUserId = callerUserId;
     const actionKey = `role-${u.id}`;
     if (!tryStartAction(actionKey)) return;
@@ -288,7 +288,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     }
   };
 
-  const handleDel = async (u: AdminUser) => {
+  const handleDel = async (u: UserSummary) => {
     if (u.id === callerUserId) {
       addToast("不能删除自己", "error");
       return;
@@ -317,7 +317,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     }
   };
 
-  const handleToken = async (u: AdminUser) => {
+  const handleToken = async (u: UserSummary) => {
     if (tokenInFlightForRef.current === u.id) return;
     const requestCallerUserId = callerUserId;
     const requestSeq = tokenSeqRef.current + 1;
@@ -352,7 +352,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     }
   };
 
-  const handleUsage = async (u: AdminUser) => {
+  const handleUsage = async (u: UserSummary) => {
     if (usageInFlightForRef.current === u.id) return;
     const requestCallerUserId = callerUserId;
     const requestSeq = usageSeqRef.current + 1;
@@ -407,7 +407,7 @@ export const UsersSection: React.FC<{ callerUserId: number }> = ({
     setUsageLoadingFor(null);
   };
 
-  const userActions = (u: AdminUser): DropdownItem[] => {
+  const userActions = (u: UserSummary): DropdownItem[] => {
     const items: DropdownItem[] = [
       {
         label: "令牌摘要",
@@ -673,7 +673,7 @@ const TokenSummaryPanel: React.FC<{
 };
 
 const UsageRecordsPanel: React.FC<{
-  data: UsageLog[] | null;
+  data: UsageLogSummary[] | null;
   loading: boolean;
 }> = ({ data, loading }) => (
   <div className="overflow-hidden">
@@ -698,7 +698,6 @@ const UsageRecordsPanel: React.FC<{
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-book-text-muted">
               <span>输入 {item.prompt_tokens.toLocaleString()}</span>
               <span>输出 {item.completion_tokens.toLocaleString()}</span>
-              {item.cost != null ? <span>费用 {item.cost}</span> : null}
               <span>{formatAdminDate(item.created_at)}</span>
             </div>
           </li>

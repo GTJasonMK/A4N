@@ -1,13 +1,11 @@
 use chrono::Utc;
-use serde_json::json;
 
 use crate::models::chapter::chapter;
 use crate::models::project::text_anchor;
 
 use super::{
     anchor_quote_with_chapter_number, anchor_quotes_in_exact_chapter,
-    anchor_quotes_with_chapter_numbers, reject_deprecated_output_fields,
-    reject_deprecated_reference_fields,
+    anchor_quotes_with_chapter_numbers,
 };
 
 fn chapter(id: i64, number: i32) -> chapter::Model {
@@ -46,19 +44,6 @@ fn anchor(id: i64, chapter_id: Option<i64>, quote: &str) -> text_anchor::Model {
         source_version_hash: "version".to_string(),
         created_at: Utc::now().naive_utc(),
     }
-}
-
-#[test]
-fn rejects_deprecated_output_and_reference_fields_with_distinct_contracts() {
-    let value = json!({"evidence": []});
-    assert_eq!(
-        reject_deprecated_output_fields(&value, "root", &["evidence"], "source_span_id"),
-        Err("root.evidence 已废弃；必须输出 source_span_id".to_string())
-    );
-    assert_eq!(
-        reject_deprecated_reference_fields(&value, "root", &["evidence"], "text_anchor_id"),
-        Err("root.evidence 已废弃；必须引用 text_anchor_id".to_string())
-    );
 }
 
 #[test]

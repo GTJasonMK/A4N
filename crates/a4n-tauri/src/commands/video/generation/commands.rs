@@ -11,11 +11,7 @@ pub async fn start_video_generation(
     user_id: i64,
     input: StartVideoGenerationInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    a4n_runtime::host_api::video_generation::start_video_generation_typed(
-        state.inner(),
-        user_id,
-        input,
-    )
-    .await
-    .map_err(crate::commands::generation_tasks::map_access_error)
+    a4n_runtime::host_api::video_generation::start_video_generation(state.inner(), user_id, input)
+        .await
+        .map_err(crate::commands::generation_tasks::map_access_error)
 }

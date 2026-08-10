@@ -1,8 +1,7 @@
 use crate::handlers::{
-    categories, dependency_graph, get_prompt, healthz, hydrate_overrides, list_prompts,
-    load_defaults, remove_project_override, render_prompt, render_prompt_ab, reset_prompt,
-    set_project_override, update_many_prompts, update_prompt, validate_prompt, version_diff,
-    version_get, version_history,
+    categories, get_prompt, healthz, hydrate_overrides, list_prompts, load_defaults,
+    remove_project_override, render_prompt, render_prompt_ab, reset_prompt, set_project_override,
+    update_many_prompts, update_prompt, validate_prompt, version_diff, version_history,
 };
 use a4n_core::config::env::optional_non_empty_env_path;
 use a4n_prompt::tera_engine::TeraPromptEngine;
@@ -156,9 +155,7 @@ fn router(state: PromptServiceState) -> Router {
         .route("/prompt/update_many", post(update_many_prompts))
         .route("/prompt/reset", post(reset_prompt))
         .route("/prompt/version_history", post(version_history))
-        .route("/prompt/version_get", post(version_get))
         .route("/prompt/version_diff", post(version_diff))
-        .route("/prompt/dependency_graph", post(dependency_graph))
         .route("/prompt/categories", post(categories))
         .layer(DefaultBodyLimit::max(
             policy.body_limit(a4n_service_protocol::BodyLimitKind::Json),

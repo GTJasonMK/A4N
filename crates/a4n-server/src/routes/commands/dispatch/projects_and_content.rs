@@ -30,6 +30,12 @@ pub(super) async fn try_dispatch(
             get_project_import_analysis_progress(state, user_id, args).await?
         }
         "run_import_project_analysis" => run_import_project_analysis(state, user_id, args).await?,
+        "apply_import_analysis_blueprint_candidate" => {
+            apply_import_analysis_blueprint_candidate(state, user_id, args).await?
+        }
+        "apply_import_analysis_part_outline_candidate" => {
+            apply_import_analysis_part_outline_candidate(state, user_id, args).await?
+        }
         "preview_import_project_analysis_request" => {
             preview_import_project_analysis_request(state, user_id, args).await?
         }
@@ -70,7 +76,11 @@ pub(super) async fn try_dispatch(
         "duplicate_project" => duplicate_project(state, user_id, args).await?,
         "branch_project" => branch_project(state, user_id, args).await?,
         "rollback_project_status" => rollback_project_status(state, user_id, args).await?,
-        "get_project_status_history" => get_project_status_history(state, user_id, args).await?,
+        "get_project_status_machine" => get_project_status_machine(state, user_id, args).await?,
+        "preview_rollback" => preview_rollback(state, user_id, args).await?,
+        "preview_source_sync" => preview_source_sync(state, user_id, args).await?,
+        "apply_source_sync_decisions" => apply_source_sync_decisions(state, user_id, args).await?,
+        "detach_derived_project" => detach_derived_project(state, user_id, args).await?,
         "list_chapters" => list_chapters(state, user_id, args).await?,
         "preview_chapter_prompt" => preview_chapter_prompt(state, user_id, args).await?,
         "import_chapter" => import_chapter(state, user_id, args).await?,
@@ -107,6 +117,8 @@ pub(super) async fn try_dispatch(
             preview_chapter_scene_request(state, user_id, args).await?
         }
         "get_blueprint" => get_blueprint(state, user_id, args).await?,
+        "sync_blueprint_materials" => sync_blueprint_materials(state, user_id, args).await?,
+        "sync_outline_materials" => sync_outline_materials(state, user_id, args).await?,
         "preview_generate_blueprint_request" => {
             preview_generate_blueprint_request(state, user_id, args).await?
         }
@@ -116,6 +128,7 @@ pub(super) async fn try_dispatch(
         "list_blueprint_versions" => list_blueprint_versions(state, user_id, args).await?,
         "diff_blueprint_versions" => diff_blueprint_versions(state, user_id, args).await?,
         "restore_blueprint_version" => restore_blueprint_version(state, user_id, args).await?,
+        "save_blueprint" => save_blueprint(state, user_id, args).await?,
         "preview_regenerate_part_outline_request" => {
             preview_regenerate_part_outline_request(state, user_id, args).await?
         }
@@ -123,7 +136,9 @@ pub(super) async fn try_dispatch(
             preview_continue_part_outlines_request(state, user_id, args).await?
         }
         "get_generation_progress" => get_generation_progress(state, user_id, args).await?,
+        "save_part_outline" => save_part_outline(state, user_id, args).await?,
         "list_chapter_outlines" => list_chapter_outlines(state, user_id, args).await?,
+        "save_chapter_outline" => save_chapter_outline(state, user_id, args).await?,
         "delete_latest_chapter_outlines" => {
             delete_latest_chapter_outlines(state, user_id, args).await?
         }

@@ -67,28 +67,7 @@ impl VectorStore for ShortWriteVectorStore {
         Err(Self::unexpected_call())
     }
 
-    async fn collection_exists(&self, _collection: &str) -> Result<bool, AppError> {
-        Err(Self::unexpected_call())
-    }
-
-    async fn count(&self, _collection: &str) -> Result<usize, AppError> {
-        Err(Self::unexpected_call())
-    }
-
     async fn drop_collection(&self, _collection: &str) -> Result<(), AppError> {
-        Err(Self::unexpected_call())
-    }
-
-    async fn list_collections(&self) -> Result<Vec<String>, AppError> {
-        Err(Self::unexpected_call())
-    }
-
-    async fn update_metadata(
-        &self,
-        _collection: &str,
-        _id: &str,
-        _metadata: serde_json::Value,
-    ) -> Result<(), AppError> {
         Err(Self::unexpected_call())
     }
 
@@ -105,18 +84,6 @@ impl VectorStore for ShortWriteVectorStore {
         _collection: &str,
         _filter: DeleteFilter,
     ) -> Result<HashMap<String, serde_json::Value>, AppError> {
-        Err(Self::unexpected_call())
-    }
-
-    async fn health_check(&self) -> Result<bool, AppError> {
-        Err(Self::unexpected_call())
-    }
-
-    async fn completeness_report(
-        &self,
-        _collection: &str,
-        _expected_count: usize,
-    ) -> Result<CompletenessReport, AppError> {
         Err(Self::unexpected_call())
     }
 
@@ -147,7 +114,7 @@ pub fn embedding_record(id: &str, data_type: &str, chapter_id: i64) -> Embedding
             "chapter_id": chapter_id,
             "chapter_number": 3,
         }),
-        content: Some(id.to_string()),
+        content: id.to_string(),
     }
 }
 

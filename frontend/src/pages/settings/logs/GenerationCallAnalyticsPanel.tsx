@@ -13,7 +13,6 @@ import {
   type CallKindOverview,
   type DailyCallMetric,
   type GenerationCallAnalytics,
-  type GenerationCallKind,
   type RecentLlmCall,
   type RecentMediaCall,
 } from "../../../api/generationAnalytics";
@@ -326,7 +325,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
 
 const OverviewRow: React.FC<{
   item: CallKindOverview | undefined;
-  kind: GenerationCallKind;
+  kind: string;
   loading: boolean;
   failed: boolean;
 }> = ({ item, kind, loading, failed }) => {
@@ -673,7 +672,7 @@ const EmptyState: React.FC<{ text: string }> = ({ text }) => (
   <div className="a4n-empty-state a4n-empty-state--compact text-xs">{text}</div>
 );
 
-function kindLabel(kind: GenerationCallKind): string {
+function kindLabel(kind: string): string {
   return KIND_LABELS[kind] ?? "其他调用";
 }
 

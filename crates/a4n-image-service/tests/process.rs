@@ -1,7 +1,7 @@
-use a4n_service_protocol::{SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
+use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
 use a4n_test_support::process::{
     FakeJsonProvider, HangingJsonProvider, HttpImageClient, IMAGE_PROVIDER_CAPABILITY_VERSION,
-    IMAGE_SERVICE_NAME, ImageClient, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus,
+    IMAGE_SERVICE_NAME, ImageClient, JsonRequest, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus,
     assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
     assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
     assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
@@ -26,13 +26,12 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
     let process = start_sidecar(&manager, IMAGE_SERVICE_NAME).await;
     assert_process_concurrency_saturation(addr, IMAGE_SERVICE_NAME, "/image/models").await;
     let base_url = sidecar_base_url(addr);
-    assert_protected_route_rejects_invalid_auth(&base_url, "/image/generate").await;
+    assert_protected_route_rejects_invalid_auth(&base_url, "/image/generate/events").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/image/request_preview").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/image/probe").await;
-    assert_route_rejects_malformed_json(&base_url, "/image/generate").await;
+    assert_route_rejects_malformed_json(&base_url, "/image/generate/events").await;
     assert_route_rejects_oversized_json(&base_url, "/image/models", 8 * 1024 * 1024).await;
     assert_route_rejects_oversized_json(&base_url, "/image/generate/events", 8 * 1024 * 1024).await;
-    assert_route_rejects_oversized_json(&base_url, "/image/generate", 64 * 1024 * 1024).await;
     let client = HttpImageClient::new_with_auth_token(base_url.clone(), SIDECAR_PROCESS_TEST_TOKEN);
     let cancel_client = HttpImageClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let contract_request = provider_request_context(
@@ -48,7 +47,7 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
-        "/image/generate",
+        "/image/request_preview",
         &contract_request,
     )
     .await;
@@ -144,8 +143,9 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
     }))
     .await;
 
-    let remote_secret = client
-        .generate(trusted_remote_request_context(
+    let remote_secret_events = image_generation_events(
+        &client,
+        trusted_remote_request_context(
             "image-process-remote-secret",
             "image-process-remote-secret-trace",
             IMAGE_PROVIDER_CAPABILITY_VERSION,
@@ -155,12 +155,14 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
                 "api_key": "process-provider-secret",
                 "request": {"prompt": "remote secret must stop", "width": 1, "height": 1, "model": "fake-image", "reference_images": []}
             }),
-        ))
-        .await
-        .expect("remote image secret rejection should remain a typed response");
-    assert_eq!(remote_secret.status, ServiceStatus::Error);
-    let remote_secret_error = remote_secret
+        ),
+    )
+    .await;
+    let remote_secret_error = remote_secret_events
+        .last()
+        .expect("remote image secret terminal event")
         .error
+        .as_ref()
         .expect("remote image secret rejection error");
     assert_eq!(remote_secret_error.code, ServiceErrorCode::Unauthorized);
     assert!(
@@ -173,8 +175,9 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
         "images": [PNG_1X1_B64]
     }))
     .await;
-    let remote_content = client
-        .generate(trusted_remote_request_context(
+    let remote_content_events = image_generation_events(
+        &client,
+        trusted_remote_request_context(
             "image-process-remote-content",
             "image-process-remote-content-trace",
             IMAGE_PROVIDER_CAPABILITY_VERSION,
@@ -184,12 +187,16 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
                 "api_key": "",
                 "request": {"prompt": "remote image content", "width": 1, "height": 1, "model": "", "reference_images": []}
             }),
-        ))
-        .await
-        .expect("secret-free remote image content should remain available");
-    assert_eq!(remote_content.status, ServiceStatus::Ok);
+        ),
+    )
+    .await;
     assert_eq!(
-        remote_content.payload.expect("remote image payload")["format"],
+        remote_content_events
+            .last()
+            .expect("remote image content terminal event")
+            .payload
+            .as_ref()
+            .expect("remote image payload")["format"],
         "png"
     );
     remote_provider.stop().await;
@@ -264,15 +271,7 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
             "request": {"prompt": "failure test", "width": 1, "height": 1, "model": "fake-image", "reference_images": []}
         }),
     );
-    let (failed_tx, mut failed_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
-    client
-        .generate_events(failed_events_request, failed_tx)
-        .await
-        .expect("image provider failure should end in a typed event");
-    let mut failed_events = Vec::new();
-    while let Some(event) = failed_rx.recv().await {
-        failed_events.push(event);
-    }
+    let failed_events = image_generation_events(&client, failed_events_request).await;
     let failed_event = failed_events.last().expect("image failed terminal event");
     assert_eq!(
         failed_event.event_kind,
@@ -298,27 +297,38 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
             "request": {"prompt": "process test", "width": 1, "height": 1, "model": "fake-image", "reference_images": []}
         }),
     );
-    assert_route_rejects_version_mismatch(&sidecar_base_url(addr), "/image/generate", &request)
-        .await;
+    assert_route_rejects_version_mismatch(
+        &sidecar_base_url(addr),
+        "/image/request_preview",
+        &request,
+    )
+    .await;
+    let events = image_generation_events(&client, request).await;
+    let completed = events.last().expect("image completed event");
+    assert_eq!(
+        completed.event_kind,
+        a4n_service_protocol::CapabilityTaskEventKind::Completed
+    );
+    assert_eq!(
+        completed.payload.as_ref().expect("image payload")["format"],
+        "png"
+    );
+    finish_sidecar(process, &manager, IMAGE_SERVICE_NAME, addr).await;
+    provider.stop().await;
+}
+
+async fn image_generation_events(
+    client: &HttpImageClient,
+    request: JsonRequest,
+) -> Vec<CapabilityTaskEvent> {
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     client
-        .generate_events(request.clone(), event_tx)
+        .generate_events(request, event_tx)
         .await
         .expect("image generate events should cross the independent process");
     let mut events = Vec::new();
     while let Some(event) = event_rx.recv().await {
         events.push(event);
     }
-    assert_eq!(
-        events.last().expect("image completed event").event_kind,
-        a4n_service_protocol::CapabilityTaskEventKind::Completed
-    );
-    let response = client
-        .generate(request)
-        .await
-        .expect("typed image request should cross the independent process");
-    assert_eq!(response.status, ServiceStatus::Ok);
-    assert_eq!(response.payload.expect("image payload")["format"], "png");
-    finish_sidecar(process, &manager, IMAGE_SERVICE_NAME, addr).await;
-    provider.stop().await;
+    events
 }

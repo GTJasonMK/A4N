@@ -1,14 +1,7 @@
 import { apiInvoke } from "../index";
-import type { CategoryInfo, PromptDependencyGraph } from "./types";
+import type { CategoryInfo, ValidateVarsInput } from "../generated/host";
 
-export async function promptDependencyGraph(): Promise<PromptDependencyGraph> {
-  return apiInvoke<PromptDependencyGraph>("prompt_dependency_graph");
-}
-
-export async function promptValidateVariables(input: {
-  template_name: string;
-  variables: string[];
-}): Promise<string[]> {
+export async function promptValidateVariables(input: ValidateVarsInput): Promise<string[]> {
   return apiInvoke<string[]>("prompt_validate_variables", { input });
 }
 

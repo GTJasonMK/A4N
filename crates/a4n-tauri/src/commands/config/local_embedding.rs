@@ -1,8 +1,9 @@
 use a4n_core::config::app_config::AppConfig;
 use a4n_runtime::host_api::embedding_model::{
-    CancelEmbeddingModelDownloadInput, EmbeddingModelDownloadInfoSummary, EmbeddingModelInput,
-    LocalEmbedTextsInput, LocalEmbedTextsOutput, LocalEmbeddingConfigInput,
-    LocalEmbeddingModelSummary, LocalEmbeddingProviderRuntime,
+    CancelEmbeddingModelDownloadInput, DownloadEmbeddingModelInput,
+    EmbeddingModelDownloadInfoSummary, EmbeddingModelInput, LocalEmbedTextsInput,
+    LocalEmbedTextsOutput, LocalEmbeddingConfigInput, LocalEmbeddingModelSummary,
+    LocalEmbeddingProviderRuntime,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -57,7 +58,7 @@ pub async fn local_get_embedding_model_download_info(
 #[tauri::command]
 pub async fn local_download_embedding_model(
     state: State<'_, LocalEmbeddingRuntimeState>,
-    input: EmbeddingModelInput,
+    input: DownloadEmbeddingModelInput,
 ) -> Result<LocalEmbeddingModelSummary, String> {
     let task_id = input
         .task_id
@@ -133,7 +134,7 @@ pub async fn local_delete_embedding_model(
 pub async fn local_test_embedding_config(
     state: State<'_, LocalEmbeddingRuntimeState>,
     input: LocalEmbeddingConfigInput,
-) -> Result<bool, String> {
+) -> Result<(), String> {
     state
         .provider_runtime
         .test_embedding_config(&input)

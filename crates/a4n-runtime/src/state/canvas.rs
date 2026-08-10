@@ -5,10 +5,10 @@ use a4n_core::models::{canvas::canvas_text_asset, media::media_asset};
 use a4n_orchestrator::{
     OrchestratorContext,
     canvas::{
-        CanvasAudioImportHostInput, CanvasAudioImportHostPort, CanvasEditingNodeExecutionInput,
+        CanvasAudioImportHostInput, CanvasEditingNodeExecutionInput,
         CanvasEditingNodeHostPort, CanvasGraphExecutionHostPort, CanvasGraphRecordDocument,
         CanvasGraphRecordInput, CanvasGraphResumePreparationInput, CanvasGraphRunPreparationInput,
-        CanvasImageImportApplicationResult, CanvasImageImportHostInput, CanvasImageImportHostPort,
+        CanvasImageImportApplicationResult, CanvasImageImportHostInput,
         CanvasImageNodeExecutionInput, CanvasLlmTextInput, CanvasNodeRunSummary,
         CanvasOutputNodeExecutionInput, CanvasProbeNodeExecutionInput,
         CanvasSingleNodeRunPreparationInput, CanvasTextAssetRecordInput,
@@ -173,21 +173,19 @@ impl<'a> CanvasRuntimeFacade<'a> {
 
     pub(crate) async fn import_canvas_audio_validated(
         &self,
-        host_port: &dyn CanvasAudioImportHostPort,
         input: CanvasAudioImportHostInput,
     ) -> Result<media_asset::Model, AppError> {
         self.orchestrator
-            .import_canvas_audio_validated(host_port, input)
+            .import_canvas_audio_validated(input)
             .await
     }
 
     pub(crate) async fn import_canvas_image_validated(
         &self,
-        host_port: &dyn CanvasImageImportHostPort,
         input: CanvasImageImportHostInput,
     ) -> Result<CanvasImageImportApplicationResult, AppError> {
         self.orchestrator
-            .import_canvas_image_validated(host_port, input)
+            .import_canvas_image_validated(input)
             .await
     }
 

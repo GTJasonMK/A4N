@@ -8,20 +8,30 @@ import React, {
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
+import { promptDialog } from "../components/feedback/PromptDialog";
 import { useToast } from "../components/feedback/Toast";
 import { extractErrorMessage } from "../api";
+import { resumeWorkflowRun } from "../api/streaming";
 import {
+  canEditProjectMaterials,
   getProject,
+  hasProjectEditorRole,
+  projectLifecycleBlockedReason,
   resetProjectGeneratedData,
   type NovelProject,
 } from "../api/project";
 import {
+  chapterContentCommitToastType,
   importChapter,
   listChapters,
   updateChapterContent,
   type ChapterData,
 } from "../api/chapter";
-import { listChapterOutlines, type ChapterOutline } from "../api/outline";
+import {
+  isDerivedChapterOutline,
+  listChapterOutlines,
+  type ChapterOutline,
+} from "../api/outline";
 import { RagQueryPanel } from "./writing-desk/RagQueryPanel";
 import { ChapterSidebar } from "./writing-desk/ChapterSidebar";
 import {
@@ -63,11 +73,6 @@ import { useWritingDeskChapterDerivedState } from "./writing-desk/useWritingDesk
  * 写作桌：章节列表、正文编辑、生成控制和辅助面板。
  */
 
-const canEditWritingProject = (project: NovelProject): boolean =>
-  project.my_role === "owner" ||
-  project.my_role === "manager" ||
-  project.my_role === "editor";
-
 export const WritingDesk: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -76,11 +81,32 @@ export const WritingDesk: React.FC = () => {
   const { addToast } = useToast();
 
   const [project, setProject] = useState<NovelProject | null>(null);
+  const lifecycleBlockedReason = project
+    ? projectLifecycleBlockedReason(project)
+    : null;
+  const canEditWritingProject = project
+    ? canEditProjectMaterials(project)
+    : false;
   const [chapters, setChapters] = useState<ChapterData[]>([]);
   const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
   const [activeNumber, setActiveNumber] = useState<number | null>(null);
   const [chapterQuery, setChapterQuery] = useState("");
-  const [writingNotes, setWritingNotes] = useState("");
+  const [writingNotesByChapter, setWritingNotesByChapter] = useState<Record<string, string>>({});
+  const writingNotesKey =
+    activeNumber == null ? null : `${projectId}:${activeNumber}`;
+  const writingNotes =
+    writingNotesKey == null ? "" : writingNotesByChapter[writingNotesKey] ?? "";
+  const handleWritingNotesChange = useCallback(
+    (value: string) => {
+      if (writingNotesKey == null) return;
+      setWritingNotesByChapter((current) =>
+        current[writingNotesKey] === value
+          ? current
+          : { ...current, [writingNotesKey]: value },
+      );
+    },
+    [writingNotesKey],
+  );
   const [minWordCount, setMinWordCount] = useState(
     String(DEFAULT_GENERATION_WORD_COUNT_RANGE.min),
   );
@@ -109,8 +135,9 @@ export const WritingDesk: React.FC = () => {
   const [bottomTab, setBottomTab] = useState<BottomTab>("content");
   // 写作助手面板沿用 optimize 路由状态，内部可在生成与优化之间切换。
   const assistantOpen = rightPanel === "optimize";
-  const rightPanelAvailable = bottomTab === "content";
-  const rightPanelUnavailableTip = "只有当前页面在“正文”时才能打开资料检索或正文优化";
+  const rightPanelAvailable = bottomTab === "content" && !lifecycleBlockedReason;
+  const rightPanelUnavailableTip =
+    lifecycleBlockedReason ?? "只有当前页面在“正文”时才能打开资料检索或正文优化";
   // 章节场景管理对话框（对应 A4N 后端 chapter_scene 子结构）
   const [scenesOpen, setScenesOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
@@ -125,6 +152,7 @@ export const WritingDesk: React.FC = () => {
   } | null>(null);
   const saveContentBusyRef = useRef(false);
   const resetGeneratedDataBusyRef = useRef(false);
+  const derivedSyncBusyRef = useRef(false);
   const smartBack = useSmartBack("/");
   const projectIdKey =
     Number.isFinite(projectId) && projectId > 0 ? String(projectId) : "";
@@ -148,10 +176,13 @@ export const WritingDesk: React.FC = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (lifecycleBlockedReason) setRightPanel("none");
+  }, [lifecycleBlockedReason]);
+
   const {
     activeChapter,
     activeOutline,
-    activeOutlineTitle,
     activeOutlineText,
     visibleOptimizationPatchPreview,
     activeChapterContext,
@@ -175,10 +206,12 @@ export const WritingDesk: React.FC = () => {
       ? chapterNumbers[activeChapterIndex + 1]
       : null;
   useEffect(() => {
-    const range = defaultGenerationWordCountRange(activeOutline?.word_count_target);
+    const range = defaultGenerationWordCountRange(
+      isDerivedChapterOutline(activeOutline) ? undefined : activeOutline?.word_count_target,
+    );
     setMinWordCount(String(range.min));
     setMaxWordCount(String(range.max));
-  }, [activeNumber, activeOutline?.word_count_target]);
+  }, [activeNumber, activeOutline?.source_kind, activeOutline?.word_count_target]);
   const parsedWordCountRange = useMemo(
     () => parseGenerationWordCountRange(minWordCount, maxWordCount),
     [minWordCount, maxWordCount],
@@ -233,6 +266,8 @@ export const WritingDesk: React.FC = () => {
     loadSeqRef.current = requestSeq;
     saveContentBusyRef.current = false;
     resetGeneratedDataBusyRef.current = false;
+    derivedSyncBusyRef.current = false;
+    setWritingNotesByChapter({});
     const isCurrentLoad = () => mountedRef.current && loadSeqRef.current === requestSeq;
 
     if (!Number.isFinite(projectId) || projectId <= 0) {
@@ -251,7 +286,7 @@ export const WritingDesk: React.FC = () => {
           navigate(getProjectHomeEntryRoute(p), { replace: true });
           return;
         }
-        if (!canEditWritingProject(p)) {
+        if (!hasProjectEditorRole(p)) {
           addToast("当前账号没有编辑此项目的权限", "error");
           navigate(`/novel/${projectId}`, { replace: true });
           return;
@@ -285,7 +320,7 @@ export const WritingDesk: React.FC = () => {
           setActiveNumber(latestChapter);
           return;
         }
-        setActiveNumber(outlineNumbers[0] ?? null);
+        setActiveNumber(outlineNumbers[0] ?? 1);
       } catch (err) {
         if (!isCurrentLoad()) return;
         addToast(extractErrorMessage(err, "加载项目失败"), "error");
@@ -328,6 +363,51 @@ export const WritingDesk: React.FC = () => {
     [confirmCurrentEdit],
   );
 
+  const handleCreateChapter = useCallback(async () => {
+    if (lifecycleBlockedReason) {
+      addToast(lifecycleBlockedReason, "info");
+      return;
+    }
+    const ok = await confirmCurrentEdit("新建章节");
+    if (!ok) return;
+
+    // chapterNumbers 还包含“当前正在编辑但尚未保存”的占位章节；默认值只看已持久化资料。
+    const defaultChapterNumber = Math.max(
+      chapters.at(-1)?.chapter_number ?? 0,
+      outlines.at(-1)?.chapter_number ?? 0,
+    ) + 1;
+    const input = await promptDialog({
+      title: "新建章节",
+      message: "输入章节号。可以跳过空档，直接开始任意章节。",
+      defaultValue: String(defaultChapterNumber),
+      placeholder: "例如：10",
+      required: true,
+      confirmText: "进入章节",
+    });
+    if (input == null) return;
+
+    const normalized = input.trim();
+    if (!/^[1-9]\d*$/.test(normalized)) {
+      addToast("章节号必须是正整数", "error");
+      return;
+    }
+    const chapterNumber = Number(normalized);
+    if (!Number.isSafeInteger(chapterNumber) || chapterNumber > 2_147_483_647) {
+      addToast("章节号超出可用范围", "error");
+      return;
+    }
+    const chapterAlreadyExists =
+      chapters.some((chapter) => chapter.chapter_number === chapterNumber) ||
+      outlines.some((outline) => outline.chapter_number === chapterNumber);
+    if (chapterAlreadyExists) {
+      addToast(`第 ${chapterNumber} 章已存在，请直接选择该章节`, "error");
+      return;
+    }
+
+    setChapterQuery("");
+    setActiveNumber(chapterNumber);
+  }, [addToast, chapters, confirmCurrentEdit, lifecycleBlockedReason, outlines]);
+
   const safeNavigateTo = useCallback(
     async (to: string) => {
       const ok = await confirmCurrentEdit("离开写作桌");
@@ -355,24 +435,14 @@ export const WritingDesk: React.FC = () => {
     // 与后端 chapter.word_count 的 content.chars().count() 保持一致。
     return countChapterBodyCharacters(editorContent);
   }, [editorContent]);
-  const analysisBlockedReason = useMemo(() => {
-    if (!activeChapter) return null;
-    const incomplete = chapters
-      .filter((chapter) => chapter.chapter_number < activeChapter.chapter_number)
-      .filter((chapter) => chapter.status !== "deleted")
-      .map((chapter) => {
-        if (chapter.status === "generating") return `第 ${chapter.chapter_number} 章正在生成正文`;
-        if (!chapter.content.trim()) return `第 ${chapter.chapter_number} 章正文为空`;
-        if (chapter.analysis_data == null) return `第 ${chapter.chapter_number} 章未生成结构化分析`;
-        return null;
-      })
-      .filter((message): message is string => message != null);
-    if (incomplete.length === 0) return null;
-    const visible = incomplete.slice(0, 6).join("；");
-    const omitted = incomplete.length > 6 ? `；另有 ${incomplete.length - 6} 章未列出` : "";
-    return `请先完成前序章节分析：${visible}${omitted}`;
-  }, [activeChapter, chapters]);
-
+  const analysisBlockedReason = lifecycleBlockedReason
+    ? lifecycleBlockedReason
+    : activeChapter?.derived_sync_status === "running"
+      ? "正文已保存，派生资料仍在同步；同步完成后才能开始分析"
+      : activeChapter?.derived_sync_status &&
+          activeChapter.derived_sync_status !== "completed"
+        ? "正文已保存，但派生资料同步未完成；请先重试资料同步"
+        : null;
   // 状态栏持续显示字符数、保存状态和当前章节号。
   useStatusBarPermanent(
     "writing-desk",
@@ -430,6 +500,67 @@ export const WritingDesk: React.FC = () => {
     return promise;
   }, [projectId, addToast, outlines]);
 
+  const reloadOutlines = useCallback(async () => {
+    const requestProjectId = projectId;
+    try {
+      const next = await listChapterOutlines(requestProjectId);
+      if (!mountedRef.current || projectIdRef.current !== requestProjectId) return;
+      setOutlines(next);
+    } catch (err) {
+      if (mountedRef.current && projectIdRef.current === requestProjectId) {
+        addToast(extractErrorMessage(err, "刷新章节大纲失败"), "error");
+      }
+    }
+  }, [addToast, projectId]);
+
+  const handleCharacterMaterialSync = useCallback(
+    async (requestProjectId: number) => {
+      if (projectIdRef.current !== requestProjectId) return;
+      await reloadChapters({ force: true });
+    },
+    [reloadChapters],
+  );
+
+  const handleResumeDerivedSync = useCallback(async () => {
+    if (lifecycleBlockedReason) {
+      addToast(lifecycleBlockedReason, "info");
+      return;
+    }
+    const workflowRunId = activeChapter?.derived_sync_workflow_run_id;
+    if (
+      !workflowRunId ||
+      !activeChapter?.derived_sync_can_resume ||
+      derivedSyncBusyRef.current
+    ) {
+      addToast("当前章节没有可重试的资料同步任务", "error");
+      return;
+    }
+    derivedSyncBusyRef.current = true;
+    try {
+      await resumeWorkflowRun(workflowRunId);
+      await reloadChapters({ force: true });
+      addToast("章节派生资料已同步", "success");
+    } catch (error) {
+      await reloadChapters({ force: true });
+      addToast(
+        extractErrorMessage(error, "正文已保留，但派生资料同步仍未完成"),
+        "error",
+      );
+    } finally {
+      derivedSyncBusyRef.current = false;
+    }
+  }, [activeChapter, addToast, lifecycleBlockedReason, reloadChapters]);
+
+  useEffect(() => {
+    if (!chapters.some((chapter) => chapter.derived_sync_status === "running")) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void reloadChapters({ force: true });
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [chapters, reloadChapters]);
+
   const showContentTab = useCallback(() => setBottomTab("content"), []);
   const refreshProfiles = useCallback(
     () => setProfilesRefreshKey((value) => value + 1),
@@ -453,9 +584,8 @@ export const WritingDesk: React.FC = () => {
     activeNumber,
     activeChapter,
     activeOutline,
-    activeOutlineTitle,
     activeOutlineText,
-    chapters,
+    projectBlockedReason: lifecycleBlockedReason,
     writingNotes,
     wordCountRange: parsedWordCountRange.range,
     wordCountRangeError: generationWordCountError,
@@ -467,6 +597,15 @@ export const WritingDesk: React.FC = () => {
     onDraftRemoved: refreshDraftSet,
     onShowContentTab: showContentTab,
   });
+  const currentChapterAiBlockedReason = lifecycleBlockedReason
+    ? lifecycleBlockedReason
+    : dirty
+      ? "当前章节有未保存正文，请先保存后再运行 AI 操作"
+      : activeChapterBusy
+        ? "当前章节正文仍在生成，请等待完成后再运行 AI 操作"
+        : !activeChapter?.content.trim()
+          ? "当前章节还没有已保存正文，请先完成并保存正文"
+          : null;
   const {
     analysisBusy,
     handleGenerateAnalysis,
@@ -486,6 +625,7 @@ export const WritingDesk: React.FC = () => {
     dirtyRef,
     addToast,
     reloadChapters,
+    reloadOutlines,
     setChapters,
     refreshProfiles,
   });
@@ -505,8 +645,61 @@ export const WritingDesk: React.FC = () => {
     addToast,
   });
 
+  const clearResetProjectState = useCallback(() => {
+    clearStreamState(null);
+    setChapters([]);
+    setOutlines([]);
+    setActiveNumber(null);
+    setChapterQuery("");
+    setWritingNotesByChapter({});
+    setOptimizationPatchPreview(null);
+    setScenesOpen(false);
+    setRightPanel("none");
+    resetPromptPreview();
+    setBottomTab("content");
+    setEditorState("", false);
+    resetDraftTracking();
+    clearProjectDrafts();
+    setProfilesRefreshKey((value) => value + 1);
+  }, [
+    clearProjectDrafts,
+    clearStreamState,
+    resetDraftTracking,
+    resetPromptPreview,
+    setEditorState,
+  ]);
+
+  useEffect(() => {
+    if (project?.lifecycle_gate !== "resetting") return;
+    let checking = false;
+    let errorReported = false;
+    const timer = window.setInterval(() => {
+      if (checking) return;
+      checking = true;
+      void getProject(projectId)
+        .then((nextProject) => {
+          if (!mountedRef.current || projectIdRef.current !== projectId) return;
+          if (nextProject.lifecycle_gate !== "active") return;
+          window.clearInterval(timer);
+          setProject(nextProject);
+          clearResetProjectState();
+          addToast("项目重置收尾完成，可以继续创作", "success");
+        })
+        .catch((error) => {
+          if (errorReported || !mountedRef.current) return;
+          errorReported = true;
+          addToast(extractErrorMessage(error, "查询项目重置进度失败"), "error");
+        })
+        .finally(() => {
+          checking = false;
+        });
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [addToast, clearResetProjectState, project?.lifecycle_gate, projectId]);
+
   const resetGeneratedDataDisabledReason = useMemo(() => {
     if (!project) return "项目尚未加载";
+    if (lifecycleBlockedReason) return lifecycleBlockedReason;
     if (resetGeneratedDataBusy) return "正在重置项目生成数据";
     if (streamTaskId) return "章节流式生成中，不能重置项目数据";
     if (streamBusy) return "章节流式生成状态正在更新，不能重置项目数据";
@@ -514,7 +707,14 @@ export const WritingDesk: React.FC = () => {
       return "有章节正在生成，不能重置项目数据";
     }
     return null;
-  }, [chapters, project, resetGeneratedDataBusy, streamBusy, streamTaskId]);
+  }, [
+    chapters,
+    lifecycleBlockedReason,
+    project,
+    resetGeneratedDataBusy,
+    streamBusy,
+    streamTaskId,
+  ]);
   const canResetGeneratedData = resetGeneratedDataDisabledReason == null;
 
   const handleOptimizedChapterContentChanged = useCallback(
@@ -568,26 +768,45 @@ export const WritingDesk: React.FC = () => {
 
     setResetGeneratedDataBusy(true);
     try {
-      const reset = await resetProjectGeneratedData(projectId);
-      clearStreamState(null);
-      setProject(reset.project);
-      setChapters([]);
-      setOutlines([]);
-      setActiveNumber(null);
-      setChapterQuery("");
-      setWritingNotes("");
-      setOptimizationPatchPreview(null);
-      setScenesOpen(false);
-      resetPromptPreview();
-      setBottomTab("content");
-      setEditorState("", false);
-      resetDraftTracking();
-      clearProjectDrafts();
-      setProfilesRefreshKey((value) => value + 1);
-      addToast(
-        `已重置：删除 ${reset.deleted_chapters} 章、${reset.deleted_chapter_outlines} 条章纲、${reset.deleted_character_profiles} 个正文派生角色，保留 ${reset.preserved_blueprint_versions} 个蓝图版本。`,
-        "success",
-      );
+      const response = await resetProjectGeneratedData(projectId);
+      const warnings = [...response.warnings];
+      const formalResetCommitted = response.database_committed;
+      let nextProject = response.result?.project ?? null;
+      if (!nextProject) {
+        try {
+          nextProject = await getProject(projectId);
+        } catch (error) {
+          warnings.push(extractErrorMessage(error, "刷新项目状态失败"));
+        }
+      }
+      if (nextProject) {
+        setProject(nextProject);
+      } else if (response.status === "pending") {
+        setProject((current) =>
+          current ? { ...current, lifecycle_gate: "resetting" } : current,
+        );
+      }
+      if (formalResetCommitted) clearResetProjectState();
+
+      const warningText = warnings.length > 0 ? `；${warnings.join("；")}` : "";
+      if (response.status === "pending") {
+        addToast(
+          formalResetCommitted
+            ? `正式资料已重置，后台正在清理索引并恢复编辑权限${warningText}`
+            : `重置请求已接受，后台正在执行；完成前项目暂不可编辑${warningText}`,
+          "info",
+        );
+      } else if (response.result) {
+        addToast(
+          `已重置：删除 ${response.result.deleted_chapters} 章、${response.result.deleted_chapter_outlines} 条章纲、${response.result.deleted_character_profiles} 个正文派生角色，保留 ${response.result.preserved_blueprint_versions} 个蓝图版本${warningText}。`,
+          warnings.length > 0 ? "info" : "success",
+        );
+      } else {
+        addToast(
+          `项目生成数据已重置${warningText}`,
+          warnings.length > 0 ? "info" : "success",
+        );
+      }
     } catch (err) {
       addToast(extractErrorMessage(err, "重置项目生成数据失败"), "error");
     } finally {
@@ -597,6 +816,10 @@ export const WritingDesk: React.FC = () => {
   };
 
   const handleSaveContent = async () => {
+    if (lifecycleBlockedReason) {
+      addToast(lifecycleBlockedReason, "info");
+      return;
+    }
     if (saveContentBusyRef.current) {
       addToast("正在保存章节正文", "error");
       return;
@@ -618,6 +841,7 @@ export const WritingDesk: React.FC = () => {
         return;
       }
       let savedContent = contentToSave;
+      let savedChapter: ChapterData | null = null;
       if (activeChapter) {
         const updated = await updateChapterContent({
           chapter_id: activeChapter.id,
@@ -625,26 +849,25 @@ export const WritingDesk: React.FC = () => {
           title: activeChapter.title,
         });
         savedContent = updated.content;
+        savedChapter = updated;
         setChapters((prev) =>
           prev.map((ch) => (ch.id === updated.id ? updated : ch)),
         );
       } else {
-        const title = activeOutline?.title?.trim();
-        if (!title) {
-          addToast("章纲标题为空，不能创建章节", "error");
-          return;
-        }
-        await importChapter({
+        const title = activeOutline?.title?.trim() || `第 ${chapterNumber} 章`;
+        const imported = await importChapter({
           project_id: projectId,
           chapter_number: chapterNumber,
           content: contentToSave,
           title,
+          manual: true,
         });
         const nextChapters = await reloadChapters({ force: true });
         const created = nextChapters?.find(
           (chapter) => chapter.chapter_number === chapterNumber,
         );
-        savedContent = created?.content ?? contentToSave;
+        savedChapter = created ?? imported;
+        savedContent = savedChapter.content;
       }
       const currentContent = getCurrentEditorContent();
       const saveStillMatchesEditor =
@@ -653,7 +876,16 @@ export const WritingDesk: React.FC = () => {
       if (saveStillMatchesEditor) {
         removeDraftForChapter(chapterNumber);
         setEditorState(savedContent, false);
-        addToast("章节正文已保存", "success");
+        if (savedChapter?.derived_sync_status === "failed") {
+          addToast(
+            "章节正文已保存，但派生资料同步失败；可在章节顶部重试",
+            chapterContentCommitToastType(savedChapter.derived_sync_status),
+          );
+        } else if (savedChapter?.derived_sync_status === "running") {
+          addToast("章节正文已保存，派生资料正在同步", "info");
+        } else {
+          addToast("章节正文与派生资料已保存", "success");
+        }
         return;
       }
 
@@ -680,6 +912,10 @@ export const WritingDesk: React.FC = () => {
   });
 
   const handleOpenScenes = () => {
+    if (lifecycleBlockedReason) {
+      addToast(lifecycleBlockedReason, "info");
+      return;
+    }
     if (!activeChapter) {
       addToast("请先选择已生成的章节", "error");
       return;
@@ -737,7 +973,7 @@ export const WritingDesk: React.FC = () => {
     previewing,
     chapters,
     outlines,
-    onWritingNotesChange: setWritingNotes,
+    onWritingNotesChange: handleWritingNotesChange,
     onMinWordCountChange: setMinWordCount,
     onMaxWordCountChange: setMaxWordCount,
     onStreamStart: handleStreamStart,
@@ -751,7 +987,16 @@ export const WritingDesk: React.FC = () => {
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
-      {project && outlines.length === 0 && chapters.length === 0 && (
+      {lifecycleBlockedReason ? (
+        <div
+          role="status"
+          className="shrink-0 border-b border-warning/30 bg-warning-bg px-4 py-2 text-small text-book-text-main"
+        >
+          {lifecycleBlockedReason}。页面会在收尾完成后自动恢复。
+        </div>
+      ) : null}
+
+      {!lifecycleBlockedReason && outlines.length === 0 && chapters.length === 0 && (
         <MissingOutlineBanner
           onOpenProjectDetail={() => safeNavigateTo(`/novel/${projectId}`)}
         />
@@ -766,12 +1011,14 @@ export const WritingDesk: React.FC = () => {
         leftSidebarVisible={!isMobileLayout && leftSidebarVisible}
         rightPanel={rightPanel}
         dirty={dirty}
+        editBlockedReason={lifecycleBlockedReason}
         activeChapterBusy={activeChapterBusy}
         activeChapterGeneratingMessage={activeChapterGeneratingMessage}
         rightPanelAvailable={rightPanelAvailable}
         rightPanelUnavailableTip={rightPanelUnavailableTip}
         onSmartBack={safeSmartBack}
         onOpenProjectDetail={() => safeNavigateTo(`/novel/${projectId}`)}
+        onCreateChapter={handleCreateChapter}
         onPrev={handlePrev}
         onNext={handleNext}
         onToggleLeftSidebar={handleToggleLeftSidebar}
@@ -802,13 +1049,14 @@ export const WritingDesk: React.FC = () => {
             onClearChapterQuery={() => setChapterQuery("")}
             onOpenProfiles={() => setProfilesOpen(true)}
             onRefreshChapters={reloadChapters}
+            onCreateChapter={handleCreateChapter}
             onSelectChapter={safeSelectChapter}
-            onOpenProjectDetail={() => safeNavigateTo(`/novel/${projectId}`)}
           />
         )}
 
         <ChapterWorkspace
           projectId={projectId}
+          activeNumber={activeNumber}
           activeChapter={activeChapter}
           activeOutline={activeOutline}
           activeChapterContext={activeChapterContext}
@@ -827,7 +1075,8 @@ export const WritingDesk: React.FC = () => {
           onPreviewGenerateAnalysis={handlePreviewAnalysisRequest}
           onResumeAnalysisSync={handleResumeAnalysisSync}
           onPreviewResumeAnalysisSync={handlePreviewResumeAnalysisSyncRequest}
-          canEdit={project != null && canEditWritingProject(project)}
+          onResumeDerivedSync={handleResumeDerivedSync}
+          canEdit={canEditWritingProject}
         />
 
         {!isMobileLayout && rightPanel !== "none" && (
@@ -881,10 +1130,13 @@ export const WritingDesk: React.FC = () => {
         previewOpen={previewOpen}
         profilesOpen={profilesOpen}
         profilesRefreshKey={profilesRefreshKey}
+        sceneAiBlockedReason={currentChapterAiBlockedReason}
+        characterAiBlockedReason={currentChapterAiBlockedReason}
         previewing={previewing}
         previewData={previewData}
         onScenesClose={() => setScenesOpen(false)}
         onPreviewClose={closePromptPreview}
+        onCharacterMaterialSync={handleCharacterMaterialSync}
         onProfilesClose={() => {
           setProfilesOpen(false);
           setProfilesRefreshKey((value) => value + 1);

@@ -20,6 +20,10 @@ fn builds_scene_state_refs_for_plain_context() {
     let payload = parse_user_payload(&message).expect("payload");
     assert_eq!(payload["task"]["name"], json!("chapter_generation"));
     assert_eq!(
+        payload["task"]["instruction"],
+        json!("根据章节大纲、章节连续性上下文和参考上下文生成完整章节正文")
+    );
+    assert_eq!(
         payload["context_refs"]["chapter_outline"],
         json!("稳定上下文包 writing_chapter_outline")
     );

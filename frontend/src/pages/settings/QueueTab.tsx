@@ -5,8 +5,8 @@ import {
   cancelTask,
   getQueueStats,
   getTaskHistory,
-  type QueueStats,
-  type TaskInfo,
+  type QueueStatsSummary,
+  type TaskInfoSummary,
 } from "../../api/task";
 import {
   cancelWorkflow,
@@ -16,7 +16,7 @@ import {
   resumeWorkflowRun,
   type WorkflowRun,
   type WorkflowRunDetail,
-  type WorkflowState,
+  type WorkflowStateSummary,
 } from "../../api/streaming";
 import { useToast } from "../../components/feedback/Toast";
 import { BookIconButton } from "../../components/ui/BookButton";
@@ -37,12 +37,12 @@ export const QueueTab: React.FC = () => {
   const { addToast } = useToast();
   const user = useAuthStore((state) => state.user);
   const canReadQueueDiagnostics = user?.role === "admin";
-  const [stats, setStats] = useState<QueueStats | null>(null);
+  const [stats, setStats] = useState<QueueStatsSummary | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tasks, setTasks] = useState<TaskInfo[]>([]);
+  const [tasks, setTasks] = useState<TaskInfoSummary[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [cancellingTaskIds, setCancellingTaskIds] = useState<Set<string>>(() => new Set());
-  const [workflows, setWorkflows] = useState<WorkflowState[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowStateSummary[]>([]);
   const [workflowRuns, setWorkflowRuns] = useState<WorkflowRun[]>([]);
   const [workflowRunDetails, setWorkflowRunDetails] = useState<Map<number, WorkflowRunDetail>>(
     () => new Map(),
@@ -111,7 +111,7 @@ export const QueueTab: React.FC = () => {
         getQueueStats(),
         getTaskHistory(null, 0, 30),
         listActiveWorkflows(),
-        listWorkflowRuns({ limit: 40 }),
+        listWorkflowRuns({ resumable_only: false, limit: 40 }),
       ]);
       if (!isCurrentRefresh(requestSeq)) return;
       setStats(queueStats);
@@ -198,7 +198,7 @@ export const QueueTab: React.FC = () => {
     }
     setWorkflowRunDetailLoading(run.id, true);
     try {
-      const detail = await getWorkflowRunDetail(run.id);
+      const detail = await getWorkflowRunDetail(run.id, true);
       if (!mountedRef.current) return;
       const next = new Map(workflowRunDetailsRef.current);
       next.set(run.id, detail);

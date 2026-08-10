@@ -75,6 +75,14 @@ const recipeUpdates = () =>
       .map((call) => call.args.recipe),
   );
 
+const postSelectRefreshes = () =>
+  browser.execute(
+    () =>
+      window.__A4N_VIDEO_MODE_E2E__.calls.filter(
+        (call) => call.command === "post_select_refresh_started",
+      ).length,
+  );
+
 const framePromptMutations = () =>
   browser.execute(() =>
     window.__A4N_VIDEO_MODE_E2E__.calls
@@ -411,9 +419,21 @@ describe("video segment mode switching in Chromium", () => {
     await optimizeDialog.waitForExist();
     await optimizeDialog.$("textarea").setValue("强化画面层次");
     await optimizeDialog.$('.//button[normalize-space()="开始优化"]').click();
+    const progressDialog = await $(
+      '//div[@role="dialog" and .//h3[normalize-space()="优化提示词"]]',
+    );
+    await progressDialog.waitForExist();
+    await browser.waitUntil(async () =>
+      (await progressDialog.getText()).includes("正在调用模型并校验优化结果"),
+    );
     await browser.waitUntil(
       async () => (await framePromptMutations()).length === 2,
     );
+    await browser.waitUntil(async () =>
+      (await progressDialog.getText()).includes("提示词优化完成"),
+    );
+    await progressDialog.$('.//button[normalize-space()="关闭"]').click();
+    await progressDialog.waitForExist({ reverse: true });
     assert.equal(
       (await framePromptMutations())[1].args.input.instruction,
       "强化画面层次",
@@ -741,6 +761,35 @@ describe("video segment mode switching in Chromium", () => {
     assert.equal(await $('//*[normalize-space()="片段 1"]').isExisting(), true);
   });
 
+  it("keeps published planning content visible while normal planning runs", async () => {
+    await browser.url(
+      "/e2e/video-mode-switch/?scenario=planning-content-running",
+    );
+
+    const planning = await $('section[aria-label="视频片段规划"]');
+    await planning.waitForExist();
+    const published = await planning.$('//*[normalize-space()="片段一"]');
+    await published.waitForExist();
+
+    const generate = await planning.$(
+      './/button[contains(normalize-space(), "规划此场景")]',
+    );
+    await generate.waitForEnabled();
+    await generate.click();
+
+    const draft = await planning.$('//*[normalize-space()="片段 2"]');
+    await draft.waitForExist();
+    assert.equal(await published.isExisting(), true);
+    assert.match(await planning.getText(), /生成中草稿.*2 个片段/s);
+
+    const stop = await $('//button[normalize-space()="停止生成"]');
+    await stop.waitForClickable();
+    await stop.click();
+    const close = await $('//button[normalize-space()="关闭"]');
+    await close.waitForClickable();
+    await close.click();
+  });
+
   it("continues a boundary-frame segment with a later first-frame-chain segment", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=cross-mode-continuity");
 
@@ -758,6 +807,35 @@ describe("video segment mode switching in Chromium", () => {
     assert.match(await segmentHeaderText(1), /首尾帧生成/);
     assert.match(await segmentHeaderText(2), /首帧生成/);
 
+    const firstFrameSource = await dialog.$('[aria-label="首帧来源"]');
+    await firstFrameSource.waitForExist();
+    const independent = await firstFrameSource.$(
+      './/button[normalize-space()="独立生成"]',
+    );
+    await independent.waitForClickable();
+    await independent.click();
+    await browser.waitUntil(async () => (await recipeUpdates()).length === 2);
+    const [, independentRecipe] = await recipeUpdates();
+    assert.equal(independentRecipe.guidance_mode, "system_frames");
+    assert.equal(independentRecipe.continuity_source_video_id, null);
+    assert.equal(
+      await dialog.$('button[aria-label="配置首帧"]').isExisting(),
+      true,
+    );
+    assert.equal(
+      await dialog.$('button[aria-label="配置续接首帧"]').isExisting(),
+      false,
+    );
+
+    const continuity = await dialog.$(
+      './/*[@aria-label="首帧来源"]//button[normalize-space()="尾帧续接"]',
+    );
+    await continuity.waitForClickable();
+    await continuity.click();
+    await browser.waitUntil(async () => (await recipeUpdates()).length === 3);
+    const continuityRecipe = (await recipeUpdates())[2];
+    assert.equal(continuityRecipe.guidance_mode, "continuity");
+
     const continuitySlot = await dialog.$('button[aria-label="配置续接首帧"]');
     await continuitySlot.waitForClickable();
     await continuitySlot.click();
@@ -770,9 +848,12 @@ describe("video segment mode switching in Chromium", () => {
     assert.equal(await source.getValue(), "");
     await source.waitForEnabled();
     await source.selectByAttribute("value", "501");
-    await browser.waitUntil(async () => (await recipeUpdates()).length === 2);
-    const [, sourceRecipe] = await recipeUpdates();
+    await browser.waitUntil(async () => (await recipeUpdates()).length === 4);
+    await browser.execute(() => window.dispatchEvent(new Event("focus")));
+    await browser.waitUntil(async () => (await postSelectRefreshes()) === 1);
+    const sourceRecipe = (await recipeUpdates())[3];
     assert.equal(sourceRecipe.continuity_source_video_id, 501);
+    await browser.waitUntil(async () => (await source.getValue()) === "501");
   });
 
   it("keeps old-plan videos out of candidates and only adopts the current plan video", async () => {
@@ -862,6 +943,26 @@ describe("video segment mode switching in Chromium", () => {
         segment_index_in_shot: 1,
       },
     });
+  });
+
+  it("keeps prompt content visible while video generation is running", async () => {
+    await browser.url("/e2e/video-mode-switch/?scenario=stale-plan-adoption");
+
+    const { dialog } = await openSegmentConfig(1);
+    const prompt = await dialog.$(
+      './/label[.//span[normalize-space()="Chat 视频提示词"]]//textarea',
+    );
+    await prompt.waitForExist();
+    await browser.execute(() => {
+      window.__A4N_VIDEO_MODE_E2E__.setFinalPromptStatus("running");
+      window.dispatchEvent(new Event("focus"));
+    });
+    await browser.waitUntil(async () =>
+      (await dialog.getText()).includes("当前提示词正在运行，以下内容暂时只读"),
+    );
+    await prompt.waitForExist();
+    assert.equal(await prompt.isEnabled(), false);
+    assert.equal(await prompt.getValue(), "最终提示词");
   });
 
   it("assembles the valid prefix when a later adopted video is stale", async () => {

@@ -1,14 +1,14 @@
 import React from "react";
 import { X } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import type { WorkflowState } from "../../../api/streaming";
+import type { WorkflowStateSummary } from "../../../api/streaming";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
 import { ProgressEventList } from "./ProgressEventList";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 
 interface ActiveWorkflowsPanelProps {
-  workflows: WorkflowState[];
+  workflows: WorkflowStateSummary[];
   loading: boolean;
   cancellingTaskIds: ReadonlySet<string>;
   onCancel: (taskId: string) => void;
@@ -40,9 +40,6 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
       <ul className="space-y-2.5">
         {workflows.map((workflow) => {
           const cancelling = cancellingTaskIds.has(workflow.task_id);
-          const canCancel = !["completed", "failed", "cancelled", "canceled"].includes(
-            workflow.status,
-          );
           return (
             <li key={workflow.task_id} className="a4n-flat-surface px-3 py-3">
               <div className="flex min-w-0 items-start gap-3">
@@ -51,8 +48,8 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
                     {activeWorkflowTitle(workflow)}
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
-                    <span className={workflowStatusTone(workflow.status)}>
-                      {getOperationStatusLabel(workflow.status)}
+                    <span className="text-book-primary">
+                      {getOperationStatusLabel("running")}
                     </span>
                     {workflow.progress ? (
                       <>
@@ -68,7 +65,7 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-book-text-muted">
                     <LoadingSpinner size="sm" />
                   </span>
-                ) : canCancel ? (
+                ) : (
                   <Dropdown
                     items={[
                       {
@@ -79,7 +76,7 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
                       },
                     ]}
                   />
-                ) : null}
+                )}
               </div>
               {workflow.progress && <WorkflowProgress progress={workflow.progress} />}
               <ProgressEventList events={workflow.progress_events} />
@@ -118,7 +115,7 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
   </section>
 );
 
-function activeWorkflowTitle(workflow: WorkflowState): string {
+function activeWorkflowTitle(workflow: WorkflowStateSummary): string {
   const scopeLabels: Record<string, string> = {
     project: "项目任务",
     chapter: "章节任务",
@@ -129,22 +126,11 @@ function activeWorkflowTitle(workflow: WorkflowState): string {
   return scopeLabels[workflow.task_scope ?? ""] ?? "后台任务";
 }
 
-function workflowStatusTone(status: string): string {
-  if (status === "failed") return "text-error";
-  if (status === "completed") return "text-success";
-  if (status === "running") return "text-book-primary";
-  return "text-book-text-muted";
-}
-
-const WorkflowProgress: React.FC<{ progress: NonNullable<WorkflowState["progress"]> }> = ({
+const WorkflowProgress: React.FC<{ progress: NonNullable<WorkflowStateSummary["progress"]> }> = ({
   progress,
 }) => {
-  const stageHint = progress.stage?.trim() && progress.stage.trim() !== progress.message.trim()
-    ? progress.stage
-    : null;
   const display = progressDisplayModel({
     ...progress,
-    stageHint,
     fallbackStage: "任务执行中",
   });
   const detail = display.detail ?? "等待子阶段更新…";

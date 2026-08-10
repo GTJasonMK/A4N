@@ -6,7 +6,12 @@ import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
-import { importChapter, listChapters, type ChapterData } from "../../api/chapter";
+import {
+  chapterContentCommitToastType,
+  importChapter,
+  listChapters,
+  type ChapterData,
+} from "../../api/chapter";
 import { EmptyHint } from "./shared";
 import { useNovelDetailLoader } from "./useNovelDetailLoader";
 import { nonEmptyText } from "../../utils/text";
@@ -25,6 +30,12 @@ const chapterStatusLabel = (status: string | null | undefined): string | null =>
   const normalized = status?.trim().toLowerCase();
   if (!normalized || normalized === "completed") return null;
   return getOperationStatusLabel(normalized);
+};
+
+const derivedSyncStatusLabel = (chapter: ChapterData): string | null => {
+  if (chapter.derived_sync_status === "running") return "资料同步中";
+  if (chapter.derived_sync_status === "failed") return "资料同步失败";
+  return null;
 };
 
 interface ChaptersTabProps {
@@ -142,14 +153,20 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
     importSeqRef.current = requestSeq;
     setImporting(true);
     try {
-      await importChapter({
+      const imported = await importChapter({
         project_id: requestProjectId,
         chapter_number: requestForm.chapter_number,
         content: requestForm.content,
         title: nonEmptyText(requestForm.title),
+        manual: false,
       });
       if (!isCurrentImport(requestProjectId, requestSeq)) return;
-      addToast(`已导入第 ${requestForm.chapter_number} 章`, "success");
+      const message = imported.derived_sync_status === "failed"
+        ? `已导入第 ${requestForm.chapter_number} 章，但派生资料同步失败；可打开章节重试`
+        : imported.derived_sync_status === "running"
+          ? `已导入第 ${requestForm.chapter_number} 章，派生资料正在同步`
+          : `已导入第 ${requestForm.chapter_number} 章`;
+      addToast(message, chapterContentCommitToastType(imported.derived_sync_status));
       setImportOpen(false);
       setImportForm({ chapter_number: requestForm.chapter_number + 1, title: "", content: "" });
       await load({ force: true });
@@ -315,6 +332,7 @@ const ChapterRow: React.FC<{
   onOpen?: () => void;
 }> = ({ chapter, onOpen }) => {
   const status = chapterStatusLabel(chapter.status);
+  const derivedSyncStatus = derivedSyncStatusLabel(chapter);
   const content = (
     <>
       <div className="min-w-0 flex-1">
@@ -328,6 +346,14 @@ const ChapterRow: React.FC<{
             <>
               <span aria-hidden="true">·</span>
               <span>{status}</span>
+            </>
+          ) : null}
+          {derivedSyncStatus ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className={chapter.derived_sync_status === "failed" ? "text-error" : ""}>
+                {derivedSyncStatus}
+              </span>
             </>
           ) : null}
         </div>

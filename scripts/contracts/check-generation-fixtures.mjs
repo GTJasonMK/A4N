@@ -18,7 +18,14 @@ const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
 const ajv = new Ajv2020({
   allErrors: true,
   strict: true,
-  formats: { int32: true, int64: true, uint16: true, uint32: true, uint64: true },
+  formats: {
+    float: true,
+    int32: true,
+    int64: true,
+    uint16: true,
+    uint32: true,
+    uint64: true,
+  },
 });
 ajv.addSchema(schema, "a4n-generation-contract");
 const validateEvent = ajv.getSchema(

@@ -1,12 +1,24 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { GenerationTaskHandle } from "../generated/generationContracts";
+import type { VideoInsertedSegmentGenerationOptions } from "../generated/generationContracts";
+import type {
+  CommitInsertedSegmentDraftInput,
+  DeleteChapterVideoPromptInput,
+  DeleteInsertedSegmentInput,
+  DownstreamConflictStrategy,
+  GetVideoTimelineInput,
+  MoveInsertedSegmentInput,
+  OptimizeChapterVideoPromptInput,
+  UpdateChapterVideoPromptInput,
+  VideoTimelineItemSummary,
+  VideoTimelineSummary,
+} from "../generated/host";
 import { idNum, type ApiId as Id } from "../shared";
 import { startVideoGeneration } from "./generation";
 import type { WorkflowRun } from "../streaming";
 import type {
   ChapterVideoPrompt,
-  DownstreamConflictStrategy,
   PromptOutputLanguage,
   VideoWorkflowMode,
 } from "./types";
@@ -29,6 +41,17 @@ export interface GeneratePromptOptions {
   video_library_image_ids?: number[];
   regenerate_existing?: boolean;
 }
+
+export type InsertedSegmentGenerationOptions =
+  VideoInsertedSegmentGenerationOptions;
+export type {
+  CommitInsertedSegmentDraftInput,
+  DeleteInsertedSegmentInput,
+  GetVideoTimelineInput,
+  MoveInsertedSegmentInput,
+  VideoTimelineItemSummary,
+  VideoTimelineSummary,
+};
 
 export type SegmentGuidanceMode =
   "system_frames" | "keyframes" | "none" | "continuity";
@@ -73,14 +96,6 @@ export interface VideoSegmentExecutionRecipe {
   adopted_video_id: number | null;
 }
 
-interface UpdateChapterVideoPromptInput {
-  visual_prompt?: string | null;
-  motion_prompt?: string | null;
-  negative_prompt?: string | null;
-  duration_secs?: number;
-  downstream_strategy?: DownstreamConflictStrategy;
-}
-
 interface UpdateVideoSegmentPlanDraftRecipeInput {
   project_id: number;
   chapter_id: number;
@@ -97,17 +112,6 @@ export interface VideoSegmentPlanDraftDetail {
   completed_shot_count: number;
   total_shot_count: number;
 }
-
-interface OptimizeChapterVideoPromptInput {
-  instruction: string;
-  downstream_strategy?: DownstreamConflictStrategy;
-}
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问视频提示词");
-  return id;
-};
 
 export async function startChapterVideoFramePrompts(
   projectId: Id,
@@ -141,6 +145,89 @@ export async function startChapterVideoSegmentPlan(
   return retryOfTaskId == null
     ? startVideoGeneration(input)
     : startVideoGeneration(input, retryOfTaskId);
+}
+
+export async function startChapterVideoInsertedSegmentDraft(
+  projectId: Id,
+  chapterId: Id,
+  options: InsertedSegmentGenerationOptions,
+  retryOfTaskId?: string | null,
+): Promise<GenerationTaskHandle> {
+  const input = {
+    project_id: idNum(projectId, "项目 ID"),
+    operation: {
+      kind: "prompt_inserted_segment" as const,
+      chapter_id: idNum(chapterId, "章节 ID"),
+      options,
+    },
+  };
+  return retryOfTaskId == null
+    ? startVideoGeneration(input)
+    : startVideoGeneration(input, retryOfTaskId);
+}
+
+export async function getChapterVideoTimeline(
+  input: GetVideoTimelineInput,
+): Promise<VideoTimelineSummary> {
+  return apiInvoke<VideoTimelineSummary>("get_chapter_video_timeline", {
+    userId: currentUserId(),
+    input: {
+      project_id: idNum(input.project_id, "项目 ID"),
+      chapter_id: idNum(input.chapter_id, "章节 ID"),
+    },
+  });
+}
+
+export async function commitInsertedSegmentDraft(
+  input: CommitInsertedSegmentDraftInput,
+): Promise<VideoTimelineSummary> {
+  return apiInvoke<VideoTimelineSummary>("commit_inserted_segment_draft", {
+    userId: currentUserId(),
+    input: {
+      timeline_id: idNum(input.timeline_id, "时间线 ID"),
+      expected_timeline_revision: idNum(
+        input.expected_timeline_revision,
+        "时间线 revision",
+      ),
+      workflow_run_id: idNum(input.workflow_run_id, "草稿 workflow ID"),
+    },
+  });
+}
+
+export async function moveInsertedSegment(
+  input: MoveInsertedSegmentInput,
+): Promise<VideoTimelineSummary> {
+  return apiInvoke<VideoTimelineSummary>("move_inserted_segment", {
+    userId: currentUserId(),
+    input: {
+      timeline_id: idNum(input.timeline_id, "时间线 ID"),
+      expected_timeline_revision: idNum(
+        input.expected_timeline_revision,
+        "时间线 revision",
+      ),
+      timeline_item_id: idNum(input.timeline_item_id, "时间线项 ID"),
+      previous_item_id:
+        input.previous_item_id == null ? null : idNum(input.previous_item_id),
+      next_item_id:
+        input.next_item_id == null ? null : idNum(input.next_item_id),
+    },
+  });
+}
+
+export async function deleteInsertedSegment(
+  input: DeleteInsertedSegmentInput,
+): Promise<VideoTimelineSummary> {
+  return apiInvoke<VideoTimelineSummary>("delete_inserted_segment", {
+    userId: currentUserId(),
+    input: {
+      timeline_id: idNum(input.timeline_id, "时间线 ID"),
+      expected_timeline_revision: idNum(
+        input.expected_timeline_revision,
+        "时间线 revision",
+      ),
+      timeline_item_id: idNum(input.timeline_item_id, "时间线项 ID"),
+    },
+  });
 }
 
 export async function startChapterVideoPrompts(
@@ -234,11 +321,13 @@ export async function optimizeChapterVideoPrompt(
 
 export async function deleteChapterVideoPrompt(
   promptId: Id,
-  downstreamStrategy: DownstreamConflictStrategy = "reject",
+  downstreamStrategy: DownstreamConflictStrategy,
 ): Promise<void> {
   return apiInvoke<void>("delete_chapter_video_prompt", {
     userId: currentUserId(),
-    promptId: idNum(promptId, "视频提示词 ID"),
-    downstreamStrategy,
+    input: {
+      prompt_id: idNum(promptId, "视频提示词 ID"),
+      downstream_strategy: downstreamStrategy,
+    } satisfies DeleteChapterVideoPromptInput,
   });
 }

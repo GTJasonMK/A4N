@@ -24,10 +24,11 @@ import { CharacterProfileDetailPanel } from "./CharacterProfileDetailPanel";
 import {
   CharacterProfileEditorModal,
   EMPTY_PROFILE_FORM,
+  profileFormBaseAttributes,
   type ProfileForm,
 } from "./CharacterProfileEditorModal";
 import { CharacterProfileList } from "./CharacterProfileList";
-import { cancelHostWorkflowTask } from "../../api/streaming";
+import { cancelWorkflow } from "../../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import type { CharacterAttributeCategory } from "../../utils/characterAttributes";
 import { isCancelledOperation } from "../../utils/cancellation";
@@ -38,14 +39,9 @@ interface CharacterProfilesModalProps {
   projectId: number;
   currentChapterNumber?: number | null;
   refreshKey?: number;
+  aiActionBlockedReason: string | null;
+  onMaterialSync: (projectId: number) => void | Promise<void>;
 }
-
-const compactStringAttributes = (entries: Array<[string, string]>): Record<string, string> =>
-  entries.reduce<Record<string, string>>((attributes, [key, value]) => {
-    const text = value.trim();
-    if (text) attributes[key] = text;
-    return attributes;
-  }, {});
 
 export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   open,
@@ -53,6 +49,8 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   projectId,
   currentChapterNumber,
   refreshKey = 0,
+  aiActionBlockedReason,
+  onMaterialSync,
 }) => {
   const { addToast } = useToast();
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
@@ -122,6 +120,12 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
 
   const invalidateActionKeys = () => {
     actionKeysRef.current.clear();
+  };
+
+  const requireCurrentAiSource = () => {
+    if (!aiActionBlockedReason) return true;
+    addToast(aiActionBlockedReason, "error");
+    return false;
   };
 
   const load = async (preferredId?: number | null) => {
@@ -241,24 +245,21 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     saveSeqRef.current = requestSeq;
     setSaving(true);
     try {
-      const created = await createProfile({
+      const createdName = form.name.trim();
+      const result = await createProfile({
         project_id: requestProjectId,
-        name: form.name.trim(),
-        base_attributes: {
-          explicit_attributes: compactStringAttributes([
-            ["gender", form.gender],
-            ["age", form.age],
-            ["background", form.background],
-            ["appearance", form.appearance],
-          ]),
-          implicit_attributes: compactStringAttributes([["personality", form.personality]]),
-          social_attributes: {},
-        },
+        name: createdName,
+        base_attributes: profileFormBaseAttributes(form),
       });
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
-      addToast(`已创建角色：${created.name}`, "success");
+      addToast(
+        result.warnings.length > 0
+          ? `已创建角色：${createdName}；${result.warnings.join("；")}`
+          : `已创建角色：${createdName}`,
+        result.warnings.length > 0 ? "info" : "success",
+      );
       setEditorOpen(false);
-      await load(created.id);
+      await load(result.profile_id);
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, "保存失败"), "error");
@@ -282,9 +283,14 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         dialogType: "danger",
       });
       if (!ok || !isCurrentWorkspace(requestProjectId)) return;
-      await deleteProfile(profile.id);
+      const result = await deleteProfile(profile.id);
       if (!isCurrentWorkspace(requestProjectId)) return;
-      addToast(`已删除：${profile.name}`, "success");
+      addToast(
+        result.warnings.length > 0
+          ? `已删除：${profile.name}；${result.warnings.join("；")}`
+          : `已删除：${profile.name}`,
+        result.warnings.length > 0 ? "info" : "success",
+      );
       await load(selectedId === profile.id ? null : selectedId);
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId)) return;
@@ -295,6 +301,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   };
 
   const handleDiscover = async () => {
+    if (!requireCurrentAiSource()) return;
     const actionKey = "discover";
     if (!beginAction(actionKey)) return;
     const requestProjectId = projectId;
@@ -306,7 +313,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       const result = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: "发现角色",
           startMessage: "正在准备角色发现",
@@ -321,11 +328,11 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!isCurrentWorkspace(requestProjectId) || discoverSeqRef.current !== requestSeq) return;
       const createdCount = result.created.length;
       const existingCount = result.existing.length;
-      const discoveredCount = result.discovered_count ?? createdCount + existingCount;
+      const discoveredCount = result.discovered_count;
       const discoverMessage =
         `角色发现完成：识别 ${discoveredCount} 个，新建 ${createdCount} 个，已存在 ${existingCount} 个`;
       addToast(discoverMessage, createdCount > 0 ? "success" : "info");
-      await load(result.created?.[0]?.id ?? selectedId);
+      await load(result.created[0]?.id ?? selectedId);
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || discoverSeqRef.current !== requestSeq) return;
       const message = extractErrorMessage(err, "发现角色失败");
@@ -369,12 +376,14 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   };
 
   const handlePreviewDiscover = async () => {
+    if (!requireCurrentAiSource()) return;
     await openRequestPreview(() =>
       previewDiscoverCharacterProfilesRequest(projectId, activeChapterNumber),
     );
   };
 
   const handlePreviewSyncAll = async () => {
+    if (!requireCurrentAiSource()) return;
     if (profiles.length === 0) {
       addToast("当前没有可同步的角色档案", "info");
       return;
@@ -389,6 +398,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   };
 
   const handleSyncAll = async () => {
+    if (!requireCurrentAiSource()) return;
     if (profiles.length === 0) {
       addToast("当前没有可同步的角色档案", "info");
       return;
@@ -417,7 +427,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       const result = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: "同步全部角色档案",
           startMessage: "正在准备批量角色同步",
@@ -476,6 +486,9 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         setSyncingAll(false);
       }
       finishAction(actionKey);
+      if (requestSeq != null) {
+        await onMaterialSync(requestProjectId);
+      }
     }
   };
 
@@ -510,6 +523,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
             discovering={discovering}
             syncingAll={syncingAll}
             canSyncAll={activeChapterNumber != null}
+            aiActionBlockedReason={aiActionBlockedReason}
             onRefresh={() => load(selectedId)}
             onCreate={openCreate}
             onPreviewDiscover={handlePreviewDiscover}

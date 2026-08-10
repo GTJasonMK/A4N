@@ -51,7 +51,7 @@ export interface ProgressTaskOptions {
   formatProgress?: (current: number, total: number, percent: number) => React.ReactNode;
   /**
    * 取消函数。传了 cancelTaskId 就必须显式提供，避免隐式落回旧 workflow 通道。
-   * generation 任务传 generationClient.cancel，Host workflow 任务传 cancelHostWorkflowTask。
+   * generation 任务传 generationClient.cancel，Host workflow 任务传 cancelWorkflow。
    */
   cancelTask?: (taskId: string) => Promise<void>;
   /**

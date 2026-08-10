@@ -1,5 +1,7 @@
 use schemars::JsonSchema;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
+
+use crate::serde_update::deserialize_nullable_update_field;
 
 /// Web/Tauri 用户摘要。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -61,12 +63,9 @@ pub struct ChangePasswordInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct SessionSummary {
     pub id: String,
-    pub user_id: i64,
     pub user_agent: Option<String>,
-    pub is_revoked: bool,
-    pub created_at: Option<String>,
-    pub expires_at: Option<String>,
-    pub revoked_at: Option<String>,
+    pub created_at: String,
+    pub expires_at: String,
     pub last_used_at: Option<String>,
 }
 
@@ -93,23 +92,6 @@ pub struct RefreshTokenInput {
     pub session_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct OAuth2LoginResult {
-    pub user: UserSummary,
-    pub tokens: TokenPairSummary,
-    pub session: SessionSummary,
-}
-
-fn deserialize_nullable_update_field<'de, D, T>(
-    deserializer: D,
-) -> Result<Option<Option<T>>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    Ok(Some(Option::<T>::deserialize(deserializer)?))
-}
-
 #[cfg(test)]
 mod tests {
     use super::{LoginInput, UpdateProfileInput};
@@ -119,8 +101,23 @@ mod tests {
     fn update_profile_distinguishes_missing_and_null() {
         let missing: UpdateProfileInput = serde_json::from_value(json!({})).unwrap();
         assert_eq!(missing.email, None);
-        let null: UpdateProfileInput = serde_json::from_value(json!({"email": null})).unwrap();
+        assert_eq!(missing.avatar_url, None);
+
+        let null: UpdateProfileInput =
+            serde_json::from_value(json!({"email": null, "avatar_url": null})).unwrap();
         assert_eq!(null.email, Some(None));
+        assert_eq!(null.avatar_url, Some(None));
+
+        let value: UpdateProfileInput = serde_json::from_value(json!({
+            "email": "alice@example.com",
+            "avatar_url": "https://cdn/avatar.png"
+        }))
+        .unwrap();
+        assert_eq!(value.email, Some(Some("alice@example.com".to_string())));
+        assert_eq!(
+            value.avatar_url,
+            Some(Some("https://cdn/avatar.png".to_string()))
+        );
     }
 
     #[test]

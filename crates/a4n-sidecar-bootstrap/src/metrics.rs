@@ -209,7 +209,7 @@ impl Drop for RequestMetricsGuard {
     }
 }
 
-pub fn with_runtime_metrics(router: Router, service: &str) -> anyhow::Result<Router> {
+pub(super) fn with_runtime_metrics(router: Router, service: &str) -> anyhow::Result<Router> {
     let metrics = SidecarRuntimeMetrics::from_env(service)?;
     let metrics_router = Router::new()
         .route("/metrics", get(runtime_metrics))
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn request_completion_and_cancellation_update_one_shared_snapshot() {
         let metrics = SidecarRuntimeMetrics::new("demo", 1, 2, Some("previous crash".into()));
-        metrics.begin("/rag/ingest".into()).finish(true);
+        metrics.begin("/rag/search".into()).finish(true);
         drop(metrics.begin("/rag/ingest/events".into()));
 
         let snapshot = metrics.snapshot();
@@ -314,7 +314,7 @@ mod tests {
         assert_eq!(snapshot.cancelled_total, 1);
         assert_eq!(snapshot.in_flight, 0);
         assert_eq!(snapshot.last_error.as_deref(), Some("previous crash"));
-        assert_eq!(snapshot.operations["/rag/ingest"].errors_total, 1);
+        assert_eq!(snapshot.operations["/rag/search"].errors_total, 1);
         assert_eq!(snapshot.operations["/rag/ingest/events"].cancelled_total, 1);
     }
 

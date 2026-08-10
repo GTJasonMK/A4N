@@ -1,8 +1,10 @@
 use a4n_core::error::AppError;
 use a4n_orchestrator::character::{CharacterProfileBatchProgress, CharacterProfileSyncPreviewStep};
-use serde_json::Value;
 
-use super::{CharacterAiPreviewStep, CharacterAiProgress};
+use super::{
+    CharacterAiPreviewStep, CharacterAiProgress, SyncAllCharacterProfilesInput,
+    SyncAllCharacterProfilesResult,
+};
 use crate::{
     AppState, actions::access, prompt_renderer::RuntimePromptRenderer,
     sidecar_clients::scope_rag_operation_trace,
@@ -11,11 +13,10 @@ use crate::{
 pub async fn sync_all_character_profiles_to_chapter(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    chapter_number: i32,
+    input: SyncAllCharacterProfilesInput,
     progress: Option<&CharacterAiProgress<'_>>,
-) -> Result<Value, String> {
-    access::verify_project_editor(state, user_id, project_id)
+) -> Result<SyncAllCharacterProfilesResult, String> {
+    access::verify_project_editor(state, user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
     let prompt_renderer = RuntimePromptRenderer::new(state);
@@ -36,10 +37,10 @@ pub async fn sync_all_character_profiles_to_chapter(
         Ok(())
     };
     scope_rag_operation_trace(
-        batch_character_sync_trace_id("all", project_id, chapter_number),
+        batch_character_sync_trace_id("all", input.project_id, input.chapter_number),
         state.character().run_all_character_profile_sync_validated(
-            project_id,
-            chapter_number,
+            input.project_id,
+            input.chapter_number,
             &prompt_renderer,
             CharacterProfileBatchProgress {
                 reporter: Some(&report_progress),
@@ -55,18 +56,17 @@ pub async fn sync_all_character_profiles_to_chapter(
 pub(crate) async fn sync_all_character_profiles_preview_steps(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-    chapter_number: i32,
+    input: SyncAllCharacterProfilesInput,
 ) -> Result<Vec<CharacterAiPreviewStep>, String> {
-    access::verify_project_editor(state, user_id, project_id)
+    access::verify_project_editor(state, user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
     let prompt_renderer = RuntimePromptRenderer::new(state);
     state
         .character()
         .prepare_all_character_profile_sync_preview_validated(
-            project_id,
-            chapter_number,
+            input.project_id,
+            input.chapter_number,
             &prompt_renderer,
         )
         .await

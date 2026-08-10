@@ -1,21 +1,16 @@
 use serde_json::Value;
 
-use super::super::super::{
-    ApiError, ServerState, command_input, downstream_strategy_arg, i64_arg, manga_records_actions,
-    to_value,
-};
+use super::super::super::{ApiError, ServerState, command_input, manga_records_actions, to_value};
 
 pub(in crate::routes::commands) async fn list_manga_panels(
     state: &ServerState,
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_id = i64_arg(args, "chapterId")?;
-    let panels =
-        manga_records_actions::list_manga_panels(state.runtime(), user_id, project_id, chapter_id)
-            .await
-            .map_err(ApiError::bad_request)?;
+    let input: manga_records_actions::MangaChapterInput = command_input(args, "list_manga_panels")?;
+    let panels = manga_records_actions::list_manga_panels(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
     to_value(panels)
 }
 
@@ -24,7 +19,7 @@ pub(in crate::routes::commands) async fn bind_manga_reference_image(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: manga_records_actions::BindReferenceImageInput =
+    let input: manga_records_actions::BindMangaReferenceImageInput =
         command_input(args, "bind_manga_reference_image")?;
     let updated =
         manga_records_actions::bind_manga_reference_image(state.runtime(), user_id, input)
@@ -64,16 +59,11 @@ pub(in crate::routes::commands) async fn delete_manga_prompt(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let prompt_id = i64_arg(args, "promptId")?;
-    let downstream_strategy = downstream_strategy_arg(args)?;
-    manga_records_actions::delete_manga_prompt(
-        state.runtime(),
-        user_id,
-        prompt_id,
-        downstream_strategy,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
+    let input: manga_records_actions::DeleteMangaPromptInput =
+        command_input(args, "delete_manga_prompt")?;
+    manga_records_actions::delete_manga_prompt(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
     Ok(Value::Null)
 }
 
@@ -82,15 +72,10 @@ pub(in crate::routes::commands) async fn delete_manga_by_chapter(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let project_id = i64_arg(args, "projectId")?;
-    let chapter_id = i64_arg(args, "chapterId")?;
-    manga_records_actions::delete_manga_by_chapter(
-        state.runtime(),
-        user_id,
-        project_id,
-        chapter_id,
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
+    let input: manga_records_actions::MangaChapterInput =
+        command_input(args, "delete_manga_by_chapter")?;
+    manga_records_actions::delete_manga_by_chapter(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
     Ok(Value::Null)
 }

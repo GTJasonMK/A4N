@@ -1,11 +1,11 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
-import { idNum, integerNum, type ApiId as Id } from "../shared";
+import { idNum, type ApiId as Id } from "../shared";
 import { getLocalVideoConfig } from "../localRuntimeSettings";
 import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
-import { SYSTEM_VIDEO_CONFIG_ID } from "./configs";
+import { normalizeVideoConfigId } from "./configs";
 import type {
   AssemblyPushResult,
   ApplyAssemblyPostprocessEditInput,
@@ -14,27 +14,13 @@ import type {
   PushAssembledChapterVideoInput,
   PreviewChapterVideoPromptOverrideInput,
   ReferenceMediaVideoInput,
+  UpdateVideoInput,
   UploadAssemblyInsertVideoInput,
   UploadChapterVideoInput,
   UploadReferenceMediaVideoInput,
   VideoPlaybackData,
 } from "./types";
 
-export interface UpdateVideoInput {
-  prompt?: string;
-  negative_prompt?: string | null;
-  metadata_json?: unknown | null;
-  is_favorite?: boolean;
-  insert_after_video_id?: Id | null;
-  move_assembly_insert_to_start?: boolean;
-}
-
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问视频记录");
-  return id;
-};
 
 export async function listVideosByChapter(
   projectId: Id,
@@ -47,18 +33,11 @@ export async function listVideosByChapter(
   });
 }
 
-export async function toggleVideoFavorite(videoId: Id): Promise<GeneratedVideo> {
-  return apiInvoke<GeneratedVideo>("toggle_video_favorite", {
-    userId: currentUserId(),
-    videoId: idNum(videoId),
-  });
-}
-
 export async function updateVideo(videoId: Id, input: UpdateVideoInput): Promise<GeneratedVideo> {
   return apiInvoke<GeneratedVideo>("update_video", {
     userId: currentUserId(),
     videoId: idNum(videoId),
-    input: toUpdateVideoPayload(input),
+    input,
   });
 }
 
@@ -88,10 +67,14 @@ export async function loadVideoPlaybackData(videoId: Id): Promise<VideoPlaybackD
   });
 }
 
-export async function loadVideoScrubPlaybackData(videoId: Id): Promise<VideoPlaybackData> {
+export async function loadVideoScrubPlaybackData(
+  videoId: Id,
+  includeAudio: boolean,
+): Promise<VideoPlaybackData> {
   return apiInvoke<VideoPlaybackData>("load_video_scrub_playback_data", {
     userId: currentUserId(),
     videoId: idNum(videoId),
+    includeAudio,
   });
 }
 
@@ -188,12 +171,7 @@ export async function uploadChapterVideo(
     userId: currentUserId(),
     projectId: idNum(projectId),
     chapterId: idNum(chapterId),
-    input: {
-      file_name: input.file_name,
-      mime_type: input.mime_type,
-      data_base64: input.data_base64,
-      prompt_id: idNum(input.prompt_id),
-    },
+    input,
   });
 }
 
@@ -206,13 +184,7 @@ export async function uploadReferenceMediaVideo(
     userId: currentUserId(),
     projectId: idNum(projectId),
     chapterId: idNum(chapterId),
-    input: {
-      file_name: input.file_name,
-      mime_type: input.mime_type,
-      data_base64: input.data_base64,
-      segment_plan_prompt_id: idNum(input.segment_plan_prompt_id),
-      target_segment: input.target_segment,
-    },
+    input,
   });
 }
 
@@ -227,13 +199,7 @@ export async function uploadAssemblyInsertVideo(
     projectId: idNum(projectId),
     chapterId: idNum(chapterId),
     workflowMode,
-    input: {
-      file_name: input.file_name,
-      mime_type: input.mime_type,
-      data_base64: input.data_base64,
-      insert_after_video_id:
-        input.insert_after_video_id == null ? null : idNum(input.insert_after_video_id),
-    },
+    input,
   });
 }
 
@@ -248,12 +214,6 @@ export async function trimVideo(
     startSecs,
     endSecs,
   });
-}
-
-function normalizeVideoConfigId(configId?: Id | null): number | null {
-  if (configId == null) return null;
-  const id = integerNum(configId, "视频配置 ID");
-  return id === SYSTEM_VIDEO_CONFIG_ID ? null : idNum(id, "视频配置 ID");
 }
 
 export async function previewChapterVideoRequest(
@@ -313,27 +273,4 @@ export async function previewReferenceMediaVideoRequest(
         }
       : {}),
   });
-}
-
-function toUpdateVideoPayload(input: UpdateVideoInput): Record<string, unknown> {
-  const payload: Record<string, unknown> = {};
-  if (input.prompt !== undefined) payload.prompt = input.prompt;
-  if ("negative_prompt" in input) {
-    payload.negative_prompt = input.negative_prompt ?? null;
-    payload.clear_negative_prompt = input.negative_prompt == null;
-  }
-  if ("metadata_json" in input) {
-    payload.metadata_json = input.metadata_json ?? null;
-    payload.clear_metadata_json = input.metadata_json == null;
-  }
-  if (input.is_favorite !== undefined) payload.is_favorite = input.is_favorite;
-  if ("insert_after_video_id" in input) {
-    payload.insert_after_video_id =
-      input.insert_after_video_id == null ? null : idNum(input.insert_after_video_id);
-    payload.move_assembly_insert_to_start = input.insert_after_video_id == null;
-  }
-  if (input.move_assembly_insert_to_start !== undefined) {
-    payload.move_assembly_insert_to_start = input.move_assembly_insert_to_start;
-  }
-  return payload;
 }

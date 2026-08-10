@@ -13,7 +13,7 @@ interface SegmentedOption<T extends string = string> {
   title?: string;
 }
 
-export interface SegmentedControlProps<T extends string = string> {
+interface SegmentedControlProps<T extends string = string> {
   options: ReadonlyArray<SegmentedOption<T>>;
   value: T | null | undefined;
   onChange: (id: T) => void;

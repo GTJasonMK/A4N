@@ -76,13 +76,19 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   }, []);
 
   const refresh = useCallback(async () => {
+    if (!isAdmin || callerUserId == null) {
+      refreshInFlightRef.current = false;
+      setPaths(null);
+      setLoading(false);
+      return;
+    }
     if (refreshInFlightRef.current) return;
     refreshInFlightRef.current = true;
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const nextPaths = await getStoragePaths();
+      const nextPaths = await getStoragePaths(callerUserId);
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       setPaths(nextPaths);
     } catch (err) {
@@ -94,7 +100,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
         refreshInFlightRef.current = false;
       }
     }
-  }, [addToast]);
+  }, [addToast, callerUserId, isAdmin]);
 
   useEffect(() => {
     void refresh();

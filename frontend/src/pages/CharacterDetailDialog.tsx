@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, LocateFixed, RotateCcw, Sparkles } from "lucide-react";
+import { Eye, LocateFixed, Pencil, RotateCcw, Sparkles } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
@@ -19,7 +19,7 @@ import {
   type CharacterProfile,
 } from "../api/character";
 import type { ModelRequestPreview } from "../api/requestPreview";
-import { cancelHostWorkflowTask } from "../api/streaming";
+import { cancelWorkflow } from "../api/streaming";
 import { allocateHostTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { CharacterDetailContent } from "./character-detail-dialog/CharacterDetailContent";
@@ -53,6 +53,7 @@ interface CharacterDetailDialogProps {
   initialTab?: CharacterDetailTab;
   initialEventFilter?: CharacterDetailInitialEventFilter | null;
   onChanged?: () => void | Promise<void>;
+  onEditInitial?: (character: CharacterProfile) => void;
 }
 
 interface CharacterCacheValue<T> {
@@ -167,6 +168,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   initialTab,
   initialEventFilter,
   onChanged,
+  onEditInitial,
 }) => {
   const addToast = useToast((state) => state.addToast);
   const [tab, setTab] = useState<CharacterDetailTab>("arc");
@@ -335,7 +337,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         const rows = await runProgressTask(
           {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
             title: "角色一致性检查",
             startMessage: "正在准备角色一致性检查",
@@ -474,7 +476,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       const result = await runProgressTask(
         {
           cancelTaskId: taskId,
-          cancelTask: cancelHostWorkflowTask,
+          cancelTask: cancelWorkflow,
           pollTaskProgress: true,
           title: `同步角色 · ${requestName}`,
           startMessage: "正在准备角色同步",
@@ -638,6 +640,13 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   }
 
   const tabActionItems: DropdownItem[] = [];
+  if (onEditInitial && character.last_synced_chapter === 0) {
+    tabActionItems.push({
+      label: "编辑初始档案",
+      onClick: () => onEditInitial(character),
+      icon: <Pencil size={12} />,
+    });
+  }
   if (tab === "manage" && activeChapterNumber != null) {
     tabActionItems.push({
       label: syncing ? "正在从章节同步" : "从当前章节同步",

@@ -3,6 +3,7 @@
 pub mod blueprint_generation;
 pub mod chapter_analysis;
 pub mod chapter_generation;
+pub mod contracts;
 pub mod engine;
 pub mod includes;
 mod markdown;

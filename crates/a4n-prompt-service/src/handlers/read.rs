@@ -1,20 +1,20 @@
 use crate::app::PromptServiceState;
-use crate::contracts::{
-    CategoryInfo, PromptDependencyGraphOutput, PromptListOutput, PromptNamePayload,
-    PromptRenderAbOutput, PromptRenderOutput, PromptRenderPayload, PromptValidateOutput,
-    PromptValidatePayload, PromptVersionDiffOutput, PromptVersionDiffPayload,
-    PromptVersionHistoryOutput, PromptVersionPayload,
-};
 use crate::protocol::{error_response, ok_response, result_response, validate_service_request};
-use a4n_core::error::AppError;
-use a4n_prompt::engine::{PromptEngine, PromptEntry};
+use a4n_prompt::{
+    contracts::{
+        PromptEmptyPayload, PromptListOutput, PromptNamePayload, PromptRenderAbOutput,
+        PromptRenderOutput, PromptRenderPayload, PromptValidateOutput, PromptValidatePayload,
+        PromptVersionDiffOutput, PromptVersionDiffPayload, PromptVersionHistoryOutput,
+    },
+    engine::{PromptCategory, PromptEngine, PromptEntry},
+};
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
 use std::collections::HashSet;
 
 pub(crate) async fn list_prompts(
     State(state): State<PromptServiceState>,
-    Json(request): Json<ServiceRequest<serde_json::Value>>,
+    Json(request): Json<ServiceRequest<PromptEmptyPayload>>,
 ) -> Json<ServiceResponse<PromptListOutput>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
@@ -107,20 +107,6 @@ pub(crate) async fn version_history(
     Json(result_response(&request, result))
 }
 
-pub(crate) async fn version_get(
-    State(state): State<PromptServiceState>,
-    Json(request): Json<ServiceRequest<PromptVersionPayload>>,
-) -> Json<ServiceResponse<PromptEntry>> {
-    if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
-    }
-    let payload = &request.payload;
-    Json(result_response(
-        &request,
-        state.engine.get_version(&payload.name, &payload.version),
-    ))
-}
-
 pub(crate) async fn version_diff(
     State(state): State<PromptServiceState>,
     Json(request): Json<ServiceRequest<PromptVersionDiffPayload>>,
@@ -136,48 +122,12 @@ pub(crate) async fn version_diff(
     Json(result_response(&request, result))
 }
 
-pub(crate) async fn dependency_graph(
-    State(state): State<PromptServiceState>,
-    Json(request): Json<ServiceRequest<serde_json::Value>>,
-) -> Json<ServiceResponse<PromptDependencyGraphOutput>> {
-    if let Err(error) = validate_service_request(&request) {
-        return Json(error_response(&request, error));
-    }
-    Json(ok_response(
-        &request,
-        PromptDependencyGraphOutput {
-            graph: state.engine.dependency_graph(),
-        },
-    ))
-}
-
 pub(crate) async fn categories(
     State(state): State<PromptServiceState>,
-    Json(request): Json<ServiceRequest<serde_json::Value>>,
-) -> Json<ServiceResponse<Vec<CategoryInfo>>> {
+    Json(request): Json<ServiceRequest<PromptEmptyPayload>>,
+) -> Json<ServiceResponse<Vec<PromptCategory>>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(error_response(&request, error));
     }
-    Json(result_response(
-        &request,
-        prompt_categories(state.engine.as_ref()),
-    ))
-}
-
-fn prompt_categories(engine: &dyn PromptEngine) -> Result<Vec<CategoryInfo>, AppError> {
-    let registry = engine.registry();
-    let registry = registry.read();
-    let mut categories = Vec::with_capacity(registry.categories().len());
-    for (key, value) in registry.categories() {
-        categories.push(CategoryInfo {
-            key: key.clone(),
-            label: value.label.clone(),
-            order: value
-                .order
-                .ok_or_else(|| AppError::ConfigError(format!("提示词分类 {key} 缺少 order")))?,
-            description: value.description.clone(),
-        });
-    }
-    categories.sort_by_key(|category| (category.order, category.key.clone()));
-    Ok(categories)
+    Json(result_response(&request, state.engine.categories()))
 }

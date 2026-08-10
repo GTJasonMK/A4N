@@ -19,11 +19,10 @@ pub async fn import_chapter(
     state: State<'_, AppState>,
     user_id: i64,
     input: ImportChapterInput,
-) -> Result<serde_json::Value, String> {
-    let imported = chapter_content_actions::import_chapter(state.inner(), user_id, input)
+) -> Result<ChapterSummary, String> {
+    chapter_content_actions::import_chapter(state.inner(), user_id, input)
         .await
-        .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!(imported))
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

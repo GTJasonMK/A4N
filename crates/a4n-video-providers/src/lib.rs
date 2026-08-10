@@ -13,6 +13,7 @@ mod idempotency;
 mod newapi;
 mod response;
 mod seedance2;
+mod transport;
 
 pub use chat::ChatCompletionsVideoProvider;
 pub use cliproxy_openai::CliProxyOpenAiVideoProvider;

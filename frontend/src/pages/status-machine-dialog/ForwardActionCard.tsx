@@ -2,8 +2,8 @@ import React from "react";
 import { ArrowRight } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
-import { statusLabel } from "./statusMachineUtils";
-import type { ProjectStatus } from "../../utils/projectStatus";
+import type { ProjectStatus } from "../../api/project";
+import { getProjectStatusText } from "../../utils/projectStatus";
 
 interface ForwardActionCardProps {
   target: ProjectStatus;
@@ -23,7 +23,7 @@ export const ForwardActionCard: React.FC<ForwardActionCardProps> = ({
       <div className="min-w-0">
         <div className="text-caption text-book-text-muted">下一阶段</div>
         <div className="truncate text-xs font-medium text-book-text-main">
-          {statusLabel(target)}
+          {getProjectStatusText(target)}
         </div>
       </div>
       <BookButton

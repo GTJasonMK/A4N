@@ -2,9 +2,7 @@
 
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::theme as theme_actions;
-use a4n_runtime::host_api::theme::{
-    CreateThemeInput, ImportThemeInput, ThemeSummary, UpdateThemeInput,
-};
+use a4n_runtime::host_api::theme::{CreateThemeInput, ThemeSummary, UpdateThemeInput};
 use tauri::State;
 
 macro_rules! theme_command {
@@ -22,10 +20,6 @@ macro_rules! theme_command {
 theme_command!(
     list_themes(state, user_id: i64) -> Vec<ThemeSummary>,
     theme_actions::list_themes_for_user(&state, user_id)
-);
-theme_command!(
-    list_user_themes(state, user_id: i64) -> Vec<ThemeSummary>,
-    theme_actions::list_user_themes_for_user(&state, user_id, user_id)
 );
 theme_command!(
     create_theme(state, user_id: i64, input: CreateThemeInput) -> ThemeSummary,
@@ -48,7 +42,7 @@ theme_command!(
     theme_actions::export_theme_for_user(&state, user_id, theme_id)
 );
 theme_command!(
-    import_theme(state, user_id: i64, input: ImportThemeInput) -> ThemeSummary,
+    import_theme(state, user_id: i64, input: CreateThemeInput) -> ThemeSummary,
     theme_actions::import_theme_for_user(&state, user_id, input)
 );
 theme_command!(

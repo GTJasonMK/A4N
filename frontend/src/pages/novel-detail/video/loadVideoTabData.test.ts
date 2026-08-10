@@ -6,9 +6,10 @@ const mocks = vi.hoisted(() => ({
   listChapterVideoPrompts: vi.fn(),
   listVideosByChapter: vi.fn(),
   listVideoReferenceImages: vi.fn(),
-  listEffectiveVideoConfigs: vi.fn(),
+  listVideoConfigs: vi.fn(),
   listWorkflowRuns: vi.fn(),
   loadVideoSegmentPlanDraftDetail: vi.fn(),
+  getChapterVideoTimeline: vi.fn(),
   listHistory: vi.fn(),
 }));
 
@@ -27,15 +28,18 @@ vi.mock("../../../api/generationTasks", () => ({
 vi.mock("../../../api/video", () => ({
   listChapterVideoPrompts: mocks.listChapterVideoPrompts,
   listVideosByChapter: mocks.listVideosByChapter,
-  listEffectiveVideoConfigs: mocks.listEffectiveVideoConfigs,
+  listVideoConfigs: mocks.listVideoConfigs,
   loadVideoSegmentPlanDraftDetail: mocks.loadVideoSegmentPlanDraftDetail,
+  getChapterVideoTimeline: mocks.getChapterVideoTimeline,
 }));
 
 import {
   activeVideoSegmentPlanTask,
+  loadedSegmentPlanDraftIsActive,
   loadVideoSegmentPlanDraft,
   loadVideoTabData,
   videoSegmentPlanGenerationTargetId,
+  type LoadedSegmentPlanDraft,
 } from "./loadVideoTabData";
 
 const segmentPlanFingerprint = (
@@ -73,7 +77,14 @@ describe("video tab loading", () => {
     mocks.listChapterVideoPrompts.mockResolvedValue([]);
     mocks.listVideosByChapter.mockResolvedValue([]);
     mocks.listVideoReferenceImages.mockResolvedValue([]);
-    mocks.listEffectiveVideoConfigs.mockResolvedValue([]);
+    mocks.listVideoConfigs.mockResolvedValue([]);
+    mocks.getChapterVideoTimeline.mockResolvedValue({
+      id: 1,
+      project_id: 19,
+      chapter_id: 3,
+      revision: 1,
+      items: [],
+    });
     mocks.listHistory.mockResolvedValue({
       items: [
         {
@@ -93,6 +104,21 @@ describe("video tab loading", () => {
       ],
       next_cursor: null,
     });
+  });
+
+  it("keeps resumable drafts passive until generation starts", () => {
+    const draft = {
+      workflowStatus: "cancelled",
+    } as LoadedSegmentPlanDraft;
+
+    expect(loadedSegmentPlanDraftIsActive(draft, false)).toBe(false);
+    expect(loadedSegmentPlanDraftIsActive(draft, true)).toBe(true);
+    expect(
+      loadedSegmentPlanDraftIsActive(
+        { ...draft, workflowStatus: "running" },
+        false,
+      ),
+    ).toBe(true);
   });
 
   it("does not block base video data on workflow draft loading", async () => {
@@ -200,6 +226,7 @@ describe("video tab loading", () => {
       project_id: 19,
       chapter_id: 3,
       workflow_kind: "video_segment_plan",
+      resumable_only: false,
       limit: 1,
     });
     expect(mocks.loadVideoSegmentPlanDraftDetail).toHaveBeenCalledWith(

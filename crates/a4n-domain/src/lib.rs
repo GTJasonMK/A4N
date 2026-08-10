@@ -3,7 +3,54 @@
 //! This crate must stay free of database, provider, sidecar transport, and UI
 //! dependencies.
 
+pub mod admin;
+pub mod canvas;
+pub mod collaboration;
+pub mod galgame;
+pub mod image;
+pub mod llm;
+pub mod manga;
+pub mod model_discovery;
+pub mod project;
+pub mod shooting_script;
+
+pub use canvas::CanvasNodeRefKind;
+pub use image::is_system_managed_image_type;
+pub use llm::{
+    DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LLM_MAX_TOKEN_LIMIT,
+    LLM_RESERVED_REQUEST_OPTION_KEYS, LlmMaxTokensConfig, llm_token_profiles,
+};
+pub use model_discovery::{DiscoveredModel, ModelDiscoveryResult};
+
+pub const EXTERNAL_IMPORT_MODEL: &str = "external-import";
+
+use std::{fmt, str::FromStr};
+
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeMode {
+    Light,
+    Dark,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum VideoDurationMode {
+    Range,
+    Fixed,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DownstreamConflictStrategy {
+    #[default]
+    Reject,
+    KeepDownstream,
+    DeleteDownstream,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ProjectId(i64);
@@ -21,6 +68,85 @@ pub struct WorkflowRunId(i64);
 pub enum DomainError {
     #[error("{field} 必须是正数")]
     NonPositiveId { field: &'static str },
+    #[error("主题 mode 无效：{value}，只支持 light、dark")]
+    InvalidThemeMode { value: String },
+    #[error("视频 duration_mode 无效：{value}，只支持 range、fixed")]
+    InvalidVideoDurationMode { value: String },
+    #[error("未知项目协作角色: {value}")]
+    InvalidProjectMemberRole { value: String },
+    #[error("未知画布节点引用类型: {value}")]
+    InvalidCanvasNodeRefKind { value: String },
+}
+
+impl ThemeMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+}
+
+impl fmt::Display for ThemeMode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for ThemeMode {
+    type Err = DomainError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "light" => Ok(Self::Light),
+            "dark" => Ok(Self::Dark),
+            _ => Err(DomainError::InvalidThemeMode {
+                value: value.to_string(),
+            }),
+        }
+    }
+}
+
+impl VideoDurationMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Range => "range",
+            Self::Fixed => "fixed",
+        }
+    }
+}
+
+impl DownstreamConflictStrategy {
+    pub fn from_optional_str(value: Option<&str>) -> Result<Self, String> {
+        match value.map(str::trim).filter(|value| !value.is_empty()) {
+            None | Some("reject") => Ok(Self::Reject),
+            Some("keep_downstream") => Ok(Self::KeepDownstream),
+            Some("delete_downstream") => Ok(Self::DeleteDownstream),
+            Some(other) => Err(format!(
+                "未知下游冲突处理策略：{other}，支持 reject、keep_downstream、delete_downstream"
+            )),
+        }
+    }
+}
+
+impl fmt::Display for VideoDurationMode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for VideoDurationMode {
+    type Err = DomainError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "range" => Ok(Self::Range),
+            "fixed" => Ok(Self::Fixed),
+            _ => Err(DomainError::InvalidVideoDurationMode {
+                value: value.to_string(),
+            }),
+        }
+    }
 }
 
 impl ProjectId {
@@ -68,4 +194,44 @@ fn positive_id(value: i64, field: &'static str) -> Result<i64, DomainError> {
         return Err(DomainError::NonPositiveId { field });
     }
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn theme_mode_accepts_only_canonical_values() {
+        assert_eq!("light".parse::<ThemeMode>().unwrap(), ThemeMode::Light);
+        assert_eq!("dark".parse::<ThemeMode>().unwrap(), ThemeMode::Dark);
+        assert!(" dark ".parse::<ThemeMode>().is_err());
+        assert!("system".parse::<ThemeMode>().is_err());
+    }
+
+    #[test]
+    fn video_duration_mode_accepts_only_canonical_values() {
+        assert_eq!(
+            "range".parse::<VideoDurationMode>().unwrap(),
+            VideoDurationMode::Range
+        );
+        assert_eq!(
+            "fixed".parse::<VideoDurationMode>().unwrap(),
+            VideoDurationMode::Fixed
+        );
+        assert!(" fixed ".parse::<VideoDurationMode>().is_err());
+        assert!("discrete".parse::<VideoDurationMode>().is_err());
+    }
+
+    #[test]
+    fn downstream_conflict_strategy_has_one_wire_parser() {
+        assert_eq!(
+            DownstreamConflictStrategy::from_optional_str(None).unwrap(),
+            DownstreamConflictStrategy::Reject
+        );
+        assert_eq!(
+            DownstreamConflictStrategy::from_optional_str(Some("delete_downstream")).unwrap(),
+            DownstreamConflictStrategy::DeleteDownstream
+        );
+        assert!(DownstreamConflictStrategy::from_optional_str(Some("legacy")).is_err());
+    }
 }

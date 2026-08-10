@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, Eye } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
-import { loadVideoPlaybackData } from "../../api/video";
+import { loadVideoScrubPlaybackData } from "../../api/video";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import { copyTextToClipboard } from "../../utils/clipboard";
@@ -251,7 +251,7 @@ function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview): {
     }
 
     setVideoLoading(true);
-    void loadVideoPlaybackData(preview.generatedVideoId)
+    void loadVideoScrubPlaybackData(preview.generatedVideoId, true)
       .then((data) => {
         if (cancelled) return;
         objectUrl = videoPlaybackDataToObjectUrl(data);

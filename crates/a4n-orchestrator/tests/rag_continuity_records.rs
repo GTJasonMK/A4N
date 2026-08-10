@@ -34,6 +34,7 @@ fn attribute_event() -> attribute_event::Model {
         id: 70,
         profile_id: 40,
         chapter_number: 3,
+        source_kind: "ai_sync".to_string(),
         timestamp: ts(),
         category: "implicit".to_string(),
         key: "trust".to_string(),

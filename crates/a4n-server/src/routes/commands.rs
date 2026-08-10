@@ -7,6 +7,7 @@ mod import_project;
 mod input;
 mod media;
 mod request;
+mod source_sync;
 mod task;
 
 mod dispatch {
@@ -73,6 +74,7 @@ use self::import_project::*;
 use self::input::*;
 use self::media::*;
 use self::request::*;
+use self::source_sync::*;
 use self::task::*;
 
 use super::auth::{authenticated_user, issue_auth_response};
@@ -116,6 +118,7 @@ use a4n_runtime::host_api::prompt_records as prompt_records_actions;
 use a4n_runtime::host_api::rag_search as rag_search_actions;
 use a4n_runtime::host_api::scene_profile_records as scene_profile_records_actions;
 use a4n_runtime::host_api::scene_profile_sync as scene_profile_sync_actions;
+use a4n_runtime::host_api::source_sync as source_sync_actions;
 use a4n_runtime::host_api::storage_paths as storage_paths_actions;
 use a4n_runtime::host_api::task_records as task_records_actions;
 use a4n_runtime::host_api::theme as theme_actions;

@@ -538,6 +538,13 @@ export function useVideoPromptGenerationActions({
         : firstFrameMode
           ? "首帧提示词"
           : "边界帧提示词";
+    if (firstFrameMode && recipe.guidance_mode === "continuity") {
+      addToast(
+        "当前片段使用尾帧续接，无需生成首帧提示词；如需自己生成，请先把首帧来源切换为独立生成",
+        "info",
+      );
+      return;
+    }
     const regenerateExisting = requestOptions.regenerateExisting ?? false;
     const operationLabel = `${regenerateExisting ? "重新生成" : "生成"}${label}`;
     const runningFramePrompt = allFramePrompts.find(
@@ -562,20 +569,11 @@ export function useVideoPromptGenerationActions({
         ? 2
         : targetWorkflowMode === "storyboard"
           ? 1
-          : segmentNumber === 1
-            ? 1
-            : 0;
+          : 1;
     const framePromptType = framePromptTypeForWorkflow(targetWorkflowMode);
     const framePromptContract = framePromptContractForWorkflow(targetWorkflowMode);
     if (!segmentPlanPrompt) {
       addToast("请先生成片段规划，再生成帧提示词", "error");
-      return;
-    }
-    if (expectedFrameCount === 0) {
-      addToast(
-        "该后续首帧续接片段不生成新首帧；请在续接首帧槽位选择来源视频后生成最终提示词",
-        "info",
-      );
       return;
     }
     if (!framePromptType || !framePromptContract) {
@@ -584,7 +582,9 @@ export function useVideoPromptGenerationActions({
     }
     const targetFrameNumbers = targetWorkflowMode === "boundary_frames"
       ? [1, 2]
-      : [segmentNumber];
+      : targetWorkflowMode === "first_frame_chain"
+        ? [1]
+        : [segmentNumber];
     const targetFramePrompts = allFramePrompts.filter(
       (prompt) =>
         videoExecutionSegmentNumberInPlan(

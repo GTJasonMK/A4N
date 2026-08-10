@@ -4,6 +4,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import type { ProgressEventRecord } from "../../api/progress";
 import type { WorkflowRunDetail } from "../../api/streaming";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
+import { progressDisplayModel } from "../../utils/progressPresentation";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
 interface CanvasWorkflowPanelProps {
@@ -142,16 +143,19 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
           </div>
           {events.length > 0 ? (
             <div className="divide-y divide-book-border/45 border-y border-book-border/45">
-              {events.slice(0, 5).map((event) => (
-                <div key={event.id} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2 px-2.5 py-1.5 text-caption">
-                  <span className="font-mono text-book-text-muted">
-                    {event.percent == null ? "-" : `${Math.round(event.percent)}%`}
-                  </span>
-                  <span className="truncate text-book-text-sub" title={event.message}>
-                    {event.message}
-                  </span>
-                </div>
-              ))}
+              {events.slice(0, 5).map((event) => {
+                const percent = progressDisplayModel(event).percent;
+                return (
+                  <div key={event.id} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2 px-2.5 py-1.5 text-caption">
+                    <span className="font-mono text-book-text-muted">
+                      {percent == null ? "-" : `${Math.round(percent)}%`}
+                    </span>
+                    <span className="truncate text-book-text-sub" title={event.message}>
+                      {event.message}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="text-small text-book-text-muted">暂无进度事件</div>

@@ -1,3 +1,6 @@
+use a4n_api_contract::character::{
+    SyncAllCharacterProfilesResult, SyncCharacterProfileResult,
+};
 use a4n_core::error::AppError;
 use a4n_core::event::snapshot::{Snapshot, SnapshotDelta};
 use a4n_core::models::ai::generated_image;
@@ -415,7 +418,7 @@ impl<'a> CharacterRuntimeFacade<'a> {
         prompt_renderer: &dyn PromptRenderer,
         progress: a4n_orchestrator::character::CharacterProfileBatchProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<SyncAllCharacterProfilesResult, AppError> {
         self.orchestrator
             .run_all_character_profile_sync_validated(
                 project_id,
@@ -433,7 +436,7 @@ impl<'a> CharacterRuntimeFacade<'a> {
         prompt_renderer: &dyn PromptRenderer,
         progress: Option<CharacterProfileSyncProgress<'_>>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<Value, AppError> {
+    ) -> Result<SyncCharacterProfileResult, AppError> {
         self.orchestrator
             .run_character_profile_sync_validated(input, prompt_renderer, progress, trace_port)
             .await

@@ -1,6 +1,6 @@
 type ProgressDetailSource = "stream" | "message" | "none";
 
-export interface ProgressDisplayText {
+interface ProgressDisplayText {
   stage: string;
   detail: string | null;
   detailSource: ProgressDetailSource;

@@ -1,10 +1,25 @@
-use a4n_service_protocol::{ServiceError, ServiceErrorCode, sanitize_service_response};
+use a4n_service_protocol::{
+    ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, sanitize_service_response,
+};
+use serde::{Serialize, de::DeserializeOwned};
 
 use super::HttpSidecarTransport;
 use super::errors::{timeout_error, transport_error};
 use crate::contracts::{CapabilityResult, JsonRequest, JsonResponse};
 
 impl HttpSidecarTransport {
+    pub(crate) async fn post_typed<I, O>(
+        &self,
+        path: &str,
+        request: ServiceRequest<I>,
+    ) -> CapabilityResult<ServiceResponse<O>>
+    where
+        I: Serialize,
+        O: DeserializeOwned,
+    {
+        from_json_response(self.post_json(path, into_json_request(request)?).await?)
+    }
+
     pub(crate) async fn post_json(
         &self,
         path: &str,
@@ -33,4 +48,49 @@ impl HttpSidecarTransport {
         })?;
         Ok(response)
     }
+}
+
+pub(crate) fn into_json_request<T>(request: ServiceRequest<T>) -> CapabilityResult<JsonRequest>
+where
+    T: Serialize,
+{
+    let (context, capability_version, payload) = request.into_context_and_payload();
+    let payload = serde_json::to_value(payload).map_err(|error| {
+        ServiceError::non_retryable(
+            ServiceErrorCode::ConfigurationError,
+            format!("typed sidecar request payload serialization failed: {error}"),
+        )
+    })?;
+    context.with_payload(capability_version, payload)
+}
+
+pub(crate) fn from_json_response<T>(response: JsonResponse) -> CapabilityResult<ServiceResponse<T>>
+where
+    T: DeserializeOwned,
+{
+    let ServiceResponse {
+        status,
+        trace_id,
+        usage,
+        artifact_refs,
+        payload,
+        error,
+    } = response;
+    let payload = payload
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|error| {
+            ServiceError::non_retryable(
+                ServiceErrorCode::Internal,
+                format!("typed sidecar response payload deserialization failed: {error}"),
+            )
+        })?;
+    Ok(ServiceResponse {
+        status,
+        trace_id,
+        usage,
+        artifact_refs,
+        payload,
+        error,
+    })
 }

@@ -8,12 +8,16 @@ import {
   useGenerationTasksStore,
 } from "../../store/generationTasks";
 import {
+  chapterContentCommitToastType,
   chapterGenerationNumber,
   startChapterGeneration,
   type ChapterData,
 } from "../../api/chapter";
 import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
-import type { ChapterOutline } from "../../api/outline";
+import {
+  isDerivedChapterOutline,
+  type ChapterOutline,
+} from "../../api/outline";
 import { useGenerationTask } from "../../hooks/useGenerationTask";
 import { sha256Hex } from "../../utils/contentHash";
 import {
@@ -33,9 +37,8 @@ interface UseChapterStreamGenerationParams {
   activeNumber: number | null;
   activeChapter: ChapterData | null;
   activeOutline: ChapterOutline | null;
-  activeOutlineTitle: string | null;
   activeOutlineText: string | null;
-  chapters: ChapterData[];
+  projectBlockedReason: string | null;
   writingNotes: string;
   wordCountRange: GenerationWordCountRange | null;
   wordCountRangeError: string | null;
@@ -65,9 +68,8 @@ export const useChapterStreamGeneration = ({
   activeNumber,
   activeChapter,
   activeOutline,
-  activeOutlineTitle,
   activeOutlineText,
-  chapters,
+  projectBlockedReason,
   writingNotes,
   wordCountRange,
   wordCountRangeError,
@@ -188,6 +190,7 @@ export const useChapterStreamGeneration = ({
     : "当前章节正在生成中，请等待完成后再操作";
 
   const generationBlockReason = useMemo(() => {
+    if (projectBlockedReason) return projectBlockedReason;
     if (!activeNumber) return "请先选择章节";
     if (consistencyReadOnly) return activeChapterGeneratingMessage;
     if (streamTaskId) {
@@ -196,19 +199,17 @@ export const useChapterStreamGeneration = ({
         : `第 ${streamTaskChapterNumber ?? "其他"} 章正在生成中，请等待完成后再启动新生成`;
     }
     if (activeChapter?.status === "generating") return "当前章节正在生成中";
-    if (!activeOutline) return "当前章节没有章纲，无法生成";
-    if (!activeOutlineTitle) return "当前章节章纲缺少标题，无法生成";
-    if (!activeOutlineText) return "当前章节章纲缺少摘要或标题，无法生成";
-    if (activeNumber <= 1) return null;
-
-    const previous = chapters.find(
-      (chapter) => chapter.chapter_number === activeNumber - 1,
-    );
-    if (!previous) {
-      return `请先完成第 ${activeNumber - 1} 章后再生成第 ${activeNumber} 章`;
+    const hasBrief = Boolean(writingNotes.trim());
+    const hasDerivedOutline = isDerivedChapterOutline(activeOutline);
+    const hasUsableOutline = Boolean(activeOutline && !hasDerivedOutline);
+    if (!hasUsableOutline && !hasBrief) {
+      if (hasDerivedOutline) {
+        return "当前章纲来自自动分析，不能直接作为未来计划；请填写本章创作简报，或编辑章纲后接管为计划";
+      }
+      return "请填写本章创作简报，或先补充章纲";
     }
-    if (!previous.content?.trim()) {
-      return `第 ${activeNumber - 1} 章尚无正文`;
+    if (hasUsableOutline && !activeOutlineText && !hasBrief) {
+      return "当前章纲缺少可用内容，请填写本章创作简报";
     }
     return null;
   }, [
@@ -217,11 +218,11 @@ export const useChapterStreamGeneration = ({
     activeNumber,
     activeOutline,
     activeOutlineText,
-    activeOutlineTitle,
-    chapters,
     consistencyReadOnly,
+    projectBlockedReason,
     streamTaskChapterNumber,
     streamTaskId,
+    writingNotes,
   ]);
   const canGenerateChapter = !generationBlockReason && !wordCountRangeError;
 
@@ -332,8 +333,21 @@ export const useChapterStreamGeneration = ({
             removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
             onDraftRemoved();
           }
-          message = "章节正文生成完成";
-          toastType = "success";
+          const completionSummary =
+            generationTask.completionSummary?.trim() || "章节正文已保存";
+          if (persisted?.derived_sync_status === "failed") {
+            message = "章节正文已保存，但派生资料同步失败；可在章节顶部重试";
+            toastType = chapterContentCommitToastType(persisted.derived_sync_status);
+          } else if (persisted?.derived_sync_status === "running") {
+            message = completionSummary;
+            toastType = "info";
+          } else {
+            message = completionSummary.replace(
+              "派生资料正在同步",
+              "派生资料已同步",
+            );
+            toastType = "success";
+          }
         }
       } else {
         await reloadChapters({ force: true });
@@ -370,6 +384,7 @@ export const useChapterStreamGeneration = ({
     generationHandle,
     generationTask.error,
     generationTask.clientState,
+    generationTask.completionSummary,
     generationTask.recoveryState,
     generationTask.resultRef,
     generationTask.taskStatus,
@@ -433,7 +448,9 @@ export const useChapterStreamGeneration = ({
         writing_notes: nonEmptyText(writingNotes),
         min_word_count: wordCountRange.min,
         max_word_count: wordCountRange.max,
-        client_rag_context: null,
+        client_rag_embedding_identity: null,
+        client_rag_query_fingerprint: null,
+        client_rag_query_vectors: null,
       };
       const handle = await generationClient.start((meta) =>
         startChapterGeneration({ ...input, meta }),

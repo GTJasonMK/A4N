@@ -69,13 +69,13 @@ const STAGE_LABEL: Record<string, string> = {
   complete: "已完成",
 };
 
-export const displayPhaseForStage = (
+const displayPhaseForStage = (
   stageCode: string,
   phaseKind: string,
 ): ProgressDisplayPhase =>
   STAGE_PHASE[stageCode] ?? PHASE_FALLBACK[phaseKind] ?? "prepare";
 
-export const stageLabelFor = (stageCode: string, message: string): string =>
+const stageLabelFor = (stageCode: string, message: string): string =>
   STAGE_LABEL[stageCode] ?? message;
 
 /**
@@ -103,6 +103,3 @@ export function generationProgressMeta(
     persistent: false,
   };
 }
-
-/** 供门禁与测试校验映射覆盖面。 */
-export const KNOWN_GENERATION_STAGE_CODES = Object.keys(STAGE_PHASE);

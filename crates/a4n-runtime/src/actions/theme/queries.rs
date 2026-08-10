@@ -1,4 +1,4 @@
-use super::contracts::ThemeSummary;
+use super::ThemeSummary;
 use super::projections::to_summary;
 use crate::AppState;
 use a4n_core::error::AppError;

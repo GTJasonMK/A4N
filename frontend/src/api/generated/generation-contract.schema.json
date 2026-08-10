@@ -287,6 +287,28 @@
       ],
       "type": "string"
     },
+    "EmbeddingModelIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "type": "string"
+        },
+        "dimension": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend",
+        "model",
+        "dimension"
+      ],
+      "type": "object"
+    },
     "FailedEvent": {
       "additionalProperties": false,
       "properties": {
@@ -2211,10 +2233,35 @@
           "minimum": 1,
           "type": "integer"
         },
-        "client_rag_context": {
-          "maxLength": 262144,
+        "client_rag_embedding_identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EmbeddingModelIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "client_rag_query_fingerprint": {
+          "maxLength": 64,
+          "minLength": 64,
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "client_rag_query_vectors": {
+          "items": {
+            "items": {
+              "format": "float",
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "maxItems": 7,
+          "type": [
+            "array",
             "null"
           ]
         },
@@ -2789,6 +2836,30 @@
         },
         {
           "additionalProperties": false,
+          "description": "根据时间线前后片段和用户提示词生成一个尚未提交的插入规划草稿。",
+          "properties": {
+            "chapter_id": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "prompt_inserted_segment",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/VideoInsertedSegmentGenerationOptions"
+            }
+          },
+          "required": [
+            "kind",
+            "chapter_id",
+            "options"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "properties": {
             "chapter_id": {
               "format": "int64",
@@ -2834,6 +2905,93 @@
           "type": "object"
         }
       ]
+    },
+    "VideoInsertedSegmentGenerationOptions": {
+      "additionalProperties": false,
+      "description": "插入规划生成输入。该操作只生成草稿，不修改共享原生片段规划。",
+      "properties": {
+        "allow_without_visual_anchor": {
+          "default": false,
+          "description": "没有可用真实视觉锚点时，必须由用户明确确认才能继续。",
+          "type": "boolean"
+        },
+        "aspect_ratio": {
+          "type": "string"
+        },
+        "duration_secs": {
+          "format": "int32",
+          "maximum": 60,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "duration_secs_options": {
+          "items": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "expected_timeline_revision": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "next_item_id": {
+          "default": null,
+          "format": "int64",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "previous_item_id": {
+          "default": null,
+          "format": "int64",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "prompt_output_language": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reference_image_ids": {
+          "default": [],
+          "items": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "style": {
+          "type": "string"
+        },
+        "timeline_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "user_prompt": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "timeline_id",
+        "expected_timeline_revision",
+        "user_prompt",
+        "style",
+        "duration_secs",
+        "duration_secs_options",
+        "aspect_ratio"
+      ],
+      "type": "object"
     },
     "VideoPromptGenerationOptions": {
       "additionalProperties": false,

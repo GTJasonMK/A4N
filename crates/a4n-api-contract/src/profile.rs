@@ -40,6 +40,7 @@ pub struct ObjectProfileInput {
 pub struct ObjectProfileSummary {
     pub id: i64,
     pub project_id: i64,
+    pub ownership_kind: String,
     pub name: String,
     pub normalized_name: String,
     pub aliases_json: Value,
@@ -58,6 +59,19 @@ pub struct ObjectProfileSummary {
     pub generated_image_count: i64,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ObjectProfileMutationResult {
+    pub profile: ObjectProfileSummary,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ObjectProfileDeleteResult {
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -97,6 +111,7 @@ pub struct SceneProfileInput {
 pub struct SceneProfileSummary {
     pub id: i64,
     pub project_id: i64,
+    pub ownership_kind: String,
     pub name: String,
     pub normalized_name: String,
     pub aliases_json: Value,
@@ -118,4 +133,17 @@ pub struct SceneProfileSummary {
     pub generated_image_count: i64,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct SceneProfileMutationResult {
+    pub profile: SceneProfileSummary,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct SceneProfileDeleteResult {
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }

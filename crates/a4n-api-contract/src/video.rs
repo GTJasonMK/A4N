@@ -2,6 +2,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use a4n_domain::DownstreamConflictStrategy;
+
+use crate::serde_update::{deserialize_non_null_update_field, deserialize_nullable_update_field};
+
 use super::generation_tasks::GenerationStartRequestMeta;
 
 /// 视频生产的唯一启动合同。
@@ -46,6 +50,12 @@ pub enum VideoGenerationOperation {
         chapter_id: i64,
         options: VideoPromptGenerationOptions,
     },
+    /// 根据时间线前后片段和用户提示词生成一个尚未提交的插入规划草稿。
+    PromptInsertedSegment {
+        #[schemars(range(min = 1))]
+        chapter_id: i64,
+        options: VideoInsertedSegmentGenerationOptions,
+    },
     PromptFrames {
         #[schemars(range(min = 1))]
         chapter_id: i64,
@@ -62,7 +72,10 @@ impl VideoGenerationOperation {
     pub fn is_prompt_generation(&self) -> bool {
         matches!(
             self,
-            Self::PromptSegmentPlan { .. } | Self::PromptFrames { .. } | Self::PromptVideos { .. }
+            Self::PromptSegmentPlan { .. }
+                | Self::PromptInsertedSegment { .. }
+                | Self::PromptFrames { .. }
+                | Self::PromptVideos { .. }
         )
     }
 }
@@ -110,6 +123,128 @@ pub struct VideoSegmentTarget {
     pub segment_index_in_shot: i32,
 }
 
+/// 插入规划生成输入。该操作只生成草稿，不修改共享原生片段规划。
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct VideoInsertedSegmentGenerationOptions {
+    #[schemars(range(min = 1))]
+    pub timeline_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_timeline_revision: i64,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub previous_item_id: Option<i64>,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub next_item_id: Option<i64>,
+    #[schemars(length(min = 1))]
+    pub user_prompt: String,
+    pub style: String,
+    #[serde(default)]
+    pub prompt_output_language: Option<String>,
+    #[schemars(range(min = 1, max = 60))]
+    pub duration_secs: i32,
+    pub duration_secs_options: Vec<i32>,
+    pub aspect_ratio: String,
+    #[serde(default)]
+    pub reference_image_ids: Vec<i64>,
+    /// 没有可用真实视觉锚点时，必须由用户明确确认才能继续。
+    #[serde(default)]
+    pub allow_without_visual_anchor: bool,
+}
+
+/// 时间线项来源类型（API 层镜像，避免暴露数据库实体）。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum VideoTimelineItemKind {
+    Native,
+    Inserted,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum VideoTimelineItemStatus {
+    Active,
+    NeedsReanchor,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct VideoTimelineItemSummary {
+    pub id: i64,
+    pub kind: VideoTimelineItemKind,
+    pub status: VideoTimelineItemStatus,
+    pub display_index: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment_number: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_shot_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment_index_in_shot: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_prompt_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_video_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct VideoTimelineSummary {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub revision: i64,
+    pub items: Vec<VideoTimelineItemSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GetVideoTimelineInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CommitInsertedSegmentDraftInput {
+    #[schemars(range(min = 1))]
+    pub timeline_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_timeline_revision: i64,
+    #[schemars(range(min = 1))]
+    pub workflow_run_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MoveInsertedSegmentInput {
+    #[schemars(range(min = 1))]
+    pub timeline_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_timeline_revision: i64,
+    #[schemars(range(min = 1))]
+    pub timeline_item_id: i64,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub previous_item_id: Option<i64>,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub next_item_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteInsertedSegmentInput {
+    #[schemars(range(min = 1))]
+    pub timeline_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_timeline_revision: i64,
+    #[schemars(range(min = 1))]
+    pub timeline_item_id: i64,
+}
+
 /// 参考媒体视频请求；提示词、URL 槽、时长和画幅由当前片段 recipe 决定。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -141,6 +276,88 @@ pub struct ReferenceMediaUploadInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChapterVideoPromptSummary {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub style: Option<String>,
+    pub prompt_type: String,
+    pub workflow_mode: String,
+    pub shot_number: i32,
+    pub title: Option<String>,
+    pub scene_summary: Option<String>,
+    pub visual_prompt: String,
+    pub motion_prompt: Option<String>,
+    pub negative_prompt: Option<String>,
+    pub duration_secs: i32,
+    pub aspect_ratio: Option<String>,
+    pub reference_image_ids_json: Option<Value>,
+    pub status: String,
+    pub generated_video_id: Option<i64>,
+    pub metadata_json: Option<Value>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateChapterVideoPromptInput {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
+    #[schemars(with = "String")]
+    pub visual_prompt: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
+    #[schemars(with = "Option<String>")]
+    pub motion_prompt: Option<Option<String>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
+    #[schemars(with = "Option<String>")]
+    pub negative_prompt: Option<Option<String>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
+    #[schemars(with = "i32")]
+    pub duration_secs: Option<i32>,
+    pub downstream_strategy: DownstreamConflictStrategy,
+}
+
+impl UpdateChapterVideoPromptInput {
+    pub fn is_empty(&self) -> bool {
+        self.visual_prompt.is_none()
+            && self.motion_prompt.is_none()
+            && self.negative_prompt.is_none()
+            && self.duration_secs.is_none()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OptimizeChapterVideoPromptInput {
+    #[schemars(length(min = 1))]
+    pub instruction: String,
+    pub downstream_strategy: DownstreamConflictStrategy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteChapterVideoPromptInput {
+    #[schemars(range(min = 1))]
+    pub prompt_id: i64,
+    pub downstream_strategy: DownstreamConflictStrategy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct GeneratedVideoSummary {
     pub id: i64,
     pub project_id: i64,
@@ -163,9 +380,30 @@ pub struct GeneratedVideoSummary {
     pub provider_job_id: Option<String>,
     pub error_message: Option<String>,
     pub metadata_json: Option<Value>,
+    pub timeline_item_id: Option<i64>,
     pub is_favorite: bool,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateGeneratedVideoInput {
+    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[schemars(with = "String")]
+    pub prompt: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
+    #[schemars(with = "Option<String>")]
+    pub negative_prompt: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[schemars(with = "bool")]
+    pub is_favorite: Option<bool>,
+}
+
+impl UpdateGeneratedVideoInput {
+    pub fn is_empty(&self) -> bool {
+        self.prompt.is_none() && self.negative_prompt.is_none() && self.is_favorite.is_none()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -177,9 +415,17 @@ pub struct GenerateChapterVideosBatchResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct VideoScrubFramesData {
+    pub data_base64: String,
+    pub frames_per_second: u32,
+    pub mime_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct VideoPlaybackData {
     pub mime_type: String,
     pub data_base64: String,
+    pub scrub_frames: Option<VideoScrubFramesData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -199,6 +445,7 @@ pub struct AssembledChapterVideoClipSummary {
     pub insert_after_video_id: Option<i64>,
     pub duration_secs: f32,
     pub file_path: String,
+    pub timeline_item_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -290,4 +537,93 @@ pub struct ImportCanvasVideoInput {
     pub data_base64: Option<String>,
     #[serde(default)]
     pub prompt: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        DeleteChapterVideoPromptInput, DownstreamConflictStrategy, OptimizeChapterVideoPromptInput,
+        UpdateChapterVideoPromptInput, UpdateGeneratedVideoInput,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn generated_video_update_has_one_strict_patch_contract() {
+        let input: UpdateGeneratedVideoInput = serde_json::from_value(json!({
+            "prompt": "new prompt",
+            "negative_prompt": null,
+            "is_favorite": true
+        }))
+        .expect("valid patch");
+        assert_eq!(input.prompt.as_deref(), Some("new prompt"));
+        assert_eq!(input.negative_prompt, Some(None));
+        assert_eq!(input.is_favorite, Some(true));
+        assert!(!input.is_empty());
+
+        for value in [
+            json!({"prompt": null}),
+            json!({"is_favorite": null}),
+            json!({"clear_negative_prompt": true}),
+            json!({"metadata_json": {}}),
+            json!({"clear_metadata_json": true}),
+            json!({"insert_after_video_id": 1}),
+            json!({"move_assembly_insert_to_start": true}),
+        ] {
+            assert!(serde_json::from_value::<UpdateGeneratedVideoInput>(value).is_err());
+        }
+
+        let empty: UpdateGeneratedVideoInput = serde_json::from_value(json!({})).unwrap();
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn chapter_video_prompt_mutations_have_one_strict_contract() {
+        let update: UpdateChapterVideoPromptInput = serde_json::from_value(json!({
+            "visual_prompt": "new visual",
+            "motion_prompt": null,
+            "negative_prompt": null,
+            "duration_secs": 6,
+            "downstream_strategy": "keep_downstream"
+        }))
+        .expect("valid prompt update");
+        assert_eq!(update.visual_prompt.as_deref(), Some("new visual"));
+        assert_eq!(update.motion_prompt, Some(None));
+        assert_eq!(update.negative_prompt, Some(None));
+        assert_eq!(update.duration_secs, Some(6));
+        assert_eq!(
+            update.downstream_strategy,
+            DownstreamConflictStrategy::KeepDownstream
+        );
+        assert!(!update.is_empty());
+
+        for value in [
+            json!({"visual_prompt": null, "downstream_strategy": "reject"}),
+            json!({"duration_secs": null, "downstream_strategy": "reject"}),
+            json!({"visual_prompt": "x"}),
+            json!({"visual_prompt": "x", "downstream_strategy": "legacy"}),
+            json!({"visual_prompt": "x", "downstream_strategy": "reject", "unknown": true}),
+        ] {
+            assert!(serde_json::from_value::<UpdateChapterVideoPromptInput>(value).is_err());
+        }
+
+        let empty: UpdateChapterVideoPromptInput = serde_json::from_value(json!({
+            "downstream_strategy": "reject"
+        }))
+        .expect("wire contract leaves business empty-check to application boundary");
+        assert!(empty.is_empty());
+
+        assert!(
+            serde_json::from_value::<OptimizeChapterVideoPromptInput>(json!({
+                "instruction": "tighten composition"
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<DeleteChapterVideoPromptInput>(json!({
+                "prompt_id": 1,
+                "downstream_strategy": "delete_downstream"
+            }))
+            .is_ok()
+        );
+    }
 }

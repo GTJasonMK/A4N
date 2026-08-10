@@ -9,9 +9,7 @@ import {
   listImagesByChapter,
   listImagesByProject,
   previewSceneImageRequest,
-  scoreImage,
   startImageGeneration,
-  toggleImageFavorite,
   updateImage,
   uploadImage,
   verifyImageGenerationResult,
@@ -635,7 +633,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     if (actionSeq == null) return;
     setBusyId(requestImage.id);
     try {
-      await toggleImageFavorite(requestImage.id);
+      await updateImage(requestImage.id, { is_favorite: !requestImage.is_favorite });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       await load({ force: true });
       if (!isCurrentAction(requestScope, actionSeq)) return;
@@ -814,7 +812,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     if (actionSeq == null) return;
     setScoringId(requestImage.id);
     try {
-      const updated = await scoreImage(requestImage.id, score);
+      const updated = await updateImage(requestImage.id, { ai_score: score });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       setActionImage((current) => (current?.id === updated.id ? updated : current));
       addToast(`已打分 ${score}`, "success");

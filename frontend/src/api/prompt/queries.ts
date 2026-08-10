@@ -1,8 +1,8 @@
 import { apiInvoke } from "../index";
-import type { PromptEntry } from "./types";
+import type { PromptEntrySummary } from "../generated/host";
 
-export async function promptList(): Promise<PromptEntry[]> {
-  return apiInvoke<PromptEntry[]>("prompt_list");
+export async function promptList(): Promise<PromptEntrySummary[]> {
+  return apiInvoke<PromptEntrySummary[]>("prompt_list");
 }
 
 export async function promptGetDependencies(name: string): Promise<string[]> {

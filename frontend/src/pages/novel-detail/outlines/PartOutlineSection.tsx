@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, SlidersHorizontal } from "lucide-react";
+import { Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { nonEmptyText } from "../../../utils/text";
@@ -19,6 +19,7 @@ interface PartOutlineSectionProps {
   onChaptersPerPartChange: (value: NumberInputValue) => void;
   onGenerate: () => void;
   onPreviewGenerate: () => void;
+  onCreatePart: () => void;
   onOpenAdvanced: () => void;
   onOpenPart: (part: PartOutline) => void;
 }
@@ -35,6 +36,7 @@ export function PartOutlineSection({
   onChaptersPerPartChange,
   onGenerate,
   onPreviewGenerate,
+  onCreatePart,
   onOpenAdvanced,
   onOpenPart,
 }: PartOutlineSectionProps) {
@@ -52,15 +54,25 @@ export function PartOutlineSection({
           </p>
         </div>
         {canEdit ? (
-          <BookIconButton
-            label="打开大纲高级工具"
-            onClick={onOpenAdvanced}
-            disabled={disabled}
-            variant="ghost"
-            size="sm"
-          >
-            <SlidersHorizontal size={13} />
-          </BookIconButton>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={onCreatePart}
+              disabled={disabled}
+            >
+              <Plus size={13} /> 直接录入
+            </BookButton>
+            <BookIconButton
+              label="打开大纲高级工具"
+              onClick={onOpenAdvanced}
+              disabled={disabled}
+              variant="ghost"
+              size="sm"
+            >
+              <SlidersHorizontal size={13} />
+            </BookIconButton>
+          </div>
         ) : null}
       </header>
 
@@ -137,7 +149,7 @@ export function PartOutlineSection({
       ) : null}
 
       {parts.length === 0 ? (
-        <EmptyHint text="尚未生成分部大纲。" />
+        <EmptyHint text="尚未建立分部大纲。" />
       ) : (
         <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
           {parts.map((part) => (

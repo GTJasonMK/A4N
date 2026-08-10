@@ -124,6 +124,41 @@ describe("generation event reducer", () => {
     expect(state.streams.main).toBeUndefined();
   });
 
+  it("stores the completed summary from a live event", () => {
+    const state = reduceGenerationTask(createGenerationTaskViewState(handle), {
+      type: "event",
+      event: event(1, {
+        kind: "completed",
+        data: {
+          final_text_hashes: [],
+          summary: "第 5 章正文已保存",
+        },
+      }),
+    });
+
+    expect(state.completionSummary).toBe("第 5 章正文已保存");
+  });
+
+  it("restores the completed summary from a snapshot", () => {
+    const completed = event(1, {
+      kind: "completed",
+      data: {
+        final_text_hashes: [],
+        summary: "第 5 章正文已保存",
+      },
+    });
+    const state = reduceGenerationTask(createGenerationTaskViewState(handle), {
+      type: "snapshot",
+      snapshot: {
+        ...snapshot(1),
+        status: "completed",
+        terminal_event: completed,
+      },
+    });
+
+    expect(state.completionSummary).toBe("第 5 章正文已保存");
+  });
+
   it("stops recovery for expired summary", () => {
     const summary: GenerationTaskSummary = {
       handle: { ...handle, status: "failed" },

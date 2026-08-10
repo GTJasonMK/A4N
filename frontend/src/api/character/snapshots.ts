@@ -1,5 +1,5 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type {
   ProfileChapterState,
   ProfileSyncConflict,
@@ -9,12 +9,6 @@ import type {
   SnapshotReference,
 } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问角色快照");
-  return id;
-};
 
 export async function listSnapshots(
   profileId: Id,

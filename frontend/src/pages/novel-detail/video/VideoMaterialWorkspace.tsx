@@ -12,9 +12,7 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   deleteImage,
-  scoreImage,
   startImageGeneration,
-  toggleImageFavorite,
   updateImage,
   verifyImageGenerationResult,
   type GeneratedImage,
@@ -533,7 +531,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     if (!beginAction()) return;
     setImageBusyId(image.id);
     try {
-      const updated = await toggleImageFavorite(image.id);
+      const updated = await updateImage(image.id, { is_favorite: !image.is_favorite });
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
       await loadMaterials({ force: true });
@@ -558,7 +556,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     if (!beginAction()) return;
     setImageScoringId(image.id);
     try {
-      const updated = await scoreImage(image.id, score);
+      const updated = await updateImage(image.id, { ai_score: score });
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
       await loadMaterials({ force: true });

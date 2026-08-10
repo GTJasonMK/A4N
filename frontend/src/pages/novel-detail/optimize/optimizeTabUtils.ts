@@ -10,7 +10,10 @@ import type {
   OptimizeTurnEvent,
   ProposeOptimizationPatchesResponse,
 } from "../../../api/optimize";
-import { isJsonRecord as isRecord } from "../../../utils/jsonRecord";
+import {
+  isJsonRecord as isRecord,
+  type JsonRecord,
+} from "../../../utils/jsonRecord";
 import { nonEmptyText } from "../../../utils/text";
 
 export type StreamItemKind = "user" | "assistant" | "agent" | "tool" | "error";
@@ -441,7 +444,7 @@ function progressBehavior(step: StreamItem): ProcessBehavior {
   return { title: text || "更新状态", detail: progressDetail(step) };
 }
 
-function isGenericWaitingProgress(step: StreamItem): boolean {
+export function isGenericWaitingProgress(step: StreamItem): boolean {
   return step.activity === "progress" && /等待.*Agent.*(决策|回复)/.test(step.content);
 }
 
@@ -577,7 +580,7 @@ function runtimeToolLabel(tool: string | null): string {
   }
 }
 
-function stringField(record: Record<string, unknown>, key: string): string | null {
+export function stringField(record: JsonRecord, key: string): string | null {
   const value = record[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -614,12 +617,10 @@ export function patchOperationLabel(operation: string): string {
   }
 }
 
-function parseJsonObject(content: string): Record<string, unknown> | null {
+export function parseJsonObject(content: string): JsonRecord | null {
   try {
     const parsed = JSON.parse(content);
-    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
+    return isRecord(parsed) ? parsed : null;
   } catch {
     return null;
   }

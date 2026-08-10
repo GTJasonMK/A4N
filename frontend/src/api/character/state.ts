@@ -1,14 +1,8 @@
 import { apiInvoke } from "../index";
-import { readCurrentUserId } from "../authStorage";
+import { requireCurrentUserId as currentUserId } from "../authStorage";
 import type { ModelRequestPreview } from "../requestPreview";
 import type { SyncCharacterProfileResult } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
-
-const currentUserId = (): number => {
-  const id = readCurrentUserId();
-  if (id == null) throw new Error("未登录，无法访问角色状态");
-  return id;
-};
 
 export interface CharacterConflictScope {
   startChapter?: number | null;

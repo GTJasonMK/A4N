@@ -22,7 +22,9 @@ fn splits_chapters_from_headings_in_one_html_file() {
         zip_writer.finish().unwrap();
     }
 
-    let result = EpubParser.parse(&buffer.into_inner()).unwrap();
+    let result = EpubParser
+        .parse(&buffer.into_inner(), "章节拆分测试")
+        .unwrap();
 
     assert_eq!(result.chapters.len(), 2);
     assert_eq!(result.chapters[0].title, "Chapter 1 Start");
@@ -74,7 +76,9 @@ fn uses_opf_spine_order_instead_of_zip_entry_order() {
         zip_writer.finish().unwrap();
     }
 
-    let result = EpubParser.parse(&buffer.into_inner()).unwrap();
+    let result = EpubParser
+        .parse(&buffer.into_inner(), "书脊排序测试")
+        .unwrap();
 
     assert_eq!(result.chapters.len(), 2);
     assert_eq!(result.chapters[0].title, "Chapter 1");
@@ -117,7 +121,9 @@ fn resolves_parent_relative_manifest_href() {
         zip_writer.finish().unwrap();
     }
 
-    let result = EpubParser.parse(&buffer.into_inner()).unwrap();
+    let result = EpubParser
+        .parse(&buffer.into_inner(), "相对路径测试")
+        .unwrap();
 
     assert_eq!(result.chapters.len(), 2);
     assert_eq!(result.chapters[0].title, "Chapter 1");

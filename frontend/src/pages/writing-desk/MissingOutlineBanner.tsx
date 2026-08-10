@@ -5,7 +5,7 @@ interface MissingOutlineBannerProps {
   onOpenProjectDetail: () => void | Promise<void>;
 }
 
-/** 没有大纲时只保留原因与唯一恢复路径。 */
+/** 无大纲不阻断手工写作，只提示可选的资料补充入口。 */
 export const MissingOutlineBanner: React.FC<MissingOutlineBannerProps> = ({
   onOpenProjectDetail,
 }) => (
@@ -14,9 +14,9 @@ export const MissingOutlineBanner: React.FC<MissingOutlineBannerProps> = ({
     role="status"
   >
     <div className="min-w-0 flex-1">
-      <div className="text-xs font-semibold text-warning">还没有章节大纲</div>
+      <div className="text-xs font-semibold text-warning">当前没有章节大纲</div>
       <div className="mt-0.5 text-small leading-relaxed text-warning/90">
-        请先生成章节大纲，再进入写作流程。
+        可以直接写正文；AI 生成可填写本章创作简报，统一规划时再补充章纲和蓝图。
       </div>
     </div>
     <BookButton
@@ -25,7 +25,7 @@ export const MissingOutlineBanner: React.FC<MissingOutlineBannerProps> = ({
       onClick={() => void onOpenProjectDetail()}
       className="w-full sm:w-auto"
     >
-      去生成大纲
+      补充项目资料
     </BookButton>
   </div>
 );

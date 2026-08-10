@@ -2,18 +2,15 @@
 blueprint/	domain_value	纯蓝图值对象与解析合同，不依赖 Host
 chapter_analysis/	domain_rule	章节分析共享规则/值对象
 config/	base_config	基础配置值和配置输入，不含 Host application
-dependency_conflict.rs	shared_value	跨域冲突策略值对象，规则调用方各自持有
 error.rs	foundation_error	跨 crate 失败语义基础类型
 event/	foundation_event	canonical 任务/事件/快照基础设施合同
 files/	host_path	路径值对象和 Host 文件边界
 import_reverse.rs	domain_value	导入逆向解析值对象
 json_contract/	domain_rule	严格 JSON 合同规则
-manga/	domain_value	漫画领域合同和值对象
 models/	seaorm_entity	数据库实体公共模型
 prompt_language.rs	domain_value	提示词语言值对象
 rag/	domain_value	RAG 数据类型值对象
 schema.rs	migration_marker	迁移/版本标记
-shooting_script/	domain_value	拍摄剧本领域合同和值对象
 source_spans/	domain_value	来源定位值对象
 state/	foundation_state	共享状态校验基础类型
 structured_progress/	domain_rule	结构化进度解析规则和值对象

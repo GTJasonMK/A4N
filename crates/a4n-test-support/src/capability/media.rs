@@ -5,13 +5,20 @@ use a4n_service_protocol::{CapabilityTaskEvent, ServiceError, ServiceErrorCode};
 
 use super::unexpected_call;
 
-#[derive(Default)]
-pub(super) struct RequestLedger {
-    requests: Mutex<Vec<JsonRequest>>,
+pub(super) struct RequestLedger<T = JsonRequest> {
+    requests: Mutex<Vec<T>>,
 }
 
-impl RequestLedger {
-    pub(super) fn record(&self, request: JsonRequest) {
+impl<T> Default for RequestLedger<T> {
+    fn default() -> Self {
+        Self {
+            requests: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+impl<T: Clone> RequestLedger<T> {
+    pub(super) fn record(&self, request: T) {
         self.requests
             .lock()
             .expect("recording media request lock should not be poisoned")
@@ -25,7 +32,7 @@ impl RequestLedger {
             .len()
     }
 
-    pub(super) fn last(&self) -> Option<JsonRequest> {
+    pub(super) fn last(&self) -> Option<T> {
         self.requests
             .lock()
             .expect("recording media request lock should not be poisoned")

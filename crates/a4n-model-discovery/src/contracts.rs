@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub use a4n_domain::{DiscoveredModel, ModelDiscoveryResult};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelDiscoveryRequest {
@@ -7,20 +9,6 @@ pub struct ModelDiscoveryRequest {
     pub base_url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DiscoveredModel {
-    pub id: String,
-    pub name: Option<String>,
-    pub owned_by: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ModelDiscoveryResult {
-    pub models: Vec<DiscoveredModel>,
 }
 
 #[cfg(test)]

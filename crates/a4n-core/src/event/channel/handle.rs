@@ -84,11 +84,9 @@ impl TaskHandle {
 
         let event = TaskProgressEvent {
             id: format!("{}-{}", self.task_id, updated_at),
-            task_id: self.task_id.clone(),
             current,
             total,
             message: message.to_string(),
-            percent: progress.percent() * 100.0,
             meta,
             timestamp: updated_at,
         };

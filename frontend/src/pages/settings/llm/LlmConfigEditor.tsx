@@ -6,6 +6,7 @@ import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import type { LlmForm } from "./types";
 import type { LlmProviderDescriptor } from "../../../api/generated/config";
+import { LLM_MAX_TOKEN_LIMIT } from "../../../api/generated/config";
 
 interface LlmConfigEditorProps {
   form: LlmForm;
@@ -95,7 +96,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
                 api_key_encrypted: form.clear_api_key
                   ? null
                   : form.api_key.trim() || undefined,
-                config_id: configId,
+                config_id: configId ?? null,
                 use_saved_api_key: Boolean(
                   !readonly &&
                     configId != null &&
@@ -207,7 +208,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           <BookInput
             type="number"
             min={1}
-            max={262144}
+            max={LLM_MAX_TOKEN_LIMIT}
             step={256}
             value={String(form.max_output_tokens)}
             onChange={(event) =>

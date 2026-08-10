@@ -104,7 +104,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     handleVideoError,
   } = useVideoPlaybackSource({
     selectedVideo: selectedVideoRecord,
-    mediaKind: "source",
+    mediaKind: "preview",
   });
   useEffect(() => {
     promptSavingRef.current = false;
@@ -255,7 +255,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             <div className="mt-0.5 truncate text-caption text-book-text-muted">
               {getOperationStatusLabel(selectedVideoRecord.status)} · {Math.round(selectedVideoRecord.duration_secs)} 秒
               {selectedVideoRecord.is_favorite ? " · 已收藏" : ""}
-              {selectedVideoRecord.created_at ? ` · ${formatVideoCreatedAt(selectedVideoRecord.created_at)}` : ""}
+              {` · ${formatVideoCreatedAt(selectedVideoRecord.created_at)}`}
             </div>
           </div>
           <button
@@ -298,6 +298,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           <div className="relative bg-black">
             {videoPlaybackSrc ? (
               <video
+                key={videoPlaybackSrc}
                 controls
                 playsInline
                 preload="metadata"

@@ -1,7 +1,6 @@
-use a4n_core::config::app_config::LlmMaxTokensConfig;
 use a4n_runtime::host_api::config_records::{
-    self as config_records_actions, CreateLlmInput, LlmConfigSummary, ModelDiscoveryInput,
-    ModelDiscoveryResult, ModelRequestPreview, UpdateLlmInput,
+    self as config_records_actions, CreateLlmInput, LlmConfigSummary, LlmMaxTokensConfig,
+    ModelDiscoveryInput, ModelDiscoveryResult, ModelRequestPreview, UpdateLlmInput,
 };
 
 #[tauri::command]
@@ -45,11 +44,7 @@ tauri_input_command!(
     LlmMaxTokensConfig,
     config_records_actions::update_llm_max_tokens_config,
 );
-tauri_id_command!(
-    test_llm_config,
-    bool,
-    config_records_actions::test_llm_config,
-);
+tauri_id_command!(test_llm_config, (), config_records_actions::test_llm_config,);
 tauri_id_command!(
     preview_test_llm_config_request,
     ModelRequestPreview,

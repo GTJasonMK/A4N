@@ -1,12 +1,13 @@
-use a4n_service_protocol::{SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
+use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
 use a4n_test_support::process::{
-    FakeJsonProvider, HangingJsonProvider, HttpVideoClient, SIDECAR_PROCESS_TEST_TOKEN,
-    ServiceStatus, VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME, VideoClient,
-    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
-    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
-    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
-    finish_sidecar, provider_request_context, sidecar_base_url, sidecar_manager, start_sidecar,
-    trusted_remote_request_context, unused_local_addr,
+    FakeJsonProvider, HangingJsonProvider, HttpVideoClient, JsonRequest,
+    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, VIDEO_PROVIDER_CAPABILITY_VERSION,
+    VIDEO_SERVICE_NAME, VideoClient, assert_process_concurrency_saturation,
+    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
+    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
+    assert_route_rejects_version_mismatch, finish_sidecar, provider_request_context,
+    sidecar_base_url, sidecar_manager, start_sidecar, trusted_remote_request_context,
+    unused_local_addr,
 };
 use axum::http::StatusCode;
 use tokio::time::{Duration, timeout};
@@ -24,16 +25,15 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     let process = start_sidecar(&manager, VIDEO_SERVICE_NAME).await;
     assert_process_concurrency_saturation(addr, VIDEO_SERVICE_NAME, "/video/models").await;
     let base_url = sidecar_base_url(addr);
-    assert_protected_route_rejects_invalid_auth(&base_url, "/video/generate").await;
+    assert_protected_route_rejects_invalid_auth(&base_url, "/video/generate/events").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/poll").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/status").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/delete").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/request_preview").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/probe").await;
-    assert_route_rejects_malformed_json(&base_url, "/video/generate").await;
+    assert_route_rejects_malformed_json(&base_url, "/video/generate/events").await;
     assert_route_rejects_oversized_json(&base_url, "/video/models", 8 * 1024 * 1024).await;
     assert_route_rejects_oversized_json(&base_url, "/video/generate/events", 8 * 1024 * 1024).await;
-    assert_route_rejects_oversized_json(&base_url, "/video/generate", 64 * 1024 * 1024).await;
     let client = HttpVideoClient::new_with_auth_token(base_url.clone(), SIDECAR_PROCESS_TEST_TOKEN);
     let cancel_client = HttpVideoClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let contract_request = provider_request_context(
@@ -49,7 +49,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
-        "/video/generate",
+        "/video/request_preview",
         &contract_request,
     )
     .await;
@@ -200,8 +200,9 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     assert_eq!(probe.payload.expect("video probe payload")["ok"], true);
     preview_provider.stop().await;
 
-    let remote_secret = client
-        .generate(trusted_remote_request_context(
+    let remote_secret_events = video_generation_events(
+        &client,
+        trusted_remote_request_context(
             "video-process-remote-secret",
             "video-process-remote-secret-trace",
             VIDEO_PROVIDER_CAPABILITY_VERSION,
@@ -211,12 +212,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
                 "api_key": "process-provider-secret",
                 "request": {"prompt": "remote secret must stop", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
             }),
-        ))
-        .await
-        .expect("remote video secret rejection should remain a typed response");
-    assert_eq!(remote_secret.status, ServiceStatus::Error);
-    let remote_secret_error = remote_secret
+        ),
+    )
+    .await;
+    let remote_secret_error = remote_secret_events
+        .last()
+        .expect("remote video secret terminal event")
         .error
+        .as_ref()
         .expect("remote video secret rejection error");
     assert_eq!(remote_secret_error.code, ServiceErrorCode::Unauthorized);
     assert!(
@@ -229,8 +232,9 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
         "data": [{"b64_json": "bWVkaWE=", "format": "mp4"}]
     }))
     .await;
-    let remote_content = client
-        .generate(trusted_remote_request_context(
+    let remote_content_events = video_generation_events(
+        &client,
+        trusted_remote_request_context(
             "video-process-remote-content",
             "video-process-remote-content-trace",
             VIDEO_PROVIDER_CAPABILITY_VERSION,
@@ -240,12 +244,16 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
                 "api_key": "",
                 "request": {"prompt": "remote video content", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
             }),
-        ))
-        .await
-        .expect("secret-free remote video content should remain available");
-    assert_eq!(remote_content.status, ServiceStatus::Ok);
+        ),
+    )
+    .await;
     assert_eq!(
-        remote_content.payload.expect("remote video payload")["format"],
+        remote_content_events
+            .last()
+            .expect("remote video content terminal event")
+            .payload
+            .as_ref()
+            .expect("remote video payload")["format"],
         "mp4"
     );
     remote_provider.stop().await;
@@ -262,15 +270,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "request": {"prompt": "failure test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
-    let (failed_tx, mut failed_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
-    client
-        .generate_events(failed_events_request, failed_tx)
-        .await
-        .expect("video provider failure should end in a typed event");
-    let mut failed_events = Vec::new();
-    while let Some(event) = failed_rx.recv().await {
-        failed_events.push(event);
-    }
+    let failed_events = video_generation_events(&client, failed_events_request).await;
     let failed_event = failed_events.last().expect("video failed terminal event");
     assert_eq!(
         failed_event.event_kind,
@@ -300,13 +300,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "request": {"prompt": "bytes test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
-    let bytes_response = client
-        .generate(bytes_request)
-        .await
-        .expect("video bytes response should cross the independent process");
-    assert_eq!(bytes_response.status, ServiceStatus::Ok);
+    let bytes_events = video_generation_events(&client, bytes_request).await;
     assert_eq!(
-        bytes_response.payload.expect("video bytes payload")["format"],
+        bytes_events
+            .last()
+            .expect("video bytes terminal event")
+            .payload
+            .as_ref()
+            .expect("video bytes payload")["format"],
         "mp4"
     );
     bytes_provider.stop().await;
@@ -323,28 +324,20 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "request": {"prompt": "process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
         }),
     );
-    assert_route_rejects_version_mismatch(&sidecar_base_url(addr), "/video/generate", &request)
-        .await;
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
-    client
-        .generate_events(request.clone(), event_tx)
-        .await
-        .expect("video generate events should cross the independent process");
-    let mut events = Vec::new();
-    while let Some(event) = event_rx.recv().await {
-        events.push(event);
-    }
+    assert_route_rejects_version_mismatch(
+        &sidecar_base_url(addr),
+        "/video/request_preview",
+        &request,
+    )
+    .await;
+    let events = video_generation_events(&client, request).await;
+    let completed = events.last().expect("video completed event");
     assert_eq!(
-        events.last().expect("video completed event").event_kind,
+        completed.event_kind,
         a4n_service_protocol::CapabilityTaskEventKind::Completed
     );
-    let response = client
-        .generate(request)
-        .await
-        .expect("typed video request should cross the independent process");
-    assert_eq!(response.status, ServiceStatus::Ok);
     assert_eq!(
-        response.payload.expect("video payload")["provider_job_id"],
+        completed.payload.as_ref().expect("video payload")["provider_job_id"],
         "process-video-job"
     );
     provider.stop().await;
@@ -518,4 +511,20 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     delete_provider.stop().await;
 
     finish_sidecar(process, &manager, VIDEO_SERVICE_NAME, addr).await;
+}
+
+async fn video_generation_events(
+    client: &HttpVideoClient,
+    request: JsonRequest,
+) -> Vec<CapabilityTaskEvent> {
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
+    client
+        .generate_events(request, event_tx)
+        .await
+        .expect("video generate events should cross the independent process");
+    let mut events = Vec::new();
+    while let Some(event) = event_rx.recv().await {
+        events.push(event);
+    }
+    events
 }

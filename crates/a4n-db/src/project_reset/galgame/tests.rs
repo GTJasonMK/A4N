@@ -1,5 +1,5 @@
 use a4n_core::models::project::novel_project;
-use a4n_core::state::status::ProjectStatus;
+use a4n_domain::project::ProjectStatus;
 use chrono::NaiveDateTime;
 
 use super::result::{GalgameResetOutcomeInput, galgame_reset_outcome};

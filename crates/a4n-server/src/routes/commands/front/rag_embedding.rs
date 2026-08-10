@@ -78,8 +78,7 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
         scope.project_id,
         scope.total,
         "准备同步 RAG 数据",
-    )
-    .await;
+    );
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
     let report_progress = web_fire_and_forget_progress_reporter(task.clone());
     let reporter: a4n_runtime::rag_ingest::RagProgressReporter<'_> = task_id
@@ -106,7 +105,7 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
             a4n_core::error::AppError::Internal(anyhow::anyhow!(err))
         }
     });
-    let value = finish_web_task(state, task_id, result).await?;
+    let value = finish_web_task(state, task_id, result)?;
     Ok(value)
 }
 
@@ -176,21 +175,19 @@ pub(in crate::routes::commands) async fn download_embedding_model(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let mut input: embedding_model_actions::EmbeddingModelInput =
+    let mut input: embedding_model_actions::DownloadEmbeddingModelInput =
         command_input(args, "download_embedding_model")?;
     let task_id = sanitize_optional_task_id(input.task_id.clone())?;
     input.task_id = task_id.clone();
-    let scope = embedding_model_actions::embedding_model_download_task_scope();
     let task = register_web_task(
         state,
         user_id,
         task_id.clone(),
         TaskKind::EmbeddingDownload,
         None,
-        scope.total,
-        scope.initial_message,
-    )
-    .await;
+        embedding_model_actions::EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL,
+        embedding_model_actions::EMBEDDING_MODEL_DOWNLOAD_INITIAL_MESSAGE,
+    );
     let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
     let (progress_tx, progress_worker) = match task.as_ref() {
         Some(task) => {
@@ -202,7 +199,7 @@ pub(in crate::routes::commands) async fn download_embedding_model(
                     task.update_progress_bytes(
                         progress.downloaded_bytes,
                         progress.total_bytes,
-                        scope.total,
+                        embedding_model_actions::EMBEDDING_MODEL_DOWNLOAD_TASK_TOTAL,
                         &progress.message,
                     );
                 }
@@ -230,7 +227,7 @@ pub(in crate::routes::commands) async fn download_embedding_model(
             }
         )));
     }
-    let summary = finish_web_task(state, task_id, result).await?;
+    let summary = finish_web_task(state, task_id, result)?;
     Ok(json!(summary))
 }
 

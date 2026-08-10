@@ -11,7 +11,7 @@ pub async fn start_chapter_generation(
     user_id: i64,
     input: StartChapterGenerationInput,
 ) -> Result<GenerationTaskHandle, HostErrorResponse> {
-    chapter_generation::start_chapter_generation_typed(&state, user_id, input)
+    chapter_generation::start_chapter_generation(&state, user_id, input)
         .await
         .map_err(crate::commands::generation_tasks::map_access_error)
 }

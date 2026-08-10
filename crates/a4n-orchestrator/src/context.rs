@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
 use a4n_db::DbHandle;
-use a4n_domain::{ProjectId, UserId};
+
 use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
-use serde::{Deserialize, Serialize};
+
 
 use crate::chapter_generation::ChapterGenerationService;
 use crate::task_queue::PersistentTaskQueue;
@@ -168,10 +168,4 @@ pub struct OrchestratorContext {
     engine: Arc<dyn a4n_prompt::engine::PromptEngine>,
     embedding: Arc<dyn a4n_embedding::provider::EmbeddingProvider>,
     snapshot_store: Arc<a4n_db::character::snapshot_store::Sha256SnapshotStore>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct OrchestratorScope {
-    pub user_id: UserId,
-    pub project_id: Option<ProjectId>,
 }

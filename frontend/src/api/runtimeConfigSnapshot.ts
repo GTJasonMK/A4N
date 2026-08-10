@@ -14,6 +14,7 @@ import {
   usesSystemDefaultImageConfig,
   usesSystemDefaultVideoConfig,
 } from "./localRuntimeSettings";
+import { RUNTIME_CONFIG_POLICIES } from "./generated/host";
 import { usesLocalRuntimeSettings, workspaceContext } from "../utils/runtimeMode";
 
 export interface RuntimeConfigSnapshot {
@@ -39,66 +40,10 @@ export interface RuntimeConfigSnapshot {
   };
 }
 
-export interface RuntimeConfigSnapshotOptions {
+interface RuntimeConfigSnapshotOptions {
   includeLlmApiKeys?: boolean;
   includeSystemLlmApiKey?: boolean;
   includeProviderApiKeys?: boolean;
-}
-
-const RUNTIME_CONFIG_TEST_RE = /^test_(?:llm|image|video|embedding)_config$/;
-
-const RUNTIME_CONFIG_EXACT_COMMANDS = new Set([
-  "apply_beat_mapping",
-  "apply_source_sync_decisions",
-  "check_character_conflict",
-  "check_implicit_update",
-  "continue_part_outlines",
-  "discover_character_profiles",
-  "finish_chapter_generation_rag_context",
-  "poll_video_job",
-  "prepare_chapter_generation_rag_embedding",
-  "rag_enhanced_search",
-  "rag_enhanced_search_with_vectors",
-  "rag_ingest_all",
-  "rag_prepare_ingest_all",
-  "rag_upload_ingest_embeddings",
-  "rag_prepare_enhanced_search",
-  "resume_chapter_analysis_sync",
-  "resume_workflow_run",
-  "run_canvas_graph",
-  "run_canvas_node",
-  "run_import_project_analysis",
-  "start_galgame_pipeline",
-  "start_import_analysis",
-]);
-
-function commandUsesRuntimeConfigSnapshot(cmd: string): boolean {
-  return (
-    RUNTIME_CONFIG_EXACT_COMMANDS.has(cmd) ||
-    cmd.startsWith("batch_generate_") ||
-    cmd.startsWith("generate_") ||
-    cmd.startsWith("regenerate_") ||
-    cmd.startsWith("preview_") ||
-    cmd.startsWith("reverse_engineer") ||
-    cmd.startsWith("converse_") ||
-    cmd.startsWith("refine_") ||
-    cmd.startsWith("sync_") ||
-    (cmd.startsWith("start_") &&
-      (cmd.endsWith("_generation") || cmd === "start_blueprint_refinement")) ||
-    cmd.startsWith("start_manga_pipeline") ||
-    cmd.startsWith("resume_manga_pipeline") ||
-    cmd.startsWith("optimize_") ||
-    cmd.startsWith("create_optimization") ||
-    cmd.startsWith("prepare_optimization") ||
-    cmd.startsWith("execute_optimization") ||
-    cmd.startsWith("propose_optimization") ||
-    cmd.startsWith("send_optimization") ||
-    RUNTIME_CONFIG_TEST_RE.test(cmd)
-  );
-}
-
-function commandNeedsLlmApiKeys(cmd: string): boolean {
-  return !cmd.startsWith("preview_");
 }
 
 function withoutApiKey(config: unknown): unknown {
@@ -137,16 +82,16 @@ export function buildRuntimeConfigSnapshot(
   const videoDefaultSource = usesSystemDefaultVideoConfig() ? "system" : "local";
   const systemLlmApiKey =
     includeSystemLlmApiKey && llmDefaultSource === "system" && !hasLlmOverride
-      ? getSystemDefaultLlmApiKey()?.trim()
-      : "";
+      ? getSystemDefaultLlmApiKey()
+      : null;
   const systemImageApiKey =
     includeProviderApiKeys && imageDefaultSource === "system" && !hasImageOverride
-      ? getSystemDefaultImageApiKey()?.trim()
-      : "";
+      ? getSystemDefaultImageApiKey()
+      : null;
   const systemVideoApiKey =
     includeProviderApiKeys && videoDefaultSource === "system" && !hasVideoOverride
-      ? getSystemDefaultVideoApiKey()?.trim()
-      : "";
+      ? getSystemDefaultVideoApiKey()
+      : null;
   const llmConfigs = includeLlmApiKeys
     ? listLocalLlmConfigs()
     : listLocalLlmConfigs().map(withoutApiKey);
@@ -200,14 +145,15 @@ export function withRuntimeConfigSnapshot(
     }
     return args;
   }
-  if (!usesLocalRuntimeSettings() || !commandUsesRuntimeConfigSnapshot(cmd)) return args;
-  const includeLlmApiKeys = commandNeedsLlmApiKeys(cmd);
+  const policy = RUNTIME_CONFIG_POLICIES[cmd];
+  if (!usesLocalRuntimeSettings() || !policy) return args;
+  const includeApiKeys = policy === "full";
   const snapshot = buildRuntimeConfigSnapshot(
     {},
     {
-      includeLlmApiKeys,
-      includeSystemLlmApiKey: includeLlmApiKeys,
-      includeProviderApiKeys: includeLlmApiKeys,
+      includeLlmApiKeys: includeApiKeys,
+      includeSystemLlmApiKey: includeApiKeys,
+      includeProviderApiKeys: includeApiKeys,
     },
   );
   if (!snapshot) return args;
